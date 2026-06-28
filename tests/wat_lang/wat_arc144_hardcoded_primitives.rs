@@ -11,246 +11,127 @@
 //! returns `:Some(_)` for a name that previously returned `:None`
 //! because the callable bypassed the TypeScheme registry.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
-fn run_bool(src: &str) -> bool {
-    let src = with_nil_main(src);
-    let world = startup_from_source(
-        &src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
+fn unwrap_bool(v: Value) -> bool {
+    match v {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
 }
 
-fn run_string(src: &str) -> String {
-    let src = with_nil_main(src);
-    let world = startup_from_source(
-        &src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
-        Value::String(s) => s.as_str().to_owned(),
+fn unwrap_string(v: Value) -> String {
+    match v {
+        Value::String(s) => (*s).clone(),
         other => panic!("expected String; got {:?}", other),
     }
-}
-
-/// Helper: assert that `(:wat::runtime::signature-of-defn name)` returns
-/// `:Some(_)` for the given name. Returns true on Some, false on None.
-fn assert_signature_of_defn_some(name: &str) -> bool {
-    let src = format!(
-        r##"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match
-                      (:wat::runtime::signature-of-defn {name})
-                      -> :wat::core::bool
-                      ((:wat::core::Some _) true)
-                      (:wat::core::None    false)))
-        "##,
-        name = name
-    );
-    run_bool(&src)
 }
 
 // ─── Polymorphic predicates / accessors ────────────────────────────────────
 
 #[test]
 fn signature_of_defn_length_returns_some() {
-    // Slice 6 length canary — `:wat::core::length` was the original
-    // "hardcoded callable bypasses TypeScheme" example. Slice 3
-    // registers it; signature-of-defn must now return Some.
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::length"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-length)")));
 }
 
 #[test]
 fn signature_of_defn_empty_q_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::empty?"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-empty-q)")));
 }
 
 #[test]
 fn signature_of_defn_contains_q_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::contains?"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-contains-q)")));
 }
 
 #[test]
 fn signature_of_defn_get_returns_some() {
-    // `get` returns Option<V> at the handler; the fingerprint
-    // models the HashMap-shaped variant since it carries both K and V.
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::get"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-get)")));
 }
 
 #[test]
 fn signature_of_defn_conj_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::conj"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-conj)")));
 }
 
 // ─── HashMap-shaped operations ─────────────────────────────────────────────
 
 #[test]
 fn signature_of_defn_assoc_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::assoc"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-assoc)")));
 }
 
 #[test]
 fn signature_of_defn_dissoc_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::dissoc"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-dissoc)")));
 }
 
 #[test]
 fn signature_of_defn_keys_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::keys"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-keys)")));
 }
 
 #[test]
 fn signature_of_defn_values_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::values"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-values)")));
 }
 
 // ─── Variadic constructors (1-arg or 2-arg fingerprints) ───────────────────
 
 #[test]
 fn signature_of_defn_vector_returns_some() {
-    // 1-arg fingerprint per arc 144 slice 3 limitation (TypeScheme
-    // has no variadic shape today; the runtime accepts `:T x1 x2 ...`).
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::Vector"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-vector)")));
 }
 
 #[test]
 fn signature_of_defn_tuple_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::Tuple"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-tuple)")));
 }
 
 #[test]
 fn signature_of_defn_hashmap_returns_some() {
-    // 2-arg fingerprint per arc 109 slice 1f; the runtime
-    // accepts `:K :V k1 v1 k2 v2 ...` (Vector-symmetric shape).
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::HashMap"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-hashmap)")));
 }
 
 #[test]
 fn signature_of_defn_hashset_returns_some() {
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::HashSet"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-hashset)")));
 }
 
 #[test]
 fn signature_of_defn_concat_returns_some() {
-    // 2-arg fingerprint; runtime accepts 1+ Vec<T>.
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::concat"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-concat)")));
 }
 
 #[test]
 fn signature_of_defn_string_concat_returns_some() {
-    // 2-arg fingerprint; runtime accepts 0+ :wat::core::String.
-    assert_eq!(
-        assert_signature_of_defn_some(":wat::core::string::concat"),
-        true
-    );
+    assert!(unwrap_bool(run_expr("(:t::sig-string-concat)")));
 }
 
-// ─── body-of returns :None for hardcoded primitives (per Binding::Primitive arm) ─
+// ─── body-of returns :None for hardcoded primitives ──────────────────────────
 
 #[test]
 fn body_of_length_returns_none() {
-    // Per arc 144 slice 1, `body-of` returns :None for
-    // Binding::Primitive (substrate primitives have no wat body —
-    // they are Rust-implemented). Confirm the new fingerprint
-    // preserves this honest absence.
-    let src = r##"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match
-                      (:wat::runtime::body-of :wat::core::length)
-                      -> :wat::core::bool
-                      ((:wat::core::Some _) false)
-                      (:wat::core::None    true)))
-    "##;
-    assert!(run_bool(src), "body-of :wat::core::length should return :None");
+    assert!(
+        unwrap_bool(run_expr("(:t::body-length-none)")),
+        "body-of :wat::core::length should return :None"
+    );
 }
 
 // ─── lookup-define renders the synthesised primitive form ──────────────────
 
 #[test]
 fn lookup_define_length_renders_primitive_sentinel() {
-    // For substrate primitives, lookup-define returns the synthetic
-    // `(:wat::core::define <head> (:wat::core::__internal/primitive <name>))`
-    // form (per arc 143 slice 1's primitive_to_define_ast). Arc 146
-    // slice 2 migrated `:wat::core::length` from Primitive to Dispatch
-    // (the polymorphism is now honest — one entity-kind dispatching to
-    // per-Type rank-1 impls). Querying the per-Type impl
-    // `:wat::core::Vector/length` preserves this test's intent:
-    // verifying that the per-Type primitive's scheme is queryable via
-    // reflection. Per arc 146 slice 2 BRIEF Q2 (Option A).
-    let src = r##"
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [def-opt
-                        (:wat::runtime::lookup-define :wat::core::Vector/length)
-                       rendered
-                        (:wat::edn::write def-opt)]
-                      rendered))
-    "##;
-    let line = run_string(src);
+    let line = unwrap_string(run_expr("(:t::lookup-vector-length-render)"));
     assert!(
         line.contains("__internal/primitive"),
         "expected primitive sentinel marker in rendered AST, got: {}",

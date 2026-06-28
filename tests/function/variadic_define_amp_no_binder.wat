@@ -3,4 +3,3 @@
 
 (:wat::core::defn :my::bogus [init <- :wat::core::i64 &] -> :wat::core::i64 init)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

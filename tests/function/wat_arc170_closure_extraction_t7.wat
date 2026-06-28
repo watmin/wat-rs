@@ -5,4 +5,3 @@
   (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::i64::+ n (:my::Cfg/val config))))
 (:wat::core::defn :my::make [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64 (:my::factory (:my::Cfg/new 100)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

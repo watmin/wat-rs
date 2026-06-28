@@ -17,41 +17,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_locus_agnostic_start
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
-const PROGRAM: &str = r#"
-(:wat::service::defservice :my::counter
-  :durable [count <- :wat::core::i64]
-  :ephemeral []
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
-   (:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
-
-;; Drive through the client face, but start now takes a LOCUS — `(thread)` selects the shared-memory
-;; launch via the Locus protocol. Same round-trip as C.3 (increment 5 → get → 5).
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [h  (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record 0))
-     c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
-     _  (:my::counter/increment c (:my::counter/increment-request 5))
-     r  (:my::counter/get c (:my::counter/get-request))]
-    (:my::counter::GetResponse/value r)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn locus_agnostic_start_dispatches_thread_launch() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
+    // Wat source lives in the co-located fixture: probe_arc209_locus_agnostic_start.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (4a: start [locus <- :Locus] dispatches the thread launch via the Locus protocol)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

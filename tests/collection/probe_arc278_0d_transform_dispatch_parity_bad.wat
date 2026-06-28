@@ -9,4 +9,3 @@
     ""
     (:wat::core::PersistentVector 1 2 3)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

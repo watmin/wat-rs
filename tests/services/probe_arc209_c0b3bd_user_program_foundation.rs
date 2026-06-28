@@ -21,20 +21,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bd_user_program_foundation
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, invoke_user_main, invoke_user_main_with_program, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, invoke_user_main, invoke_user_main_with_program, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-(:wat::core::defrecord :user::MyEnv [token <- :wat::core::i64])
-(:wat::core::defn :user::main [] -> :wat::Record
-  (:wat::program::Env/user.program (:wat::program::env)))
-"#;
 
 #[test]
 fn injected_user_program_flows_to_main() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // Wat source lives in the co-located fixture: probe_arc209_c0b3bd_user_program_foundation.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (C0b.3b-d: user.program injection foundation)");
     // Build the injected user.program Record in the frozen world.
     let injected = eval_in_frozen(
@@ -60,7 +53,7 @@ fn injected_user_program_flows_to_main() {
 
 #[test]
 fn default_user_program_is_empty_env() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed");
     // The unchanged 2-arg invoke_user_main → the EmptyEnv default (current behavior preserved).
     let got = invoke_user_main(&world, vec![])

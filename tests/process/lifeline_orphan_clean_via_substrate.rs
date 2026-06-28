@@ -80,11 +80,9 @@
 //! OS pipes (rendezvous) + `libc::poll(2)` with 1000ms timeout.
 
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::sync::Arc;
 use std::time::Instant;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, ProgramHandleInner, Value};
 use wat::span::Span;
 
@@ -99,12 +97,7 @@ use wat::span::Span;
 /// spawn_process_child_branch calls libc::_exit.
 ///
 /// Arc 170 slice 6 — the child program for spawn-process is a top-level
-/// (:user::main -> :nil) define; the parent world only needs a trivial
-/// :user::main to freeze.
-const PARENT_SRC: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
+/// (:user::main -> :nil) define. The parent world needs no user defns.
 const CHILD_PROGRAM_SRC: &str = r#"
     (:wat::core::defn :user::main [] -> :wat::core::nil
       (:wat::core::let
@@ -112,13 +105,6 @@ const CHILD_PROGRAM_SRC: &str = r#"
                _       (:wat::kernel::recv rx)]
               :wat::core::nil))
 "#;
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Extract the forked child's PID from a Process Value.
 ///
@@ -172,7 +158,7 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 fn probe_lifeline_orphan_clean_via_substrate() {
     // Step 1: Build the world before forking. Supervisor inherits it via
     // fork's copy-on-write semantics. InMemoryLoader has no disk state.
-    let world = freeze_ok(PARENT_SRC);
+    let world = startup_bare().expect("freeze should succeed");
 
     // Step 2: Create coordination pipe.
     //

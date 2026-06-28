@@ -14,77 +14,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs1_state_must_be_record
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
-
-// Base (default) — `:durable [fields]` mints `::Record` (the soul); `::State` is a defstruct.
-// Handler reads through State/durable, builds next State via State/new, stop returns ::Record.
-// We extract count via Record/count on the final Record → 5.
-const BASE_STATE: &str = r#"
-(:wat::service::defservice :my::counter
-  :durable [count <- :wat::core::i64]
-  :ephemeral []
-  :ops
-  [(:Increment [s <- :State n <- :wat::core::i64]
-               -> [count <- :wat::core::i64]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
-
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [h     (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record 0))
-     c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
-     _     (:my::counter/increment c (:my::counter/increment-request 5))
-     ;; arc 291 3a-ii-β: stop is owner-only — takes the Handle (h), not the client peer (c).
-     ;; arc 291 4b-ii: stop returns ::Record (durable soul); read count via Record/count.
-     final (:my::counter/stop h)]
-    (:my::counter::Record/count final)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
-// Holon — `:durable-parent :wat::holon::Record` now parents the `::Record` (the durable soul),
-// NOT the State struct. So `(record? (State/durable s))` is TRUE (holon record);
-// `(record? s)` is FALSE (s is a defstruct, not a record).
-const HOLON_STATE: &str = r#"
-(:wat::service::defservice :my::hcounter
-  :durable [count <- :wat::core::i64]
-  :ephemeral []
-  :ops
-  [(:IsHolonRecord [s <- :State]
-                   -> [yes <- :wat::core::bool]
-     (:wat::service::Outcome::Reply s (:my::hcounter::IsHolonRecordResponse
-                                        (:wat::core::record? (:my::hcounter::State/durable s)))))]
-  :durable-parent :wat::holon::Record)
-
-(:wat::core::defn :user::compute [] -> :wat::core::bool
-  (:wat::core::let
-    [h (:my::hcounter/start :locus (:wat::spawn::thread) :record (:my::hcounter::Record 0))
-     c (:wat::kernel::connect' (:my::hcounter::Handle/addr h))
-     r (:my::hcounter/is-holon-record c (:my::hcounter/is-holon-record-request))]
-    (:my::hcounter::IsHolonRecordResponse/yes r)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
-// The forbidden form — a bare type keyword in the `:durable` slot. Still unexpressible.
-// (arc 291 4b-ii renamed :state → :durable; the scalar-in-durable rejection still holds.)
-const TYPE_KEYWORD_STATE: &str = r#"
-(:wat::service::defservice :my::counter
-  :durable :wat::core::i64
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse s)))])
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn durable_field_vector_mints_record_soul_round_trips() {
-    let world = startup_from_source(BASE_STATE, None, Arc::new(InMemoryLoader::new()))
+    // Base (default) — :durable [fields] mints ::Record (the soul); ::State is a defstruct.
+    // Wat source lives in the co-located fixture: probe_arc272_rs1_state_must_be_record.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (rs-1 inverted: :durable [fields] mints ::Record soul; ::State is a struct)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
@@ -99,7 +36,8 @@ fn durable_field_vector_mints_record_soul_round_trips() {
 
 #[test]
 fn durable_parent_holon_parents_the_durable_record_not_the_struct() {
-    let world = startup_from_source(HOLON_STATE, None, Arc::new(InMemoryLoader::new()))
+    // Holon variant. Wat source: probe_arc272_rs1_state_must_be_record_holon.wat
+    let world = startup_from_file("tests/services/probe_arc272_rs1_state_must_be_record_holon.wat")
         .expect("startup should succeed (rs-1 inverted: :durable-parent parents the ::Record, not the State struct)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
@@ -114,7 +52,8 @@ fn durable_parent_holon_parents_the_durable_record_not_the_struct() {
 
 #[test]
 fn bare_type_keyword_state_is_rejected() {
-    let result = startup_from_source(TYPE_KEYWORD_STATE, None, Arc::new(InMemoryLoader::new()));
+    // NEGATIVE: bare type keyword in :durable slot. Wat source: probe_arc272_rs1_state_must_be_record_type_keyword.wat
+    let result = startup_from_file("tests/services/probe_arc272_rs1_state_must_be_record_type_keyword.wat");
     assert!(
         result.is_err(),
         "expected a bare type-keyword :durable (:wat::core::i64) to be REJECTED — :durable takes a \
@@ -122,23 +61,10 @@ fn bare_type_keyword_state_is_rejected() {
     );
 }
 
-// A bogus trailing option — defservice walks clauses as keyword/value pairs against a recognized-keys
-// set and must reject any unknown key DIRECTLY (named), not silently mis-read it as the parent.
-const UNKNOWN_OPTION: &str = r#"
-(:wat::service::defservice :my::counter
-  :durable [count <- :wat::core::i64]
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))]
-  :bogus-option :wat::Record)
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 #[test]
 fn unknown_trailing_option_is_rejected() {
-    let result = startup_from_source(UNKNOWN_OPTION, None, Arc::new(InMemoryLoader::new()));
+    // NEGATIVE: bogus trailing option. Wat source: probe_arc272_rs1_state_must_be_record_unknown_option.wat
+    let result = startup_from_file("tests/services/probe_arc272_rs1_state_must_be_record_unknown_option.wat");
     assert!(
         result.is_err(),
         "expected an unrecognized trailing option (:bogus-option) to be REJECTED directly — \

@@ -7,4 +7,3 @@
   (:wat::core::match s -> :wat::core::i64
               ((:my::Shape::Rect w h) (:wat::core::i64::* w h))
               ((:my::Shape::Circle r) (:wat::core::i64::* r r))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

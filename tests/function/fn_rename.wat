@@ -65,4 +65,3 @@
                (:wat::core::i64::+ a b))
              10 20))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

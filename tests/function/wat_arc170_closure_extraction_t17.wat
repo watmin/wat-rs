@@ -3,4 +3,3 @@
   (:wat::core::match opt -> :wat::core::bool
               ((:wat::core::Some _) true)
               (:wat::core::None     false)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

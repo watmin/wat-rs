@@ -37,16 +37,7 @@
 //! If the deadlock category were present (join-before-drain), both tests would hang.
 //! Completing without hang IS the positive verification of the lockstep fix.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
+use wat::freeze::startup_beside;
 
 // ─── Probe 1 — empty body: drain-before-join allows clean child shutdown ───
 
@@ -61,14 +52,8 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
 /// (no hang). Path: `:wat::test::run-hermetic` (spawn-process Layer 1).
 #[test]
 fn probe_run_hermetic_clean_exit_no_deadlock() {
-    let src = r#"
-        (:wat::core::defn :probe::test::clean-exit [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      nil))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    // World loaded from co-located probe_run_hermetic_no_deadlock.wat via startup_beside.
+    let world = startup_beside(file!()).expect("freeze should succeed");
     let func = world
         .symbols()
         .get(":probe::test::clean-exit")
@@ -116,17 +101,8 @@ fn probe_run_hermetic_clean_exit_no_deadlock() {
 /// (spawn-process Layer 1).
 #[test]
 fn probe_run_hermetic_panic_body_no_deadlock() {
-    let src = r#"
-        (:wat::core::defn :probe::test::intentional-panic [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::kernel::assertion-failed!
-                        "intentional panic from probe_run_hermetic_no_deadlock"
-                        :wat::core::None
-                        :wat::core::None)))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    // World loaded from co-located probe_run_hermetic_no_deadlock.wat via startup_beside.
+    let world = startup_beside(file!()).expect("freeze should succeed");
     let func = world
         .symbols()
         .get(":probe::test::intentional-panic")

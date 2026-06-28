@@ -28,19 +28,14 @@
 //!    from Gap I-A probe 6, extended to include `def`. All 8 declaration forms
 //!    lift together.
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind, Value};
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
+fn freeze_ok_file(rel_path: &str) -> wat::freeze::FrozenWorld {
+    startup_from_file(rel_path).unwrap_or_else(|e| {
+        panic!("freeze should succeed for {}; got: {}", rel_path, e)
+    })
 }
 
 /// Drain the stderr field (index 2) of a Process Struct value.
@@ -90,41 +85,9 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 
 // ─── Probe 1 — def at fn body do-prefix lifts to prologue end-to-end ─────────
 
-/// The spawn probe Gap I-A's probe 1 couldn't deliver.
-///
-/// Before Gap I-B, `def` at a fn body's `do`-prefix was blocked at PARENT
-/// check time by `validate_def_position_with_wrapper` (which emitted
-/// `DefNotTopLevel`), preventing `extract_closure` from ever running.
-///
-/// After Gap I-B:
-/// 1. Parent check-time: validator's def arm retired → no `DefNotTopLevel`
-/// 2. `extract_closure` (Gap I-A): `split_body_prelude` lifts the `def` form
-///    to the closure prologue via `is_declaration_form`
-/// 3. Child startup: `register_runtime_defs_form` processes the lifted `def`,
-///    binding `:h::local-answer = 42` in the child's SymbolTable
-/// 4. Child body: references `:h::local-answer` — resolves to 42 → exits 0
 #[test]
 fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
-    // Arc 170 slice 6 — def lives at program top-level via the new
-    // spawn-process program shape; the lift mechanism is retired. The
-    // probe still verifies the end-to-end binding flow: child registers
-    // the def, body references the binding, child exits 0.
-    // Stone 241.16 — :wat::core::define HARD CUT total. Fixture migrated:
-    // `(:wat::core::define (:user::main -> :wat::core::nil) ...)` →
-    // `(:wat::core::defn :user::main [] -> :wat::core::nil ...)`.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::def :h::local-answer 42)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [v :h::local-answer]
-                            nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok_file("tests/wat_lang/probe_def_not_special_spawn_ok.wat");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
@@ -135,23 +98,10 @@ fn probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end() {
 
 // ─── Probe 2 — def at expression position emits position error at runtime ─────
 
-/// `def` buried inside a function body (not a do-prefix prelude position)
-/// passes check-time after Gap I-B but is rejected at runtime with
-/// `DeclarationInExpressionPosition` when the function is called.
-///
-/// This probes the tightened `":wat::core::def"` arm in `dispatch_keyword_head`
-/// (runtime.rs). The function `:my::bad` has body `(:wat::core::def :x 1)`.
-/// Startup succeeds (no check-time error); calling `(:my::bad)` emits
-/// `DeclarationInExpressionPosition { head: ":wat::core::def", .. }`.
 #[test]
 fn probe_def_at_expression_position_emits_position_error_at_runtime() {
-    let src = r#"
-        (:wat::core::defn :my::bad [] -> :wat::core::nil (:wat::core::def :x 1))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
     // Startup must succeed after Gap I-B (check-time validator arm retired).
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
 
     // Calling (:my::bad) evaluates the body which hits the tightened def arm.
     let call = wat::parse_one!("(:my::bad)").expect("parse");
@@ -178,25 +128,9 @@ fn probe_def_at_expression_position_emits_position_error_at_runtime() {
 
 // ─── Probe 3 — def at top-level still works (regression) ─────────────────────
 
-/// Regression: top-level `def` is unaffected by Gap I-B.
-///
-/// The validator's def arm was the ONLY source of check-time errors for def
-/// in non-top-level positions; top-level def never triggered it (it was in
-/// `TopLevel` context, not `NonTopLevel`). Retiring the arm changes nothing
-/// for top-level defs.
-///
-/// `register_runtime_defs_form` still processes top-level defs at freeze time.
-/// The bound value is available at runtime.
 #[test]
 fn probe_def_at_top_level_still_works() {
-    let src = r#"
-        (:wat::core::def :my-answer 42)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 :my-answer)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
     let call = wat::parse_one!("(:my::compute)").expect("parse");
     let env = Environment::new();
     let v = eval_in_frozen(&call, &world, &env).expect("compute should succeed").value_owned();
@@ -208,26 +142,10 @@ fn probe_def_at_top_level_still_works() {
 
 // ─── Probe 4 — define is rejected at startup-check (regression) ─────────────
 
-/// Regression: `define` anywhere in source is now rejected at startup-check
-/// by Stone 241.11's HARD-CUT arm (Stone 241.16 completed the total cut).
-///
-/// Prior behavior (Gap I-B): startup succeeded; the define arm in
-/// `dispatch_keyword_head` emitted `DeclarationInExpressionPosition` at
-/// runtime. Stone 241.16 deleted that eval-time dispatch arm, so define no
-/// longer reaches eval. Stone 241.11's startup-check arm fires first.
-///
-/// Stone 241.16 — HARD CUT total. Fixture migrated: no longer uses
-/// `freeze_ok` (define is caught before freeze completes). Now verifies
-/// startup FAILS and the rejection message names `:wat::core::define`.
 #[test]
 fn probe_define_rejected_at_startup_check() {
-    let src = r#"
-        (:wat::core::defn :my::bad-define [] -> :wat::core::nil (:wat::core::define (:my::inner -> :wat::core::nil) :wat::core::nil))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
     // Stone 241.11 HARD-CUT arm fires at startup-check → startup FAILS.
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    let result = startup_from_file("tests/wat_lang/probe_def_not_special_define_bad.wat");
     match result {
         Err(e) => {
             let msg = format!("{:?}", e);
@@ -245,57 +163,9 @@ fn probe_define_rejected_at_startup_check() {
 
 // ─── Probe 5 — mixed prelude now includes def (all 7 forms lift) ───────────────
 
-/// The mixed-prelude probe from Gap I-A (probe 6) extended to include `def`.
-///
-/// Gap I-A's probe 6 covered 7 of 8 declaration forms, explicitly excluding
-/// `def` because the parent check-time validator blocked it. After Gap I-B,
-/// `def` is no longer blocked. This probe adds `def` to the mixed prelude and
-/// verifies all 7 declaration forms lift together.
-///
-/// Stone 241.13 — `:wat::core::define-dispatch` retired (HARD CUT). Fixture
-/// migrated: the arm-impl define + define-dispatch pair replaced with a plain
-/// `:wat::core::defn` that exercises the same declaration-lift path.
-///
-/// Stone 241.11 — `:wat::core::define` retired (HARD CUT). Fixture migrated:
-/// all `define` forms replaced with `defn`.
-///
-/// Prelude order: def → struct → enum → newtype → typealias → defn (arm fn) →
-///               defmacro
-///
-/// The body references the def-bound value (`:h::def-answer = 99`), constructs
-/// a struct, references an enum variant, constructs a newtype, calls the fn.
 #[test]
 fn probe_mixed_declaration_prelude_now_includes_def() {
-    // Arc 170 slice 6 — all declaration kinds sit at program top-level
-    // alongside :user::main via the new spawn-process program shape.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::def :h::def-answer 99)
-                        (:wat::core::defstruct :h::MixPoint8
-                          [x <- :wat::core::i64
-                           y <- :wat::core::i64])
-                        (:wat::core::defenum :h::MixDir8
-                          :Up
-                          :Down)
-                        (:wat::core::newtype :h::MixAmount8 :wat::core::i64)
-                        (:wat::core::typealias :h::MixCount8 :wat::core::i64)
-                        (:wat::core::defn :h::mix-i64-fn8 [v <- :wat::core::i64] -> :h::MixCount8
-                          v)
-                        (:wat::core::defmacro :h::mix-id8 [z <- :wat::WatAST] -> :wat::WatAST `~z)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [_ans :h::def-answer
-                             _p   (:h::MixPoint8/new 1 2)
-                             _d   :h::MixDir8::Up
-                             _a   (:h::MixAmount8/new 10)
-                             _n   (:h::mix-i64-fn8 7)]
-                            nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok_file("tests/wat_lang/probe_def_not_special_mixed_ok.wat");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,

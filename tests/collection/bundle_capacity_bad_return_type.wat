@@ -5,4 +5,3 @@
     (:wat::holon::to-holon "a")
     (:wat::holon::to-holon "b"))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

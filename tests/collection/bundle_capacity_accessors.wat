@@ -7,4 +7,3 @@
         (:wat::holon::CapacityExceeded/cost e)
         (:wat::holon::CapacityExceeded/budget e)))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -17,4 +17,3 @@
 (:wat::core::defn :my::compute-empty [] -> :wat::core::i64
   (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -31,10 +31,16 @@ groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-ca
   test, no wat-under-test) → **`startup_bare()`** (NEW, `src/freeze.rs` — frozen default world, no source).
   **~most of the 423 are incidental** (355 used a trivial/empty world) → a `startup_bare()` swap, not a fixture.
 - **Per-chunk gate:** `binary(<group>)` green + the lint's count dropped + full gate still 4088+/1-red/89.
-- **GROUPS (smallest→largest, the order to grind):** channel 5 · diagnostics 5 · program 7 · value 7 ·
-  reflection 8 · function 12 · comms 15 · collection 16 · process 17 · services 19 · wat_lang 21 · macros 26 ·
-  resolve 32 · kernel 34 · rete 34 · types 42 · **then nursery 179** (dissolve per `NURSERY-DISSOLUTION-MAP.md`:
-  move + fixture/bare in one motion). DONE: lint (5). When METER=0 the lint flips GREEN and the floor returns to 0.
+- **THE LOOP (proven, humming):** fan out ~3 small groups in PARALLEL as `model:"sonnet"` LEAF shadowdancers
+  (each embeds the recipe + the worked refs + STOP-on-new-shape; each SELF-VERIFIES its `binary(<group>)` green —
+  cargo's build lock serializes the builds safely). Then the ORCHESTRATOR WEIGHS each against the disk (grep clean
+  + binary green + spot-check a diff for honesty — watch `invoke_user_main`+stdout → `eval_in_frozen` return-value
+  refactors: they're fine IF the asserted VALUE is identical) + full gate 1-red → commit per batch.
+- **PROGRESS (2026-06-27 SESSION 9): METER 423 → 356.** DONE (9 groups): lint 5 (`e195573`→`1e483a79` pilot+fire),
+  channel 5 (`e75d5f67`), diagnostics 5 (`bc40e656`), program+value+reflection 21 (`603b2fde`),
+  function+comms+collection 36 (`e65eea26`). REMAINING (smallest→largest): **process 17 · services 19 · wat_lang 21
+  · macros 26 · resolve 32 · kernel 34 · rete 34 · types 42 · then nursery 179** (dissolve per
+  `NURSERY-DISSOLUTION-MAP.md`: move + fixture/bare in one motion). When METER=0 the lint flips GREEN, floor → 0.
 The builder's remarkable upgrade: **the ENTIRE test suite migrates from inlined-wat-strings → co-located `.wat`
 fixtures**, so every test is `cargo wat`-runnable + fix-wat-able + lint-checkable. **Annihilation, NOT a ratchet** —
 builder: *"there is no 'these are blessed to be in violation' — this is illogical … the violations crave their demise

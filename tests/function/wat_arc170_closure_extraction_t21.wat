@@ -5,4 +5,3 @@
               (:wat::core::match opt -> :wat::core::i64
                 ((:wat::core::Some n) n)
                 (:wat::core::None     n))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

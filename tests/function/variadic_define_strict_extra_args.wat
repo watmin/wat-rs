@@ -5,4 +5,3 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::add 40 2 99))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

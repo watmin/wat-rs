@@ -4,4 +4,3 @@
               ((:wat::core::< n 0) "negative")
               ((:wat::core::= n 0) "zero")
               (:else "positive")))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

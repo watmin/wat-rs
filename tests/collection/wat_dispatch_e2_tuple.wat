@@ -13,4 +13,3 @@
   (:rust::test::TupleUtils::describe
     (:wat::core::Tuple 1 "row" true)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

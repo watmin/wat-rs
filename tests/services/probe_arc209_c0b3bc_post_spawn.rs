@@ -24,34 +24,13 @@
 //! Test 1 FORKS (spawn-program' (process)). Run:
 //! cargo test --release -p wat --test probe_arc209_c0b3bc_post_spawn -- --test-threads=1
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
-
-// ── Proof 1: process post-spawn hook receives the child pid, owner-side. ─────────────────────
-const PROCESS_PROGRAM: &str = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [pair  (:wat::kernel::peer-pair' :wat::core::i64 :wat::core::i64)
-     tx    (:wat::core::first pair)
-     rx    (:wat::core::second pair)
-     _proc (:wat::kernel::spawn-program'
-             (:wat::spawn::process/post-spawn
-               (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                 (:wat::core::let [_ (:wat::kernel::send' tx (:wat::spawn::ProcessLaunch/pid launch))]
-                   nil)))
-             (:wat::core::forms
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)))
-     pid   (:wat::kernel::recv' rx)]
-    pid))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn process_post_spawn_hook_receives_child_pid() {
-    let world = startup_from_source(PROCESS_PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // Proof 1: process hook receives child pid. Wat source: probe_arc209_c0b3bc_post_spawn.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (C0b.3b-c: process post-spawn hook)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
@@ -68,28 +47,10 @@ fn process_post_spawn_hook_receives_child_pid() {
     }
 }
 
-// ── Proof 2: thread post-spawn hook fires owner-side with the empty ThreadLaunch. ────────────
-const THREAD_PROGRAM: &str = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [pair  (:wat::kernel::peer-pair' :wat::core::i64 :wat::core::i64)
-     tx    (:wat::core::first pair)
-     rx    (:wat::core::second pair)
-     _thr  (:wat::kernel::spawn-program'
-             (:wat::spawn::thread/post-spawn
-               (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil
-                 (:wat::core::let [_ (:wat::kernel::send' tx 777)] nil)))
-             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-               nil))
-     sentinel (:wat::kernel::recv' rx)]
-    sentinel))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 #[test]
 fn thread_post_spawn_hook_fires_with_empty_launch() {
-    let world = startup_from_source(THREAD_PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // Proof 2: thread hook fires with empty ThreadLaunch. Wat source: probe_arc209_c0b3bc_post_spawn_thread.wat
+    let world = startup_from_file("tests/services/probe_arc209_c0b3bc_post_spawn_thread.wat")
         .expect("startup should succeed (C0b.3b-c: thread post-spawn hook)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
@@ -102,30 +63,13 @@ fn thread_post_spawn_hook_fires_with_empty_launch() {
     );
 }
 
-// ── Proof 3: the hook's record accessors type-check at parse time. ───────────────────────────
-const BOGUS_ACCESSOR_PROGRAM: &str = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [pair  (:wat::kernel::peer-pair' :wat::core::i64 :wat::core::i64)
-     tx    (:wat::core::first pair)
-     _proc (:wat::kernel::spawn-program'
-             (:wat::spawn::process/post-spawn
-               (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                 (:wat::core::let [_ (:wat::kernel::send' tx (:wat::spawn::ProcessLaunch/bogus-field launch))]
-                   nil)))
-             (:wat::core::forms
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
-    0))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 #[test]
 fn accessor_typechecks_at_parse_time() {
     // GREEN after 3b-c: the ctor is known, so the checker reaches the hook body and rejects the
     // nonexistent field — the error names `bogus-field`. RED at HEAD: the ctor `process/post-spawn`
     // is unknown, so the error is about the ctor and does NOT mention the field.
-    match startup_from_source(BOGUS_ACCESSOR_PROGRAM, None, Arc::new(InMemoryLoader::new())) {
+    // Wat source: probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat (NEGATIVE — must fail startup)
+    match startup_from_file("tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat") {
         Ok(_) => panic!(
             "expected a check error: ProcessLaunch has no field `bogus-field`, so the hook fn must \
              fail to type-check at parse time"

@@ -6,4 +6,3 @@
   (:wat::core::quasiquote
     (:wat::core::i64::* (:wat::core::unquote x) 3)))
 (:wat::core::defn :my::compute [n <- :wat::core::i64] -> :wat::core::i64 (:my::triple n))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

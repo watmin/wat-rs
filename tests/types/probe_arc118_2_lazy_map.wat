@@ -15,4 +15,3 @@
      mapped (:wat::core::map boom (:wat::core::Vector :wat::core::i64 1 2 99))]
     (:wat::core::first mapped)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

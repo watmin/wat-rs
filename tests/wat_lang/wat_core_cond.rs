@@ -6,31 +6,19 @@
 //! Typed once at the head; each test unifies with :wat::core::bool; each body
 //! unifies with :T; last arm must be (:else body).
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
-
-fn run_err(src: &str) -> String {
-    let src = with_nil_main(src);
-    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
+fn run_err_file(rel_path: &str) -> String {
+    match startup_from_file(rel_path) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{:?}", e),
     }
@@ -54,85 +42,34 @@ fn unwrap_i64(v: Value) -> i64 {
 
 #[test]
 fn cond_first_arm_matches() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      ((:wat::core::= 1 1) "first")
-                      ((:wat::core::= 2 2) "second")
-                      (:else "none")))
-    "#;
-    assert_eq!(unwrap_string(run(src)), "first");
+    assert_eq!(unwrap_string(run_expr("(:t::cond-first)")), "first");
 }
 
 #[test]
 fn cond_middle_arm_matches() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      ((:wat::core::= 1 2) "first")
-                      ((:wat::core::= 3 3) "middle")
-                      ((:wat::core::= 4 5) "third")
-                      (:else "none")))
-    "#;
-    assert_eq!(unwrap_string(run(src)), "middle");
+    assert_eq!(unwrap_string(run_expr("(:t::cond-middle)")), "middle");
 }
 
 #[test]
 fn cond_falls_through_to_else() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      ((:wat::core::= 1 2) "first")
-                      ((:wat::core::= 3 4) "second")
-                      (:else "defaulted")))
-    "#;
-    assert_eq!(unwrap_string(run(src)), "defaulted");
+    assert_eq!(unwrap_string(run_expr("(:t::cond-else)")), "defaulted");
 }
 
 #[test]
 fn cond_with_single_else_only() {
-    // Minimal cond — just the else arm.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::cond -> :wat::core::i64
-                      (:else 42)))
-    "#;
-    assert_eq!(unwrap_i64(run(src)), 42);
+    assert_eq!(unwrap_i64(run_expr("(:t::cond-only-else)")), 42);
 }
 
 #[test]
 fn cond_dispatches_on_bound_value() {
-    // The exit-code-prefix shape — cond on an :wat::core::i64 binding.
-    let src = r#"
-
-        (:wat::core::defn :my::label [code <- :wat::core::i64] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      ((:wat::core::= code 1) "[runtime error]")
-                      ((:wat::core::= code 2) "[panic]")
-                      ((:wat::core::= code 3) "[startup error]")
-                      (:else "[nonzero exit]")))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String (:my::label 3))
-    "#;
-    assert_eq!(unwrap_string(run(src)), "[startup error]");
+    assert_eq!(unwrap_string(run_expr("(:t::cond-dispatch)")), "[startup error]");
 }
 
 // ─── Type-checker refusals ──────────────────────────────────────────────
 
 #[test]
 fn cond_refuses_missing_else() {
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      ((:wat::core::= 1 1) "first")
-                      ((:wat::core::= 2 2) "second")))
-    "#;
-    let err = run_err(src);
+    let err = run_err_file("tests/wat_lang/wat_core_cond_no_else_bad.wat");
     assert!(
         err.contains(":else") || err.contains("explicit default"),
         "expected missing-:else diagnostic; got: {}",
@@ -142,14 +79,7 @@ fn cond_refuses_missing_else() {
 
 #[test]
 fn cond_refuses_non_bool_test() {
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      (42 "first")
-                      (:else "none")))
-    "#;
-    let err = run_err(src);
+    let err = run_err_file("tests/wat_lang/wat_core_cond_non_bool_bad.wat");
     assert!(
         err.contains(":wat::core::bool"),
         "expected bool-type diagnostic; got: {}",
@@ -159,14 +89,7 @@ fn cond_refuses_non_bool_test() {
 
 #[test]
 fn cond_refuses_mismatched_body_type() {
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      ((:wat::core::= 1 1) 42)
-                      (:else "default")))
-    "#;
-    let err = run_err(src);
+    let err = run_err_file("tests/wat_lang/wat_core_cond_body_mismatch_bad.wat");
     assert!(
         err.contains("TypeMismatch") && err.contains("else-branch"),
         "expected arm-body type mismatch (else-branch after macro expansion to if); got: {}",
@@ -178,36 +101,12 @@ fn cond_refuses_mismatched_body_type() {
 
 #[test]
 fn cond_preserves_tail_call() {
-    // Tail-recursive countdown with a cond at the tail — verifies
-    // eval_cond_tail threads tail position into the selected body.
-    // Without TCO through cond, this would overflow the stack.
-    let src = r#"
-
-        (:wat::core::defn :my::countdown [n <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::cond -> :wat::core::i64
-                      ((:wat::core::= n 0) 0)
-                      ((:wat::core::< n 0) -1)
-                      (:else (:my::countdown (:wat::core::i64::- n 1)))))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::countdown 100000))
-    "#;
-    assert_eq!(unwrap_i64(run(src)), 0);
+    assert_eq!(unwrap_i64(run_expr("(:t::cond-tail)")), 0);
 }
 
 // ─── Nested cond ────────────────────────────────────────────────────────
 
 #[test]
 fn cond_composes_with_other_cond() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::cond -> :wat::core::String
-                      ((:wat::core::= 1 2) "outer-first")
-                      ((:wat::core::= 1 1)
-                        (:wat::core::cond -> :wat::core::String
-                          ((:wat::core::= 7 8) "inner-first")
-                          (:else "inner-else")))
-                      (:else "outer-else")))
-    "#;
-    assert_eq!(unwrap_string(run(src)), "inner-else");
+    assert_eq!(unwrap_string(run_expr("(:t::cond-nested)")), "inner-else");
 }

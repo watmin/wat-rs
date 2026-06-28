@@ -9,4 +9,3 @@
                unused rx]
               (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::do pack n))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

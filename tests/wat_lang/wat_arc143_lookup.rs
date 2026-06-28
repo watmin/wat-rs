@@ -12,239 +12,115 @@
 //!      `:wat::core::foldl`, assert Some.
 //!   3. Unknown name — call on a non-existent name, assert None.
 //!   4. `body-of` for substrate primitive returns None (not the sentinel).
-//!
-//! Tests use stdout pass/fail convention consistent with the rest of
-//! the test suite. `edn::write` renders the HolonAST inside the Option
-//! (Option(Some(v)) is transparent in EDN) so we can inspect its shape.
 
-use std::os::fd::{FromRawFd, OwnedFd};
-use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
-use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
+use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::runtime::{Environment, Value};
 
-fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
-    let mut fds = [0i32; 2];
-    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
-    assert_eq!(r, 0, "pipe(2) succeeded");
-    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
-    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
-    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
-    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
-    (reader, writer)
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
-fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
-    let bytes = reader
-        .read_all(wat::span::Span::unknown())
-        .expect("read-all");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
+fn unwrap_bool(v: Value, ctx: &str) -> bool {
+    match v {
+        Value::bool(b) => b,
+        other => panic!("{}: expected bool; got {:?}", ctx, other),
     }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    lines
 }
 
-fn run(src: &str) -> Vec<String> {
-    let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
-    let (stdin_service, _stdin_inject) = pipe_pair();
-    let (stdout_capture, stdout_service) = pipe_pair();
-    let (_stderr_capture, stderr_service) = pipe_pair();
-    install_ambient_stdio(AmbientStdio {
-        stdin: stdin_service,
-        stdout: stdout_service,
-        stderr: stderr_service,
-    });
-    invoke_user_main(&world, Vec::new()).expect("main");
-    let _ = take_ambient_stdio();
-    drain_lines(&stdout_capture)
+fn unwrap_string(v: Value, ctx: &str) -> String {
+    match v {
+        Value::String(s) => (*s).clone(),
+        other => panic!("{}: expected String; got {:?}", ctx, other),
+    }
 }
 
 // ─── :wat::runtime::lookup-define ───────────────────────────────────────────
 
 #[test]
 fn lookup_define_user_define_returns_some() {
-    // Define a user function and verify lookup-define returns Some.
-    let src = r##"
-
-        (:wat::core::defn :user::my-add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::lookup-define :user::my-add)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
-                      (:wat::core::None    (:wat::kernel::println "fail"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test1-lookup-user)"), "lookup-user"),
+        "lookup-define user function should return Some"
+    );
 }
 
 #[test]
 fn lookup_define_substrate_primitive_returns_some() {
-    // :wat::core::foldl is a substrate primitive; lookup-define must
-    // return Some (synthesised from its TypeScheme).
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::lookup-define :wat::core::foldl)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
-                      (:wat::core::None    (:wat::kernel::println "fail"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test2-lookup-foldl)"), "lookup-foldl"),
+        ":wat::core::foldl is a substrate primitive; lookup-define must return Some"
+    );
 }
 
 #[test]
 fn lookup_define_unknown_name_returns_none() {
-    // A completely made-up name returns :None.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::lookup-define :user::this-does-not-exist)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
-                      (:wat::core::None    (:wat::kernel::println "pass"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test3-lookup-none)"), "lookup-none"),
+        "unknown name should return None (fn returns true for None)"
+    );
 }
 
 // ─── :wat::runtime::signature-of-defn ───────────────────────────────────────
 
 #[test]
 fn signature_of_defn_user_define_returns_some() {
-    // User-defined function → signature-of-defn returns Some.
-    let src = r##"
-
-        (:wat::core::defn :user::my-mul [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* a b))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::signature-of-defn :user::my-mul)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
-                      (:wat::core::None    (:wat::kernel::println "fail"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test4-sig-user)"), "sig-user"),
+        "user-defined function signature-of-defn should return Some"
+    );
 }
 
 #[test]
 fn signature_of_defn_substrate_primitive_returns_some() {
-    // :wat::core::foldl → synthesised head; must be Some.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::signature-of-defn :wat::core::foldl)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
-                      (:wat::core::None    (:wat::kernel::println "fail"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test5-sig-foldl)"), "sig-foldl"),
+        ":wat::core::foldl synthesised head must be Some"
+    );
 }
 
 #[test]
 fn signature_of_defn_unknown_name_returns_none() {
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::signature-of-defn :no::such::function)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
-                      (:wat::core::None    (:wat::kernel::println "pass"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test6-sig-none)"), "sig-none"),
+        "unknown name should return None"
+    );
 }
 
 // ─── :wat::runtime::body-of ─────────────────────────────────────────────────
 
 #[test]
 fn body_of_user_define_returns_some() {
-    // User-defined function → body-of returns Some (the wat body).
-    let src = r##"
-
-        (:wat::core::defn :user::my-neg [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::- 0 n))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::body-of :user::my-neg)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "pass"))
-                      (:wat::core::None    (:wat::kernel::println "fail"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test7-body-user)"), "body-user"),
+        "user-defined function body-of should return Some"
+    );
 }
 
 #[test]
 fn body_of_substrate_primitive_returns_none() {
-    // Substrate primitives have no wat body — body-of must return :None.
-    // (lookup-define returns the sentinel; body-of is honest about absence.)
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::body-of :wat::core::foldl)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
-                      (:wat::core::None    (:wat::kernel::println "pass"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test8-body-prim-none)"), "body-prim-none"),
+        "substrate primitives have no wat body — body-of must return None"
+    );
 }
 
 #[test]
 fn body_of_unknown_name_returns_none() {
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::match
-                      (:wat::runtime::body-of :totally::unknown)
-                      -> :wat::core::nil
-                      ((:wat::core::Some _) (:wat::kernel::println "fail"))
-                      (:wat::core::None    (:wat::kernel::println "pass"))))
-    "##;
-    assert_eq!(run(src), vec!["\"pass\"".to_string()]);
+    assert!(
+        unwrap_bool(run_expr("(:t::test9-body-unknown-none)"), "body-unknown-none"),
+        "unknown name should return None"
+    );
 }
 
 // ─── Shape verification via edn::write ───────────────────────────────────
 
 #[test]
 fn signature_of_defn_foldl_renders_synthesised_shape() {
-    // Verify the actual synthesised AST for :wat::core::foldl.
-    // Expected: a Bundle whose first element is a Symbol for
-    // ":wat::core::foldl<T,Acc>", followed by param-pair Bundles and
-    // the return type. We render via edn::write and check key substrings.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig-opt
-                        (:wat::runtime::signature-of-defn :wat::core::foldl)
-                       rendered
-                        (:wat::edn::write sig-opt)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected exactly one output line, got: {:?}", out);
-    let line = &out[0];
-    // The rendered form is the EDN encoding of the HolonAST Bundle.
-    // Option(Some(v)) is transparent in edn::write, so we get the
-    // HolonAST directly. A Bundle renders as #wat-edn.holon/Bundle [...].
-    // Key checks: the name includes "foldl", and "_a0" / "_a1" / "_a2"
-    // synthetic param names appear (synthesised from TypeScheme which
-    // has no real param names).
+    let line = unwrap_string(run_expr("(:t::test10-sig-render)"), "sig-render");
     assert!(
         line.contains("foldl"),
         "expected 'foldl' in rendered signature, got: {}",
@@ -260,31 +136,11 @@ fn signature_of_defn_foldl_renders_synthesised_shape() {
         "expected type-param names T/Acc and Vec in signature, got: {}",
         line
     );
-    let _ = line; // asserted above
 }
 
 #[test]
 fn lookup_define_user_function_contains_defn_keyword() {
-    // Verify lookup-define for a user function renders a structure that
-    // includes the "defn" form marker.
-    // Stone 241.16 — function_to_define_ast now emits :wat::core::defn head
-    // (not :wat::core::define); assertion updated to match. HARD CUT total.
-    let src = r##"
-
-        (:wat::core::defn :user::my-square [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x x))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [def-opt
-                        (:wat::runtime::lookup-define :user::my-square)
-                       rendered
-                        (:wat::edn::write def-opt)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
-    assert_eq!(out.len(), 1, "expected exactly one output line");
-    let line = &out[0];
-    // The rendered HolonAST should contain both "defn" and "my-square".
+    let line = unwrap_string(run_expr("(:t::test11-def-render)"), "def-render");
     assert!(
         line.contains("defn"),
         "expected 'defn' in rendered define-ast, got: {}",

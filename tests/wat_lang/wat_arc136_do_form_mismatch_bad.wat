@@ -1,0 +1,8 @@
+;; Negative fixture: do final form i64 but declared -> String → TypeMismatch.
+;; Used by test: do_recipient_mismatch_fires_type_mismatch
+
+(:wat::core::defn :t::probe [] -> :wat::core::String
+  (:wat::core::do
+    (:wat::core::i64::+ 1 1)
+    42))
+(:wat::core::defn :t::compute [] -> :wat::core::String (:t::probe))

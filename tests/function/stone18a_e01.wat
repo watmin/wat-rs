@@ -4,4 +4,3 @@
 (:wat::core::defn :test::bad [] -> :wat::core::i64
   ((:wat::core::fn [& rest <- :wat::core::i64] -> :wat::core::i64 rest) 42))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

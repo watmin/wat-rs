@@ -6,26 +6,15 @@
 //! f1 f2 ... fn)` evaluates to a `:wat::core::Vector<wat::WatAST>` where each
 //! element is the corresponding unevaluated form captured as data.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 fn unwrap_string(v: Value) -> String {
@@ -46,117 +35,50 @@ fn unwrap_bool(v: Value) -> bool {
 
 #[test]
 fn forms_captures_each_arg_as_wat_ast() {
-    // Pass three unevaluated forms; expect a Vec<wat::WatAST> of length 3.
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [captured
-                        (:wat::core::forms (foo 1) (bar 2) (baz 3))
-                       n (:wat::core::length captured)]
-                      (:wat::core::= n 3)))
-    "##;
-    assert!(unwrap_bool(run(src)), "expected forms to capture 3 args");
+    assert!(unwrap_bool(run_expr("(:t::test1-forms-3)")), "expected forms to capture 3 args");
 }
 
 #[test]
 fn forms_empty_produces_empty_vec() {
-    // Zero-arity must produce an empty Vec — same shape as (:wat::core::Vector :wat::WatAST).
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [captured (:wat::core::forms)
-                       n (:wat::core::length captured)]
-                      (:wat::core::= n 0)))
-    "##;
-    assert!(unwrap_bool(run(src)), "expected forms() to produce empty vec");
+    assert!(
+        unwrap_bool(run_expr("(:t::test2-forms-empty)")),
+        "expected forms() to produce empty vec"
+    );
 }
 
 #[test]
 fn forms_args_are_not_evaluated() {
-    // (undefined-symbol 99) would raise at runtime if evaluated.
-    // Captured by forms, it lives as data — no evaluation, no error.
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [captured
-                        (:wat::core::forms (:this::is::not::a::real::function 1 2 3))
-                       n (:wat::core::length captured)]
-                      (:wat::core::= n 1)))
-    "##;
-    assert!(unwrap_bool(run(src)), "expected forms to capture 1 unevaluated form");
+    assert!(
+        unwrap_bool(run_expr("(:t::test3-forms-unevaluated)")),
+        "expected forms to capture 1 unevaluated form"
+    );
 }
 
 // ─── End-to-end: program body → run-hermetic → evaluation ──────────────
 
 #[test]
 fn forms_composes_with_run_sandboxed_ast() {
-    // The canonical use: build a program body, run it hermetically,
-    // verify the inner program's output.
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed-ast`
-    // to `:wat::test::run-hermetic`. Body has `:wat::kernel::println` AND
-    // outer reads `RunResult/stdout` — rules 1+2 of FM 7-ter demand
-    // hermetic.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [r
-                        (:wat::test::run-hermetic
-                          (:wat::kernel::println "hello-from-inside"))
-                       captured (:wat::kernel::RunResult/stdout r)
-                       line
-                        (:wat::core::first captured)]
-                      line))
-    "##;
     // (:wat::kernel::println "hello-from-inside") EDN-serializes strings with quotes.
-    assert_eq!(unwrap_string(run(src)), "\"hello-from-inside\"");
+    assert_eq!(
+        unwrap_string(run_expr("(:t::test4-run-sandboxed)")),
+        "\"hello-from-inside\""
+    );
 }
 
 // ─── :wat::test::program defmacro expands to :wat::core::forms ─────────
 
 #[test]
 fn test_program_macro_expands_correctly() {
-    // The stdlib macro is a direct alias — behavior should be
-    // identical to calling :wat::core::forms directly.
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute returns bool.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [captured
-                        (:wat::test::program (a 1) (b 2) (c 3))
-                       n (:wat::core::length captured)]
-                      (:wat::core::= n 3)))
-    "##;
-    assert!(unwrap_bool(run(src)), "expected :wat::test::program to capture 3 forms");
+    assert!(
+        unwrap_bool(run_expr("(:t::test5-program-macro)")),
+        "expected :wat::test::program to capture 3 forms"
+    );
 }
 
 // ─── :wat::test::run-ast end-to-end via :wat::test::program ────────────
 
 #[test]
 fn test_run_ast_via_test_program_roundtrips_hello() {
-    // The clean idiomatic shape. Compare to the string-based :wat::test::run
-    // equivalent — no escapes, no nested quoting, the inner program
-    // reads as actual s-expressions.
-    // Arc 170 slice 1f-ζ: inner program uses canonical nil main + :wat::kernel::println.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [r
-                        (:wat::test::run-hermetic
-                          (:wat::kernel::println "hi"))
-                       captured (:wat::kernel::RunResult/stdout r)
-                       line
-                        (:wat::core::first captured)]
-                      line))
-    "##;
     // (:wat::kernel::println "hi") EDN-serializes strings with quotes.
-    assert_eq!(unwrap_string(run(src)), "\"hi\"");
+    assert_eq!(unwrap_string(run_expr("(:t::test6-run-ast-hello)")), "\"hi\"");
 }

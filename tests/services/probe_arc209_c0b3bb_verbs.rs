@@ -12,33 +12,18 @@
 //!   error is "unknown verb", which does NOT mention the tier). GREEN after 3b-b: `allow'` on a
 //!   thread `listener'` is a clean runtime error whose message names the process-tier gate.
 //!
-//! The listener is now autobiound (arc 272 — no fixed name); `(Bound/listener b)` extracts the
+//! The listener is now autobibound (arc 272 — no fixed name); `(Bound/listener b)` extracts the
 //! `Listener'` value for use with `allow'`/`deny'`. The verb proof is identical.
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bb_verbs -- --test-threads=1
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
-
-// allow'/deny' on a PROCESS listener' succeed (return nil). The allow-set is the SocketListener's.
-// Autobind: (listener' (process) :S :R) → Bound; (Bound/listener b) extracts the Listener'.
-const PROCESS_VERBS_PROGRAM: &str = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [b (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
-     l (:wat::spawn::Bound/listener b)
-     _ (:wat::kernel::allow' l 12345)
-     _ (:wat::kernel::deny' l 12345)]
-    42))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn process_listener_allow_deny_succeed() {
-    let world = startup_from_source(PROCESS_VERBS_PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // allow'/deny' on a PROCESS listener' succeed (return nil). Wat source: probe_arc209_c0b3bb_verbs.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (C0b.3b-b: allow'/deny' provisioning verbs)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
@@ -50,24 +35,13 @@ fn process_listener_allow_deny_succeed() {
     );
 }
 
-// allow' on a THREAD listener' is a clean error — the crossbeam handle IS the grant.
-const THREAD_VERB_PROGRAM: &str = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [pair (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
-     l    (:wat::spawn::Bound/listener pair)
-     _    (:wat::kernel::allow' l 123)]
-    42))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
 #[test]
 fn thread_listener_allow_errors_with_tier_message() {
     // RED at HEAD: `allow'` is an unknown head → the error names an unknown verb, NOT the tier.
     // GREEN after 3b-b: `allow'` on a thread listener is rejected with a process-tier message.
+    // Wat source: probe_arc209_c0b3bb_verbs_thread.wat
     let outcome = (|| -> Result<Value, String> {
-        let world = startup_from_source(THREAD_VERB_PROGRAM, None, Arc::new(InMemoryLoader::new()))
+        let world = startup_from_file("tests/services/probe_arc209_c0b3bb_verbs_thread.wat")
             .map_err(|e| format!("{e:?}"))?;
         let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("{e:?}"))?;
         eval_in_frozen(&ast, &world, &Environment::new())

@@ -10,19 +10,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc259_spawn_host_opts`
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 
 #[test]
 fn c01_thread_and_process_keys_cut() {
     // (thread) and (process) — the two built hosting-doors — type-check + construct.
-    let src = "(:wat::core::defn :user::main [] -> :wat::core::nil \
-                 (:wat::core::do \
-                   (:wat::spawn::thread) \
-                   (:wat::spawn::process) \
-                   nil))";
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    // World loaded from co-located probe_arc259_spawn_host_opts.wat via startup_beside.
+    let result = startup_beside(file!());
     assert!(
         result.is_ok(),
         "the Keymaker cuts the thread + process keys; got {:?}",

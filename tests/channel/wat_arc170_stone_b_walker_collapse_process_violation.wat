@@ -3,4 +3,3 @@
 ;; the rejection names the verb + the variant.
 (:wat::core::defn :my::test::call-process-join [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>> (:wat::kernel::Process/join-result proc))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

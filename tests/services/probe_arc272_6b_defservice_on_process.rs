@@ -23,40 +23,15 @@
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6b_defservice_on_process -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// IDENTICAL to the C.3 thread probe except the locus is (process). Parity = same client face.
-// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
-const PROGRAM: &str = r#"
-(:wat::service::defservice :my::counter
-  :durable [count <- :wat::core::i64]
-  :ephemeral []
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
-   (:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
-
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [h  (:my::counter/start :locus (:wat::spawn::process) :record (:my::counter::Record 0))
-     c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
-     _  (:my::counter/increment c (:my::counter/increment-request 5))
-     r  (:my::counter/get c (:my::counter/get-request))]
-    (:my::counter::GetResponse/value r)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn defservice_runs_on_a_forked_process_through_the_same_client_face() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // IDENTICAL to the C.3 thread probe except the locus is (process). Parity = same client face.
+    // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
+    // Wat source lives in the co-located fixture: probe_arc272_6b_defservice_on_process.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (6b-ii-β: defservice on a process)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

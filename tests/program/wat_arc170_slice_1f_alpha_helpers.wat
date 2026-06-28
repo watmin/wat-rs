@@ -11,4 +11,3 @@
 ;; row J: readln returns polymorphic T (type-checked by freeze; return type unifies with :String annotation).
 (:wat::core::defn :test::r [] -> :wat::core::String (:wat::kernel::readln -> :wat::core::String))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

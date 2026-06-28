@@ -27,23 +27,14 @@
 //!    `Process/join-result` → `ProcessJoinHoldsStdinSender` does NOT appear
 //!    (only `DefRestrictedCallerNotAllowed` from arc 198 fires).
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_bare, startup_from_file};
 
-/// Asserts `startup_from_source` fails and returns the Debug-formatted
+/// Asserts the given fixture file fails to freeze and returns the Debug-formatted
 /// error string for further inspection.
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn startup_err(fixture_rel: &str) -> String {
+    match startup_from_file(fixture_rel) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{:?}", e),
-    }
-}
-
-/// Asserts `startup_from_source` succeeds (no errors).
-fn startup_ok(src: &str) {
-    if let Err(e) = startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        panic!("expected startup success; got errors: {:?}", e);
     }
 }
 
@@ -60,15 +51,8 @@ fn process_join_without_stdin_extraction_fails_check() {
     // calling a substrate-restricted verb). We assert BOTH are present: the
     // restriction confirms arc 198 enforcement is intact; the stdin rule confirms
     // arc 202 detection is additive and independent.
-    let src = r#"
-        (:wat::core::defn :my::arc202::negative-no-stdin [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
-          (:wat::core::let
-                      [joined (:wat::kernel::Process/join-result proc)]
-                      joined))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(src);
+    // Negative fixture: user-namespace fn calls Process/join-result without Process/stdin.
+    let err = startup_err("tests/process/wat_arc202_process_join_holds_stdin_no_stdin.wat");
     assert!(
         err.contains("ProcessJoinHoldsStdinSender"),
         "error should name the new arc202 rule variant; got: {}",
@@ -85,20 +69,17 @@ fn process_join_without_stdin_extraction_fails_check() {
 
 #[test]
 fn process_join_with_stdin_extraction_passes_check() {
-    // Every `startup_from_source` loads the full substrate stdlib including
+    // Every startup loads the full substrate stdlib including
     // `wat/test.wat::run-hermetic-driver`. After the arc 202 wat-side fix
     // (adding `stdin-w` to the inner let of `run-hermetic-driver`), that
     // function satisfies the new rule: `Process/stdin proc` appears in the
     // inner let's scope, so the rule does not fire.
     //
-    // A trivial user program proves this: if the stdlib's `run-hermetic-driver`
+    // A bare startup (stdlib only) proves this: if the stdlib's `run-hermetic-driver`
     // still had the old shape (no `Process/stdin` extraction), startup would
     // fail with `ProcessJoinHoldsStdinSender` on that substrate function.
     // Startup succeeding = the canonical legal shape passes cleanly.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    startup_bare().expect("expected startup success; stdlib must satisfy arc202 rule");
 }
 
 // ─── Test 3 — negative with stdin present: stdin rule does NOT fire ────────
@@ -113,16 +94,8 @@ fn process_join_with_stdin_present_does_not_fire_stdin_rule() {
     //
     // This proves the rule correctly distinguishes absent-stdin (deadlock) from
     // present-stdin (either legal or a different shape the rule defers on).
-    let src = r#"
-        (:wat::core::defn :my::arc202::negative-stdin-present [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
-          (:wat::core::let
-                      [stdin-w (:wat::kernel::Process/stdin proc)
-                       joined  (:wat::kernel::Process/join-result proc)]
-                      joined))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(src);
+    // Negative fixture: user-namespace fn calls both Process/stdin AND Process/join-result.
+    let err = startup_err("tests/process/wat_arc202_process_join_holds_stdin_with_stdin.wat");
     // Arc 202 rule must NOT fire — stdin is present.
     assert!(
         !err.contains("ProcessJoinHoldsStdinSender"),

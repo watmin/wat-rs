@@ -3,4 +3,3 @@
 ;; (DefRestrictedCallerNotAllowed). The probe asserts the rejection names the verb + the variant.
 (:wat::core::defn :my::test::call-thread-join [thr <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>> (:wat::kernel::Thread/join-result thr))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

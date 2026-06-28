@@ -8,4 +8,3 @@
                 (:wat::core::do
                   tx
                   n))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

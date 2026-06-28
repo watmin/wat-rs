@@ -7,4 +7,3 @@
     ((:wat::core::Ok _) 0)
     ((:wat::core::Err e) (:wat::holon::CapacityExceeded/cost e))))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

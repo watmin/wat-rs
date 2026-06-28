@@ -6,4 +6,3 @@
                  [s (:wat::core::i64::+ i 1)]
                  s))
               (:wat::core::None 0)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

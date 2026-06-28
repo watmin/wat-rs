@@ -1,0 +1,7 @@
+;; Negative fixture: non-final body form with type mismatch surfaces check-time error.
+;; Used by test: multi_form_let_body_typecheck
+
+(:wat::core::defn :t::compute [] -> :wat::core::i64
+  (:wat::core::let [x 1]
+    (:wat::core::i64::+ x "not an int")
+    (:wat::core::i64::+ x 41)))

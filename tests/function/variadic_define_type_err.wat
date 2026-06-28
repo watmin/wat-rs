@@ -10,4 +10,3 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-of 10 1 "two" 3))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

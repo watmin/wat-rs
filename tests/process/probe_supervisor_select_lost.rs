@@ -15,20 +15,10 @@
 //!
 //! Modeled on `tests/wat_process_peer_ipc_round_trip.rs`.
 
-use std::sync::Arc;
-
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Build `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms <forms>...))`
 fn build_spawn_process_call(child_program_src: &str) -> WatAST {
@@ -61,8 +51,8 @@ const CRASHING_CHILD_SRC: &str = r#"
 /// At HEAD this raises; after the strike it returns `ServiceEvent::Lost{idx=0}`.
 #[test]
 fn select_prime_yields_lost_when_process_child_crashes() {
-    // Empty parent world.
-    let world = freeze_ok("");
+    // Empty parent world — substrate stdlib only.
+    let world = startup_bare().expect("freeze should succeed");
 
     // Spawn the crashing child.
     let spawn_call = build_spawn_process_call(CRASHING_CHILD_SRC);

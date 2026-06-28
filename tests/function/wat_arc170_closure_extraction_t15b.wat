@@ -5,4 +5,3 @@
               [cfg (:my::Config/new 99)]
               (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+ n (:my::Config/offset cfg)))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

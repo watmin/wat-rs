@@ -22,47 +22,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c1_defservice_op_enum
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-// The counter as ONE defservice (C.3 surface — wrapped-record shape). C.1 reads the op surface
-// and emits the Request/Response records + the op enum; probe-op exercises ONLY the generated
-// enum + the IncrementRequest record.
-// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; accessors read through durable.
-const PROGRAM: &str = r#"
-(:wat::service::defservice :my::counter
-  :durable [count <- :wat::core::i64]
-  :ephemeral []
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
-
-   (:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
-
-;; Exercise the GENERATED op enum (wrapped-record C.3 shape):
-;;   1. Build an IncrementRequest via the generated constructor.
-;;   2. Wrap it in the Op::Increment variant.
-;;   3. Match: Get arm returns 0 (proves Get variant exists + wraps GetRequest);
-;;      Increment arm extracts n via IncrementRequest/n accessor → 5.
-(:wat::core::defn :user::probe-op [] -> :wat::core::i64
-  (:wat::core::let [req (:my::counter/increment-request 5)
-                    op  (:my::counter::Op::Increment req)]
-    (:wat::core::match op -> :wat::core::i64
-      ((:my::counter::Op::Get _r) 0)
-      ((:my::counter::Op::Increment req) (:my::counter::IncrementRequest/n req)))))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn defservice_emits_op_enum_with_wrapped_request_records() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; accessors read through durable.
+    // Wat source lives in the co-located fixture: probe_arc209_c1_defservice_op_enum.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (Stone C.1: defservice emits Op enum + Request records)");
     let ast = wat::parse_one!("(:user::probe-op)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

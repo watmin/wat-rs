@@ -14,35 +14,23 @@
 //! `crate::check::infer_try`. See `src/runtime.rs` and
 //! `src/check.rs` for the implementations.
 
-use std::sync::Arc;
 use wat::check::{CheckError, CheckErrorKind};
-use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file, StartupError};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
-
-fn check_errors(src: &str) -> Vec<CheckError> {
-    let src = with_nil_main(src);
-    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
+fn check_errors_from_file(rel_path: &str) -> Vec<CheckError> {
+    match startup_from_file(rel_path) {
         Err(StartupError::Check(errs)) => errs.0,
-        Err(other) => panic!("expected Check errors; got {:?}", other),
-        Ok(_) => panic!("expected Check errors; startup succeeded"),
+        Err(other) => panic!("expected Check errors for {}; got {:?}", rel_path, other),
+        Ok(_) => panic!("expected Check errors for {}; startup succeeded", rel_path),
     }
 }
 
@@ -50,11 +38,7 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 
 #[test]
 fn try_on_ok_extracts_inner_value() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:wat::core::Ok (:wat::core::Result/try (:wat::core::Ok 42))))
-    "#;
-    match run(src) {
+    match run_expr("(:t::test1-try-ok)") {
         Value::Result(r) => match &*r {
             Ok(Value::i64(42)) => {}
             other => panic!("expected Ok(42); got {:?}", other),
@@ -65,11 +49,7 @@ fn try_on_ok_extracts_inner_value() {
 
 #[test]
 fn try_on_err_propagates_through_function() {
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:wat::core::Ok (:wat::core::Result/try (:wat::core::Err "boom"))))
-    "#;
-    match run(src) {
+    match run_expr("(:t::test2-try-err-prop)") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "boom" => {}
             other => panic!("expected Err(\"boom\"); got {:?}", other),
@@ -80,13 +60,7 @@ fn try_on_err_propagates_through_function() {
 
 #[test]
 fn try_propagates_across_helper_function() {
-    let src = r#"
-
-        (:wat::core::defn :app::unwrap-or-propagate [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::Result<wat::core::i64,wat::core::String> (:wat::core::Ok (:wat::core::Result/try r)))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:app::unwrap-or-propagate (:wat::core::Err "from-helper")))
-    "#;
-    match run(src) {
+    match run_expr("(:t::test3-try-helper)") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "from-helper" => {}
             other => panic!("expected Err(\"from-helper\"); got {:?}", other),
@@ -97,18 +71,7 @@ fn try_propagates_across_helper_function() {
 
 #[test]
 fn try_chains_two_bindings_in_let() {
-    // try inside let binding positions — the classic use. Each try
-    // unwraps its Result into the bound name; the final Ok wraps the
-    // sum to satisfy the function's declared return type.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::let
-                      [a (:wat::core::Result/try (:wat::core::Ok 10))
-                       b (:wat::core::Result/try (:wat::core::Ok 32))]
-                      (:wat::core::Ok (:wat::core::i64::+ a b))))
-    "#;
-    match run(src) {
+    match run_expr("(:t::test4-try-let-chain)") {
         Value::Result(r) => match &*r {
             Ok(Value::i64(42)) => {}
             other => panic!("expected Ok(42); got {:?}", other),
@@ -119,17 +82,7 @@ fn try_chains_two_bindings_in_let() {
 
 #[test]
 fn try_short_circuits_let_on_first_err() {
-    // Err on the first binding propagates; subsequent bindings never
-    // evaluate. The body never runs either.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::let
-                      [a (:wat::core::Result/try (:wat::core::Err "early"))
-                       b (:wat::core::Result/try (:wat::core::Ok 99))]
-                      (:wat::core::Ok (:wat::core::i64::+ a b))))
-    "#;
-    match run(src) {
+    match run_expr("(:t::test5-try-let-short-circuit)") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "early" => {}
             other => panic!("expected Err(\"early\"); got {:?}", other),
@@ -140,18 +93,7 @@ fn try_short_circuits_let_on_first_err() {
 
 #[test]
 fn try_inside_match_arm_propagates() {
-    // try inside the body of a match arm still propagates to the
-    // enclosing function — not just to the match.
-    let src = r#"
-
-        (:wat::core::defn :app::describe [o <- :wat::core::Option<wat::core::Result<wat::core::i64,wat::core::String>>] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::match o -> :wat::core::Result<wat::core::i64,wat::core::String>
-                      ((:wat::core::Some r) (:wat::core::Ok (:wat::core::Result/try r)))
-                      (:wat::core::None (:wat::core::Err "missing"))))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:app::describe (:wat::core::Some (:wat::core::Err "inner-boom"))))
-    "#;
-    match run(src) {
+    match run_expr("(:t::test6-try-match-arm)") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "inner-boom" => {}
             other => panic!("expected Err(\"inner-boom\"); got {:?}", other),
@@ -164,11 +106,7 @@ fn try_inside_match_arm_propagates() {
 
 #[test]
 fn try_with_zero_args_rejected_at_check() {
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:wat::core::Ok (:wat::core::Result/try)))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_arity_zero_bad.wat");
     let saw_arity = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 1, got: 0, .. }, .. }
@@ -179,11 +117,7 @@ fn try_with_zero_args_rejected_at_check() {
 
 #[test]
 fn try_with_two_args_rejected_at_check() {
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:wat::core::Ok (:wat::core::Result/try (:wat::core::Ok 1) (:wat::core::Ok 2))))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_arity_two_bad.wat");
     let saw_arity = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 1, got: 2, .. }, .. }
@@ -194,12 +128,7 @@ fn try_with_two_args_rejected_at_check() {
 
 #[test]
 fn try_on_non_result_arg_rejected_at_check() {
-    // Passing a bare i64 — not a Result.
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:wat::core::Ok (:wat::core::Result/try 42)))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_non_result_arg_bad.wat");
     let saw_type_mismatch = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. } if callee == ":wat::core::Result/try"
@@ -209,13 +138,7 @@ fn try_on_non_result_arg_rejected_at_check() {
 
 #[test]
 fn try_inside_non_result_function_rejected_at_check() {
-    // Enclosing fn returns :wat::core::i64, not :Result. `try` has no place to
-    // propagate to; MalformedForm fires.
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::Result/try (:wat::core::Ok 42)))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_non_result_enclosing_bad.wat");
     let saw_malformed = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::MalformedForm { head, .. }, .. } if head == ":wat::core::Result/try"
@@ -225,15 +148,7 @@ fn try_inside_non_result_function_rejected_at_check() {
 
 #[test]
 fn try_mismatched_err_types_rejected_at_check() {
-    // Enclosing fn's Err is :wat::core::String; try's arg has Err :wat::core::i64 — strict
-    // equality refuses (no auto-conversion, per 2026-04-19 stance).
-    let src = r#"
-
-        (:wat::core::defn :app::produce-i64-err [] -> :wat::core::Result<wat::core::i64,wat::core::i64> (:wat::core::Err 99))
-
-        (:wat::core::defn :my::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:wat::core::Ok (:wat::core::Result/try (:app::produce-i64-err))))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_err_type_mismatch_bad.wat");
     let saw_type_mismatch = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. } if callee == ":wat::core::Result/try"
@@ -245,20 +160,7 @@ fn try_mismatched_err_types_rejected_at_check() {
 
 #[test]
 fn try_inside_result_returning_fn_propagates_to_fn() {
-    // The fn itself is Result-returning, so try short-circuits the
-    // fn. The outer function (also Result-returning) receives the
-    // fn's Err as a Value::Result and wraps it back as-is.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::let
-                      [f
-                        (:wat::core::fn
-                          [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::Result<wat::core::i64,wat::core::String>
-                          (:wat::core::Ok (:wat::core::Result/try r)))]
-                      (f (:wat::core::Err "fn-err"))))
-    "#;
-    match run(src) {
+    match run_expr("(:t::test7-try-in-fn-scope)") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "fn-err" => {}
             other => panic!("expected Err(\"fn-err\"); got {:?}", other),
@@ -269,20 +171,7 @@ fn try_inside_result_returning_fn_propagates_to_fn() {
 
 #[test]
 fn try_inside_non_result_fn_rejected_at_check() {
-    // Fn's return type is :wat::core::i64, not Result — the innermost
-    // enclosing scope for `try` is the fn, not the outer fn.
-    // MalformedForm fires.
-    let src = r#"
-
-        (:wat::core::defn :my::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::let
-                      [f
-                        (:wat::core::fn
-                          [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::i64
-                          (:wat::core::Result/try r))]
-                      (:wat::core::Ok (f (:wat::core::Ok 1)))))
-    "#;
-    let errs = check_errors(src);
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_fn_non_result_bad.wat");
     let saw_malformed = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::MalformedForm { head, .. }, .. } if head == ":wat::core::Result/try"

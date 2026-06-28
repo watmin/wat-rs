@@ -7,4 +7,3 @@
                -> :wat::core::i64
                x) 7))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

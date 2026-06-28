@@ -13,17 +13,15 @@
 //!
 //! Slice 1 covers the type-check side; this slice covers runtime.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-fn run(src: &str) -> Value {
-    let world =
-        startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 fn assert_bool(v: Value, expected: bool, ctx: &str) {
@@ -33,314 +31,129 @@ fn assert_bool(v: Value, expected: bool, ctx: &str) {
     }
 }
 
-const PROLOGUE: &str = r#"
-(:wat::core::defstruct :test::PaperResolved
-  [outcome       <- :wat::core::String
-   grace-residue <- :wat::core::f64])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
-fn program(body: &str) -> String {
-    format!(
-        "{prologue}\n(:wat::core::defn :user::compute [] -> :wat::core::bool {body})",
-        prologue = PROLOGUE,
-        body = body
-    )
-}
-
 // ─── Worked example: PaperResolved Grace > 5.0 ──────────────────────
 
 #[test]
 fn worked_example_matches() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Grace" 7.5)]
-          (:wat::form::matches? p
-            (:test::PaperResolved
-              (= ?outcome :outcome)
-              (= ?grace-residue :grace-residue)
-              (= ?outcome "Grace")
-              (> ?grace-residue 5.0))))
-        "#,
-    );
-    assert_bool(run(&src), true, "Grace 7.5 should match");
+    assert_bool(run_expr("(:t::test1-worked)"), true, "Grace 7.5 should match");
 }
 
 #[test]
 fn worked_example_rejects_low_residue() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Grace" 3.0)]
-          (:wat::form::matches? p
-            (:test::PaperResolved
-              (= ?outcome :outcome)
-              (= ?grace-residue :grace-residue)
-              (= ?outcome "Grace")
-              (> ?grace-residue 5.0))))
-        "#,
+    assert_bool(
+        run_expr("(:t::test2-low-residue)"),
+        false,
+        "Grace 3.0 should not match (residue too low)",
     );
-    assert_bool(run(&src), false, "Grace 3.0 should not match (residue too low)");
 }
 
 #[test]
 fn worked_example_rejects_wrong_outcome() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Loss" 7.5)]
-          (:wat::form::matches? p
-            (:test::PaperResolved
-              (= ?outcome :outcome)
-              (= ?grace-residue :grace-residue)
-              (= ?outcome "Grace")
-              (> ?grace-residue 5.0))))
-        "#,
+    assert_bool(
+        run_expr("(:t::test3-wrong-outcome)"),
+        false,
+        "Loss should not match Grace pattern",
     );
-    assert_bool(run(&src), false, "Loss should not match Grace pattern");
 }
 
 // ─── Comparison vocabulary: = < > <= >= not= ────────────────────────
 
 #[test]
 fn comparison_lt_gt_le_ge() {
-    // Each comparison op exercised against a single value.
-    // Subject high = 7.5, low = 3.0. Each (op, threshold) row picks
-    // a threshold where the two subjects fall on opposite sides of
-    // the comparison so we test BOTH outcomes per op.
-    for (op, threshold, expected_high, expected_low) in &[
-        ("<", "5.0", false, true),    // 7.5 < 5.0 = F; 3.0 < 5.0 = T
-        (">", "5.0", true, false),    // 7.5 > 5.0 = T; 3.0 > 5.0 = F
-        ("<=", "5.0", false, true),   // 7.5 <= 5.0 = F; 3.0 <= 5.0 = T
-        (">=", "5.0", true, false),   // 7.5 >= 5.0 = T; 3.0 >= 5.0 = F
-    ] {
-        let high_src = program(&format!(
-            r#"
-            (:wat::core::let
-              [p
-                (:test::PaperResolved/new "Grace" 7.5)]
-              (:wat::form::matches? p
-                (:test::PaperResolved
-                  (= ?gr :grace-residue)
-                  ({op} ?gr {threshold}))))
-            "#,
-        ));
-        assert_bool(run(&high_src), *expected_high, &format!("op {} threshold {}", op, threshold));
-
-        let low_src = program(&format!(
-            r#"
-            (:wat::core::let
-              [p
-                (:test::PaperResolved/new "Grace" 3.0)]
-              (:wat::form::matches? p
-                (:test::PaperResolved
-                  (= ?gr :grace-residue)
-                  ({op} ?gr {threshold}))))
-            "#,
-        ));
-        assert_bool(run(&low_src), *expected_low, &format!("op {} threshold {} low", op, threshold));
-    }
+    // < 5.0
+    assert_bool(run_expr("(:t::test4-lt-high)"), false, "7.5 < 5.0 = F");
+    assert_bool(run_expr("(:t::test4-lt-low)"), true, "3.0 < 5.0 = T");
+    // > 5.0
+    assert_bool(run_expr("(:t::test4-gt-high)"), true, "7.5 > 5.0 = T");
+    assert_bool(run_expr("(:t::test4-gt-low)"), false, "3.0 > 5.0 = F");
+    // <= 5.0
+    assert_bool(run_expr("(:t::test4-le-high)"), false, "7.5 <= 5.0 = F");
+    assert_bool(run_expr("(:t::test4-le-low)"), true, "3.0 <= 5.0 = T");
+    // >= 5.0
+    assert_bool(run_expr("(:t::test4-ge-high)"), true, "7.5 >= 5.0 = T");
+    assert_bool(run_expr("(:t::test4-ge-low)"), false, "3.0 >= 5.0 = F");
 }
 
 #[test]
 fn not_eq_works() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Loss" 1.0)]
-          (:wat::form::matches? p
-            (:test::PaperResolved
-              (= ?o :outcome)
-              (:not= ?o "Grace"))))
-        "#,
-    );
-    assert_bool(run(&src), true, "Loss != Grace should match");
+    assert_bool(run_expr("(:t::test5-not-eq)"), true, "Loss != Grace should match");
 }
 
 // ─── Logical combinators: and / or / not ────────────────────────────
 
 #[test]
 fn and_both_must_hold() {
-    let mk = |outcome: &str, residue: &str| {
-        program(&format!(
-            r#"
-            (:wat::core::let
-              [p
-                (:test::PaperResolved/new "{outcome}" {residue})]
-              (:wat::form::matches? p
-                (:test::PaperResolved
-                  (= ?o :outcome)
-                  (= ?gr :grace-residue)
-                  (:and (= ?o "Grace") (> ?gr 5.0)))))
-            "#,
-        ))
-    };
-    assert_bool(run(&mk("Grace", "7.0")), true, "Grace 7.0 and-pass");
-    assert_bool(run(&mk("Grace", "3.0")), false, "Grace 3.0 fails residue");
-    assert_bool(run(&mk("Loss", "7.0")), false, "Loss fails outcome");
+    assert_bool(run_expr("(:t::test6-and-pass)"), true, "Grace 7.0 and-pass");
+    assert_bool(run_expr("(:t::test6-and-fail-residue)"), false, "Grace 3.0 fails residue");
+    assert_bool(run_expr("(:t::test6-and-fail-outcome)"), false, "Loss fails outcome");
 }
 
 #[test]
 fn or_at_least_one_must_hold() {
-    let mk = |residue: &str| {
-        program(&format!(
-            r#"
-            (:wat::core::let
-              [p
-                (:test::PaperResolved/new "Grace" {residue})]
-              (:wat::form::matches? p
-                (:test::PaperResolved
-                  (= ?gr :grace-residue)
-                  (:or (> ?gr 100.0) (< ?gr 5.0)))))
-            "#,
-        ))
-    };
-    assert_bool(run(&mk("3.0")), true, "low triggers second branch");
-    assert_bool(run(&mk("150.0")), true, "high triggers first branch");
-    assert_bool(run(&mk("50.0")), false, "middle triggers neither");
+    assert_bool(run_expr("(:t::test7-or-low)"), true, "low triggers second branch");
+    assert_bool(run_expr("(:t::test7-or-high)"), true, "high triggers first branch");
+    assert_bool(run_expr("(:t::test7-or-mid)"), false, "middle triggers neither");
 }
 
 #[test]
 fn not_inverts() {
-    let mk = |outcome: &str| {
-        program(&format!(
-            r#"
-            (:wat::core::let
-              [p
-                (:test::PaperResolved/new "{outcome}" 5.0)]
-              (:wat::form::matches? p
-                (:test::PaperResolved
-                  (= ?o :outcome)
-                  (:not (= ?o "Loss")))))
-            "#,
-        ))
-    };
-    assert_bool(run(&mk("Grace")), true, "Grace passes not-Loss");
-    assert_bool(run(&mk("Loss")), false, "Loss fails not-Loss");
+    assert_bool(run_expr("(:t::test8-not-grace)"), true, "Grace passes not-Loss");
+    assert_bool(run_expr("(:t::test8-not-loss)"), false, "Loss fails not-Loss");
 }
 
 // ─── where-escape ───────────────────────────────────────────────────
 
 #[test]
 fn where_uses_arbitrary_wat_expression() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Graceful" 7.5)]
-          (:wat::form::matches? p
-            (:test::PaperResolved
-              (= ?o :outcome)
-              (:where (:wat::core::string::contains? ?o "Grace")))))
-        "#,
+    assert_bool(
+        run_expr("(:t::test9-where-pass)"),
+        true,
+        "where passes when string contains Grace",
     );
-    assert_bool(run(&src), true, "where passes when string contains Grace");
 }
 
 #[test]
 fn where_can_fail() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Loss" 7.5)]
-          (:wat::form::matches? p
-            (:test::PaperResolved
-              (= ?o :outcome)
-              (:where (:wat::core::string::contains? ?o "Grace")))))
-        "#,
+    assert_bool(
+        run_expr("(:t::test10-where-fail)"),
+        false,
+        "where fails when no substring match",
     );
-    assert_bool(run(&src), false, "where fails when no substring match");
 }
 
 // ─── Negative paths: false (no error) ───────────────────────────────
 
 #[test]
 fn struct_type_mismatch_returns_false() {
-    // Subject is a different struct type — pattern walker returns
-    // false without surfacing an error (Clara semantics).
-    let src = format!(
-        "{prologue}\n
-        (:wat::core::defstruct :test::Other [x <- :wat::core::i64])
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [o (:test::Other/new 42)]
-                      (:wat::form::matches? o
-                        (:test::PaperResolved
-                          (= ?gr :grace-residue)
-                          (> ?gr 5.0)))))
-        ",
-        prologue = PROLOGUE
-    );
-    assert_bool(run(&src), false, "wrong struct type returns false");
+    assert_bool(run_expr("(:t::test11-struct-mismatch)"), false, "wrong struct type returns false");
 }
 
 #[test]
 fn option_none_subject_returns_false() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [maybe :wat::core::None]
-          (:wat::form::matches? maybe
-            (:test::PaperResolved
-              (= ?gr :grace-residue)
-              (> ?gr 5.0))))
-        "#,
-    );
-    assert_bool(run(&src), false, "Option None returns false");
+    assert_bool(run_expr("(:t::test12-option-none)"), false, "Option None returns false");
 }
 
 #[test]
 fn option_some_subject_unwraps_one_level() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Grace" 7.5)
-           maybe (:wat::core::Some p)]
-          (:wat::form::matches? maybe
-            (:test::PaperResolved
-              (= ?gr :grace-residue)
-              (> ?gr 5.0))))
-        "#,
+    assert_bool(
+        run_expr("(:t::test13-option-some)"),
+        true,
+        "Option Some matches inner struct",
     );
-    assert_bool(run(&src), true, "Option Some matches inner struct");
 }
 
 #[test]
 fn non_struct_subject_returns_false() {
-    let src = program(
-        r#"
-        (:wat::form::matches? 42
-          (:test::PaperResolved
-            (= ?gr :grace-residue)
-            (> ?gr 5.0)))
-        "#,
-    );
-    assert_bool(run(&src), false, "i64 subject returns false");
+    assert_bool(run_expr("(:t::test14-non-struct)"), false, "i64 subject returns false");
 }
 
 // ─── Bindings flow forward across clauses ────────────────────────────
 
 #[test]
 fn binding_visible_in_later_clauses_including_where() {
-    let src = program(
-        r#"
-        (:wat::core::let
-          [p
-            (:test::PaperResolved/new "Grace" 12.5)]
-          (:wat::form::matches? p
-            (:test::PaperResolved
-              (= ?o :outcome)
-              (= ?gr :grace-residue)
-              (= ?o "Grace")
-              (:where (:wat::core::> ?gr 10.0)))))
-        "#,
+    assert_bool(
+        run_expr("(:t::test15-binding-where)"),
+        true,
+        "binding ?gr visible in where",
     );
-    assert_bool(run(&src), true, "binding ?gr visible in where");
 }

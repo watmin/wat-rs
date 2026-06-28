@@ -30,51 +30,13 @@
 //! Stone C's NEW probe `tests/probe_spawn_process_stdio.rs` exercises the
 //! same path at runtime; this probe verifies the TYPE-CHECKER path.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 
 #[test]
 fn arc112_slice2b_schemes_wire_through_typechecker() {
-    let src = r##"
-        ;; Child: Stone C contract — 0-arity, readln + println.
-        (:wat::core::defn :my::echo-worker
-          [] -> :wat::core::nil
-          (:wat::core::let
-            [n (:wat::kernel::readln -> :wat::core::i64)
-             _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
-            nil))
-
-        ;; Parent: spawn-process + wrap pipes + send/recv via Stone C wrappers.
-        ;; The CLAIM under verification: send/recv verbs type-check correctly
-        ;; over Sender/from-pipe and Receiver/from-pipe wrappers at the
-        ;; process boundary.
-        ;;
-        ;; Arc 170 slice 6: spawn-process accepts a wat PROGRAM
-        ;; (`Vec<WatAST>`) — the program here is a one-form program: the
-        ;; child's `:user::main` define whose body invokes the worker fn.
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [proc (:wat::kernel::spawn-process
-                              (:wat::core::forms
-                                (:wat::core::defn :user::main [] -> :wat::core::nil
-                                  (:my::echo-worker))))
-                       tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
-                       rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
-                       ;; send: use Result/expect (non-silent per arc 110).
-                       _sent (:wat::core::Result/expect
-                               (:wat::kernel::send tx 41)
-                               "send failed")
-                       ;; recv returns Result<Option<I>, RecvError>; match all three
-                       ;; states per arc 110 grammar rule.
-                       recv-result (:wat::kernel::recv rx)
-                       _val (:wat::core::match recv-result -> :wat::core::i64
-                              ((:wat::core::Ok (:wat::core::Some v)) v)
-                              ((:wat::core::Ok :wat::core::None)    0)
-                              ((:wat::core::Err _)                  0))]
-                      nil))
-    "##;
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    // World loaded from co-located arc112_slice2b_process_send_recv.wat via startup_beside.
+    // Verifies Stone C typed-channel scheme wires through the type-checker at the process boundary.
+    let result = startup_beside(file!());
     if let Err(e) = result {
         panic!("arc112 slice 2b probe failed to freeze: {e}");
     }

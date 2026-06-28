@@ -3,4 +3,3 @@
 (:wat::core::defn :my::a [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
 (:wat::core::defn :my::b [n <- :wat::core::i64] -> :wat::core::i64 (:my::a (:my::a n)))
 (:wat::core::defn :my::c [n <- :wat::core::i64] -> :wat::core::i64 (:my::b (:my::b n)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

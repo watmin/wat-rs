@@ -2,10 +2,10 @@
 //!
 //! Slice 1 lands the pattern grammar + classifier + type-check
 //! pipeline. The runtime arm is a stub that errors on call; these
-//! tests exercise the type checker only by either (a) wrapping a
-//! valid pattern in an `(if false ...)` so the checker sees it but
-//! the runtime never dispatches, or (b) asserting that an invalid
-//! pattern is REJECTED at startup with the expected diagnostic.
+//! tests exercise the type checker only by either (a) putting a
+//! valid pattern in a named defn (checker walks the body), or (b)
+//! asserting that an invalid pattern is REJECTED at startup with
+//! the expected diagnostic.
 //!
 //! Slice 2 swaps the runtime stub for the real walker and adds
 //! end-to-end `wat-tests/form/matches.wat` coverage.
@@ -25,19 +25,18 @@
 //! file exercises every error class enumerated in the DESIGN's
 //! "Errors at expansion" list.
 
-use std::sync::Arc;
-use wat::freeze::{startup_from_source, StartupError};
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_beside, startup_from_file, StartupError};
 
-fn check_only(src: &str) -> Result<(), String> {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(format!("{}", e)),
-    }
+fn expect_startup_ok(rel_path: Option<&str>) {
+    let result = match rel_path {
+        Some(p) => startup_from_file(p),
+        None => startup_beside(file!()),
+    };
+    result.expect("startup should succeed for valid patterns");
 }
 
-fn expect_check_error(src: &str, expected_substring: &str) {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn expect_check_error(rel_path: &str, expected_substring: &str) {
+    match startup_from_file(rel_path) {
         Err(StartupError::Check(errs)) => {
             let rendered = format!("{}", errs);
             assert!(
@@ -55,151 +54,69 @@ fn expect_check_error(src: &str, expected_substring: &str) {
     }
 }
 
-/// Wrap a `matches?` invocation so the type checker walks the
-/// pattern but the slice-1 runtime stub never fires. The `if false`
-/// path is dead at runtime; type-check still walks both branches.
-const PROLOGUE_VALID: &str = r#"
-(:wat::core::defstruct :test::PaperResolved
-  [outcome <- :wat::core::String
-   grace-residue <- :wat::core::f64])
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let
-      [p
-        (:test::PaperResolved/new "Grace" 7.5)
-       b
-        (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
-      (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
-"#;
-
-fn valid_src(matches_call: &str) -> String {
-    PROLOGUE_VALID.replace("SUBSTITUTE_HERE", matches_call)
-}
-
-const PROLOGUE_INVALID: &str = r#"
-(:wat::core::defstruct :test::PaperResolved
-  [outcome <- :wat::core::String
-   grace-residue <- :wat::core::f64])
-(:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let
-      [p
-        (:test::PaperResolved/new "Grace" 7.5)
-       b
-        (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)]
-      (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
-"#;
-
-fn invalid_src(matches_call: &str) -> String {
-    PROLOGUE_INVALID.replace("SUBSTITUTE_HERE", matches_call)
-}
-
 // ─── Valid patterns: type-check passes ──────────────────────────────
 
 #[test]
 fn valid_simple_binding_and_comparison() {
-    let call = r#"
-        (:wat::form::matches? p
-          (:test::PaperResolved
-            (= ?outcome :outcome)
-            (= ?grace-residue :grace-residue)
-            (= ?outcome "Grace")
-            (> ?grace-residue 5.0)))
-    "#;
-    check_only(&valid_src(call)).expect("valid pattern should type-check");
+    expect_startup_ok(None);
 }
 
 #[test]
 fn valid_logical_combinators() {
-    let call = r#"
-        (:wat::form::matches? p
-          (:test::PaperResolved
-            (= ?outcome :outcome)
-            (= ?grace-residue :grace-residue)
-            (:and
-              (= ?outcome "Grace")
-              (:or
-                (> ?grace-residue 5.0)
-                (< ?grace-residue 0.0))
-              (:not (= ?outcome "Loss")))))
-    "#;
-    check_only(&valid_src(call)).expect("logical combinators should type-check");
+    expect_startup_ok(None);
 }
 
 #[test]
 fn valid_where_escape_returns_bool() {
-    let call = r#"
-        (:wat::form::matches? p
-          (:test::PaperResolved
-            (= ?outcome :outcome)
-            (:where (:wat::core::string::contains? ?outcome "Grace"))))
-    "#;
-    check_only(&valid_src(call)).expect("where-body returning :wat::core::bool should type-check");
+    expect_startup_ok(None);
 }
 
 // ─── Invalid patterns: each error class ─────────────────────────────
 
 #[test]
 fn rejects_unknown_struct_type() {
-    let call = r#"
-        (:wat::form::matches? p
-          (:test::DoesNotExist
-            (= ?o :outcome)))
-    "#;
-    expect_check_error(&invalid_src(call), "unknown struct type :test::DoesNotExist");
+    expect_check_error(
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_struct_bad.wat",
+        "unknown struct type :test::DoesNotExist",
+    );
 }
 
 #[test]
 fn rejects_unknown_field() {
-    let call = r#"
-        (:wat::form::matches? p
-          (:test::PaperResolved
-            (= ?o :unknown-field)))
-    "#;
     expect_check_error(
-        &invalid_src(call),
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_field_bad.wat",
         "struct :test::PaperResolved has no field :unknown-field",
     );
 }
 
 #[test]
 fn rejects_unknown_constraint_head() {
-    let call = r#"
-        (:wat::form::matches? p
-          (:test::PaperResolved
-            (= ?o :outcome)
-            (:foo ?o "x")))
-    "#;
-    expect_check_error(&invalid_src(call), "unknown matcher head: :foo");
+    expect_check_error(
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_constraint_bad.wat",
+        "unknown matcher head: :foo",
+    );
 }
 
 #[test]
 fn rejects_where_body_non_bool() {
-    let call = r#"
-        (:wat::form::matches? p
-          (:test::PaperResolved
-            (= ?o :outcome)
-            (:where ?o)))
-    "#;
-    // `?o` is `:wat::core::String`, not `:wat::core::bool` — should reject.
-    expect_check_error(&invalid_src(call), "where-body");
+    expect_check_error(
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_where_nonbool_bad.wat",
+        "where-body",
+    );
 }
 
 #[test]
 fn rejects_arity_zero() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [b (:wat::core::if true -> :wat::core::bool true (:wat::form::matches?))]
-                      (:wat::io::IOWriter/println stdout "ok")))
-    "#;
-    expect_check_error(src, ":wat::form::matches?");
+    expect_check_error(
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_arity_zero_bad.wat",
+        ":wat::form::matches?",
+    );
 }
 
 #[test]
 fn rejects_pattern_head_non_keyword() {
-    let call = r#"
-        (:wat::form::matches? p
-          (42
-            (= ?o :outcome)))
-    "#;
-    expect_check_error(&invalid_src(call), "pattern head must be a struct type keyword");
+    expect_check_error(
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_pattern_head_nonkw_bad.wat",
+        "pattern head must be a struct type keyword",
+    );
 }

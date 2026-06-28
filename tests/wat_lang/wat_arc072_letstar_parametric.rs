@@ -25,54 +25,15 @@
 //! `:Result<i64, String>`). The arc fixes the diagnostic, not the
 //! rule.
 
-use std::os::fd::{FromRawFd, OwnedFd};
-use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
-use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
+use wat::runtime::{Environment, Value};
 
-fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
-    let mut fds = [0i32; 2];
-    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
-    assert_eq!(r, 0, "pipe(2) succeeded");
-    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
-    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
-    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
-    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
-    (reader, writer)
-}
-
-fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
-    let bytes = reader
-        .read_all(wat::span::Span::unknown())
-        .expect("read-all");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
-    }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    lines
-}
-
-fn run(src: &str) -> Result<Vec<String>, String> {
-    let _ = take_ambient_stdio();
-    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {}", e))?;
-    let (stdin_service, _stdin_inject) = pipe_pair();
-    let (stdout_capture, stdout_service) = pipe_pair();
-    let (_stderr_capture, stderr_service) = pipe_pair();
-    install_ambient_stdio(AmbientStdio {
-        stdin: stdin_service,
-        stdout: stdout_service,
-        stderr: stderr_service,
-    });
-    invoke_user_main(&world, Vec::new()).map_err(|e| format!("runtime: {}", e))?;
-    let _ = take_ambient_stdio();
-    Ok(drain_lines(&stdout_capture))
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 /// `:Result<i64,String>` (canonical, no whitespace) lexes, parses,
@@ -80,20 +41,9 @@ fn run(src: &str) -> Result<Vec<String>, String> {
 /// rewrite intends to use.
 #[test]
 fn letstar_result_no_whitespace_simple_payload() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [wrapped
-                        (:wat::core::Ok 42)
-                       extracted
-                        (:wat::core::match wrapped -> :wat::core::i64
-                          ((:wat::core::Ok n) (:wat::core::i64::+ n 1))
-                          ((:wat::core::Err _) -1))]
-                      (:wat::kernel::println (:wat::core::i64::to-string extracted))))
-    "#;
-    match run(src) {
-        Ok(lines) => assert_eq!(lines, vec!["\"43\"".to_string()]),
-        Err(e) => panic!("{}", e),
+    match run_expr("(:t::test1-result-simple)") {
+        Value::i64(n) => assert_eq!(n, 43, "expected extracted+1 = 43; got {}", n),
+        other => panic!("expected i64; got {:?}", other),
     }
 }
 
@@ -103,21 +53,9 @@ fn letstar_result_no_whitespace_simple_payload() {
 /// at the (second pair) call. Post-fix: lexes cleanly, runs.
 #[test]
 fn letstar_result_no_whitespace_tuple_payload() {
-    let src = r#"
-        (:wat::core::defn :user::wrap-it [] -> :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::i64> (:wat::core::Ok (:wat::core::Tuple 7 11)))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [wrapped (:user::wrap-it)
-                       extracted
-                        (:wat::core::match wrapped -> :wat::core::i64
-                          ((:wat::core::Ok pair) (:wat::core::second pair))
-                          ((:wat::core::Err _) -1))]
-                      (:wat::kernel::println (:wat::core::i64::to-string extracted))))
-    "#;
-    match run(src) {
-        Ok(lines) => assert_eq!(lines, vec!["\"11\"".to_string()]),
-        Err(e) => panic!("{}", e),
+    match run_expr("(:t::test2-result-tuple)") {
+        Value::i64(n) => assert_eq!(n, 11, "expected second of Tuple(7,11) = 11; got {}", n),
+        other => panic!("expected i64; got {:?}", other),
     }
 }
 
@@ -127,18 +65,17 @@ fn letstar_result_no_whitespace_tuple_payload() {
 /// shape debugging tractable.
 #[test]
 fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      (((m :HashMap<String, i64>)
-                        (:wat::core::HashMap :wat::core::String :wat::core::i64)))
-                      (:wat::kernel::println "ok")))
-    "#;
-    let err = run(src).expect_err("expected lex error on `:HashMap<String, i64>`");
+    let result = startup_from_file(
+        "tests/wat_lang/wat_arc072_letstar_parametric_whitespace_bad.wat",
+    );
+    let err = result
+        .map(|_| panic!("expected lex error on `:HashMap<String, i64>`"))
+        .unwrap_err();
+    let err_msg = format!("{}", err);
     assert!(
-        err.contains("whitespace inside unclosed bracket"),
+        err_msg.contains("whitespace inside unclosed bracket"),
         "expected lex-layer diagnostic, got: {}",
-        err
+        err_msg
     );
 }
 
@@ -147,16 +84,8 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
 /// test confirms the lexer's disambiguation didn't break operators.
 #[test]
 fn operator_lt_gt_keywords_still_lex() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::if (:wat::core::< 1 2) -> :wat::core::nil
-                      (:wat::core::if (:wat::core::>= 5 5) -> :wat::core::nil
-                        (:wat::kernel::println "ok")
-                        (:wat::kernel::println "ge-fail"))
-                      (:wat::kernel::println "lt-fail")))
-    "#;
-    match run(src) {
-        Ok(lines) => assert_eq!(lines, vec!["\"ok\"".to_string()]),
-        Err(e) => panic!("{}", e),
+    match run_expr("(:t::test4-operator-lt-ge)") {
+        Value::bool(true) => {}
+        other => panic!("expected bool true; got {:?}", other),
     }
 }

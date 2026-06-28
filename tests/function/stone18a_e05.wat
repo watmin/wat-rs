@@ -4,4 +4,3 @@
 (:wat::core::defn :test::bad [] -> :wat::core::nil
   ((:wat::core::fn [] => :wat::core::nil nil)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

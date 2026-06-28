@@ -76,4 +76,3 @@
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
       xs)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

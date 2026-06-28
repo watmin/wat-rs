@@ -20,29 +20,13 @@
 //! Run SERIALLY (spawns a thread):
 //!   cargo test --release -p wat --test probe_arc209_spawned_marker -- --test-threads=1
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; A fn bound over the stdlib spawn-handle marker — accepts any handle that derives :Spawned.
-(:wat::core::defn :user::take-spawned [h <- :wat::spawn::Spawned] -> :wat::core::i64 99)
-
-;; Get a real Thread' from spawn-program' (thread tier) and pass it through the :Spawned bound.
-(:wat::core::defn :user::go [] -> :wat::core::i64
-  (:wat::core::let
-    [svc (:wat::kernel::spawn-program' (:wat::spawn::thread)
-           (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-             nil))]
-    (:user::take-spawned svc)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn thread_handle_derives_the_spawned_marker() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // Wat source lives in the co-located fixture: probe_arc209_spawned_marker.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (Thread' derives :wat::spawn::Spawned via spawn.wat)");
     let ast = wat::parse_one!("(:user::go)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

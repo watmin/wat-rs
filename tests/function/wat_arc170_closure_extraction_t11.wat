@@ -4,4 +4,3 @@
   [value    <- :wat::core::i64
    children <- :wat::core::Vector<my::Tree>])
 (:wat::core::defn :my::root-value [t <- :my::Tree] -> :wat::core::i64 (:my::Tree/value t))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -13,9 +13,7 @@
 //! on `:wat::kernel::spawn-process` with the program shape's
 //! `Vec<WatAST>` parameter and a `Process<I,O>` return.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 
 #[test]
 fn arc112_probe_spawn_program_parametric_return() {
@@ -25,22 +23,8 @@ fn arc112_probe_spawn_program_parametric_return() {
     // Process<i64,i64> type params unify against the launcher's declared
     // return type annotation alone (program shape carries no fn
     // signature).
-    let src = r##"
-        (:wat::core::defn :my::worker
-          []
-          -> :wat::core::nil
-          nil)
-
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:my::worker)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "##;
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
-    if let Err(e) = result {
+    // World loaded from co-located arc112_scheme_probe.wat via startup_beside.
+    if let Err(e) = startup_beside(file!()) {
         panic!("arc112 probe failed to freeze: {e}");
     }
 }

@@ -39,32 +39,22 @@
 //! Tests come in two shapes:
 //!
 //!   - **Negative-case tests**: assert specific error variants
-//!     surface from `startup_err`.
+//!     surface — loaded via co-located `*_bad.wat` fixtures
+//!     through `startup_from_file`.
 //!
 //!   - **Positive-case tests** (verify the canonical
-//!     `:wat::core::nil` flow works): assert that
-//!     `startup_from_source` returns Ok. Use `startup_ok`.
+//!     `:wat::core::nil` flow works): `startup_beside(file!())`
+//!     loads the co-located fixture; assert startup succeeds.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_beside, startup_from_file};
 
 /// Error string from a startup that MUST fail. Returns the
 /// Debug-formatted CheckErrors bundle so tests can assert which
 /// spans/variants appear.
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn startup_err_file(rel_path: &str) -> String {
+    match startup_from_file(rel_path) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{:?}", e),
-    }
-}
-
-/// Asserts the given source starts up cleanly (post-sweep-1b: stdlib
-/// + consumer wat are migrated, so a canonical-nil user source has
-/// nothing to choke on).
-fn startup_ok(src: &str) {
-    if let Err(e) = startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        panic!("expected startup success; got errors: {:?}", e);
     }
 }
 
@@ -73,27 +63,11 @@ fn startup_ok(src: &str) {
 #[test]
 fn type_position_unit_post_retirement_is_unknown_fqdn() {
     // Arc 153 slice 2 — substrate retirement closed the
-    // `BareLegacyUnitName` migration window. The walker body
-    // retired (substrate-as-teacher § "Retire the hint when its
-    // window closes"); the typealias `:wat::core::unit -> :()`
-    // also retired. Post-retirement behavior: `:wat::core::unit`
-    // parses as `Path(":wat::core::unit")`, expand_alias returns
-    // it unchanged (no longer registered), and unification
-    // against the body's inferred `:()` (Tuple(vec![])) fails
-    // with `ReturnTypeMismatch` carrying `expected:
-    // ":wat::core::unit"` and `got: ":()"`. The variant +
-    // Display for `BareLegacyUnitName` are retained as orphaned
-    // scaffolding (arc 113 precedent — variant stays for
-    // testing/teaching; only the firing body retires).
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::unit ())
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    // Arc 163 follow-up — walker re-armed; bare :wat::core::unit
-    // now fires BareLegacyUnitName fatal at check time (replaces the
-    // post-arc-153 ReturnTypeMismatch fall-through path).
-    let err = startup_err(src);
+    // `BareLegacyUnitName` migration window. Arc 163 re-armed the
+    // walker; bare :wat::core::unit now fires BareLegacyUnitName.
+    let err = startup_err_file(
+        "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat",
+    );
     assert!(
         err.contains("BareLegacyUnitName"),
         "expected BareLegacyUnitName walker to fire on retired :wat::core::unit; got: {}",
@@ -105,58 +79,28 @@ fn type_position_unit_post_retirement_is_unknown_fqdn() {
 
 #[test]
 fn type_position_nil_canonical_works() {
-    // `:wat::core::nil` at type position is the canonical FQDN
-    // form. Same internal representation as the legacy
-    // `:wat::core::unit`; substrate canonicalizes to
-    // `TypeExpr::Tuple(vec![])` so unification with existing
-    // empty-tuple types succeeds. Post-sweep-1b: full startup
-    // success.
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::nil ())
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::probe))
-    "#;
-    startup_ok(src);
+    // `:wat::core::nil` at type position is the canonical FQDN form.
+    startup_beside(file!()).expect("startup should succeed for canonical nil type");
 }
 
 // --- 3. Value-position works: :wat::core::nil at value position --------
 
 #[test]
 fn value_position_nil_keyword_type_checks_and_evaluates() {
-    // `:wat::core::nil` at value position is the nil-value
-    // literal. The infer hook types it as the nil singleton; the
-    // eval hook returns `Value::Unit`. Recipient unification with
-    // a `-> :wat::core::nil` declaration succeeds. Post-sweep-1b:
-    // full startup success.
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::nil nil)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::probe))
-    "#;
-    startup_ok(src);
+    // `:wat::core::nil` at value position is the nil-value literal.
+    startup_beside(file!()).expect("startup should succeed for nil value position");
 }
 
 // --- 4. Type mismatch: declaring i64 but body is :wat::core::nil -------
 
 #[test]
 fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
-    // The probe declares `-> :wat::core::i64` but the body is the
-    // nil keyword. Substrate types the body as nil (singleton);
-    // recipient unification against i64 fails; ReturnTypeMismatch
-    // fires WITH a `<entry>` span. Verifies the value-position
-    // special-case really ascribes the nil type (not
-    // :wat::core::keyword).
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::i64 nil)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(src);
-    // Expect a `<entry>`-spanned ReturnTypeMismatch (or
-    // TypeMismatch) where expected is i64 and got is the nil
-    // singleton (`:()` internally).
+    // nil body vs i64 sig → ReturnTypeMismatch.
+    let err = startup_err_file(
+        "tests/wat_lang/wat_arc153_nil_rename_nil_i64_bad.wat",
+    );
     assert!(
-        err.contains(r#"ReturnTypeMismatch { function: ":my::probe""#)
+        err.contains(r#"ReturnTypeMismatch { function: ":t::probe""#)
             || err.contains(r#"file: "<entry>""#) && err.contains("TypeMismatch"),
         "expected user-source ReturnTypeMismatch when nil body meets i64 sig; got: {}",
         err
@@ -167,40 +111,18 @@ fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
 
 #[test]
 fn mixed_empty_list_body_with_nil_sig_unifies() {
-    // The body is `()` (the legacy empty-list literal at value
-    // position; types as `:()` ~ singleton). The signature is
-    // `-> :wat::core::nil` (canonical). Both produce the same
-    // internal representation (`TypeExpr::Tuple(vec![])`);
-    // unification succeeds; full startup success.
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::nil ())
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::probe))
-    "#;
-    startup_ok(src);
+    // `()` body with `-> :wat::core::nil` sig — both produce Tuple(vec![]).
+    startup_beside(file!()).expect("startup should succeed for () body with nil sig");
 }
 
 // --- 6. Reverse mixed: :wat::core::nil body, retired :unit sig --------
 
 #[test]
 fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
-    // Arc 153 slice 2 — post-retirement shape (paired with test 1).
-    // The body is `:wat::core::nil` (canonical, types as the nil
-    // singleton). The signature is `-> :wat::core::unit` (retired
-    // FQDN, no longer registered). The walker hint is gone;
-    // unification surfaces `ReturnTypeMismatch` with
-    // `expected: ":wat::core::unit"` against `got: ":()"`. The
-    // body-side spelling is fine; the error attaches to the
-    // signature mismatch as expected.
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::unit :wat::core::nil)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    // Arc 163 follow-up — walker re-armed; the retired sig token
-    // fires BareLegacyUnitName fatal before unification reaches
-    // ReturnTypeMismatch.
-    let err = startup_err(src);
+    // Arc 163 follow-up — walker re-armed; unit sig fires BareLegacyUnitName.
+    let err = startup_err_file(
+        "tests/wat_lang/wat_arc153_nil_rename_unit_sig_bad.wat",
+    );
     assert!(
         err.contains("BareLegacyUnitName"),
         "expected BareLegacyUnitName walker to fire on retired :wat::core::unit sig; got: {}",
@@ -212,85 +134,34 @@ fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
 
 #[test]
 fn value_position_nil_evaluates_to_value_unit() {
-    // The substrate's `eval` hook returns `Value::Unit` for
-    // `:wat::core::nil` at value position. Post-sweep-1b the test
-    // proves the infer hook types it as the singleton (recipient
-    // unification with `-> :wat::core::nil` succeeds) and full
-    // startup completes.
-    let src = r#"
-        (:wat::core::defn :my::nil-form [] -> :wat::core::nil nil)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::nil-form))
-    "#;
-    startup_ok(src);
+    // nil at value position types as the singleton; startup succeeds.
+    startup_beside(file!()).expect("startup should succeed for nil value form");
 }
 
 // --- 8. Value-position parity: () still evaluates to Value::Unit -------
 
 #[test]
 fn value_position_empty_list_still_evaluates_to_unit() {
-    // The empty-list literal `()` at value position continues to
-    // type as the singleton (transitional spelling; sweep 1b
-    // migrated value-position `()` to `:wat::core::nil` mechanically
-    // but the legacy spelling still type-checks). Verifies arc 153
-    // didn't accidentally retire the legacy spelling at the
-    // type-check level.
-    let src = r#"
-        (:wat::core::defn :my::nil-form [] -> :wat::core::nil ())
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:my::nil-form))
-    "#;
-    startup_ok(src);
+    // `()` at value position still type-checks as the nil singleton.
+    startup_beside(file!()).expect("startup should succeed for () as value");
 }
 
 // --- 9. Narrow special-case: other keywords still typed normally -------
 
 #[test]
 fn other_keywords_still_type_as_keyword() {
-    // The value-position special-case is NARROW: only the exact
-    // FQDN string `:wat::core::nil` participates. Every other
-    // keyword (e.g. `:user::foo`, `:my::tag`) keeps its existing
-    // typing path -- bare keywords pass the
-    // `WatAST::Keyword(_, _) => Some(TypeExpr::Path(":wat::core::keyword"))`
-    // arm and produce `:wat::core::keyword`-typed values.
-    //
-    // Verified via a function that takes a `:wat::core::keyword`
-    // parameter and is called with `:user::foo`. If `:user::foo`
-    // had been special-cased, type-check would fail at the call
-    // site with a mismatch; if the special-case is correctly
-    // narrow, type-check passes (no user-source errors).
-    let src = r#"
-        (:wat::core::defn :my::echo-keyword [k <- :wat::core::keyword] -> :wat::core::keyword k)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    // The nil special-case is narrow: only `:wat::core::nil` is special.
+    startup_beside(file!()).expect("startup should succeed for echo-keyword fn");
 }
 
 // --- 10. Walker scaffold retired: BareLegacyUnitName no longer fires --
 
 #[test]
 fn bare_legacy_unit_name_walker_retired() {
-    // Arc 153 slice 2 — substrate-as-teacher § "Retire the hint
-    // when its window closes." The walker body retired; Path-arm
-    // detection in `walk_type_for_bare` retired; signature-pass
-    // call site retired. Sanity: even a top-level
-    // `:wat::core::unit` annotation no longer produces
-    // `BareLegacyUnitName` anywhere in the error stream. The
-    // variant + Display remain as orphaned scaffolding for
-    // testing/teaching (arc 113 precedent); future
-    // symbol-migration arcs reintroduce the firing path with new
-    // variants.
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::unit ())
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    // Arc 163 follow-up — walker RE-ARMED after arc 163 audit found
-    // the silent-acceptance gap inconsistent with the FQDN-everywhere
-    // discipline. The variant + Display preserved per arc 113
-    // precedent stand; the firing path is back online.
-    let err = startup_err(src);
+    // Arc 163 follow-up — walker RE-ARMED; bare :wat::core::unit fires fatal.
+    let err = startup_err_file(
+        "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat",
+    );
     assert!(
         err.contains("BareLegacyUnitName"),
         "expected BareLegacyUnitName walker to fire on bare :wat::core::unit; got: {}",

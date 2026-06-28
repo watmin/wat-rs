@@ -13,38 +13,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs2_crash_surfaces_to_client
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
-
-// A service with one op whose handler CRASHES (assertion-failed! raises inside the serve loop).
-// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
-const PROGRAM: &str = r#"
-(:wat::service::defservice :my::svc
-  :durable [count <- :wat::core::i64]
-  :ephemeral []
-  :ops
-  [(:Boom [s <- :State]
-          -> [ok <- :wat::core::bool]
-     (:wat::kernel::assertion-failed!
-       "boom — the handler crashed on purpose"
-       (:wat::core::Some "boom")
-       (:wat::core::Some "ok")))])
-
-(:wat::core::defn :user::compute [] -> :wat::core::bool
-  (:wat::core::let
-    [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record 0))
-     c (:wat::kernel::connect' (:my::svc::Handle/addr h))
-     _ (:my::svc/boom c (:my::svc/boom-request))]
-    true))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn far_side_crash_raises_to_the_client_not_hang_or_fake() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
+    // Wat source lives in the co-located fixture: probe_arc272_rs2_crash_surfaces_to_client.wat
+    let world = startup_beside(file!())
         .expect("startup should succeed (crash-surfacing probe)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let result = eval_in_frozen(&ast, &world, &Environment::new());

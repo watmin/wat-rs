@@ -33,22 +33,14 @@ use std::sync::Arc;
 
 use wat::ast::WatAST;
 use wat::check::CheckEnv;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_bare, startup_from_file};
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
 
 // ─── helpers ───────────────────────────────────────────────────────────
 
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
-
-fn freeze_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn freeze_err(fixture_rel: &str) -> String {
+    match startup_from_file(fixture_rel) {
         Ok(_) => panic!("freeze should fail but succeeded"),
         Err(e) => format!("{}", e),
     }
@@ -85,10 +77,7 @@ const IMMEDIATE_EXIT_SERVER: &str = r#"
     (:wat::core::defn :user::main [] -> :wat::core::nil nil)
 "#;
 
-/// Trivial parent program (needed to freeze a parent-side world).
-const PARENT_SRC: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
+/// Parent world needs no user defns — startup_bare() provides the substrate stdlib.
 
 /// Unwrap `Value::Result(Ok(inner))` and return `inner`. Panics otherwise.
 fn unwrap_ok(v: Value, label: &str) -> Value {
@@ -163,7 +152,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     // Spawn an echo server; build a ProcessPeer; send "arc208-ok" via
     // Process/println; read the echo back via Process/readln; verify
     // both return Ok-wrapped values.
-    let world = freeze_ok(PARENT_SRC);
+    let world = startup_bare().expect("freeze should succeed");
     let spawn_call = build_spawn_process_call(ECHO_SERVER);
     let env = Environment::new();
     let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -238,7 +227,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
     // it exits its stdin pipe is closed. Writing via Process/println
     // to the dead peer should return Err(chain), NOT panic as
     // RuntimeError::ChannelDisconnected.
-    let world = freeze_ok(PARENT_SRC);
+    let world = startup_bare().expect("freeze should succeed");
     let spawn_call = build_spawn_process_call(IMMEDIATE_EXIT_SERVER);
     let env = Environment::new();
     let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -299,7 +288,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
 fn arc208_t4_process_readln_returns_err_on_dead_peer() {
     // Mirror of T3 for Process/readln: read from a peer whose subprocess
     // has exited and produces EOF on its stdout pipe.
-    let world = freeze_ok(PARENT_SRC);
+    let world = startup_bare().expect("freeze should succeed");
 
     // Spawn a server that exits without printing anything.
     let server = eval(
@@ -350,7 +339,7 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
     // Both Process/readln and Process/println should produce
     // ProcessDiedError::ChannelDisconnected as the chain head on a dead peer.
     // Verify the variant name matches the substrate-vended enum.
-    let world = freeze_ok(PARENT_SRC);
+    let world = startup_bare().expect("freeze should succeed");
 
     let server = eval(
         &build_spawn_process_call(IMMEDIATE_EXIT_SERVER),
@@ -420,15 +409,8 @@ fn arc208_t6_walker_rejects_process_println_in_body_position() {
     // walker (Vector nodes early-return per the walker's structural contract).
     // Forbidden positions the walker covers: direct body expressions, `do`
     // children, function argument positions, etc.
-    let src = r#"
-        (:wat::core::defn :user::bad-println
-          [peer <- :wat::kernel::ProcessPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::nil
-          (:wat::core::do
-            (:wat::kernel::Process/println peer "hello")
-            :wat::core::nil))
-    "#;
-    let err = freeze_err(src);
+    // Negative fixture loaded from co-located wat_arc208_process_io_result_bad_println.wat.
+    let err = freeze_err("tests/process/wat_arc208_process_io_result_bad_println.wat");
     assert!(
         err.contains("CommCallOutOfPosition") || err.contains("Process/println"),
         "walker should fire CommCallOutOfPosition for Process/println in do-body; got: {}",
@@ -442,15 +424,8 @@ fn arc208_t6_walker_rejects_process_println_in_body_position() {
 fn arc208_t7_walker_rejects_process_readln_in_body_position() {
     // Mirror of T6 for Process/readln: direct body expression in a `do`
     // form triggers CommCallOutOfPosition.
-    let src = r#"
-        (:wat::core::defn :user::bad-readln
-          [peer <- :wat::kernel::ProcessPeer<wat::core::String,wat::core::String>]
-          -> :wat::core::String
-          (:wat::core::do
-            (:wat::kernel::Process/readln peer)
-            "fallback"))
-    "#;
-    let err = freeze_err(src);
+    // Negative fixture loaded from co-located wat_arc208_process_io_result_bad_readln.wat.
+    let err = freeze_err("tests/process/wat_arc208_process_io_result_bad_readln.wat");
     assert!(
         err.contains("CommCallOutOfPosition") || err.contains("Process/readln"),
         "walker should fire CommCallOutOfPosition for Process/readln in do-body; got: {}",

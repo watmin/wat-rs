@@ -28,22 +28,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3be_process_env_fn
 
-use std::sync::Arc;
-use wat::freeze::{resolve_env_program, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{resolve_env_program, startup_beside};
 use wat::runtime::Value;
 
 // A world that has `app::Env` (a :wat::Record SUBTYPE) + a named env-fn loaded — i.e. the
 // type's code is present, exactly as it is in the spawned universe that runs the env-fn.
-const PROGRAM: &str = r#"
-(:wat::core::defrecord :app::Env [token <- :wat::core::i64])
-(:wat::core::defn :app::make-env [] -> :wat::Record (:app::Env 7))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
+// Wat source lives in the co-located fixture: probe_arc209_c0b3be_process_env_fn.wat
 
 fn world() -> wat::freeze::FrozenWorld {
-    startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed (C0b.3b-e: env-fn resolver)")
+    startup_beside(file!()).expect("startup should succeed (C0b.3b-e: env-fn resolver)")
 }
 
 fn assert_class(got: Value, expected_fqdn: &str, via: &str) {

@@ -3,4 +3,3 @@
 
 (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

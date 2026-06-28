@@ -21,17 +21,8 @@
 //! Surface exercised: `:wat::test::run-hermetic-ast` (spawn-process)
 //! These match. Every probe body in this file exercises the spawn-process path.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 // ─── Probe 1 — fork-program-ast child writes stdout; parent captures it ────
 
@@ -51,18 +42,8 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
 /// Path: `:wat::test::run-hermetic-ast` (fork-program-ast Layer 2).
 #[test]
 fn probe_run_hermetic_ast_child_stdout_captured() {
-    // The outer program defines a compute function that calls run-hermetic-ast.
-    // The inner (child) program has a :user::main that calls println.
-    // run-hermetic-ast is a macro: it wraps the body in (:wat::test::program ...)
-    // and calls (:wat::kernel::run-sandboxed-hermetic-ast forms stdin scope).
-    let src = r#"
-        (:wat::core::defn :probe::ast::capture-stdout [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::kernel::println "hello-from-probe")))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    // World loaded from co-located probe_run_hermetic_ast_stdout_capture.wat via startup_beside.
+    let world = startup_beside(file!()).expect("freeze should succeed");
 
     // Evaluate (:probe::ast::capture-stdout) to get the RunResult.
     let call = wat::parse_one!("(:probe::ast::capture-stdout)").expect("parse call");

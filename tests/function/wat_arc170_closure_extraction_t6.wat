@@ -10,4 +10,3 @@
                 (:wat::core::i64::+ m
                   (:wat::core::i64::+ n
                     (:wat::core::Vector/length xs))))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

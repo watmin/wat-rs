@@ -8,47 +8,28 @@
 //! - define: byte-equivalent → ok; divergent → error
 //! - defmacro: byte-equivalent → ok (divergent path covered by lib test)
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_beside, startup_from_file};
 
-fn freeze_ok(src: &str) {
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
-    assert!(
-        result.is_ok(),
-        "expected freeze to succeed; got error: {:?}",
-        result.err()
-    );
-}
-
-fn freeze_err(src: &str) -> String {
-    let err = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect_err("expected freeze to fail");
-    format!("{:?}", err)
+/// Error string from a startup-file that MUST fail.
+fn startup_err_file(rel_path: &str) -> String {
+    match startup_from_file(rel_path) {
+        Ok(_) => panic!("expected startup failure; got Ok"),
+        Err(e) => format!("{:?}", e),
+    }
 }
 
 // ─── Typealias ───────────────────────────────────────────────────────
 
 #[test]
 fn typealias_byte_equivalent_is_noop() {
-    let src = r##"
-        (:wat::core::typealias :my::Amount :wat::core::f64)
-        (:wat::core::typealias :my::Amount :wat::core::f64)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::io::IOWriter/println stdout "ok"))
-    "##;
-    freeze_ok(src);
+    startup_beside(file!()).expect("startup should succeed for byte-equivalent typealias");
 }
 
 #[test]
 fn typealias_divergent_errors() {
-    let src = r##"
-        (:wat::core::typealias :my::Amount :wat::core::f64)
-        (:wat::core::typealias :my::Amount :wat::core::i64)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::io::IOWriter/println stdout "ok"))
-    "##;
-    let err = freeze_err(src);
+    let err = startup_err_file(
+        "tests/wat_lang/wat_idempotent_redeclare_typealias_div_bad.wat",
+    );
     assert!(
         err.contains("duplicate") || err.contains("Duplicate") || err.contains("Amount"),
         "expected duplicate-type error mentioning Amount; got: {}",
@@ -60,24 +41,14 @@ fn typealias_divergent_errors() {
 
 #[test]
 fn define_byte_equivalent_is_noop() {
-    let src = r##"
-        (:wat::core::defn :my::add-one [a <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a 1))
-        (:wat::core::defn :my::add-one [a <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a 1))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::io::IOWriter/println stdout "ok"))
-    "##;
-    freeze_ok(src);
+    startup_beside(file!()).expect("startup should succeed for byte-equivalent defn");
 }
 
 #[test]
 fn define_divergent_body_errors() {
-    let src = r##"
-        (:wat::core::defn :my::add-one [a <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a 1))
-        (:wat::core::defn :my::add-one [a <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a 2))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::io::IOWriter/println stdout "ok"))
-    "##;
-    let err = freeze_err(src);
+    let err = startup_err_file(
+        "tests/wat_lang/wat_idempotent_redeclare_define_div_bad.wat",
+    );
     assert!(
         err.contains("Duplicate") || err.contains("duplicate") || err.contains("add-one"),
         "expected duplicate-define error; got: {}",
@@ -89,13 +60,7 @@ fn define_divergent_body_errors() {
 
 #[test]
 fn defmacro_byte_equivalent_is_noop() {
-    let src = r##"
-        (:wat::core::defmacro :my::ident [x <- :wat::WatAST] -> :wat::WatAST `~x)
-        (:wat::core::defmacro :my::ident [x <- :wat::WatAST] -> :wat::WatAST `~x)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::io::IOWriter/println stdout "ok"))
-    "##;
-    freeze_ok(src);
+    startup_beside(file!()).expect("startup should succeed for byte-equivalent defmacro");
 }
 
 // ─── In-crate-shim shape — the motivating case ──────────────────────
@@ -109,15 +74,5 @@ fn defmacro_byte_equivalent_is_noop() {
 
 #[test]
 fn shim_double_register_pattern_works() {
-    let src = r##"
-        ;; First registration — as if delivered by wat_sources()
-        (:wat::core::typealias :lab::candles::Stream :wat::core::i64)
-
-        ;; Second registration — as if delivered by (:wat::load-file! ...)
-        ;; resolving to the same file content
-        (:wat::core::typealias :lab::candles::Stream :wat::core::i64)
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::io::IOWriter/println stdout "ok"))
-    "##;
-    freeze_ok(src);
+    startup_beside(file!()).expect("startup should succeed for shim double-register pattern");
 }

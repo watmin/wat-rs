@@ -12,4 +12,3 @@
       (:wat::core::i64::+ x y))
    a b))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
