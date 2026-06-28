@@ -32,12 +32,13 @@
 //! Symbol renders as `#wat-edn.holon/Symbol "..."`. The tests
 //! string-match the distinguishing substrings — they don't parse EDN,
 //! they only assert the structural presence of the slot shape.
+//!
+//! Fixtures co-located beside each test name — slurped via startup_from_file.
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{invoke_user_main, startup_from_file};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -66,14 +67,9 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
     lines
 }
 
-fn run(src: &str) -> Vec<String> {
+fn run_file(fixture_path: &str) -> Vec<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_from_file(fixture_path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -87,22 +83,10 @@ fn run(src: &str) -> Vec<String> {
     drain_lines(&stdout_capture)
 }
 
-/// Helper — render `signature-of-defn` of `target_keyword` as an EDN string
-/// and return the single output line.
-fn render_signature(target_keyword: &str) -> String {
-    let src = format!(
-        r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig
-                        (:wat::runtime::signature-of-defn {target})
-                       rendered
-                        (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-        "##,
-        target = target_keyword
-    );
-    let out = run(&src);
+/// Helper — render `signature-of-defn` for a fixture that runs main and
+/// emits one line, returning that line.
+fn render_signature_from_file(fixture_path: &str) -> String {
+    let out = run_file(fixture_path);
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     out.into_iter().next().unwrap()
 }
@@ -115,24 +99,7 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     // the variadic rest binder — exercises the strict-arity init slot
     // (atomic :i64) AND the variadic Vector<i64> rest slot's structured
     // Parametric emission.
-    let src = r##"
-
-        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-          (:wat::core::foldl
-                      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ acc x))
-                      init
-                      xs))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig
-                        (:wat::runtime::signature-of-defn :user::sum-list)
-                       rendered
-                        (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_structured_signature_types_parametric_fn.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
 
@@ -172,7 +139,9 @@ fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     // restructures Parametric / Tuple / Fn shapes; Path stays atomic.
     // `:wat::core::i64::+` is a substrate primitive whose scheme is
     // monomorphic (`:i64 :i64 -> :i64`); it exercises the all-Path path.
-    let line = render_signature(":wat::core::i64::+");
+    let line = render_signature_from_file(
+        "tests/reflection/wat_arc201_structured_signature_types_atomic_plus.wat",
+    );
     assert!(
         line.contains(":wat::core::i64"),
         "expected ':wat::core::i64' in rendered atomic-type signature; got: {}",
@@ -193,7 +162,9 @@ fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
     // The structured emission gives each shape a Bundle wrapper with a
     // distinctive head keyword (`:wat::core::Vector`, `:Fn`). Pre-arc-201
     // these were squished into atomic keyword strings.
-    let line = render_signature(":wat::core::foldl");
+    let line = render_signature_from_file(
+        "tests/reflection/wat_arc201_structured_signature_types_foldl.wat",
+    );
 
     // Parametric head appears as a standalone keyword.
     assert!(
@@ -241,19 +212,7 @@ fn signature_of_defn_emits_structured_tuple_return_type() {
     // User fn whose return type is a tuple exercises the Tuple
     // emission path on the ret slot. Tuple shapes are common at
     // return position; this is the typical place they surface.
-    let src = r##"
-
-        (:wat::core::defn :user::make-pair [] -> :(wat::core::i64,wat::core::String) (:wat::core::Tuple 42 "hi"))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig
-                        (:wat::runtime::signature-of-defn :user::make-pair)
-                       rendered
-                        (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_structured_signature_types_tuple.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
 
@@ -293,23 +252,7 @@ fn define_alias_round_trips_on_parametric_signature() {
     // This test pins the round-trip: aliasing `:wat::core::foldl` (which has
     // both a `:Vector<T>` Parametric param and a `:Fn(Acc,T)->Acc` Fn param)
     // must succeed end-to-end.
-    let src = r##"
-
-        (:wat::core::defalias :user::my-fold :wat::core::foldl)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:user::my-fold
-                      (:wat::core::fn
-                        [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::+ acc x))
-                      0
-                      (:wat::core::Vector :wat::core::i64 1 2 3 4)))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::kernel::println
-                      (:wat::core::i64::to-string (:my::compute))))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_structured_signature_types_alias.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     assert_eq!(out[0], "\"10\"", "expected 10 (sum of 1..=4); got: {}", out[0]);
 }

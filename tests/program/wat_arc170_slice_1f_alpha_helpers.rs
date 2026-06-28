@@ -28,9 +28,8 @@
 
 use std::sync::Arc;
 
-use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::io::{PipeReader, PipeWriter, WatReader};
-use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::span::Span;
 use wat::services::{
@@ -40,16 +39,15 @@ use wat::services::{
 
 // ─── helpers ───────────────────────────────────────────────────────
 
-/// Build a frozen world that contains a no-op `:user::main`. The
-/// invocation tests evaluate ad-hoc forms via `eval_in_frozen` so
+/// Build a frozen world that contains a no-op `:user::main` plus the
+/// type-check test functions for rows H, I, J. Slurped from the co-located
+/// fixture `wat_arc170_slice_1f_alpha_helpers.wat` via `startup_beside`.
+///
+/// The invocation tests evaluate ad-hoc forms via `eval_in_frozen` so
 /// the substrate's freeze pipeline runs (registering the type-check
 /// arms + dispatch) without needing a meaningful main body.
 fn freeze_skeleton() -> wat::freeze::FrozenWorld {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("skeleton freeze succeeds")
+    startup_beside(file!()).expect("skeleton freeze succeeds")
 }
 
 /// Stone 8.1/8.1b/8.2 — a MINIATURE TRUE UNIVERSE for all three service rows:
@@ -461,36 +459,22 @@ fn row_g_println_polymorphic_value_types() {
 
 #[test]
 fn row_h_type_check_println_accepts_any_t() {
-    // If println's type scheme is ∀T. T -> :wat::core::nil, freezing
-    // a `:test::p` define that returns nil after calling println on
-    // an i64 must succeed. Failure surfaces as a freeze error;
-    // success means the type-check arm registered correctly.
-    let src = r#"
-        (:wat::core::defn :test::p [v <- :wat::core::i64] -> :wat::core::nil (:wat::kernel::println v))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
-    assert!(
-        result.is_ok(),
-        "println should type-check against any-T input; got: {:?}",
-        result.err()
-    );
+    // If println's type scheme is ∀T. T -> :wat::core::nil, the fixture's
+    // `:test::p` define (which calls println on an i64 param) must freeze
+    // without error. The fixture freeze via startup_beside IS the type-check
+    // assertion — a freeze failure would surface here as a panic.
+    startup_beside(file!())
+        .expect("println should type-check against any-T input; fixture freeze failed");
 }
 
 // ─── I. type-check accepts any-T for eprintln ──────────────────────
 
 #[test]
 fn row_i_type_check_eprintln_accepts_any_t() {
-    let src = r#"
-        (:wat::core::defn :test::p [v <- :wat::core::String] -> :wat::core::nil (:wat::kernel::eprintln v))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
-    assert!(
-        result.is_ok(),
-        "eprintln should type-check against any-T input; got: {:?}",
-        result.err()
-    );
+    // The fixture's `:test::p-eprintln` define calls eprintln on a String param.
+    // Freeze success proves eprintln accepts any-T.
+    startup_beside(file!())
+        .expect("eprintln should type-check against any-T input; fixture freeze failed");
 }
 
 // ─── J. type-check accepts polymorphic return for readln ───────────
@@ -501,19 +485,11 @@ fn row_i_type_check_eprintln_accepts_any_t() {
 
 #[test]
 fn row_j_type_check_readln_returns_polymorphic_t() {
-    // `:test::r` declares its return as :wat::core::String and its
-    // body is `(:wat::kernel::readln -> :wat::core::String)`.
-    // Successful freeze proves the return type unifies correctly.
-    let src = r#"
-        (:wat::core::defn :test::r [] -> :wat::core::String (:wat::kernel::readln -> :wat::core::String))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
-    assert!(
-        result.is_ok(),
-        "readln with -> :T annotation should type-check with matching return type; got: {:?}",
-        result.err()
-    );
+    // The fixture's `:test::r` function declares its return as :wat::core::String
+    // and its body is `(:wat::kernel::readln -> :wat::core::String)`.
+    // Freeze success proves the return type unifies correctly.
+    startup_beside(file!())
+        .expect("readln with -> :T annotation should type-check; fixture freeze failed");
 }
 
 // ─── NEW: reply-routing proof ─────────────────────────────────────

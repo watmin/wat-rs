@@ -29,10 +29,8 @@
 //! the binding. (Stone 2's proc-macro + Stone 3's annotation will hook
 //! real substrate fns into this same channel.)
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 use wat::restriction_entry::RestrictionEntry;
 
 // Probe submission at module scope. `inventory::submit!` is a macro that
@@ -65,16 +63,13 @@ fn extract_prefixes_from_binding_metadata_entry(entry: &WatAST) -> Vec<String> {
 
 #[test]
 fn inventory_submitted_restriction_entry_lands_in_symbol_table_after_startup() {
-    // Minimal valid wat source: just `:user::main`, nothing else. The
-    // iteration step runs unconditionally during startup, so the probe
+    // The iteration step runs unconditionally during startup, so the probe
     // entry should be present in the frozen world's symbol table even
     // when the user source declares no restrictions of its own.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("minimal wat source should freeze cleanly");
+    // startup_bare() = frozen default world, no user source — correct here
+    // since this test's subject is the Rust substrate (inventory wiring),
+    // not any wat program.
+    let frozen = startup_bare().expect("startup_bare should freeze cleanly");
 
     let meta = frozen
         .symbols

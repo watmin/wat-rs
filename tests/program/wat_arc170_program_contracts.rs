@@ -26,26 +26,29 @@
 use std::sync::Arc;
 use wat::ast::WatAST;
 use wat::freeze::{
-    expected_user_main_signature, invoke_user_main, startup_from_source, validate_user_main_signature,
+    expected_user_main_signature, invoke_user_main, startup_beside, startup_from_file,
+    validate_user_main_signature,
 };
-use wat::load::InMemoryLoader;
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::types::TypeExpr;
 
 // ─── helpers ───────────────────────────────────────────────────────────
 
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
+fn freeze_ok(fixture: &str) -> wat::freeze::FrozenWorld {
+    startup_from_file(fixture)
+        .unwrap_or_else(|e| panic!("freeze should succeed for {fixture:?}; got: {e}"))
+}
+
+fn freeze_err(fixture: &str) -> String {
+    match startup_from_file(fixture) {
+        Ok(_) => panic!("expected freeze to fail for {fixture:?}; succeeded"),
+        Err(e) => format!("{}", e),
     }
 }
 
-fn freeze_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => panic!("expected freeze to fail; succeeded"),
-        Err(e) => format!("{}", e),
-    }
+/// Load the primary fixture (canonical trivial main) via startup_beside.
+fn freeze_trivial() -> wat::freeze::FrozenWorld {
+    startup_beside(file!()).expect("trivial-main fixture must freeze")
 }
 
 /// Arc 170 slice 6 helper — build a `(:wat::kernel::spawn-process
@@ -70,22 +73,15 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
     )
 }
 
-/// Arc 170 slice 6 — minimal parent program for tests that don't need
-/// any helper defines at parent freeze time (the child program is
-/// self-contained per the new substrate contract).
-const PARENT_TRIVIAL: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
+// PARENT_TRIVIAL retired: callers now use freeze_trivial() which loads
+// tests/program/wat_arc170_program_contracts.wat via startup_beside(file!()).
 
 // ─── T1. :user::main [] -> :wat::core::nil signature freezes; 3-arg fires walker ──
 
 #[test]
 fn t1_canonical_nil_main_freezes() {
     // Arc 170 slice 1e canonical shape: no params, nil return. Should freeze cleanly.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_trivial();
     // Validator agrees — the canonical signature passes.
     validate_user_main_signature(&world).expect("[] -> nil :user::main validates");
     // expected_user_main_signature() exposes the canonical shape: 0 params, nil return.
@@ -102,10 +98,7 @@ fn t1_canonical_nil_main_freezes() {
 #[ignore = "ARC-170 WIP: BareLegacyMainSignature walker no longer fires for a non-canonical :user::main (freeze succeeds where it should reject — likely walker-disconnect); investigate + fix/retire before arc 170 closes."]
 fn t1_legacy_3arg_main_fires_walker() {
     // The well-known pre-arc-170 shape: 3-arg with IOReader/Writer/Writer.
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil nil)
-    "#;
-    let err = freeze_err(src);
+    let err = freeze_err("tests/program/wat_arc170_program_contracts_t1_legacy_3arg.wat");
     assert!(
         err.contains("BareLegacyMainSignature")
             || err.contains(":user::main`")
@@ -121,10 +114,7 @@ fn t1_legacy_3arg_main_fires_walker() {
 fn t2_canonical_main_returns_nil_value() {
     // nil IS the success exit code (arc 170 REALIZATIONS pass 10).
     // invoke_user_main on a canonical [] -> nil main returns nil.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_trivial();
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
     assert!(
         matches!(result, Value::Unit),
@@ -136,13 +126,7 @@ fn t2_canonical_main_returns_nil_value() {
 fn t2_canonical_main_with_let_body_returns_nil() {
     // A canonical main with a non-trivial body (let binding + discard)
     // still returns nil. Confirms the do-work-return-nil pattern runs.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [_ (:wat::core::i64::+ 1 2)]
-                      nil))
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t2_let.wat");
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main should run");
     assert!(
         matches!(result, Value::Unit),
@@ -159,13 +143,7 @@ fn t3_argv_reachable_via_ambient() {
     // freeze should succeed (type-check validates the argv expression).
     // At runtime the ambient vector is whatever set_argv was called with
     // (empty if never set). We just confirm the program freezes and runs.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [_ (:wat::runtime::argv)]
-                      nil))
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t3_argv.wat");
     let result = invoke_user_main(&world, Vec::new()).expect(":user::main runs");
     assert!(
         matches!(result, Value::Unit),
@@ -256,7 +234,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     // (:user::main -> :nil) define whose body reads one i64, prints n+1.
     // Parent sends 41 via Sender/from-pipe; child responds 42 via
     // println; parent reads 42 via Receiver/from-pipe; child exits 0.
-    let world = freeze_ok(PARENT_TRIVIAL);
+    let world = freeze_trivial();
     let call = build_spawn_process_call(
         r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -341,17 +319,7 @@ fn t5_spawn_process_inline_lambda_round_trips() {
     // entry_form path of slice 1b retires under the new substrate; the
     // analogous shape is now an inline program. Child is self-contained.
     // Stone 241.12 — migrated from :wat::core::define to :wat::core::defn.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [n    (:wat::kernel::readln -> :wat::core::i64)
-                             _out (:wat::kernel::println (:wat::core::i64::* n 2))]
-                            nil)))))
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t5_launch_lambda.wat");
     // Invoke the launcher to get the Process Value.
     let launcher = world.symbols().get(":my::launch").expect("launch defined");
     let process = wat::runtime::apply_function(
@@ -412,19 +380,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     // uses this shape and works). T6 may surface a substrate
     // interaction between runtime quasiquote and the Vector<WatAST>
     // constructor; the let-form isolates the quasiquote.
-    let src = r#"
-        (:wat::core::defn :my::launch [offset <- :wat::core::i64] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
-          (:wat::core::let
-                      [main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
-                                    (:wat::core::let
-                                      [n    (:wat::kernel::readln -> :wat::core::i64)
-                                       _out (:wat::kernel::println
-                                              (:wat::core::i64::+ n ~offset))]
-                                      nil))]
-                      (:wat::kernel::spawn-process
-                        (:wat::core::Vector :wat::WatAST main-form))))
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t6_launch_factory.wat");
     let launcher = world.symbols().get(":my::launch").expect("launch defined");
     let process = wat::runtime::apply_function(
         launcher.clone(),
@@ -487,34 +443,11 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
     // let-scope. The Sender is a channel-bearing Value — pointer
     // identity does not survive fork(2). Slice 1's portability check
     // refuses; spawn-process surfaces the diagnostic.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::i64,wat::core::i64>
-          (:wat::core::let
-                      [pair (:wat::kernel::make-channel :wat::core::nil)
-                       extra-tx (:wat::core::first pair)]
-                      (:wat::kernel::spawn-process
-                        (:wat::core::fn
-                          [rx <- :wat::kernel::Receiver<wat::core::i64>
-                           tx <- :wat::kernel::Sender<wat::core::i64>]
-                          -> :wat::core::nil
-                          (:wat::core::let
-                            [n
-                              (:wat::core::Option/expect -> :wat::core::i64
-                                (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
-                                  (:wat::kernel::recv rx)
-                                  "recv failed")
-                                "stream closed")
-                             _send
-                              (:wat::core::Result/expect -> :wat::core::nil
-                                (:wat::kernel::send extra-tx n)
-                                "send failed")]
-                            :wat::core::nil)))))
-    "#;
     // The freeze may succeed (the closure-extract check fires at
     // spawn-process invocation, not at freeze). If the type-checker
     // already rejects, that's also a valid failure mode — both paths
-    // refuse the non-portable shape.
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    // refuse the non-portable shape. Fixture: t7_non_portable.wat.
+    match startup_from_file("tests/program/wat_arc170_program_contracts_t7_non_portable.wat") {
         Ok(world) => {
             let launcher = world
                 .symbols()
@@ -565,13 +498,7 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
 
 #[test]
 fn t8_fork_program_callsite_fires_walker() {
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
-          (:wat::core::do
-                      (:wat::kernel::fork-program "" :wat::core::None)
-                      (:wat::core::u8 0)))
-    "#;
-    let err = freeze_err(src);
+    let err = freeze_err("tests/program/wat_arc170_program_contracts_t8_fork_program.wat");
     assert!(
         err.contains("BareLegacyForkProgram") || err.contains(":wat::kernel::fork-program"),
         "expected BareLegacyForkProgram diagnostic; got: {}",
@@ -581,13 +508,7 @@ fn t8_fork_program_callsite_fires_walker() {
 
 #[test]
 fn t8b_fork_program_ast_callsite_fires_walker() {
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
-          (:wat::core::do
-                      (:wat::kernel::fork-program-ast (:wat::core::Vector :wat::WatAST))
-                      (:wat::core::u8 0)))
-    "#;
-    let err = freeze_err(src);
+    let err = freeze_err("tests/program/wat_arc170_program_contracts_t8b_fork_program_ast.wat");
     assert!(
         err.contains("BareLegacyForkProgram")
             || err.contains(":wat::kernel::fork-program-ast"),
@@ -600,13 +521,7 @@ fn t8b_fork_program_ast_callsite_fires_walker() {
 
 #[test]
 fn t9_spawn_program_callsite_fires_walker() {
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
-          (:wat::core::do
-                      (:wat::kernel::spawn-program "" :wat::core::None)
-                      (:wat::core::u8 0)))
-    "#;
-    let err = freeze_err(src);
+    let err = freeze_err("tests/program/wat_arc170_program_contracts_t9_spawn_program.wat");
     assert!(
         err.contains("BareLegacySpawnProgram") || err.contains(":wat::kernel::spawn-program"),
         "expected BareLegacySpawnProgram diagnostic; got: {}",
@@ -616,13 +531,7 @@ fn t9_spawn_program_callsite_fires_walker() {
 
 #[test]
 fn t9b_spawn_program_ast_callsite_fires_walker() {
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode
-          (:wat::core::do
-                      (:wat::kernel::spawn-program-ast (:wat::core::Vector :wat::WatAST) :wat::core::None)
-                      (:wat::core::u8 0)))
-    "#;
-    let err = freeze_err(src);
+    let err = freeze_err("tests/program/wat_arc170_program_contracts_t9b_spawn_program_ast.wat");
     assert!(
         err.contains("BareLegacySpawnProgram")
             || err.contains(":wat::kernel::spawn-program-ast"),
@@ -639,20 +548,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
     // signature is :Receiver<I> + :Sender<O> → :nil. Behavior must
     // not regress: the thread runs in parent's world, communicates
     // via crossbeam channels, returns Thread<I,O>.
-    let src = r#"
-        (:wat::core::defn :my::echo-thread
-          [rx <- :wat::kernel::Receiver<wat::core::i64>
-           tx <- :wat::kernel::Sender<wat::core::i64>]
-          -> :wat::core::nil
-          (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
-            ((:wat::core::Ok (:wat::core::Some n))
-              (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::* n 2)) -> :wat::core::nil
-                ((:wat::core::Ok _) nil)
-                ((:wat::core::Err _) nil)))
-            ((:wat::core::Ok :wat::core::None) nil)
-            ((:wat::core::Err _died) nil)))
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t10_echo_thread.wat");
     // Build (:wat::kernel::spawn-thread :my::echo-thread).
     let call = WatAST::List(
         vec![
@@ -695,10 +591,7 @@ fn t10_spawn_thread_unchanged_positive_control() {
 #[test]
 #[ignore = "ARC-170 WIP: BareLegacyMainSignature walker no longer fires for a non-canonical :user::main (freeze succeeds where it should reject — likely walker-disconnect); investigate + fix/retire before arc 170 closes."]
 fn t11_legacy_main_signature_fires_walker_diagnostic() {
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil nil)
-    "#;
-    let err = freeze_err(src);
+    let err = freeze_err("tests/program/wat_arc170_program_contracts_t11_legacy_main.wat");
     // The walker's Display output should mention the canonical 4-arg
     // shape and ExitCode return.
     assert!(
@@ -719,7 +612,7 @@ fn t11_legacy_main_signature_fires_walker_diagnostic() {
 fn t12_spawn_process_child_emits_without_recv() {
     // Arc 170 slice 6 — child is a self-contained program emitting via
     // println; parent reads via Receiver/from-pipe.
-    let world = freeze_ok(PARENT_TRIVIAL);
+    let world = freeze_trivial();
     let call = build_spawn_process_call(
         r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "hello-from-fork"))
@@ -751,7 +644,7 @@ fn t12_spawn_process_child_emits_without_recv() {
 fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
     // Arc 170 slice 6 — child program returns immediately; parent drops
     // Process (closes stdin/stdout pipes) → child exits 0.
-    let world = freeze_ok(PARENT_TRIVIAL);
+    let world = freeze_trivial();
     let call = build_spawn_process_call(
         r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -776,7 +669,7 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
 fn t14_spawn_process_wait_handle_is_idempotent() {
     // Arc 170 slice 6 — child program returns immediately; idempotent
     // wait_or_cached_exit caches exit 0 on first wait and reuses it on the second.
-    let world = freeze_ok(PARENT_TRIVIAL);
+    let world = freeze_trivial();
     let call = build_spawn_process_call(
         r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil nil)
@@ -805,7 +698,7 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
 fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     // Arc 170 slice 6 — child panics intentionally before printing;
     // parent's recv returns Disconnected; exit code is non-zero.
-    let world = freeze_ok(PARENT_TRIVIAL);
+    let world = freeze_trivial();
     let call = build_spawn_process_call(
         r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -863,13 +756,8 @@ fn t17_run_hermetic_layer1_passing_assertion() {
     // run-hermetic is a macro; it expands the body into a fn, spawns
     // an OS process, drains stdout/stderr, joins, and returns RunResult.
     // A passing assertion (2+2=4) means the child exits 0 and failure
-    // is :None.
-    let src = r#"
-        (:wat::core::defn :my::test::two-plus-two [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4)))
-    "#;
-    let world = freeze_ok(src);
+    // is :None. Fixture: t17_run_hermetic.wat.
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t17_run_hermetic.wat");
     let func = world
         .symbols()
         .get(":my::test::two-plus-two")
@@ -914,12 +802,8 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     // now mirrors fork.rs::emit_panics_to_stderr — AssertionPayload
     // panics emit the structured chain; plain panics fall through to
     // the singleton "exited N" path.
-    let src = r#"
-        (:wat::core::defn :my::test::one-neq-two [] -> :wat::kernel::RunResult
-          (:wat::test::run-hermetic
-                      (:wat::test::assert-eq (:wat::core::i64::+ 1 0) 2)))
-    "#;
-    let world = freeze_ok(src);
+    // Fixture: t17b_run_hermetic_fail.wat.
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t17b_run_hermetic_fail.wat");
     let func = world
         .symbols()
         .get(":my::test::one-neq-two")
@@ -998,18 +882,8 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
     // Stone C: child fn is [] -> nil; uses readln/println through bootstrap services.
     // run-hermetic-with-io macro expands to [] fn; driver sends via Sender/from-pipe
     // over Process/stdin; child reads via readln and writes via println.
-    let src = r#"
-        (:wat::core::defn :my::test::echo-doubled [] -> :wat::test::RunResultIO<wat::core::i64>
-          (:wat::test::run-hermetic-with-io
-                      :wat::core::i64
-                      :wat::core::i64
-                      (:wat::core::Vector :wat::core::i64 21)
-                      (:wat::core::let
-                        [n (:wat::kernel::readln -> :wat::core::i64)
-                         _ (:wat::kernel::println (:wat::core::i64::* n 2))]
-                        nil)))
-    "#;
-    let world = freeze_ok(src);
+    // Fixture: t18_echo_doubled.wat.
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t18_echo_doubled.wat");
     let func = world
         .symbols()
         .get(":my::test::echo-doubled")
@@ -1075,21 +949,8 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     // sending, outputs Vec is empty (the send never happened).
     // Stone C: child fn is [] -> nil; uses readln/println through bootstrap services.
     // Child reads n=2 via readln, assert-eq n 3 fails (child panics before println).
-    let src = r#"
-        (:wat::core::defn :my::test::recv-assert-fail [] -> :wat::test::RunResultIO<wat::core::i64>
-          (:wat::test::run-hermetic-with-io
-                      :wat::core::i64
-                      :wat::core::i64
-                      (:wat::core::Vector :wat::core::i64 2)
-                      (:wat::core::let
-                        [n (:wat::kernel::readln -> :wat::core::i64)
-                         ;; assert-eq: n=2 vs expected=3 — this fails, child panics
-                         _ (:wat::test::assert-eq n 3)
-                         ;; println never reached:
-                         _2 (:wat::kernel::println n)]
-                        nil)))
-    "#;
-    let world = freeze_ok(src);
+    // Fixture: t18b_recv_assert_fail.wat.
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t18b_recv_assert_fail.wat");
     let func = world
         .symbols()
         .get(":my::test::recv-assert-fail")
@@ -1165,7 +1026,7 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
 fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
     // Arc 170 slice 6 — three sequential spawn-process+exit cycles;
     // pipes close cleanly; waitpid reaps zombies; no accumulation.
-    let world = freeze_ok(PARENT_TRIVIAL);
+    let world = freeze_trivial();
     let env = Environment::new();
     for _ in 0..3 {
         let call = build_spawn_process_call(

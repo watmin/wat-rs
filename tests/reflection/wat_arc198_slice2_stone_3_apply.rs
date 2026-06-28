@@ -34,10 +34,8 @@
 //! the same coverage — Stone 3 leaves Stone B's rule in place
 //! (BOTH walkers fire on user-namespace calls until Stone 4).
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 
 /// Extract prefix strings from the internal-path `binding_metadata` encoding.
 /// Post-Stone 241.14: value is `WatAST::List([Keyword(":wat::core::Vector"), Keyword(p1), ...])`.
@@ -59,12 +57,7 @@ fn extract_prefixes_from_binding_metadata_entry(entry: &WatAST) -> Vec<String> {
 
 #[test]
 fn thread_join_result_restriction_lands_in_symbol_table() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("minimal wat source should freeze cleanly");
+    let frozen = startup_bare().expect("startup_bare should freeze cleanly");
 
     let meta = frozen
         .symbols
@@ -99,12 +92,7 @@ fn thread_join_result_restriction_lands_in_symbol_table() {
 
 #[test]
 fn process_join_result_restriction_lands_in_symbol_table() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("minimal wat source should freeze cleanly");
+    let frozen = startup_bare().expect("startup_bare should freeze cleanly");
 
     let meta = frozen
         .symbols

@@ -27,9 +27,8 @@
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{invoke_user_main, startup_beside, startup_from_file};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::runtime::Value;
 use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
@@ -106,11 +105,9 @@ fn fresh_thread() {
     let _ = take_ambient_stdio();
 }
 
-/// Freeze a wat source as a `FrozenWorld`, running through the
-/// standard startup pipeline.
-fn freeze(src: &str) -> wat::freeze::FrozenWorld {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup succeeds")
+/// Freeze a wat fixture file as a `FrozenWorld`.
+fn freeze(fixture: &str) -> wat::freeze::FrozenWorld {
+    startup_from_file(fixture).expect("startup succeeds")
 }
 
 /// Read every byte the WatReader has buffered, decode as UTF-8.
@@ -128,10 +125,7 @@ fn drain_to_string(reader: &Arc<dyn WatReader>) -> String {
 fn row_a_single_thread_println() {
     fresh_thread();
     let mut rig = build_rig();
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "hello slice 1f-gamma"))
-    "#;
-    let world = freeze(src);
+    let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_a.wat");
     let stdout_capture = Arc::clone(&rig.stdout_capture);
     let _stdin_inject = Arc::clone(&rig.stdin_inject); // keep alive
     let _stderr_capture = Arc::clone(&rig.stderr_capture);
@@ -159,25 +153,8 @@ fn row_b_multi_thread_println() {
     fresh_thread();
     let mut rig = build_rig();
     // Three named child fns; main spawns each via spawn-thread and
-    // joins each via Thread/join-result.
-    let src = r#"
-        (:wat::core::defn :test::child-a [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::kernel::println "child-a"))
-
-        (:wat::core::defn :test::child-b [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::kernel::println "child-b"))
-
-        (:wat::core::defn :test::child-c [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::kernel::println "child-c"))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [thr-a (:wat::kernel::spawn-thread :test::child-a)
-                       thr-b (:wat::kernel::spawn-thread :test::child-b)
-                       thr-c (:wat::kernel::spawn-thread :test::child-c)
-                       _a (:wat::kernel::Thread/drain-and-join thr-a)
-                       _b (:wat::kernel::Thread/drain-and-join thr-b)
-                       _c (:wat::kernel::Thread/drain-and-join thr-c)]
-                      nil))
-    "#;
-    let world = freeze(src);
+    // joins each via Thread/drain-and-join. Fixture: row_b.
+    let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_b.wat");
     let stdout_capture = Arc::clone(&rig.stdout_capture);
 
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
@@ -199,16 +176,7 @@ fn row_c_panic_recovery() {
     // Err chain), discards it, and returns nil. The orchestrator's
     // cleanup still runs: the child's closure-epilogue Remove fires
     // inside catch_unwind. Validates the panic-resilient reap path.
-    let src = r#"
-        (:wat::core::defn :test::child-panic [_in <- :wat::kernel::Receiver<wat::core::nil> _out <- :wat::kernel::Sender<wat::core::nil>] -> :wat::core::nil (:wat::runtime::panic! "child panicked intentionally"))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [thr (:wat::kernel::spawn-thread :test::child-panic)
-                       _join (:wat::kernel::Thread/drain-and-join thr)]
-                      nil))
-    "#;
-    let world = freeze(src);
+    let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_c.wat");
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
     // Main returns nil cleanly — child's panic is captured by
     // catch_unwind in spawn-thread, surfaces as Err in Thread/join-
@@ -227,10 +195,8 @@ fn row_d_scope_drop_cascade() {
     // drops carrier → services see disconnected control-rx → exit.
     // join_service in the orchestrator must return Ok for all three;
     // any failure surfaces as Err from invoke_user_main.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze(src);
+    // Primary fixture (canonical main) via startup_beside.
+    let world = startup_beside(file!()).expect("startup");
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
     assert!(
         matches!(result, Ok(Value::Unit)),
@@ -260,13 +226,7 @@ fn row_e_readln_roundtrip() {
         .write_all(bytes, wat::span::Span::unknown())
         .expect("write to stdin pipe");
 
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [_s (:wat::kernel::readln -> :wat::core::String)]
-                      nil))
-    "#;
-    let world = freeze(src);
+    let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_e.wat");
     let result = run_with_rig(&mut rig, || invoke_user_main(&world, Vec::new()));
     assert!(
         matches!(result, Ok(Value::Unit)),

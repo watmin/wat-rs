@@ -9,49 +9,31 @@
 //! convention dissolves.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main/stdout capture to
-//! eval_in_frozen with :my::compute returning values directly.
+//! eval_in_frozen with compute functions returning values directly.
+//!
+//! Wat source lives in the co-located fixture: wat_names_are_values.wat
+//! (slurped via startup_beside(file!())).
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, world, &Environment::new())
+        .expect("compute should run")
+        .value_owned()
 }
 
 // ─── named define lifts to a callable value ────────────────────────────
 
 #[test]
 fn named_define_is_a_function_value() {
-    // `:my::double` is registered as a define. Referencing it in
+    // `:t::test1-double` is registered as a define. Referencing it in
     // expression position (not call-head) produces a fn value that can
     // be called by the user via a symbol binding.
-    // Arc 170 slice 1f-ζ: returns i64 (42) via :my::compute.
-    let src = r##"
-
-        (:wat::core::defn :my::double [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [f :my::double
-                       result (f 21)]
-                      result))
-    "##;
-    match run(src) {
+    // Arc 170 slice 1f-ζ: returns i64 (42) via :t::test1.
+    let world = startup_beside(file!()).expect("startup");
+    match run(&world, "(:t::test1)") {
         Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -61,19 +43,12 @@ fn named_define_is_a_function_value() {
 
 #[test]
 fn named_define_passes_to_higher_order_fn() {
-    // A user-defined higher-order function `:my::apply-twice` takes
-    // `:wat::core::Fn(wat::core::i64)->wat::core::i64` and an `:wat::core::i64`; calling it with `:my::inc` and
-    // `5` via the bare keyword path — no fn wrapper — yields 7.
-    // Arc 170 slice 1f-ζ: returns i64 (7) via :my::compute.
-    let src = r##"
-
-        (:wat::core::defn :my::inc [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
-
-        (:wat::core::defn :my::apply-twice [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f (f x)))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::apply-twice :my::inc 5))
-    "##;
-    match run(src) {
+    // A user-defined higher-order function `:t::test2-apply-twice` takes
+    // `:wat::core::Fn(wat::core::i64)->wat::core::i64` and an `:wat::core::i64`; calling it with
+    // `:t::test2-inc` and `5` via the bare keyword path — no fn wrapper — yields 7.
+    // Arc 170 slice 1f-ζ: returns i64 (7) via :t::test2.
+    let world = startup_beside(file!()).expect("startup");
+    match run(&world, "(:t::test2)") {
         Value::i64(n) => assert_eq!(n, 7, "expected 7; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -83,18 +58,11 @@ fn named_define_passes_to_higher_order_fn() {
 
 #[test]
 fn polymorphic_named_define_instantiates_at_use_site() {
-    // Polymorphic `:my::identity<T>`. Passed to a monomorphic
+    // Polymorphic `:t::test3-identity<T>`. Passed to a monomorphic
     // `:wat::core::Fn(wat::core::i64)->wat::core::i64` slot; the scheme's `T` instantiates to `i64`.
-    // Arc 170 slice 1f-ζ: returns i64 (99) via :my::compute.
-    let src = r##"
-
-        (:wat::core::defn :my::identity<T> [x <- :T] -> :T x)
-
-        (:wat::core::defn :my::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:my::apply :my::identity 99))
-    "##;
-    match run(src) {
+    // Arc 170 slice 1f-ζ: returns i64 (99) via :t::test3.
+    let world = startup_beside(file!()).expect("startup");
+    match run(&world, "(:t::test3)") {
         Value::i64(n) => assert_eq!(n, 99, "expected 99; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -107,18 +75,9 @@ fn unregistered_keyword_still_a_literal() {
     // A keyword that is NOT a registered define remains a
     // `:wat::core::keyword` value. The lift is only when a define
     // exists at that path.
-    // Arc 170 slice 1f-ζ: returns i64 (1=pass, 0=fail) via :my::compute.
-    let src = r##"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [tag :my-app::tag::user-event
-                       same? (:wat::core::= tag :my-app::tag::user-event)]
-                      (:wat::core::if same? -> :wat::core::i64
-                        1
-                        0)))
-    "##;
-    match run(src) {
+    // Arc 170 slice 1f-ζ: returns i64 (1=pass, 0=fail) via :t::test4.
+    let world = startup_beside(file!()).expect("startup");
+    match run(&world, "(:t::test4)") {
         Value::i64(n) => assert_eq!(n, 1, "expected 1 (pass); got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -128,27 +87,13 @@ fn unregistered_keyword_still_a_literal() {
 
 #[test]
 fn named_define_as_map_fn() {
-    // The canonical target: pass `:my::double` to `:wat::core::map`
+    // The canonical target: pass `:t::test5-double` to `:wat::core::map`
     // without wrapping in a pass-through fn.
-    // Arc 170 slice 1f-ζ: returns i64 via :my::compute (first doubled value = 2).
+    // Arc 170 slice 1f-ζ: returns i64 via :t::test5 (1=pass, 0=fail).
     // (Migrated off the annihilated `:wat::stream::*` — arc 118, 2026-06-27;
     //  the intent is named-defn-as-HOF-arg, the collection vehicle is incidental.)
-    let src = r##"
-
-        (:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [source  (:wat::core::Vector :wat::core::i64 1 2 3)
-                       doubled (:wat::core::map :my::double source)
-                       first   (:wat::core::first doubled)
-                       len     (:wat::core::length doubled)]
-                      (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
-                        -> :wat::core::i64
-                        1
-                        0)))
-    "##;
-    match run(src) {
+    let world = startup_beside(file!()).expect("startup");
+    match run(&world, "(:t::test5)") {
         Value::i64(n) => assert_eq!(n, 1, "expected 1 (pass); got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }

@@ -28,10 +28,8 @@
 //! annotations matter (the attribute emits the sibling `inventory::submit!`).
 //! Bodies are `unreachable!()` to signal "never called by this test".
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 use wat_macros::restricted_to;
 
 /// Extract prefix strings from the internal-path `binding_metadata` encoding.
@@ -62,12 +60,7 @@ fn probe_single() -> i64 {
 
 #[test]
 fn single_prefix_attribute_lands_in_symbol_table() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("minimal wat source should freeze cleanly");
+    let frozen = startup_bare().expect("startup_bare should freeze cleanly");
 
     let meta = frozen
         .symbols
@@ -114,12 +107,7 @@ fn probe_multi() -> i64 {
 
 #[test]
 fn multi_prefix_attribute_preserves_all_prefixes_in_order() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("minimal wat source should freeze cleanly");
+    let frozen = startup_bare().expect("startup_bare should freeze cleanly");
 
     let meta = frozen
         .symbols
@@ -165,12 +153,7 @@ fn probe_exact_fqdn() -> i64 {
 
 #[test]
 fn exact_fqdn_prefix_preserves_no_trailing_colons() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-
-    let frozen = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("minimal wat source should freeze cleanly");
+    let frozen = startup_bare().expect("startup_bare should freeze cleanly");
 
     let meta = frozen
         .symbols

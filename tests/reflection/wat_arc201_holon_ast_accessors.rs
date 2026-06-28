@@ -18,12 +18,13 @@
 //!   `HolonAST::Bundle(Arc<Vec<HolonAST>>)` ("children" not "items").
 //! - `from-holon` is the arc 225 rename of `atom-value`; it extracts
 //!   a runtime Value from any HolonAST leaf.
+//!
+//! Fixtures co-located beside each test name — slurped via startup_from_file.
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{invoke_user_main, startup_from_file};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -52,14 +53,9 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
     lines
 }
 
-fn run(src: &str) -> Vec<String> {
+fn run_file(fixture_path: &str) -> Vec<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_from_file(fixture_path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -73,16 +69,11 @@ fn run(src: &str) -> Vec<String> {
     drain_lines(&stdout_capture)
 }
 
-/// Run source that's EXPECTED to fail at runtime, capturing the error
-/// string. Returns None if it succeeds unexpectedly.
-fn run_expecting_runtime_error(src: &str) -> Option<String> {
+/// Run fixture EXPECTED to fail at runtime, capturing the error string.
+/// Returns None if it succeeds unexpectedly.
+fn run_expecting_runtime_error_file(fixture_path: &str) -> Option<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_from_file(fixture_path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -111,21 +102,7 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
     // We unwrap the signature-of-defn Option via match-handling, then call
     // Bundle/children on it and assert the result's length is > 1
     // (head + at least one arg pair) by EDN-rendering the Vec.
-    let src = r##"
-
-        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                                 ((:wat::core::Some s) s)
-                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-                       kids    (:wat::holon::Bundle/children sig)
-                       rendered (:wat::edn::write kids)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_children_sig.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
 
@@ -166,26 +143,9 @@ fn bundle_children_walks_parametric_type_slot() {
     // of the signature and proving the parametric head appears in
     // the Vec as a standalone keyword (i.e., the type slot lowered to
     // a Bundle, which round-trips through the EDN renderer).
-    let src = r##"
-
-        (:wat::core::defn :user::sum-list [init <- :wat::core::i64 & xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-          (:wat::core::foldl
-                      (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ acc x))
-                      init
-                      xs))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig-opt (:wat::runtime::signature-of-defn :user::sum-list)
-                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                                 ((:wat::core::Some s) s)
-                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-                       kids    (:wat::holon::Bundle/children sig)
-                       rendered (:wat::edn::write kids)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file(
+        "tests/reflection/wat_arc201_holon_ast_accessors_children_parametric.wat",
+    );
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
 
@@ -214,16 +174,10 @@ fn bundle_children_errors_on_atom_input() {
     // Passing a primitive leaf (`HolonAST::I64`, constructed via
     // `:wat::holon::leaf 42`) to Bundle/children must raise
     // TypeMismatch.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [leaf (:wat::holon::leaf 42)
-                       _    (:wat::holon::Bundle/children leaf)]
-                      (:wat::kernel::println "unreachable")))
-    "##;
-    let err = run_expecting_runtime_error(src)
-        .expect("expected runtime error from Bundle/children on a leaf");
+    let err = run_expecting_runtime_error_file(
+        "tests/reflection/wat_arc201_holon_ast_accessors_children_err_atom.wat",
+    )
+    .expect("expected runtime error from Bundle/children on a leaf");
     assert!(
         err.contains("Bundle/children") && err.contains("non-Bundle"),
         "expected TypeMismatch mentioning 'Bundle/children' and 'non-Bundle'; got: {}",
@@ -238,21 +192,7 @@ fn bundle_first_returns_head_keyword_of_signature() {
     // signature-of-defn yields a Bundle whose first child is the function
     // name Symbol. Bundle/first returns that Symbol as a HolonAST.
     // EDN-rendering it should produce the function name keyword.
-    let src = r##"
-
-        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                                 ((:wat::core::Some s) s)
-                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-                       head    (:wat::holon::Bundle/first sig)
-                       rendered (:wat::edn::write head)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_first_head.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert!(
@@ -271,22 +211,7 @@ fn bundle_first_composes_with_atom_value() {
     // the wrapped wat-Value. For a Symbol leaf, that's a keyword.
     //
     // This test proves the two surfaces interoperate.
-    let src = r##"
-
-        (:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-                       sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
-                                 ((:wat::core::Some s) s)
-                                 (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-                       head    (:wat::holon::Bundle/first sig)
-                       name-kw (:wat::holon::from-holon head)
-                       rendered (:wat::edn::write name-kw)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_first_compose.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     // The extracted keyword renders without the Symbol wrapper. The
@@ -303,16 +228,10 @@ fn bundle_first_composes_with_atom_value() {
 
 #[test]
 fn bundle_first_errors_on_leaf_input() {
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [leaf (:wat::holon::leaf "hi")
-                       _    (:wat::holon::Bundle/first leaf)]
-                      (:wat::kernel::println "unreachable")))
-    "##;
-    let err = run_expecting_runtime_error(src)
-        .expect("expected runtime error from Bundle/first on a leaf");
+    let err = run_expecting_runtime_error_file(
+        "tests/reflection/wat_arc201_holon_ast_accessors_first_err_leaf.wat",
+    )
+    .expect("expected runtime error from Bundle/first on a leaf");
     assert!(
         err.contains("Bundle/first") && err.contains("non-Bundle"),
         "expected TypeMismatch mentioning 'Bundle/first' and 'non-Bundle'; got: {}",
@@ -328,19 +247,10 @@ fn bundle_first_errors_on_empty_bundle() {
     // and returns `:wat::core::Result<wat::holon::HolonAST>`. An empty
     // Vec produces an Ok-wrapped empty Bundle. Bundle/first on that
     // empty Bundle must error.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [empty-res (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST))
-                       empty     (:wat::core::match empty-res -> :wat::holon::HolonAST
-                                   ((:wat::core::Ok b)  b)
-                                   ((:wat::core::Err _) (:wat::kernel::abort "empty Bundle construction failed")))
-                       _         (:wat::holon::Bundle/first empty)]
-                      (:wat::kernel::println "unreachable")))
-    "##;
-    let err = run_expecting_runtime_error(src)
-        .expect("expected runtime error from Bundle/first on empty Bundle");
+    let err = run_expecting_runtime_error_file(
+        "tests/reflection/wat_arc201_holon_ast_accessors_first_err_empty.wat",
+    )
+    .expect("expected runtime error from Bundle/first on empty Bundle");
     assert!(
         err.contains("Bundle/first") && err.contains("empty Bundle"),
         "expected TypeMismatch mentioning 'Bundle/first' and 'empty Bundle'; got: {}",

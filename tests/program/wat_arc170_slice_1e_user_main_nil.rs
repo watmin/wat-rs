@@ -9,38 +9,30 @@
 //! - `nil` IS the success exit code; clean nil-return → libc::exit(0);
 //!   panic-cascade → libc::exit(N) via slice 1i's StdErrService epilogue
 //!
-//! These tests prove the slice-1e substrate end-to-end:
-//!
-//! 1. `:user::main [] -> :wat::core::nil` parses + freezes + invokes;
-//!    returns `Value::Unit`.
-//! 2. `:user::main [] -> :wat::core::i64` (wrong return) fails freeze
-//!    with the `BareLegacyMainSignature` walker diagnostic naming the
-//!    new canonical shape.
-//! 3. `:user::main` body calls `(:wat::runtime::argv)`; substrate
-//!    delivers the Vec set via `runtime::set_argv` before the test
-//!    invokes main.
+//! Wat fixtures are co-located siblings:
+//! - `wat_arc170_slice_1e_user_main_nil.wat` — canonical main (primary, via startup_beside)
+//! - `*_wrong_return.wat` — `[] -> i64` (freeze ok, validate rejects)
+//! - `*_legacy_3arg.wat` — 3-arg main (freeze ok, validate rejects)
+//! - `*_slice2_4arg.wat` — NEGATIVE: 4-arg main (freeze fails, BareLegacyMainSignature)
+//! - `*_argv.wat` — main with (:wat::runtime::argv) let-bind
 
-use std::sync::Arc;
 use wat::freeze::{
-    expected_user_main_signature, invoke_user_main, startup_from_source,
+    expected_user_main_signature, invoke_user_main, startup_beside, startup_from_file,
     validate_user_main_signature,
 };
-use wat::load::InMemoryLoader;
 use wat::runtime::{set_argv, Value};
 use wat::types::TypeExpr;
 
 // ─── helpers ───────────────────────────────────────────────────────────
 
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
+fn freeze_ok(fixture: &str) -> wat::freeze::FrozenWorld {
+    startup_from_file(fixture)
+        .unwrap_or_else(|e| panic!("freeze should succeed for {fixture:?}; got: {e}"))
 }
 
-fn freeze_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => panic!("expected freeze to fail; succeeded"),
+fn freeze_err(fixture: &str) -> String {
+    match startup_from_file(fixture) {
+        Ok(_) => panic!("expected freeze to fail for {fixture:?}; succeeded"),
         Err(e) => format!("{}", e),
     }
 }
@@ -50,10 +42,7 @@ fn freeze_err(src: &str) -> String {
 #[test]
 fn t1_canonical_main_freezes_and_invokes() {
     // Canonical post-arc-170-slice-1e shape: empty params + nil return.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("canonical main fixture must freeze");
 
     // Validator agrees — canonical shape passes.
     validate_user_main_signature(&world)
@@ -87,10 +76,7 @@ fn t2_wrong_return_type_fires_walker() {
     // The freeze-time walker is dead code (defn macro-expands to def
     // before it runs); enforcement moved to `validate_user_main_signature`.
     // Freeze now succeeds; validate_user_main_signature returns Err.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::i64 42)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_slice_1e_user_main_nil_wrong_return.wat");
     assert!(
         validate_user_main_signature(&world).is_err(),
         "expected validate_user_main_signature to reject [] -> :wat::core::i64 signature"
@@ -102,10 +88,7 @@ fn t2_legacy_3arg_main_fires_walker() {
     // The pre-arc-170 shape — 3-arg with stdio, nil return. Still
     // not canonical post-slice-1e because params are non-empty.
     // validate_user_main_signature rejects non-empty param list.
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_slice_1e_user_main_nil_legacy_3arg.wat");
     assert!(
         validate_user_main_signature(&world).is_err(),
         "expected validate_user_main_signature to reject 3-arg :user::main"
@@ -116,10 +99,7 @@ fn t2_legacy_3arg_main_fires_walker() {
 fn t2_arc170_slice_2_main_fires_walker() {
     // The slice-2-shape (4-arg with argv + ExitCode return) is also
     // non-canonical post-slice-1e. Slice 1e's walker fires on it.
-    let src = r#"
-        (:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode (:wat::core::u8 0))
-    "#;
-    let err = freeze_err(src);
+    let err = freeze_err("tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat");
     assert!(
         err.contains("BareLegacyMainSignature")
             || err.contains(":user::main")
@@ -149,13 +129,7 @@ fn t3_runtime_argv_ambient_reachable_from_main() {
     // Substrate-only: no deps on slice 1f services. The let-bound
     // value is dropped after the binding scope; the substrate
     // produced a Value::Vec<Value::String> matching argv contents.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [argv (:wat::runtime::argv)]
-                      nil))
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/program/wat_arc170_slice_1e_user_main_nil_argv.wat");
     let result = invoke_user_main(&world, Vec::new())
         .expect(":user::main with (:wat::runtime::argv) reaches the ambient");
     assert!(
@@ -174,10 +148,7 @@ fn t3_runtime_argv_ambient_eval_arm_produces_vector() {
     use wat::freeze::eval_in_frozen;
     use wat::runtime::Environment;
 
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!("(:wat::runtime::argv)").expect("parse argv expr");
     let env = Environment::new();
     let result =
@@ -196,10 +167,7 @@ fn t3_runtime_current_thread_eval_arm_produces_string() {
     use wat::freeze::eval_in_frozen;
     use wat::runtime::Environment;
 
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!("(:wat::runtime::current-thread)")
         .expect("parse current-thread expr");
     let env = Environment::new();

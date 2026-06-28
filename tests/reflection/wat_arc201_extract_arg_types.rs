@@ -16,12 +16,13 @@
 //!
 //! Originating consumer: `run-threads` macro needs I and O from each
 //! `:ThreadPeer<I,O>` arg type structurally (without string parsing).
+//!
+//! Fixtures co-located beside each test name — slurped via startup_from_file.
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{invoke_user_main, startup_from_file};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -50,14 +51,9 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
     lines
 }
 
-fn run(src: &str) -> Vec<String> {
+fn run_file(fixture_path: &str) -> Vec<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_from_file(fixture_path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -71,15 +67,10 @@ fn run(src: &str) -> Vec<String> {
     drain_lines(&stdout_capture)
 }
 
-/// Run source EXPECTED to fail at runtime; return the error string.
-fn run_expecting_runtime_error(src: &str) -> Option<String> {
+/// Run fixture EXPECTED to fail at runtime; return the error string.
+fn run_expecting_runtime_error_file(fixture_path: &str) -> Option<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_from_file(fixture_path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -105,19 +96,7 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     // Per slice 1 emission rules, Path types land as atomic HolonAST Symbols.
     // `extract-arg-types` should return a Vector of two HolonAST Symbols,
     // each rendered by `edn::write` with the full keyword path visible.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f    (:wat::core::fn [msg <- :wat::core::String count <- :wat::core::i64]
-                              -> :wat::core::String
-                              msg)
-                       sig  (:wat::runtime::signature-of-fn f)
-                       tys  (:wat::runtime::extract-arg-types sig)
-                       rendered (:wat::edn::write tys)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_types.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     // Both Path types must appear as standalone keyword Symbols.
@@ -134,19 +113,7 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     // The return-type `:wat::core::String` appears in the sig too, but the
     // Vector only contains arg types (not the return). We verify we get
     // exactly 2 items by checking the length separately.
-    let len_src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f    (:wat::core::fn [msg <- :wat::core::String count <- :wat::core::i64]
-                              -> :wat::core::String
-                              msg)
-                       sig  (:wat::runtime::signature-of-fn f)
-                       tys  (:wat::runtime::extract-arg-types sig)
-                       len  (:wat::core::length tys)]
-                      (:wat::kernel::println (:wat::edn::write len))))
-    "##;
-    let len_out = run(len_src);
+    let len_out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_len.wat");
     assert_eq!(len_out.len(), 1, "expected one length line; got {:?}", len_out);
     assert_eq!(
         len_out[0].trim(), "\"2\"",
@@ -165,19 +132,7 @@ fn extract_arg_types_returns_bundles_for_parametric_args() {
     // `extract-arg-types` returns a one-element Vector containing that Bundle.
     // The rendered EDN should show the head and arg as SEPARATE Symbols —
     // NOT as the flat pre-arc-201 `:wat::core::Vector<wat::core::i64>` string.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f    (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>]
-                              -> :wat::core::i64
-                              42)
-                       sig  (:wat::runtime::signature-of-fn f)
-                       tys  (:wat::runtime::extract-arg-types sig)
-                       rendered (:wat::edn::write tys)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundles.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     // The Vector head should appear as a standalone Symbol (not fused with args).
@@ -208,22 +163,7 @@ fn extract_arg_types_arity_matches_extract_arg_names() {
     // must return Vectors of identical length (one entry per arg — the
     // per-arg correspondence is structural).
     // We test with a 3-arg fn to confirm the walker walks all pairs.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f     (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::String c <- :wat::core::i64]
-                               -> :wat::core::String
-                               b)
-                       sig   (:wat::runtime::signature-of-fn f)
-                       names (:wat::runtime::extract-arg-names sig)
-                       tys   (:wat::runtime::extract-arg-types sig)
-                       nlen  (:wat::core::length names)
-                       tlen  (:wat::core::length tys)]
-                      (:wat::kernel::println (:wat::edn::write nlen))
-                      (:wat::kernel::println (:wat::edn::write tlen))))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_extract_arg_types_arity.wat");
     assert_eq!(out.len(), 2, "expected two output lines (name-len, type-len); got {:?}", out);
     assert_eq!(
         out[0].trim(), "\"3\"",
@@ -254,26 +194,7 @@ fn extract_arg_types_composes_with_bundle_children_on_parametric() {
     //   4. Bundle/children on that Bundle → [Symbol(:wat::core::Vector), Symbol(:wat::core::i64)]
     //
     // This proves the full D2 chain works end-to-end.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f       (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>]
-                                 -> :wat::core::i64
-                                 42)
-                       sig     (:wat::runtime::signature-of-fn f)
-                       tys     (:wat::runtime::extract-arg-types sig)
-                       ;; The Vector param is the only arg; grab it via get index 0.
-                       ;; get returns Option; unwrap with Option/expect.
-                       ty0     (:wat::core::Option/expect
-                                 (:wat::core::get tys 0)
-                                 "expected first type entry")
-                       ;; Decompose the Bundle: head = :wat::core::Vector, arg = :wat::core::i64
-                       parts   (:wat::holon::Bundle/children ty0)
-                       rendered (:wat::edn::write parts)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundle_children.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     // The Bundle/children of the Vector type-AST should contain the
@@ -307,15 +228,10 @@ fn extract_arg_types_errors_on_non_bundle_input() {
     // We construct the error by passing a bare i64 literal (which is a
     // `Value::i64`, not a `Value::holon__HolonAST`) — the TypeMismatch
     // fires at the "expected HolonAST" guard inside eval_extract_arg_types.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [_ (:wat::runtime::extract-arg-types 42)]
-                      (:wat::kernel::println "unreachable")))
-    "##;
-    let err = run_expecting_runtime_error(src)
-        .expect("expected runtime error from extract-arg-types on non-HolonAST input");
+    let err = run_expecting_runtime_error_file(
+        "tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat",
+    )
+    .expect("expected runtime error from extract-arg-types on non-HolonAST input");
     assert!(
         err.contains("extract-arg-types"),
         "expected error mentioning 'extract-arg-types'; got: {}",

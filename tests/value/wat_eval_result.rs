@@ -10,30 +10,18 @@
 //! propagates the Err through a Result-returning helper; `match`
 //! at the caller handles both arms.
 //!
-//! See `docs/arc/2026/04/003-...` — wait, this inscription landed
-//! before arc 003 (TCO); see `FOUNDATION-CHANGELOG.md` for the
-//! 2026-04-20 entry.
+//! Wat source lives in the co-located fixture: wat_eval_result.wat
+//! (slurped via startup_beside(file!())).
+//! Negative startup test uses: tests/value/wat_eval_result_wrong_arity.wat
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
+    let ast = wat::parse_one!(expr).expect("parse expr");
+    eval_in_frozen(&ast, world, &Environment::new())
+        .expect("compute should run")
+        .value_owned()
 }
 
 /// Pull the `kind` string from a `Value::Result(Err(Struct(EvalError)))`.
@@ -60,17 +48,8 @@ fn err_kind(v: &Value) -> String {
 
 #[test]
 fn eval_ast_bang_happy_path_returns_ok_holon() {
-    // A well-formed AST that evaluates to a holon; the outer result
-    // is Ok(Value::holon__HolonAST(_)).
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
-          (:wat::core::let
-                      [program (:wat::core::quote (:wat::holon::to-holon "hello"))]
-                      (:wat::eval-ast! program)))
-    "#;
-    match run(src) {
+    let world = startup_beside(file!()).expect("startup");
+    match run(&world, "(:t::test1)") {
         Value::Result(r) => match &*r {
             Ok(Value::holon__HolonAST(_)) => {}
             other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
@@ -83,100 +62,43 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
 
 #[test]
 fn eval_ast_bang_mutation_form_surfaces_as_err() {
-    // An AST that contains `(:wat::core::defstruct ...)` — a mutation
-    // form constrained eval refuses. Becomes
-    // Err(EvalError{kind="mutation-form-refused"}).
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
+    let world = startup_beside(file!()).expect("startup");
     // Stone 241.16 — :wat::core::define HARD CUT total; is_mutation_head no longer
     // recognizes it. Fixture migrated to :wat::core::defstruct (still a mutation head).
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
-          (:wat::core::let
-                      [program
-                        (:wat::core::quote
-                          (:wat::core::defstruct :evil::T [x <- :wat::core::i64]))]
-                      (:wat::eval-ast! program)))
-    "#;
-    let result = run(src);
+    let result = run(&world, "(:t::test2)");
     assert_eq!(err_kind(&result), "mutation-form-refused");
 }
 
 #[test]
 fn eval_edn_bang_parse_failure_surfaces_as_err() {
-    // Malformed EDN source — the parser rejects it; the failure
-    // surfaces as EvalError (kind="malformed-form" today; a future
-    // slice may introduce a dedicated "parse-failed" kind if the
-    // distinction earns it).
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::eval-edn! "(:wat::core::i64::+ 1"))
-    "#;
-    let result = run(src);
+    let world = startup_beside(file!()).expect("startup");
+    let result = run(&world, "(:t::test3)");
     assert_eq!(err_kind(&result), "malformed-form");
 }
 
 #[test]
 fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
-    // Provide a wrong SHA-256 digest; verification fails with
-    // kind="verification-failed". Arc 028 slice 3: inline source
-    // variant is `eval-digest-string!` (mirrors `load-string!`).
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
-          (:wat::eval-digest-string!
-           "(:wat::holon::to-holon \"x\")"
-                      :wat::verify::digest-sha256
-                      :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
-    "#;
-    let result = run(src);
+    let world = startup_beside(file!()).expect("startup");
+    let result = run(&world, "(:t::test4)");
     assert_eq!(err_kind(&result), "verification-failed");
 }
 
 #[test]
 fn eval_edn_bang_wrong_arity_surfaces_as_err() {
-    // Arc 028 slice 3 retired the :wat::eval::* interface-keyword
-    // test — those keywords don't exist anymore. Arity mismatch is
-    // the new structural-error surface to guard.
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::eval-edn! "foo" "bar-extra"))
-    "#;
     // Structural arity mismatch fires before the EvalError wrap; this
     // shows up at startup (the type checker catches it as wrong-arity).
-    // The wrapper `run(...)` surfaces it as a startup failure — we
-    // expect the test to PANIC from the startup phase, not return a
-    // clean EvalError value. Use std::panic::catch_unwind.
-    let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(src)));
-    assert!(got.is_err(), "expected startup-time arity failure");
+    // Negative fixture fails to freeze; startup_from_file returns Err.
+    let result = startup_from_file("tests/value/wat_eval_result_wrong_arity.wat");
+    assert!(result.is_err(), "expected startup-time arity failure");
 }
 
 // ─── try-based propagation through a Result-returning helper ─────────
 
 #[test]
 fn try_propagates_eval_err_through_helper() {
-    // Helper returns Result; its body uses `try` to propagate eval's
-    // Err cleanly. The caller matches at compute and accesses the
-    // EvalError struct's `kind` field via the auto-generated accessor.
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
-    let src = r#"
-
-        (:wat::core::defn :app::run-dynamic [program <- :wat::WatAST] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError> (:wat::core::Ok (:wat::core::Result/try (:wat::eval-ast! program))))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [bad
-                        (:wat::core::quote
-                          (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))]
-                      (:wat::core::match (:app::run-dynamic bad) -> :wat::core::String
-                        ((:wat::core::Ok _) "should-not-reach")
-                        ((:wat::core::Err e) (:wat::core::EvalError/kind e)))))
-    "#;
+    let world = startup_beside(file!()).expect("startup");
     // Stone 241.16 — :wat::core::define HARD CUT total; migrated to :wat::core::defstruct.
-    match run(src) {
+    match run(&world, "(:t::test6)") {
         Value::String(s) => {
             assert_eq!(&*s, "mutation-form-refused");
         }
@@ -186,29 +108,10 @@ fn try_propagates_eval_err_through_helper() {
 
 #[test]
 fn eval_err_exposes_both_kind_and_message() {
-    // Access both accessors; the message should contain the
-    // mutation-head name for diagnostic clarity.
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute holds the logic.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :(wat::core::String,wat::core::String)
-          (:wat::core::let
-                      [bad
-                        (:wat::core::quote
-                          (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))
-                       r
-                        (:wat::eval-ast! bad)]
-                      (:wat::core::match r -> :(wat::core::String,wat::core::String)
-                        ((:wat::core::Ok _)
-                          (:wat::core::Tuple "unreachable" "unreachable"))
-                        ((:wat::core::Err e)
-                          (:wat::core::Tuple
-                            (:wat::core::EvalError/kind e)
-                            (:wat::core::EvalError/message e))))))
-    "#;
+    let world = startup_beside(file!()).expect("startup");
     // Stone 241.16 — :wat::core::define HARD CUT total; migrated to :wat::core::defstruct.
     // is_mutation_head no longer recognizes define; defstruct still is a mutation head.
-    match run(src) {
+    match run(&world, "(:t::test7)") {
         Value::Tuple(t) => {
             assert_eq!(t.len(), 2);
             let kind = match &t[0] {

@@ -27,12 +27,13 @@
 //! a coordinator fn as a call-site argument and needs to extract
 //! `:ThreadPeer<I,O>` types per arg structurally without symbol-table
 //! lookup.
+//!
+//! Fixtures co-located beside each test name — slurped via startup_from_file.
 
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::freeze::{invoke_user_main, startup_from_file};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
 use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -61,14 +62,9 @@ fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
     lines
 }
 
-fn run(src: &str) -> Vec<String> {
+fn run_file(fixture_path: &str) -> Vec<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_from_file(fixture_path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -82,15 +78,10 @@ fn run(src: &str) -> Vec<String> {
     drain_lines(&stdout_capture)
 }
 
-/// Run source EXPECTED to fail at runtime; return the error string.
-fn run_expecting_runtime_error(src: &str) -> Option<String> {
+/// Run fixture EXPECTED to fail at runtime; return the error string.
+fn run_expecting_runtime_error_file(fixture_path: &str) -> Option<String> {
     let _ = take_ambient_stdio();
-    let world = startup_from_source(
-        src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_from_file(fixture_path).expect("startup");
     let (stdin_service, _stdin_inject) = pipe_pair();
     let (stdout_capture, stdout_service) = pipe_pair();
     let (_stderr_capture, stderr_service) = pipe_pair();
@@ -115,17 +106,7 @@ fn signature_of_fn_emits_anonymous_head() {
     // A fn value has no name; `function_to_signature_ast` substitutes
     // `:anonymous` as the head keyword. The reflected signature head
     // appears verbatim in the rendered EDN.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f   (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-                             (:wat::core::i64::+ a b))
-                       sig (:wat::runtime::signature-of-fn f)
-                       rendered (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_signature_of_fn_anon_head.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert!(
@@ -142,17 +123,7 @@ fn signature_of_fn_extracts_monomorphic_arg_types() {
     // Parameters typed `:wat::core::i64` and `:wat::core::String` are
     // both Path types; per slice 1 emission rules they land as atomic
     // Symbols (not Bundles).
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f   (:wat::core::fn [n <- :wat::core::i64 s <- :wat::core::String] -> :wat::core::String
-                             s)
-                       sig (:wat::runtime::signature-of-fn f)
-                       rendered (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_signature_of_fn_monomorphic_args.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert!(
@@ -197,17 +168,7 @@ fn signature_of_fn_extracts_parametric_arg_types() {
     // assertion is the structural marker (slice 1 test pattern):
     // the standalone Vector head appears AND the flattened pre-arc-201
     // spelling does NOT.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f   (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-                             42)
-                       sig (:wat::runtime::signature-of-fn f)
-                       rendered (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_signature_of_fn_parametric_args.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert!(
@@ -238,16 +199,7 @@ fn signature_of_fn_extracts_return_type_path() {
     // tail of the signature. The presence assertion is non-positional
     // (the rendered line contains it somewhere); slice-1 tests share
     // the same constraint.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f   (:wat::core::fn [] -> :wat::core::i64 7)
-                       sig (:wat::runtime::signature-of-fn f)
-                       rendered (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_signature_of_fn_ret_path.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert!(
@@ -267,17 +219,7 @@ fn signature_of_fn_extracts_return_type_parametric() {
     // Parametric return: `:wat::core::Vector<wat::core::i64>` lands
     // structured (Bundle). Same structural marker as the arg-side test:
     // the standalone Vector head appears and the flat spelling does not.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f   (:wat::core::fn [] -> :wat::core::Vector<wat::core::i64>
-                             (:wat::core::Vector :wat::core::i64))
-                       sig (:wat::runtime::signature-of-fn f)
-                       rendered (:wat::edn::write sig)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_signature_of_fn_ret_parametric.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert!(
@@ -301,19 +243,7 @@ fn signature_of_fn_composes_with_extract_arg_names() {
     // walks pair[0] of each arg-Bundle and returns the names as a
     // `:wat::core::Vector<keyword>`. This test proves the output
     // composes cleanly with the existing reflection-walker surface.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f      (:wat::core::fn [logger <- :wat::core::String counter <- :wat::core::i64]
-                               -> :wat::core::String
-                               logger)
-                       sig    (:wat::runtime::signature-of-fn f)
-                       names  (:wat::runtime::extract-arg-names sig)
-                       rendered (:wat::edn::write names)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_signature_of_fn_compose_names.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     // extract-arg-names returns a Vector of keywords (param name as
@@ -339,19 +269,7 @@ fn signature_of_fn_composes_with_bundle_children() {
     // signature contains both the `:anonymous` head AND the parametric
     // arg type's inner Symbol (proving the nested Bundle structure
     // round-trips through the EDN renderer).
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [f      (:wat::core::fn [peer <- :wat::core::Vector<wat::core::String>]
-                               -> :wat::core::String
-                               "ok")
-                       sig    (:wat::runtime::signature-of-fn f)
-                       kids   (:wat::holon::Bundle/children sig)
-                       rendered (:wat::edn::write kids)]
-                      (:wat::kernel::println rendered)))
-    "##;
-    let out = run(src);
+    let out = run_file("tests/reflection/wat_arc201_signature_of_fn_compose_bundle.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert!(
@@ -382,15 +300,10 @@ fn signature_of_fn_composes_with_bundle_children() {
 fn signature_of_fn_errors_on_non_fn_input() {
     // Passing a non-fn value (an i64 here) must raise TypeMismatch with
     // the OP tag and an expected-message that points at the right shape.
-    let src = r##"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [_ (:wat::runtime::signature-of-fn 42)]
-                      (:wat::kernel::println "unreachable")))
-    "##;
-    let err = run_expecting_runtime_error(src)
-        .expect("expected runtime error from signature-of-fn on non-fn input");
+    let err = run_expecting_runtime_error_file(
+        "tests/reflection/wat_arc201_signature_of_fn_err_non_fn.wat",
+    )
+    .expect("expected runtime error from signature-of-fn on non-fn input");
     assert!(
         err.contains("signature-of-fn"),
         "expected error mentioning 'signature-of-fn'; got: {}",

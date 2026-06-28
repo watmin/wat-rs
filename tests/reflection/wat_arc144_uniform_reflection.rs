@@ -35,27 +35,14 @@
 //! Plus a length canary regression test on a HashMap (brief explicitly
 //! requests this shape — complementary to the Vector variant pinned in
 //! `wat_arc143_define_alias.rs::define_alias_length_to_user_size_*`).
+//!
+//! Fixtures co-located beside each test name — slurped via startup_from_file.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run_bool(src: &str) -> bool {
-    let src = with_nil_main(src);
-    let world = startup_from_source(
-        &src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+fn run_bool(fixture_path: &str) -> bool {
+    let world = startup_from_file(fixture_path).expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
@@ -64,14 +51,8 @@ fn run_bool(src: &str) -> bool {
     }
 }
 
-fn run_string(src: &str) -> String {
-    let src = with_nil_main(src);
-    let world = startup_from_source(
-        &src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+fn run_string(fixture_path: &str) -> String {
+    let world = startup_from_file(fixture_path).expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
@@ -80,14 +61,8 @@ fn run_string(src: &str) -> String {
     }
 }
 
-fn run_i64(src: &str) -> i64 {
-    let src = with_nil_main(src);
-    let world = startup_from_source(
-        &src,
-        Some(concat!(file!(), ":", line!())),
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+fn run_i64(fixture_path: &str) -> i64 {
+    let world = startup_from_file(fixture_path).expect("startup");
     let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
     let env = Environment::new();
     match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
@@ -104,18 +79,7 @@ fn run_i64(src: &str) -> i64 {
 
 #[test]
 fn user_function_lookup_define_emits_defn_head() {
-    let src = r##"
-        (:wat::core::defn :user::greet [n <- :wat::core::String] -> :wat::core::String n)
-
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [def-opt
-                        (:wat::runtime::lookup-define :user::greet)
-                       rendered
-                        (:wat::edn::write def-opt)]
-                      rendered))
-    "##;
-    let line = run_string(src);
+    let line = run_string("tests/reflection/wat_arc144_uniform_reflection_defn_head.wat");
     // Stone 241.16 — reflection emits :wat::core::defn (not :wat::core::define)
     assert!(
         line.contains(":wat::core::defn"),
@@ -139,25 +103,10 @@ fn user_function_signature_and_body_return_some() {
     // Reflection trio for UserFunction: signature-of-defn returns Some,
     // body-of returns Some (functions have wat bodies — distinct from
     // Type/SpecialForm/Dispatch which return :None for body-of).
-    let src = r##"
-        (:wat::core::defn :user::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ x y))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [sig-opt
-                        (:wat::runtime::signature-of-defn :user::add)
-                       body-opt
-                        (:wat::runtime::body-of :user::add)]
-                      (:wat::core::match sig-opt
-                        -> :wat::core::bool
-                        ((:wat::core::Some _)
-                          (:wat::core::match body-opt
-                            -> :wat::core::bool
-                            ((:wat::core::Some _) true)
-                            (:wat::core::None    false)))
-                        (:wat::core::None false))))
-    "##;
-    assert!(run_bool(src), "signature-of-defn and body-of :user::add should both return Some");
+    assert!(
+        run_bool("tests/reflection/wat_arc144_uniform_reflection_sig_body.wat"),
+        "signature-of-defn and body-of :user::add should both return Some"
+    );
 }
 
 // ─── Kind 2: Macro — smoke (full coverage at wat_arc144_lookup_form.rs) ────
@@ -169,17 +118,10 @@ fn macro_lookup_define_smoke() {
     // (full trio incl. body template + signature-of-defn). This thin assert
     // pins the cross-test invariant: lookup-define on a registered macro
     // returns Some.
-    let src = r##"
-        (:wat::core::defmacro :my::id [x <- :wat::WatAST] -> :wat::WatAST `~x)
-
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match
-                      (:wat::runtime::lookup-define :my::id)
-                      -> :wat::core::bool
-                      ((:wat::core::Some _) true)
-                      (:wat::core::None    false)))
-    "##;
-    assert!(run_bool(src), "lookup-define :my::id should return Some");
+    assert!(
+        run_bool("tests/reflection/wat_arc144_uniform_reflection_macro.wat"),
+        "lookup-define :my::id should return Some"
+    );
 }
 
 // ─── Kind 3: Primitive — smoke (full coverage at slices 1+3) ───────────────
@@ -192,23 +134,10 @@ fn primitive_lookup_define_and_signature_smoke() {
     // `wat_arc144_lookup_form.rs::signature_of_defn_substrate_primitive_*`
     // (signature-of-defn on foldl). This pins the slice 4 framing: a
     // TypeScheme primitive answers BOTH lookup-define + signature-of-defn.
-    let src = r##"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [def-opt
-                        (:wat::runtime::lookup-define :wat::core::foldl)
-                       sig-opt
-                        (:wat::runtime::signature-of-defn :wat::core::foldl)]
-                      (:wat::core::match def-opt
-                        -> :wat::core::bool
-                        ((:wat::core::Some _)
-                          (:wat::core::match sig-opt
-                            -> :wat::core::bool
-                            ((:wat::core::Some _) true)
-                            (:wat::core::None    false)))
-                        (:wat::core::None false))))
-    "##;
-    assert!(run_bool(src), "lookup-define and signature-of-defn :wat::core::foldl should both return Some");
+    assert!(
+        run_bool("tests/reflection/wat_arc144_uniform_reflection_primitive.wat"),
+        "lookup-define and signature-of-defn :wat::core::foldl should both return Some"
+    );
 }
 
 // ─── Kind 4: SpecialForm — smoke (full coverage at slice 2) ────────────────
@@ -220,16 +149,7 @@ fn special_form_lookup_define_smoke() {
     // per-form slot verification). This pins :wat::core::if as the
     // representative special form and asserts the slice-1 sentinel
     // marker is preserved in the rendered AST.
-    let src = r##"
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [def-opt
-                        (:wat::runtime::lookup-define :wat::core::if)
-                       rendered
-                        (:wat::edn::write def-opt)]
-                      rendered))
-    "##;
-    let line = run_string(src);
+    let line = run_string("tests/reflection/wat_arc144_uniform_reflection_special_form.wat");
     assert!(
         line.contains(":wat::core::__internal/special-form"),
         "expected special-form sentinel head, got: {}",
@@ -250,20 +170,7 @@ fn type_lookup_define_smoke() {
     // `wat_arc144_lookup_form.rs::lookup_define_struct_returns_some_and_emits_struct_head`
     // (full trio with head + body-of returns :None). This pins the
     // cross-test invariant on a different struct shape.
-    let src = r##"
-        (:wat::core::defstruct :my::Pair
-          [a <- :wat::core::i64
-           b <- :wat::core::i64])
-
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [def-opt
-                        (:wat::runtime::lookup-define :my::Pair)
-                       rendered
-                        (:wat::edn::write def-opt)]
-                      rendered))
-    "##;
-    let line = run_string(src);
+    let line = run_string("tests/reflection/wat_arc144_uniform_reflection_type.wat");
     assert!(
         line.contains(":wat::core::defstruct"),
         "expected ':wat::core::defstruct' head in struct lookup-define AST, got: {}",
@@ -285,16 +192,7 @@ fn type_lookup_define_smoke() {
 
 #[test]
 fn primitive_empty_lookup_define_emits_define_head() {
-    let src = r##"
-        (:wat::core::defn :user::compute [] -> :wat::core::String
-          (:wat::core::let
-                      [def-opt
-                        (:wat::runtime::lookup-define :wat::core::empty?)
-                       rendered
-                        (:wat::edn::write def-opt)]
-                      rendered))
-    "##;
-    let line = run_string(src);
+    let line = run_string("tests/reflection/wat_arc144_uniform_reflection_empty.wat");
     // Primitive reflection emits `:wat::core::define` (not `:wat::core::define-dispatch`)
     // and the synthetic internal-primitive sentinel body.
     assert!(
@@ -325,23 +223,10 @@ fn dispatch_length_signature_and_body_shape() {
     // signature-of-defn returns Some (the ∀T intrinsic Primitive scheme);
     // body-of returns :None (Primitives have no wat-side body — the Rust
     // impl IS the contract; per arc 237.7a Stone + Stone 241.13 doctrine).
-    let src = r##"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::let
-                      [sig-opt
-                        (:wat::runtime::signature-of-defn :wat::core::length)
-                       body-opt
-                        (:wat::runtime::body-of :wat::core::length)]
-                      (:wat::core::match sig-opt
-                        -> :wat::core::bool
-                        ((:wat::core::Some _)
-                          (:wat::core::match body-opt
-                            -> :wat::core::bool
-                            ((:wat::core::Some _) false)
-                            (:wat::core::None    true)))
-                        (:wat::core::None false))))
-    "##;
-    assert!(run_bool(src), "signature-of-defn should return Some and body-of should return None for dispatch");
+    assert!(
+        run_bool("tests/reflection/wat_arc144_uniform_reflection_length_shape.wat"),
+        "signature-of-defn should return Some and body-of should return None for dispatch"
+    );
 }
 
 // ─── Length canary regression — HashMap shape (brief request) ──────────────
@@ -356,15 +241,7 @@ fn dispatch_length_signature_and_body_shape() {
 
 #[test]
 fn length_canary_hashmap_via_define_alias() {
-    let src = r##"
-        (:wat::core::defalias :user::size :wat::core::length)
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:user::size
-                      (:wat::core::HashMap :wat::core::String :wat::core::i64
-                        "a" 1 "b" 2 "c" 3)))
-    "##;
-    let n = run_i64(src);
+    let n = run_i64("tests/reflection/wat_arc144_uniform_reflection_canary.wat");
     assert_eq!(
         n, 3,
         "expected alias of length to return 3 for HashMap of 3 entries, got: {}",
