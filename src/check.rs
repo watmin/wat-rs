@@ -8881,11 +8881,31 @@ fn collect_splice_defs_ctx(
             }
         }
         // Arc 232 Stone 232.1 — extend-type registration into extend_registrations.
-        // Parse errors silently skipped here (infer_list arm reports them).
+        // Arc 293.4c — branch on surface vs. protocol target (parse errors silently skipped).
         ":wat::core::extend-type" if is_top => {
             if let Ok((_key, ed)) = crate::runtime::parse_extend_type_form(form) {
-                let method_names: Vec<String> = ed.impl_clauses.keys().cloned().collect();
-                env.register_extend(ed.protocol_name.clone(), ed.type_name.clone(), method_names);
+                let is_surface = env.types().get(&ed.protocol_name)
+                    .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
+                    .unwrap_or(false);
+                if is_surface {
+                    // Surface path: register each impl as a TypeScheme under `<type_name>/<method>`.
+                    // This is the SAME key the `resolve_method` closure in `assignable` uses, so
+                    // a non-aggregate foreign type T can satisfy the surface iff all methods resolve.
+                    for (method_name, clause) in &ed.impl_clauses {
+                        let key = format!("{}/{}", ed.type_name, method_name);
+                        let scheme = TypeScheme {
+                            type_params: vec![],
+                            params: clause.args.iter().map(|(_, t)| t.clone()).collect(),
+                            ret: clause.return_type.clone(),
+                            rest_param_type: clause.rest_param.as_ref().map(|(_, t)| t.clone()),
+                        };
+                        env.register(key, scheme);
+                    }
+                } else {
+                    // Protocol path: keep existing behavior.
+                    let method_names: Vec<String> = ed.impl_clauses.keys().cloned().collect();
+                    env.register_extend(ed.protocol_name.clone(), ed.type_name.clone(), method_names);
+                }
             }
         }
         ":wat::core::do" if is_top => {
@@ -14499,7 +14519,35 @@ pub(crate) fn assignable(
                     };
                     return structural && holder_ok;
                 }
-                // actual is not an aggregate — fall through to unify.
+                // Arc 293.4c — foreign type path: `actual` is a non-aggregate type (e.g.
+                // `:wat::core::String`) that may be taught to satisfy the surface via
+                // `extend-type`. A foreign type T satisfies surface S iff:
+                //   (a) S has no holder bound (non-aggregates carry no holder), AND
+                //   (b) every method member in S has a `:<T>/<method>` scheme in env.
+                // Field members in S cannot be satisfied by a foreign type (no struct fields),
+                // so a mixed field+method surface is correctly rejected here.
+                // `struct_satisfies_surface` with `&[]` fields returns false for any field member
+                // and consults the method resolver (env.get) for method members.
+                // STOP-3 guard: `resolve_method` only succeeds when explicitly registered
+                // (via `defn :<T>/<m>` or extend-type on a surface) — no always-true risk.
+                {
+                    let type_fqdn = ap.clone();
+                    let structural = crate::types::surface::struct_satisfies_surface(
+                        &[], // no struct fields for a foreign type
+                        &surf_clone,
+                        |fty, mty| assignable(fty, mty, subst, env),
+                        |method_name| {
+                            let key = format!("{}/{}", type_fqdn, method_name);
+                            env.get(&key).map(|s| (s.params.clone(), s.ret.clone()))
+                        },
+                    );
+                    // Foreign types cannot satisfy a holder-bound surface (no aggregate holder).
+                    let holder_ok = surf_clone.holder.is_none();
+                    if structural && holder_ok {
+                        return true;
+                    }
+                    // Not satisfied via foreign path — fall through to unify.
+                }
             }
         }
     }

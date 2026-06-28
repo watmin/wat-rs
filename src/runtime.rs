@@ -671,9 +671,38 @@ pub fn register_stdlib_runtime_defs(
                 let (name, pd) = parse_defprotocol_form(form)?;
                 sym.runtime_def_values.insert(name, Value::wat__core__protocol_def(pd));
             }
+            // Arc 293.4c — stdlib extend-type: branch on surface vs. protocol (mirrors user path).
             ":wat::core::extend-type" => {
                 let (canonical_key, ed) = parse_extend_type_form(form)?;
-                sym.runtime_def_values.insert(canonical_key, Value::wat__core__extend_def(ed));
+                let is_surface = sym.types.as_deref()
+                    .and_then(|t| t.get(&ed.protocol_name))
+                    .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
+                    .unwrap_or(false);
+                if is_surface {
+                    for (method_name, clause) in &ed.impl_clauses {
+                        let method_key = format!("{}/{}", ed.type_name, method_name);
+                        if sym.functions.contains_key(&method_key) {
+                            return Err(RuntimeError {
+                                span: Span::unknown(),
+                                kind: RuntimeErrorKind::DuplicateDefine(method_key),
+                            }.into());
+                        }
+                        let func = Arc::new(Function {
+                            name: Some(method_key.clone()),
+                            params: clause.args.iter().map(|(n, _)| n.clone()).collect(),
+                            type_params: vec![],
+                            param_types: clause.args.iter().map(|(_, t)| t.clone()).collect(),
+                            ret_type: clause.return_type.clone(),
+                            rest_param: clause.rest_param.as_ref().map(|(n, _)| n.clone()),
+                            rest_param_type: clause.rest_param.as_ref().map(|(_, t)| t.clone()),
+                            body: FunctionBody::Wat(clause.body.clone()),
+                            closed_env: None,
+                        });
+                        sym.functions.insert(method_key, func);
+                    }
+                } else {
+                    sym.runtime_def_values.insert(canonical_key, Value::wat__core__extend_def(ed));
+                }
             }
             // Arc 255 escape-hatch — scalar stdlib `def` forms (e.g. MAX-READLN-BYTES).
             // Fn-shape defs are pre-registered in sym.functions by register_stdlib_defines;
@@ -1902,11 +1931,45 @@ fn register_runtime_defs_form(
         }
         // Arc 232 Stone 232.1 — `:wat::core::extend-type` at top-level.
         // Shape: (:wat::core::extend-type :T :P (method-impl ...) ...)
-        // Parse + produce Value::wat__core__extend_def; store under canonical key.
+        // Arc 293.4c — branch on surface vs. protocol target:
+        //   Surface: register each impl as a `:<T>/<method>` Function in sym.functions
+        //            (collision = DuplicateDefine).
+        //   Protocol: keep existing behavior (store extend_def in runtime_def_values).
         ":wat::core::extend-type" => {
             let (canonical_key, ed) = parse_extend_type_form(form)?;
-            let value = Value::wat__core__extend_def(ed);
-            sym.runtime_def_values.insert(canonical_key, value);
+            let is_surface = sym.types.as_deref()
+                .and_then(|t| t.get(&ed.protocol_name))
+                .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
+                .unwrap_or(false);
+            if is_surface {
+                // Surface path: register each impl clause as `:<T>/<method>` in sym.functions.
+                // This is the SAME key the 293.4b dispatcher and 293.4a satisfaction resolver use.
+                for (method_name, clause) in &ed.impl_clauses {
+                    let method_key = format!("{}/{}", ed.type_name, method_name);
+                    if sym.functions.contains_key(&method_key) {
+                        return Err(RuntimeError {
+                            span: form.span().clone(),
+                            kind: RuntimeErrorKind::DuplicateDefine(method_key),
+                        }.into());
+                    }
+                    let func = Arc::new(Function {
+                        name: Some(method_key.clone()),
+                        params: clause.args.iter().map(|(n, _)| n.clone()).collect(),
+                        type_params: vec![],
+                        param_types: clause.args.iter().map(|(_, t)| t.clone()).collect(),
+                        ret_type: clause.return_type.clone(),
+                        rest_param: clause.rest_param.as_ref().map(|(n, _)| n.clone()),
+                        rest_param_type: clause.rest_param.as_ref().map(|(_, t)| t.clone()),
+                        body: FunctionBody::Wat(clause.body.clone()),
+                        closed_env: None,
+                    });
+                    sym.functions.insert(method_key, func);
+                }
+            } else {
+                // Protocol path: keep existing behavior.
+                let value = Value::wat__core__extend_def(ed);
+                sym.runtime_def_values.insert(canonical_key, value);
+            }
         }
         _ => {
             // Non-splice top-level form (define, struct, enum, etc.) —
@@ -5216,12 +5279,13 @@ fn dispatch_keyword_head_value(
                 }
 
                 // Arc 293.4b — surface-method dispatch.
+                // Arc 293.4c — also handles foreign types taught via `extend-type` (monkeypatch).
                 //
                 // A head `:S/method` where `S` is a `TypeDef::Surface` with method member `method`
-                // routes to the plain `defn :<T>/<method>` in `sym.functions` (NOT an extend-def).
-                // Surfaces have no `extend-type` machinery; each satisfying type backs the method
-                // with a direct `defn :T/name`. The check layer has already verified the receiver
-                // satisfies S; here we only need the concrete type for the lookup key.
+                // routes to `:<T>/<method>` in `sym.functions`. The satisfier may be a record's
+                // `defn :T/name` (293.4b) OR an `extend-type` impl on a foreign type (293.4c —
+                // both paths register under the same `:<T>/<method>` key in sym.functions). The
+                // check layer has already verified satisfaction; here we only need the concrete FQDN.
                 //
                 // `sym.types` is populated at freeze time (`FrozenWorld::freeze` → `symbols.set_types`).
                 // The protocol arm above runs first and returns early if the stem is a protocol_def,
@@ -5244,34 +5308,29 @@ fn dispatch_keyword_head_value(
                             }
                             // Eval the receiver (arg 0).
                             let receiver = eval_inner(&args[0], env, sym)?.value_owned();
-                            // Read the receiver's concrete type FQDN — reuse the EXACT same
-                            // extraction as the protocol dispatch above (Record/holon-Record/Struct/RustOpaque).
+                            // Read the receiver's concrete type FQDN.
+                            // Record/holon-Record: class_fqdn has no leading colon — add it.
+                            // Struct: type_name is already colon-prefixed (instance-specific FQDN).
+                            // RustOpaque: type_path is already colon-prefixed.
+                            // Arc 293.4c — other types (String, i64, etc.): derive FQDN from
+                            // type_name() with a colon prefix. This enables foreign types taught
+                            // via `extend-type` to dispatch surface methods. The check layer has
+                            // already verified satisfaction; here we only need the concrete FQDN.
                             let concrete_type_fqdn: String = match &receiver {
                                 Value::wat__Record { class_fqdn, .. }
                                 | Value::wat__holon__Record { class_fqdn, .. } => {
-                                    // class_fqdn has NO leading colon — add it.
                                     format!(":{}", class_fqdn)
                                 }
                                 Value::Struct(sv) => sv.type_name.clone(),
                                 Value::RustOpaque(inner) => inner.type_path.to_string(),
                                 other_val => {
-                                    return Err(RuntimeError {
-                                        span: list_span.clone(),
-                                        kind: RuntimeErrorKind::MalformedForm {
-                                            head: other.to_string(),
-                                            reason: format!(
-                                                "surface-method receiver must be a type that satisfies `{}`; \
-                                                 got a `{}` value",
-                                                protocol_fqdn,
-                                                other_val.type_name()
-                                            ),
-                                        },
-                                    }.into());
+                                    // Foreign type: type_name() returns the FQDN without leading colon.
+                                    format!(":{}", other_val.type_name())
                                 }
                             };
                             // Look up `:<T>/<method>` as a plain function in sym.functions.
-                            // The ONE semantic change from the protocol path: surfaces have no
-                            // extend-def; the satisfier exposes a regular `defn :<T>/<method>`.
+                            // Arc 293.4c: extend-type on a surface also registers under this key,
+                            // so both user-defn and extend-provided methods are found here.
                             let method_key = format!("{}/{}", concrete_type_fqdn, method_name);
                             let func = match sym.get(canonical_callable_name(&method_key)) {
                                 Some(f) => f.clone(),
@@ -6198,11 +6257,39 @@ pub(crate) fn parse_extend_type_form(
                 reason: format!("method impl `{}` must have a body expression", method_name)
             } }.into());
         }
-        let body_ast = synthesize_fn_body(&body_items);
+        // Arc 293.4c — strip optional `-> :RetType` from the body so that surface
+        // extend-type impls like `(tag [self] -> :wat::core::i64 42)` work correctly.
+        // Protocol impls don't use `->` so this is a no-op for them.
+        // If body_items starts with Symbol("->") followed by a Keyword, strip them and
+        // capture the return type; otherwise use :nil as the placeholder (protocol path).
+        let (body_forms, clause_return_type) = if body_items.len() >= 3 {
+            if let (WatAST::Symbol(arrow, _), WatAST::Keyword(ret_kw, _)) =
+                (&body_items[0], &body_items[1])
+            {
+                if arrow.as_str() == "->" {
+                    let ret = crate::types::parse_type_expr(ret_kw)
+                        .unwrap_or_else(|_| crate::types::TypeExpr::Path(":wat::core::nil".into()));
+                    (body_items[2..].to_vec(), ret)
+                } else {
+                    (body_items, crate::types::TypeExpr::Path(":wat::core::nil".into()))
+                }
+            } else {
+                (body_items, crate::types::TypeExpr::Path(":wat::core::nil".into()))
+            }
+        } else {
+            (body_items, crate::types::TypeExpr::Path(":wat::core::nil".into()))
+        };
+        if body_forms.is_empty() {
+            return Err(RuntimeError { span: impl_span, kind: RuntimeErrorKind::MalformedForm {
+                head: HEAD.into(),
+                reason: format!("method impl `{}` must have a body expression after `-> :T`", method_name)
+            } }.into());
+        }
+        let body_ast = synthesize_fn_body(&body_forms);
         let clause = crate::value::Clause {
             args,
             rest_param: None,
-            return_type: crate::types::TypeExpr::Path(":wat::core::nil".into()),
+            return_type: clause_return_type,
             guard: None,
             ensure_fn: None,
             body: Arc::new(body_ast),
