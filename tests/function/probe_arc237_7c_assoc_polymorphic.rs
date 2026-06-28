@@ -20,47 +20,30 @@
 //!
 //! Run: cargo test --release --test probe_arc237_7c_assoc_polymorphic
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+//! Wat source: tests/function/probe_arc237_7c_assoc_polymorphic.wat
+//! Negative fixtures: probe_arc237_7c_wrong_key_bad.wat, probe_arc237_7c_wrong_value_bad.wat,
+//!   probe_arc237_7c_non_collection_bad.wat.
+//! Ignored Record-arm fixtures: probe_arc237_7c_assoc_base_record.wat,
+//!   probe_arc237_7c_assoc_holonic_record.wat (un-ignored when Stone 237.7c ships).
+
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
+fn run(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup for 7c assoc-polymorphic fixture");
+    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
-fn eval_value(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new())).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
-}
-
-fn try_startup(src: &str) -> Result<(), String> {
-    let src = with_nil_main(src);
-    startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
-}
-
-// ─── HashMap arm — regression contract (works today via alias; works post via intrinsic) ────
+// ─── HashMap arm — regression contract ────────────────────────────────────────
 
 #[test]
 fn assoc_hashmap_returns_hashmap_type_preserved() {
-    // `(assoc m "k" 1)` returns a HashMap usable by collection ops downstream.
-    // Feeds the result into `:wat::core::HashMap/keys` (per-Type leaf, untouched
-    // by the stone) — proves the return is still typed HashMap<String, i64>.
+    // `(assoc m "k" 1)` returns a HashMap; HashMap/keys returns keys of length 1.
     assert_eq!(
-        eval_value(
-            r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
-              (:wat::core::length
-                                 (:wat::core::HashMap/keys
-                                   (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) "k" 1))))"#
-        ),
+        run(":user::assoc-hashmap"),
         Value::i64(1),
         "assoc HashMap returns HashMap; keys returns Vec<String> of length 1",
     );
@@ -68,97 +51,52 @@ fn assoc_hashmap_returns_hashmap_type_preserved() {
 
 #[test]
 fn assoc_hashmap_wrong_key_type_rejected_at_check() {
-    // HashMap<String, i64>; pass an i64 as the key — must reject at check time
-    // via the K-type discipline (today via the alias's HashMap/assoc scheme;
-    // post via `infer_assoc` HashMap arm).
-    let result = try_startup(
-        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::length
-                         (:wat::core::HashMap/keys
-                           (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) 42 1))))"#,
-    );
-    assert!(
-        result.is_err(),
-        "assoc HashMap<String,i64> with i64 key MUST reject at check; got: {:?}",
-        result,
-    );
+    let result = startup_from_file("tests/function/probe_arc237_7c_wrong_key_bad.wat");
+    assert!(result.is_err(), "assoc HashMap<String,i64> with i64 key MUST reject at check; got Ok");
 }
 
 #[test]
 fn assoc_hashmap_wrong_value_type_rejected_at_check() {
-    // HashMap<String, i64>; pass a String as the value — must reject via V-type
-    // discipline.
-    let result = try_startup(
-        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::length
-                         (:wat::core::HashMap/keys
-                           (:wat::core::assoc (:wat::core::HashMap :wat::core::String :wat::core::i64) "k" "v"))))"#,
-    );
-    assert!(
-        result.is_err(),
-        "assoc HashMap<String,i64> with String value MUST reject at check; got: {:?}",
-        result,
-    );
+    let result = startup_from_file("tests/function/probe_arc237_7c_wrong_value_bad.wat");
+    assert!(result.is_err(), "assoc HashMap<String,i64> with String value MUST reject at check; got Ok");
 }
 
 #[test]
 fn assoc_non_collection_arg0_rejected() {
-    // Pass an i64 as arg0 — neither HashMap nor Record. Today the alias's
-    // HashMap-only scheme rejects at check; post, `infer_assoc`'s else-arm
-    // returns a teaching TypeMismatch. Either way: not green.
-    let result = try_startup(
-        r#"(:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::length
-                         (:wat::core::HashMap/keys
-                           (:wat::core::assoc 42 "k" 1))))"#,
-    );
-    assert!(
-        result.is_err(),
-        "assoc with non-collection arg0 (i64) MUST reject; got: {:?}",
-        result,
-    );
+    let result = startup_from_file("tests/function/probe_arc237_7c_non_collection_bad.wat");
+    assert!(result.is_err(), "assoc with non-collection arg0 (i64) MUST reject; got Ok");
 }
 
 // ─── Record arm — disconfirming AT HEAD; un-ignore in Stone 237.7c ─────────────────
 
 #[test]
+#[ignore = "record arms of assoc not yet implemented (Stone 237.7c); un-ignore when shipped"]
 fn assoc_base_record_returns_base_record_struct_only() {
-    // Mint a 1-field defrecord, instantiate, assoc a new value, read back via
-    // the auto-accessor. Base record (no holon_form) — assoc rebuilds struct only.
-    //
-    // POST-7c contract: `(:wat::core::assoc rec :name "new")` works; the result
-    // is still a `:my::Voltage` base record with the field updated.
-    assert_eq!(
-        eval_value(
-            r#"(:wat::core::defrecord :my::Voltage [value <- :wat::core::i64])
-               (:wat::core::defn :user::compute [] -> :wat::core::i64
-                 (:my::Voltage/value
-                                    (:wat::core::assoc (:my::Voltage 10) :value 42)))"#
-        ),
-        Value::i64(42),
-        "assoc on base record updates the field; accessor reads the new value",
-    );
+    // POST-7c contract: assoc rebuilds the base record with the field updated.
+    let world = startup_from_file("tests/function/probe_arc237_7c_assoc_base_record.wat")
+        .expect("startup (RED until Stone 237.7c ships)");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval")
+        .value_owned()
+    {
+        Value::i64(n) => assert_eq!(n, 42, "assoc on base record updates the field"),
+        other => panic!("expected i64(42); got {:?}", other),
+    }
 }
 
 #[test]
+#[ignore = "holonic record arm of assoc not yet implemented (Stone 237.7c); un-ignore when shipped"]
 fn assoc_holonic_record_returns_holonic_record_parity_preserved() {
-    // Same shape but holonic (`:wat::holon::defrecord`). The holonic arm in
-    // `eval_record_assoc` rebuilds BOTH struct_form AND holon_form in parity.
-    // The post-7c intrinsic must route through the same path, preserving flavor.
-    //
-    // We probe by reading back through the auto-accessor (the field read goes
-    // through the struct path; if assoc broke parity, the result would still
-    // be 42 — but if the intrinsic's eval arm dropped the holonic flavor, the
-    // record would degrade to base and other holon-ops would fail downstream).
-    // For the probe, the load-bearing assertion is the round-trip i64.
-    assert_eq!(
-        eval_value(
-            r#"(:wat::holon::defrecord :my::HolonicVoltage [value <- :wat::core::i64])
-               (:wat::core::defn :user::compute [] -> :wat::core::i64
-                 (:my::HolonicVoltage/value
-                                    (:wat::core::assoc (:my::HolonicVoltage 10) :value 42)))"#
-        ),
-        Value::i64(42),
-        "assoc on holonic record updates the field; accessor reads the new value (parity rebuilt)",
-    );
+    // POST-7c contract: assoc rebuilds BOTH struct_form AND holon_form in parity.
+    let world = startup_from_file("tests/function/probe_arc237_7c_assoc_holonic_record.wat")
+        .expect("startup (RED until Stone 237.7c ships)");
+    let ast = wat::parse_one!("(:user::compute)").expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval")
+        .value_owned()
+    {
+        Value::i64(n) => assert_eq!(n, 42, "assoc on holonic record updates the field (parity rebuilt)"),
+        other => panic!("expected i64(42); got {:?}", other),
+    }
 }

@@ -24,23 +24,16 @@
 //! 7 of 8 contracts disconfirm cleanly at HEAD; C04 is the post-stone semantic
 //! contract (consistent with arc 241 probe precedent).
 //!
-//! Run: `cargo test --release --test probe_arc241_stone10_remedy`
+//! WAT fixtures: tests/diagnostics/probe_arc241_stone10_remedy_c{01,02,03,04,07,08}_bad.wat
+//! C05 shares c02's fixture; C06 shares c03's fixture.
+//!
+//! Run: `cargo nextest run --release -E 'binary(diagnostics)' -F probe_arc241_stone10_remedy`
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
-
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
+use wat::freeze::startup_from_file;
 
 /// Display-format the error message (what the user sees).
-fn try_startup_display(src: &str) -> String {
-    let full = with_nil_main(src);
-    match startup_from_source(&full, None, Arc::new(InMemoryLoader::new())) {
+fn display_err(path: &str) -> String {
+    match startup_from_file(path) {
         Ok(_) => String::from("<startup succeeded — no error to display>"),
         Err(e) => format!("{}", e),
     }
@@ -64,11 +57,8 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     // disconfirming path per Stone 241.9 probe C08 precedent.
     // Post-stone: error contains 'did you mean :my::Status::Ok [typo, distance 1]'.
     // Uses :test::pick (non-main) — main signature retirement doesn't apply.
-    let src = r#"
-        (:wat::core::defenum :my::Status :Ok :Pending :Error)
-        (:wat::core::defn :test::pick [] -> :my::Status :my::Status::Oks)
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c01_bad.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c01_bad.wat");
     assert!(
         msg.contains("did you mean"),
         "variant-typo case should produce 'did you mean' prefix; got:\n{}",
@@ -93,10 +83,8 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
     // reason: string already names `:wat::core::defstruct` in prose, but the
     // STRUCTURED canonical phrasing ('did you mean: ... [retirement replacement]')
     // is the 241.10 shape.
-    let src = r#"
-        (:wat::core::struct :my::Point (x :wat::core::i64))
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c02_bad.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat");
     assert!(
         msg.contains("did you mean"),
         "retirement case should produce 'did you mean' prefix; got:\n{}",
@@ -118,11 +106,8 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
 fn contract_03_ranked_multi_candidate_variant_typo() {
     // Declare enum with two variants close in spelling; typo a constructor
     // close to both. Post-stone: ranked output names multiple candidates.
-    let src = r#"
-        (:wat::core::defenum :my::Status :Ok :Oke :Err)
-        (:wat::core::defn :test::pick [] -> :my::Status :my::Status::Ok2)
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c03_bad.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03_bad.wat");
     let typo_annotation_count = msg.matches("[typo, distance").count();
     assert!(
         typo_annotation_count >= 2,
@@ -137,10 +122,8 @@ fn contract_03_ranked_multi_candidate_variant_typo() {
 fn contract_04_no_remedy_for_distant_unknown() {
     // `:wat::core::xyzzy` is far from any real form. No candidate within threshold.
     // Post-stone: error message renders without "did you mean" section.
-    let src = r#"
-        (:wat::core::xyzzy :T)
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c04_bad.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04_bad.wat");
     assert!(
         !msg.contains("did you mean"),
         "distant-unknown case should NOT produce 'did you mean'; got:\n{}",
@@ -155,10 +138,8 @@ fn contract_04_no_remedy_for_distant_unknown() {
 fn contract_05_single_remedy_single_line_format() {
     // Single remedy → inline single-line "did you mean: <form> [annotation]".
     // Uses retirement path (always produces error post-241.8).
-    let src = r#"
-        (:wat::core::struct :my::Point (x :wat::core::i64))
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c02_bad.wat (same as C02)
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat");
     let line = msg.lines().find(|l| l.contains("did you mean"))
         .unwrap_or_else(|| panic!("expected 'did you mean' line; got:\n{}", msg));
     assert!(
@@ -177,11 +158,8 @@ fn contract_05_single_remedy_single_line_format() {
 fn contract_06_multi_remedy_multi_line_format() {
     // Multiple remedies → "did you mean:" header on its own line; ranked candidates
     // each on their own subsequent line. Uses variant-constructor typo path.
-    let src = r#"
-        (:wat::core::defenum :my::Status :Ok :Oke :Err)
-        (:wat::core::defn :test::pick [] -> :my::Status :my::Status::Ok2)
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c03_bad.wat (same as C03)
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03_bad.wat");
     let lines: Vec<&str> = msg.lines().collect();
     let header_idx = lines.iter().position(|l| {
         l.trim_end().ends_with("did you mean:") || (l.contains("did you mean:") && !l.contains("[typo"))
@@ -197,10 +175,8 @@ fn contract_06_multi_remedy_multi_line_format() {
 fn contract_07_retirement_kind_annotation_canonical() {
     // The retirement kind annotation is the LITERAL string `[retirement replacement]`.
     // No abbreviations; no variants. Exact phrase per D7.
-    let src = r#"
-        (:wat::core::struct-restricted :my::Token [:my::] () (x <- :wat::core::i64))
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c07_bad.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c07_bad.wat");
     assert!(
         msg.contains("[replaces a retired form]"),
         "retirement annotation must be exact '[replaces a retired form]'; got:\n{}",
@@ -214,10 +190,8 @@ fn contract_07_retirement_kind_annotation_canonical() {
 fn contract_08_threshold_filters_far_typos() {
     // `:wat::core::definitelywrong` is far from any real form (distance >> needle.len()/3).
     // Post-stone: no remedy offered (threshold filter).
-    let src = r#"
-        (:wat::core::definitelywrong :T)
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc241_stone10_remedy_c08_bad.wat
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08_bad.wat");
     assert!(
         !msg.contains("did you mean"),
         "distant-typo above threshold should not produce remedy; got:\n{}",

@@ -1,0 +1,5 @@
+;; tests/wat_lang/probe_undefined_builtin_resolves_bogus_bad.wat
+;; RED-at-HEAD: bogus leaf under known namespace — should fail check/resolve after arc-255 fix.
+
+(:wat::core::defn :user::main [] -> :wat::core::i64
+  (:wat::core::Bogus 1 2))

@@ -1,0 +1,6 @@
+;; tests/wat_lang/probe_arc241_stone16_define_in_let_bad.wat
+;; :wat::core::define nested in let body — must be rejected (Stone 241.16 consistency).
+
+(:wat::core::defn :test::wrap [] -> :wat::core::String
+  (:wat::core::let [x (:wat::core::define (:test::inner -> :wat::core::i64) 42)]
+    "hello"))

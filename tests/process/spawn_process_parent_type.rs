@@ -35,20 +35,9 @@
 //! `"#` sequence would terminate a Rust `r#"..."#` raw string. All probes
 //! therefore use `r##"..."##` as the Rust raw string delimiter.
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 use wat::runtime::{eval, Environment, ProgramHandleInner};
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Drain the stderr field (index 2) of a Process Struct value.
 fn drain_stderr(process: &wat::runtime::Value) -> String {
@@ -113,33 +102,10 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
 /// the type is in the prologue and the child exits 0.
 #[test]
 fn probe_spawn_process_inherits_parent_struct() {
-    // Arc 170 slice 6 — the new spawn-process program shape supplies
-    // the child's type universe directly via the program's prelude
-    // forms. The parent's TypeEnv is NOT inherited (the old extract_closure
-    // path captured parent state into the prologue; the new contract is
-    // explicit — what's in the program shape is what the child sees).
-    // The struct declaration moves INTO the spawn-process program shape
-    // (top-level form preceding the :user::main define).
-    let src = r##"
-        (:wat::core::defstruct :test::proto::Point
-          [x <- :wat::core::i64
-           y <- :wat::core::i64])
-
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defstruct :test::proto::Point
-                          [x <- :wat::core::i64
-                           y <- :wat::core::i64])
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [s "#test.proto/Point {:x 3 :y 4}"
-                             _ (:wat::edn::read s)]
-                            nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "##;
-    let world = freeze_ok(src);
+    // Arc 170 slice 6 — WAT extracted to co-located fixture; child's type
+    // universe declared in the spawn-process program prelude inside the .wat.
+    let world = startup_from_file("tests/process/spawn_process_parent_type_struct.wat")
+        .expect("startup should succeed");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
@@ -165,31 +131,10 @@ fn probe_spawn_process_inherits_parent_struct() {
 ///   → `types.get(":test::proto::Color")` → must be present in child TypeEnv.
 #[test]
 fn probe_spawn_process_inherits_parent_enum() {
-    // Arc 170 slice 6 — same shape as the struct probe: the type
-    // declaration lives at the program prelude inside the spawn-process
-    // call, NOT inherited from parent.
-    let src = r##"
-        (:wat::core::defenum :test::proto::Color
-          :Red
-          :Green
-          :Blue)
-
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defenum :test::proto::Color
-                          :Red
-                          :Green
-                          :Blue)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [s "#test.proto.Color/Red nil"
-                             _ (:wat::edn::read s)]
-                            nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "##;
-    let world = freeze_ok(src);
+    // Arc 170 slice 6 — WAT extracted to co-located fixture; child's type
+    // universe declared in the spawn-process program prelude inside the .wat.
+    let world = startup_from_file("tests/process/spawn_process_parent_type_enum.wat")
+        .expect("startup should succeed");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
@@ -229,28 +174,10 @@ fn probe_spawn_process_inherits_parametric_type() {
     // parametric field-type resolution; this probe covers the registry
     // key `:test::proto::Wrapper` (base name stored in TypeEnv per
     // `parse_declared_name`'s `stored_name = format!(":{}", base)` path).
-    // Arc 170 slice 6 — parametric struct declared in the spawn-process
-    // program prelude.
-    let src = r##"
-        (:wat::core::defstruct :test::proto::Wrapper<E>
-          [label <- :wat::core::String
-           value <- :wat::core::i64])
-
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defstruct :test::proto::Wrapper<E>
-                          [label <- :wat::core::String
-                           value <- :wat::core::i64])
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [s "#test.proto/Wrapper {:label :empty :value 42}"
-                             _ (:wat::edn::read s)]
-                            nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "##;
-    let world = freeze_ok(src);
+    // Arc 170 slice 6 — WAT extracted to co-located fixture; parametric
+    // struct declared in the spawn-process program prelude inside the .wat.
+    let world = startup_from_file("tests/process/spawn_process_parent_type_parametric.wat")
+        .expect("startup should succeed");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,

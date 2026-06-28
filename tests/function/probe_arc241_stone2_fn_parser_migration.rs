@@ -46,86 +46,46 @@
 //!
 //! Run: `cargo test --release --test probe_arc241_stone2_fn_parser_migration`
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+//! Wat source: tests/function/probe_arc241_stone2_fn_parser_migration.wat
+//! Negative fixtures: probe_arc241_stone2_c05_bad.wat, probe_arc241_stone2_c06_bad.wat,
+//!   probe_arc241_stone2_c07_bad.wat, probe_arc241_stone2_c08_bad.wat,
+//!   probe_arc241_stone2_c09_bad.wat, probe_arc241_stone2_c10_bad.wat.
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
+use wat::runtime::{Environment, Value};
 
-/// Wrap the test fragment in a minimal main so `startup_from_source` is happy.
-/// The fn-form under test lives in `src`; the main is just a nil placeholder.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-/// Attempt to startup the source. Returns Ok(()) if the program parses,
-/// type-checks, and freezes cleanly; Err(formatted error) otherwise.
-fn try_startup(src: &str) -> Result<(), String> {
-    let src = with_nil_main(src);
-    startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
+fn run(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup for stone2 fn-parser-migration fixture");
+    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 // ─── Contracts 1–4: A1/A2/A3 happy paths (well-formed fn signatures) ─────────
 
 #[test]
 fn contract_01_no_arg_fn_succeeds() {
-    // (fn [] -> :T body) — empty argspec.
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [] -> :wat::core::i64 42)))"#,
-    );
-    assert!(
-        result.is_ok(),
-        "well-formed no-arg fn should startup; got: {:?}",
-        result
-    );
+    // (fn [] -> :T body) — empty argspec; c01-f returns i64(42).
+    assert_eq!(run(":user::c01-f"), Value::i64(42), "well-formed no-arg fn should succeed");
 }
 
 #[test]
 fn contract_02_single_arg_fn_succeeds() {
-    // (fn [x <- :T] -> :T x)
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 7))"#,
-    );
-    assert!(
-        result.is_ok(),
-        "well-formed single-arg fn should startup; got: {:?}",
-        result
-    );
+    // (fn [x <- :T] -> :T x) called with 7 → i64(7).
+    assert_eq!(run(":user::c02-f"), Value::i64(7), "well-formed single-arg fn should succeed");
 }
 
 #[test]
 fn contract_03_multi_arg_fn_succeeds() {
-    // (fn [x <- :T y <- :T] -> :T body)
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-                          (:wat::core::+ x y)) 3 4))"#,
-    );
-    assert!(
-        result.is_ok(),
-        "well-formed multi-arg fn should startup; got: {:?}",
-        result
-    );
+    // (fn [x <- :T y <- :T] -> :T body) called with 3 4 → 3+4 = i64(7).
+    assert_eq!(run(":user::c03-f"), Value::i64(7), "well-formed multi-arg fn should succeed");
 }
 
 #[test]
 fn contract_04_let_bound_fn_succeeds() {
-    // Let-binding a fn value — exercises A1 + A2/A3 paths together.
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64
-          (:wat::core::let [g (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
-                         (g 42)))"#,
-    );
-    assert!(
-        result.is_ok(),
-        "let-bound fn should startup; got: {:?}",
-        result
-    );
+    // Let-binding a fn value — exercises A1 + A2/A3 paths together; g(42) → i64(42).
+    assert_eq!(run(":user::c04-f"), Value::i64(42), "let-bound fn should succeed");
 }
 
 // ─── Contracts 5–8: A1/A3 error paths (malformed signatures error cleanly) ───
@@ -137,50 +97,30 @@ fn contract_05_name_not_symbol_errors() {
     // Post-migration: canonical parser emits "name slot must be a plain symbol (not a
     // keyword, literal, or nested form)" via From<ArgSpecError> for RuntimeError.
     // Either way: ERROR (not silent success).
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [:kw <- :wat::core::i64] -> :wat::core::i64 42)))"#,
-    );
-    assert!(
-        result.is_err(),
-        "non-Symbol at name slot must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c05_bad.wat");
+    assert!(result.is_err(), "non-Symbol at name slot must error; got Ok");
 }
 
 #[test]
 fn contract_06_missing_arrow_errors() {
     // Slot 1 of triple is `=` not `<-`. Canonical: MissingArrow.
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [x = :wat::core::i64] -> :wat::core::i64 x)))"#,
-    );
-    assert!(
-        result.is_err(),
-        "missing `<-` arrow must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c06_bad.wat");
+    assert!(result.is_err(), "missing `<-` arrow must error; got Ok");
 }
 
 #[test]
 fn contract_07_non_keyword_at_type_slot_errors() {
     // Slot 2 of triple is a string, not a Keyword. Canonical: TypeNotKeyword.
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [x <- "i64"] -> :wat::core::i64 42)))"#,
-    );
-    assert!(
-        result.is_err(),
-        "non-Keyword at type slot must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c07_bad.wat");
+    assert!(result.is_err(), "non-Keyword at type slot must error; got Ok");
 }
 
 #[test]
 fn contract_08_incomplete_triple_errors() {
     // Argspec has fewer than 3 items at a triple position. Canonical: IncompleteTriple.
     // `[x <-]` — name then arrow but no type slot.
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [x <-] -> :wat::core::i64 42)))"#,
-    );
-    assert!(
-        result.is_err(),
-        "incomplete triple must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c08_bad.wat");
+    assert!(result.is_err(), "incomplete triple must error; got Ok");
 }
 
 // ─── Contracts 9–10: ret-clause inline (stays unchanged by Stone 241.2) ──────
@@ -192,24 +132,14 @@ fn contract_09_missing_ret_arrow_errors() {
     // Pre-migration: A1's inline check emits "fn signature missing `->` between
     // args-vector and return type". Post-migration: SAME inline check; same message.
     // (The ret-clause inline parsing is UNCHANGED in Stone 241.2 per DESIGN D2.)
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [x <- :wat::core::i64] :wat::core::i64 x)))"#,
-    );
-    assert!(
-        result.is_err(),
-        "missing `->` ret-arrow must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c09_bad.wat");
+    assert!(result.is_err(), "missing `->` ret-arrow must error; got Ok");
 }
 
 #[test]
 fn contract_10_non_keyword_ret_type_errors() {
     // Argspec is fine; `->` is present; ret-type slot is a string not a Keyword.
     // Inline ret-clause check at A1/A2/A3 (unchanged by Stone 241.2).
-    let result = try_startup(
-        r#"(:wat::core::defn :user::f [] -> :wat::core::i64 ((:wat::core::fn [x <- :wat::core::i64] -> "i64" x)))"#,
-    );
-    assert!(
-        result.is_err(),
-        "non-Keyword ret-type must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c10_bad.wat");
+    assert!(result.is_err(), "non-Keyword ret-type must error; got Ok");
 }

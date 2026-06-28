@@ -19,16 +19,13 @@
 //! Run SERIALLY (spawns a thread):
 //!   `cargo test --release -p wat --test nursery probe_arc259_thread_crash_reason -- --test-threads=1`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
-/// Eval `compute`, which MUST raise (the peer crashed); return the raised error's text.
-fn compute_raise_text(body: &str) -> String {
-    let src = format!("{body}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)");
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
+/// Eval `(:user::compute)` in the co-located fixture world; return the raised error's text.
+/// `compute` MUST raise — the thread peer crashes; the caller asserts on the reason.
+fn compute_raise_text() -> String {
+    let world = startup_beside(file!()).expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     match eval_in_frozen(&ast, &world, &Environment::new()) {
         Ok(v) => panic!("expected compute to RAISE (the thread peer crashed); got Ok({v:?})"),
@@ -41,15 +38,7 @@ fn compute_raise_text(body: &str) -> String {
 /// process peer's would. RED at HEAD: the thread tier discards the reason → generic message.
 #[test]
 fn thread_peer_surfaces_crash_reason_over_recv() {
-    let err = compute_raise_text(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
-           (:wat::core::let \
-             [p (:wat::kernel::spawn-program' (:wat::spawn::thread) \
-                  (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-                    (:wat::kernel::assertion-failed! \"BOOM-SENTINEL-9173\" :wat::core::None :wat::core::None))) \
-              _ (:wat::kernel::recv' p)] \
-             0))",
-    );
+    let err = compute_raise_text();
     assert!(
         err.contains("BOOM-SENTINEL-9173"),
         "thread peer `recv'` must surface the crash reason over the pipe (like the process peer); \

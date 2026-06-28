@@ -32,36 +32,19 @@
 //!
 //! Run: `cargo test --release --test probe_arc241_stone5_defclause_rest_dispatch`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+//! Wat source: tests/function/probe_arc241_stone5_defclause_rest_dispatch.wat
+//! Negative fixtures: probe_arc241_stone5_c05_bad.wat, probe_arc241_stone5_c06_bad.wat,
+//!   probe_arc241_stone5_c07_bad.wat.
+
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn try_compute(src: &str) -> Result<Value, String> {
-    let full = with_nil_main(src);
-    let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env)
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))
-}
-
-fn try_startup(src: &str) -> Result<(), String> {
-    let full = with_nil_main(src);
-    startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
+fn run(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup for stone5 rest-dispatch fixture");
+    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 // ─── Contracts 1–4: rest-binder dispatch success paths ───────────────────────
@@ -69,175 +52,81 @@ fn try_startup(src: &str) -> Result<(), String> {
 #[test]
 fn contract_01_variadic_min_with_rest_succeeds() {
     // defclause with [fixed & rest <- :Vector<:i64>]; called with fixed + N rest values.
-    // Rest collected into Vector; foldl folds them; result computed.
-    let src = r#"
-        (:wat::core::defclause :my::sum-all
-          ([first <- :wat::core::i64
-            & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::core::i64
-                               n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n))
-              first
-              rest)))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 3 4))
-    "#;
-    let result = try_compute(src);
+    // Rest collected into Vector; foldl folds them; 1+2+3+4 = 10.
     assert_eq!(
-        result.expect("variadic dispatch should succeed"),
+        run(":user::c01-variadic"),
         Value::i64(10),
-        "1+2+3+4 = 10 via & rest-binder fold"
+        "1+2+3+4 = 10 via & rest-binder fold",
     );
 }
 
 #[test]
 fn contract_02_empty_rest_succeeds() {
-    // Called with exactly fixed-arity values; rest is empty Vector.
-    let src = r#"
-        (:wat::core::defclause :my::sum-all
-          ([first <- :wat::core::i64
-            & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::core::i64
-                               n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n))
-              first
-              rest)))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 42))
-    "#;
-    let result = try_compute(src);
+    // Called with exactly fixed-arity values; rest is empty Vector; fold returns seed 42.
     assert_eq!(
-        result.expect("empty-rest dispatch should succeed"),
+        run(":user::c02-empty-rest"),
         Value::i64(42),
-        "fold of empty rest with seed 42 returns 42"
+        "fold of empty rest with seed 42 returns 42",
     );
 }
 
 #[test]
 fn contract_03_rest_only_succeeds() {
-    // Rest-only clause (no fixed args before `&`).
-    let src = r#"
-        (:wat::core::defclause :my::count-args
-          ([& rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::length rest)))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::count-args 10 20 30))
-    "#;
-    let result = try_compute(src);
+    // Rest-only clause (no fixed args before `&`); 3 args → length 3.
     assert_eq!(
-        result.expect("rest-only dispatch should succeed"),
+        run(":user::c03-rest-only"),
         Value::i64(3),
-        "3 args collected into rest Vector; length is 3"
+        "3 args collected into rest Vector; length is 3",
     );
 }
 
 #[test]
 fn contract_04_rest_only_empty_call_succeeds() {
-    // Rest-only clause called with ZERO args; rest is empty Vector.
-    let src = r#"
-        (:wat::core::defclause :my::count-args
-          ([& rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::length rest)))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::count-args))
-    "#;
-    let result = try_compute(src);
+    // Rest-only clause called with ZERO args; rest is empty Vector; length is 0.
     assert_eq!(
-        result.expect("rest-only zero-arg dispatch should succeed"),
+        run(":user::c04-rest-only-empty"),
         Value::i64(0),
-        "0 args → empty rest Vector; length is 0"
+        "0 args → empty rest Vector; length is 0",
     );
 }
 
-// ─── Contracts 5–6: error paths ──────────────────────────────────────────────
+// ─── Contracts 5–7: error paths ──────────────────────────────────────────────
 
 #[test]
 fn contract_05_rest_element_type_mismatch_errors() {
-    // Rest contains a wrong-type value (string in Vector<i64>).
-    // Should error with NoMatchingClause (type mismatch at rest position).
-    let src = r#"
-        (:wat::core::defclause :my::sum-all
-          ([first <- :wat::core::i64
-            & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::core::i64
-                               n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n))
-              first
-              rest)))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::sum-all 1 2 "three"))
-    "#;
-    // Either startup fails (type-check catches it) OR compute fails (dispatch
-    // rejects the wrong-type rest value). Both are acceptable error paths.
-    let startup_result = try_startup(src);
-    let compute_result = try_compute(src);
-    assert!(
-        startup_result.is_err() || compute_result.is_err(),
-        "rest element type mismatch must error somewhere; got startup={:?} compute={:?}",
-        startup_result, compute_result
-    );
+    // Passing "three" (String) where Vector<i64> element is expected.
+    // Type mismatch is caught at eval time (rest element types are checked at dispatch).
+    let world = startup_from_file("tests/function/probe_arc241_stone5_c05_bad.wat")
+        .expect("startup should succeed (rest element type mismatch caught at dispatch, not check)");
+    let ast = wat::parse_one!("(:user::bad)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(result.is_err(), "rest element type mismatch must error at eval/dispatch; got Ok");
 }
 
 #[test]
 fn contract_06_under_supply_below_fixed_errors() {
-    // Called with FEWER than fixed-arity (rest doesn't allow under-supply).
-    let src = r#"
-        (:wat::core::defclause :my::pair
-          ([a <- :wat::core::i64 b <- :wat::core::i64
-            & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::i64::+ a b)))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::pair 1))
-    "#;
-    // Either startup fails (type-check catches arity) OR compute fails (dispatch rejects).
-    let startup_result = try_startup(src);
-    let compute_result = try_compute(src);
-    assert!(
-        startup_result.is_err() || compute_result.is_err(),
-        "under-supply must error; got startup={:?} compute={:?}",
-        startup_result, compute_result
-    );
+    // Clause has 2 fixed args + rest; calling with only 1 arg must error. startup MUST fail.
+    let result = startup_from_file("tests/function/probe_arc241_stone5_c06_bad.wat");
+    assert!(result.is_err(), "under-supply below fixed-arity must error; got Ok");
 }
-
-// ─── Contracts 7–8: regression on existing dispatch ──────────────────────────
 
 #[test]
 fn contract_07_fixed_only_strict_arity_preserved() {
-    // Clause WITHOUT rest_param. Called with extra args → ArityMismatch (regression
-    // — Stone 241.5's variadic-min behavior MUST NOT apply when rest_param is None).
-    let src = r#"
-        (:wat::core::defclause :my::strict
-          ([x <- :wat::core::i64] -> :wat::core::i64 x))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::strict 1 2))
-    "#;
-    let startup_result = try_startup(src);
-    let compute_result = try_compute(src);
-    assert!(
-        startup_result.is_err() || compute_result.is_err(),
-        "strict-arity clause should reject over-supply; got startup={:?} compute={:?}",
-        startup_result, compute_result
-    );
+    // Clause WITHOUT rest_param. Called with extra args → strict arity rejection.
+    // Stone 241.5's variadic-min behavior MUST NOT apply when rest_param is None.
+    let result = startup_from_file("tests/function/probe_arc241_stone5_c07_bad.wat");
+    assert!(result.is_err(), "strict-arity clause should reject over-supply; got Ok");
 }
+
+// ─── Contract 8: regression on mixed dispatch ────────────────────────────────
 
 #[test]
 fn contract_08_mixed_clause_set_first_match_wins() {
     // First clause = fixed [x <- :i64]; second clause = [x <- :i64 & rest <- :Vector<:i64>].
-    // Calling with (1) → first clause matches (returns x).
-    // Calling with (1,2,3) → first clause arity-mismatches; second clause matches (returns sum).
-    let src = r#"
-        (:wat::core::defclause :my::flex
-          ([x <- :wat::core::i64] -> :wat::core::i64 x)
-          ([first <- :wat::core::i64
-            & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-            (:wat::core::foldl
-              (:wat::core::fn [acc <- :wat::core::i64
-                               n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc n))
-              first
-              rest)))
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:my::flex 10 20 30))
-    "#;
-    let result = try_compute(src);
+    // (10 20 30) → first clause arity-mismatches; second clause matches; 10+20+30 = 60.
     assert_eq!(
-        result.expect("mixed clause set should dispatch correctly"),
+        run(":user::c08-mixed"),
         Value::i64(60),
-        "10+20+30 = 60 via second (rest-binder) clause; first clause arity-mismatched"
+        "10+20+30 = 60 via second (rest-binder) clause; first clause arity-mismatched",
     );
 }

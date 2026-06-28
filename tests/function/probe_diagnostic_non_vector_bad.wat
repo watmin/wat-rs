@@ -1,0 +1,7 @@
+;; tests/function/probe_diagnostic_non_vector_bad.wat — NEGATIVE probe 8: non-vector spread arg.
+;; apply with i64 (42) as the trailing spread arg must reject. startup MUST fail.
+
+(:wat::core::defn :user::bad [] -> :wat::core::i64
+  (:wat::core::apply -> :wat::core::i64
+    (:wat::core::keyword/from-string "wat::core::i64::+")
+    42))

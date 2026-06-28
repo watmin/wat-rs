@@ -14,88 +14,16 @@
 //! join completes. No cooperative stop — dropping the handle IS the shutdown. (If this hangs,
 //! `poll'` isn't watching the self-peer — the deadlock this stone annihilates.)
 //!
-//! RED at HEAD: the 3-arg `poll'` form and `:wat::spawn::ServiceEvent` do not exist — the
-//! program fails to type-check on exactly that gap. GREEN once C0b.1b ships the 3-arg `poll'`
-//! returning `ServiceEvent<I,O>`.
 //!
 //! Run SERIALLY (spawns threads):
-//!   `cargo test --release -p wat --test nursery probe_arc209_c0b1b_select_listener -- --test-threads=1`
+//!   `cargo test --release -p wat --test comms probe_arc209_c0b1b_select_listener -- --test-threads=1`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; The client op protocol: compute-and-reply. No Stop op — the service is
-;; terminated STRUCTURALLY by the owner dropping its handle (→ :Shutdown), never
-;; by a cooperative message.
-(:wat::core::defenum :user::Op
-  :Compute [n <- :wat::core::i64])
-
-;; The service loop — named recursion. poll' watches THREE inputs: the self-peer
-;; (owner/supervisor link → :Shutdown), the listener (new connections), and the
-;; connected client server-ends (requests). One blocking call multiplexes all three.
-(:wat::core::defn :user::serve
-  [self    <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>
-   l       <- :wat::kernel::Listener'<user::Op,wat::core::i64>
-   clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,user::Op>>]
-  -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
-    ;; SHUTDOWN — the owner dropped the service handle; RAII drain disconnected the
-    ;; self-peer → poll' fired :Shutdown. Return nil → the loop exits, clients drop,
-    ;; the thread ends, the owner's join completes. The deadlock-free guarantee:
-    ;; dropping the handle ALWAYS terminates the loop, structurally, no cooperation.
-    (:wat::spawn::ServiceEvent::Shutdown nil)
-    ;; GROW — poll' accepted the dialing client and hands the new peer back; add it.
-    ((:wat::spawn::ServiceEvent::Connection peer)
-      (:user::serve self l (:wat::core::conj clients peer)))
-    ;; SERVE — an op arrived from clients[idx].
-    ((:wat::spawn::ServiceEvent::Message idx msg)
-      (:wat::core::match msg -> :wat::core::nil
-        ((:user::Op::Compute n)
-          (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
-                                 (:wat::core::* n 2))]
-            (:user::serve self l clients)))))
-    ;; SHRINK — clients[idx] left gracefully (clean disconnect, no diagnostic).
-    ((:wat::spawn::ServiceEvent::Closed idx)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))
-    ;; SHRINK — clients[idx]'s transport broke abnormally; `cause` is the first-class
-    ;; diagnostic (a Failure). Emitted by the remote tier; the thread tier never
-    ;; raises this, but the arm is built for the union.
-    ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))
-    ;; Admin variant added in arc 291; not used in this test — wildcard for exhaustiveness.
-    (_ nil)))
-
-;; Spawn the service, connect two clients dynamically, round-trip a scalar through each,
-;; then Stop. Returns r1 + r2 (expect 10 + 14 = 24).
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [pair (:wat::kernel::listener' (:wat::spawn::thread) :user::Op :wat::core::i64)
-     l    (:wat::spawn::Bound/listener pair)
-     addr (:wat::spawn::Bound/address pair)
-     svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-              (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))
-     c1   (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c1 (:user::Op::Compute 5))
-     r1   (:wat::kernel::recv' c1)
-     c2   (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c2 (:user::Op::Compute 7))
-     r2   (:wat::kernel::recv' c2)]
-    ;; No Stop op. Scope-exit drops `svc` → RAII drain disconnects the self-peer →
-    ;; serve's poll' fires :Shutdown → the service exits → the owner's join completes.
-    ;; Dropping the handle IS the shutdown. (If this deadlocks, poll' isn't watching
-    ;; the self-peer — the exact bug this stone annihilates.)
-    (:wat::core::+ r1 r2)))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn select_grows_over_listener_serves_and_shrinks() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

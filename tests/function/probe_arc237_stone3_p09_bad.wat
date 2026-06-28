@@ -1,0 +1,8 @@
+;; tests/function/probe_arc237_stone3_p09_bad.wat — NEGATIVE probe 9: :ensure fn arg type mismatch.
+;; :ensure :fn's arg type (:String) must match the clause's return type (:i64). startup MUST fail.
+
+(:wat::core::defclause :my::bad
+  ([x <- :wat::core::i64] -> :wat::core::i64
+    :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
+              (:wat::core::String/empty? result))
+    x))

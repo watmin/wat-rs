@@ -1,0 +1,8 @@
+;; tests/wat_lang/probe_arc241_stone14_restricted_absorbed_non_allowed_bad.wat
+;; C02/C03: non-allowed caller from :other:: namespace → startup must fail (DefRestrictedCallerNotAllowed).
+
+(:wat::core::defn :test::restricted-target
+  {:restricted-to [:test::]}
+  [] -> :wat::core::i64 42)
+(:wat::core::defn :other::non-allowed-caller
+  [] -> :wat::core::i64 (:test::restricted-target))

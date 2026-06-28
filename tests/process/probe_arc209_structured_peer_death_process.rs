@@ -14,32 +14,14 @@
 //! Forks a `:process` child — run SERIALLY:
 //!   `cargo test --release -p wat --test nursery probe_arc209_structured_peer_death_process -- --test-threads=1`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
 /// A `:process` peer dies via `assertion-failed!` carrying a structured `actual` + `expected`.
 /// `recv'` raises — the raised reason MUST carry BOTH structured fields, not just the message.
 #[test]
 fn process_peer_recv_surfaces_structured_actual_and_expected() {
-    let src = r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
-                                   (:wat::core::forms
-                                     (:wat::core::defn :user::main [] -> :wat::core::nil
-                                       (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
-                                                         _ (:wat::kernel::assertion-failed! "proc-structured-marker"
-                                                             (:wat::core::Some "PROC-ACTUAL-5521")
-                                                             (:wat::core::Some "PROC-EXPECTED-8841"))]
-                                         nil))))
-                            _ (:wat::kernel::send' peer 0)
-                            got (:wat::kernel::recv' peer)]
-            got))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
+    let world = startup_beside(file!()).expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let err = match eval_in_frozen(&ast, &world, &Environment::new()) {
         Ok(v) => panic!("expected recv' to RAISE (the process peer crashed); got Ok({v:?})"),

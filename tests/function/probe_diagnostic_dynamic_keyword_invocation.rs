@@ -21,23 +21,20 @@
 //!   7. Non-keyword head rejection (String → type error)
 //!   8. Non-vector last arg rejection (trailing i64 instead of Vector)
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+//! Wat source: tests/function/probe_diagnostic_dynamic_keyword_invocation.wat
+//! Negative fixtures: probe_diagnostic_non_keyword_bad.wat (probe 7),
+//!   probe_diagnostic_non_vector_bad.wat (probe 8).
+//! Runtime-fail fn in main fixture: :user::probe-6-err (probe 6).
+
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-fn run_compute(src: &str) -> Result<Value, String> {
-    let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    );
-    let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env)
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))
+fn run(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup for diagnostic apply fixture");
+    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned()
 }
 
 // ─── Probe 1 (rewritten) ────────────────────────────────────────────────────
@@ -48,24 +45,7 @@ fn run_compute(src: &str) -> Result<Value, String> {
 // values as head so both keyword and fn-valued bindings dispatch correctly.
 #[test]
 fn probe_1_bound_keyword_invokes_substrate_verb() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-      [plus :wat::core::i64::+]
-      (:wat::core::apply -> :wat::core::i64 plus [2 3])))
-"#;
-    match run_compute(src) {
-        Ok(v) => {
-            let s = format!("{:?}", v);
-            println!("Probe 1 result: {}", s);
-            assert!(
-                s.contains("5"),
-                "Probe 1: apply of bound-keyword produced unexpected: {}",
-                s
-            );
-        }
-        Err(e) => panic!("Probe 1 FAILED: {}", e),
-    }
+    assert_eq!(run(":user::probe-1"), Value::i64(5), "apply of bound-keyword plus [2 3] → 5");
 }
 
 // ─── Probe 2 (rewritten) ────────────────────────────────────────────────────
@@ -76,24 +56,7 @@ fn probe_1_bound_keyword_invokes_substrate_verb() {
 // eval_apply accepts keyword values directly via the substrate-impl path.
 #[test]
 fn probe_2_runtime_built_keyword_invokes_substrate_verb() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-      [plus (:wat::core::keyword/from-string "wat::core::i64::+")]
-      (:wat::core::apply -> :wat::core::i64 plus [2 3])))
-"#;
-    match run_compute(src) {
-        Ok(v) => {
-            let s = format!("{:?}", v);
-            println!("Probe 2 result: {}", s);
-            assert!(
-                s.contains("5"),
-                "Probe 2: apply of runtime-built keyword produced unexpected: {}",
-                s
-            );
-        }
-        Err(e) => panic!("Probe 2 FAILED: {}", e),
-    }
+    assert_eq!(run(":user::probe-2"), Value::i64(5), "apply of runtime-built keyword plus [2 3] → 5");
 }
 
 // ─── Probe 3 (rewritten) ────────────────────────────────────────────────────
@@ -105,25 +68,9 @@ fn probe_2_runtime_built_keyword_invokes_substrate_verb() {
 // (NOT lifted to fn) so eval_apply dispatches via sym.functions.
 #[test]
 fn probe_3_mangled_namespace_invokes_user_defn() {
-    let src = r#"
-(:wat::core::defn :ns::greeting [name <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat "hello " name))
-
-(:wat::core::defn :user::compute [] -> :wat::core::String
-  (:wat::core::let
-      [verb (:wat::core::keyword/from-string "ns::greeting")]
-      (:wat::core::apply -> :wat::core::String verb ["world"])))
-"#;
-    match run_compute(src) {
-        Ok(v) => {
-            let s = format!("{:?}", v);
-            println!("Probe 3 result: {}", s);
-            assert!(
-                s.contains("hello world"),
-                "Probe 3: apply of mangled-namespace user defn produced unexpected: {}",
-                s
-            );
-        }
-        Err(e) => panic!("Probe 3 FAILED: {}", e),
+    match run(":user::probe-3") {
+        Value::String(s) => assert_eq!(s.as_ref(), "hello world", "apply of mangled-namespace verb → 'hello world'"),
+        other => panic!("probe 3: expected Value::String('hello world'); got {:?}", other),
     }
 }
 
@@ -135,27 +82,7 @@ fn probe_3_mangled_namespace_invokes_user_defn() {
 // eval_apply handles fn-valued head directly.
 #[test]
 fn probe_4_apply_with_leading_args_and_tail_vec() {
-    let src = r#"
-(:wat::core::defn :ns::add4 [a <- :wat::core::i64 b <- :wat::core::i64 c <- :wat::core::i64 d <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::do
-      (:wat::core::i64::+
-        (:wat::core::i64::+ a b)
-        (:wat::core::i64::+ c d))))
-
-(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 :ns::add4 1 2 [3 4]))
-"#;
-    match run_compute(src) {
-        Ok(v) => {
-            let s = format!("{:?}", v);
-            println!("Probe 4 result: {}", s);
-            assert!(
-                s.contains("10"),
-                "Probe 4: apply with leading args + tail vec produced unexpected: {}",
-                s
-            );
-        }
-        Err(e) => panic!("Probe 4 FAILED: {}", e),
-    }
+    assert_eq!(run(":user::probe-4"), Value::i64(10), "apply with leading args + tail vec: 1+2+3+4 = 10");
 }
 
 // ─── Probe 5 (new) ──────────────────────────────────────────────────────────
@@ -165,22 +92,9 @@ fn probe_4_apply_with_leading_args_and_tail_vec() {
 // :ns::greet literal keyword lifts to fn via Arc 009; apply handles fn head.
 #[test]
 fn probe_5_apply_with_empty_args_vec() {
-    let src = r#"
-(:wat::core::defn :ns::greet [] -> :wat::core::String "hello")
-
-(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::apply -> :wat::core::String :ns::greet []))
-"#;
-    match run_compute(src) {
-        Ok(v) => {
-            let s = format!("{:?}", v);
-            println!("Probe 5 result: {}", s);
-            assert!(
-                s.contains("hello"),
-                "Probe 5: apply with empty tail vec produced unexpected: {}",
-                s
-            );
-        }
-        Err(e) => panic!("Probe 5 FAILED: {}", e),
+    match run(":user::probe-5") {
+        Value::String(s) => assert_eq!(s.as_ref(), "hello", "apply with empty tail vec → 'hello'"),
+        other => panic!("probe 5: expected Value::String('hello'); got {:?}", other),
     }
 }
 
@@ -188,74 +102,45 @@ fn probe_5_apply_with_empty_args_vec() {
 //
 // Special-form head rejection. apply cannot dispatch to declaration / language
 // forms; it must error with a clear diagnostic (STOP-8 guard).
-// :wat::core::defn is a declaration form — apply rejects it.
+// :wat::core::defn is a declaration form — apply rejects it at RUNTIME
+// (the keyword is built dynamically; type-checker can't know "defn" is special
+// at compile time).
 #[test]
 fn probe_6_apply_rejects_special_form_head() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::apply -> :wat::core::String (:wat::core::keyword/from-string "wat::core::defn") []))
-"#;
-    match run_compute(src) {
-        Ok(v) => panic!(
-            "Probe 6: expected error for special-form head; got {:?}",
-            v
-        ),
-        Err(e) => {
-            println!("Probe 6 error (expected): {}", e);
-            assert!(
-                e.contains("apply") || e.contains("special form") || e.contains("defn"),
-                "Probe 6: error message doesn't mention apply or special form: {}",
-                e
-            );
-        }
-    }
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:user::probe-6-err)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(
+        result.is_err(),
+        "apply of special-form head (:defn) must error at runtime; got Ok",
+    );
 }
 
 // ─── Probe 7 (new) ──────────────────────────────────────────────────────────
 //
 // Non-keyword head rejection. If head evaluates to something other than a
 // keyword or fn, apply must reject with a type error.
+// The error occurs at eval time (type checker can't statically reject a
+// String-literal head in apply — apply head is dispatched dynamically).
 #[test]
 fn probe_7_apply_rejects_non_keyword_head() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::String (:wat::core::apply -> :wat::core::String "not-a-keyword" []))
-"#;
-    match run_compute(src) {
-        Ok(v) => panic!(
-            "Probe 7: expected error for non-keyword head; got {:?}",
-            v
-        ),
-        Err(e) => {
-            println!("Probe 7 error (expected): {}", e);
-            assert!(
-                e.contains("keyword") || e.contains("String") || e.contains("apply"),
-                "Probe 7: error message doesn't mention the type mismatch: {}",
-                e
-            );
-        }
-    }
+    let world = startup_from_file("tests/function/probe_diagnostic_non_keyword_bad.wat")
+        .expect("startup should succeed (non-keyword head in apply caught at eval, not check)");
+    let ast = wat::parse_one!("(:user::bad)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(result.is_err(), "non-keyword head (String) must error at eval; got Ok");
 }
 
 // ─── Probe 8 (new) ──────────────────────────────────────────────────────────
 //
 // Non-vector last arg rejection. The trailing spread arg MUST be a
 // :wat::core::Vector; passing a plain i64 must produce an error.
+// Error occurs at eval time (apply's spread-arg check is dynamic).
 #[test]
 fn probe_8_apply_rejects_non_vector_last_arg() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+") 42))
-"#;
-    match run_compute(src) {
-        Ok(v) => panic!(
-            "Probe 8: expected error for non-vector spread arg; got {:?}",
-            v
-        ),
-        Err(e) => {
-            println!("Probe 8 error (expected): {}", e);
-            assert!(
-                e.contains("Vector") || e.contains("i64") || e.contains("apply"),
-                "Probe 8: error message doesn't describe the spread-arg type mismatch: {}",
-                e
-            );
-        }
-    }
+    let world = startup_from_file("tests/function/probe_diagnostic_non_vector_bad.wat")
+        .expect("startup should succeed (non-vector spread arg caught at eval, not check)");
+    let ast = wat::parse_one!("(:user::bad)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(result.is_err(), "non-vector spread arg (i64) must error at eval; got Ok");
 }

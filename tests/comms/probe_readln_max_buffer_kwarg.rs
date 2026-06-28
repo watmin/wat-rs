@@ -11,33 +11,23 @@
 //!    `(readln' -> :T)`; `(readln :max-buffer-bytes N -> :T)` → `(readln' N -> :T)`.
 //!    Forwards the `-> :T` annotation so the polymorphic return still infers.
 //!
-//! RED at HEAD: `readln` is a positional intrinsic expecting exactly `[-> :T]`;
-//! `(readln :max-buffer-bytes N -> :T)` is a wrong-shape call → check error, so
-//! `startup_from_source` returns Err. GREEN after: the macro expands it clean.
+//! GREEN after: the macro expands it clean.
+//! Both forms type-check in the co-located `.wat` fixture loaded via startup_beside.
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 
-/// A body that uses the kwarg form of readln. It need only TYPE-CHECK (the
-/// StdInService isn't running here) — startup does the check pass.
-fn startup_ok(body: &str) -> bool {
-    let src = format!(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil {body})"
-    );
-    startup_from_source(&src, None, Arc::new(InMemoryLoader::new())).is_ok()
+/// Type-check helper: loads the co-located .wat (which contains both readln forms).
+/// Startup Ok iff BOTH forms type-check (they share one freeze pass).
+fn startup_ok() -> bool {
+    startup_beside(file!()).is_ok()
 }
 
 #[test]
 fn readln_max_buffer_bytes_kwarg_type_checks() {
-    // The escape hatch: opt into a 2 MiB frame cap. RED at HEAD (readln is a
-    // positional intrinsic; the kwarg shape fails to check). GREEN once readln
-    // is a macro over readln'.
-    let body = "(:wat::core::let \
-                  [_line (:wat::kernel::readln :max-buffer-bytes (:wat::core::i64::* 2 (:wat::core::i64::* 1024 1024)) -> :wat::core::String)] \
-                  nil)";
+    // The escape hatch: opt into a 2 MiB frame cap. GREEN once readln is a macro over readln'.
+    // The co-located .wat contains (readln :max-buffer-bytes N -> :T) in readln-with-max-buffer.
     assert!(
-        startup_ok(body),
+        startup_ok(),
         "(:wat::kernel::readln :max-buffer-bytes N -> :T) must type-check — \
          readln is the macro over the kernel prime readln'"
     );
@@ -45,13 +35,10 @@ fn readln_max_buffer_bytes_kwarg_type_checks() {
 
 #[test]
 fn readln_plain_form_still_type_checks() {
-    // Backward compatibility: the existing no-kwarg form must keep working
-    // (the macro's default branch → (readln' -> :T)).
-    let body = "(:wat::core::let \
-                  [_line (:wat::kernel::readln -> :wat::core::String)] \
-                  nil)";
+    // Backward compat: the existing no-kwarg form must keep working.
+    // The co-located .wat contains (readln -> :T) in readln-plain.
     assert!(
-        startup_ok(body),
+        startup_ok(),
         "(:wat::kernel::readln -> :T) must still type-check (default cap branch)"
     );
 }

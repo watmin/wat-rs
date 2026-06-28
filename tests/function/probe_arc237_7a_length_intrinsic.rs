@@ -14,48 +14,50 @@
 //! (Stone 237.7a shipped). The define-dispatch mechanism was retired at Stone 241.13.
 //! These contracts remain green as proof the intrinsic path is solid.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+//! Wat source: tests/function/probe_arc237_7a_length_intrinsic.wat
+
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Eval `(:wat::core::length <coll>)` declared `-> :i64`; return the i64 or an error string.
-fn length_of(coll: &str) -> Result<i64, String> {
-    let src = format!(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {coll}))\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup/check: {:?}", e))?;
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))?
-    {
-        Value::i64(n) => Ok(n),
-        other => Err(format!("non-i64: {:?}", other)),
-    }
+fn run(fn_name: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup for 7a length-intrinsic fixture");
+    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed for positive test")
+        .value_owned()
 }
 
-/// True iff `(:wat::core::length <expr>)` is an error at SOME phase (check or eval) — used for
-/// the non-collection case (phase-agnostic: it must be rejected, before and after the swap).
-fn length_errors(expr: &str) -> bool {
-    let src = format!(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::length {expr}))\n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
-    match startup_from_source(&src, None, Arc::new(InMemoryLoader::new())) {
-        Err(_) => true, // check-time rejection
-        Ok(world) => {
-            let ast = wat::parse_one!("(:user::compute)").expect("parse");
-            eval_in_frozen(&ast, &world, &Environment::new()).is_err() // runtime rejection
-        }
-    }
+#[test]
+fn length_vector() {
+    assert_eq!(run(":user::length-vector"), Value::i64(3));
 }
 
-#[test] fn length_vector() { assert_eq!(length_of("[1 2 3]"), Ok(3)); }
-#[test] fn length_vector_empty() { assert_eq!(length_of("[]"), Ok(0)); }
-#[test] fn length_vector_strings() { assert_eq!(length_of("[\"a\" \"b\"]"), Ok(2)); } // element-agnostic
-#[test] fn length_hashmap() { assert_eq!(length_of("{:a 1 :b 2}"), Ok(2)); }
-#[test] fn length_hashset() { assert_eq!(length_of("(:wat::core::HashSet :wat::core::i64 1 2 3)"), Ok(3)); }
-#[test] fn length_on_noncollection_errors() { assert!(length_errors("5")); }
+#[test]
+fn length_vector_empty() {
+    assert_eq!(run(":user::length-vector-empty"), Value::i64(0));
+}
+
+#[test]
+fn length_vector_strings() {
+    // element-agnostic — vector of strings has length 2
+    assert_eq!(run(":user::length-vector-strings"), Value::i64(2));
+}
+
+#[test]
+fn length_hashmap() {
+    assert_eq!(run(":user::length-hashmap"), Value::i64(2));
+}
+
+#[test]
+fn length_hashset() {
+    assert_eq!(run(":user::length-hashset"), Value::i64(3));
+}
+
+#[test]
+fn length_on_noncollection_errors() {
+    // ∀T intrinsic accepts i64 at check time; raises a teaching error at eval (not a collection).
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:user::length-noncollection)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    assert!(result.is_err(), "length on non-collection (i64) must error at runtime; got Ok({:?})", result.ok());
+}

@@ -1,0 +1,8 @@
+;; tests/function/probe_arc237_stone3_p10_bad.wat — NEGATIVE probe 10: :ensure fn return not bool.
+;; :ensure :fn must return :bool; returning :i64 must fail type-check. startup MUST fail.
+
+(:wat::core::defclause :my::bad
+  ([x <- :wat::core::i64] -> :wat::core::i64
+    :ensure (:wat::core::fn [result <- :wat::core::i64] -> :wat::core::i64
+              (:wat::core::i64::+ result 1))
+    x))

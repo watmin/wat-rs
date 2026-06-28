@@ -11,17 +11,9 @@
 
 use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 fn process_stdin_writer(process: &Value) -> Arc<dyn wat::io::WatWriter> {
     match process {
@@ -61,14 +53,9 @@ fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
 /// Parent reads 42 via Receiver/from-pipe over Process/stdout (IOReader).
 #[test]
 fn probe_spawn_process_stdin() {
-    // Arc 170 slice 6 — the spawn-process child program defines its own
-    // :user::main inline (read one i64, add 1, print). The parent world
-    // is freeze-only; it doesn't need the worker fn at all because the
-    // child's program is self-contained.
-    let parent_src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(parent_src);
+    // Arc 170 slice 6 — parent world is incidental (no user defns needed);
+    // child's :user::main is constructed below via parse + AST, not loaded from WAT.
+    let world = startup_bare().expect("startup should succeed");
     // Build the child program as a single :user::main define whose body
     // is the read-plus-print logic. Use parse to construct the body —
     // simpler than manual AST surgery and matches the source-form path.

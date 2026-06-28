@@ -15,20 +15,12 @@
 
 use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
+use wat::freeze::{startup_bare, startup_beside};
 use wat::io::{StringIoReader, WatReader, eval_ioreader_read_frame};
-use wat::load::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 use wat::scope::Identifier;
 use wat::span::Span;
 use wat::value::TrackedValue;
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Gate 1 — multi-line EDN map frame reads back as Some(frame-string).
 ///
@@ -38,9 +30,7 @@ fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
 /// the map keys.
 #[test]
 fn read_frame_multiline_edn_map() {
-    let world = freeze_ok(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
+    let world = startup_bare().expect("startup_bare should succeed");
     let sym = world.symbols();
 
     // A multi-line EDN map: 4 physical lines, 1 logical value.
@@ -81,9 +71,7 @@ fn read_frame_multiline_edn_map() {
 /// Gate 2 — clean EOF on empty reader returns None.
 #[test]
 fn read_frame_eof_returns_none() {
-    let world = freeze_ok(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-    );
+    let world = startup_bare().expect("startup_bare should succeed");
     let sym = world.symbols();
 
     let reader_arc: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
@@ -110,19 +98,12 @@ fn read_frame_eof_returns_none() {
 
 /// Gate 3 — type-checker accepts IOReader/read-frame and startup succeeds.
 ///
-/// Freezes a minimal wat program that calls `(:wat::io::IOReader/read-frame r)`
+/// Loads the co-located `.wat` fixture (which calls `IOReader/read-frame` in main)
 /// and asserts the checker succeeds. Exercises the check.rs registration +
 /// runtime.rs dispatch arm.
 #[test]
 fn read_frame_type_checks_and_startup_succeeds() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-            [r (:wat::io::IOReader/from-string "42\n")]
-            (:wat::io::IOReader/read-frame r)
-            nil))
-    "#;
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    match startup_beside(file!()) {
         Ok(_) => {}
         Err(e) => panic!(
             "(:wat::io::IOReader/read-frame r) must type-check and freeze without error; got: {}",

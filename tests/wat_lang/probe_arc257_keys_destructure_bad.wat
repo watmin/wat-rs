@@ -1,0 +1,11 @@
+;; tests/wat_lang/probe_arc257_keys_destructure_bad.wat
+;; Probe 3: bare symbol brace form {magnitude something} in binder position → startup must fail.
+;; Not a valid destructure (not :keys, not Symbol→Keyword pairs).
+
+(:wat::core::defstruct :myapp::Voltage [magnitude <- :wat::core::f64])
+
+(:wat::core::defn :user::compute [] -> :wat::core::f64
+  (:wat::core::let
+      [v (:myapp::Voltage/new 5.0)
+       {magnitude something} v]
+      magnitude))

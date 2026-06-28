@@ -10,17 +10,9 @@
 
 use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 fn process_stdout_reader(process: &Value) -> Arc<dyn wat::io::WatReader> {
     match process {
@@ -49,12 +41,9 @@ fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
 /// The received value must equal 42.
 #[test]
 fn probe_spawn_process_stdio() {
-    // Arc 170 slice 6 — spawn-process takes a wat PROGRAM
-    // (`Vec<WatAST>`); the child's :user::main is self-contained.
-    let parent_src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(parent_src);
+    // Arc 170 slice 6 — parent world is incidental (no user defns needed);
+    // child's :user::main is constructed below via parse + AST, not loaded from WAT.
+    let world = startup_bare().expect("startup should succeed");
     let child_program_src = r#"
         (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println 42))
     "#;

@@ -49,67 +49,46 @@
 //!
 //! Run: `cargo test --release --test probe_arc241_stone3_defclause_parser_migration`
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+//! Wat source: tests/function/probe_arc241_stone3_defclause_parser_migration.wat
+//! Negative fixtures: probe_arc241_stone3_c04_bad.wat, probe_arc241_stone3_c05_bad.wat,
+//!   probe_arc241_stone3_c06_bad.wat.
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn try_startup(src: &str) -> Result<(), String> {
-    let src = with_nil_main(src);
-    startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
-}
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
+use wat::runtime::{Environment, Value};
 
 // ─── Contracts 1–3: A4 happy paths (well-formed defclause args) ──────────────
 
 #[test]
 fn contract_01_defclause_no_args_succeeds() {
-    // (defclause [] -> :T body)  — empty argspec.
-    let result = try_startup(
-        r#"(:wat::core::defclause :user::f
-             ([] -> :wat::core::i64 42))"#,
-    );
-    assert!(
-        result.is_ok(),
-        "well-formed no-arg defclause should startup; got: {:?}",
-        result
-    );
+    // (defclause [] -> :T body) — empty argspec; c01-f() → i64(42).
+    let world = startup_beside(file!()).expect("startup for stone3 defclause-parser-migration fixture");
+    let ast = wat::parse_one!("(:user::c01-f)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned();
+    assert_eq!(result, Value::i64(42), "well-formed no-arg defclause should return i64(42)");
 }
 
 #[test]
 fn contract_02_defclause_single_arg_succeeds() {
-    let result = try_startup(
-        r#"(:wat::core::defclause :user::f
-             ([x <- :wat::core::i64] -> :wat::core::i64 x))"#,
-    );
-    assert!(
-        result.is_ok(),
-        "well-formed single-arg defclause should startup; got: {:?}",
-        result
-    );
+    // c02-f is a 1-arg defclause: call with i64(7) → i64(7).
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:user::c02-f 7)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned();
+    assert_eq!(result, Value::i64(7), "well-formed single-arg defclause should return i64(7)");
 }
 
 #[test]
 fn contract_03_defclause_multi_arg_succeeds() {
-    let result = try_startup(
-        r#"(:wat::core::defclause :user::f
-             ([x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::+ x y)))"#,
-    );
-    assert!(
-        result.is_ok(),
-        "well-formed multi-arg defclause should startup; got: {:?}",
-        result
-    );
+    // c03-f is a 2-arg defclause: call with 3 4 → 3+4 = i64(7).
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:user::c03-f 3 4)").expect("parse");
+    let result = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval should succeed")
+        .value_owned();
+    assert_eq!(result, Value::i64(7), "well-formed multi-arg defclause should return i64(7)");
 }
 
 // ─── Contracts 4–6: A4 error paths (malformed argspecs error cleanly) ───────
@@ -118,38 +97,20 @@ fn contract_03_defclause_multi_arg_succeeds() {
 fn contract_04_name_not_symbol_errors() {
     // Slot 0 of triple is a keyword, not a Symbol.
     // A4 enforces this per arc 159/169/234 binding contract; canonical also enforces.
-    let result = try_startup(
-        r#"(:wat::core::defclause :user::f
-             ([:kw <- :wat::core::i64] -> :wat::core::i64 42))"#,
-    );
-    assert!(
-        result.is_err(),
-        "non-Symbol at name slot must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone3_c04_bad.wat");
+    assert!(result.is_err(), "non-Symbol at name slot must error; got Ok");
 }
 
 #[test]
 fn contract_05_missing_arrow_errors() {
     // Slot 1 of triple is `=` not `<-`.
-    let result = try_startup(
-        r#"(:wat::core::defclause :user::f
-             ([x = :wat::core::i64] -> :wat::core::i64 x))"#,
-    );
-    assert!(
-        result.is_err(),
-        "missing `<-` arrow must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone3_c05_bad.wat");
+    assert!(result.is_err(), "missing `<-` arrow must error; got Ok");
 }
 
 #[test]
 fn contract_06_incomplete_triple_errors() {
     // Argspec has fewer than 3 items at a triple position.
-    let result = try_startup(
-        r#"(:wat::core::defclause :user::f
-             ([x <-] -> :wat::core::i64 42))"#,
-    );
-    assert!(
-        result.is_err(),
-        "incomplete triple must error; got Ok"
-    );
+    let result = startup_from_file("tests/function/probe_arc241_stone3_c06_bad.wat");
+    assert!(result.is_err(), "incomplete triple must error; got Ok");
 }

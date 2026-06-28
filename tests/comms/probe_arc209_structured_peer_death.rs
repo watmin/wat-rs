@@ -12,23 +12,18 @@
 //! Only the message String goes down the `Receiver<String>` crash channel. The old channel
 //! `recv` returned `Vector<ThreadDiedError>` (structured); the prime `recv'` regressed it.
 //!
-//! RED at HEAD: a thread peer crashes via `assertion-failed!` carrying a known `actual`
-//! (`ACTUAL-42173`) and `expected` (`EXPECTED-99731`). `recv'` raises — the raised reason
-//! carries the MESSAGE (the prior stone) but NOT the structured `actual`/`expected` (discarded).
 //! GREEN once the structured `Failure` flows through the prime crash path.
 //!
 //! Run SERIALLY (spawns a thread):
-//!   `cargo test --release -p wat --test nursery probe_arc209_structured_peer_death -- --test-threads=1`
+//!   `cargo test --release -p wat --test comms probe_arc209_structured_peer_death -- --test-threads=1`
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
-/// Eval `compute`, which MUST raise (the peer crashed); return the raised error's text.
-fn compute_raise_text(body: &str) -> String {
-    let src = format!("{body}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)");
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
+/// Eval `compute` from the co-located fixture; `compute` MUST raise (the peer crashed).
+/// Returns the raised error's text for assertion.
+fn compute_raise_text() -> String {
+    let world = startup_beside(file!())
         .expect("startup should succeed");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     match eval_in_frozen(&ast, &world, &Environment::new()) {
@@ -39,21 +34,10 @@ fn compute_raise_text(body: &str) -> String {
 
 /// A thread peer dies via `assertion-failed!` carrying a structured `actual` + `expected`.
 /// `recv'` raises — and the raised reason MUST carry BOTH structured fields, not just the
-/// message. RED at HEAD: the `AssertionPayload` is discarded at the crash-send site, so only
-/// the message survives the prime crash channel.
+/// message.
 #[test]
 fn thread_peer_recv_surfaces_structured_actual_and_expected() {
-    let err = compute_raise_text(
-        "(:wat::core::defn :user::compute [] -> :wat::core::i64 \
-           (:wat::core::let \
-             [p (:wat::kernel::spawn-program' (:wat::spawn::thread) \
-                  (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-                    (:wat::kernel::assertion-failed! \"structured-death-marker\" \
-                       (:wat::core::Some \"ACTUAL-42173\") \
-                       (:wat::core::Some \"EXPECTED-99731\")))) \
-              _ (:wat::kernel::recv' p)] \
-             0))",
-    );
+    let err = compute_raise_text();
     // Baseline (already shipped by arc 259 S3.5a-0): the message survives.
     assert!(
         err.contains("structured-death-marker"),

@@ -1,0 +1,5 @@
+;; tests/wat_lang/probe_arc241_stone12_defalias_bad.wat
+;; :wat::runtime::define-alias — must be HARD-CUT-rejected at startup (Stone 241.12).
+
+(:wat::core::defn :app::greet [] -> :wat::core::String "hello")
+(:wat::runtime::define-alias :app::salutation :app::greet)

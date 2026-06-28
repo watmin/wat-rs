@@ -1,0 +1,8 @@
+;; tests/function/probe_arc237_stone3_p12_bad.wat — NEGATIVE probe 12: multiple :guard per clause.
+;; ONE :guard per clause; two :guard in same clause must be rejected. startup MUST fail.
+
+(:wat::core::defclause :my::bad
+  ([x <- :wat::core::i64]
+    :guard (:wat::core::i64::> x 0)
+    :guard (:wat::core::i64::< x 100)
+    -> :wat::core::i64 x))

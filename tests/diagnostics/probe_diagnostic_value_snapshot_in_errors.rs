@@ -25,22 +25,19 @@
 //! operate at the type level (not value level) so the "include the
 //! rendered value" pattern doesn't apply directly.
 //!
+//! WAT fixtures: tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p{1,2,3,4,7,8}.wat
+//! Probes 2 and 6 share the p2 fixture (identical program, different assertions).
+//!
 //! Outcomes:
 //!   ALL PASS — Stone 233.1 complete; inline-value gap closed for the
 //!              runtime path.
 //!   ANY FAIL — specific RuntimeError variant's promotion incomplete.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-fn run_compute(src: &str) -> Result<Value, String> {
-    let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    );
-    let world = startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
+fn run_compute(path: &str) -> Result<Value, String> {
+    let world = startup_from_file(path)
         .map_err(|e| format!("startup: {:?}", e))?;
     let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
     let env = Environment::new();
@@ -59,13 +56,8 @@ fn run_compute(src: &str) -> Result<Value, String> {
 // keyword content), not just "wat::core::keyword" (the type name).
 #[test]
 fn probe_1_not_callable_renders_offending_keyword() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-      [plus :wat::core::i64::+]
-      (plus 2 3)))
-"#;
-    match run_compute(src) {
+    // Fixture: probe_diagnostic_value_snapshot_in_errors_p1.wat
+    match run_compute("tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat") {
         Ok(v) => panic!("Probe 1: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 1 error: {}", e);
@@ -93,13 +85,8 @@ fn probe_1_not_callable_renders_offending_keyword() {
 // render" case from INVENTORY § O's three-case table.
 #[test]
 fn probe_2_not_callable_renders_runtime_built_keyword() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-      [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
-      (head 1 2)))
-"#;
-    match run_compute(src) {
+    // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat
+    match run_compute("tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat") {
         Ok(v) => panic!("Probe 2: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 2 error: {}", e);
@@ -128,10 +115,8 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
 // Error should include the rendered String content `"not-a-keyword"`.
 #[test]
 fn probe_3_type_mismatch_renders_non_keyword_head() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 "not-a-keyword" [1 2]))
-"#;
-    match run_compute(src) {
+    // Fixture: probe_diagnostic_value_snapshot_in_errors_p3.wat
+    match run_compute("tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p3.wat") {
         Ok(v) => panic!("Probe 3: expected TypeMismatch; got {:?}", v),
         Err(e) => {
             println!("Probe 3 error: {}", e);
@@ -158,10 +143,8 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
 // Error should include the rendered i64 content.
 #[test]
 fn probe_4_type_mismatch_renders_non_vector_spread() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64 (:wat::core::apply -> :wat::core::i64 (:wat::core::keyword/from-string "wat::core::i64::+") 42))
-"#;
-    match run_compute(src) {
+    // Fixture: probe_diagnostic_value_snapshot_in_errors_p4.wat
+    match run_compute("tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p4.wat") {
         Ok(v) => panic!("Probe 4: expected TypeMismatch; got {:?}", v),
         Err(e) => {
             println!("Probe 4 error: {}", e);
@@ -196,13 +179,8 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 // from INVENTORY § O three-case table.
 #[test]
 fn probe_6_runtime_built_keyword_renders_producer_info() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-      [head (:wat::core::keyword/from-string "ns::nonexistent-verb")]
-      (head 1 2)))
-"#;
-    match run_compute(src) {
+    // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat (same WAT as probe_2)
+    match run_compute("tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat") {
         Ok(v) => panic!("Probe 6: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 6 error: {}", e);
@@ -236,15 +214,8 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
 // After 233.2.c ships, PASSES — error shows from-holon as the producer.
 #[test]
 fn probe_7_from_holon_produces_tagged_value() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-      [holon-rep (:wat::holon::to-holon "not-a-callable-string")]
-      (:wat::core::let
-        [v (:wat::holon::from-holon holon-rep)]
-        (v 1 2))))
-"#;
-    match run_compute(src) {
+    // Fixture: probe_diagnostic_value_snapshot_in_errors_p7.wat
+    match run_compute("tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p7.wat") {
         Ok(v) => panic!("Probe 7: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 7 error: {}", e);
@@ -270,13 +241,8 @@ fn probe_7_from_holon_produces_tagged_value() {
 // After 233.2.c ships, PASSES — error shows edn::read as the producer.
 #[test]
 fn probe_8_edn_read_produces_tagged_value() {
-    let src = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-      [v (:wat::edn::read "\"not-a-callable\"")]
-      (v 1 2)))
-"#;
-    match run_compute(src) {
+    // Fixture: probe_diagnostic_value_snapshot_in_errors_p8.wat
+    match run_compute("tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p8.wat") {
         Ok(v) => panic!("Probe 8: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 8 error: {}", e);

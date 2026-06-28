@@ -6,47 +6,23 @@
 //! against `Address'<S,R>` (infer_connect_prime, check.rs:10485) and errors on a fresh var — so the
 //! type can't flow from the consumer, and the ascription is the only source. That ascription is the arrow.
 //!
-//! CHECK-LEVEL probe (asserts `startup_from_source` type-checks — does NOT eval): isolates the inference
+//! CHECK-LEVEL probe (asserts startup type-checks — does NOT eval): isolates the inference
 //! from arc-272 6a-i's separate `Address'`-EDN-decode RUNTIME gap. `(connect' (recv' svc))` with NO `-> :T`.
 //!
-//! RED at HEAD: `connect'` rigid-matches the fresh `recv'` result → `TypeMismatch` at check → startup Err.
 //! GREEN once `connect'` unifies its arg against `Address'<fresh,fresh>` (258.5a) so the fresh O binds.
 //!
-//! Run: cargo test --release -p wat --test nursery probe_arc258_recv_infers_from_consumer
+//! Run: cargo test --release -p wat --test comms probe_arc258_recv_infers_from_consumer
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
-
-const PROGRAM: &str = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::nil
-  (:wat::core::let
-    [svc  (:wat::kernel::spawn-program' (:wat::spawn::process)
-            (:wat::core::forms
-              (:wat::core::defn :user::main [] -> :wat::core::nil
-                (:wat::core::let
-                  [b    (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
-                   addr (:wat::spawn::Bound/address b)
-                   self (:wat::program::self-peer
-                          :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
-                   _    (:wat::kernel::send' self addr)]
-                  nil))))
-     ;; NO `-> :T` ascription — `connect'` should let Address' flow back into this fresh recv' result.
-     addr (:wat::kernel::recv' svc)
-     c    (:wat::kernel::connect' addr)]
-    nil))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
+use wat::freeze::startup_beside;
 
 #[test]
 fn recv_infers_address_from_connect_consumer() {
-    let result = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()));
+    let result = startup_beside(file!());
     assert!(
         result.is_ok(),
         "expected the program to TYPE-CHECK: `(connect' (recv' svc))` with no `-> :T` — connect' should \
          unify its expected Address'<S,R> into recv's fresh result so the type flows from the consumer. \
-         RED at HEAD = connect' rigid-matches the fresh var. Err: {:?}",
+         Err: {:?}",
         result.err()
     );
 }

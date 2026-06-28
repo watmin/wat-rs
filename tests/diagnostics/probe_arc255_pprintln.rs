@@ -22,9 +22,7 @@
 //! `tests/probe_run_hermetic_ast_stdout_capture.rs` (the established pattern
 //! for that surface).
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 use wat_edn::Keyword;
 
 // ─── Test 1 — write_pretty produces multi-line output for a collection ────────
@@ -80,19 +78,14 @@ fn pprintln_write_pretty_produces_multi_line_for_map() {
 // Freeze a minimal wat program that calls `(:wat::kernel::pprintln v)`.
 // If any of the four wiring sites (verbs.rs / mod.rs / runtime.rs / check.rs)
 // is missing, the checker rejects the call with an unresolved-verb error and
-// `startup_from_source` returns Err. A clean Ok proves the full wiring.
+// startup returns Err. A clean Ok proves the full wiring.
 //
 // The program calls pprintln on a :wat::core::i64 literal (the ∀T scheme
 // means any T is accepted). The body returns nil so :user::main type-checks.
+// Wat source: co-located probe_arc255_pprintln.wat
 #[test]
 fn pprintln_type_checks_and_startup_succeeds() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::do
-            (:wat::kernel::pprintln 42)
-            nil))
-    "#;
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    match startup_beside(file!()) {
         Ok(_) => {}
         Err(e) => panic!(
             "(:wat::kernel::pprintln 42) must type-check and freeze without error — \

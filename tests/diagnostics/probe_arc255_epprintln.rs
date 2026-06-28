@@ -12,9 +12,7 @@
 //!    `src/services/verbs.rs` (impl), `src/services/mod.rs` (re-export),
 //!    `src/runtime.rs` (dispatch arm), and `src/check.rs` (∀T.T→nil scheme).
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_beside;
 use wat_edn::Keyword;
 
 // ─── Test 1 — write_pretty produces multi-line output for a collection ────────
@@ -53,15 +51,10 @@ fn epprintln_write_pretty_produces_multi_line_for_map() {
 }
 
 // ─── Test 2 — type-checker accepts epprintln and startup succeeds ─────────────
+// Wat source: co-located probe_arc255_epprintln.wat
 #[test]
 fn epprintln_type_checks_and_startup_succeeds() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::do
-            (:wat::kernel::epprintln 42)
-            nil))
-    "#;
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    match startup_beside(file!()) {
         Ok(_) => {}
         Err(e) => panic!(
             "(:wat::kernel::epprintln 42) must type-check and freeze without error — \

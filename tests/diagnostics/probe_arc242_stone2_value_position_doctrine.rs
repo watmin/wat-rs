@@ -17,24 +17,11 @@
 //!
 //! Post-stone: all 6 contracts PASS.
 //!
-//! Run: `cargo test --release --test probe_arc242_stone2_value_position_doctrine`
+//! WAT fixtures: tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c{01,02,03,04,05,06}[_bad].wat
+//!
+//! Run: `cargo nextest run --release -E 'binary(diagnostics)' -F probe_arc242_stone2_value_position_doctrine`
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
-
-fn try_startup(src: &str) -> Result<(), String> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
-}
-
-fn try_startup_display(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => String::from("<startup succeeded — no error to display>"),
-        Err(e) => format!("{}", e),
-    }
-}
+use wat::freeze::startup_from_file;
 
 // ─── C01: :wat::core::nil in body REJECTED ─────────────────────────────────────
 
@@ -45,11 +32,8 @@ fn contract_01_keyword_nil_in_body_rejected() {
     // (Note: the body's :wat::core::nil is the keyword-in-value-position
     // doctrine violation under test; do NOT migrate to bare nil — that
     // would defeat the test.)
-    let src = "
-        (:wat::core::defn :test::f [] -> :wat::core::nil :wat::core::nil)
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    ";
-    let result = try_startup(src);
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c01_bad.wat
+    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c01_bad.wat");
     assert!(
         result.is_err(),
         "keyword form :wat::core::nil in value position must be REJECTED (Doctrine 1); got Ok"
@@ -61,15 +45,12 @@ fn contract_01_keyword_nil_in_body_rejected() {
 #[test]
 fn contract_02_bare_nil_in_body_passes() {
     // (:wat::core::defn :f [] -> :wat::core::nil nil) — the legal form.
-    let src = r#"
-        (:wat::core::defn :test::f [] -> :wat::core::nil nil)
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = try_startup(src);
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c02.wat
+    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c02.wat");
     assert!(
         result.is_ok(),
         "bare nil in value position must PASS; got: {:?}",
-        result
+        result.err()
     );
 }
 
@@ -78,11 +59,11 @@ fn contract_02_bare_nil_in_body_passes() {
 #[test]
 fn contract_03_keyword_type_in_body_rejected_with_remedy() {
     // (:wat::core::defn :f [] -> :wat::core::i64 :wat::core::i64) — ILLEGAL.
-    let src = r#"
-        (:wat::core::defn :test::f [] -> :wat::core::i64 :wat::core::i64)
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let msg = try_startup_display(src);
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c03_bad.wat
+    let msg = match startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03_bad.wat") {
+        Ok(_) => String::from("<startup succeeded — no error to display>"),
+        Err(e) => format!("{}", e),
+    };
     // The error must contain a structured remedy per Stone 241.10's apparatus.
     // Specific phrasing: doctrine guidance pointing at value-position correctness.
     assert!(
@@ -97,15 +78,12 @@ fn contract_03_keyword_type_in_body_rejected_with_remedy() {
 #[test]
 fn contract_04_bare_value_in_body_passes() {
     // (:wat::core::defn :f [] -> :wat::core::i64 42) — the legal form.
-    let src = r#"
-        (:wat::core::defn :test::f [] -> :wat::core::i64 42)
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = try_startup(src);
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c04.wat
+    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c04.wat");
     assert!(
         result.is_ok(),
         "bare value (42) in value position must PASS; got: {:?}",
-        result
+        result.err()
     );
 }
 
@@ -114,12 +92,8 @@ fn contract_04_bare_value_in_body_passes() {
 #[test]
 fn contract_05_keyword_nil_in_let_binding_rejected() {
     // (:wat::core::let [x :wat::core::nil] x) — ILLEGAL (let-binding value).
-    let src = r#"
-        (:wat::core::defn :test::f [] -> :wat::core::nil
-          (:wat::core::let [x :wat::core::nil] x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = try_startup(src);
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c05_bad.wat
+    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c05_bad.wat");
     assert!(
         result.is_err(),
         "keyword :wat::core::nil in let-binding value position must be REJECTED; got Ok"
@@ -131,15 +105,11 @@ fn contract_05_keyword_nil_in_let_binding_rejected() {
 #[test]
 fn contract_06_bare_nil_in_let_binding_passes() {
     // (:wat::core::let [x nil] x) — the legal form.
-    let src = r#"
-        (:wat::core::defn :test::f [] -> :wat::core::nil
-          (:wat::core::let [x nil] x))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let result = try_startup(src);
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c06.wat
+    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c06.wat");
     assert!(
         result.is_ok(),
         "bare nil in let-binding value position must PASS; got: {:?}",
-        result
+        result.err()
     );
 }
