@@ -82,16 +82,19 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   suffix-split was already shared. **293.4e-pre is COMPLETE — surface methods are multi-arg + generic + whole, parity
   with arc-267 protocol methods. The Locus migration is UNBLOCKED.** (Banked micro: `split_method_name_type_params` is a
   ~15-line copy of runtime.rs's private `split_name_and_type_params` — could share if visibility allowed.)
-- ⚠ **293.4e-pre.iii BLOCKS 293.4e (found by the inline Locus migration attempt, 2026-06-28 — reverted, no broken
-  commit):** `extend-type` on a SURFACE registers the bare impl `:T/method` with PLACEHOLDER `nil` types (293.4c
-  STOP-1). The 293.4c probe used a monomorphic CONSTANT body (`tag [self] -> :i64 42`) so it never bit. But Locus's
-  `ThreadOpts/launch` / `ProcessOpts/launch` impls USE `self` typed + RETURN `:Launched<…>` → they type-check against
-  `nil` args/ret and fail (`ReturnTypeMismatch ThreadOpts/launch expected :nil got :Launched<…>`; `self: :()`). **FIX
-  (293.4e-pre.iii): extend-type-for-surface must make the bare impl INHERIT the surface method's declared sig** (argspec
-  + ret, with `self` → the extending type, type-params instantiated) — exactly as the protocol dispatch typed the impl
-  against the protocol method sig. The fix lives in the 293.4c registration (check.rs `collect_splice_defs_ctx` surface
-  branch + the runtime registration): look up the surface member's sig, don't use the bare impl's nil types. RED probe:
-  an extend-impl whose body uses `self` typed + returns a non-nil value. DRAW 293.4e-pre.iii.
+- ⚠ **293.4e-pre.iii STRIKE-READY (BLOCKS 293.4e) — `extend-type`-for-surface impl must INHERIT the surface method's
+  sig.** Found by the inline Locus migration (reverted clean, `59a485bb`). **SHARPENED DIAGNOSIS (a monomorphic probe
+  passed → it's the GENERIC case):** `check.rs:~8957` builds the surface-extend `TypeScheme` from the BARE impl clause
+  (→ `nil` types) AND hardcodes `type_params: vec![]`. A monomorphic constant-body impl is fine (293.4c proved it); a
+  GENERIC impl whose body uses the surface method's type-params (Locus's `launch<S,R,St,Sh,Lu>` body uses
+  `Peer'<Lu,Sh>`/`Launched<…>`) has its type-params UNBOUND + `self`/args `nil`/`:()` → the Locus failure
+  (`ReturnTypeMismatch ThreadOpts/launch expected :nil got :Launched<…>`; `self: :()`). **FIX:** build the scheme from
+  the `SurfaceMember::Method` sig — `type_params` from the member; `params[0]` = the EXTENDING type (`ed.type_name`, self
+  → concrete); `params[1..]`/`ret` from the member; check the impl body against THAT. **STRIKE-READY:** RED probe
+  `tests/types/probe_arc293_4e_pre_iii_extend_impl_inherits_types.{rs,wat}` (`#[ignore]`'d, GENERIC) + `BRIEF-293.4e-pre-
+  iii-extend-impl-inherits-types.md` (rooms + the protocol-path reference + the gate). **EXPECTATIONS row #3 = apply the
+  spawn.wat `defprotocol`→`defsurface` migration (wrap method in `[...]`) → if green, that IS 293.4e's migration; go
+  straight into the 9-file rip.**
 - ▶ **293.4e (after 293.4e-pre.iii) — annihilate `defprotocol`** (the qualified annihilation, the joy): ONE live use `:wat::spawn::Locus`
     (`wat/spawn.wat:224`) → migrate to `defsurface`; rip the Rust machinery across the 6 files (runtime.rs parse/
     dispatch/preregister, check.rs, value/value.rs, check/env.rs, freeze/env.rs, stdlib.rs); retirement-table the head.
