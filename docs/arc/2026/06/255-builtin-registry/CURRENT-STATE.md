@@ -1,11 +1,11 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `8cfd7626` or later.** Tree clean EXCEPT
-mid-flight nursery-dissolution sonnets (see the WAVE 2 IN FLIGHT block below — their uncommitted moves/migrations).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `cdf62b57` or later.** Tree CLEAN (wave 2
+committed `cdf62b57` + pushed; nothing in flight).
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **DURING the test-infra
-campaign the FLOOR is `4086 passed / 1 failed / ~91 skipped`** — the ONE expected red is `wat::lint
+campaign the FLOOR is `~4084 passed / 1 failed / ~93 skipped`** — the ONE expected red is `wat::lint
 no_inlined_wat_in_tests` (the campaign meter, RED BY DESIGN until it hits 0; nextest isolates it → a SECOND red is a real
-regression). If HEAD is older than `8cfd7626`, this breadcrumb is stale — trust git log + the docs.
+regression). If HEAD is older than `cdf62b57`, this breadcrumb is stale — trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
@@ -43,18 +43,22 @@ groups, zero unclassifiable**. Full map + per-file lists + the practitioner's-ca
   lone `(:wat::core::defn :(user|t)::main [] -> :wat::core::nil nil)` from MULTI-DEFN, NON-spawn-child fixtures (KEEP:
   spawn-child entrypoints, negative-test-subject mains like `\😀`/`_bad`, and arc-170 main-as-subject tests). The cited
   exemplar fixtures are kept PRISTINE so the clean shape propagates by example. Do NOT put main-dropping in the briefs.
-- **PROGRESS (2026-06-28 SESSION 9): METER 423 → 120; nursery DISSOLUTION underway.** ALL non-nursery groups DONE (lint
-  `1e483a79`, channel `e75d5f67`, diagnostics `bc40e656`, program+value+reflection `603b2fde`, function+comms+collection
-  `e65eea26`, process+services+wat_lang `c2196f35`, macros+resolve+kernel `c2195ec8`, rete+types `4ce97de3`). **NURSERY
-  DISSOLUTION** (per `NURSERY-DISSOLUTION-MAP.md`; each bucket = a sonnet git mv's its files nursery→domain-group +
-  migrates off inlined-wat + SELF-FIRES `strip-useless-mains` + verifies its binary; orchestrator weighs + commits):
-  DONE = program 7 (`951b587e`) + wave-1 resolve/services/channel/value/reflection 30 (`43630057`); nursery 180→143 .rs.
-  ⚠️ **WAVE 2 IN FLIGHT (5 sonnets; re-weigh/retrieve on wake):** process `afcc1578e2e02a935` · function `a9c6852d5eb23ede1`
-  · comms `ad092aca47e6daf70` · wat_lang `acbccb875b3a2ee41` · diagnostics `a0a05324c52414819` (63 files; move+migrate+
-  self-strip, NOT committed). REMAINING after wave 2: **WAVE 3 = types 31 · collection 17 · macros 16 · kernel 15** (~79),
-  THEN **retire the `nursery` binary**: `git rm tests/nursery/mod.rs` + the `Cargo.toml:123-125` `[[test]]` entry + `rmdir
-  tests/nursery` (build.rs OUT_DIR `nursery_mods.rs` can go stale on file removal → `touch build.rs`). When METER=0 the
-  lint flips GREEN, floor → 0, **293.4 unblocks**.
+- **PROGRESS (2026-06-28 SESSION 9): LINT METER = 76 (ALL in `tests/nursery/`).** ⚠️ **GROUNDING CORRECTION (the
+  prior breadcrumb's "120" + "nursery 180→143" + "wave 3 = types/collection/macros/kernel" were STALE/WRONG — the disk
+  falsified them this session; recolligere trap, FM 13).** TRUE state, grounded by `grep -rln 'startup_from_source('
+  tests`: **every non-nursery group is CLEAN; the only inlined-wat left is 76 files inside `tests/nursery/` + 6
+  rune:lint-EXEMPTED in `tests/rete/`** (genuinely-dynamic worlds — not counted; lint skips the `// rune:lint(no-inlined-wat)`
+  marker). So the lint fails on **76 = exactly the un-dissolved nursery**.
+  - **Wave 2 DONE + committed `cdf62b57` + pushed** (comms/diagnostics/function/process/wat_lang inlined-wat→fixtures;
+    grep-clean; gate 4084/1-lint/93). NOTE: these files were ALREADY in their group homes (the nursery MOVE landed in the
+    earlier chunk commits e65eea26/c2196f35/bc40e656); wave 2 was the MIGRATION only, not a move.
+  - **REMAINING = dissolve `tests/nursery/` (79 probes; 76 carry inlined-wat).** Its actual contents (NOT the partire
+    target-tallies): arc237 14 · arc259 11 · arc234 9 · arc216 8 · let/do/arc249/diagnostic/arc241/arc214/… Per
+    `NURSERY-DISSOLUTION-MAP.md` each file re-homes to its domain group + migrates off inlined-wat + self-strips. These are
+    UNIQUE files (no dup with existing group files — verified, only `mod.rs` basenames overlap).
+  - **THEN retire the `nursery` binary:** `git rm tests/nursery/mod.rs` + the `Cargo.toml:123-125` `[[test]]` entry +
+    `rmdir tests/nursery` (build.rs OUT_DIR `nursery_mods.rs` can go stale on file removal → `touch build.rs`). When
+    nursery=0 the lint flips GREEN, floor → 0, **293.4 unblocks**.
 - **`tests/` ROOT LAW (builder-directed): NO loose `.rs` — every test in a named group home.** Vestigial 0-byte
   `tests/test.rs` deleted (`086b141d`, zero test loss; the "217 deftests" comments referencing it are stale). FOLLOW-UP:
   4 stale `tests/test.rs`-naming comments to clean (`src/collection/mod.rs:31`, 2× `crates/wat-macros/`, `tests/kernel/test.rs:9`).
