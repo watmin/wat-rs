@@ -1,9 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `173bb1e8` or later.** Tree CLEAN
-(293.4a committed + pushed; nothing in flight).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `f70f9cf2` or later.** Tree CLEAN
+(293.4b committed + pushed; nothing in flight).
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
-`4087 passed / 0 failed / 93 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
+`4089 passed / 0 failed / 93 skipped`.** The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
 meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
 trust git log + the docs.
 
@@ -47,13 +47,20 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   **Banked follow-up (a real decomplect):** "args = ArgSpec EVERYWHERE" — `Scheme.params` + `ProtocolMethodSig.arg_types`
   still flatten; make the one-canonical-binder-list law hold substrate-wide. Plus a purgare: the stale stray probe
   `probe_arc293_4a_surface_method_member.{rs,wat}` (non-canonical syntax, `#[ignore]`'d).
-- ▶ **293.4b NEXT** — the generated dispatcher (`:Shape/area s` routes by `s`'s runtime type to `:T/area`; LIFT arc-232
-  `extract-classifier`+`apply`, `runtime.rs:670`) → **293.4c** `extend-type` foreign-accessor adapter → **293.4d**
-  annihilate `defprotocol` (ONE live use: `:wat::spawn::Locus`, `wat/spawn.wat:224`; rip the Rust machinery across 6
-  files; retirement-table the head) + un-ignore `probe_arc293_acceptance_demo` = GREEN. Then 293.1-owed `src/aggregate/`
-  home + 293.5 close.
+- ✅ **293.4b DONE (`f70f9cf2`)** — the generated dispatcher. A `:Surface/method` call head routes by the receiver's
+  runtime type to the satisfier's `defn :<T>/<method>` — a 3-layer mirror of the arc-232 protocol path (resolve
+  `resolve/walk.rs` + check `check.rs:5789` + runtime `runtime.rs:5101`), with the ONE semantic change: routes to a
+  plain `defn`, NOT an `extend:<S>:<T>` impl (surfaces have no extend-type). `freeze/env.rs` step 6.97 pre-attaches the
+  TypeEnv to sym before resolve. Probe routes Circle/Square by type; negative arm rejects a non-satisfier.
+  `BRIEF`/`EXPECTATIONS`/`SCORE-293.4b.md`. **Banked temperare:** env.rs early-attach + freeze re-attach = two TypeEnv
+  clones at startup (could share one Arc).
+- ▶ **293.4c NEXT** — `extend-type` as the foreign-accessor adapter (the monkeypatch: teach a foreign built-in like the
+  holon `Vector` to satisfy a surface by adding `:T/accessor` impls; collisions = `DuplicateDefine`; `types.rs:1605` is
+  the arc-232 subtype-edge form to demote) → **293.4d** annihilate `defprotocol` (ONE live use: `:wat::spawn::Locus`,
+  `wat/spawn.wat:224`; rip the Rust machinery across 6 files; retirement-table the head) + un-ignore
+  `probe_arc293_acceptance_demo` = the arc's GREEN gate. Then 293.1-owed `src/aggregate/` home + 293.5 close.
 The chain: **293.4 → `Seqable` (its first method-surface) → 118 HOF family → 118 closes → 295.** Already SHIPPED
-(see §293-state below): 293.0–293.3, unify-2a/2b, `build_env` annihilation, **15/15 `probe_arc293_*` GREEN**, + 293.4a.
+(see §293-state below): 293.0–293.3, unify-2a/2b, `build_env` annihilation, **15/15 `probe_arc293_*` GREEN**, + 293.4a + 293.4b.
 - **NEW DOCS/SCHEMES this session:** `docs/VERSIONING.md` (`8cfd7626`) — the **C.S.D** version scheme (Contract.Scaffolding.
   Dependencies, each a compacted-ISO8601-UTC timestamp, carry-forward). Memory `feedback_guarded_tool_over_educating_headless_callers`.
   293 `---` interstitial *MANVS CAECA NON FALLITVR* (`26b001d9`).
