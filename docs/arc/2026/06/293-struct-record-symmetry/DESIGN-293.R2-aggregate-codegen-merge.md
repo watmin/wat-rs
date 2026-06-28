@@ -1,6 +1,15 @@
 # 293.R2 — the aggregate codegen annihilation: ONE toolkit, holder is the only variance
 
-> **Status: STRIKE — lair studied 2026-06-28. This is R2's (`FRANGE UT UNUM FIAT`) unfinished fulfillment.**
+> ⊘ **SUPERSEDED 2026-06-28 by `DESIGN-293.R2-repr-collapse.md` (amend-with-recognition; the analysis below is
+> preserved — it is the lair study).** This doc tried to unify the CODEGEN over the three `Value` variants — patching
+> stems. The builder cut it: *"annihilate the variance … i cannot understand why you are making many things."* The
+> codegen is split ONLY because the repr is split; collapse the three `Value` variants → one `Value::Aggregate{class,
+> fields, holder, holon}` and the codegen variance (Rust-vs-macro, register_struct/record_methods, the A/B fork)
+> dissolves because there is one thing to generate. The grounded findings below (the two register fns, the parity
+> matrix, the vestigial `register_record_methods`, the macro's mangled key, `parse_recordtype`) all still hold and
+> feed R2.2 of the collapse — they are kept as the lair map.
+
+> **Status: SUPERSEDED — lair study retained. This is R2's (`FRANGE UT UNUM FIAT`) unfinished fulfillment.**
 > unify-2b merged the **data** (`StructDef`+`RecordDef` → `AggregateDef{holder}`). The **behavior** was never
 > merged: ctor + accessor synthesis is still TWO Rust functions split by `holder == Struct` / `holder != Struct`,
 > and they drifted on axes the holder does not own. This strike makes the codegen ONE thing.
