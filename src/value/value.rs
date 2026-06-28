@@ -401,13 +401,17 @@ pub enum Value {
 /// Each clause carries its own arg bindings (name + type), return type,
 /// and body AST. The body is evaluated in a child scope that binds the
 /// arg names. Produced by parsing a `([name <- :T ...] -> :Ret body)` form.
+///
+/// Arc 293.4e-pre — `args` is now the canonical `ArgSpec` (replaces the
+/// bespoke `Vec<(String,TypeExpr)>` + separate `rest_param` fields).
+/// Consumers read `clause.args.fixed_params` (binder names are `Identifier`;
+/// `env_key(&id)` where a `String` name is needed) and `clause.args.rest_param`.
 #[derive(Debug, Clone)]
 pub struct Clause {
-    /// Parallel vectors: binding names and declared types.
-    pub args: Vec<(String, TypeExpr)>,
-    /// Stone 241.4 — Optional rest-binder `(name, type)` from `& name <- :T`
-    /// in the clause argspec. `None` when no rest-binder is present.
-    pub rest_param: Option<(String, TypeExpr)>,
+    /// Canonical typed-binder-list: fixed positional params + optional rest binder.
+    /// Arc 293.4e-pre: replaces the former `args: Vec<(String,TypeExpr)>` +
+    /// `rest_param: Option<(String,TypeExpr)>` (which duplicated ArgSpec verbatim).
+    pub args: crate::argspec::ArgSpec,
     /// Return type declared for this clause (resolved from shared_return in
     /// Option A, or per-clause `-> :T` in Option B).
     pub return_type: TypeExpr,

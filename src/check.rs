@@ -5973,8 +5973,15 @@ fn infer_list(
                     //              Method member: 1 + fixed_params args, returns method ret.
                     let (member_ret, extra_param_types): (TypeExpr, Vec<TypeExpr>) = match member {
                         crate::types::SurfaceMember::Method { ret, args, .. } => {
-                            let param_types =
-                                args.fixed_params.iter().map(|(_, ty)| ty.clone()).collect();
+                            // Arc 293.4e-pre: `fixed_params[0]` is the receiver (self); skip it so
+                            // `extra_param_types` = the *extra* params only. `expected_arity = 1 +
+                            // extra_param_types.len()` then counts the receiver once. Before this fix
+                            // self was double-counted → "expected 3; got 2" for `(make [self x] …)`.
+                            let param_types = args.fixed_params.get(1..)
+                                .unwrap_or(&[])
+                                .iter()
+                                .map(|(_, ty)| ty.clone())
+                                .collect();
                             (ret.clone(), param_types)
                         }
                         crate::types::SurfaceMember::Field { ty, .. } => {
@@ -8495,8 +8502,8 @@ fn infer_defclause(
     for (clause_idx, clause) in cs.clauses.iter().enumerate() {
         // Build a local scope with clause arg bindings.
         let mut clause_locals: HashMap<String, TypeExpr> = HashMap::new();
-        for (arg_name, arg_ty) in &clause.args {
-            clause_locals.insert(arg_name.clone(), arg_ty.clone());
+        for (arg_ident, arg_ty) in &clause.args.fixed_params {
+            clause_locals.insert(crate::scope::env_key(arg_ident).into_owned(), arg_ty.clone());
         }
         let mut clause_subst = Subst::new();
 
@@ -8814,8 +8821,8 @@ fn register_defclause_from_form(form: &WatAST, env: &mut CheckEnv, idempotent: b
         .iter()
         .map(|cl| {
             let arg_types: Vec<TypeExpr> =
-                cl.args.iter().map(|(_, ty)| ty.clone()).collect();
-            (arg_types, cl.return_type.clone(), cl.rest_param.is_some())
+                cl.args.fixed_params.iter().map(|(_, ty)| ty.clone()).collect();
+            (arg_types, cl.return_type.clone(), cl.args.rest_param.is_some())
         })
         .collect();
     env.register_defclause(name, clauses, span);
@@ -8906,9 +8913,9 @@ fn collect_splice_defs_ctx(
                         let key = format!("{}/{}", ed.type_name, method_name);
                         let scheme = TypeScheme {
                             type_params: vec![],
-                            params: clause.args.iter().map(|(_, t)| t.clone()).collect(),
+                            params: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
                             ret: clause.return_type.clone(),
-                            rest_param_type: clause.rest_param.as_ref().map(|(_, t)| t.clone()),
+                            rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
                         };
                         env.register(key, scheme);
                     }

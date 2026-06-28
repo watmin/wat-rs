@@ -16,8 +16,6 @@ use wat::runtime::{Environment, Value};
 
 /// A surface method with a second arg (`make [self x]`) must dispatch with the right arity and return the arg.
 #[test]
-#[ignore = "RED at HEAD: arc-293.4e-pre (surface methods with args beyond self / generics) not built; \
-            un-ignore when the strike lands GREEN — it unblocks 293.4e (annihilate defprotocol)"]
 fn surface_method_with_args_beyond_self_dispatches() {
     let world = startup_beside(file!())
         .expect("293.4e-pre: a surface method `(make [self x] …)` must type-check + dispatch with correct arity");

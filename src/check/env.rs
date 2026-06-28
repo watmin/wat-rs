@@ -153,10 +153,10 @@ impl<'a> CheckEnv<'a> {
                 crate::runtime::Value::wat__core__clauses(cs) => {
                     let clauses: Vec<(Vec<TypeExpr>, TypeExpr, bool)> = cs.clauses.iter()
                         .map(|clause| {
-                            let arg_types: Vec<TypeExpr> = clause.args.iter()
+                            let arg_types: Vec<TypeExpr> = clause.args.fixed_params.iter()
                                 .map(|(_, t)| t.clone())
                                 .collect();
-                            let has_rest = clause.rest_param.is_some();
+                            let has_rest = clause.args.rest_param.is_some();
                             (arg_types, clause.return_type.clone(), has_rest)
                         })
                         .collect();
@@ -403,8 +403,7 @@ mod tests {
         // Build a minimal ClauseSet with one clause: no args, returns :nil.
         let nil_body = crate::ast::WatAST::nil();
         let clause = Clause {
-            args: vec![],
-            rest_param: None,
+            args: crate::argspec::ArgSpec { fixed_params: vec![], rest_param: None },
             return_type: TypeExpr::Path(":wat::core::nil".into()),
             guard: None,
             ensure_fn: None,
@@ -458,11 +457,13 @@ mod tests {
         // --- Build an ExtendDef for (:t::Robot implements :t::Greeter) -------
         let nil_body = crate::ast::WatAST::nil();
         let impl_clause = Clause {
-            args: vec![
-                ("self".to_string(), TypeExpr::Path(":wat::core::nil".into())),
-                ("loudness".to_string(), TypeExpr::Path(":wat::core::nil".into())),
-            ],
-            rest_param: None,
+            args: crate::argspec::ArgSpec {
+                fixed_params: vec![
+                    (crate::scope::Identifier::bare("self"), TypeExpr::Path(":wat::core::nil".into())),
+                    (crate::scope::Identifier::bare("loudness"), TypeExpr::Path(":wat::core::nil".into())),
+                ],
+                rest_param: None,
+            },
             return_type: TypeExpr::Path(":wat::core::nil".into()),
             guard: None,
             ensure_fn: None,

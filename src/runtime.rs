@@ -689,12 +689,12 @@ pub fn register_stdlib_runtime_defs(
                         }
                         let func = Arc::new(Function {
                             name: Some(method_key.clone()),
-                            params: clause.args.iter().map(|(n, _)| n.clone()).collect(),
+                            params: clause.args.fixed_params.iter().map(|(n, _)| crate::scope::env_key(n).into_owned()).collect(),
                             type_params: vec![],
-                            param_types: clause.args.iter().map(|(_, t)| t.clone()).collect(),
+                            param_types: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
                             ret_type: clause.return_type.clone(),
-                            rest_param: clause.rest_param.as_ref().map(|(n, _)| n.clone()),
-                            rest_param_type: clause.rest_param.as_ref().map(|(_, t)| t.clone()),
+                            rest_param: clause.args.rest_param.as_ref().map(|(n, _)| crate::scope::env_key(n).into_owned()),
+                            rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
                             body: FunctionBody::Wat(clause.body.clone()),
                             closed_env: None,
                         });
@@ -1954,12 +1954,12 @@ fn register_runtime_defs_form(
                     }
                     let func = Arc::new(Function {
                         name: Some(method_key.clone()),
-                        params: clause.args.iter().map(|(n, _)| n.clone()).collect(),
+                        params: clause.args.fixed_params.iter().map(|(n, _)| crate::scope::env_key(n).into_owned()).collect(),
                         type_params: vec![],
-                        param_types: clause.args.iter().map(|(_, t)| t.clone()).collect(),
+                        param_types: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
                         ret_type: clause.return_type.clone(),
-                        rest_param: clause.rest_param.as_ref().map(|(n, _)| n.clone()),
-                        rest_param_type: clause.rest_param.as_ref().map(|(_, t)| t.clone()),
+                        rest_param: clause.args.rest_param.as_ref().map(|(n, _)| crate::scope::env_key(n).into_owned()),
+                        rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
                         body: FunctionBody::Wat(clause.body.clone()),
                         closed_env: None,
                     });
@@ -5264,11 +5264,11 @@ fn dispatch_keyword_head_value(
                     let mut all_vals = Vec::with_capacity(1 + rest_vals.len());
                     all_vals.push(receiver);
                     all_vals.extend(rest_vals);
-                    // clause.args is [(name, type), ...]; types are placeholder :nil.
+                    // clause.args.fixed_params is [(Identifier, type), ...]; types are placeholder :nil.
                     let mut builder = env.child();
-                    for ((name, _ty), val) in clause.args.iter().zip(all_vals.iter()) {
+                    for ((name_ident, _ty), val) in clause.args.fixed_params.iter().zip(all_vals.iter()) {
                         builder = builder.bind_unknown_span(
-                            name.clone(),
+                            crate::scope::env_key(name_ident),
                             TrackedValue::from(val.clone()),
                         );
                     }
@@ -5712,10 +5712,9 @@ fn parse_defclause_clause(
         crate::argspec::ParseOptions { allow_rest_binder: true },
     )?;
 
-    let args: Vec<(String, crate::types::TypeExpr)> = spec.fixed_params.into_iter()
-        .map(|(id, ty)| (crate::scope::env_key(&id).into_owned(), ty)).collect();
-    let rest_param: Option<(String, crate::types::TypeExpr)> = spec.rest_param
-        .map(|(id, ty)| (crate::scope::env_key(&id).into_owned(), ty));
+    // Arc 293.4e-pre: store the ArgSpec directly — no unroll into Vec<(String,TypeExpr)>.
+    // Consumers read clause.args.fixed_params / clause.args.rest_param, using
+    // env_key(&id) where a String binder name is needed.
 
     // Stone 237.3: flexible scan of items[1..] for optional :guard, :ensure, ->, body.
     //
@@ -5882,8 +5881,7 @@ fn parse_defclause_clause(
     let body_ast = synthesize_fn_body(&body_items);
 
     Ok(Clause {
-        args,
-        rest_param,
+        args: spec,
         return_type,
         guard: guard_ast,
         ensure_fn: ensure_ast,
@@ -6235,13 +6233,13 @@ pub(crate) fn parse_extend_type_form(
         };
         // Collect bare symbol param names. extend-type impls do NOT carry type annotations
         // (the types live in the defprotocol sig). Each arg must be a bare Symbol.
-        let mut args: Vec<(String, crate::types::TypeExpr)> = Vec::new();
+        // Arc 293.4e-pre: build an ArgSpec (Identifier-keyed) instead of Vec<(String,TypeExpr)>.
+        let mut fixed_params: Vec<(crate::scope::Identifier, crate::types::TypeExpr)> = Vec::new();
         for arg_item in argvec_items {
             match arg_item {
                 WatAST::Symbol(s, _) => {
-                    let param_name = crate::scope::env_key(s).into_owned();
                     // Placeholder type — 232.3 dispatch resolves real types from the protocol sig.
-                    args.push((param_name, crate::types::TypeExpr::Path(":wat::core::nil".into())));
+                    fixed_params.push((s.clone(), crate::types::TypeExpr::Path(":wat::core::nil".into())));
                 }
                 other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                     head: HEAD.into(),
@@ -6252,6 +6250,7 @@ pub(crate) fn parse_extend_type_form(
                 } }.into()),
             }
         }
+        let args = crate::argspec::ArgSpec { fixed_params, rest_param: None };
         // Body: items[2..] — synthesize a multi-form body if needed.
         let body_items: Vec<WatAST> = impl_items[2..].to_vec();
         if body_items.is_empty() {
@@ -6291,7 +6290,6 @@ pub(crate) fn parse_extend_type_form(
         let body_ast = synthesize_fn_body(&body_forms);
         let clause = crate::value::Clause {
             args,
-            rest_param: None,
             return_type: clause_return_type,
             guard: None,
             ensure_fn: None,
@@ -6401,16 +6399,16 @@ fn eval_call_to_defclause_with_vals(
 
     for (clause_idx, clause) in cs.clauses.iter().enumerate() {
         // Pre-compute declared_arg_types for diagnostic use.
-        let declared_arg_types: Vec<String> = clause.args.iter()
+        let declared_arg_types: Vec<String> = clause.args.fixed_params.iter()
             .map(|(_, t)| crate::check::format_type(t))
             .collect();
-        let declared_arity = clause.args.len();
+        let declared_arity = clause.args.fixed_params.len();
 
         // 1. Arity match.
         // Stone 241.5 — variadic-min: when rest_param is present, caller must
         // supply AT LEAST the fixed args; strict equality preserved otherwise.
         let fixed_arity = declared_arity;
-        let has_rest = clause.rest_param.is_some();
+        let has_rest = clause.args.rest_param.is_some();
         let arity_ok = if has_rest {
             called_arity >= fixed_arity
         } else {
@@ -6431,7 +6429,7 @@ fn eval_call_to_defclause_with_vals(
 
         // 2. Type match: each actual value must match the declared arg type.
         //    Record the first failing position for ArgTypeMismatch.
-        let type_mismatch: Option<(usize, String, String)> = clause.args.iter()
+        let type_mismatch: Option<(usize, String, String)> = clause.args.fixed_params.iter()
             .zip(vals.iter())
             .enumerate()
             .find_map(|(pos, ((_, ty), val))| {
@@ -6463,7 +6461,7 @@ fn eval_call_to_defclause_with_vals(
         // 2.5 (S3 Stone 241.5) — Rest-binder element type check.
         // When rest_param is present, extract T from Vector<T> and check
         // each trailing value against T.
-        if let Some((_rest_name, rest_ty)) = &clause.rest_param {
+        if let Some((_rest_name, rest_ty)) = &clause.args.rest_param {
             let elem_ty = match rest_ty {
                 crate::types::TypeExpr::Parametric { head, args }
                     if head == "wat::core::Vector" && args.len() == 1
@@ -6512,10 +6510,10 @@ fn eval_call_to_defclause_with_vals(
 
         // 3. Bind clause args into a child scope (needed for :guard eval).
         let mut scope = Environment::new();
-        for ((param_name, _), val) in clause.args.iter().zip(vals.iter()) {
+        for ((param_name_ident, _), val) in clause.args.fixed_params.iter().zip(vals.iter()) {
             let span = list_span.clone();
             scope = scope.child().bind(
-                param_name.clone(),
+                crate::scope::env_key(param_name_ident),
                 span,
                 TrackedValue::from(val.clone()),
             ).build();
@@ -6523,11 +6521,11 @@ fn eval_call_to_defclause_with_vals(
 
         // 3.5 (S4 Stone 241.5) — Bind rest values as Value::Vec in scope.
         // Collect trailing vals into a wat::core::Vector and bind to rest_param.name.
-        if let Some((rest_name, _rest_ty)) = &clause.rest_param {
+        if let Some((rest_name_ident, _rest_ty)) = &clause.args.rest_param {
             let rest_vals: Vec<Value> = vals[fixed_arity..].to_vec();
             let rest_vec = Value::Vec(Arc::new(rest_vals));
             scope = scope.child().bind(
-                rest_name.clone(),
+                crate::scope::env_key(rest_name_ident),
                 list_span.clone(),
                 TrackedValue::from(rest_vec),
             ).build();
