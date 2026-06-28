@@ -69,7 +69,14 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   silent-swallow the demo's old `definterface` form hit: a 4-arg non-`:holder` form was read as 2-arg with args 2..
   dropped). Structural invariant: nothing follows the member vector → leftover = hard teaching error. DESIGN.md snippet
   amended (`definterface` separate-args → `defsurface` all-in-vector). RED probe `probe_arc293_4d_fix_silent_member_drop`.
-- ▶ **293.4e NEXT — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
+- ⚠ **293.4e-pre BLOCKS 293.4e (found by an examinare probe, 2026-06-28 — the migration is NOT mechanical):**
+  the surface-method machinery (293.4b dispatch / check call-typing) was only ever exercised with **`[self]`-only**
+  method members. A method with args BEYOND self fails the arity check (`:Surface/m: expected N+1; got N` — self
+  double-counted); a GENERIC method member (`m<T>`) is `unknown callee`. `:wat::spawn::Locus`'s `launch<S,R,St,Sh,Lu>`
+  has **6 args + 5 type params** → the migration to `defsurface` needs **multi-arg + generic surface-method parity**
+  (with arc-267's generic protocol methods) FIRST. Disconfirming probe committed RED + `#[ignore]`'d:
+  `tests/types/probe_arc293_4e_pre_surface_method_parity.{rs,wat}`. **DRAW 293.4e-pre before the Locus migration.**
+- ▶ **293.4e (after 293.4e-pre) — annihilate `defprotocol`** (the qualified annihilation): ONE live use `:wat::spawn::Locus`
     (`wat/spawn.wat:224`) → migrate to `defsurface`; rip the Rust machinery across the 6 files (runtime.rs parse/
     dispatch/preregister, check.rs, value/value.rs, check/env.rs, freeze/env.rs, stdlib.rs); retirement-table the head.
   - Then **293.1-owed `src/aggregate/` home** (lift the construction+surface machinery out of runtime.rs/types.rs/
