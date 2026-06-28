@@ -94,11 +94,48 @@ where
     })
 }
 
+/// Split a bare Symbol name like `"make<T>"` into `("make", vec!["T"])`.
+/// A name with no `<` returns `(name.to_owned(), vec![])`.
+/// Returns `TypeError` (adapted from `split_name_and_type_params` in runtime.rs, which returns
+/// `EvalBreak` — not reachable from surface.rs; STOP-1 copy per the brief).
+fn split_method_name_type_params(name: &str, sig_span: &Span) -> Result<(String, Vec<String>), TypeError> {
+    match name.find('<') {
+        None => Ok((name.to_owned(), Vec::new())),
+        Some(lt_index) => {
+            if !name.ends_with('>') {
+                return Err(TypeError {
+                    span: sig_span.clone(),
+                    kind: TypeErrorKind::MalformedDecl {
+                        head: HEAD.into(),
+                        reason: format!(
+                            "method member name {:?} opens '<' but does not close '>'",
+                            name
+                        ),
+                    },
+                });
+            }
+            let bare = name[..lt_index].to_string();
+            let inside = &name[lt_index + 1..name.len() - 1];
+            let params: Vec<String> = inside
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            Ok((bare, params))
+        }
+    }
+}
+
 /// Parse a method-member list `(name [args...] -> :RetType)` into a `SurfaceMember::Method`.
 ///
 /// Arc 293.4a — copies the shape of `parse_defprotocol_form`'s per-sig logic but adapted
 /// to `TypeError` (STOP-3 resolution: no shared helper because `defprotocol` returns
 /// `RuntimeError` while `defsurface` returns `TypeError`).
+///
+/// Arc 293.4e-pre.ii — method names with type params (`make<T>`) are now split via
+/// `split_method_name_type_params` (a local copy of runtime.rs's `split_name_and_type_params`
+/// adapted to `TypeError` — STOP-1 per the brief). The bare name is stored; `type_params`
+/// carries the extracted param names (e.g. `["T"]`). Monomorphic methods store `vec![]`.
 ///
 /// The argspec vector `[args...]` is parsed via `parse_argspec_triples`, keeping the full
 /// `ArgSpec` (not flattened to `Vec<TypeExpr>`). If the argvec contains only bare symbols
@@ -129,9 +166,11 @@ fn parse_method_member_sig(
         });
     }
 
-    // Item 0: method name (bare Symbol).
-    let method_name = match &sig_items[0] {
-        WatAST::Symbol(s, _) => s.as_str().to_owned(),
+    // Item 0: method name (bare Symbol, possibly with type params e.g. `make<T>`).
+    // Arc 293.4e-pre.ii — split via split_method_name_type_params to extract the bare name
+    // and any type_params; monomorphic names (no `<`) produce an empty type_params vec.
+    let (method_name, type_params) = match &sig_items[0] {
+        WatAST::Symbol(s, _) => split_method_name_type_params(s.as_str(), sig_span)?,
         other => {
             return Err(TypeError {
                 span: other.span().clone(),
@@ -233,7 +272,7 @@ fn parse_method_member_sig(
         name: method_name,
         args,
         ret,
-        type_params: vec![],
+        type_params, // Arc 293.4e-pre.ii — extracted by split_method_name_type_params above
     })
 }
 

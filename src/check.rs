@@ -5971,8 +5971,10 @@ fn infer_list(
                 }) {
                     // Arc 293.4d — Field member: accessor = 1 arg (receiver only), returns field type.
                     //              Method member: 1 + fixed_params args, returns method ret.
-                    let (member_ret, extra_param_types): (TypeExpr, Vec<TypeExpr>) = match member {
-                        crate::types::SurfaceMember::Method { ret, args, .. } => {
+                    // Arc 293.4e-pre.ii — also extract type_params from Method members for
+                    //   instantiation (mirrors the protocol arm's type-param handling above).
+                    let (member_ret_raw, extra_param_types_raw, member_type_params): (TypeExpr, Vec<TypeExpr>, Vec<String>) = match member {
+                        crate::types::SurfaceMember::Method { ret, args, type_params, .. } => {
                             // Arc 293.4e-pre: `fixed_params[0]` is the receiver (self); skip it so
                             // `extra_param_types` = the *extra* params only. `expected_arity = 1 +
                             // extra_param_types.len()` then counts the receiver once. Before this fix
@@ -5982,12 +5984,51 @@ fn infer_list(
                                 .iter()
                                 .map(|(_, ty)| ty.clone())
                                 .collect();
-                            (ret.clone(), param_types)
+                            (ret.clone(), param_types, type_params.clone())
                         }
                         crate::types::SurfaceMember::Field { ty, .. } => {
-                            (ty.clone(), vec![]) // accessor: receiver only, no extra params
+                            (ty.clone(), vec![], vec![]) // accessor: receiver only, no extra params, no type params
                         }
                     };
+                    // Arc 293.4e-pre.ii — instantiate surface method type params (mirror of the
+                    // protocol call-check arm's instantiation block, ~check.rs:5845-5891).
+                    // Monomorphic members (empty type_params) take the identity path: use as-is.
+                    // Generic members: explicit type-arg suffix → parse + bind; else → fresh vars.
+                    let (member_ret, extra_param_types): (TypeExpr, Vec<TypeExpr>) =
+                        if member_type_params.is_empty() {
+                            // Monomorphic — no-op: use raw values verbatim.
+                            (member_ret_raw, extra_param_types_raw)
+                        } else if !explicit_type_suffix.is_empty() {
+                            // Generic with EXPLICIT type-args — parse and bind each param.
+                            // suffix is `<T1,T2,...>`: strip the enclosing `<` and `>`.
+                            let inner = &explicit_type_suffix[1..explicit_type_suffix.len() - 1];
+                            let type_strs: Vec<&str> = inner.split(',').collect();
+                            let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+                            for (i, tp) in member_type_params.iter().enumerate() {
+                                if let Some(arg_str) = type_strs.get(i) {
+                                    let kw = format!(":{}", arg_str.trim());
+                                    match crate::types::parse_type_expr(&kw) {
+                                        Ok(parsed) => { mapping.insert(tp.clone(), parsed); }
+                                        Err(_) => { mapping.insert(tp.clone(), fresh.fresh()); }
+                                    }
+                                } else {
+                                    mapping.insert(tp.clone(), fresh.fresh());
+                                }
+                            }
+                            let rest: Vec<TypeExpr> = extra_param_types_raw.iter().map(|ty| rename(ty, &mapping)).collect();
+                            let ret = rename(&member_ret_raw, &mapping);
+                            (ret, rest)
+                        } else {
+                            // Generic without explicit type-args — build fresh-var substitution
+                            // and rename (inference path). Mirrors protocol arm ~check.rs:5880-5891.
+                            let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+                            for tp in &member_type_params {
+                                mapping.insert(tp.clone(), fresh.fresh());
+                            }
+                            let rest: Vec<TypeExpr> = extra_param_types_raw.iter().map(|ty| rename(ty, &mapping)).collect();
+                            let ret = rename(&member_ret_raw, &mapping);
+                            (ret, rest)
+                        };
                     // Arity: 1 (the receiver) + extra params (0 for Field members).
                     let expected_arity = 1 + extra_param_types.len();
                     if args.len() != expected_arity {
@@ -6028,7 +6069,9 @@ fn infer_list(
                             });
                         }
                     }
-                    // Check remaining args against the member's extra param types (empty for Field).
+                    // Check remaining args against INSTANTIATED extra param types (empty for Field).
+                    // For monomorphic members: extra_param_types == extra_param_types_raw (no-op clone).
+                    // For generic members: each type-param has been replaced by a fresh unification var.
                     for (i, (arg_ty_opt, expected_ty)) in arg_tys[1..]
                         .iter()
                         .zip(extra_param_types.iter())
@@ -6048,11 +6091,14 @@ fn infer_list(
                             }
                         }
                     }
-                    // Return the member's declared return type.
+                    // Return the INSTANTIATED return type.
+                    // apply_subst resolves any unification vars unified during the assignable calls.
+                    // For monomorphic members: equivalent to returning member_ret_raw (no vars).
+                    let ret = apply_subst(&member_ret, subst);
                     return if local_errors.is_empty() {
-                        CheckResult::ok(member_ret)
+                        CheckResult::ok(ret)
                     } else {
-                        CheckResult::partial_with(member_ret, local_errors)
+                        CheckResult::partial_with(ret, local_errors)
                     };
                 }
                 // Surface found but `method_name` is not any member (Field or Method) — unknown callee.

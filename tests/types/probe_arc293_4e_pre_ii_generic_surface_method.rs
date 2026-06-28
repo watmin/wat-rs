@@ -13,8 +13,6 @@ use wat::runtime::{Environment, Value};
 
 /// A generic surface method `(make<T> …)` dispatched on a record, instantiating `T = i64`, returns its arg (42).
 #[test]
-#[ignore = "RED at HEAD: arc-293.4e-pre.ii (generic surface-method members — name-split + type-param instantiation) \
-            not built; un-ignore when GREEN — it unblocks the Locus migration / defprotocol annihilation"]
 fn generic_surface_method_dispatches_with_type_params() {
     let world = startup_beside(file!())
         .expect("293.4e-pre.ii: a generic surface method `(make<T> …)` must type-check + dispatch");
