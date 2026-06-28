@@ -15,44 +15,27 @@
 //!   - A non-keyed value (Vector) → assoc TypeMismatch (type-check rejection)
 //!
 //! Run: cargo test --release -p wat --test probe_map_container
+//!
+//! Wat source lives in the co-located fixture: probe_map_container.wat
+//! (slurped via startup_beside(file!())).
+//! Negative fixture: tests/collection/probe_map_container_bad_assoc.wat
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-/// Build a world from one probe `defn` + optional preamble, start it (type-check
-/// fires here), then eval `call`. Mirrors the helper in probe_seq_container_registry.
-fn eval_probe(preamble: &str, defn: &str, call: &str) -> Result<Value, String> {
-    let world = format!(
-        "{preamble}\n{defn}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)"
-    );
-    let w = startup_from_source(&world, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup (type-check): {e:?}"))?;
+fn eval_probe(call: &str) -> Result<Value, String> {
+    let world = startup_beside(file!()).map_err(|e| format!("startup (type-check): {e:?}"))?;
     let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &w, &Environment::new())
+    eval_in_frozen(&ast, &world, &Environment::new())
         .map_err(|e| format!("eval: {e:?}"))
         .map(|tv| tv.value_owned())
-}
-
-/// Convenience: no preamble.
-fn eval_simple(defn: &str, call: &str) -> Result<Value, String> {
-    eval_probe("", defn, call)
 }
 
 // ── assoc round-trip — HashMap ────────────────────────────────────────────────
 
 #[test]
 fn hashmap_assoc_key_present_after() {
-    // Build a HashMap<String,i64>, assoc a key, verify the key is present.
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::bool
-          (:wat::core::let
-            [m  (:wat::core::HashMap :wat::core::String :wat::core::i64)
-             m2 (:wat::core::assoc m "answer" 42)]
-            (:wat::core::HashMap/contains-key? m2 "answer")))
-    "#;
-    match eval_simple(defn, "(:p::f)") {
+    match eval_probe("(:p::hashmap-assoc-key-present)") {
         Ok(Value::bool(true)) => {}
         Ok(other) => panic!("HashMap assoc round-trip: expected bool(true), got {other:?}"),
         Err(e) => panic!("HashMap assoc should classify + run: {e}"),
@@ -61,15 +44,7 @@ fn hashmap_assoc_key_present_after() {
 
 #[test]
 fn hashmap_assoc_type_preserving() {
-    // After assoc, the returned map still supports HashMap/contains-key?.
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::bool
-          (:wat::core::let
-            [m  (:wat::core::HashMap :wat::core::String :wat::core::i64)
-             m2 (:wat::core::assoc m "k" 1)]
-            (:wat::core::HashMap/contains-key? m2 "k")))
-    "#;
-    match eval_simple(defn, "(:p::f)") {
+    match eval_probe("(:p::hashmap-assoc-type-preserving)") {
         Ok(Value::bool(true)) => {}
         Ok(other) => panic!("HashMap assoc type-preserving: expected bool(true), got {other:?}"),
         Err(e) => panic!("HashMap assoc type-preserving test failed: {e}"),
@@ -80,15 +55,7 @@ fn hashmap_assoc_type_preserving() {
 
 #[test]
 fn persistentmap_assoc_length_grows() {
-    // Build a PersistentMap, assoc a key, check its length grew.
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::i64
-          (:wat::core::let
-            [pm  (:wat::core::PersistentMap :a 1)
-             pm2 (:wat::core::assoc pm :b 2)]
-            (:wat::core::PersistentMap/length pm2)))
-    "#;
-    match eval_simple(defn, "(:p::f)") {
+    match eval_probe("(:p::persistentmap-assoc-length-grows)") {
         Ok(Value::i64(2)) => {}
         Ok(other) => panic!("PersistentMap assoc round-trip: expected i64(2), got {other:?}"),
         Err(e) => panic!("PersistentMap assoc should classify + run: {e}"),
@@ -97,15 +64,7 @@ fn persistentmap_assoc_length_grows() {
 
 #[test]
 fn persistentmap_assoc_immutable() {
-    // assoc must NOT mutate the original; original stays length 1.
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::i64
-          (:wat::core::let
-            [pm  (:wat::core::PersistentMap :a 1)
-             _   (:wat::core::assoc pm :b 2)]
-            (:wat::core::PersistentMap/length pm)))
-    "#;
-    match eval_simple(defn, "(:p::f)") {
+    match eval_probe("(:p::persistentmap-assoc-immutable)") {
         Ok(Value::i64(1)) => {}
         Ok(other) => panic!("PersistentMap assoc must not mutate original: expected i64(1), got {other:?}"),
         Err(e) => panic!("PersistentMap assoc immutability test failed: {e}"),
@@ -116,16 +75,7 @@ fn persistentmap_assoc_immutable() {
 
 #[test]
 fn base_record_assoc_field_updated() {
-    let preamble = r#"(:wat::core::defrecord :probe::mr::Pt [x <- :wat::core::i64  y <- :wat::core::i64])"#;
-    // assoc :y → 99; read :y back from the updated record.
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::i64
-          (:wat::core::let
-            [pt  (:probe::mr::Pt 3 4)
-             pt2 (:wat::core::assoc pt :y 99)]
-            (:probe::mr::Pt/y pt2)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::base-record-assoc-field-updated)") {
         Ok(Value::i64(99)) => {}
         Ok(other) => panic!("base Record assoc round-trip: expected i64(99), got {other:?}"),
         Err(e) => panic!("base Record (wat__Record) assoc should classify + run: {e}"),
@@ -134,15 +84,7 @@ fn base_record_assoc_field_updated() {
 
 #[test]
 fn base_record_assoc_preserves_other_fields() {
-    let preamble = r#"(:wat::core::defrecord :probe::mr::Coord [x <- :wat::core::i64  y <- :wat::core::i64])"#;
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::i64
-          (:wat::core::let
-            [c  (:probe::mr::Coord 10 20)
-             c2 (:wat::core::assoc c :y 99)]
-            (:probe::mr::Coord/x c2)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::base-record-assoc-preserves-other-fields)") {
         Ok(Value::i64(10)) => {} // x was untouched
         Ok(other) => panic!("Record assoc must preserve x field: expected i64(10), got {other:?}"),
         Err(e) => panic!("Record assoc field-preservation test failed: {e}"),
@@ -153,16 +95,7 @@ fn base_record_assoc_preserves_other_fields() {
 
 #[test]
 fn holonic_record_assoc_field_updated() {
-    let preamble = r#"(:wat::holon::defrecord :probe::mr::Volt [value <- :wat::core::i64])"#;
-    // assoc :value → 77; read it back.
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::i64
-          (:wat::core::let
-            [v  (:probe::mr::Volt 10)
-             v2 (:wat::core::assoc v :value 77)]
-            (:probe::mr::Volt/value v2)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::holonic-record-assoc-field-updated)") {
         Ok(Value::i64(77)) => {}
         Ok(other) => panic!("holonic Record assoc round-trip: expected i64(77), got {other:?}"),
         Err(e) => panic!("holonic Record (wat__holon__Record) assoc should classify + run: {e}"),
@@ -173,14 +106,7 @@ fn holonic_record_assoc_field_updated() {
 
 #[test]
 fn record_get_existing_field_returns_some() {
-    let preamble = r#"(:wat::core::defrecord :probe::rgal::Sensor [id <- :wat::core::i64  label <- :wat::core::String])"#;
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> (:wat::core::Option :wat::core::Value)
-          (:wat::core::let
-            [s (:probe::rgal::Sensor 42 "temp")]
-            (:wat::core::get s :id)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::record-get-existing-field)") {
         Ok(Value::Option(inner)) => match inner.as_ref() {
             Some(Value::i64(42)) => {}
             other => panic!("record get :id expected Some(i64(42)), got {other:?}"),
@@ -192,14 +118,7 @@ fn record_get_existing_field_returns_some() {
 
 #[test]
 fn record_get_missing_field_returns_none() {
-    let preamble = r#"(:wat::core::defrecord :probe::rgal::Sensor2 [id <- :wat::core::i64])"#;
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> (:wat::core::Option :wat::core::Value)
-          (:wat::core::let
-            [s (:probe::rgal::Sensor2 7)]
-            (:wat::core::get s :no-such-field)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::record-get-missing-field)") {
         Ok(Value::Option(inner)) => match inner.as_ref() {
             None => {}
             other => panic!("record get missing field expected None, got {other:?}"),
@@ -213,14 +132,7 @@ fn record_get_missing_field_returns_none() {
 
 #[test]
 fn record_contains_existing_field_true() {
-    let preamble = r#"(:wat::core::defrecord :probe::rgal::Node [x <- :wat::core::i64  y <- :wat::core::i64])"#;
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::bool
-          (:wat::core::let
-            [n (:probe::rgal::Node 1 2)]
-            (:wat::core::contains? n :x)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::record-contains-existing)") {
         Ok(Value::bool(true)) => {}
         Ok(other) => panic!("record contains? :x expected true, got {other:?}"),
         Err(e) => panic!("record contains? existing field failed: {e}"),
@@ -229,14 +141,7 @@ fn record_contains_existing_field_true() {
 
 #[test]
 fn record_contains_missing_field_false() {
-    let preamble = r#"(:wat::core::defrecord :probe::rgal::Node2 [x <- :wat::core::i64])"#;
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::bool
-          (:wat::core::let
-            [n (:probe::rgal::Node2 5)]
-            (:wat::core::contains? n :z)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::record-contains-missing)") {
         Ok(Value::bool(false)) => {}
         Ok(other) => panic!("record contains? :z (missing) expected false, got {other:?}"),
         Err(e) => panic!("record contains? missing field failed: {e}"),
@@ -247,14 +152,7 @@ fn record_contains_missing_field_false() {
 
 #[test]
 fn record_length_field_count() {
-    let preamble = r#"(:wat::core::defrecord :probe::rgal::Triple [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])"#;
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::i64
-          (:wat::core::let
-            [t (:probe::rgal::Triple 1 2 3)]
-            (:wat::core::length t)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::record-length)") {
         Ok(Value::i64(3)) => {}
         Ok(other) => panic!("record length expected 3, got {other:?}"),
         Err(e) => panic!("record length failed: {e}"),
@@ -265,14 +163,7 @@ fn record_length_field_count() {
 
 #[test]
 fn record_empty_q_nonempty_false() {
-    let preamble = r#"(:wat::core::defrecord :probe::rgal::Pair [a <- :wat::core::i64  b <- :wat::core::i64])"#;
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::bool
-          (:wat::core::let
-            [p (:probe::rgal::Pair 10 20)]
-            (:wat::core::empty? p)))
-    "#;
-    match eval_probe(preamble, defn, "(:p::f)") {
+    match eval_probe("(:p::record-empty-nonempty)") {
         Ok(Value::bool(false)) => {}
         Ok(other) => panic!("record empty? on Pair expected false, got {other:?}"),
         Err(e) => panic!("record empty? failed: {e}"),
@@ -284,12 +175,8 @@ fn record_empty_q_nonempty_false() {
 #[test]
 fn non_keyed_vector_assoc_rejected() {
     // The type-checker should reject assoc on a Vector type.
-    let defn = r#"
-        (:wat::core::defn :p::f [] -> :wat::core::i64
-          (:wat::core::assoc (:wat::core::Vector :wat::core::i64 1 2 3) 0 99))
-    "#;
-    match eval_simple(defn, "(:p::f)") {
-        Err(_) => {} // TypeMismatch at check or runtime — both acceptable
-        Ok(v) => panic!("assoc on a Vector must be rejected; got {v:?}"),
+    match startup_from_file("tests/collection/probe_map_container_bad_assoc.wat") {
+        Err(_) => {} // TypeMismatch at check — acceptable
+        Ok(_) => panic!("assoc on a Vector must be rejected at type-check"),
     }
 }

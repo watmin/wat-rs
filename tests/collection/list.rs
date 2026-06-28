@@ -10,27 +10,19 @@
 //! - EDN round-trip: parse `(1 2 3)` via wat-edn → wat__core__List → write → reparse
 //!
 //! Architecture mirrors `tests/wat_arc207_uuid_typed.rs` (eval_in_frozen pattern).
+//!
+//! Wat source lives in the co-located fixture: list.wat
+//! (slurped via startup_beside(file!())).
 
 use std::collections::LinkedList;
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn eval_value(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
+fn ev(call: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(call).expect("parse compute call");
+    eval_in_frozen(&ast, &world, &Environment::new()).expect("compute").value_owned()
 }
 
 // ─── Construction ─────────────────────────────────────────────────────────────
@@ -38,28 +30,14 @@ fn eval_value(src: &str) -> Value {
 #[test]
 fn list_constructor_of_builds_list() {
     // (:wat::core::List/of 1 2 3) returns a List with 3 elements
-    // Return type checked via edn-write then re-inspect at Rust level
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::Int (:wat::core::List/length (:wat::core::List/of 1 2 3)))
-    "#);
-    // Verify it built a 3-element list by checking length
+    let v = ev("(:list::length-of-3)");
     assert_eq!(v, Value::i64(3), "List/of 1 2 3 should have length 3");
 }
 
 #[test]
 fn list_constructor_of_returns_list_type() {
     // Verify that (:wat::core::List/of 1 2) produces a wat__core__List at Rust level.
-    // We eval and check the Value variant directly.
-    use wat::parse_one;
-    let src = with_nil_main(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::Int (:wat::core::List/length (:wat::core::List/of 1 2)))
-    "#);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = parse_one!("(:user::compute)").expect("parse");
-    let env = Environment::new();
-    let length = eval_in_frozen(&ast, &world, &env).expect("compute").value_owned();
-    // Also exercise directly via Rust API to confirm type
+    let length = ev("(:list::length-of-2)");
     assert_eq!(length, Value::i64(2), "List/of 1 2 has length 2");
     // Confirm the Rust variant is wat__core__List, not Vec
     let list_val = {
@@ -74,9 +52,7 @@ fn list_constructor_of_returns_list_type() {
 #[test]
 fn list_constructor_empty() {
     // (:wat::core::List/of) returns an empty List — verify via empty?
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::List/empty? (:wat::core::List/of)))
-    "#);
+    let v = ev("(:list::empty-q-of-empty)");
     assert_eq!(v, Value::bool(true), "empty List/of should satisfy empty?");
 }
 
@@ -84,33 +60,25 @@ fn list_constructor_empty() {
 
 #[test]
 fn list_length() {
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::Int (:wat::core::List/length (:wat::core::List/of 10 20 30)))
-    "#);
+    let v = ev("(:list::length-3)");
     assert_eq!(v, Value::i64(3));
 }
 
 #[test]
 fn list_length_empty() {
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::Int (:wat::core::List/length (:wat::core::List/of)))
-    "#);
+    let v = ev("(:list::length-0)");
     assert_eq!(v, Value::i64(0));
 }
 
 #[test]
 fn list_empty_q_true() {
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::List/empty? (:wat::core::List/of)))
-    "#);
+    let v = ev("(:list::empty-q-true)");
     assert_eq!(v, Value::bool(true));
 }
 
 #[test]
 fn list_empty_q_false() {
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::List/empty? (:wat::core::List/of 1)))
-    "#);
+    let v = ev("(:list::empty-q-false)");
     assert_eq!(v, Value::bool(false));
 }
 
@@ -119,29 +87,21 @@ fn list_empty_q_false() {
 #[test]
 fn list_first_returns_some() {
     // (:wat::core::first list) returns T directly (arc-278 — no Option wrapper).
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::= (:wat::core::first (:wat::core::List/of 10 20 30)) 10))
-    "#);
+    let v = ev("(:list::first-some)");
     assert_eq!(v, Value::bool(true), "first of (10 20 30) should be 10");
 }
 
 #[test]
 fn list_rest_returns_tail_as_list() {
     // rest of (1 2 3) should give a List of length 2
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::Int (:wat::core::List/length (:wat::core::rest (:wat::core::List/of 1 2 3))))
-    "#);
+    let v = ev("(:list::rest-tail-len)");
     assert_eq!(v, Value::i64(2), "rest of 3-element list should have length 2");
 }
 
 #[test]
 fn list_rest_preserves_list_type() {
     // rest of a List should return a List (not Vec) — check via length of tail
-    // (:wat::core::rest (:wat::core::List/of 1 2 3)) → List(2,3), length 2
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::Int (:wat::core::List/length (:wat::core::rest (:wat::core::List/of 1 2 3))))
-    "#);
+    let v = ev("(:list::rest-tail-len)");
     assert_eq!(v, Value::i64(2), "rest of 3-element List should return List of length 2");
 }
 
@@ -151,10 +111,7 @@ fn list_rest_preserves_list_type() {
 fn list_conj_prepends() {
     // List/conj should PREPEND. After conj(List(2,3), 1) → List(1,2,3).
     // first returns T directly (arc-278 — no Option wrapper).
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::= (:wat::core::first (:wat::core::List/conj (:wat::core::List/of 2 3) 1)) 1))
-    "#);
+    let v = ev("(:list::conj-prepends)");
     assert_eq!(v, Value::bool(true), "List/conj prepends: first of conj(List(2,3), 1) should be 1");
 }
 
@@ -162,10 +119,7 @@ fn list_conj_prepends() {
 fn vector_conj_appends_distinct_from_list() {
     // Vector/conj APPENDS — first element should still be 2 (the original head).
     // first returns T directly (arc-278 — no Option wrapper).
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::= (:wat::core::first (:wat::core::Vector/conj [2 3] 1)) 2))
-    "#);
+    let v = ev("(:list::vec-conj-appends)");
     assert_eq!(v, Value::bool(true), "Vector/conj appends: first of conj([2,3], 1) should still be 2");
 }
 
@@ -173,42 +127,26 @@ fn vector_conj_appends_distinct_from_list() {
 
 #[test]
 fn list_contains_q_found() {
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::List/contains? (:wat::core::List/of 1 2 3) 2))
-    "#);
+    let v = ev("(:list::contains-found)");
     assert_eq!(v, Value::bool(true));
 }
 
 #[test]
 fn list_contains_q_not_found() {
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::core::List/contains? (:wat::core::List/of 1 2 3) 99))
-    "#);
+    let v = ev("(:list::contains-not-found)");
     assert_eq!(v, Value::bool(false));
 }
 
 #[test]
 fn list_get_found() {
     // get index 1 from List(10,20,30) → Some(20) → extract and verify
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match (:wat::core::List/get (:wat::core::List/of 10 20 30) 1)
-                      -> :wat::core::bool
-                      ((:wat::core::Some x) (:wat::core::= x 20))
-                      (:None false)))
-    "#);
+    let v = ev("(:list::get-found)");
     assert_eq!(v, Value::bool(true), "List/get index 1 from (10 20 30) should be 20");
 }
 
 #[test]
 fn list_get_out_of_bounds_returns_none() {
-    let v = eval_value(r#"
-        (:wat::core::defn :user::compute [] -> :wat::core::bool
-          (:wat::core::match (:wat::core::List/get (:wat::core::List/of 10 20 30) 99)
-                      -> :wat::core::bool
-                      ((:wat::core::Some _) false)
-                      (:None true)))
-    "#);
+    let v = ev("(:list::get-oob)");
     assert_eq!(v, Value::bool(true), "List/get out-of-bounds should return None");
 }
 

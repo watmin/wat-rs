@@ -25,27 +25,8 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Outer uses :my::compute; inner uses canonical nil main.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
 
 #[test]
 fn hermetic_assertion_failure_preserves_actual_and_expected() {
@@ -64,30 +45,11 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
     // head's structured payload; actual = "1", expected = "2".
     //
     // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
-    let src = r##"
-        (:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::String>
-          (:wat::core::let
-                      [r
-                        (:wat::test::run-hermetic
-                          (:wat::test::assert-eq 1 2))
-                       fail
-                        (:wat::kernel::RunResult/failure r)
-                       rendered
-                        (:wat::core::match fail -> :wat::core::Vector<wat::core::String>
-                          ((:wat::core::Some f)
-                           (:wat::core::Vector :wat::core::String
-                             (:wat::kernel::Failure/message f)
-                             (:wat::core::match (:wat::kernel::Failure/actual f) -> :wat::core::String
-                               ((:wat::core::Some a) a)
-                               (:wat::core::None ":None"))
-                             (:wat::core::match (:wat::kernel::Failure/expected f) -> :wat::core::String
-                               ((:wat::core::Some e) e)
-                               (:wat::core::None ":None"))))
-                          (:wat::core::None
-                           (:wat::core::Vector :wat::core::String "NO-FAILURE")))]
-                      rendered))
-    "##;
-    let result = run(src);
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let result = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("compute should run")
+        .value_owned();
     let lines: Vec<String> = match result {
         Value::Vec(items) => items
             .iter()

@@ -14,30 +14,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_autobind_listener
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; Process-tier autobind: no name arg — the listener MINTS its own kernel-unique address.
-;; Same signature shape as the thread tier: (listener' host :S :R) -> Bound<S,R>.
-(:wat::core::defn :user::go [] -> :wat::core::bool
-  (:wat::core::let
-    [b (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
-     l (:wat::spawn::Bound/listener b)
-     a (:wat::spawn::Bound/address b)
-     c (:wat::kernel::connect' a)]
-    ;; Reaching here means: the 3-arg autobind form type-checked, minted a real listener +
-    ;; address (capability), and connect' dialed the minted address — all with NO fixed name.
-    true))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn autobind_listener_process_returns_bound_and_connects() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (listener'(process) 3-arg autobind → Bound<S,R>)");
     let ast = wat::parse_one!("(:user::go)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

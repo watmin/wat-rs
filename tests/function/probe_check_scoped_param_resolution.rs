@@ -18,35 +18,19 @@
 //!
 //! Observable: a defclause declaring `-> :wat::core::bool` but returning its
 //! `:wat::core::i64` param `x`. `unify(:i64, :bool)` fails → `ReturnTypeMismatch` →
-//! `startup_from_source` returns `Err`. At HEAD the MACRO-generated form is accepted
+//! `startup_from_file` returns `Err`. At HEAD the MACRO-generated form is accepted
 //! (param = fresh var unifies with `:bool`); after the fix it is rejected like the
 //! hand-written control.
 //!
+//! Wat source lives in co-located fixture files slurped via `startup_from_file`.
 //! Run: cargo test --release --test probe_check_scoped_param_resolution -- --nocapture
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
 /// `true` iff the program type-checks clean (freeze succeeds with no CheckError).
-fn checks_clean(src: &str) -> bool {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new())).is_ok()
+fn checks_clean(path: &str) -> bool {
+    startup_from_file(path).is_ok()
 }
-
-// A user::main so the ONLY possible check error is the defclause's ret-mismatch
-// (not a missing-main error).
-const MAIN: &str = "(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
-
-// A macro expanding to a defclause whose body (the param `x`, declared :i64) does
-// NOT match the declared return type (:bool). `walk_template` scope-tags `x` in
-// both the binder and the body reference.
-const MAKE_BAD_RET: &str = "\
-(:wat::core::defmacro :test::make-bad-ret \
-  [] -> :AST<wat::holon::HolonAST> \
-  `(:wat::core::defclause :test::bad-ret \
-     ([x <- :wat::core::i64] -> :wat::core::bool x)))";
-
-const CALL_MAKE_BAD_RET: &str = "(:test::make-bad-ret)";
 
 /// CONTROL — a HAND-WRITTEN defclause with the same ret-mismatch must ALWAYS be
 /// rejected (its param is bare; bind-key bare == lookup-key bare → resolves to
@@ -55,12 +39,8 @@ const CALL_MAKE_BAD_RET: &str = "(:test::make-bad-ret)";
 /// test below. GREEN at HEAD and after the fix.
 #[test]
 fn handwritten_defclause_ret_mismatch_is_caught() {
-    let src = format!(
-        "(:wat::core::defclause :test::bad-ret-direct \
-           ([x <- :wat::core::i64] -> :wat::core::bool x))\n{MAIN}"
-    );
     assert!(
-        !checks_clean(&src),
+        !checks_clean("tests/function/probe_check_scoped_param_resolution_handwritten.wat"),
         "CONTROL: a hand-written defclause returning its :i64 param as :bool must be \
          REJECTED (ReturnTypeMismatch). If this checks clean, the probe's observable \
          is invalid and the bug test below proves nothing."
@@ -74,9 +54,8 @@ fn handwritten_defclause_ret_mismatch_is_caught() {
 /// mismatch is caught. RED at HEAD (checks clean); GREEN after the fix (rejected).
 #[test]
 fn macro_generated_defclause_ret_mismatch_is_caught() {
-    let src = format!("{MAKE_BAD_RET}\n{CALL_MAKE_BAD_RET}\n{MAIN}");
     assert!(
-        !checks_clean(&src),
+        !checks_clean("tests/function/probe_check_scoped_param_resolution_macro.wat"),
         "CHECK HYGIENE: a macro-generated defclause returning its :i64 param as \
          :bool must be REJECTED (ReturnTypeMismatch), exactly like the hand-written \
          control. At HEAD it is silently accepted — the scope-tagged param missed \

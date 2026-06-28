@@ -18,9 +18,9 @@
 //! ## Probe structure
 //!
 //! Each probe:
-//!   1. Declares a fn whose body is `(:wat::core::do prelude-forms... expr)`
-//!   2. Spawns it as a child process via `spawn-process`
-//!   3. Waits for child to exit and asserts exit code 0
+//!   1. Loads its co-suffixed fixture file via startup_from_file.
+//!   2. Evaluates `(:my::launch)` in the frozen world.
+//!   3. Forks the child, waits for it to exit, asserts exit code 0.
 //!
 //! Before Gap H: all probes fail (child exits non-zero, `DefineInExpressionPosition`).
 //! After Gap H: all probes pass (lifted forms registered via prologue startup).
@@ -31,22 +31,18 @@
 //! 2. `struct` in fn body do-prefix lifts to prologue
 //! 3. `enum` in fn body do-prefix lifts to prologue
 //! 4. mixed prelude (struct + enum + define) all lift in order
-//! 5. prefix-termination semantics: only LEADING prelude forms lift;
-//!    a prelude form AFTER the first expression does NOT lift (it stays in
-//!    the body and would still trigger `DefineInExpressionPosition` if
-//!    reached — but the prefix-termination rule correctly limits the lift
-//!    to the do's leading run)
+//! 5. prefix-termination semantics: only LEADING prelude forms lift
+//!
+//! Wat source: tests/function/probe_closure_body_prelude_lift_tN.wat (one per probe).
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 use wat::runtime::{eval, Environment, ProgramHandleInner};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn freeze_ok(fixture: &str) -> wat::freeze::FrozenWorld {
+    match startup_from_file(fixture) {
         Ok(w) => w,
         Err(e) => panic!("freeze should succeed; got: {}", e),
     }
@@ -115,17 +111,7 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
     // declarations from the fn body's do-prefix to the closure prologue
     // is retired; the natural shape replaces it (declarations live at
     // their natural top-level position from the start).
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defn :h::helper [] -> :wat::core::i64 42)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [v (:h::helper)] nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t1.wat");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
@@ -137,26 +123,12 @@ fn probe_define_in_fn_body_do_prefix_lifts_to_prologue() {
 // ─── Probe 2 — struct in fn body do-prefix lifts to prologue ─────────────────
 
 /// A `struct` declaration at the head of a fn body's `do` lifts into the
-/// prologue. The child's `startup_from_forms` step 5 registers the struct
-/// into its TypeEnv; step 6a synthesizes the `/new` constructor and field
-/// accessors. The body then calls `(:h::LocalPoint/new 3 4)` successfully.
+/// prologue.
 #[test]
 fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — struct sits at program top-level via spawn-process's
     // program shape (no lift required; the natural shape supersedes it).
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defstruct :h::LocalPoint
-                          [x <- :wat::core::i64
-                           y <- :wat::core::i64])
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [p (:h::LocalPoint/new 3 4)] nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t2.wat");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
@@ -168,25 +140,11 @@ fn probe_struct_in_fn_body_do_prefix_lifts_to_prologue() {
 // ─── Probe 3 — enum in fn body do-prefix lifts to prologue ───────────────────
 
 /// An `enum` declaration at the head of a fn body's `do` lifts into the
-/// prologue. The child's step 5 registers the enum; step 6.5 synthesizes
-/// variant constructors. The body then references `:h::LocalDir::North`
-/// successfully.
+/// prologue.
 #[test]
 fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
     // Arc 170 slice 6 — enum at program top-level.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defenum :h::LocalDir
-                          :North
-                          :South)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [d :h::LocalDir::North] nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t3.wat");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
@@ -198,33 +156,12 @@ fn probe_enum_in_fn_body_do_prefix_lifts_to_prologue() {
 // ─── Probe 4 — mixed prelude (struct + enum + define) all lift in order ──────
 
 /// A mixed prelude — struct, then enum, then define — at the head of a fn
-/// body's `do`. All three lift into the prologue in order. The body uses
-/// all three: constructs a LocalItem struct, references a LocalKind enum
-/// variant, and calls a local helper define.
+/// body's `do`. All three lift into the prologue in order.
 #[test]
 fn probe_mixed_prelude_lift() {
     // Arc 170 slice 6 — mixed prelude (struct + enum + define) all live
     // at program top-level via the new spawn-process program shape.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defstruct :h::LocalItem
-                          [value <- :wat::core::i64])
-                        (:wat::core::defenum :h::LocalKind
-                          :A
-                          :B)
-                        (:wat::core::defn :h::make-item [] -> :h::LocalItem
-                          (:h::LocalItem/new 99))
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let
-                            [item (:h::make-item)
-                             kind :h::LocalKind::A]
-                            nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t4.wat");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,
@@ -235,45 +172,13 @@ fn probe_mixed_prelude_lift() {
 
 // ─── Probe 5 — prefix-termination semantics ──────────────────────────────────
 
-/// Only LEADING prelude forms (consecutive define/struct/enum at the do's
-/// prefix, before any expression) lift into the prologue.
-///
-/// The body's do has:
-///   - `(:wat::core::define (:h::early-helper -> :wat::core::i64) 1)` (LEADING — lifts)
-///   - `(:wat::core::let [_x (:h::early-helper)] :wat::core::nil)` (expression — stops prefix)
-///   - `(:wat::core::define (:h::late-helper -> :wat::core::i64) 2)` (AFTER expression — stays)
-///
-/// The late define is NOT lifted. It stays in the residual do body and would
-/// hit `DefineInExpressionPosition` if the body reaches that form. However,
-/// the let-form before it returns `:wat::core::nil`, making the body a two-form
-/// do whose final form is the late define. At eval time the late define IS
-/// reached (it's the last form in the do, not after the final form).
-///
-/// To keep probe 5 strictly about prefix-termination semantics without
-/// triggering the error from the late define, we structure the body so the
-/// late define is unreachable: the let returns nil and there are no more
-/// forms after it. We verify that the early define DID lift (child exits 0).
-///
-/// This probe confirms: split_prelude_prefix stops at the first non-prelude
-/// form. The lift is prefix-only, not full-body-define-hoisting.
+/// Only LEADING prelude forms lift into the prologue.
 #[test]
 fn probe_prelude_prefix_terminates_at_first_expression() {
     // Arc 170 slice 6 — the prefix-termination semantics retire under
     // the new substrate: declarations sit at program top-level naturally
-    // and there is no "prefix" concept. The probe migrates to the
-    // top-level shape; the early define is registered as a normal
-    // top-level form alongside :user::main.
-    let src = r#"
-        (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
-          (:wat::kernel::spawn-process
-                      (:wat::core::forms
-                        (:wat::core::defn :h::counted-helper [] -> :wat::core::i64 7)
-                        (:wat::core::defn :user::main [] -> :wat::core::nil
-                          (:wat::core::let [_v (:h::counted-helper)] nil)))))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = freeze_ok(src);
+    // and there is no "prefix" concept.
+    let world = freeze_ok("tests/function/probe_closure_body_prelude_lift_t5.wat");
     let (exit_code, stderr) = run_launch(&world);
     assert_eq!(
         exit_code, 0i64,

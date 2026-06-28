@@ -46,21 +46,12 @@
 //!
 //! Does NOT use `print-raw'` (being eliminated in a separate strike).
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Build `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms <forms>...))`
 fn build_spawn_process_call(child_program_src: &str) -> WatAST {
@@ -113,7 +104,7 @@ fn select_prime_flood_no_deadlock() {
     // Arm the watchdog: deadlock → _exit(124) → test FAIL.
     arm_watchdog(Duration::from_secs(10));
 
-    let world = freeze_ok("");
+    let world = startup_bare().expect("startup");
 
     // Spawn the flooding child.
     let spawn_call = build_spawn_process_call(FLOOD_CHILD_SRC);

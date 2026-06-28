@@ -19,24 +19,20 @@
 //! [[test]] entry for "function"; verify caller imports updated to crate::function::*).
 //!
 //! These probe contracts BEHAVIORALLY verify that the migration didn't break fn-form
-//! parsing / eval / infer for any reasonable program.
+//! parsing / eval / infer for any reasonable program. Wat source lives in
+//! `tests/function/stone18a.wat` (positive) and `tests/function/stone18a_eNN.wat`
+//! (negative, one per error contract).
 //!
 //! Post-stone: both contracts continue to PASS (preservation).
 //!
 //! Run: `cargo test --release --test function`
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::startup_from_file;
 
-/// Thin wrapper: format fragment + delegate to startup_from_source + map error to String.
-/// Body is trivially provable by inspection; all 8 caller tests exercise it.
-pub(super) fn try_startup(src_fragment: &str) -> Result<(), String> {
-    let full = format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src_fragment
-    );
-    startup_from_source(&full, None, Arc::new(InMemoryLoader::new()))
+/// Load a fixture by path and return Ok(()) or Err(diagnostic string).
+/// Shared by positive contracts in this file and by `stone18a_errors.rs`.
+pub(super) fn try_startup(path: &str) -> Result<(), String> {
+    startup_from_file(path)
         .map(|_| ())
         .map_err(|e| format!("{:?}", e))
 }
@@ -47,13 +43,7 @@ pub(super) fn try_startup(src_fragment: &str) -> Result<(), String> {
 fn contract_01_fn_single_param_preserved() {
     // Behavioral preservation contract — fn-form parser must work the same
     // before and after migration to src/function/.
-    let src = r#"
-        (:wat::core::defn :test::double [n <- :wat::core::i64] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-             (:wat::core::i64::+ x x))
-           n))
-    "#;
-    let result = try_startup(src);
+    let result = try_startup("tests/function/stone18a.wat");
     assert!(
         result.is_ok(),
         "fn-form with single typed param must work post-migration; got: {:?}",
@@ -66,13 +56,7 @@ fn contract_01_fn_single_param_preserved() {
 #[test]
 fn contract_02_fn_with_multi_param_triple_arrow_preserved() {
     // Behavioral preservation — fn with 2+ typed params via triple-arrow form.
-    let src = r#"
-        (:wat::core::defn :test::compute [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+ x y))
-           a b))
-    "#;
-    let result = try_startup(src);
+    let result = try_startup("tests/function/stone18a.wat");
     assert!(
         result.is_ok(),
         "fn-form with multi-param triple-arrow must work post-migration; got: {:?}",

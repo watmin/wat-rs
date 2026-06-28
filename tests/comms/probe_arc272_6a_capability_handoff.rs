@@ -26,49 +26,12 @@
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6a_capability_handoff
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [svc  (:wat::kernel::spawn-program' (:wat::spawn::process)
-            (:wat::core::forms
-              (:wat::core::defn :user::main [] -> :wat::core::nil
-                (:wat::core::let
-                  ;; the child mints its OWN rendezvous: autobind, no name (step 2b).
-                  [b    (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
-                   addr (:wat::spawn::Bound/address b)
-                   ;; the self-peer carries the Address' capability child->parent (S = Address').
-                   self (:wat::program::self-peer
-                          :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
-                   ;; hand the parent the capability — the lock-step handoff (it now has perfect knowledge).
-                   _    (:wat::kernel::send' self addr)
-                   ;; accept the parent's dial on our own listener; round-trip n -> n+100.
-                   c    (:wat::kernel::accept' (:wat::spawn::Bound/listener b))
-                   n    (:wat::kernel::recv' c)
-                   _    (:wat::kernel::send' c (:wat::core::+ n 100))]
-                  nil))))
-     ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
-     ;; 1-arg — NO `-> :T` ascription (that arrow is enqueued for the kill, arc 258 IO cluster). The
-     ;; type must flow from the channel: the spawn-program' handle should carry the child's self-peer
-     ;; type so `recv'` yields Address' here, and `connect'` confirms it. RED at HEAD = that inference
-     ;; isn't wired (the dep this 6a is blocked on) + Address' has no EDN decode arm.
-     addr (:wat::kernel::recv' svc)
-     ;; dial the capability — the child is guaranteed listening (it sent AFTER listen()).
-     c    (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c 5)
-     got  (:wat::kernel::recv' c)]
-    got))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn child_mints_and_hands_capability_over_lineage_channel() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (6a: capability-over-lineage handoff)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

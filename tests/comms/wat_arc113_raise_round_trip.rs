@@ -14,27 +14,8 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
 
 #[test]
 fn raise_data_round_trips_through_failure_message() {
@@ -54,23 +35,11 @@ fn raise_data_round_trips_through_failure_message() {
     // payload); outer reads only `RunResult/failure`. None of FM 7-ter's
     // three rules fire — no stdio-slot reads, no stdio verbs in body, no
     // runtime config mutation. Thread is the correct (cheaper) destination.
-    let src = r##"
-        (:wat::core::defn :my::compute [] -> :wat::core::Option<wat::holon::HolonAST>
-          (:wat::core::let
-                      [r
-                        (:wat::test::run-thread
-                          (:wat::kernel::raise!
-                            (:wat::holon::leaf 42)))
-                       fail
-                        (:wat::kernel::RunResult/failure r)
-                       recovered
-                        (:wat::core::match fail -> :wat::core::Option<wat::holon::HolonAST>
-                          ((:wat::core::Some f)
-                           (:wat::core::Some (:wat::edn::read (:wat::kernel::Failure/message f))))
-                          (:wat::core::None :wat::core::None))]
-                      recovered))
-    "##;
-    let v = run(src);
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+    let v = eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("compute should run")
+        .value_owned();
     let inner = match v {
         Value::Option(opt) => match &*opt {
             Some(inner) => inner.clone(),

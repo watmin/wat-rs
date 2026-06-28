@@ -11,19 +11,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_0a_persistent_map -- --include-ignored
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value};
 
 #[test]
 fn persistent_map_core_behavior() {
-    let world = startup_from_source(
-        "(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        None,
-        Arc::new(InMemoryLoader::new()),
-    )
-    .expect("startup");
+    let world = startup_bare().expect("startup");
 
     let ev = |expr: &str| -> Value {
         let ast = wat::parse_one!(expr).expect("parse");

@@ -31,20 +31,19 @@
 use std::sync::Arc;
 use wat::ast::WatAST;
 use wat::closure_extract::{extract_closure, ClosurePackage, ExtractionError, ExtractionErrorKind};
-use wat::freeze::{startup_from_forms, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_from_file, startup_from_forms};
 use wat::runtime::{apply_function, eval, Environment, Value};
 use wat::span::Span;
 
 // ─── helpers ────────────────────────────────────────────────────────────
 
-fn freeze(src: &str) -> wat::freeze::FrozenWorld {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+fn freeze(path: &str) -> wat::freeze::FrozenWorld {
+    startup_from_file(path)
         .expect("parent freeze should succeed")
 }
 
 fn re_freeze(forms: Vec<WatAST>) -> wat::freeze::FrozenWorld {
-    startup_from_forms(forms, None, Arc::new(InMemoryLoader::new()))
+    startup_from_forms(forms, None, Arc::new(wat::load::InMemoryLoader::new()))
         .expect("re-freeze should succeed")
 }
 
@@ -250,11 +249,7 @@ fn fn_form_param_pairs(shape: &FnFormShape) -> Vec<(String, String)> {
 
 #[test]
 fn t1_toplevel_defn_no_deps_no_captures() {
-    let src = r#"
-        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t1.wat");
     let fn_value = lookup_fn(&parent, ":my::add-one");
     let package = extract(&parent, &fn_value, Some(":my::add-one"));
     // Keyword-path entry: entry_form is the Keyword reference.
@@ -278,12 +273,7 @@ fn t1_toplevel_defn_no_deps_no_captures() {
 
 #[test]
 fn t2_toplevel_defn_calls_other_defns() {
-    let src = r#"
-        (:wat::core::defn :my::times-two [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
-        (:wat::core::defn :my::times-four [n <- :wat::core::i64] -> :wat::core::i64 (:my::times-two (:my::times-two n)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t2.wat");
     let fn_value = lookup_fn(&parent, ":my::times-four");
     let package = extract(&parent, &fn_value, Some(":my::times-four"));
     assert_entry_form_keyword(&package.entry_form, ":my::times-four");
@@ -310,19 +300,7 @@ fn t2_toplevel_defn_calls_other_defns() {
 
 #[test]
 fn t3_toplevel_defn_uses_user_types() {
-    let src = r#"
-        (:wat::core::defstruct :my::Point
-          [x <- :wat::core::i64
-           y <- :wat::core::i64])
-        (:wat::core::defenum :my::Side
-          :Left
-          :Right)
-        (:wat::core::newtype :my::PriceUsd :wat::core::f64)
-        (:wat::core::typealias :my::Coord :wat::core::i64)
-        (:wat::core::defn :my::compute [p <- :my::Point] -> :wat::core::i64 (:wat::core::i64::+ (:my::Point/x p) (:my::Point/y p)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t3.wat");
     let fn_value = lookup_fn(&parent, ":my::compute");
     let package = extract(&parent, &fn_value, Some(":my::compute"));
     assert_entry_form_keyword(&package.entry_form, ":my::compute");
@@ -363,13 +341,7 @@ fn t3_toplevel_defn_uses_user_types() {
 #[test]
 fn t4_inline_lambda_no_captures() {
     // Factory returns a lambda; we extract it.
-    let src = r#"
-        (:wat::core::defn :my::factory [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                      (:wat::core::i64::+ n 7)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t4.wat");
     let lambda = synth_lambda(&parent, ":my::factory");
     let package = extract(&parent, &lambda, None);
     // Inline lambda: entry_form is the reconstructed fn-form AST.
@@ -400,17 +372,7 @@ fn t4_inline_lambda_no_captures() {
 
 #[test]
 fn t5_inline_lambda_captures_let_scope_struct() {
-    let src = r#"
-        (:wat::core::defstruct :my::Config
-          [offset <- :wat::core::i64])
-        (:wat::core::defn :my::make-adder [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-          (:wat::core::let
-                      [cfg (:my::Config/new 10)]
-                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ n (:my::Config/offset cfg)))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t5.wat");
     let lambda = synth_lambda(&parent, ":my::make-adder");
     let package = extract(&parent, &lambda, None);
     // Expect: type def for :my::Config, capture binding for `cfg` in
@@ -440,21 +402,7 @@ fn t5_inline_lambda_captures_let_scope_struct() {
 
 #[test]
 fn t6_lambda_captures_multiple_mixed_types() {
-    let src = r#"
-        (:wat::core::defstruct :my::Cfg
-          [label <- :wat::core::String])
-        (:wat::core::defn :my::make-multi [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-          (:wat::core::let
-                      [n 7
-                       cfg (:my::Cfg/new "ok")
-                       xs (:wat::core::Vector :wat::core::i64 1 2 3)]
-                      (:wat::core::fn [m <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ m
-                          (:wat::core::i64::+ n
-                            (:wat::core::Vector/length xs))))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t6.wat");
     let lambda = synth_lambda(&parent, ":my::make-multi");
     let package = extract(&parent, &lambda, None);
     // entry_form is fn-form AST; prologue holds types + captures.
@@ -479,16 +427,7 @@ fn t6_lambda_captures_multiple_mixed_types() {
 
 #[test]
 fn t7_factory_pattern() {
-    let src = r#"
-        (:wat::core::defstruct :my::Cfg
-          [val <- :wat::core::i64])
-        (:wat::core::defn :my::factory [config <- :my::Cfg] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-          (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                      (:wat::core::i64::+ n (:my::Cfg/val config))))
-        (:wat::core::defn :my::make [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64 (:my::factory (:my::Cfg/new 100)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t7.wat");
     let lambda = synth_lambda(&parent, ":my::make");
     let package = extract(&parent, &lambda, None);
     // entry_form is fn-form AST (factory result is a synthesized
@@ -513,18 +452,7 @@ fn t8_lambda_captures_sender_is_non_portable() {
     // discipline. We're only testing extraction's portability gate
     // here. Capturing the Sender in the closed env is enough to
     // surface NonPortableCapture.
-    let src = r#"
-        (:wat::core::defn :my::make-snd [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-          (:wat::core::let
-                      [[tx rx] (:wat::kernel::make-channel :wat::core::i64)
-                       dropped rx]
-                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::do
-                          tx
-                          n))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t8.wat");
     let lambda = synth_lambda(&parent, ":my::make-snd");
     let err = extract_err(&parent, &lambda, None);
     match &err {
@@ -559,19 +487,7 @@ fn t9_captured_struct_holds_sender_field_nested() {
     // fields (the type system has Sender<T> as a parametric type).
     // The captured value is a struct; encoding walks fields and the
     // Sender field surfaces as NonPortableCapture.
-    let src = r#"
-        (:wat::core::defstruct :my::Pack
-          [tx <- :wat::kernel::Sender<wat::core::i64>])
-        (:wat::core::defn :my::make-pack [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-          (:wat::core::let
-                      [[tx rx] (:wat::kernel::make-channel :wat::core::i64)
-                       pack (:my::Pack/new tx)
-                       unused rx]
-                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::do pack n))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+    let parent = match startup_from_file("tests/function/wat_arc170_closure_extraction_t9.wat") {
         Ok(w) => w,
         Err(_e) => {
             // Substrate may refuse Sender<T> as a struct field type.
@@ -596,12 +512,7 @@ fn t9_captured_struct_holds_sender_field_nested() {
 
 #[test]
 fn t10_captures_with_type_alias() {
-    let src = r#"
-        (:wat::core::typealias :my::Coord :wat::core::i64)
-        (:wat::core::defn :my::compute [c <- :my::Coord] -> :wat::core::i64 (:wat::core::i64::+ c 1))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t10.wat");
     let fn_value = lookup_fn(&parent, ":my::compute");
     let package = extract(&parent, &fn_value, Some(":my::compute"));
     assert_entry_form_keyword(&package.entry_form, ":my::compute");
@@ -619,14 +530,7 @@ fn t10_captures_with_type_alias() {
 #[test]
 fn t11_captures_with_recursive_struct() {
     // Recursive type via Vector — `:my::Tree` holds a `:Vector<:my::Tree>`.
-    let src = r#"
-        (:wat::core::defstruct :my::Tree
-          [value    <- :wat::core::i64
-           children <- :wat::core::Vector<my::Tree>])
-        (:wat::core::defn :my::root-value [t <- :my::Tree] -> :wat::core::i64 (:my::Tree/value t))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t11.wat");
     let fn_value = lookup_fn(&parent, ":my::root-value");
     let package = extract(&parent, &fn_value, Some(":my::root-value"));
     assert_entry_form_keyword(&package.entry_form, ":my::root-value");
@@ -655,15 +559,7 @@ fn t12_body_uses_expanded_substrate_primitive_macro() {
     // primitives. After expansion, the body references only :wat::core::*.
     // We verify the body's expanded form makes it through extraction
     // and re-freezes cleanly.
-    let src = r#"
-        (:wat::core::defn :my::classify [n <- :wat::core::i64] -> :wat::core::String
-          (:wat::core::cond
-                      ((:wat::core::< n 0) "negative")
-                      ((:wat::core::= n 0) "zero")
-                      (:else "positive")))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t12.wat");
     let fn_value = lookup_fn(&parent, ":my::classify");
     let package = extract(&parent, &fn_value, Some(":my::classify"));
     assert_entry_form_keyword(&package.entry_form, ":my::classify");
@@ -684,16 +580,7 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
     // expansion the body references only substrate; the user macro
     // itself does NOT need to be in `package.prologue` (no runtime
     // dependency).
-    let src = r#"
-        (:wat::core::defmacro :my::triple
-          [x <- :wat::WatAST]
-          -> :wat::WatAST
-          (:wat::core::quasiquote
-            (:wat::core::i64::* (:wat::core::unquote x) 3)))
-        (:wat::core::defn :my::compute [n <- :wat::core::i64] -> :wat::core::i64 (:my::triple n))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t13.wat");
     let fn_value = lookup_fn(&parent, ":my::compute");
     let package = extract(&parent, &fn_value, Some(":my::compute"));
     assert_entry_form_keyword(&package.entry_form, ":my::compute");
@@ -716,13 +603,7 @@ fn t13_body_uses_user_defined_macro_post_expansion() {
 
 #[test]
 fn t14_transitive_three_level_dep_chain() {
-    let src = r#"
-        (:wat::core::defn :my::a [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
-        (:wat::core::defn :my::b [n <- :wat::core::i64] -> :wat::core::i64 (:my::a (:my::a n)))
-        (:wat::core::defn :my::c [n <- :wat::core::i64] -> :wat::core::i64 (:my::b (:my::b n)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t14.wat");
     let fn_value = lookup_fn(&parent, ":my::c");
     let package = extract(&parent, &fn_value, Some(":my::c"));
     assert_entry_form_keyword(&package.entry_form, ":my::c");
@@ -750,11 +631,7 @@ fn t15_behavior_equivalence_across_shapes() {
     // invocation in every case.
     //
     // T1 — top-level defn no captures.
-    let src1 = r#"
-        (:wat::core::defn :my::add-one [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 1))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let p1 = freeze(src1);
+    let p1 = freeze("tests/function/wat_arc170_closure_extraction_t1.wat");
     let f1 = lookup_fn(&p1, ":my::add-one");
     let pkg1 = extract(&p1, &f1, Some(":my::add-one"));
     let fr1 = re_freeze(pkg1.prologue);
@@ -767,17 +644,8 @@ fn t15_behavior_equivalence_across_shapes() {
             other => panic!("non-i64: {:?}", other),
         }
     }
-    // T5 — captures struct.
-    let src5 = r#"
-        (:wat::core::defstruct :my::Config [offset <- :wat::core::i64])
-        (:wat::core::defn :my::make-adder [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-          (:wat::core::let
-                      [cfg (:my::Config/new 99)]
-                      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ n (:my::Config/offset cfg)))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let p5 = freeze(src5);
+    // T5 — captures struct, offset=99.
+    let p5 = freeze("tests/function/wat_arc170_closure_extraction_t15b.wat");
     let lambda5 = synth_lambda(&p5, ":my::make-adder");
     let pkg5 = extract(&p5, &lambda5, None);
     let fr5 = re_freeze(pkg5.prologue);
@@ -804,8 +672,8 @@ fn t15_behavior_equivalence_across_shapes() {
 //
 // Helper that drives extraction expecting the entry to be a
 // keyword-path defn whose body uses match.
-fn extract_and_invoke(src: &str, entry: &str, args: Vec<Value>) -> (Value, Value) {
-    let parent = freeze(src);
+fn extract_and_invoke(path: &str, entry: &str, args: Vec<Value>) -> (Value, Value) {
+    let parent = freeze(path);
     let fn_value = lookup_fn(&parent, entry);
     let package = extract(&parent, &fn_value, Some(entry));
     let parent_result = invoke_in_parent(&parent, &fn_value, args.clone());
@@ -821,14 +689,7 @@ fn t16_match_some_pattern_binds_name() {
     // Body uses `(match opt -> :i64 ((Some n) n) (None 0))`. Pre-fix,
     // `n` surfaced as a free symbol; post-fix, `n` is bound by the
     // arm pattern and resolves locally.
-    let src = r#"
-        (:wat::core::defn :my::option-or-zero [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
-          (:wat::core::match opt -> :wat::core::i64
-                      ((:wat::core::Some n) n)
-                      (:wat::core::None    0)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t16.wat");
     let fn_value = lookup_fn(&parent, ":my::option-or-zero");
     let package = extract(&parent, &fn_value, Some(":my::option-or-zero"));
     let fresh = re_freeze(package.prologue);
@@ -849,15 +710,8 @@ fn t17_match_wildcard_does_not_surface_as_free() {
     // The `_` wildcard binds nothing; pre-fix, `_` was pushed onto the
     // free-symbol queue and triggered UnresolvedSymbol. Post-fix, `_`
     // is filtered at the Symbol arm and ignored at pattern position.
-    let src = r#"
-        (:wat::core::defn :my::is-some? [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::bool
-          (:wat::core::match opt -> :wat::core::bool
-                      ((:wat::core::Some _) true)
-                      (:wat::core::None     false)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
     let (parent_v, fresh_v) = extract_and_invoke(
-        src,
+        "tests/function/wat_arc170_closure_extraction_t17.wat",
         ":my::is-some?",
         vec![Value::Option(Arc::new(Some(Value::i64(42))))],
     );
@@ -870,7 +724,7 @@ fn t17_match_wildcard_does_not_surface_as_free() {
     }
     // None case
     let (parent_v, fresh_v) = extract_and_invoke(
-        src,
+        "tests/function/wat_arc170_closure_extraction_t17.wat",
         ":my::is-some?",
         vec![Value::Option(Arc::new(None))],
     );
@@ -889,15 +743,8 @@ fn t17_match_wildcard_does_not_surface_as_free() {
 fn t18_match_result_patterns_bind_arm_names() {
     // Both Ok and Err patterns; Ok-arm binds `b`, Err-arm has wildcard.
     // This is the dominant shape in the failing eval-coincident tests.
-    let src = r#"
-        (:wat::core::defn :my::unwrap-or-false [r <- :wat::core::Result<wat::core::bool,wat::core::String>] -> :wat::core::bool
-          (:wat::core::match r -> :wat::core::bool
-                      ((:wat::core::Ok b)  b)
-                      ((:wat::core::Err _) false)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
     let (p, f) = extract_and_invoke(
-        src,
+        "tests/function/wat_arc170_closure_extraction_t18.wat",
         ":my::unwrap-or-false",
         vec![Value::Result(Arc::new(Ok(Value::bool(true))))],
     );
@@ -908,7 +755,7 @@ fn t18_match_result_patterns_bind_arm_names() {
         other => panic!("non-bool: {:?}", other),
     }
     let (p, f) = extract_and_invoke(
-        src,
+        "tests/function/wat_arc170_closure_extraction_t18.wat",
         ":my::unwrap-or-false",
         vec![Value::Result(Arc::new(Err(Value::String(Arc::new(
             "boom".to_string(),
@@ -930,18 +777,8 @@ fn t19_match_arm_body_with_inner_let() {
     // name. Pre-fix, the inner let walked under the OUTER scope (no
     // arm bindings) and `i` surfaced as free. The time.wat /
     // iso8601 tests exercise exactly this shape.
-    let src = r#"
-        (:wat::core::defn :my::inc-or-default [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
-          (:wat::core::match opt -> :wat::core::i64
-                      ((:wat::core::Some i)
-                       (:wat::core::let
-                         [s (:wat::core::i64::+ i 1)]
-                         s))
-                      (:wat::core::None 0)))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
     let (p, f) = extract_and_invoke(
-        src,
+        "tests/function/wat_arc170_closure_extraction_t19.wat",
         ":my::inc-or-default",
         vec![Value::Option(Arc::new(Some(Value::i64(41))))],
     );
@@ -953,7 +790,11 @@ fn t19_match_arm_body_with_inner_let() {
         other => panic!("non-i64: {:?}", other),
     }
     let (p, f) =
-        extract_and_invoke(src, ":my::inc-or-default", vec![Value::Option(Arc::new(None))]);
+        extract_and_invoke(
+            "tests/function/wat_arc170_closure_extraction_t19.wat",
+            ":my::inc-or-default",
+            vec![Value::Option(Arc::new(None))],
+        );
     match (p, f) {
         (Value::i64(a), Value::i64(b)) => {
             assert_eq!(a, 0);
@@ -973,18 +814,7 @@ fn t20_match_user_enum_variant_records_type_dep() {
     // must land in prologue (closure-extraction's existing
     // unit-variants resolution stays); the bindings must NOT surface
     // as free symbols.
-    let src = r#"
-        (:wat::core::defenum :my::Shape
-          :Rect [w <- :wat::core::i64
-                 h <- :wat::core::i64]
-          :Circle [r <- :wat::core::i64])
-        (:wat::core::defn :my::shape-area [s <- :my::Shape] -> :wat::core::i64
-          (:wat::core::match s -> :wat::core::i64
-                      ((:my::Shape::Rect w h) (:wat::core::i64::* w h))
-                      ((:my::Shape::Circle r) (:wat::core::i64::* r r))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let parent = freeze(src);
+    let parent = freeze("tests/function/wat_arc170_closure_extraction_t20.wat");
     let fn_value = lookup_fn(&parent, ":my::shape-area");
     let package = extract(&parent, &fn_value, Some(":my::shape-area"));
     // Type defn must be in prologue.
@@ -1019,17 +849,8 @@ fn t21_match_arm_binding_shadows_outer_let() {
     // had `n` in outer locals so no false free-symbol fire — but
     // post-fix we still need the shadowing to be a no-op (locals are
     // BTreeSet so re-inserting an already-bound name is harmless).
-    let src = r#"
-        (:wat::core::defn :my::shadow-test [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
-          (:wat::core::let
-                      [n 100]
-                      (:wat::core::match opt -> :wat::core::i64
-                        ((:wat::core::Some n) n)
-                        (:wat::core::None     n))))
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
     let (p, f) = extract_and_invoke(
-        src,
+        "tests/function/wat_arc170_closure_extraction_t21.wat",
         ":my::shadow-test",
         vec![Value::Option(Arc::new(Some(Value::i64(7))))],
     );
@@ -1041,7 +862,7 @@ fn t21_match_arm_binding_shadows_outer_let() {
         other => panic!("non-i64: {:?}", other),
     }
     let (p, f) = extract_and_invoke(
-        src,
+        "tests/function/wat_arc170_closure_extraction_t21.wat",
         ":my::shadow-test",
         vec![Value::Option(Arc::new(None))],
     );

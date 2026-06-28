@@ -13,17 +13,17 @@
 //!   2. `empty_vector_parses` — `[]` parses as empty Vector
 //!   3. `nested_vector_in_list_parses` — `(:foo [1 2 3])` parses with
 //!      the inner `[1 2 3]` as a Vector child of the outer List
-//!   4. `vector_at_value_position_errors_clearly` — startup-time error
-//!      contains the literal "vector literals at value position are not
-//!      supported" string
-//!   5. `vector_at_value_position_in_define_body_errors` — same error
-//!      surfaces when the Vector is inside a `:wat::core::define` body
+//!   4. `vector_at_value_position_works_after_arc215` — startup-time success
+//!      (arc 215 stone 2: `[1 2 3]` at expression position now works)
+//!   5. `vector_at_value_position_in_define_body_works_after_arc215` — same
+//!
+//! Tests 4 and 5 share the co-located fixture: wat_arc167_vector_ast.wat
+//! (slurped via startup_beside(file!())).
 
-use std::sync::Arc;
 use wat::ast::WatAST;
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::parse_one;
-
+use wat::runtime::{Environment, Value};
 
 // ─── Test 1 — top-level vector parses as Vector ────────────────────────────
 
@@ -118,14 +118,7 @@ fn nested_vector_in_list_parses() {
 /// type-checks as `Vec<i64>` and evaluates to length 3 at runtime.
 #[test]
 fn vector_at_value_position_works_after_arc215() {
-    use wat::freeze::{eval_in_frozen, startup_from_source};
-    use wat::runtime::{Environment, Value};
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("arc 215 stone 2: [1 2 3] at value position must type-check");
     let ast = parse_one!("(:my::probe)").expect("parse probe call");
     let env = Environment::new();
@@ -146,15 +139,8 @@ fn vector_at_value_position_works_after_arc215() {
 /// length is 3.
 #[test]
 fn vector_at_value_position_in_define_body_works_after_arc215() {
-    use wat::freeze::{eval_in_frozen, startup_from_source};
-    use wat::runtime::{Environment, Value};
-    // The return type uses the explicit parametric path.
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::i64 (:wat::core::length [1 2 3]))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    // Shares the co-located fixture with test 4.
+    let world = startup_beside(file!())
         .expect("arc 215 stone 2: [1 2 3] in define body must type-check");
     let ast = parse_one!("(:my::probe)").expect("parse probe call");
     let env = Environment::new();

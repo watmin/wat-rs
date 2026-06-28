@@ -23,60 +23,12 @@
 //! Run SERIALLY (spawns a thread):
 //!   cargo test --release -p wat --test probe_arc209_bound_listener -- --test-threads=1
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-;; The client op protocol: compute-and-reply. No Stop op — the owner dropping its
-;; handle (→ :Shutdown) terminates the service structurally (the c0b1b guarantee).
-(:wat::core::defenum :user::Op
-  :Compute [n <- :wat::core::i64])
-
-;; The service loop — poll' multiplexes the self-peer, the listener, the clients.
-(:wat::core::defn :user::serve
-  [self    <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>
-   l       <- :wat::kernel::Listener'<user::Op,wat::core::i64>
-   clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,user::Op>>]
-  -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
-    (:wat::spawn::ServiceEvent::Shutdown nil)
-    ((:wat::spawn::ServiceEvent::Connection peer)
-      (:user::serve self l (:wat::core::conj clients peer)))
-    ((:wat::spawn::ServiceEvent::Message idx msg)
-      (:wat::core::match msg -> :wat::core::nil
-        ((:user::Op::Compute n)
-          (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
-                                 (:wat::core::* n 2))]
-            (:user::serve self l clients)))))
-    ((:wat::spawn::ServiceEvent::Closed idx)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))
-    ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))
-    (_ nil)))
-
-;; Spawn the service, connect one client, round-trip a scalar (5*2 = 10), then
-;; scope-exit drops `svc` → :Shutdown → the service terminates and the join completes.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [b    (:wat::kernel::listener' (:wat::spawn::thread) :user::Op :wat::core::i64)
-     l    (:wat::spawn::Bound/listener b)
-     addr (:wat::spawn::Bound/address b)
-     svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-              (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))
-     c1   (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c1 (:user::Op::Compute 5))
-     r1   (:wat::kernel::recv' c1)]
-    r1))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn listener_thread_tier_returns_bound_struct() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (Bound defstruct + listener' thread tier returns Bound)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

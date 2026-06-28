@@ -1,0 +1,9 @@
+;; T5: inline lambda captures let-scope struct value (offset=10).
+(:wat::core::defstruct :my::Config
+  [offset <- :wat::core::i64])
+(:wat::core::defn :my::make-adder [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
+  (:wat::core::let
+              [cfg (:my::Config/new 10)]
+              (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+                (:wat::core::i64::+ n (:my::Config/offset cfg)))))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

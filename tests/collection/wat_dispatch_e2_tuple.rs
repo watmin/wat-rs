@@ -1,11 +1,11 @@
 //! E2 — tuple marshaling through `#[wat_dispatch]`.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
-//! Computation moved to :my::compute; canonical nil main appended.
+//! Computation moved to distinct :my::compute-* defns; slurped via startup_beside(file!()).
+//!
+//! Wat source lives in the co-located fixture: wat_dispatch_e2_tuple.wat
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
@@ -39,19 +39,9 @@ fn install() {
     });
 }
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+fn run(call: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(call).expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
@@ -59,36 +49,19 @@ fn run(src: &str) -> Value {
 #[test]
 fn sum2_via_macro() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::TupleUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::TupleUtils::sum2 (:wat::core::Tuple 20 22)))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)), "got {:?}", run(src));
+    assert!(matches!(run("(:my::compute-sum2)"), Value::i64(42)), "got {:?}", run("(:my::compute-sum2)"));
 }
 
 #[test]
 fn pair_of_returns_tuple() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::TupleUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:wat::core::first (:rust::test::TupleUtils::pair_of 7 13)))
-    "#;
-    assert!(matches!(run(src), Value::i64(7)), "got {:?}", run(src));
+    assert!(matches!(run("(:my::compute-pair-first)"), Value::i64(7)), "got {:?}", run("(:my::compute-pair-first)"));
 }
 
 #[test]
 fn heterogeneous_triple_via_macro() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::TupleUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::String
-          (:rust::test::TupleUtils::describe
-                      (:wat::core::Tuple 1 "row" true)))
-    "#;
-    match run(src) {
+    match run("(:my::compute-describe)") {
         Value::String(s) => assert_eq!(&*s, "1/row/true"),
         other => panic!("expected string, got {:?}", other),
     }

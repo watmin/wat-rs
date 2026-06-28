@@ -7,111 +7,45 @@
 //! - Polymorphic cosine: AST-AST, Vector-Vector, mixed
 //! - Polymorphic dot: same surface as cosine
 //! - Polymorphic simhash: AST input vs Vector input agree
-//! - Type system: rejects non-AST, non-Vector inputs
-//! - Cross-dim guards (deferred — single-d test fixtures only)
+//! - Type system: cosine accepts EDN-representable types (arc 294.a)
+//! - Determinism: encode is reproducible
+//!
+//! Wat source lives in the co-located fixture: vector_first_class.wat
+//! (slurped via startup_beside(file!())). Functions return String/f64 results
+//! so tests use eval_in_frozen rather than stdout capture.
 
-use std::os::fd::{FromRawFd, OwnedFd};
-use std::sync::Arc;
-use wat::freeze::{invoke_user_main, startup_from_source};
-use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::load::InMemoryLoader;
-use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
+use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::runtime::{Environment, Value};
 
-fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
-    let mut fds = [0i32; 2];
-    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
-    assert_eq!(r, 0, "pipe(2) succeeded");
-    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
-    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
-    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(read_fd));
-    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(write_fd));
-    (reader, writer)
-}
-
-fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
-    let bytes = reader
-        .read_all(wat::span::Span::unknown())
-        .expect("read-all");
-    let s = String::from_utf8(bytes).expect("utf8");
-    if s.is_empty() {
-        return Vec::new();
+fn run_str(call: &str) -> String {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(call).expect("parse");
+    match eval_in_frozen(&ast, &world, &Environment::new())
+        .expect("eval")
+        .value_owned()
+    {
+        Value::String(s) => (*s).clone(),
+        other => panic!("expected String; got {other:?}"),
     }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    lines
-}
-
-fn run(src: &str) -> Vec<String> {
-    let _ = take_ambient_stdio();
-    let world =
-        startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("startup");
-    let (stdin_service, _stdin_inject) = pipe_pair();
-    let (stdout_capture, stdout_service) = pipe_pair();
-    let (_stderr_capture, stderr_service) = pipe_pair();
-    install_ambient_stdio(AmbientStdio {
-        stdin: stdin_service,
-        stdout: stdout_service,
-        stderr: stderr_service,
-    });
-    invoke_user_main(&world, Vec::new()).expect("main");
-    let _ = take_ambient_stdio();
-    drain_lines(&stdout_capture)
-}
-
-fn run_expecting_check_error(src: &str) -> String {
-    let err = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .expect_err("startup should fail with check error");
-    format!("{:?}", err)
 }
 
 // ─── Construct + equality ────────────────────────────────────────────
 
 #[test]
 fn vector_construct_via_encode() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [v1 (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       v2 (:wat::holon::encode (:wat::holon::to-holon "x"))]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::= v1 v2) -> :wat::core::String "equal" "diff"))))
-    "##;
-    assert_eq!(run(src), vec!["\"equal\"".to_string()]);
+    assert_eq!(run_str("(:vfc::construct-via-encode)"), "equal");
 }
 
 #[test]
 fn vector_distinct_atoms_distinct_vectors() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [va (:wat::holon::encode (:wat::holon::to-holon "alpha"))
-                       vb (:wat::holon::encode (:wat::holon::to-holon "beta"))]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::= va vb) -> :wat::core::String "same" "diff"))))
-    "##;
-    assert_eq!(run(src), vec!["\"diff\"".to_string()]);
+    assert_eq!(run_str("(:vfc::distinct-atoms)"), "diff");
 }
 
 // ─── Vector as struct field ─────────────────────────────────────────
 
 #[test]
 fn vector_as_struct_field_roundtrip() {
-    let src = r##"
-        (:wat::core::defstruct :my::Engram
-          [label <- :wat::core::String
-           vec   <- :wat::holon::Vector])
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [v (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       e (:my::Engram/new "alpha" v)
-                       retrieved (:my::Engram/vec e)]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::= v retrieved) -> :wat::core::String "yes" "no"))))
-    "##;
-    assert_eq!(run(src), vec!["\"yes\"".to_string()]);
+    assert_eq!(run_str("(:vfc::struct-field-roundtrip)"), "yes");
 }
 
 // ─── Polymorphic cosine — all four argument shapes ──────────────────
@@ -119,107 +53,49 @@ fn vector_as_struct_field_roundtrip() {
 #[test]
 fn polymorphic_cosine_ast_ast() {
     // Existing behavior preserved.
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [a (:wat::holon::to-holon "x")
-                       b (:wat::holon::to-holon "x")
-                       c (:wat::holon::cosine a b)]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
-    "##;
-    assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
+    assert_eq!(run_str("(:vfc::cosine-ast-ast)"), "near-1");
 }
 
 #[test]
 fn polymorphic_cosine_vector_vector() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       c (:wat::holon::cosine va vb)]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
-    "##;
-    assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
+    assert_eq!(run_str("(:vfc::cosine-vec-vec)"), "near-1");
 }
 
 #[test]
 fn polymorphic_cosine_ast_vector_mixed() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [a (:wat::holon::to-holon "x")
-                       vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       c (:wat::holon::cosine a vb)]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
-    "##;
-    assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
+    assert_eq!(run_str("(:vfc::cosine-ast-vec)"), "near-1");
 }
 
 #[test]
 fn polymorphic_cosine_vector_ast_mixed() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       b (:wat::holon::to-holon "x")
-                       c (:wat::holon::cosine va b)]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
-    "##;
-    assert_eq!(run(src), vec!["\"near-1\"".to_string()]);
+    assert_eq!(run_str("(:vfc::cosine-vec-ast)"), "near-1");
 }
 
 // ─── Polymorphic dot — Vector pair ──────────────────────────────────
 
 #[test]
 fn polymorphic_dot_vector_vector() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [va (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       vb (:wat::holon::encode (:wat::holon::to-holon "x"))
-                       d (:wat::holon::dot va vb)]
-                      ;; dot on the SAME vector should be sizeable (positive, bounded).
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::> d 0.0) -> :wat::core::String "positive" "non-positive"))))
-    "##;
-    assert_eq!(run(src), vec!["\"positive\"".to_string()]);
+    assert_eq!(run_str("(:vfc::dot-vec-vec)"), "positive");
 }
 
 // ─── Polymorphic simhash — AST and Vector inputs agree ──────────────
 
 #[test]
 fn polymorphic_simhash_ast_and_vector_agree() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [ast (:wat::holon::to-holon "alpha")
-                       vec (:wat::holon::encode ast)
-                       k-ast (:wat::holon::simhash ast)
-                       k-vec (:wat::holon::simhash vec)]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::= k-ast k-vec) -> :wat::core::String "same" "diff"))))
-    "##;
-    assert_eq!(run(src), vec!["\"same\"".to_string()]);
+    assert_eq!(run_str("(:vfc::simhash-agree)"), "same");
 }
 
 // ─── Type system: cosine accepts EDN-representable types (arc 294.a) ───────────
 
 // Arc 294.a — UPDATED: cosine now accepts any EdnRepresentable value, lifting via
 // to_holon_inner. String IS EDN-representable (portable); the old type rejection
-// was the inversion 294.a annihilates. Renamed to document the new behavior.
+// was the inversion 294.a annihilates. The fixture defn :vfc::cosine-string exists
+// to force type-checking at startup_beside time; startup succeeding proves acceptance.
 #[test]
 fn polymorphic_cosine_accepts_string() {
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let [sim (:wat::holon::cosine "hello" "world")]
-                      (:wat::kernel::pprintln sim)))
-    "##;
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
+    // startup_beside type-checks the fixture including :vfc::cosine-string.
+    // If cosine rejects String args, startup fails here.
+    let world = startup_beside(file!());
     assert!(
         world.is_ok(),
         "cosine on string args must now succeed (String is EDN-representable); got: {:?}",
@@ -232,21 +108,5 @@ fn polymorphic_cosine_accepts_string() {
 #[test]
 fn vector_encode_deterministic_across_calls() {
     // Two encodes of an identical compound AST → equal Vectors.
-    let src = r##"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [a
-                        (:wat::holon::Bind
-                          (:wat::holon::to-holon "role")
-                          (:wat::holon::to-holon "filler"))
-                       b
-                        (:wat::holon::Bind
-                          (:wat::holon::to-holon "role")
-                          (:wat::holon::to-holon "filler"))
-                       va (:wat::holon::encode a)
-                       vb (:wat::holon::encode b)]
-                      (:wat::kernel::println
-                        (:wat::core::if (:wat::core::= va vb) -> :wat::core::String "deterministic" "drift"))))
-    "##;
-    assert_eq!(run(src), vec!["\"deterministic\"".to_string()]);
+    assert_eq!(run_str("(:vfc::encode-deterministic)"), "deterministic");
 }

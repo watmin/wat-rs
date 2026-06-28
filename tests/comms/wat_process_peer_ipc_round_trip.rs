@@ -45,22 +45,10 @@
 //! echo request. Not child/parent (OS-tree) — the role framing is the
 //! conversation, not the process lineage.
 
-use std::sync::Arc;
-
 use wat::ast::WatAST;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_bare, startup_beside};
 use wat::runtime::{eval, Environment, Value};
 use wat::span::Span;
-
-// ─── helpers ───────────────────────────────────────────────────────────
-
-fn freeze_ok(src: &str) -> wat::freeze::FrozenWorld {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(w) => w,
-        Err(e) => panic!("freeze should succeed; got: {}", e),
-    }
-}
 
 /// Arc 170 slice 6 helper — wrap a child-program source string as a
 /// `(:wat::kernel::spawn-process (:wat::core::forms <forms>...))` call
@@ -111,18 +99,7 @@ fn process_peer_type_mints_in_both_parametric_orientations() {
     // purely that the parametric type resolves at freeze time. Mirror
     // of the Stone C1 ThreadPeer mint test (asymmetry vs symmetry
     // matters at the runtime surface, not at type-registration time).
-    let src = r#"
-        (:wat::core::defn :my::client-reads-i64-writes-string
-          [_peer <- :wat::kernel::ProcessPeer<wat::core::i64,wat::core::String>]
-          -> :wat::core::nil
-          nil)
-
-        (:wat::core::defn :my::client-reads-string-writes-i64
-          [_peer <- :wat::kernel::ProcessPeer<wat::core::String,wat::core::i64>]
-          -> :wat::core::nil
-          nil)
-    "#;
-    let world = freeze_ok(src);
+    let world = startup_beside(file!()).expect("startup");
     assert!(
         world
             .symbols()
@@ -146,7 +123,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     // Empty parent world (no helper defines at freeze time). The
     // subprocess program is self-contained per the arc 170 slice 6
     // substrate contract.
-    let world = freeze_ok("");
+    let world = startup_bare().expect("startup");
 
     // Server side: a single `:user::main` that reads one line via
     // ambient `(:wat::kernel::readln -> :wat::core::String)` and echoes
@@ -244,7 +221,7 @@ fn process_peer_is_client_side_only_no_server_variant_emitted() {
     // stdin/stdout, so the server side has no peer struct; it uses
     // ambient `(:wat::kernel::readln)` / `(:wat::kernel::println)`).
     // The symmetric ThreadPeer is checked for contrast.
-    let world = freeze_ok("");
+    let world = startup_bare().expect("startup");
     assert!(
         world.types().contains(":wat::kernel::ProcessPeer"),
         ":wat::kernel::ProcessPeer (client-side) must be registered"

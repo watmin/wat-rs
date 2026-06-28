@@ -10,38 +10,12 @@
 //! Forks (`spawn-program' (process)`) → its own [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6c2_record_ipc_derisk
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-
-const PROGRAM: &str = r#"
-(:wat::core::defrecord :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [svc (:wat::kernel::spawn-program' (:wat::spawn::process)
-            (:wat::core::forms
-              ;; The forked child runs a FRESH startup (stdlib prelude + these forms only) — it does
-              ;; NOT inherit the parent's top-level defs. So the record must be defined HERE too (D1's
-              ;; SocketAddressWire avoids this by living in spawn.wat/stdlib, loaded in every universe).
-              (:wat::core::defrecord :user::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-              (:wat::core::defn :user::main [] -> :wat::core::nil
-                (:wat::core::let
-                  ;; the child mints a plain base record and hands it to the parent over the self-peer.
-                  [self (:wat::program::self-peer :user::Pt :wat::core::i64)
-                   _    (:wat::kernel::send' self (:user::Pt 7 35))]
-                  nil))))
-     ;; the parent recv's the record off the lineage channel; reconstruct via the EDN wire.
-     pt  (:wat::kernel::recv' svc)]
-    (:wat::core::+ (:user::Pt/x pt) (:user::Pt/y pt))))
-
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 #[test]
 fn plain_record_round_trips_over_process_ipc() {
-    let world = startup_from_source(PROGRAM, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_beside(file!())
         .expect("startup should succeed (de-risk: record over process IPC)");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())

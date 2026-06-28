@@ -38,30 +38,27 @@
 //! Post arc-155-slice-2 + arc-163, bare `:wat::core::lambda` fires
 //! BareLegacyLambda fatal. Tests that previously expected silent
 //! alias now assert the fatal diagnostic via `startup_err`.
+//!
+//! Wat source: tests/function/fn_rename.wat (positive combined fixture via
+//! startup_beside) and tests/function/fn_rename_*.wat (per-negative-test fixtures).
 
-use std::sync::Arc;
-use wat::freeze::startup_from_source;
-use wat::load::InMemoryLoader;
+use wat::freeze::{startup_beside, startup_from_file};
 
-/// Asserts the given source starts up cleanly (canonical forms;
-/// no legacy spellings in source). Used for positive-case tests that
-/// should succeed regardless of stdlib pre-sweep state. Note: if the
-/// stdlib still has legacy lambda sites, positive tests may need to
-/// tolerate BareLegacyLambda errors from stdlib files (arc 154 pattern).
-#[allow(dead_code)]
-fn startup_ok(src: &str) {
-    if let Err(e) = startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        panic!("expected startup success; got errors: {:?}", e);
+fn startup_ok() {
+    startup_beside(file!()).expect("expected startup success");
+}
+
+fn startup_err(path: &str) -> String {
+    match startup_from_file(path) {
+        Err(e) => format!("{:?}", e),
+        Ok(_) => panic!("expected startup error; got Ok"),
     }
 }
 
-/// Arc 163 follow-up — walker re-arm tests need this. Asserts startup
-/// returns Err and returns the diagnostic string for substring checks.
-#[allow(dead_code)]
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn startup_maybe_err(path: &str) -> String {
+    match startup_from_file(path) {
+        Ok(_) => String::new(),
         Err(e) => format!("{:?}", e),
-        Ok(_) => panic!("expected startup error; got Ok"),
     }
 }
 
@@ -69,23 +66,9 @@ fn startup_err(src: &str) -> String {
 
 #[test]
 fn lambda_post_retirement_silently_aliases_to_fn() {
-    // Arc 155 slice 2: `validate_legacy_lambda` walker body retired
-    // per substrate-as-teacher § "Retire the hint when its window
-    // closes." Runtime dispatch arm for `:wat::core::lambda` also
-    // retired in arc 155 slice 2 (no fall-through; source-level use
-    // fires BareLegacyLambda fatal at check time via arc-163 re-arm).
-    //
-    // User-facing discipline: `:wat::core::fn` is the canonical
-    // operator; `:wat::core::lambda` fires a fatal diagnostic.
-    // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
-    // fires BareLegacyLambda fatal (replaces the soft fall-through).
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::i64
-          ((:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
-                       x)
-                     5))
-    "#;
-    let err = startup_err(src);
+    // Arc 155 slice 2 + arc 163 re-arm: bare :wat::core::lambda fires
+    // BareLegacyLambda fatal at check time (no runtime fall-through).
+    let err = startup_err("tests/function/fn_rename_legacy_lambda.wat");
     assert!(
         err.contains("BareLegacyLambda"),
         "expected BareLegacyLambda walker to fire on bare :wat::core::lambda; got: {}",
@@ -99,44 +82,17 @@ fn lambda_post_retirement_silently_aliases_to_fn() {
 fn fn_keyword_operator_position_works() {
     // `:wat::core::fn` in operator position routes to `infer_fn` /
     // `eval_fn`; no walker fires on this form. Canonical form is
-    // fully wired. Computation moved to `(:my::apply ...)` helper;
-    // main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :my::apply [] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                       x)
-                     5))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    // fully wired.
+    startup_ok();
 }
 
 // ─── 3. Type-position retired: bare :fn(...) fires BareLegacyLowercaseFn
-//        Note: inner args must NOT have leading ':' (arc 115 rule)
-//        Note: must appear in BODY AST (not in define's own param list)
-//        because define params are consumed at registration time before
-//        check_program runs its walkers.
 
 #[test]
 fn bare_fn_type_post_retirement_walker_silent() {
-    // Arc 155 slice 2: `walk_for_legacy_lowercase_fn` walker body
-    // retired. Bare `:fn(...)` type-position keywords parse as
-    // `TypeExpr::Fn` via the substrate's existing parser; no walker
-    // fires. Documentation discourages bare form; substrate doesn't
-    // enforce. Mirrors arc 113's orphaned-scaffolding pattern.
     // Arc 163 follow-up — walker re-armed; bare `:fn(...)` fires
     // BareLegacyLowercaseFn fatal.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::i64
-          ((:wat::core::fn
-                       [g <- :fn(wat::core::i64)->wat::core::i64]
-                        ->
-                        :wat::core::i64
-                       (g 5))
-                     (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
-    "#;
-    let err = startup_err(src);
+    let err = startup_err("tests/function/fn_rename_bare_fn_type.wat");
     assert!(
         err.contains("BareLegacyLowercaseFn"),
         "expected BareLegacyLowercaseFn walker to fire on bare :fn(...); got: {}",
@@ -151,19 +107,7 @@ fn fqdn_fn_type_position_works() {
     // `:wat::core::Fn(...)` at type position resolves to `TypeExpr::Fn`
     // via the arc 155 `wat::core::Fn(` prefix in `parse_type_inner`.
     // No BareLegacyLowercaseFn fires. Canonical form is fully wired.
-    // Main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :user::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
-
-        (:wat::core::defn :my::invoke [] -> :wat::core::i64
-          (:user::apply
-                      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                        x)
-                      42))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    startup_ok();
 }
 
 // ─── 5. Walker narrowness — operator: :wat::core::fn not flagged by
@@ -173,20 +117,7 @@ fn fqdn_fn_type_position_works() {
 fn fn_operator_keyword_does_not_fire_lowercase_fn_walker() {
     // `:wat::core::fn` in operator position does NOT start with `:fn(`;
     // the `walk_for_legacy_lowercase_fn` walker must NOT fire on it.
-    // (`:wat::core::fn` ≠ `:fn(` — different prefix.)
-    // Main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :my::apply [] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                       x)
-                     7))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err_str = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => String::new(),
-        Err(e) => format!("{:?}", e),
-    };
+    let err_str = startup_maybe_err("tests/function/fn_rename.wat");
     assert!(
         !err_str.contains("BareLegacyLowercaseFn"),
         "BareLegacyLowercaseFn must NOT fire on :wat::core::fn operator; got: {}",
@@ -201,22 +132,7 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
     // `:wat::core::Fn(...)` does NOT start with `:fn(`; the
     // `walk_for_legacy_lowercase_fn` walker must NOT fire on the
     // canonical FQDN form.
-    // Main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :user::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
-
-        (:wat::core::defn :my::invoke [] -> :wat::core::i64
-          (:user::apply
-                      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ x 1))
-                      10))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err_str = match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => String::new(),
-        Err(e) => format!("{:?}", e),
-    };
+    let err_str = startup_maybe_err("tests/function/fn_rename.wat");
     assert!(
         !err_str.contains("BareLegacyLowercaseFn"),
         "BareLegacyLowercaseFn must NOT fire on :wat::core::Fn(...) type; got: {}",
@@ -231,16 +147,7 @@ fn multiple_lambda_sites_post_retirement_silently_alias() {
     // Post-arc-155-slice-2 + arc-163: walker re-armed; runtime dispatch
     // arm for `:wat::core::lambda` retired. Multiple legacy-spelling
     // forms in one program all fire BareLegacyLambda fatal.
-    // (arc 113 scaffolding pattern; arc 163 re-armed the walker.)
-    // Arc 163 follow-up — walker re-armed; bare :wat::core::lambda
-    // fires BareLegacyLambda fatal.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::i64
-          ((:wat::core::lambda (() -> :wat::core::i64)
-                       (:wat::core::i64::+ 1 2))
-                     ))
-    "#;
-    let err = startup_err(src);
+    let err = startup_err("tests/function/fn_rename_multi_lambda.wat");
     assert!(
         err.contains("BareLegacyLambda"),
         "expected BareLegacyLambda walker to fire on bare :wat::core::lambda; got: {}",
@@ -253,43 +160,16 @@ fn multiple_lambda_sites_post_retirement_silently_alias() {
 #[test]
 fn fn_body_in_tail_position_type_checks() {
     // A `:wat::core::fn` expression whose body calls a user-defined
-    // function type-checks correctly. The `infer_fn` body handles
-    // the `push_enclosing_ret` / `pop_enclosing_ret` discipline from
-    // the former `infer_lambda`.
-    // Main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :user::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
-
-        (:wat::core::defn :my::apply [] -> :wat::core::i64
-          ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                       (:user::double n))
-                     5))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    // function type-checks correctly.
+    startup_ok();
 }
 
 // ─── 9. Mixed canonical: :wat::core::fn + :wat::core::Fn together
 
 #[test]
 fn mixed_canonical_fn_operator_and_fn_type_work_together() {
-    // Both renames in their canonical forms used in the same program:
-    // `:wat::core::Fn(...)` for the function type annotation and
-    // `(:wat::core::fn ...)` for the function value.
-    // Main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :user::apply [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (f x))
-
-        (:wat::core::defn :my::invoke [] -> :wat::core::i64
-          (:user::apply
-                      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                        (:wat::core::i64::+ x 1))
-                      5))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    // Both renames in their canonical forms used in the same program.
+    startup_ok();
 }
 
 // ─── 10. Pre-existing arc test compat: :wat::core::fn + :wat::core::let
@@ -297,21 +177,8 @@ fn mixed_canonical_fn_operator_and_fn_type_work_together() {
 #[test]
 fn fn_body_with_let_type_checks() {
     // Verifies arc 154's sequential `let` still works correctly inside
-    // a `:wat::core::fn` body (the migration path is open — new `fn`
-    // operator composes with other renamed forms from today).
-    // Main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :my::apply [] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::let
-                         [a (:wat::core::i64::+ x 5)
-                          b (:wat::core::i64::* a 2)]
-                         b))
-                     3))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    // a `:wat::core::fn` body.
+    startup_ok();
 }
 
 // ─── 11. Reflection: :wat::core::fn registry entry — positive case
@@ -319,42 +186,18 @@ fn fn_body_with_let_type_checks() {
 #[test]
 fn reflection_fn_registry_entry_exists() {
     // The special-forms registry minted `:wat::core::fn` in arc 155
-    // slice 1a (`src/special_forms.rs`). A program that uses
-    // `:wat::core::fn` as a callable should route through `infer_fn`
-    // + `eval_fn`.
-    // Main is canonical nil (arc 170 slice 1f-ζ migration).
-    let src = r#"
-        (:wat::core::defn :my::apply [] -> :wat::core::i64
-          ((:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::i64::+ a b))
-                     10 20))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    startup_ok(src);
+    // slice 1a. A program that uses `:wat::core::fn` as a callable
+    // should route through `infer_fn` + `eval_fn`.
+    startup_ok();
 }
 
 // ─── 12. Both walkers retired post-slice-2 — mixed-legacy program silently runs
 
 #[test]
 fn both_legacy_walkers_retired_silently_alias() {
-    // Post-arc-155-slice-2: both walkers retired; both legacy
-    // spellings (`:wat::core::lambda` operator + bare `:fn(...)` type)
-    // pass through silently via dispatch fall-through (lambda) and
-    // existing parser support (bare fn). Mixed-legacy programs
-    // type-check cleanly. Per arc 113 scaffolding precedent.
-    // Arc 163 follow-up — walker re-armed for both surfaces; mixed
+    // Post-arc-155-slice-2: walker re-armed for both surfaces; mixed
     // legacy program now fires BOTH BareLegacyLambda + BareLegacyLowercaseFn.
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::i64
-          ((:wat::core::lambda
-                       ((g :fn(wat::core::i64)->wat::core::i64)
-                        ->
-                        :wat::core::i64)
-                       (g 5))
-                     (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)))
-    "#;
-    let err = startup_err(src);
+    let err = startup_err("tests/function/fn_rename_mixed_legacy.wat");
     assert!(
         err.contains("BareLegacyLambda") && err.contains("BareLegacyLowercaseFn"),
         "expected BOTH BareLegacyLambda + BareLegacyLowercaseFn walkers to fire; got: {}",

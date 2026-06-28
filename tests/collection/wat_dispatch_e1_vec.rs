@@ -2,11 +2,11 @@
 //! Fixture exposes associated fns that accept and return Vec<i64>.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
-//! Computation moved to :my::compute; canonical nil main appended.
+//! Computation moved to distinct :my::compute-* defns; slurped via startup_beside(file!()).
+//!
+//! Wat source lives in the co-located fixture: wat_dispatch_e1_vec.wat
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 use wat_macros::wat_dispatch;
 
@@ -41,19 +41,9 @@ fn install() {
     });
 }
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+fn run(call: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(call).expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
@@ -61,47 +51,23 @@ fn run(src: &str) -> Value {
 #[test]
 fn sum_vec_via_macro() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::VecUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64 10 20 30)))
-    "#;
-    assert!(matches!(run(src), Value::i64(60)), "got {:?}", run(src));
+    assert!(matches!(run("(:my::compute-sum)"), Value::i64(60)), "got {:?}", run("(:my::compute-sum)"));
 }
 
 #[test]
 fn reverse_vec_via_macro() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::VecUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::first
-            (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3))))
-    "#;
-    assert!(matches!(run(src), Value::i64(3)), "got {:?}", run(src));
+    assert!(matches!(run("(:my::compute-reverse)"), Value::i64(3)), "got {:?}", run("(:my::compute-reverse)"));
 }
 
 #[test]
 fn sort_vec_via_macro() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::VecUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::first
-            (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1))))
-    "#;
-    assert!(matches!(run(src), Value::i64(1)), "got {:?}", run(src));
+    assert!(matches!(run("(:my::compute-sort)"), Value::i64(1)), "got {:?}", run("(:my::compute-sort)"));
 }
 
 #[test]
 fn empty_vec_via_macro() {
     install();
-    let src = r#"
-        (:wat::core::use! :rust::test::VecUtils)
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64)))
-    "#;
-    assert!(matches!(run(src), Value::i64(0)), "got {:?}", run(src));
+    assert!(matches!(run("(:my::compute-empty)"), Value::i64(0)), "got {:?}", run("(:my::compute-empty)"));
 }

@@ -1,0 +1,5 @@
+;; T4: inline lambda, no captures (factory pattern returning fn).
+(:wat::core::defn :my::factory [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
+  (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
+              (:wat::core::i64::+ n 7)))
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)

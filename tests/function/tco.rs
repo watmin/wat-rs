@@ -27,25 +27,15 @@
 //! - `try` and `TailCall` coexist: a function that tail-recurses in
 //!   its happy path and short-circuits with `try` on the error path
 //!   behaves correctly on both.
+//!
+//! Wat source: tests/function/tco.wat (shared world via startup_beside).
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
+fn run(compute_fn: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(&format!("({compute_fn})")).expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
@@ -58,16 +48,7 @@ fn self_recursion_via_if_at_million_depth() {
     // TCO this overflows the default 8MB thread stack well before 1M
     // frames (a fresh apply_function + eval frame per iteration). With
     // TCO the loop in apply_function reuses one frame the entire way.
-    let src = r#"
-
-        (:wat::core::defn :app::countdown [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
-                      acc
-                      (:app::countdown (:wat::core::i64::- n 1) (:wat::core::i64::+ acc 1))))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::countdown 1000000 0))
-    "#;
-    assert!(matches!(run(src), Value::i64(1_000_000)));
+    assert!(matches!(run(":user::compute_t1"), Value::i64(1_000_000)));
 }
 
 // ─── Self-recursion via match (driver-loop shape) ─────────────────────
@@ -75,26 +56,9 @@ fn self_recursion_via_if_at_million_depth() {
 #[test]
 fn self_recursion_via_match_at_high_depth() {
     // Models a driver loop: match an Option, in
-    // the Some arm do work and recurse tail; in the None arm exit. The
-    // forcing-function case the user named. Uses :wat::std::list::take
-    // to hand back Option<i64> values from a Vec.
-    //
+    // the Some arm do work and recurse tail; in the None arm exit.
     // 100k iterations — well past any default stack without TCO.
-    let src = r#"
-
-        (:wat::core::defn :app::drain [remaining <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::match
-                      (:wat::core::if (:wat::core::> remaining 0) -> :wat::core::Option<wat::core::i64>
-                        (:wat::core::Some remaining)
-                        :wat::core::None)
-                      -> :wat::core::i64
-                      ((:wat::core::Some v)
-                        (:app::drain (:wat::core::i64::- v 1) (:wat::core::i64::+ acc 1)))
-                      (:wat::core::None acc)))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::drain 100000 0))
-    "#;
-    assert!(matches!(run(src), Value::i64(100_000)));
+    assert!(matches!(run(":user::compute_t2"), Value::i64(100_000)));
 }
 
 // ─── Mutual recursion ─────────────────────────────────────────────────
@@ -104,21 +68,7 @@ fn mutual_recursion_between_two_defines() {
     // A tail-calls B, B tail-calls A, both named defines. Should
     // alternate through apply_function's trampoline; Rust stack
     // constant. 100k each way = 200k tail calls total.
-    let src = r#"
-
-        (:wat::core::defn :app::is-even [n <- :wat::core::i64] -> :wat::core::bool
-          (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
-                      true
-                      (:app::is-odd (:wat::core::i64::- n 1))))
-
-        (:wat::core::defn :app::is-odd [n <- :wat::core::i64] -> :wat::core::bool
-          (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
-                      false
-                      (:app::is-even (:wat::core::i64::- n 1))))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::bool (:app::is-even 100000))
-    "#;
-    assert!(matches!(run(src), Value::bool(true)));
+    assert!(matches!(run(":user::compute_t3"), Value::bool(true)));
 }
 
 // ─── Tail call through let body ──────────────────────────────────────
@@ -129,25 +79,14 @@ fn tail_call_inside_let_body_propagates() {
     // should trigger TCO. Structured to also validate that the let
     // bindings are themselves NOT in tail position (their RHS runs
     // through plain eval).
-    let src = r#"
-
-        (:wat::core::defn :app::loop [n <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::let
-                      [next (:wat::core::i64::- n 1)]
-                      (:wat::core::if (:wat::core::<= n 0) -> :wat::core::i64
-                        0
-                        (:app::loop next))))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::loop 100000))
-    "#;
-    assert!(matches!(run(src), Value::i64(0)));
+    assert!(matches!(run(":user::compute_t4"), Value::i64(0)));
 }
 
 // ─── Non-tail recursion still produces correct result ─────────────────
 
 #[test]
 fn non_tail_recursion_modest_depth_correct() {
-    // `(* n (recurse ...))` — the recursive call is NOT tail because
+    // `(* 2 (recurse ...))` — the recursive call is NOT tail because
     // the multiplication has to wait for the result. This still runs
     // through eval (not eval_tail at that sub-position) and uses Rust
     // stack. Modest depth confirms the value is computed correctly
@@ -155,16 +94,7 @@ fn non_tail_recursion_modest_depth_correct() {
     //
     // 20 iterations = 2^20 = 1048576. Well within default stack and
     // i64 range.
-    let src = r#"
-
-        (:wat::core::defn :app::pow2 [n <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
-                      1
-                      (:wat::core::i64::* 2 (:app::pow2 (:wat::core::i64::- n 1)))))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::pow2 20))
-    "#;
-    assert!(matches!(run(src), Value::i64(1_048_576)));
+    assert!(matches!(run(":user::compute_t5"), Value::i64(1_048_576)));
 }
 
 // ─── try + TailCall coexistence ───────────────────────────────────────
@@ -179,23 +109,7 @@ fn try_inside_tail_recursive_function_short_circuits() {
     //
     // The function walks a count down; if the argument goes negative,
     // the `check` helper returns Err and `try` propagates.
-    let src = r#"
-
-        (:wat::core::defn :app::check [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::if (:wat::core::< n 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
-                      (:wat::core::Err "negative")
-                      (:wat::core::Ok n)))
-
-        (:wat::core::defn :app::loop [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::let
-                      [valid (:wat::core::Result/try (:app::check n))]
-                      (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
-                        (:wat::core::Ok 0)
-                        (:app::loop (:wat::core::i64::- valid 1)))))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:app::loop 50000))
-    "#;
-    match run(src) {
+    match run(":user::compute_t6") {
         Value::Result(r) => match &*r {
             Ok(Value::i64(0)) => {}
             other => panic!("expected Ok(0); got {:?}", other),
@@ -206,25 +120,7 @@ fn try_inside_tail_recursive_function_short_circuits() {
 
 #[test]
 fn try_inside_tail_recursive_function_propagates_err() {
-    let src = r#"
-
-        (:wat::core::defn :app::check [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::if (:wat::core::< n 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
-                      (:wat::core::Err "negative")
-                      (:wat::core::Ok n)))
-
-        (:wat::core::defn :app::loop [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
-          (:wat::core::let
-                      [valid (:wat::core::Result/try (:app::check n))]
-                      (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
-                        (:wat::core::Ok 0)
-                        (:app::loop (:wat::core::i64::- valid 1)))))
-
-        ;; Start at -1 so `check` immediately returns Err and `try`
-        ;; propagates.
-        (:wat::core::defn :user::compute [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:app::loop -1))
-    "#;
-    match run(src) {
+    match run(":user::compute_t7") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) => assert_eq!(&**s, "negative"),
             other => panic!("expected Err(\"negative\"); got {:?}", other),
@@ -242,18 +138,8 @@ fn fn_tail_call_via_let_bound_symbol() {
     // `(f 42)` at main's tail fires eval_tail's env.lookup fn
     // check, emits TailCall, trampoline runs the fn body.
     //
-    // Single depth — proves the detection path, not the depth. The
-    // million-depth case comes via mutual alternation below.
-    let src = r#"
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [f
-                        (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))]
-                      (f 42)))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)));
+    // Single depth — proves the detection path, not the depth.
+    assert!(matches!(run(":user::compute_t8"), Value::i64(42)));
 }
 
 #[test]
@@ -261,14 +147,7 @@ fn inline_fn_literal_tail_call() {
     // Stage 2 detection path 2: the head is itself a list
     // `(fn ...)`. Evaluated non-tail; the resulting fn value
     // triggers a TailCall emission from the List head arm.
-    let src = r#"
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::i64::* n 2))
-                     21))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)));
+    assert!(matches!(run(":user::compute_t9"), Value::i64(42)));
 }
 
 #[test]
@@ -277,18 +156,7 @@ fn named_define_tail_calls_fn_param() {
     // where `f` is a parameter whose value is a fn. Stage 2
     // detects via env.lookup and TailCall fires with the fn's
     // Arc<Function>.
-    let src = r#"
-
-        (:wat::core::defn :app::invoke [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64 n <- :wat::core::i64] -> :wat::core::i64 (f n))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [double
-                        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                          (:wat::core::i64::* x 2))]
-                      (:app::invoke double 21)))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)));
+    assert!(matches!(run(":user::compute_t10"), Value::i64(42)));
 }
 
 #[test]
@@ -304,22 +172,7 @@ fn inline_fn_named_alternation_at_high_depth() {
     // frame per iteration — overflows well before 100k. Constant
     // stack at 100k proves Stage 2 detection fires on the
     // inline-fn-literal head.
-    //
-    // (The fn is re-constructed each iteration — that's heap
-    // allocation, not stack. The test doesn't care about allocation
-    // rate; it cares that stack stays flat.)
-    let src = r#"
-
-        (:wat::core::defn :app::go [state <- :wat::core::i64 n <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
-                      state
-                      ((:wat::core::fn [s <- :wat::core::i64 k <- :wat::core::i64] -> :wat::core::i64
-                         (:app::go (:wat::core::i64::+ s 1) (:wat::core::i64::- k 1)))
-                       state n)))
-
-        (:wat::core::defn :user::compute [] -> :wat::core::i64 (:app::go 0 100000))
-    "#;
-    assert!(matches!(run(src), Value::i64(100_000)));
+    assert!(matches!(run(":user::compute_t11"), Value::i64(100_000)));
 }
 
 // ─── What Stage 2 does NOT do ─────────────────────────────────────────

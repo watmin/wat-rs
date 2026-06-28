@@ -22,29 +22,17 @@
 //! for the principle.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
-//! Computation moved to :my::compute; canonical nil main appended.
+//! Computation moved to :my::compute_tN; world loaded via startup_beside.
+//!
+//! Wat source: tests/function/wat_spawn_fn.wat (positive, shared world) and
+//! tests/function/wat_spawn_fn_not_callable.wat (negative).
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-}
-
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
-}
-
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup(&src).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
+fn run(compute_fn: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(&format!("({compute_fn})")).expect("parse compute call");
     let env = Environment::new();
     eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
@@ -55,171 +43,22 @@ fn run(src: &str) -> Value {
 fn spawn_thread_named_define_body() {
     // The body is a named define matching the channel-shaped contract.
     // Parent sends 41; worker recvs, increments, writes; parent recvs.
-    // Arc 170 slice 1f-ζ: computation in :my::compute.
-    let src = r#"
-
-        (:wat::core::defn :app::increment [in <- :wat::kernel::Receiver<wat::core::i64> out <- :wat::kernel::Sender<wat::core::i64>] -> :wat::core::nil
-          (:wat::core::let
-                      [value
-                        (:wat::core::match (:wat::kernel::recv in)
-                          -> :wat::core::i64
-                          ((:wat::core::Ok (:wat::core::Some n)) n)
-                          ((:wat::core::Ok :wat::core::None)
-                           (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
-                          ((:wat::core::Err _)
-                           (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-                       sum (:wat::core::i64::+ value 1)]
-                      (:wat::core::match (:wat::kernel::send out sum)
-                        -> :wat::core::nil
-                        ((:wat::core::Ok _) ())
-                        ((:wat::core::Err _)
-                         (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [thr
-                        (:wat::kernel::spawn-thread :app::increment)
-                       tx
-                        (:wat::kernel::Thread/input thr)
-                       rx
-                        (:wat::kernel::Thread/output thr)
-                       _ack
-                        (:wat::core::match (:wat::kernel::send tx 41)
-                          -> :wat::core::nil
-                          ((:wat::core::Ok _) ())
-                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
-                       result
-                        (:wat::core::match (:wat::kernel::recv rx)
-                          -> :wat::core::i64
-                          ((:wat::core::Ok (:wat::core::Some n)) n)
-                          ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
-                          ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
-                       _join
-                        (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
-                          -> :wat::core::nil
-                          ((:wat::core::Ok _) ())
-                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
-                      result))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)));
+    assert!(matches!(run(":my::compute_t1"), Value::i64(42)));
 }
 
 // ─── Inline fn literal body — the anonymous path ─────────────────────
 
 #[test]
 fn spawn_thread_inline_fn_body() {
-    // Arc 170 slice 1f-ζ: computation in :my::compute.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [thr
-                        (:wat::kernel::spawn-thread
-                          (:wat::core::fn
-                            [in  <- :wat::kernel::Receiver<wat::core::i64>
-                             out <- :wat::kernel::Sender<wat::core::i64>]
-                             -> :wat::core::nil
-                            (:wat::core::let
-                              [value
-                                (:wat::core::match (:wat::kernel::recv in)
-                                  -> :wat::core::i64
-                                  ((:wat::core::Ok (:wat::core::Some n)) n)
-                                  ((:wat::core::Ok :wat::core::None)
-                                   (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
-                                  ((:wat::core::Err _)
-                                   (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-                               doubled (:wat::core::i64::* value 2)]
-                              (:wat::core::match (:wat::kernel::send out doubled)
-                                -> :wat::core::nil
-                                ((:wat::core::Ok _) ())
-                                ((:wat::core::Err _)
-                                 (:wat::kernel::raise! (:wat::holon::leaf "output closed")))))))
-                       tx
-                        (:wat::kernel::Thread/input thr)
-                       rx
-                        (:wat::kernel::Thread/output thr)
-                       _ack
-                        (:wat::core::match (:wat::kernel::send tx 21)
-                          -> :wat::core::nil
-                          ((:wat::core::Ok _) ())
-                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
-                       result
-                        (:wat::core::match (:wat::kernel::recv rx)
-                          -> :wat::core::i64
-                          ((:wat::core::Ok (:wat::core::Some n)) n)
-                          ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
-                          ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
-                       _join
-                        (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
-                          -> :wat::core::nil
-                          ((:wat::core::Ok _) ())
-                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
-                      result))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)));
+    assert!(matches!(run(":my::compute_t2"), Value::i64(42)));
 }
 
 // ─── Closure capture survives spawn-thread ────────────────────────────
 
 #[test]
 fn spawn_thread_closure_capture() {
-    // The body's fn captures `delta` from the enclosing let. The
-    // body still does mini-TCP — recv from `in`, send to `out` — but
-    // the value sent uses the captured constant. Tests that closed_env
-    // crosses the spawn boundary AND that the body uses its substrate
-    // input/output pipes (not the captured `delta` as a substitute for
-    // input).
-    // Arc 170 slice 1f-ζ: computation in :my::compute.
-    let src = r#"
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::let
-                      [delta 100
-                       body
-                        (:wat::core::fn
-                          [in  <- :wat::kernel::Receiver<wat::core::i64>
-                           out <- :wat::kernel::Sender<wat::core::i64>]
-                           -> :wat::core::nil
-                          (:wat::core::let
-                            [n
-                              (:wat::core::match (:wat::kernel::recv in)
-                                -> :wat::core::i64
-                                ((:wat::core::Ok (:wat::core::Some v)) v)
-                                ((:wat::core::Ok :wat::core::None)
-                                 (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
-                                ((:wat::core::Err _)
-                                 (:wat::kernel::raise! (:wat::holon::leaf "parent died"))))
-                             sum (:wat::core::i64::+ n delta)]
-                            (:wat::core::match (:wat::kernel::send out sum)
-                              -> :wat::core::nil
-                              ((:wat::core::Ok _) ())
-                              ((:wat::core::Err _)
-                               (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
-                       thr
-                        (:wat::kernel::spawn-thread body)
-                       tx
-                        (:wat::kernel::Thread/input thr)
-                       rx
-                        (:wat::kernel::Thread/output thr)
-                       _ack
-                        (:wat::core::match (:wat::kernel::send tx 23)
-                          -> :wat::core::nil
-                          ((:wat::core::Ok _) ())
-                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died"))))
-                       result
-                        (:wat::core::match (:wat::kernel::recv rx)
-                          -> :wat::core::i64
-                          ((:wat::core::Ok (:wat::core::Some n)) n)
-                          ((:wat::core::Ok :wat::core::None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
-                          ((:wat::core::Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died"))))
-                       _join
-                        (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
-                          -> :wat::core::nil
-                          ((:wat::core::Ok _) ())
-                          ((:wat::core::Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))]
-                      result))
-    "#;
-    assert!(matches!(run(src), Value::i64(123)));
+    // delta=100, input=23 → 23+100=123.
+    assert!(matches!(run(":my::compute_t3"), Value::i64(123)));
 }
 
 // ─── Non-callable body errors at type-check ───────────────────────────
@@ -229,17 +68,8 @@ fn spawn_thread_rejects_non_callable_body() {
     // 42 is neither a keyword path nor a fn value. The checker's
     // TypeMismatch arm fires because spawn-thread's body parameter
     // expects :Fn(Receiver<I>,Sender<O>) -> :() and i64 doesn't unify.
-    let src = r#"
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [not-fn 42
-                       thr
-                        (:wat::kernel::spawn-thread not-fn)]
-                      ()))
-    "#;
-    match startup(src) {
-        Err(StartupError::Check(errs)) => {
+    match startup_from_file("tests/function/wat_spawn_fn_not_callable.wat") {
+        Err(wat::freeze::StartupError::Check(errs)) => {
             let hit = errs.0.iter().any(|e| {
                 matches!(
                     e,

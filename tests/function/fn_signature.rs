@@ -23,49 +23,25 @@
 //!   7. `fn_body_type_mismatch_surfaces` — declared-vs-actual ret mismatch
 //!   8. `malformed_args_vector_clear_error` — clear error on missing `<- :T`
 //!   9. `reflection_on_flat_defn_resolves` — `lookup-define` round-trip
+//!
+//! Wat source: tests/function/fn_signature.wat (positive, shared via startup_beside)
+//! and tests/function/fn_signature_*.wat (negative fixtures).
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-/// Arc 170 slice 1f-ζ: append canonical nil-returning `:user::main`.
-fn with_nil_main(src: &str) -> String {
-    format!(
-        "{}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)",
-        src
-    )
+fn run(compute_fn: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup");
+    let ast = wat::parse_one!(&format!("({compute_fn})")).expect("parse compute call");
+    let env = Environment::new();
+    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
-/// Asserts the given source starts up cleanly.
-#[allow(dead_code)]
-fn startup_ok(src: &str) {
-    if let Err(e) = startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        panic!("expected startup success; got errors: {:?}", e);
-    }
-}
-
-/// Asserts startup fails and returns the Display-formatted error
-/// string PLUS the Debug repr (joined with `\n---\n`). Tests assert
-/// against either surface — Display carries the user-facing message
-/// text; Debug carries the variant name for arc 154-style assertions.
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
+fn startup_err(path: &str) -> String {
+    match startup_from_file(path) {
         Ok(_) => panic!("expected startup failure; got Ok"),
         Err(e) => format!("{}\n---\n{:?}", e, e),
     }
-}
-
-/// Run `:my::compute` via eval_in_frozen (arc 170 slice 1f-ζ migration).
-/// Source must include a `(:my::compute -> :T)` definition.
-/// Nil main is appended automatically.
-fn run(src: &str) -> Value {
-    let src = with_nil_main(src);
-    let world = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
 }
 
 // ─── Test 1 — fn_with_flat_shape_compiles_and_runs ───────────────────────────
@@ -75,15 +51,7 @@ fn run(src: &str) -> Value {
 /// parser → eval_fn → parse_fn_signature → apply_function.
 #[test]
 fn fn_with_flat_shape_compiles_and_runs() {
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute applies the fn.
-    let src = r#"
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64]
-                       -> :wat::core::i64
-                       (:wat::core::i64::+ x y))
-                     2 3))
-    "#;
-    let v = run(src);
+    let v = run(":my::compute_t1");
     match v {
         Value::i64(n) => assert_eq!(n, 5, "expected 5 from (fn ... 2 3); got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
@@ -97,16 +65,7 @@ fn fn_with_flat_shape_compiles_and_runs() {
 /// pieces directly into `(:wat::core::fn ,@rest)`.
 #[test]
 fn defn_with_flat_shape_compiles_and_runs() {
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :user::add.
-    let src = r#"
-        (:wat::core::defn :user::add
-          [x <- :wat::core::i64 y <- :wat::core::i64]
-          -> :wat::core::i64
-          (:wat::core::i64::+ x y))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::add 2 3))
-    "#;
-    let v = run(src);
+    let v = run(":my::compute_t2");
     match v {
         Value::i64(n) => assert_eq!(n, 5, "expected 5 from add(2,3); got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
@@ -116,23 +75,10 @@ fn defn_with_flat_shape_compiles_and_runs() {
 // ─── Test 3 — recursive_defn_with_flat_shape ─────────────────────────────────
 
 /// Recursive `defn` with the flat shape — verifies arc 166's recursive
-/// name-binding contract survives the shape change. The fn body's
-/// self-reference `:user::fact` must resolve through the pre-registered
-/// SymbolTable entry that `try_parse_fn_shape_def` populates.
+/// name-binding contract survives the shape change.
 #[test]
 fn recursive_defn_with_flat_shape() {
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute calls :user::fact.
-    let src = r#"
-        (:wat::core::defn :user::fact
-          [n <- :wat::core::i64]
-          -> :wat::core::i64
-          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
-            1
-            (:wat::core::i64::* n (:user::fact (:wat::core::i64::- n 1)))))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 (:user::fact 5))
-    "#;
-    let v = run(src);
+    let v = run(":my::compute_t3");
     match v {
         Value::i64(n) => assert_eq!(n, 120, "expected 120 from fact(5); got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
@@ -142,16 +88,9 @@ fn recursive_defn_with_flat_shape() {
 // ─── Test 4 — zero_arg_fn_with_empty_vector ──────────────────────────────────
 
 /// Zero-arity fn — empty args-vector `[]` followed by `-> :Ret body`.
-/// Verifies the parser accepts the empty-vector edge case (the `i + 2
-/// >= args_vec.len()` guard short-circuits cleanly when args_vec is
-/// empty).
 #[test]
 fn zero_arg_fn_with_empty_vector() {
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute applies the zero-arg fn.
-    let src = r#"
-        (:wat::core::defn :my::compute [] -> :wat::core::i64 ((:wat::core::fn [] -> :wat::core::i64 42)))
-    "#;
-    let v = run(src);
+    let v = run(":my::compute_t4");
     match v {
         Value::i64(n) => assert_eq!(n, 42, "expected 42 from zero-arg fn; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
@@ -161,14 +100,9 @@ fn zero_arg_fn_with_empty_vector() {
 // ─── Test 7 — fn_body_type_mismatch_surfaces ─────────────────────────────────
 
 /// Flat-shape fn whose body's type doesn't match the declared `-> :T`.
-/// The check pass should surface `ReturnTypeMismatch` (or
-/// `TypeMismatch`) at the body span.
 #[test]
 fn fn_body_type_mismatch_surfaces() {
-    let src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::nil x) 7))
-    "#;
-    let err = startup_err(src);
+    let err = startup_err("tests/function/fn_signature_body_mismatch.wat");
     assert!(
         err.contains("ReturnTypeMismatch") || err.contains("TypeMismatch"),
         "expected ReturnTypeMismatch on body type mismatch; got: {}",
@@ -178,22 +112,10 @@ fn fn_body_type_mismatch_surfaces() {
 
 // ─── Test 8 — malformed_args_vector_clear_error ──────────────────────────────
 
-/// Args-vector with a missing `<- :T` triple: `[x <- :i64 y]` —
-/// position 1 (the second triple, starting at index 3 of the vector)
-/// has only one token instead of three. The parser must surface a
-/// clear error pointing at the malformed triple.
+/// Args-vector with a missing `<- :T` triple.
 #[test]
 fn malformed_args_vector_clear_error() {
-    // Arc 170 slice 1f-ζ: bad code in probe fn + nil main.
-    let src = r#"
-        (:wat::core::defn :my::probe [] -> :wat::core::i64
-          ((:wat::core::fn [x <- :wat::core::i64 y]
-                       -> :wat::core::i64
-                       x) 7))
-
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-    "#;
-    let err = startup_err(src);
+    let err = startup_err("tests/function/fn_signature_malformed_args.wat");
     assert!(
         err.contains("fn arg-vector triple") || err.contains("name <- :T"),
         "expected clear error on malformed args-vector triple; got: {}",
@@ -203,31 +125,11 @@ fn malformed_args_vector_clear_error() {
 
 // ─── Test 9 — reflection_on_flat_defn_resolves ───────────────────────────────
 
-/// After a flat-shape defn registers `:user::add` in the SymbolTable,
-/// `(:wat::runtime::lookup-define :user::add)` returns Some(...).
-/// Verifies arc 166's reflection path survives the shape change —
-/// `try_parse_fn_shape_def` still pre-registers def-bound fn-shape
-/// names so reflection sees them via `sym.functions`.
-///
-/// Mirrors arc 166 test 10's `lookup-define` shape: pattern-match on
-/// `Some(...)` / `None` to get a definitive runtime answer.
+/// After a flat-shape defn registers `:user::add_t2` in the SymbolTable,
+/// `(:wat::runtime::lookup-define :user::add_t2)` returns Some(...).
 #[test]
 fn reflection_on_flat_defn_resolves() {
-    // Arc 170 slice 1f-ζ: main is canonical nil; compute does the lookup.
-    let src = r#"
-        (:wat::core::defn :user::add
-          [x <- :wat::core::i64 y <- :wat::core::i64]
-          -> :wat::core::i64
-          (:wat::core::i64::+ x y))
-
-        (:wat::core::defn :my::compute [] -> :wat::core::i64
-          (:wat::core::match
-                      (:wat::runtime::lookup-define :user::add)
-                      -> :wat::core::i64
-                      ((:wat::core::Some _) 1)
-                      (:wat::core::None    0)))
-    "#;
-    let v = run(src);
+    let v = run(":my::compute_t9");
     match v {
         Value::i64(n) => assert_eq!(n, 1, "expected lookup-define to return Some (1); got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
