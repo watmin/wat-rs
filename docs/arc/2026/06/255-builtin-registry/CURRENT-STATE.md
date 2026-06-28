@@ -1,23 +1,30 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `0bfbeff7` or later.** Tree CLEAN
-(293.R2a STRIKE-READY committed + pushed; nothing in flight — a sonnet was fired then STOPPED on the user's pause,
-left zero edits, reverted-clean).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `9d1e3ff3` or later.** Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-floor 0 / ~94 skipped (TWO committed `#[ignore]`'d RED probes now: `293.4e-pre.iii` + the new `293.R2`).
+`4097 passed / 0 failed / 94 skipped` (TWO committed `#[ignore]`'d RED probes: `293.4e-pre.iii` + `293.R2`).
 
-**NEXT STRIKE = 293.R2a** (`BRIEF-293.R2a-aggregate-accessor-merge.md` + `EXPECTATIONS-293.R2a.md`) — re-fire the
-sonnet LEAF (it was stopped mid-crawl, no edits). **THE HEADLINE (why this is now PRIMARY, ahead of the
-`defprotocol` work):** re-grounding the banked 293.4e-pre.iii strike (PROBA NE DUBITES) uncovered a **catastrophic
-parity break — the arc-293 founding bug, alive in the generic case.** A generic core-record / holon-record's field
-accessor is NEVER registered (`:R/v` unresolved) while the generic struct's works. Root: R2's *FRANGE UT UNUM FIAT*
-("they were always one struct") was only HALF done — the **data** merged (`AggregateDef{holder}`) but the
-**codegen** never did. `register_struct_methods` (runtime.rs:924) and `register_record_methods` (runtime.rs:1315)
-are still TWO functions split by `holder == Struct` / `holder != Struct`, each given half the unification (struct
-carries `type_params` + bare key but ctor is `/new`; record has bare ctor but drops `<T>` → mangled accessor key +
-`type_params: vec![]`). The builder's directive: *"one toolkit for the holders — the only variance is policy
-enforcement."* See `DESIGN-293.R2-aggregate-codegen-merge.md`. If HEAD is older than `0bfbeff7`, this breadcrumb is
-stale — trust git log + the docs.
+**✅ 293.R2.1 — THE REPR COLLAPSE LANDED (`9d1e3ff3`).** The builder cut through my over-complication
+(*"annihilate the variance … i break shit because its already broken, successfully — your hesitation is illogical"*):
+the three `Value` variants `Struct` / `wat__Record` / `wat__holon__Record` are ANNIHILATED → ONE
+`Value::Aggregate(Arc<AggregateValue{class, fields, holder, holon}>)`. `holder: Holder{Struct,Record,HolonRecord}` =
+the required label; `holon: HolonForm{Empty|Hologram}` present on all, Empty unless HolonRecord. struct/record/holon
+are now POLICY restrictions on the ONE holder. 252 sites / 55 files, SET-diff ∅, weighed forced-clean. **R2
+*FRANGE UT UNUM FIAT* is PROVEN at the value level.** Judgment sites verified: Eq/Hash (holder-check first, then
+Hologram→holon_form-identity 234.1 / Empty→(class,fields)); EDN codec (Hologram rides holon_form 234.7b / Empty
+named-map 234.7a, no recompute). See `DESIGN-293.R2-repr-collapse.md`.
+
+**NEXT STRIKE = 293.R2.2 — the codegen unification (now SIMPLE, because there's ONE repr).** With one
+`Value::Aggregate`, the accessor primitive unifies too (no more `struct-field` vs `Record/field-at` — both just
+index `a.fields`). Build ONE Rust `register_aggregate_methods` that mints ctor + accessor for all three holders over
+`AggregateDef`; thin the `defrecord`/`defholon` macros to emit only the `recordtype` primitive (struct already works
+this way via `structtype`); **fix `parse_recordtype` to store the BARE name + `type_params`** (mirror
+`parse_declared_name`, the one decl parser that doesn't — types.rs:2119-2131); annihilate `register_struct_methods` +
+`register_record_methods`. **This makes the `293.R2` parity probe GREEN** (`(:r2::probe)` = 60 — generic record/holon
+accessors resolve). Lair study (still valid): `DESIGN-293.R2-aggregate-codegen-merge.md` (SUPERSEDED-as-design but
+kept as the map) + the sonnet's STOP-1/STOP-3 findings in this session's transcript. Then **293.R2.3** = construction-
+form parity (drop `:T/new` → bare `:T` for all; the ~8-`.wat` cascade). Banked purgare: dead `ast_variant_label`
+(parser.rs:503) + unused imports surfaced by the collapse. If HEAD is older than `9d1e3ff3`, trust git log + docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
@@ -258,12 +265,13 @@ NEVER inlined as a Rust string, never in `demos/` (= curated showpieces only); a
 not `./target/release/wat`.
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight work against the
-> disk; do not trust a single line you did not re-verify this session. THE NEXT STRIKE = 293.R2a** (one
-> `register_aggregate_methods` — the aggregate codegen annihilation; `BRIEF-293.R2a-aggregate-accessor-merge.md` +
-> `EXPECTATIONS-293.R2a.md`; RED probe `probe_arc293_r2_aggregate_codegen_parity` `#[ignore]`'d, returns 60 when GREEN).
-> **Re-fire the sonnet LEAF** (it was stopped mid-crawl on the user's pause, left zero edits). This is the
-> catastrophic parity break — R2's *FRANGE UT UNUM FIAT* codegen never unified — and it is the FLOOR under the
-> `defprotocol`/Locus work, so it goes first. **The 293.4 chain (a/b/c/d + demo GREEN + R1 PROBATUM) is done; floor 0.**
+> disk; do not trust a single line you did not re-verify this session. THE NEXT STRIKE = 293.R2.2** (the codegen
+> unification: one `register_aggregate_methods` over the now-collapsed `Value::Aggregate`; thin the defrecord/defholon
+> macros; fix `parse_recordtype` bare-name; annihilate `register_struct_methods` + `register_record_methods` → the
+> `293.R2` parity probe goes GREEN, `(:r2::probe)`=60). **✅ 293.R2.1 — the REPR collapse — LANDED `9d1e3ff3`** (three
+> `Value` variants → one `Value::Aggregate`; R2 *FRANGE UT UNUM FIAT* PROVEN at the value level; SET-diff ∅, weighed
+> forced-clean). Then 293.R2.3 = construction-form parity (drop `/new`). **The 293.4 chain (a/b/c/d + demo GREEN + R1
+> PROBATUM) is done; floor 0.**
 > ⚠ **293.4e-pre.iii is DOWNSTREAM + its probe is INVALID** (it depended on unsupported generic `defrecord`s — see the
 > amended bullet above); the `defprotocol` thesis is real (the live Locus migration gives 8 type errors) but it is
 > blocked behind R2 + needs a re-authored probe. Beyond 293: `Seqable` → 118 (`118/DESIGN.md`) → 295; doctrine =
