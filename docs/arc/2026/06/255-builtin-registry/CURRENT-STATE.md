@@ -1,13 +1,23 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 9; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `0a64148d` or later.** Tree CLEAN
-(293.4e-pre.iii STRIKE-READY committed + pushed; nothing in flight).
-**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0 —
-`4097 passed / 0 failed / 93 skipped`** (the 93rd skip = the 293.4e-pre.iii `#[ignore]`'d RED probe).
-**NEXT STRIKE = 293.4e-pre.iii** (`BRIEF-293.4e-pre-iii-extend-impl-inherits-types.md`) — the last gate before the
-`defprotocol` annihilation; its EXPECTATIONS row #3 IS the Locus migration. The test-infra campaign is DONE: the `wat::lint no_inlined_wat_in_tests`
-meter is **GREEN** (any red now is a real regression). If HEAD is older than `173bb1e8`, this breadcrumb is stale —
-trust git log + the docs.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `0bfbeff7` or later.** Tree CLEAN
+(293.R2a STRIKE-READY committed + pushed; nothing in flight — a sonnet was fired then STOPPED on the user's pause,
+left zero edits, reverted-clean).
+**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
+floor 0 / ~94 skipped (TWO committed `#[ignore]`'d RED probes now: `293.4e-pre.iii` + the new `293.R2`).
+
+**NEXT STRIKE = 293.R2a** (`BRIEF-293.R2a-aggregate-accessor-merge.md` + `EXPECTATIONS-293.R2a.md`) — re-fire the
+sonnet LEAF (it was stopped mid-crawl, no edits). **THE HEADLINE (why this is now PRIMARY, ahead of the
+`defprotocol` work):** re-grounding the banked 293.4e-pre.iii strike (PROBA NE DUBITES) uncovered a **catastrophic
+parity break — the arc-293 founding bug, alive in the generic case.** A generic core-record / holon-record's field
+accessor is NEVER registered (`:R/v` unresolved) while the generic struct's works. Root: R2's *FRANGE UT UNUM FIAT*
+("they were always one struct") was only HALF done — the **data** merged (`AggregateDef{holder}`) but the
+**codegen** never did. `register_struct_methods` (runtime.rs:924) and `register_record_methods` (runtime.rs:1315)
+are still TWO functions split by `holder == Struct` / `holder != Struct`, each given half the unification (struct
+carries `type_params` + bare key but ctor is `/new`; record has bare ctor but drops `<T>` → mangled accessor key +
+`type_params: vec![]`). The builder's directive: *"one toolkit for the holders — the only variance is policy
+enforcement."* See `DESIGN-293.R2-aggregate-codegen-merge.md`. If HEAD is older than `0bfbeff7`, this breadcrumb is
+stale — trust git log + the docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
@@ -84,8 +94,17 @@ zero inlined-wat survives except **6 rune:lint-EXEMPTED rete files** (genuinely-
   suffix-split was already shared. **293.4e-pre is COMPLETE — surface methods are multi-arg + generic + whole, parity
   with arc-267 protocol methods. The Locus migration is UNBLOCKED.** (Banked micro: `split_method_name_type_params` is a
   ~15-line copy of runtime.rs's private `split_name_and_type_params` — could share if visibility allowed.)
-- ⚠ **293.4e-pre.iii STRIKE-READY (BLOCKS 293.4e) — `extend-type`-for-surface impl must INHERIT the surface method's
-  sig.** Found by the inline Locus migration (reverted clean, `59a485bb`). **SHARPENED DIAGNOSIS (a monomorphic probe
+- ⚠ **293.4e-pre.iii — SUPERSEDED 2026-06-28 SESSION 10 (amend-with-recognition; the reasoning below is preserved).**
+  Re-grounding it before firing (PROBA NE DUBITES) DISCONFIRMED the strike: **(a) the probe is INVALID** — it depends on
+  a generic `defrecord :t::Box<T>`, an unsupported phantom (generic record *accessors* don't register at all — the very
+  parity break R2 fixes; it's the only generic `defrecord` in the corpus). **(b) the room is misidentified** —
+  `check.rs:8957` is the satisfaction scheme, but the gap is the impl-BODY inference. **(c) the thesis IS real, but the
+  trigger is narrow** — the live Locus `defprotocol`→`defsurface` migration gives 8 type errors (`self: :()`, ret `:nil`
+  vs `:Launched<…>`, unbound `:?` type-vars) ONLY when the surface method has return-only/phantom type-params used as
+  type-exprs in the body; monomorphic + arg-inferable-generic cases all pass. So 293.4e-pre.iii must be RE-AUTHORED (valid
+  probe, no generic records; real room = extend-impl body inference) AFTER R2 lands. The original (now-stale) plan: it was
+  framed as `extend-type`-for-surface impl must INHERIT the surface method's sig, found by the inline Locus migration
+  (reverted clean, `59a485bb`). **SHARPENED DIAGNOSIS (a monomorphic probe
   passed → it's the GENERIC case):** `check.rs:~8957` builds the surface-extend `TypeScheme` from the BARE impl clause
   (→ `nil` types) AND hardcodes `type_params: vec![]`. A monomorphic constant-body impl is fine (293.4c proved it); a
   GENERIC impl whose body uses the surface method's type-params (Locus's `launch<S,R,St,Sh,Lu>` body uses
@@ -239,8 +258,13 @@ NEVER inlined as a Rust string, never in `demos/` (= curated showpieces only); a
 not `./target/release/wat`.
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight work against the
-> disk; do not trust a single line you did not re-verify this session. THE NEXT STRIKE = 293.4e-pre.iii** (extend-impl
-> inherits the surface method's sig — `BRIEF-293.4e-pre-iii-extend-impl-inherits-types.md`, RED probe `#[ignore]`'d), the
-> last gate before the `defprotocol` annihilation (293.4e). **The 293.4 chain (a/b/c/d + demo GREEN + R1 PROBATUM) is
-> done; the whole ArgSpec-heresy detour is killed; floor 4097/0.** Beyond 293: `Seqable` → 118 (`118/DESIGN.md`) → 295;
-> doctrine = `294/REALIZATIONS.md`.
+> disk; do not trust a single line you did not re-verify this session. THE NEXT STRIKE = 293.R2a** (one
+> `register_aggregate_methods` — the aggregate codegen annihilation; `BRIEF-293.R2a-aggregate-accessor-merge.md` +
+> `EXPECTATIONS-293.R2a.md`; RED probe `probe_arc293_r2_aggregate_codegen_parity` `#[ignore]`'d, returns 60 when GREEN).
+> **Re-fire the sonnet LEAF** (it was stopped mid-crawl on the user's pause, left zero edits). This is the
+> catastrophic parity break — R2's *FRANGE UT UNUM FIAT* codegen never unified — and it is the FLOOR under the
+> `defprotocol`/Locus work, so it goes first. **The 293.4 chain (a/b/c/d + demo GREEN + R1 PROBATUM) is done; floor 0.**
+> ⚠ **293.4e-pre.iii is DOWNSTREAM + its probe is INVALID** (it depended on unsupported generic `defrecord`s — see the
+> amended bullet above); the `defprotocol` thesis is real (the live Locus migration gives 8 type errors) but it is
+> blocked behind R2 + needs a re-authored probe. Beyond 293: `Seqable` → 118 (`118/DESIGN.md`) → 295; doctrine =
+> `294/REALIZATIONS.md`.
