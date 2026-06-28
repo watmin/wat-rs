@@ -25,11 +25,14 @@ coherence failure — the abstraction leaks. (Memory: `feedback_uniform_operatio
 ## WHAT THE ARC DELIVERS — the acceptance test (this exact program goes GREEN)
 
 ```clojure
-;; ── THE SURFACE — a definterface is a set-of-accessor (fields and/or methods, uniformly) ──
-(:wat::core::definterface :geo::Shape
-  [color <- :wat::core::String]              ; FIELD-style accessor → satisfier exposes  :T/color -> :String
-  (area  [self] -> :wat::core::f64)           ; METHOD accessor      → satisfier exposes  :T/area  [self] -> :f64
-  (label [self] -> :wat::core::String))       ; METHOD accessor      → satisfier exposes  :T/label [self] -> :String
+;; ── THE SURFACE — a defsurface is a set-of-accessor (fields and/or methods, uniformly) ──
+;; (AMENDED 2026-06-28: was `definterface` with method members as separate top-level args — the
+;;  crowned name is `defsurface` and EVERY member, field or method, goes INSIDE the one `[...]`
+;;  vector. The old separate-args form is a hard error since 293.4d-fix — it silently dropped members.)
+(:wat::core::defsurface :geo::Shape
+  [color <- :wat::core::String                ; FIELD-style accessor → satisfier exposes  :T/color -> :String
+   (area  [self] -> :wat::core::f64)           ; METHOD accessor      → satisfier exposes  :T/area  [self] -> :f64
+   (label [self] -> :wat::core::String)])      ; METHOD accessor      → satisfier exposes  :T/label [self] -> :String
 
 ;; ── OWN TYPE #1 — Circle (core record). :geo::Circle/color is generated FREE by the field. ─
 (:wat::core::defrecord :geo::Circle [color <- :wat::core::String  radius <- :wat::core::f64])

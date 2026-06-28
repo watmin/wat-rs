@@ -320,6 +320,26 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
         next
     };
 
+    // Arc 293.4d-fix — STRUCTURAL invariant: the member vector is the LAST arg; nothing follows it.
+    // The arity gate (`len == 2 || len == 4`) alone is too loose — a 4-arg form whose arg[1] is NOT
+    // `:holder` (the stale `definterface` shape: method members written as separate top-level args)
+    // passes the count, fails the holder probe, and is read as the 2-arg shape with args 2.. SILENTLY
+    // DROPPED. Reject any leftover so a mismatch cannot be coerced into a valid-looking surface:
+    // every member — a field `name <- :T` AND a method `(name [self] -> :ret)` — goes INSIDE the
+    // single `[...]` vector.
+    if let Some(extra) = iter.next() {
+        return Err(TypeError {
+            span: extra.span().clone(),
+            kind: TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: "unexpected form after the member vector — every surface member (a field \
+                         `name <- :T` AND a method `(name [self] -> :ret)`) goes INSIDE the single \
+                         `[...]` member vector; nothing follows it"
+                    .into(),
+            },
+        });
+    }
+
     let (member_items, member_span) = match members_node {
         WatAST::Vector(items, span) => (items, span),
         other => {
