@@ -1,26 +1,31 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `4b448bc5` or later.** Tree CLEAN.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `eaaa6930` or later.** Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4106 passed / 0 failed / 91 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`; all R2 + 294.c.1
-probes GREEN).
+`4111 passed / 0 failed / 91 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
-> then we go to 118."* The map is `docs/arc/2026/06/294-holon-returns-to-vsa/REMAINING-PATH.md` (9 steps). Strike-by-
-> strike (draw → RED probe → leaf sonnet → weigh forced-clean → commit), depth-first. **294 does NOT block 118**
-> (118 needs only the DONE 293.4) — the joint resolution is what the builder wants CLOSED before 118.
-> - ✅ **294.c.1 LANDED (`ed7ecd50`)** — the equality flip (REMAINING-PATH step 1). Rust `PartialEq`/`Hash` for
->   `Value::Aggregate` now key identity on `(holder, class, fields)`, hologram OUT of identity (flaw #7 collapse;
->   aligns with `values_equal` which already did). Weighed forced-clean 4106/0/91, empty cascade. Probe
->   `tests/value/probe_arc294c1_identity_is_edn_data.rs`.
-> - ▶ **294.c.2 DRAWN (`DESIGN-294.c.2-aggregate-new.md`, `4b448bc5`) — FIRE NEXT.** `aggregate-new` = one
->   holder-dispatched ctor, hologram derived in Rust (new `build_holon_hologram` helper); the of-funcs die. Split
->   c.2a (mint+route the 3 macros/struct-codegen through it; defholon's hologram quasiquote dies) / c.2b (annihilate
->   `struct-new`/`Record::of`/`holon::Record::of`). **The one real risk is flagged in the DESIGN: the Bundle capacity
->   check** the defholon macro does via `Result/expect` — the Rust helper must replicate it (STOP-trigger). Derivation
->   shape verified vs the macro (`Record.wat:157-191`) + the assoc-rebuild (`runtime.rs:14017-14031`).
-> - ▷ then **294.c.3** (base records lift / holon-from-EDN, step 4) → **294.d-g** sweeps (kill HolonRepresentable+tags
->   · `HolonAST→Hologram` rename + `src/holon/` · reflection→WatAST · homes + 293.5 close + `/from-map`) → **118**.
+> then we go to 118."* **The spine is now `293/AGGREGATE-AUDIT.md` — 293 CANNOT close until zero spurious holder-splits**
+> (builder closure gate; `293/DESIGN.md` § CLOSURE GATE). The holder is a PASSING POLICY only — it governs the
+> aggregate at THREE boundaries (comms eligibility / EDN-repr / directional `holon <: core` assignability); every
+> holder-branch that is not one of those is a spurious struct/record split → unify to `aggregate`. ~99 holder-branches
+> / 14 files to classify (the audit, run post-stable-tree). **294 does NOT block 118** (118 needs only the DONE 293.4).
+> - ✅ **294.c.1 LANDED (`ed7ecd50`)** — identity flip: Rust `PartialEq`/`Hash` key `(holder, class, fields)`, hologram
+>   OUT of identity (flaw #7). Probe `tests/value/probe_arc294c1_identity_is_edn_data.rs`.
+> - ✅ **294.c.2a LANDED (`f301a6fc`)** — `aggregate-new` is the ONE holder-dispatched ctor (varargs); all 3 macros +
+>   struct codegen emit it; `build_holon_hologram` derives the hologram in Rust; `defholon`'s hologram quasiquote
+>   DELETED. Capacity guard EXTRACTED (`bundle_capacity_verdict`, one fn two callers). of-funcs stay until c.2b. Probe
+>   `tests/types/probe_arc294c2a_aggregate_new.{rs,wat}` (5/5). **Confirmed: the 2 record macros are now byte-identical
+>   except the `recordtype` holder keyword.**
+> - ✅ **kanerva_capacity dedup (`eaaa6930`)** — drove the `floor(sqrt(d))` budget to ONE copy (`hologram.rs:90`); was
+>   recomputed in 3 live places. (Builder: *"drive these things to zero when we find them."* + *"'replicate' = 'duplicate'"*.)
+> - ▶ **DECLARATION UNIFICATION — NEXT (builder pre-approved scope).** Collapse `structtype`+`recordtype` → one
+>   `aggregatetype` (holder + parent-root + metadata, keyed by holder); `parse_defstruct`+`parse_recordtype` → one
+>   `parse_aggregate`; the 3 def macros → thin holder-keyed delegations over one emission. Subsumes the "two record
+>   macros" duplication c.2a confirmed. Foundational (type-reg layer) — draw a DESIGN + RED probe first. Sequencing
+>   (type-reg-first vs macros-first) is an OPEN micro-decision.
+> - ▷ then **294.c.2b** (annihilate the of-funcs) · **294.c.3** (base records lift, step 4) · the **AGGREGATE AUDIT**
+>   (classify the ~99 branches) · **294.d-g** sweeps · **293.5 close (GATED on the audit)** → **118**.
 
 > ⚠⚠ **CORRECTION (2026-06-28, SESSION 10 — the drift, named) — READ THIS FIRST. The "293.R2.x" label below is WRONG.**
 > The `Value`-repr collapse done this session (R2.1/R2.2/R2.3 + the sweep) is **arc 294's deliverable, NOT 293's** —
