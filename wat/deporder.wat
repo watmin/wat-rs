@@ -82,7 +82,9 @@
                              ":wat::core::newtype"
                              ":wat::core::extend-type"
                              ":wat::core::derive"
-                             ":wat::core::recordtype")]
+                             ":wat::core::recordtype"
+                             ;; Arc 293 decl-a — ONE type-reg primitive; holder derived from parent root.
+                             ":wat::core::aggregatetype")]
     (:wat::core::contains? heads nm)))
 
 ;; def-head-kind — "defmacro" if the head is defmacro (order-free);

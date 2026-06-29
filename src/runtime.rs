@@ -1039,6 +1039,9 @@ pub fn register_aggregate_methods(
 
     const ROOT_PARENTS: &[&str] = &[
         ":wat::core::Value",
+        // Arc 293 decl-a — :wat::core::Struct is the struct holder-root (sibling of :wat::Record).
+        // Structs rooted at :wat::core::Struct have 0 inherited fields (same as the Value case).
+        ":wat::core::Struct",
         ":wat::Record",
         ":wat::holon::Record",
     ];
@@ -1076,7 +1079,7 @@ pub fn register_aggregate_methods(
         };
 
         // Absolute base index for own fields = count of inherited fields.
-        // Struct's parent is `:wat::core::Value` (in ROOT_PARENTS) → 0.
+        // Struct's parent is `:wat::core::Struct` (in ROOT_PARENTS) → 0 inherited.
         // Record/HolonRecord with root parent → 0.
         // Record/HolonRecord with non-root parent → parent's full field count.
         let inherited_fields: Vec<(String, crate::types::TypeExpr)> =
@@ -1492,6 +1495,9 @@ fn collect_all_record_fields(
     use crate::types::{TypeDef, TypeExpr};
     const ROOT_PARENTS: &[&str] = &[
         ":wat::core::Value",
+        // Arc 293 decl-a — :wat::core::Struct is the struct holder-root (sibling of :wat::Record).
+        // Structs rooted at :wat::core::Struct have 0 inherited fields (same as the Value case).
+        ":wat::core::Struct",
         ":wat::Record",
         ":wat::holon::Record",
     ];

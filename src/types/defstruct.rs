@@ -60,7 +60,7 @@ type ParsedStructMeta = (Vec<String>, HashMap<String, Vec<String>>);
 /// - `:field-metadata {field → {meta}}` — per-field restriction maps.
 ///
 /// Unknown keys are silently accepted (D5).
-fn parse_defstruct_metadata(
+pub(super) fn parse_defstruct_metadata(
     meta_node: WatAST,
 ) -> Result<ParsedStructMeta, TypeError> {
     let mut ctor_whitelist: Vec<String> = Vec::new();
@@ -283,8 +283,20 @@ fn parse_field_metadata_key(
 /// Parse the field-vector node into `Vec<(String, TypeExpr)>`.
 ///
 /// Expects a `WatAST::Vector` containing `field <- :Type` triples.
-fn parse_defstruct_fields(
+///
+/// Arc 293 decl-a — extracted as `pub(super)` so `parse_aggregate` in the parent
+/// module (`types.rs`) can call this as the ONE canonical field parser.
+///
+/// STOP-FIELD resolved: chosen over `parse_recordtype`'s inline groups-of-3 parser.
+/// Diff: (a) this parser accepts both `<-` and `:-` arrows (arc 251 superset);
+///          the inline parser only accepts `<-`.
+///       (b) this parser requires Symbol field names;
+///          the inline parser also accepts Keyword names (strips leading `:`).
+/// Reconciliation: `:-` is the forward direction (arc 251 sweep); Keyword field
+/// names are not used in practice for records — Symbol is the established form.
+pub(super) fn parse_aggregate_fields(
     fields_node: WatAST,
+    head: &str,
 ) -> Result<Vec<(String, TypeExpr)>, TypeError> {
     let (field_items, field_span) = match fields_node {
         WatAST::Vector(items, span) => (items, span),
@@ -292,7 +304,7 @@ fn parse_defstruct_fields(
             return Err(TypeError {
                 span: other.span().clone(),
                 kind: TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
+                    head: head.into(),
                     reason: "field-vector must be a Vector `[field <- :T ...]`".into(),
                 },
             });
@@ -300,7 +312,7 @@ fn parse_defstruct_fields(
     };
     let argspec = crate::argspec::parse_argspec_triples(
         &field_items,
-        HEAD,
+        head,
         &field_span,
         crate::argspec::ParseOptions { allow_rest_binder: false },
     )
@@ -352,8 +364,8 @@ pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<Type
         (Vec::new(), HashMap::new())
     };
 
-    // Parse field-vector.
-    let fields = parse_defstruct_fields(fields_node)?;
+    // Parse field-vector via the ONE canonical field parser.
+    let fields = parse_aggregate_fields(fields_node, HEAD)?;
 
     // Build restrictions: None if no whitelist + no field restrictions; Some(_) otherwise.
     let restrictions = if ctor_whitelist.is_empty() && field_restrictions.is_empty() {
@@ -370,7 +382,8 @@ pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<Type
         type_params,
         fields,
         holder: Holder::Struct,
-        parent: ":wat::core::Value".to_string(),
+        // Arc 293 decl-a — structs root at :wat::core::Struct (Struct <: Value transitively).
+        parent: ":wat::core::Struct".to_string(),
         restrictions,
     }))
 }
