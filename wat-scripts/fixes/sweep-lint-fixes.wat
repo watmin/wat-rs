@@ -30,8 +30,7 @@
   [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::Option/expect  
-                            (:wat::core::first paths) "sweep-each: head")]
+    (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:user::sweep-file path)
         (:user::sweep-each (:wat::core::rest paths))))))

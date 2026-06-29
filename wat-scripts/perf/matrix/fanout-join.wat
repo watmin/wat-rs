@@ -1,10 +1,10 @@
 ;; matrix dim: SELECTIVITY / FAN-OUT. One join, low selectivity: F Lefts × F Rights per key share the key →
 ;; F² joined Pairs per key, K keys → K·F² derived. High F = token explosion (the classic RETE join stress).
 ;; stdin = [keys fanout] EDN; stdout = #perf/Result record (println ∀T→EDN). Times native vs wat-spec.
-(:wat::Record::def :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])
-(:wat::Record::def :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])
-(:wat::Record::def :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])
-(:wat::Record::def :perf::FanResult
+(:wat::core::defrecord :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])
+(:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])
+(:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])
+(:wat::core::defrecord :perf::FanResult
   [keys <- :wat::core::i64 fanout <- :wat::core::i64 pairs <- :wat::core::i64 native-ns <- :wat::core::i64])
 
 ;; seed Left(k,f)+Right(k,f) for f in 0..fanout, threaded onto session s, for one key k.

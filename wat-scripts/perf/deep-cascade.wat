@@ -17,9 +17,9 @@
 ;;   echo '(:perf::Params 20 3)' | cargo wat ./wat-scripts/perf/deep-cascade.wat
 ;;   => {:depth 20 :width 3 :derived 120 :deepest 3 :wat-ns N :native-ns M}
 
-(:wat::Record::def :cascade::Node [level <- :wat::core::i64  id <- :wat::core::i64])
-(:wat::Record::def :cascade::Tag  [level <- :wat::core::i64  id <- :wat::core::i64])
-(:wat::Record::def :perf::Result
+(:wat::core::defrecord :cascade::Node [level <- :wat::core::i64  id <- :wat::core::i64])
+(:wat::core::defrecord :cascade::Tag  [level <- :wat::core::i64  id <- :wat::core::i64])
+(:wat::core::defrecord :perf::Result
   [depth     <- :wat::core::i64
    width     <- :wat::core::i64
    derived   <- :wat::core::i64

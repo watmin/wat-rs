@@ -29,9 +29,7 @@
   [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::Option/expect  
-                             (:wat::core::first paths)
-                             "apply-each: head")]
+    (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path
           (:user::migrate (:wat::io::read-file path)))
