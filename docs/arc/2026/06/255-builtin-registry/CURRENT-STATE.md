@@ -44,14 +44,24 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ded
 >      the form-aware codemod `wat-scripts/fixes/rename-wat-record-to-core-record.wat` + boundary-safe substitution for
 >      the comment/string/generic remainder; mangled variant `wat__Record`→`wat__core__Record`). The stale symbol
 >      ceases to exist. `:wat::holon::Record`/`wat__holon__Record` untouched. **= item 1 of the `:wat::Record` order.**
-> - ▶ **NEXT = item 2: KILL the illegal writable "any record" TYPE** (builder: *"`:wat::core::Record` as a writable
->   'any record' type — we just described this is illegal — kill it"*). Sub-moves: rete `[fact <- :wat::core::Record]`
->   → `:wat::core::Value` (in-locus guts top); record-accessor receivers → concrete type **— GROUND FIRST: does the
->   wire-decode produce concretely-typed records or loose `:wat::core::Record`? that decides concrete-vs-Value**;
->   `user.program` + spawn init-fns → a **portable surface** (0-member `:holder :wat::core::Record` = "any portable
->   aggregate"; the builder's `:wat::spawn::user-env`; NOT `Value` — it ships). Then **item 3: of-funcs**
->   (`::of`/`struct-new`/`holon::core::Record::of` → `aggregate-new`; = 294.c.2b). The `:wat::Record` annihilation
->   ORDER + the broader PHASE-1 list live in `294/CLOSE-SEQUENCE-293-294.md`. Then decl-b.1/b.2 · GAP-1/2/3/4 · audit · 293.5 → 118.
+> - ▶ **NEXT = item 2: KILL the illegal writable "any record" TYPE.** **DESIGN FULLY RESOLVED (2026-06-29, with
+>   builder)** — `:wat::core::Record` may exist ONLY as the holder-root (in `:holder` bounds + subtype edges), NEVER as
+>   a writable param/field/return type. Three sub-strikes:
+>   - **2a — rete fact-PARAMS → `:wat::core::Value`.** rete's contract is SEALED (it does not move); facts are opaque
+>     `Value`s (kernel `facts: Value`); "the any receiver is one-way" — a `Value` slot eats anything (i64/struct/
+>     record), but you can't feed a `Value` to a narrower slot. ONLY the `[fact <- :wat::core::Record]` param decls in
+>     `rete.wat`; rete's INTERNAL node records (`Record/assoc` on nodes, e.g. rete.wat:416) are GAP-1/GAP-2, NOT 2a.
+>   - **2b — record-accessor receivers → CONCRETE** (`:geo::Circle/radius [self <- :geo::Circle]`). Decoded records
+>     carry their concrete class (`reconstruct_record:2453` → `AggregateValue::record("geo::Circle",…)`), so the loose
+>     `:wat::core::Record` receiver + its runtime class-check were a static crutch — now dead (type does the work).
+>     **FOLD GAP-1 (builder: "one aggregate-field"):** the generated body uses ONE holder-blind `aggregate-field`,
+>     killing `struct-field` (struct/generic) + `Record/field-at` (non-generic record) — a holder-NAMED split on a
+>     holder-BLIND op. Codegen: `runtime.rs:1064-1238`. (Generated body only — the user surface `(:T/field x)` never moves.)
+>   - **2c — `user.program` + spawn init-fns → a `:holder :wat::core::Record []` SURFACE** ("must be a record, not a
+>     struct"; builder's `(defsurface :Contract :holder :wat::core::Record [])`; NOT `Value` — it ships). Depends on
+>     2b (concrete accessors remove the loose-`:wat::core::Record` consumer that clashed when I first tried the surface).
+>   Then **item 3: of-funcs** (`::of`/`struct-new`/`holon::core::Record::of` → `aggregate-new`; = 294.c.2b). Order +
+>   PHASE-1 list in `294/CLOSE-SEQUENCE-293-294.md`. Then decl-b.1/b.2 · remaining GAP-2/3/4 · audit · 293.5 → 118.
 
 > ⚠⚠ **CORRECTION (2026-06-28, SESSION 10 — the drift, named) — READ THIS FIRST. The "293.R2.x" label below is WRONG.**
 > The `Value`-repr collapse done this session (R2.1/R2.2/R2.3 + the sweep) is **arc 294's deliverable, NOT 293's** —
