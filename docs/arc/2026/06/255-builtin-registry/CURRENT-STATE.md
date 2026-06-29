@@ -1,8 +1,8 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `0837e864` or later.** Tree CLEAN.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `dedcb74a` or later.** Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4111 passed / 0 failed / 91 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
+`4116 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
 > then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`
@@ -23,19 +23,35 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `083
 >   recomputed in 3 live places. (Builder: *"drive these things to zero when we find them."* + *"'replicate' = 'duplicate'"*.)
 > - ✅ **293 decl-a LANDED (`f51465d7`)** — `aggregatetype` is the ONE type-reg primitive (holder from parent's
 >   holder-root); `:wat::core::Struct` node minted; `parse_recordtype` absorbed.
-> - ▶▶ **THE MODEL IS SETTLED + RESHAPED (2026-06-29) — READ `293/AGGREGATE-MODEL.md` (the canonical contract).**
->   A long co-design locked it: the **holder enum is the ONLY specialness**; every op is **holder-blind + uniform**;
->   **NO inheritance** (flat + surface-splice); **requirements are SURFACES** (a bare holder param is an illegal Any;
->   `Value` for guts like rete); the **edn wall is at the locus boundary** (`EdnValue` = a wire concept, not a rete
->   constraint). **decl-b.1.0 (inheritance support) is DELETED — inheritance is ANNIHILATED, not supported.**
-> - ▶ **NEXT = INHERITANCE ANNIHILATION** (PHASE-1 item 2 in CLOSE-SEQUENCE): `program::Env` → a surface; reject user
->   parents (parent must be a holder-root); kill `collect_all_record_fields` + inherited-field machinery; migrate the
->   `rete.wat`/`program.wat` `[x <- :wat::Record]` params → `:wat::core::Value`/surfaces. **STOP: verify the
->   `program::Env` spawn-injection (#211/#238) works via the surface.** Then decl-b.1 (holon ctor bug) · decl-b.2
->   (annihilate structtype/recordtype) · holder-vocab unification (`Holder` owns its keyword; 5 hand-matches die;
->   `:wat::Record`→`:wat::core::Record`) · GAP-1/2/3/4 (uniform field/assoc/->map/->form) · the audit.
-> - ▷ then **294.c.2b** (annihilate the of-funcs) · **294.c.3** (base records lift, step 4) · the **AGGREGATE AUDIT**
->   (classify the ~99 branches) · **294.d-g** sweeps · **293.5 close (GATED on the audit)** → **118**.
+> - ▶▶ **THE MODEL IS SETTLED — READ `293/AGGREGATE-MODEL.md` (canonical contract):** holder enum is the ONLY
+>   specialness; every op holder-blind+uniform; **NO inheritance** (flat + surface-splice); **requirements are
+>   SURFACES** (a bare holder param is an illegal Any); the edn wall lives at the locus boundary.
+> - ✅ **SESSION 11 (2026-06-29) — 4 commits, all green (`4116/0/92`):**
+>   1. **inheritance ANNIHILATION (`c7572929`)** — `AggregateDef.parent` DELETED (was the stringly shadow of
+>      `holder`); subtype edges derive from `holder` via `Holder::root_keyword()`; non-holder-root parent REJECTED at
+>      parse; inherited-field machinery (`collect_all_record_fields`/`ROOT_PARENTS`/abs_idx) gone; 2 inheritance
+>      fixtures deleted. `program::Env` is a **flat record** (NOT a surface — nothing requires "an Env"; spawn-injection
+>      constructs it concretely). decl-b.1.0 stays DELETED.
+>   2. **magic-shorthand kill (`e96fcb23`)** — `Holder::from_root_keyword()` is the ONE reverse map; surface `:holder`
+>      takes the holder-root SYMBOL (the magic `:struct`/`:record`/`:holon-record` die); `root_holder_of` + the
+>      `HOLDER_ROOTS` guard collapse into it.
+>   3. **wat-scripts rot gate (`08632125`)** — `tests/lint/wat_scripts_fixes_load.rs` loads EVERY .wat under
+>      `wat-scripts/` via **FsLoader** (the real loader) → a stale codemod/exemplar goes RED. Closed the blind-spot:
+>      nothing measured `wat-scripts/`, so it rotted silently (the `first` Option→element + `Record::def`-retired
+>      drift). Fixed 6 rotted scripts. (Lessons banked: [[feedback_unmeasured_wat_rots_needs_a_gate]] +
+>      [[feedback_gate_must_use_the_real_loader]].)
+>   4. **`:wat::Record` ANNIHILATION (`dedcb74a`)** — renamed → `:wat::core::Record` EVERYWHERE (keyword all forms via
+>      the form-aware codemod `wat-scripts/fixes/rename-wat-record-to-core-record.wat` + boundary-safe substitution for
+>      the comment/string/generic remainder; mangled variant `wat__Record`→`wat__core__Record`). The stale symbol
+>      ceases to exist. `:wat::holon::Record`/`wat__holon__Record` untouched. **= item 1 of the `:wat::Record` order.**
+> - ▶ **NEXT = item 2: KILL the illegal writable "any record" TYPE** (builder: *"`:wat::core::Record` as a writable
+>   'any record' type — we just described this is illegal — kill it"*). Sub-moves: rete `[fact <- :wat::core::Record]`
+>   → `:wat::core::Value` (in-locus guts top); record-accessor receivers → concrete type **— GROUND FIRST: does the
+>   wire-decode produce concretely-typed records or loose `:wat::core::Record`? that decides concrete-vs-Value**;
+>   `user.program` + spawn init-fns → a **portable surface** (0-member `:holder :wat::core::Record` = "any portable
+>   aggregate"; the builder's `:wat::spawn::user-env`; NOT `Value` — it ships). Then **item 3: of-funcs**
+>   (`::of`/`struct-new`/`holon::core::Record::of` → `aggregate-new`; = 294.c.2b). The `:wat::Record` annihilation
+>   ORDER + the broader PHASE-1 list live in `294/CLOSE-SEQUENCE-293-294.md`. Then decl-b.1/b.2 · GAP-1/2/3/4 · audit · 293.5 → 118.
 
 > ⚠⚠ **CORRECTION (2026-06-28, SESSION 10 — the drift, named) — READ THIS FIRST. The "293.R2.x" label below is WRONG.**
 > The `Value`-repr collapse done this session (R2.1/R2.2/R2.3 + the sweep) is **arc 294's deliverable, NOT 293's** —
