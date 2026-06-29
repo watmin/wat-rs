@@ -3,7 +3,7 @@
 //! See `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-STONE-S-A-records-hierarchy.md`.
 //! Mints the `typesub` child→parent edge-registry on `TypeEnv` + `is_subtype`
 //! (directional / transitive / reflexive walk) + the `:wat::core::subtype?` wat
-//! primitive + two built-in roots (`:wat::holon::Record typesub :wat::Record`).
+//! primitive + two built-in roots (`:wat::holon::Record typesub :wat::core::Record`).
 //!
 //! This is Clojure's `derive`/`isa?` hierarchy axis — NOT typeunion (closed
 //! symmetric sum) and NOT defprotocol (behavior). `is_subtype` walks the NEW
@@ -22,12 +22,12 @@
 //!   3.  reflexive — is_subtype(X,X) true (no edges needed)
 //!   4.  leaf-safe — is_subtype(:bool,:i64) false (types with no edges)
 //!   5.  cycle rejected — register_subtype closing a cycle → Err
-//!   6.  built-in roots — is_subtype(:wat::holon::Record, :wat::Record) true; reverse false
+//!   6.  built-in roots — is_subtype(:wat::holon::Record, :wat::core::Record) true; reverse false
 //!   wat-surface (`:wat::core::subtype?`, validation at the surface):
-//!   7.  (subtype? :wat::holon::Record :wat::Record) → true
-//!   8.  (subtype? :wat::Record :wat::holon::Record) → false   (directional)
+//!   7.  (subtype? :wat::holon::Record :wat::core::Record) → true
+//!   8.  (subtype? :wat::core::Record :wat::holon::Record) → false   (directional)
 //!   9.  (subtype? :wat::core::i64 :wat::core::f64) → false     (unrelated leaves)
-//!   10. (subtype? :my::Nonexistent :wat::Record) → Err         (unknown name; mirror conforms?)
+//!   10. (subtype? :my::Nonexistent :wat::core::Record) → Err         (unknown name; mirror conforms?)
 //!
 //! Initial state: file FAILS to compile — `register_subtype` / `is_subtype` /
 //! `:wat::core::subtype?` do not exist. Post-stone S-A: 10/10 PASS.
@@ -105,11 +105,11 @@ fn probe_05_cycle_rejected() {
 fn probe_06_builtin_roots() {
     let env = TypeEnv::with_builtins();
     assert!(
-        is_subtype(":wat::holon::Record", ":wat::Record", &env),
-        "seeded root edge: :wat::holon::Record typesub :wat::Record"
+        is_subtype(":wat::holon::Record", ":wat::core::Record", &env),
+        "seeded root edge: :wat::holon::Record typesub :wat::core::Record"
     );
     assert!(
-        !is_subtype(":wat::Record", ":wat::holon::Record", &env),
+        !is_subtype(":wat::core::Record", ":wat::holon::Record", &env),
         "directional: base is NOT-a holonic"
     );
 }

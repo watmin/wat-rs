@@ -1,7 +1,7 @@
 //! Arc 278 Stone 2a — `alpha-match`: the rete single-fact matcher.
 //!
-//! Given a condition form (DATA, a `:wat::WatAST`) and a fact (a `:wat::Record`
-//! — either `Value::wat__Record` or `Value::wat__holon__Record`), return
+//! Given a condition form (DATA, a `:wat::WatAST`) and a fact (a `:wat::core::Record`
+//! — either `Value::wat__core__Record` or `Value::wat__holon__Record`), return
 //! `Some(bindings)` iff the fact's class matches the condition head AND every
 //! clause holds; `None` otherwise.
 //!
@@ -104,7 +104,7 @@ pub(crate) fn eval_alpha_match(
         }
     };
 
-    // Evaluate fact: must be a record value (wat__Record, wat__holon__Record, or Struct).
+    // Evaluate fact: must be a record value (wat__core__Record, wat__holon__Record, or Struct).
     let fact_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
 
     // Resolve the fact's declared field names from the type registry.
@@ -116,7 +116,7 @@ pub(crate) fn eval_alpha_match(
         None => {
             return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::Record (a record fact)",
+                expected: ":wat::core::Record (a record fact)",
                 got: Box::new(ValueSnapshot::of(&fact_val)),
             } }.into());
         }
@@ -370,7 +370,7 @@ fn resolve_binary_operands(
 ///
 /// Given the outer `insert-form` AST (a `(:wat::rete::insert (:RecordType arg…))` list)
 /// and the token `bindings`, validates the form, resolves each fact-arg via `resolve_operand`
-/// (empty fact-fields/names: RHS has no current fact), and builds the `Value::wat__Record`.
+/// (empty fact-fields/names: RHS has no current fact), and builds the `Value::wat__core__Record`.
 ///
 /// Called from `eval_insert` (after arg evaluation) and from the production pass in
 /// `kernel.rs` (which already has the form + bindings and calls this directly).
@@ -463,7 +463,7 @@ pub(crate) fn build_insert_fact(
 }
 
 /// `(:wat::rete::eval-insert <insert-form: :wat::WatAST> <bindings: :wat::core::PersistentMap>)
-/// -> :wat::Record`
+/// -> :wat::core::Record`
 ///
 /// The RHS dual of `eval_alpha_match`: where alpha-match is `(cond, fact) → Option<bindings>`,
 /// eval-insert is `(insert-form, bindings) → fact`. Both sides reuse `resolve_operand`.
@@ -600,7 +600,7 @@ fn value_to_ast_literal(v: Value) -> Option<WatAST> {
 ///   - `session`    — `:wat::rete::Session` (carries `network` at struct_form[0])
 ///   - `alpha-id`   — `:wat::core::i64` (the AlphaNode id for this condition)
 ///   - `bindings`   — `:wat::core::PersistentMap` (the token's accumulated bindings)
-///   - `sfact`      — `:wat::Record` (the supporting fact for this edge)
+///   - `sfact`      — `:wat::core::Record` (the supporting fact for this edge)
 ///   - `supporting` — `:wat::rete::DerivationNode` (the pre-computed recursive node)
 ///
 /// Returns a `:wat::rete::DerivationStep` record.
@@ -652,7 +652,7 @@ pub(crate) fn eval_step_payload(
         Some(f) => f,
         None => return Err(RuntimeError { span: args[3].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: ":wat::Record (supporting fact)",
+            expected: ":wat::core::Record (supporting fact)",
             got: Box::new(ValueSnapshot::of(&sfact_val)),
         } }.into()),
     };

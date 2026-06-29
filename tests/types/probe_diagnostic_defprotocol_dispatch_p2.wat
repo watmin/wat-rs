@@ -2,7 +2,7 @@
 (:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :myapp::Formattable/format
-  [self <- :wat::Record] -> :wat::core::String
+  [self <- :wat::core::Record] -> :wat::core::String
   (:wat::core::let
     [classifier    (:wat::holon::extract-classifier self)
      mangled-str   (:wat::core::string::concat classifier "/Formattable-format")
@@ -10,7 +10,7 @@
     (:wat::core::apply -> :wat::core::String mangled-kw [self])))
 
 (:wat::core::defn :myapp::Voltage/Formattable-format
-  [self <- :wat::Record] -> :wat::core::String
+  [self <- :wat::core::Record] -> :wat::core::String
   "voltage-after-dispatcher")
 
 (:wat::core::defn :user::compute [] -> :wat::core::String

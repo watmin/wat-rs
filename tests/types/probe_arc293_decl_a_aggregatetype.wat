@@ -2,7 +2,7 @@
 ;;
 ;; The declaration unification: ONE type-reg primitive `aggregatetype`, the holder DERIVED
 ;; from the parent's root (293 audit — holder is a passing policy; declaration is holder-agnostic).
-;;   root_holder_of(:Parent):  :wat::core::Struct → Struct · :wat::Record → Record · :wat::holon::Record → HolonRecord
+;;   root_holder_of(:Parent):  :wat::core::Struct → Struct · :wat::core::Record → Record · :wat::holon::Record → HolonRecord
 ;; decl-a mints `aggregatetype` + `parse_aggregate` + the `:wat::core::Struct` lattice node
 ;; (structs repoint their root Value → Struct, behaviour-preserving since Struct <: Value).
 ;;
@@ -20,5 +20,5 @@
   (:test::da::ST/a (:test::da::ST 7 8)))
 
 ;; A record, same unified primitive, parent = the Record holder root → holder Record.
-(:wat::core::aggregatetype :test::da::BR :wat::Record
+(:wat::core::aggregatetype :test::da::BR :wat::core::Record
   [a <- :wat::core::i64  b <- :wat::core::i64])

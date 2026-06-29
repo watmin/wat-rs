@@ -2741,7 +2741,7 @@ mod cap_decode_boundary {
 
     fn make_types() -> crate::types::TypeEnv {
         use crate::types::{AggregateDef, Holder, TypeDef, TypeExpr};
-        // with_builtins seeds :wat::Record (required parent for SocketAddressWire).
+        // with_builtins seeds :wat::core::Record (required parent for SocketAddressWire).
         let mut env = crate::types::TypeEnv::with_builtins();
         // Arc 293.2b — use AggregateDef (holder=Record) instead of the annihilated RecordDef.
         env.register_stdlib(TypeDef::Aggregate(AggregateDef {

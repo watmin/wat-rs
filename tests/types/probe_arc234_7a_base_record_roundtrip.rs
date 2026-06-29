@@ -1,4 +1,4 @@
-//! Arc 234 Stone 234.7a — base `wat__Record` round-trips on the EDN wire.
+//! Arc 234 Stone 234.7a — base `wat__core__Record` round-trips on the EDN wire.
 //!
 //! ## The bug (grounded against HEAD)
 //!
@@ -6,7 +6,7 @@
 //! `field-0`/`field-1` keys (ignoring `RecordDef.field_names`), and there is no
 //! record decode path (tagged-map dispatch routes only to `reconstruct_struct`,
 //! which returns `UnknownTag` for a record). This stone fixes BOTH sides for base
-//! `wat__Record` (the flavor with no `holon_form`).
+//! `wat__core__Record` (the flavor with no `holon_form`).
 //!
 //! ## Contracts
 //!

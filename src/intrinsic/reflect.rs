@@ -5,7 +5,7 @@
 //! Mirrors `:wat::stdlib::sources` (io.rs:1454): return plain Vectors, let
 //! wat wrap. The wat verifier (`verify-examples`, iv-b2-b) `eval-ast!`s them.
 //!
-//! Record shape per element: a `:wat::intrinsic::Example` `Value::wat__Record`
+//! Record shape per element: a `:wat::intrinsic::Example` `Value::wat__core__Record`
 //! with fields `[fqdn, expr, expected, run, pure, deterministic]` (declaration
 //! order) — `fqdn` a keyword, `expr` a quoted `Value::wat__WatAST`, `expected`
 //! a `Value::Option<Value::wat__WatAST>` (None for markerless/`@example-norun`),
@@ -33,7 +33,7 @@ use crate::value::value::AggregateValue;
 /// the iv-b2-a reflection seam. The wat verifier (`verify-examples`, iv-b2-b)
 /// iterates this to run or skip each example.
 ///
-/// Each element is a `:wat::intrinsic::Example` `Value::wat__Record` with fields
+/// Each element is a `:wat::intrinsic::Example` `Value::wat__core__Record` with fields
 /// (declaration order):
 /// - `fqdn`: the intrinsic's FQDN as a keyword
 /// - `expr`: the example expression, parsed into a quoted form (`Value::wat__WatAST`)
@@ -113,11 +113,11 @@ pub(crate) fn eval_intrinsic_examples(
                 Value::Option(Arc::new(None))
             };
 
-            // Builder doctrine (2026-06-21): EDN-representable data → `Value::wat__Record`
+            // Builder doctrine (2026-06-21): EDN-representable data → `Value::wat__core__Record`
             // (the `:wat::core::defrecord` representation, so the generated named accessors
             // `:wat::intrinsic::Example/<field>` work); `Value::Struct` is reserved for
             // payloads that are NOT EDN-able. An Example is fully EDN-representable
-            // (keyword + WatASTs + bools), so it's a wat__Record. `class_fqdn` carries
+            // (keyword + WatASTs + bools), so it's a wat__core__Record. `class_fqdn` carries
             // NO leading colon (matches the RecordDef class identity).
             let record = Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::intrinsic::Example".to_string(),

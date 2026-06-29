@@ -2,7 +2,7 @@
 (:wat::core::defrecord :myapp::Unhandled [v <- :wat::core::i64])
 
 (:wat::core::defn :myapp::Formattable/format
-  [self <- :wat::Record] -> :wat::core::String
+  [self <- :wat::core::Record] -> :wat::core::String
   (:wat::core::let
     [classifier    (:wat::holon::extract-classifier self)
      mangled-str   (:wat::core::string::concat classifier "/Formattable-format")

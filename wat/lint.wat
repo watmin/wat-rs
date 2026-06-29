@@ -20,7 +20,7 @@
 ;; Worked references:
 ;;   wat/deporder.wat — SourceFile, stdlib-sources, structural? + recursive AST walk
 ;;   wat/fix.wat      — fix-text-apply + edit shape (the seam)
-;;   wat/Record.wat   — :wat::Record::def for the Finding record
+;;   wat/Record.wat   — :wat::core::Record::def for the Finding record
 
 ;; ─── Typed record: FixEdit (the extent + replacement for an auto-fix) ───────
 

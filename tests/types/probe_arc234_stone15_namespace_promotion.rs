@@ -1,4 +1,4 @@
-//! Diagnostic probe — Stone 234.1.5 variant rename + `:wat::Record` namespace promotion.
+//! Diagnostic probe — Stone 234.1.5 variant rename + `:wat::core::Record` namespace promotion.
 //!
 //! Probes 1-3 and 5 are pure Rust substrate tests using make_record() directly (no WAT startup).
 //! Probe 4 uses tests/types/probe_arc234_stone15_namespace_promotion.wat (via startup_beside).
@@ -70,7 +70,7 @@ fn probe_1_variant_compiles_and_constructs() {
 
 // ─── Probe 2 ────────────────────────────────────────────────────────────────
 //
-// type_name() returns `"wat::Record"` — verifies D2 + D5 in lockstep.
+// type_name() returns `"wat::core::Record"` — verifies D2 + D5 in lockstep.
 #[test]
 fn probe_2_type_name_returns_wat_record() {
     let r = make_record(
@@ -79,14 +79,14 @@ fn probe_2_type_name_returns_wat_record() {
     );
     assert_eq!(
         r.type_name(),
-        "wat::Record",
-        "Probe 2: type_name() must return \"wat::Record\""
+        "wat::core::Record",
+        "Probe 2: type_name() must return \"wat::core::Record\""
     );
 }
 
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 //
-// Eq + Hash consistency — two same-args wat__Records are equal AND hash-equal.
+// Eq + Hash consistency — two same-args wat__core__Records are equal AND hash-equal.
 #[test]
 fn probe_3_eq_hash_consistency_under_rename() {
     let a = make_record(
@@ -97,21 +97,21 @@ fn probe_3_eq_hash_consistency_under_rename() {
         "myapp::Voltage",
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
-    assert_eq!(a, b, "Probe 3: two same-args wat__Records must compare equal");
+    assert_eq!(a, b, "Probe 3: two same-args wat__core__Records must compare equal");
     assert_eq!(
         hash_value(&a),
         hash_value(&b),
-        "Probe 3: equal wat__Records must hash equal"
+        "Probe 3: equal wat__core__Records must hash equal"
     );
 }
 
 // ─── Probe 4 ────────────────────────────────────────────────────────────────
 //
-// `[v <- :wat::Record]` annotation type-checks in WAT source.
+// `[v <- :wat::core::Record]` annotation type-checks in WAT source.
 #[test]
 fn probe_4_namespace_type_registration() {
     startup_beside(file!())
-        .expect("Probe 4: :wat::Record annotation must type-check cleanly");
+        .expect("Probe 4: :wat::core::Record annotation must type-check cleanly");
     // Verify the probe-4 function is callable (returns nil)
     let world = startup_beside(file!()).expect("startup for probe 4 eval");
     let ast = wat::parse_one!("(:user::probe-4)").expect("parse probe-4");
@@ -128,7 +128,7 @@ fn probe_5_class_fqdn_extraction_post_rename() {
         "myapp::Voltage",
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
-    assert_eq!(r.type_name(), "wat::Record");
+    assert_eq!(r.type_name(), "wat::core::Record");
     match &r {
         Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
             assert_eq!(

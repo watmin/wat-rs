@@ -15,7 +15,7 @@
 //! heterogeneous tuples) because R7's unidirectional `Value` makes a tuple's
 //! universal-top elements un-passable to the typed `eval-ast!` (the firewall, R3).
 //!
-//! The records are `Value::wat__Record` (the `:wat::core::defrecord` representation —
+//! The records are `Value::wat__core__Record` (the `:wat::core::defrecord` representation —
 //! EDN-representable data is a wat-record, not a `Value::Struct`; that's the
 //! builder doctrine, and it's what makes the named field accessors work). GREEN:
 //! a `Vector` of `:wat::intrinsic::Example` records including
@@ -39,8 +39,8 @@ fn eval_examples_seam() -> Result<Value, String> {
 
 #[test]
 fn examples_seam_returns_bytes_to_hex_runnable() {
-    // RED until the seam returns wat__Record Example values; the eval errors or
-    // the wat__Record match below finds nothing.
+    // RED until the seam returns wat__core__Record Example values; the eval errors or
+    // the wat__core__Record match below finds nothing.
     let v = eval_examples_seam()
         .expect("(:wat::intrinsic::examples) must eval to a Vector of Example records");
 
@@ -50,7 +50,7 @@ fn examples_seam_returns_bytes_to_hex_runnable() {
     };
     assert!(!entries.is_empty(), "seam must return at least one example");
 
-    // Find the to-hex Example — a Value::wat__Record of class `wat::intrinsic::Example`
+    // Find the to-hex Example — a Value::wat__core__Record of class `wat::intrinsic::Example`
     // (EDN-representable data is a wat-record, NOT a Value::Struct — builder doctrine).
     // RED on the tuple seam (elements were Value::Vec); RED on a Value::Struct seam too.
     let to_hex = entries
@@ -69,7 +69,7 @@ fn examples_seam_returns_bytes_to_hex_runnable() {
             }
             _ => false,
         })
-        .expect("seam must return wat__Record :wat::intrinsic::Example values including Bytes::to-hex");
+        .expect("seam must return wat__core__Record :wat::intrinsic::Example values including Bytes::to-hex");
 
     // Field order = declaration order: [fqdn, expr, expected, run, pure, det] — run at index 3.
     assert!(

@@ -38,11 +38,11 @@ fn ev(expr: &str) -> Value {
 fn derived_of(ty: &str) -> String {
     format!(
         "(:wat::core::length (:wat::core::filter \
-           (:wat::core::fn [f <- :wat::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) \"{ty}\")) \
+           (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) \"{ty}\")) \
            (:wat::core::foldl \
              (:wat::core::fn [acc <- :wat::core::PersistentVector pv <- :wat::core::PersistentVector] \
                -> :wat::core::PersistentVector \
-               (:wat::core::foldl (:wat::core::fn [a <- :wat::core::PersistentVector x <- :wat::Record] \
+               (:wat::core::foldl (:wat::core::fn [a <- :wat::core::PersistentVector x <- :wat::core::Record] \
                  -> :wat::core::PersistentVector (:wat::core::PersistentVector/conj a x)) acc pv)) \
              (:wat::core::PersistentVector) \
              (:wat::core::PersistentMap/values (:wat::rete::Session/production-memory fired)))))"
@@ -53,7 +53,7 @@ fn derived_of(ty: &str) -> String {
 fn facts_of(ty: &str) -> String {
     format!(
         "(:wat::core::length (:wat::core::filter \
-           (:wat::core::fn [f <- :wat::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) \"{ty}\")) \
+           (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) \"{ty}\")) \
            (:wat::rete::Session/facts fired)))"
     )
 }

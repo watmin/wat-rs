@@ -166,13 +166,13 @@
                         "defservice: :calls needs a value")
                       empty-vec)
 
-     ;; :durable-parent — optional, default :wat::Record
+     ;; :durable-parent — optional, default :wat::core::Record
      state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "durable-parent")
                       -> :wat::WatAST
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "durable-parent")
                         "defservice: :durable-parent needs a value")
-                      :wat::Record)
+                      :wat::core::Record)
 
      ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
      state-ty       (:wat::core::keyword/from-string
@@ -274,7 +274,7 @@
      hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty ~hibernate-body)
 
      ;; ── 4b-ii: emit the Record def + State defstruct ─────────────────────────
-     ;; record-def: (:wat::Record::def ::Record [durable-fields]) (or holon parent)
+     ;; record-def: (:wat::core::Record::def ::Record [durable-fields]) (or holon parent)
      ;; state-def:  (:wat::core::defstruct ::State [durable <- ::Record <ephemeral-fields...>])
      ;;   The 3 tokens `durable <- ~record-ty` are prepended to ephemeral children.
      state-parent-str (:wat::core::keyword/to-string state-parent)

@@ -10,14 +10,14 @@
 ;; GREEN after 293.R2a: one register_aggregate_methods mints accessors for all three holders,
 ;; generic-aware, bare key — :r2::CR/v and :r2::HR/v resolve. (:r2::probe) => 60.
 ;;
-;; Guard (must stay green): policy c — a holon record is accepted where a core :wat::Record is wanted.
+;; Guard (must stay green): policy c — a holon record is accepted where a core :wat::core::Record is wanted.
 
 (:wat::core::defstruct  :r2::ST<T> [v <- :T])
 (:wat::core::defrecord  :r2::CR<T> [v <- :T])
 (:wat::holon::defrecord :r2::HR<T> [v <- :T])
 
 ;; policy c (holon ⊂ core): a holon record passes where a core-record is wanted.
-(:wat::core::defn :r2::want-core [x <- :wat::Record] -> :wat::core::i64 99)
+(:wat::core::defn :r2::want-core [x <- :wat::core::Record] -> :wat::core::i64 99)
 
 (:wat::core::defn :r2::probe [] -> :wat::core::i64
   (:wat::core::let [_chk (:r2::want-core (:r2::HR 20))]

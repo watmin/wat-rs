@@ -352,7 +352,7 @@ pub enum ProcessSelectable {
 /// Three positional args:
 /// - `args[0]` — program fn: `fn [self <- Peer'<S,R>] -> nil` (self-peer model,
 ///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `Thread'<R,S>`.
-/// - `args[1]` — init-fn: `fn [] -> :wat::Record` — runs at the peer's start,
+/// - `args[1]` — init-fn: `fn [] -> :wat::core::Record` — runs at the peer's start,
 ///   its return value becomes `user.program` in the peer's env.
 /// - `args[2]` — post-spawn-fn: `fn [l <- ThreadLaunch] -> nil` — runs OWNER-side
 ///   after the thread is spawned, before returning, for effects.
@@ -397,7 +397,7 @@ pub fn eval_kernel_spawn_thread_prime(
         }
     };
 
-    // arg 1: init-fn value (0-arg fn returning :wat::Record).
+    // arg 1: init-fn value (0-arg fn returning :wat::core::Record).
     let init_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
         Value::wat__core__fn(f) => f,
         other => {
@@ -405,7 +405,7 @@ pub fn eval_kernel_spawn_thread_prime(
                 span: args[1].span().clone(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "fn value (0-arg init-fn returning :wat::Record) for thread tier",
+                    expected: "fn value (0-arg init-fn returning :wat::core::Record) for thread tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 },
             }
@@ -535,7 +535,7 @@ pub fn eval_kernel_spawn_process_prime(
 /// The spawned closure constructs a `Peer` opaque inside the thread (owner-thread
 /// invariant) and calls the prog ONCE. The prog owns its own recv'/send' loop.
 ///
-/// The `init_fn` is a 0-arg fn returning `:wat::Record`. It runs at the peer's
+/// The `init_fn` is a 0-arg fn returning `:wat::core::Record`. It runs at the peer's
 /// start (inside the closure, at peer-start timing); its return value becomes
 /// `user.program` in the peer's env (replacing the hardcoded EmptyEnv literal).
 ///
@@ -597,7 +597,7 @@ pub fn spawn_thread_peer(
                 // The init-fn is USER code; if it errors the peer cannot build an
                 // honest env. Exit the thread — `output_tx` (moved here) drops, the
                 // parent's cascade-aware `recv'` raises (the peer died). NEVER smuggle
-                // a non-record fallback into the `:wat::Record` user.program slot.
+                // a non-record fallback into the `:wat::core::Record` user.program slot.
                 Err(_) => return,
             };
 
@@ -936,7 +936,7 @@ mod tests {
 
         // Build a default init-fn: 0-arg, returns EmptyEnv (the default thunk).
         let init_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::default-init [] -> :wat::Record (:wat::program::EmptyEnv))",
+            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),
         )
@@ -1046,7 +1046,7 @@ mod tests {
 
         // Build a default init-fn for the blocker test.
         let init_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::default-init [] -> :wat::Record (:wat::program::EmptyEnv))",
+            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),
         )

@@ -35,7 +35,7 @@ fn setup(wind_loc: &str) -> String {
               (:wat::core::filter \
                 (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
                   (:wat::core::= (:wat::rete::node-kind-label \
-                                   (:wat::core::Option/expect -> :wat::Record (:wat::core::PersistentMap/get network k) \"n\")) \
+                                   (:wat::core::Option/expect -> :wat::core::Record (:wat::core::PersistentMap/get network k) \"n\")) \
                                  \"HashJoinNode\")) \
                 (:wat::core::PersistentMap/keys network)) \
               0) \"hjid\")\
@@ -111,7 +111,7 @@ const SETUP_2X2: &str = "\
               (:wat::core::filter \
                 (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
                   (:wat::core::= (:wat::rete::node-kind-label \
-                                   (:wat::core::Option/expect -> :wat::Record (:wat::core::PersistentMap/get network k) \"n\")) \
+                                   (:wat::core::Option/expect -> :wat::core::Record (:wat::core::PersistentMap/get network k) \"n\")) \
                                  \"HashJoinNode\")) \
                 (:wat::core::PersistentMap/keys network)) 0) \"hjid\")\
    htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector \

@@ -11,7 +11,7 @@
 //! `startup_from_source` + `FsLoader` (the disk loader cargo-wat uses) parses + type-checks the
 //! whole world (all defns, including `:user::main`'s body, and any disk `load-file!` dependencies)
 //! without running `main` — exactly the check that catches a dead idiom (`Option/expect`-over-`first`)
-//! or a broken declaration form (the retired `:wat::Record::def`). It must use the SAME loader the
+//! or a broken declaration form (the retired `:wat::core::Record::def`). It must use the SAME loader the
 //! scripts run under (NOT `InMemoryLoader`), or it lies about scripts with relative `load-file!`.
 
 // rune:lint(no-inlined-wat) — this gate builds NO world from an inline string. It loads each

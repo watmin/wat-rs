@@ -3,7 +3,7 @@
 ;; Arc 293 annihilation: no longer an extensible base; it is a plain defrecord.
 ;; Replaces the Rust-builtin typealias (HashMap<keyword, HolonAST>) with a proper record.
 ;;
-;; Loading order: must load AFTER wat/Record.wat (uses :wat::Record::def)
+;; Loading order: must load AFTER wat/Record.wat (uses :wat::core::Record::def)
 ;; and :wat::time::Instant is a builtin already available at startup.
 ;; The defenum MUST precede the Record::def that names it as a field type.
 
@@ -17,7 +17,7 @@
 
 ;; EmptyEnv — the 0-field nominal default for `user.program`.
 ;; A real record, never nil: "didn't provide one" is honest because there is no nil branch.
-;; Construction: `(:wat::program::EmptyEnv)`. Extends :wat::Record (the root).
+;; Construction: `(:wat::program::EmptyEnv)`. Extends :wat::core::Record (the root).
 (:wat::core::defrecord :wat::program::EmptyEnv [])
 
 ;; Seven kernel-stamped fields (arc 259 — The Forced Hand):
@@ -31,7 +31,7 @@
 ;;   wat.cpu-count       — host available parallelism (`std::thread::available_parallelism()`,
 ;;                         fallback 1); a host constant, INHERITED unchanged down the spawn tree
 ;;                         (like `wat.started-at`). The escape-hatch home for "how many CPUs".
-;;   user.program        — the user-extension slot, typed :wat::Record (the root — any record fits
+;;   user.program        — the user-extension slot, typed :wat::core::Record (the root — any record fits
 ;;                         as a subtype); default :wat::program::EmptyEnv. NOT `wat.*` — user data,
 ;;                         distinct from platform-owned fields.
 ;; All `wat.*` fields are reserved/platform-owned. Subtypes extend this base — see
@@ -43,4 +43,4 @@
    wat.os-thread-id <- :wat::core::i64
    wat.peer-kind <- :wat::program::PeerKind
    wat.cpu-count <- :wat::core::i64
-   user.program <- :wat::Record])
+   user.program <- :wat::core::Record])

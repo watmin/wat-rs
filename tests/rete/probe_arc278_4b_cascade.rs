@@ -24,7 +24,7 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 // Build the fired session for a given WindSpeed location, then gather ALL derived facts across every
-// ProductionNode (production-memory values flattened into one PV<:wat::Record>) as `derived`.
+// ProductionNode (production-memory values flattened into one PV<:wat::core::Record>) as `derived`.
 fn setup(wind_loc: &str) -> String {
     format!("\
    ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
@@ -43,7 +43,7 @@ fn setup(wind_loc: &str) -> String {
               (:wat::core::fn [acc <- :wat::core::PersistentVector pv <- :wat::core::PersistentVector] \
                 -> :wat::core::PersistentVector \
                 (:wat::core::foldl \
-                  (:wat::core::fn [a <- :wat::core::PersistentVector f <- :wat::Record] \
+                  (:wat::core::fn [a <- :wat::core::PersistentVector f <- :wat::core::Record] \
                     -> :wat::core::PersistentVector \
                     (:wat::core::PersistentVector/conj a f)) \
                   acc pv)) \
@@ -56,7 +56,7 @@ fn count_of(setup_block: &str, type_fqdn: &str) -> Value {
     ev(&format!("(:wat::core::let [{setup_block}] \
         (:wat::core::length \
           (:wat::core::filter \
-            (:wat::core::fn [f <- :wat::Record] -> :wat::core::bool \
+            (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool \
               (:wat::core::= (:wat::core::type f) \"{type_fqdn}\")) \
             derived)))"))
 }

@@ -112,7 +112,7 @@ pub(crate) fn infer_contains(
                     local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: OP.into(),
                         param: "#1".into(),
-                        expected: "Vector<T>, HashSet<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, List<T>, Tuple, WatAstList, or :wat::Record".into(),
+                        expected: "Vector<T>, HashSet<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, List<T>, Tuple, WatAstList, or :wat::core::Record".into(),
                         got: format_type(&reduced)
                     } });
                     None
@@ -357,7 +357,7 @@ pub(crate) fn infer_get(
                     local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: OP.into(),
                         param: "#1".into(),
-                        expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, List<T>, WatAstList, HashSet<T>, or :wat::Record".into(),
+                        expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, List<T>, WatAstList, HashSet<T>, or :wat::core::Record".into(),
                         got: format_type(&reduced)
                     } });
                     None
@@ -402,7 +402,7 @@ pub(crate) fn infer_get(
 /// Records-doctrine slice: promotes the surface name from a HashMap-only alias to a
 /// polymorphic intrinsic with a custom inference arm. Two arms:
 ///   `HashMap<K,V> + K + V → HashMap<K,V>`   (type-preserving; arg2 unifies with V, NOT K)
-///   `:wat::Record + :keyword + ∀T → :wat::Record`  (arg2 free; flavor preserved at runtime)
+///   `:wat::core::Record + :keyword + ∀T → :wat::core::Record`  (arg2 free; flavor preserved at runtime)
 pub(crate) fn infer_assoc(
     args: &[WatAST],
     head_span: &Span,
@@ -475,7 +475,7 @@ pub(crate) fn infer_assoc(
                     };
                 }
                 MapContainer::Record => {
-                    // Record (base :wat::Record, holonic :wat::holon::Record, or any
+                    // Record (base :wat::core::Record, holonic :wat::holon::Record, or any
                     // specifically-typed subtype like :myapp::Voltage):
                     // arg1 must be :keyword; arg2 is free ∀T — DO NOT unify.
                     // Arc 258 cascade — accept all record subtypes here so assoc on
@@ -508,7 +508,7 @@ pub(crate) fn infer_assoc(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "HashMap<K,V> or :wat::Record".into(),
+                    expected: "HashMap<K,V> or :wat::core::Record".into(),
                     got: format_type(&reduced)
                 } });
             }
@@ -522,7 +522,7 @@ pub(crate) fn infer_assoc(
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: OP.into(),
                             param: "#1".into(),
-                            expected: "HashMap<K,V> or :wat::Record".into(),
+                            expected: "HashMap<K,V> or :wat::core::Record".into(),
                             got: format_type(&reduced)
                         } });
                     }

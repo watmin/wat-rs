@@ -6,26 +6,26 @@
 
 use wat::freeze::startup_from_file;
 
-/// Case 1 — a core record IS a record: passing `:geo::Pt` where `:wat::Record` is
+/// Case 1 — a core record IS a record: passing `:geo::Pt` where `:wat::core::Record` is
 /// wanted must succeed.
 #[test]
 fn core_record_accepted_where_record_wanted() {
     let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c1.wat");
     assert!(
         world.is_ok(),
-        "a core record should be accepted where :wat::Record is wanted; got: {:?}",
+        "a core record should be accepted where :wat::core::Record is wanted; got: {:?}",
         world.err()
     );
 }
 
 /// Case 2 — THE WIDEN: a holon record IS a record (holon <: record <: value).
-/// Passing `:geo::HPt` where `:wat::Record` is wanted must succeed.
+/// Passing `:geo::HPt` where `:wat::core::Record` is wanted must succeed.
 #[test]
 fn holon_record_accepted_where_record_wanted() {
     let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c2.wat");
     assert!(
         world.is_ok(),
-        "a holon record should widen to :wat::Record (holon <: record); got: {:?}",
+        "a holon record should widen to :wat::core::Record (holon <: record); got: {:?}",
         world.err()
     );
 }
@@ -59,12 +59,12 @@ fn core_record_rejected_where_holon_wanted() {
 }
 
 /// Case 5 — a STRUCT is not a record (separate branch): passing `:geo::SPt` where
-/// `:wat::Record` is wanted must be rejected.
+/// `:wat::core::Record` is wanted must be rejected.
 #[test]
 fn struct_rejected_where_record_wanted() {
     let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c5_bad.wat");
     assert!(
         world.is_err(),
-        "a struct must NOT satisfy :wat::Record (struct is a separate branch of the holder lattice)"
+        "a struct must NOT satisfy :wat::core::Record (struct is a separate branch of the holder lattice)"
     );
 }

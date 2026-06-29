@@ -48,7 +48,7 @@ fn injected_user_program_flows_to_main() {
             "user::MyEnv",
             "expected main to read the INJECTED user.program (user::MyEnv), not the EmptyEnv default"
         ),
-        other => panic!("expected main to return the injected :wat::Record user.program; got {other:?}"),
+        other => panic!("expected main to return the injected :wat::core::Record user.program; got {other:?}"),
     }
 }
 

@@ -1,4 +1,4 @@
-//! Diagnostic probe — `:wat::holon::*` auto-dispatch on `Value::wat__Record`
+//! Diagnostic probe — `:wat::holon::*` auto-dispatch on `Value::wat__core__Record`
 //! (arc 234 Stone 234.5).
 //!
 //! Wat source: tests/types/probe_arc234_stone5_holon_auto_dispatch.wat (loaded via startup_beside).

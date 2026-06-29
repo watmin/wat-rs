@@ -16,7 +16,7 @@
 //! - **Stone 4a** (`matcher.rs`) — `eval_insert`: given an insert form (DATA, a quoted
 //!   `(:wat::rete::insert (:RecordType arg…))`) and a token's bindings map, resolve each
 //!   fact-arg via `resolve_operand` (?var + literal only; no current fact) and return the
-//!   derived `:wat::Record`. The RHS dual of `eval_alpha_match`. Raises on malformed form /
+//!   derived `:wat::core::Record`. The RHS dual of `eval_alpha_match`. Raises on malformed form /
 //!   unresolved operand (never silently drops).
 //!
 //! ## Declaration sites
@@ -24,8 +24,8 @@
 //! - **Runtime dispatch:** `":wat::rete::alpha-match"` arm and `":wat::rete::eval-insert"` arm
 //!   in `dispatch_keyword_head_value` (`src/runtime.rs`) route here.
 //! - **Check scheme:** registered in `register_builtins` (`src/check.rs`) —
-//!   `alpha-match`: `[:wat::WatAST, :wat::Record] -> Option<PersistentMap<String, Value>>`.
-//!   `eval-insert`: `[:wat::WatAST, :wat::core::PersistentMap] -> :wat::Record`.
+//!   `alpha-match`: `[:wat::WatAST, :wat::core::Record] -> Option<PersistentMap<String, Value>>`.
+//!   `eval-insert`: `[:wat::WatAST, :wat::core::PersistentMap] -> :wat::core::Record`.
 
 pub(crate) mod matcher;
 // Stone 5b (collect.rs) — eval_collect_rules: reflect the symbol table for a namespace's defrule'd

@@ -387,7 +387,7 @@ impl Drop for EnvGuard {
 /// return a RAII guard. On guard drop the prior value is restored.
 ///
 /// The env is a `:wat::program::Env` record `Value` (or a subtype — any
-/// `Value::wat__Record` whose class descends from `wat::program::Env`).
+/// `Value::wat__core__Record` whose class descends from `wat::program::Env`).
 /// Called by the post-bootstrap / pre-`:user::main` seam
 /// (`invoke_user_main_orchestrated`) and directly by tests.
 pub fn install_program_env(env: crate::runtime::Value) -> EnvGuard {

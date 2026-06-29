@@ -1,4 +1,4 @@
-//! Diagnostic probe — `:wat::holon::Record::of` + `:wat::Record/field-at`
+//! Diagnostic probe — `:wat::holon::Record::of` + `:wat::core::Record/field-at`
 //! substrate primitives (arc 234 Stone 234.2a).
 //!
 //! Wat source: tests/types/probe_arc234_stone2a_record_primitives.wat (loaded via startup_beside).

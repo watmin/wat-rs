@@ -14,7 +14,7 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// Generic core-record + holon-record field accessors resolve, at parity with the generic struct;
-/// and a holon record is accepted where a core `:wat::Record` is wanted (policy c).
+/// and a holon record is accepted where a core `:wat::core::Record` is wanted (policy c).
 #[test]
 fn aggregate_codegen_parity_generic_record_accessors() {
     let world = startup_beside(file!())

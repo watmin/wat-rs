@@ -38,7 +38,7 @@ fn raw_recordtype_holon_has_codegen_ctor() {
 }
 
 /// A holon record built via the RAW primitive must carry a hologram (cosine(h,h)==1.0).
-/// RED at HEAD: the fallback uses `:wat::Record::of` (base ctor) → no hologram. GREEN after
+/// RED at HEAD: the fallback uses `:wat::core::Record::of` (base ctor) → no hologram. GREEN after
 /// decl-b.1 routes the fallback through `aggregate-new` (gated on decl-b.1.0 — `aggregate-new`
 /// must first handle inherited fields). #[ignore]'d STRIKE-READY until then.
 #[test]

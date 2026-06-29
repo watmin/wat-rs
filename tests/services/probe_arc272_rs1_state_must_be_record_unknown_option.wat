@@ -5,4 +5,4 @@
   [(:Get [s <- :State]
          -> [value <- :wat::core::i64]
      (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))]
-  :bogus-option :wat::Record)
+  :bogus-option :wat::core::Record)

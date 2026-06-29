@@ -3,15 +3,15 @@
 (:wat::core::defrecord :myapp::Celsius [degrees <- :wat::core::f64])
 
 (:wat::core::defn :myapp::Voltage/Formattable-format
-  [self <- :wat::Record] -> :wat::core::String
+  [self <- :wat::core::Record] -> :wat::core::String
   "voltage-formatted")
 
 (:wat::core::defn :myapp::Celsius/Formattable-format
-  [self <- :wat::Record] -> :wat::core::String
+  [self <- :wat::core::Record] -> :wat::core::String
   "celsius-formatted")
 
 (:wat::core::defn :myapp::Formattable/format
-  [self <- :wat::Record] -> :wat::core::String
+  [self <- :wat::core::Record] -> :wat::core::String
   (:wat::core::let
     [classifier    (:wat::holon::extract-classifier self)
      mangled-str   (:wat::core::string::concat classifier "/Formattable-format")

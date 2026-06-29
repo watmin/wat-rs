@@ -3,7 +3,7 @@
 //! 232.1 registered defprotocol/extend-type (the registries exist). 232.2 makes the protocol a
 //! usable BOUND: a fn parameter typed `:P` accepts a value whose type `extend-type`s `:P`, and
 //! rejects one that doesn't. The grounded plan: `extend-type :T :P` registers a subtype-parent
-//! edge `T → P` (mirroring recordtype's `:wat::Record` parent at types.rs:416); `assignable`
+//! edge `T → P` (mirroring recordtype's `:wat::core::Record` parent at types.rs:416); `assignable`
 //! already consults `is_subtype` for Path→Path (check.rs:13566), so the edge is all that's needed —
 //! UNLESS `:P` must also be a registered TypeEnv type for the annotation to be accepted (this probe
 //! at HEAD-after-232.1 will reveal which: "unknown type :P" → need a TypeDef; "not assignable" →

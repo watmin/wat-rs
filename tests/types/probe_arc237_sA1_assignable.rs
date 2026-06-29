@@ -4,10 +4,10 @@
 //! (§ "POST-B.2 SCOPE CORRECTION (grounded)").
 //!
 //! S-A shipped `is_subtype` + the `typesub` registry; S-B.2 made every `defrecord`
-//! emit `(recordtype :Name :wat::Record)`, registering the edge `:my::Circle typesub
-//! :wat::Record`. But the type CHECKER does not consult that hierarchy: a value typed
-//! `:my::Circle` is REJECTED at a `[v <- :wat::Record]` parameter (proven: pre-stone,
-//! `unify(:my::Circle, :wat::Record)` → Err, because records are nominal and
+//! emit `(recordtype :Name :wat::core::Record)`, registering the edge `:my::Circle typesub
+//! :wat::core::Record`. But the type CHECKER does not consult that hierarchy: a value typed
+//! `:my::Circle` is REJECTED at a `[v <- :wat::core::Record]` parameter (proven: pre-stone,
+//! `unify(:my::Circle, :wat::core::Record)` → Err, because records are nominal and
 //! `expand_alias` does not expand `TypeDef::Record`).
 //!
 //! S-A1 mints `fn assignable(actual, expected, subst, types)` — directional-subtype-
@@ -18,12 +18,12 @@
 //! annotation `[c <- :my::Circle]` already binds a subtype-typed value.
 //!
 //! Probe contracts (6):
-//!   1. subtype accepted, single-arg call — `:my::Circle` into `[v <- :wat::Record]` (site 6386).
-//!   2. subtype accepted, multi-arg call — `:my::Circle` into 2nd param `[_ <- :wat::Record]` (7025/7079/12044).
-//!   3. directional rejection — `:wat::Record` into `[c <- :my::Circle]` slot → type ERROR (guard; pre+post).
-//!   4. exact-match unchanged — `:wat::Record` into `[v <- :wat::Record]` → Ok (regression).
-//!   5. transitive — `:my::Special typesub :my::Circle typesub :wat::Record`; `:my::Special`
-//!      into `[v <- :wat::Record]` accepted (is_subtype transitivity at the boundary).
+//!   1. subtype accepted, single-arg call — `:my::Circle` into `[v <- :wat::core::Record]` (site 6386).
+//!   2. subtype accepted, multi-arg call — `:my::Circle` into 2nd param `[_ <- :wat::core::Record]` (7025/7079/12044).
+//!   3. directional rejection — `:wat::core::Record` into `[c <- :my::Circle]` slot → type ERROR (guard; pre+post).
+//!   4. exact-match unchanged — `:wat::core::Record` into `[v <- :wat::core::Record]` → Ok (regression).
+//!   5. transitive — `:my::Special typesub :my::Circle typesub :wat::core::Record`; `:my::Special`
+//!      into `[v <- :wat::core::Record]` accepted (is_subtype transitivity at the boundary).
 //!   6. no-edge rejection — unrelated `:my::Square` into `[c <- :my::Circle]` → type ERROR
 //!      (no edge → assignable == unify; regression guard).
 //!
@@ -67,7 +67,7 @@ fn probe_04_exact_match_ok() {
     let r = startup_from_file("tests/types/probe_arc237_sA1_assignable_probe04.wat")
         .map(|_| ())
         .map_err(|e| format!("{:?}", e));
-    assert!(r.is_ok(), "exact :wat::Record into :wat::Record must type-check: {:?}", r);
+    assert!(r.is_ok(), "exact :wat::core::Record into :wat::core::Record must type-check: {:?}", r);
 }
 
 // Probe 5 (transitive :my::Special <: :my::Circle) DELETED — arc 293 inheritance annihilation:

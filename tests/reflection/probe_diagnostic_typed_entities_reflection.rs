@@ -67,9 +67,9 @@ fn run_compute_from_file(fixture: &str) -> Result<Value, String> {
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 //
 // `extract-classifier` on a :wat::core::defrecord instance returns the class name.
-// Stone 234.5: for :wat::Record, extract-classifier returns String directly
+// Stone 234.5: for :wat::core::Record, extract-classifier returns String directly
 // (not Option<String>) — the class_fqdn is always present at construction.
-// Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__Record;
+// Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__core__Record;
 // extract-classifier returns :String (not Option<String>) for record args.
 #[test]
 fn probe_1_extract_classifier_on_defrecord_instance() {
@@ -114,7 +114,7 @@ fn probe_2_extract_classifier_on_bare_atom() {
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 //
 // `Bind/right` on the holon-form of a :wat::core::defrecord instance returns Some(right Bundle).
-// Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__Record;
+// Stone 234.6 migration: :wat::core::defrecord instances are Value::wat__core__Record;
 // Bind/right expects HolonAST — coerce via :wat::holon::to-holon first.
 #[test]
 fn probe_3_bind_right_on_defrecord_instance() {

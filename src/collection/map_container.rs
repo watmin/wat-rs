@@ -93,7 +93,7 @@ impl MapContainer {
     /// Checker classifier — the ONLY `TypeExpr → MapContainer` map.
     ///
     /// Takes `&TypeEnv` because `Record` is classified by **subtype** (user
-    /// records are subtypes of `:wat::Record` / `:wat::holon::Record`), which
+    /// records are subtypes of `:wat::core::Record` / `:wat::holon::Record`), which
     /// requires the type lattice. This diverges from `StreamContainer::of_type`
     /// (which takes only `&TypeExpr`) — the divergence is driven by a real
     /// difference (records have a subtype lattice; seq members are matched by
@@ -107,7 +107,7 @@ impl MapContainer {
                 Some(MapContainer::PersistentMap)
             }
             TypeExpr::Path(p)
-                if crate::types::is_subtype(p, ":wat::Record", types)
+                if crate::types::is_subtype(p, ":wat::core::Record", types)
                     || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
             {
                 Some(MapContainer::Record)

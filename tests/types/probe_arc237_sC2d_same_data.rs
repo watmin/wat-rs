@@ -1,4 +1,4 @@
-//! FM 2-bis probe — arc 237 Stone S-C.2d: `:wat::Record/same-data?` (type-BLIND record data equality).
+//! FM 2-bis probe — arc 237 Stone S-C.2d: `:wat::core::Record/same-data?` (type-BLIND record data equality).
 //!
 //! `same-data?` compares the field DATA of two records, ignoring class (type) and flavor — the
 //! user's 2×2 grid + cross-type case. Distinct from `=` (type-strict, arc 238).
@@ -10,7 +10,7 @@
 //! Two test groups:
 //!   - `comp_*` — the COMPOSITION directly (`= (record->map …) (record->map …)`). GREEN NOW
 //!     (proves the impl path is sound post-arc-238). If these fail, the design is wrong.
-//!   - `samedata_*` — the verb `:wat::Record/same-data?` itself. RED NOW (verb absent →
+//!   - `samedata_*` — the verb `:wat::core::Record/same-data?` itself. RED NOW (verb absent →
 //!     startup error); GREEN once the stone ships the defn. These are the load-bearing contracts.
 //!
 //! Two holonic record types with the SAME field names (`[x y]`) — so name-keyed comparison
@@ -43,7 +43,7 @@ fn comp_diff_value() {
     assert!(!eq(":user::comp-diff-value"));
 }
 
-// ─── THE VERB (RED NOW — GREEN after the stone ships `:wat::Record/same-data?`) ──────────
+// ─── THE VERB (RED NOW — GREEN after the stone ships `:wat::core::Record/same-data?`) ──────────
 #[test]
 fn samedata_same_type_equal() {
     assert!(eq(":user::samedata-same-type-equal"));

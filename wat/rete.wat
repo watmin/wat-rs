@@ -12,7 +12,7 @@
 ;;
 ;; Namespace: :wat::rete::
 ;;
-;; Load order: after :wat::Record::def (uses the Record macro). Record.wat's
+;; Load order: after :wat::core::Record::def (uses the Record macro). Record.wat's
 ;; macro is order-free (pre-expansion pass) but the eval-time record
 ;; constructors land at freeze time, so any eval-time dep on this file must
 ;; appear after it. :wat::core::PersistentMap / PersistentVector are Rust
@@ -26,14 +26,14 @@
 ;;   Load-bearing for TM: the chain grows one tuple per condition as the token flows through joins.
 ;; bindings: {?var → value} — variable bindings accumulated left-to-right.
 (:wat::core::defrecord :wat::rete::Token
-  [matches  <- :wat::core::PersistentVector<(wat::Record,wat::core::i64)>
+  [matches  <- :wat::core::PersistentVector<(wat::core::Record,wat::core::i64)>
    bindings <- :wat::core::PersistentMap])
 
 ;; Element — a fact presented to an alpha node; flows RIGHT into a join.
 ;; fact: the record fact itself (type-preserving; no conversion needed for provenance/TM/query-by-type).
 ;; bindings: alpha-bindings extracted by the alpha node's tests.
 (:wat::core::defrecord :wat::rete::Element
-  [fact     <- :wat::Record
+  [fact     <- :wat::core::Record
    bindings <- :wat::core::PersistentMap])
 
 ;; Activation — a ProductionNode queued to fire.
@@ -172,7 +172,7 @@
 ;;   rules:             PersistentVector of Rule (the rule-set as data).
 ;;   alpha-memory:      node-id → {join-bindings → [Element …]}
 ;;   beta-memory:       node-id → {join-bindings → [Token …]}
-;;   production-memory: node-id → PV<:wat::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
+;;   production-memory: node-id → PV<:wat::core::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
 (:wat::core::defrecord :wat::rete::Session
@@ -213,7 +213,7 @@
 ;;         Non-empty ⟺ derived fact (each step explains one supporting input).
 ;; EPHEMERAL — produced by explain; never serialized.
 (:wat::core::defrecord :wat::rete::DerivationNode
-  [fact <- :wat::Record
+  [fact <- :wat::core::Record
    rule <- :wat::core::Option<wat::core::String>
    via  <- :wat::core::PersistentVector<wat::rete::DerivationStep>])
 
@@ -239,7 +239,7 @@
   [session        <- :wat::rete::Session
    alpha-id       <- :wat::core::i64
    bindings       <- :wat::core::PersistentMap
-   sfact          <- :wat::Record
+   sfact          <- :wat::core::Record
    supporting     <- :wat::rete::DerivationNode]
   -> :wat::rete::DerivationStep
   (:wat::rete::step-payload' session alpha-id bindings sfact supporting))
@@ -252,21 +252,21 @@
 ;; in the support map → the None branch is the leaf, so recursion always terminates.
 (:wat::core::defn :wat::rete::explain
   [ex   <- :wat::rete::Explained
-   fact <- :wat::Record]
+   fact <- :wat::core::Record]
   -> :wat::rete::DerivationNode
   (:wat::core::let [support (:wat::rete::Explained/support ex)
                     sv-opt  (:wat::core::PersistentMap/get support fact)]
     (:wat::core::match sv-opt -> :wat::rete::DerivationNode
       ((:wat::core::Some sv)
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
-       ;; matches is PersistentVector<(wat::Record, wat::core::i64)>; each tuple is (sfact, alpha-id).
+       ;; matches is PersistentVector<(wat::core::Record, wat::core::i64)>; each tuple is (sfact, alpha-id).
        (:wat::core::let [tok      (:wat::rete::Support/token sv)
                          matches  (:wat::rete::Token/matches tok)
                          bindings (:wat::rete::Token/bindings tok)
                          rule     (:wat::rete::Support/rule sv)
                          session  (:wat::rete::Explained/session ex)
                          via      (:wat::core::map
-                                    (:wat::core::fn [m <- :(wat::Record,wat::core::i64)]
+                                    (:wat::core::fn [m <- :(wat::core::Record,wat::core::i64)]
                                       -> :wat::rete::DerivationStep
                                       (:wat::core::let [sfact    (:wat::core::first m)
                                                         alpha-id (:wat::core::second m)]
@@ -285,7 +285,7 @@
 ;; (:wat::core::type node) returns the class FQDN without leading colon,
 ;; e.g. "wat::rete::RootJoinNode". We take the text after the last "::".
 (:wat::core::defn :wat::rete::node-kind-label
-  [node <- :wat::Record]
+  [node <- :wat::core::Record]
   -> :wat::core::String
   (:wat::core::let [fqdn   (:wat::core::type node)
                     parts  (:wat::core::string::split fqdn "::")
@@ -301,7 +301,7 @@
 ;; WHY: record accessors are class-guarded at runtime; dispatch ensures we only call
 ;; AlphaNode/children when the node IS an AlphaNode, satisfying the guard.
 (:wat::core::defn :wat::rete::node-children-ids
-  [node <- :wat::Record]
+  [node <- :wat::core::Record]
   -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [kind (:wat::rete::node-kind-label node)]
     (:wat::core::cond
@@ -402,7 +402,7 @@
 ;; network-add-child — add child-id to the children of the node at node-id in network.
 ;; Returns the updated PersistentMap.
 ;; WHY: wiring edges = conj child-id onto the existing children PersistentVector and
-;; re-assoc the node; :wat::Record/assoc does name-based field update on any Record.
+;; re-assoc the node; :wat::core::Record/assoc does name-based field update on any Record.
 (:wat::core::defn :wat::rete::network-add-child
   [network  <- :wat::core::PersistentMap
    node-id  <- :wat::core::i64
@@ -413,7 +413,7 @@
                                   "network-add-child: node not found")
                     old-ch   (:wat::rete::node-children-ids node)
                     new-ch   (:wat::core::PersistentVector/conj old-ch child-id)
-                    new-node (:wat::Record/assoc node :children new-ch)]
+                    new-node (:wat::core::Record/assoc node :children new-ch)]
     (:wat::core::PersistentMap/assoc network node-id new-node)))
 
 ;; find-or-mint-alpha — find an existing AlphaNode whose tests == cond, or mint a new one.
@@ -819,11 +819,11 @@
 ;; insert — stage a fact into the session's working memory. Zero activation.
 ;; WHY zero activation: the WM stays open while the caller stages multiple facts;
 ;; fire-rules is the lock that runs them through the network all at once.
-;; WHY reconstruct Session: Record/assoc returns the base :wat::Record type; the
+;; WHY reconstruct Session: Record/assoc returns the base :wat::core::Record type; the
 ;; typed Session constructor preserves the concrete return type for the checker.
 (:wat::core::defn :wat::rete::insert
   [session <- :wat::rete::Session
-   fact    <- :wat::Record]
+   fact    <- :wat::core::Record]
   -> :wat::rete::Session
   (:wat::rete::Session
     (:wat::rete::Session/network           session)
@@ -843,7 +843,7 @@
   [alpha-id  <- :wat::core::i64
    cond      <- :wat::WatAST
    alpha-mem <- :wat::core::PersistentMap
-   fact      <- :wat::Record]
+   fact      <- :wat::core::Record]
   -> :wat::core::PersistentMap
   (:wat::core::let [match-result (:wat::rete::alpha-match cond fact)]
     (:wat::core::match match-result -> :wat::core::PersistentMap
@@ -882,7 +882,7 @@
                                   "activate-alpha: AlphaNode has no tests")]
          (:wat::core::foldl
            (:wat::core::fn [acc  <- :wat::core::PersistentMap
-                            fact <- :wat::Record]
+                            fact <- :wat::core::Record]
              -> :wat::core::PersistentMap
              (:wat::rete::activate-fact node-id cond acc fact))
            alpha-mem
@@ -1372,7 +1372,7 @@
 ;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
 ;; Recomputes all memories from Session.facts each call (re-run-from-scratch); derived facts
 ;; go to production-memory only — they do not re-enter facts here (cascade is fire-rules' job).
-;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::Record).
+;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::core::Record).
 (:wat::core::defn :wat::rete::fire-once
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
@@ -1444,7 +1444,7 @@
       facts
       (:wat::rete::Session/next-id session))))
 
-;; collect-derived — flatten production-memory's per-node PV<Record> values into one PV<:wat::Record>.
+;; collect-derived — flatten production-memory's per-node PV<Record> values into one PV<:wat::core::Record>.
 ;; WHY foldl-over-values: production-memory is a PersistentMap from node-id to PV<Record>;
 ;; the outer foldl visits each node's PV, the inner foldl conj's each record into the accumulator.
 (:wat::core::defn :wat::rete::collect-derived
@@ -1456,7 +1456,7 @@
       -> :wat::core::PersistentVector
       (:wat::core::foldl
         (:wat::core::fn [a <- :wat::core::PersistentVector
-                         f <- :wat::Record]
+                         f <- :wat::core::Record]
           -> :wat::core::PersistentVector
           (:wat::core::PersistentVector/conj a f))
         acc
@@ -1473,7 +1473,7 @@
   -> :wat::core::PersistentVector
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::PersistentVector
-                     f   <- :wat::Record]
+                     f   <- :wat::core::Record]
       -> :wat::core::PersistentVector
       (:wat::core::if (:wat::core::PersistentVector/contains? acc f)
         acc
@@ -1557,13 +1557,13 @@
 ;; removals before the caller locks them in with fire-rules.
 (:wat::core::defn :wat::rete::retract
   [session <- :wat::rete::Session
-   fact    <- :wat::Record]
+   fact    <- :wat::core::Record]
   -> :wat::rete::Session
   (:wat::core::let [old-facts (:wat::rete::Session/facts session)
                     new-facts (:wat::core::foldl
-                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::Record>
-                                                  f   <- :wat::Record]
-                                   -> :wat::core::PersistentVector<wat::Record>
+                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>
+                                                  f   <- :wat::core::Record]
+                                   -> :wat::core::PersistentVector<wat::core::Record>
                                    (:wat::core::if (:wat::core::not (:wat::core::= f fact))
                                      (:wat::core::PersistentVector/conj acc f)
                                      acc))
@@ -1594,7 +1594,7 @@
                              -> :wat::core::PersistentVector
                              (:wat::core::foldl
                                (:wat::core::fn [a <- :wat::core::PersistentVector
-                                                f <- :wat::Record]
+                                                f <- :wat::core::Record]
                                  -> :wat::core::PersistentVector
                                  (:wat::core::PersistentVector/conj a f))
                                acc
@@ -1603,7 +1603,7 @@
                            (:wat::core::PersistentMap/values
                              (:wat::rete::Session/production-memory session)))]
     (:wat::core::filter
-      (:wat::core::fn [f <- :wat::Record] -> :wat::core::bool
+      (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool
         (:wat::core::= (:wat::core::type f) ty-str))
       all)))
 
@@ -1687,7 +1687,7 @@
 ;;
 ;; Each fn folds a PersistentVector<Element> into a reduced value.
 ;; An Element = (:wat::rete::Element fact bindings) where
-;;   fact     = the original typed :wat::Record
+;;   fact     = the original typed :wat::core::Record
 ;;   bindings = a PersistentMap<String,Value> of variable bindings.
 ;;
 ;; Value-folds read a bound ?var (a String key) from each element's bindings map:
@@ -1802,11 +1802,11 @@
 ;; acc::all — PV of each element's fact. empty → [] → bare PV, never Option.
 (:wat::core::defn :wat::rete::acc::all
   [els <- :wat::core::PersistentVector<wat::rete::Element>]
-  -> :wat::core::PersistentVector<wat::Record>
+  -> :wat::core::PersistentVector<wat::core::Record>
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::Record>
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>
                      e   <- :wat::rete::Element]
-      -> :wat::core::PersistentVector<wat::Record>
+      -> :wat::core::PersistentVector<wat::core::Record>
       (:wat::core::PersistentVector/conj acc (:wat::rete::Element/fact e)))
     (:wat::core::PersistentVector)
     els))
@@ -1817,17 +1817,17 @@
 (:wat::core::defn :wat::rete::acc::group-by
   [var <- :wat::core::String
    els <- :wat::core::PersistentVector<wat::rete::Element>]
-  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::Record>>
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
   (:wat::core::foldl
-    (:wat::core::fn [acc  <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::Record>>
+    (:wat::core::fn [acc  <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
                      e    <- :wat::rete::Element]
-      -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::Record>>
+      -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
       (:wat::core::let [k    (:wat::core::Option/expect  
                                 (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                                 "acc: var unbound")
                         fact (:wat::rete::Element/fact e)
                         pv   (:wat::core::match (:wat::core::PersistentMap/get acc k)
-                               -> :wat::core::PersistentVector<wat::Record>
+                               -> :wat::core::PersistentVector<wat::core::Record>
                                ((:wat::core::Some existing) existing)
                                (:wat::core::None (:wat::core::PersistentVector)))]
         (:wat::core::PersistentMap/assoc acc k (:wat::core::PersistentVector/conj pv fact))))

@@ -124,7 +124,7 @@ pub struct StructRestrictions {
 /// Arc 293.2b — `Holder` is the one categorical axis for aggregates: the EDN capability trit.
 /// Three variants:
 ///   Struct      = named product type (stays in process, never crosses the wire)
-///   Record      = base record (`:wat::Record` hierarchy, wire-portable)
+///   Record      = base record (`:wat::core::Record` hierarchy, wire-portable)
 ///   HolonRecord = holonic record (`:wat::holon::Record` hierarchy, wire-portable + holon_form)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Holder {
@@ -142,7 +142,7 @@ impl Holder {
     pub fn root_keyword(&self) -> &'static str {
         match self {
             Holder::Struct => ":wat::core::Struct",
-            Holder::Record => ":wat::Record",
+            Holder::Record => ":wat::core::Record",
             Holder::HolonRecord => ":wat::holon::Record",
         }
     }
@@ -153,7 +153,7 @@ impl Holder {
     pub fn from_root_keyword(kw: &str) -> Option<Holder> {
         match kw {
             ":wat::core::Struct"  => Some(Holder::Struct),
-            ":wat::Record"        => Some(Holder::Record),
+            ":wat::core::Record"        => Some(Holder::Record),
             ":wat::holon::Record" => Some(Holder::HolonRecord),
             _                     => None,
         }
@@ -321,7 +321,7 @@ pub struct TypeEnv {
     types: HashMap<String, TypeDef>,
     /// Stone S-A — the `typesub` child→parent edge registry.
     /// Maps a child FQDN (e.g. `":wat::holon::Record"`) to the list of its direct
-    /// parent FQDNs (e.g. `[":wat::Record"]`). Populated by `register_subtype`;
+    /// parent FQDNs (e.g. `[":wat::core::Record"]`). Populated by `register_subtype`;
     /// walked (transitively) by `is_subtype`. Distinct from `typeunion` membership:
     /// this is the Clojure `derive`/`isa?` axis — an open directional is-a hierarchy.
     subtype_edges: HashMap<String, Vec<String>>,
@@ -551,7 +551,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Registered FIRST so every subsequent parsed struct finds it in the registry.
     // Zero-field opaque root: user structs register :Name <: :wat::core::Struct via
     // holder.root_keyword(). Value-top is an implicit rule in `is_subtype` — no
-    // lattice edge registered (analogous to :wat::Record). The type system synthesizes
+    // lattice edge registered (analogous to :wat::core::Record). The type system synthesizes
     // `:wat::core::is-Struct?` via `register_type_predicates`.
     env.register_builtin(TypeDef::Aggregate(AggregateDef {
         holder: Holder::Struct,
@@ -1445,17 +1445,17 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
-    // :wat::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
+    // :wat::core::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
     // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per
     // the `::`/`/` semantic-split doctrine: the namespace IS the umbrella
     // type; `::` verbs operate at the type tier (Record::of, Record::def,
     // Record::is?); `/` methods operate on instances (Record/field-at,
     // Record/to-map). Registered as opaque zero-field struct so the TypeEnv
-    // contains the path and `env.types().get(":wat::Record")` resolves
-    // cleanly. Per-class types (`:myapp::Voltage` as `:wat::Record` aliases)
+    // contains the path and `env.types().get(":wat::core::Record")` resolves
+    // cleanly. Per-class types (`:myapp::Voltage` as `:wat::core::Record` aliases)
     // ship in Stone 234.2b when the defrecord macro lands.
     env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
-        name: ":wat::Record".into(),
+        name: ":wat::core::Record".into(),
         type_params: vec![],
         fields: vec![],
         restrictions: None,
@@ -1465,12 +1465,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // `:wat::holon::Record` is the "holonic record" flavor — a record that carries
     // a HolonAST alongside its struct-form. Registered as an opaque zero-field
-    // struct (mirrors `:wat::Record` exactly). The `typesub` edge seeds the
-    // built-in is-a root: `:wat::holon::Record` is-a `:wat::Record`.
+    // struct (mirrors `:wat::core::Record` exactly). The `typesub` edge seeds the
+    // built-in is-a root: `:wat::holon::Record` is-a `:wat::core::Record`.
     //
     // NOTE: registering `:wat::holon::Record` as a struct causes
     // `register_type_predicates` to synthesize `:wat::holon::is-Record?` for it
-    // (same as `:wat::Record` already gets `:wat::is-Record?`). This is correct —
+    // (same as `:wat::core::Record` already gets `:wat::is-Record?`). This is correct —
     // it is a type. See SCORE-STONE-S-A § Honest deltas.
     env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
         name: ":wat::holon::Record".into(),
@@ -1478,10 +1478,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
         fields: vec![],
         restrictions: None,
     }));
-    // Seed the built-in typesub root: `:wat::holon::Record` is-a `:wat::Record`.
+    // Seed the built-in typesub root: `:wat::holon::Record` is-a `:wat::core::Record`.
     // Cannot cycle (fresh registry with no edges yet); `expect` is correct here.
     // built-in root hierarchy seed — no source form exists; unreachable cycle path (two distinct roots).
-    env.register_subtype(":wat::holon::Record", ":wat::Record", Span::unknown())
+    env.register_subtype(":wat::holon::Record", ":wat::core::Record", Span::unknown())
         .expect("built-in typesub root cannot cycle");
 }
 
@@ -2131,13 +2131,13 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
 ///
 /// Three-or-four positional slots after the head keyword (consumed by `parse_type_decl`):
 ///   args[0]       — name keyword (e.g. `:my::Circle`)
-///   args[1]       — parent type keyword (e.g. `:wat::core::Struct`, `:wat::Record`)
+///   args[1]       — parent type keyword (e.g. `:wat::core::Struct`, `:wat::core::Record`)
 ///   args[2..N-1]  — optional metadata-map `{...}` (WatAST with `is_metadata_map() == true`)
 ///   args[last]    — field-vector `[field <- :T ...]` (WatAST::Vector)
 ///
 /// holder = `root_holder_of(parent)`:
 ///   `:wat::core::Struct`    → `Holder::Struct`
-///   `:wat::Record`          → `Holder::Record`
+///   `:wat::core::Record`          → `Holder::Record`
 ///   `:wat::holon::Record`   → `Holder::HolonRecord`
 ///   (non-root record base)  → `Holder::Record`
 ///

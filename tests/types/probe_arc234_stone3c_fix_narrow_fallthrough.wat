@@ -15,5 +15,5 @@
     (:wat::core::Option/expect p "probe 3: :port key present")))
 
 ;; Probe 4: polymorphic receiver (record-typed param)
-(:wat::core::defn :user::pluck [v <- :wat::Record] -> :wat::core::f64 (:magnitude v))
+(:wat::core::defn :user::pluck [v <- :wat::core::Record] -> :wat::core::f64 (:magnitude v))
 (:wat::core::defn :user::probe-4 [] -> :wat::core::f64 (:user::pluck (:myapp::Voltage 7.0)))

@@ -906,7 +906,7 @@ pub fn invoke_user_main(
 
 /// Like [`invoke_user_main`], but installs `user_program` as the `user.program` field of the
 /// ambient `:wat::program::Env` (instead of the `EmptyEnv` default) before `:user::main` runs.
-/// `user_program` must be a `:wat::Record` (any subtype). The root (wat-cli `--env`) and process
+/// `user_program` must be a `:wat::core::Record` (any subtype). The root (wat-cli `--env`) and process
 /// children supply the result of running their env-producing fn here.
 pub fn invoke_user_main_with_program(
     frozen: &FrozenWorld,
@@ -916,11 +916,11 @@ pub fn invoke_user_main_with_program(
     invoke_user_main_orchestrated(frozen, args, Some(user_program))
 }
 
-/// Resolve a process/CLI env-fn SOURCE STRING into a `user.program` `:wat::Record`, evaluated
+/// Resolve a process/CLI env-fn SOURCE STRING into a `user.program` `:wat::core::Record`, evaluated
 /// in `world` (the universe that has the type loaded). Dispatches on the eval result:
-/// - a 0-arg fn (`Value::wat__core__fn`) → applied (0 args); the result must be a `:wat::Record`
-/// - a `:wat::Record` (any subtype, including holon variants) → used directly
-/// - anything else → `RuntimeError` (env-fn must produce a `:wat::Record`)
+/// - a 0-arg fn (`Value::wat__core__fn`) → applied (0 args); the result must be a `:wat::core::Record`
+/// - a `:wat::core::Record` (any subtype, including holon variants) → used directly
+/// - anything else → `RuntimeError` (env-fn must produce a `:wat::core::Record`)
 ///
 /// This is the shared core that `run_user_main_in_child` (process tier) and the CLI `--env`
 /// path (arc 213 / 3b-f) both call. Testable in-process against a world that defines the
@@ -945,7 +945,7 @@ pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, Runt
                         head: "env-fn".into(),
                         reason: format!(
                             "arc 209 C0b.3b-e: env-fn fn returned a non-record; \
-                             env-fn must produce a :wat::Record (any subtype); got: {:?}",
+                             env-fn must produce a :wat::core::Record (any subtype); got: {:?}",
                             crate::runtime::ValueSnapshot::of(&other)
                         ),
                     },
@@ -958,7 +958,7 @@ pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, Runt
             kind: RuntimeErrorKind::MalformedForm {
                 head: "env-fn".into(),
                 reason: format!(
-                    "arc 209 C0b.3b-e: env-fn must produce a :wat::Record (any subtype); got: {:?}",
+                    "arc 209 C0b.3b-e: env-fn must produce a :wat::core::Record (any subtype); got: {:?}",
                     crate::runtime::ValueSnapshot::of(&other)
                 ),
             },

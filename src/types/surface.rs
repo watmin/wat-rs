@@ -327,7 +327,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                             kind: TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: format!(
-                                    ":holder value must be a holder-root symbol (:wat::core::Struct, :wat::Record, or :wat::holon::Record); got {}",
+                                    ":holder value must be a holder-root symbol (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record); got {}",
                                     v
                                 ),
                             },
@@ -339,7 +339,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                         span: other.span().clone(),
                         kind: TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
-                            reason: ":holder value must be a keyword (:wat::core::Struct, :wat::Record, or :wat::holon::Record)".into(),
+                            reason: ":holder value must be a keyword (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record)".into(),
                         },
                     });
                 }

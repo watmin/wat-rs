@@ -1,4 +1,4 @@
-//! Diagnostic probe — `:wat::Record/assoc` substrate primitive (arc 234 Stone 234.3b).
+//! Diagnostic probe — `:wat::core::Record/assoc` substrate primitive (arc 234 Stone 234.3b).
 //!
 //! Wat source: tests/types/probe_arc234_stone3b_record_assoc.wat (loaded via startup_beside).
 //!

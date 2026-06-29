@@ -3,7 +3,7 @@
 //! The declaration unification (293 audit — the holder is a passing policy; the declaration is
 //! holder-agnostic). `structtype` + `recordtype` collapse into one `(:wat::core::aggregatetype
 //! :Name :Parent [fields])` whose holder is `root_holder_of(:Parent)`:
-//!   :wat::core::Struct → Struct · :wat::Record → Record · :wat::holon::Record → HolonRecord
+//!   :wat::core::Struct → Struct · :wat::core::Record → Record · :wat::holon::Record → HolonRecord
 //! decl-a mints the primitive + one `parse_aggregate` + the `:wat::core::Struct` lattice node
 //! (structs repoint root Value → Struct, behaviour-preserving: `Struct <: Value`). `structtype`/
 //! `recordtype` stay as thin aliases routing to `parse_aggregate` (current surface unchanged).

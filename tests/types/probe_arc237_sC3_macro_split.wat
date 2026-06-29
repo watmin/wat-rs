@@ -7,7 +7,7 @@
 (:wat::holon::defrecord :my::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
 
 ;; Shared helpers for liskov checks
-(:wat::core::defn :wb [v <- :wat::Record] -> :wat::core::bool true)
+(:wat::core::defn :wb [v <- :wat::core::Record] -> :wat::core::bool true)
 (:wat::core::defn :wh [v <- :wat::holon::Record] -> :wat::core::bool true)
 
 ;; ─── BASE flavor ──────────────────────────────────────────────────────────────
@@ -17,9 +17,9 @@
 (:wat::core::defn :user::base-predicate-false [] -> :wat::core::bool (:my::is-Pt? (:my::HPt 1 2)))
 (:wat::core::defn :user::base-eq-equal [] -> :wat::core::bool (:wat::core::= (:my::Pt 1 2) (:my::Pt 1 2)))
 (:wat::core::defn :user::base-eq-diff [] -> :wat::core::bool (:wat::core::= (:my::Pt 1 2) (:my::Pt 1 9)))
-(:wat::core::defn :user::base-same-data [] -> :wat::core::bool (:wat::Record/same-data? (:my::Pt 1 2) (:my::Pt 1 2)))
+(:wat::core::defn :user::base-same-data [] -> :wat::core::bool (:wat::core::Record/same-data? (:my::Pt 1 2) (:my::Pt 1 2)))
 (:wat::core::defn :user::base-assoc-then-read [] -> :wat::core::i64
-  (:my::Pt/y (:wat::Record/assoc (:my::Pt 1 2) :y 9)))
+  (:my::Pt/y (:wat::core::Record/assoc (:my::Pt 1 2) :y 9)))
 (:wat::core::defn :user::base-to-holon-errors [] -> :wat::holon::HolonAST
   (:wat::holon::to-holon (:my::Pt 1 2)))
 
@@ -36,6 +36,6 @@
 
 ;; ─── Cross-flavor ─────────────────────────────────────────────────────────────
 (:wat::core::defn :user::cross-flavor-same-data-true [] -> :wat::core::bool
-  (:wat::Record/same-data? (:my::Pt 0 0) (:my::HPt 0 0)))
+  (:wat::core::Record/same-data? (:my::Pt 0 0) (:my::HPt 0 0)))
 (:wat::core::defn :user::cross-flavor-eq-false [] -> :wat::core::bool
   (:wat::core::= (:my::Pt 0 0) (:my::HPt 0 0)))

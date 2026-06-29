@@ -3,18 +3,18 @@
 ;;
 ;; Renames the aggregate-trio record macro heads to their final canonical forms:
 ;;   :wat::holon::Record::def  ->  :wat::holon::defrecord   (reclaimed name; hard-cut at Stone 234.6)
-;;   :wat::Record::def         ->  :wat::core::defrecord    (peer to :wat::core::defstruct)
+;;   :wat::core::Record::def         ->  :wat::core::defrecord    (peer to :wat::core::defstruct)
 ;;
 ;; SURGICAL: only the `::def` macro head moves. The siblings are UNTOUCHED:
-;;   :wat::Record::of         (the ctor primitive)
-;;   :wat::Record/field-at    (the accessor)
-;;   :wat::Record             (the holder TYPE / lattice root)
+;;   :wat::core::Record::of         (the ctor primitive)
+;;   :wat::core::Record/field-at    (the accessor)
+;;   :wat::core::Record             (the holder TYPE / lattice root)
 ;;
-;; The prefix match uses the FULL old name (`:wat::Record::def`, not bare `:wat::Record`),
+;; The prefix match uses the FULL old name (`:wat::core::Record::def`, not bare `:wat::core::Record`),
 ;; so `rename-keyword-prefix` is boundary-aware and cannot eat the siblings or the type.
 ;;
 ;; ORDER: holon-first (:wat::holon::Record::def → :wat::holon::defrecord) because the
-;; holon prefix `:wat::holon::Record::def` is a different namespace from `:wat::Record::def`
+;; holon prefix `:wat::holon::Record::def` is a different namespace from `:wat::core::Record::def`
 ;; (they are disjoint), but holon-first is the safe order.
 ;;
 ;; The codemod is idempotent (re-run = 0 changes). Kept in wat-scripts/fixes/ as a recorded
@@ -26,7 +26,7 @@
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::fix::rename-keyword-prefix ":wat::holon::Record::def" ":wat::holon::defrecord"
-    (:wat::fix::rename-keyword-prefix ":wat::Record::def" ":wat::core::defrecord"
+    (:wat::fix::rename-keyword-prefix ":wat::core::Record::def" ":wat::core::defrecord"
       src)))
 
 (:wat::core::defn :user::apply-each

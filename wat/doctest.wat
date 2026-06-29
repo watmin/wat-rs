@@ -5,7 +5,7 @@
 ;; heterogeneous tuples) so `verify-examples` (iv-b2-b) can field-access typed
 ;; values and pass `expr`/`expected` to `:wat::eval-ast!` without a down-cast.
 ;;
-;; Load order: after Record.wat (uses :wat::Record::def), core.wat (keyword/bool),
+;; Load order: after Record.wat (uses :wat::core::Record::def), core.wat (keyword/bool),
 ;; and the holon/*.wat files (no additional deps beyond those). The seam that
 ;; RETURNS these records (:wat::intrinsic::examples) is a Rust intrinsic and does
 ;; not need the record type at registration time — only at call time.
@@ -43,7 +43,7 @@
                      ex  <- :wat::intrinsic::Example]
       -> :wat::core::Vector<wat::doctest::Failure>
       ;; The Example values are Value::wat__Record (the seam builds the
-      ;; :wat::Record::def representation), so the generated named accessors
+      ;; :wat::core::Record::def representation), so the generated named accessors
       ;; :wat::intrinsic::Example/<field> work directly — no positional indexing.
       (:wat::core::if (:wat::intrinsic::Example/run ex)
         ;; run=true: cross-check purity, then run the doctest

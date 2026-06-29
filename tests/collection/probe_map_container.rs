@@ -78,7 +78,7 @@ fn base_record_assoc_field_updated() {
     match eval_probe("(:p::base-record-assoc-field-updated)") {
         Ok(Value::i64(99)) => {}
         Ok(other) => panic!("base Record assoc round-trip: expected i64(99), got {other:?}"),
-        Err(e) => panic!("base Record (wat__Record) assoc should classify + run: {e}"),
+        Err(e) => panic!("base Record (wat__core__Record) assoc should classify + run: {e}"),
     }
 }
 

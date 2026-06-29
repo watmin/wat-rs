@@ -4,13 +4,13 @@
 //! `structtype` / `recordtype` primitives (DESIGN §, R2 fulfillment). `defstruct` already landed its
 //! final name (`:wat::core::defstruct`, 293.2-parity). This strike renamed the two record macros
 //! to their final heads:
-//!   :wat::Record::def        -> :wat::core::defrecord
+//!   :wat::core::Record::def        -> :wat::core::defrecord
 //!   :wat::holon::Record::def -> :wat::holon::defrecord   (a reclaimed name; hard-cut at Stone 234.6)
 //!
 //! The rename was SURGICAL: only the `::def` macro moved. The sibling names survive untouched —
-//! `:wat::Record::of` (the ctor primitive), `:wat::Record/field-at` (the accessor), and `:wat::Record`
+//! `:wat::core::Record::of` (the ctor primitive), `:wat::core::Record/field-at` (the accessor), and `:wat::core::Record`
 //! (the holder TYPE / lattice root). The fix-wat `rename-keyword-prefix` is boundary-aware and nothing
-//! else started with `:wat::Record::def`, so the prefix match was exact.
+//! else started with `:wat::core::Record::def`, so the prefix match was exact.
 //!
 //! RED at the pre-rename HEAD: `:wat::core::defrecord` / `:wat::holon::defrecord` were unknown
 //! declaration heads. GREEN now: they ARE the record decl macros; the old `::def` heads throw the

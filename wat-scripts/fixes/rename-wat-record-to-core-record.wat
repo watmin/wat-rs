@@ -3,14 +3,14 @@
 ;; self-hosted: no Rust harness, no hand-edit of wat source (use-the-tool, not hand-fix).
 ;;
 ;; Gives the record holder-root its honest `:wat::core::` prefix — sibling of
-;; `:wat::core::Struct` (minted in 293 decl-a). The old `:wat::Record` symbol ceases to exist:
-;;   :wat::Record            -> :wat::core::Record
-;;   :wat::Record::of        -> :wat::core::Record::of        (of-func ctor — shares the prefix)
-;;   :wat::Record/field-at   -> :wat::core::Record/field-at   (accessor primitive — shares the prefix)
+;; `:wat::core::Struct` (minted in 293 decl-a). The old `:wat::core::Record` symbol ceases to exist:
+;;   :wat::core::Record            -> :wat::core::Record
+;;   :wat::core::Record::of        -> :wat::core::Record::of        (of-func ctor — shares the prefix)
+;;   :wat::core::Record/field-at   -> :wat::core::Record/field-at   (accessor primitive — shares the prefix)
 ;;
-;; ONE full-name PREFIX rename. The prefix `:wat::Record` IS the full name, which still catches the
+;; ONE full-name PREFIX rename. The prefix `:wat::core::Record` IS the full name, which still catches the
 ;; `::of` and `/field-at` suffixes that share it — and CANNOT touch `:wat::holon::Record` (a different
-;; prefix: `:wat::holon::Record` does not start with `:wat::Record`).
+;; prefix: `:wat::holon::Record` does not start with `:wat::core::Record`).
 ;;
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["wat/rete.wat" "wat/spawn.wat" ...]\n' | cargo wat ./wat-scripts/fixes/rename-wat-record-to-core-record.wat
@@ -20,7 +20,7 @@
 
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String
-  (:wat::fix::rename-keyword-prefix ":wat::Record" ":wat::core::Record" src))
+  (:wat::fix::rename-keyword-prefix ":wat::core::Record" ":wat::core::Record" src))
 
 (:wat::core::defn :user::apply-each
   [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil

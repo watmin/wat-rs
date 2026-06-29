@@ -3,7 +3,7 @@
 //! `ProcessOpts` carries `env-fn`, a wat SOURCE STRING the spawned child evals IN ITS OWN
 //! frozen world (post-load, just before `:user::main`) to produce `user.program`. The core is
 //! `resolve_env_program(world, src)`: parse the string, eval it in `world`, and dispatch on the
-//! result — a 0-arg fn → apply it; a `:wat::Record` (ANY subtype: `app::Env`, holon, …) → use
+//! result — a 0-arg fn → apply it; a `:wat::core::Record` (ANY subtype: `app::Env`, holon, …) → use
 //! directly; anything else → error. The result feeds the 3b-d seam
 //! (`invoke_user_main_with_program`).
 //!
@@ -17,8 +17,8 @@
 //!
 //! Four proofs:
 //! 1. `resolves_named_call_to_subtype_record` — `"(:app::make-env)"` → `app::Env` (record branch;
-//!    a bespoke `:wat::Record` SUBTYPE flows — the gate is a variant match, not `== :wat::Record`).
-//! 2. `resolves_bare_fn_by_applying_it`     — `"(fn [] -> :wat::Record (:app::Env 7))"` → `app::Env`
+//!    a bespoke `:wat::core::Record` SUBTYPE flows — the gate is a variant match, not `== :wat::core::Record`).
+//! 2. `resolves_bare_fn_by_applying_it`     — `"(fn [] -> :wat::core::Record (:app::Env 7))"` → `app::Env`
 //!    (the 0-arg fn is applied).
 //! 3. `default_empty_env_resolves`          — `"(:wat::program::EmptyEnv)"` → `wat::program::EmptyEnv`.
 //! 4. `non_record_non_fn_is_an_error`       — `"(:wat::core::+ 1 2)"` → Err (must be a record).
@@ -32,7 +32,7 @@ use wat::freeze::{resolve_env_program, startup_beside};
 use wat::runtime::Value;
 use wat::types::Holder;
 
-// A world that has `app::Env` (a :wat::Record SUBTYPE) + a named env-fn loaded — i.e. the
+// A world that has `app::Env` (a :wat::core::Record SUBTYPE) + a named env-fn loaded — i.e. the
 // type's code is present, exactly as it is in the spawned universe that runs the env-fn.
 // Wat source lives in the co-located fixture: probe_arc209_c0b3be_process_env_fn.wat
 
@@ -45,21 +45,21 @@ fn assert_class(got: Value, expected_fqdn: &str, via: &str) {
         Value::Aggregate(a) if a.holder != Holder::Struct => {
             assert_eq!(a.class.as_str(), expected_fqdn, "via {via}")
         }
-        other => panic!("expected a :wat::Record ({expected_fqdn}) via {via}; got {other:?}"),
+        other => panic!("expected a :wat::core::Record ({expected_fqdn}) via {via}; got {other:?}"),
     }
 }
 
 #[test]
 fn resolves_named_call_to_subtype_record() {
-    // A bespoke :wat::Record SUBTYPE (app::Env) flows through — proving the gate is a variant
-    // match, not an exact `== :wat::Record`.
+    // A bespoke :wat::core::Record SUBTYPE (app::Env) flows through — proving the gate is a variant
+    // match, not an exact `== :wat::core::Record`.
     let got = resolve_env_program(&world(), "(:app::make-env)").expect("resolve named call");
     assert_class(got, "app::Env", "named call");
 }
 
 #[test]
 fn resolves_bare_fn_by_applying_it() {
-    let got = resolve_env_program(&world(), "(:wat::core::fn [] -> :wat::Record (:app::Env 7))")
+    let got = resolve_env_program(&world(), "(:wat::core::fn [] -> :wat::core::Record (:app::Env 7))")
         .expect("resolve bare fn");
     assert_class(got, "app::Env", "bare fn (applied)");
 }
@@ -73,10 +73,10 @@ fn default_empty_env_resolves() {
 #[test]
 fn non_record_non_fn_is_an_error() {
     // An env-fn that produces a non-record (here an i64) is rejected — user.program MUST be a
-    // :wat::Record.
+    // :wat::core::Record.
     let outcome = resolve_env_program(&world(), "(:wat::core::+ 1 2)");
     assert!(
         outcome.is_err(),
-        "expected an error: env-fn must produce a :wat::Record, not an i64; got {outcome:?}"
+        "expected an error: env-fn must produce a :wat::core::Record, not an i64; got {outcome:?}"
     );
 }

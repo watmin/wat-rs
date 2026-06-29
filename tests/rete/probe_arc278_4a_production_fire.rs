@@ -22,7 +22,7 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 // Build the fired session for a given WindSpeed location, then isolate the ProductionNode's derived facts
-// (`pfacts` = production-memory[prod-id], a flat PV<:wat::Record> in 4a).
+// (`pfacts` = production-memory[prod-id], a flat PV<:wat::core::Record> in 4a).
 fn setup(wind_loc: &str) -> String {
     format!("\
    c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\

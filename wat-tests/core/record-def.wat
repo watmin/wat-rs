@@ -1,4 +1,4 @@
-;; wat-tests/core/record-def.wat — deftest-green ward for :wat::Record::def (BASE)
+;; wat-tests/core/record-def.wat — deftest-green ward for :wat::core::Record::def (BASE)
 ;; and :wat::holon::Record::def (HOLONIC), arc 245.3c-b.
 ;;
 ;; Grounded on:
@@ -16,7 +16,7 @@
 ;;   class-guard        — accessor on wrong-class receiver panics with "got class"
 ;;   holonic-construct  — HOLONIC construct + slash-accessor
 ;;   holonic-to-holon   — (:wat::holon::to-holon h) succeeds for holonic, errors for base
-;;   liskov             — defn [v <- :wat::Record] accepts holonic instance
+;;   liskov             — defn [v <- :wat::core::Record] accepts holonic instance
 ;;
 ;; Record types and helpers are declared at the FILE TOP LEVEL (not in any
 ;; deftest prelude) so they appear exactly once in the compiled program.
@@ -34,8 +34,8 @@
 ;; HOLONIC record: two i64 fields.
 (:wat::holon::defrecord :test::rd::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
 
-;; Liskov helper: accepts ANY :wat::Record (base OR holonic) and returns true.
-(:wat::core::defn :test::rd::accepts-base? [v <- :wat::Record] -> :wat::core::bool true)
+;; Liskov helper: accepts ANY :wat::core::Record (base OR holonic) and returns true.
+(:wat::core::defn :test::rd::accepts-base? [v <- :wat::core::Record] -> :wat::core::bool true)
 
 
 ;; ─── BASE: construct + slash-accessor (x) ───────────────────────────────────
@@ -82,8 +82,8 @@
 ;; Uses a nested run-thread inside the deftest's outer run-thread to catch
 ;; the runtime panic and surface it as RunResult/failure.
 ;;
-;; Type-check: :test::rd::Box is also a :wat::Record, so passing it to
-;; :test::rd::Pt/x (which takes :wat::Record) passes type-check. The
+;; Type-check: :test::rd::Box is also a :wat::core::Record, so passing it to
+;; :test::rd::Pt/x (which takes :wat::core::Record) passes type-check. The
 ;; runtime class guard fires because Box is not Pt.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
@@ -155,9 +155,9 @@
           "expected to-holon runtime error on BASE record; got Success"
           :wat::core::None :wat::core::None)))))
 
-;; ─── Liskov: [v <- :wat::Record] accepts a HOLONIC instance ──────────────────
+;; ─── Liskov: [v <- :wat::core::Record] accepts a HOLONIC instance ──────────────────
 ;;
-;; :test::rd::accepts-base? takes v <- :wat::Record (declared at file top level).
+;; :test::rd::accepts-base? takes v <- :wat::core::Record (declared at file top level).
 ;; Passes a :test::rd::HPt (holonic) instance.
 ;; If the call passes type-check (holonic <: base) and evaluates, returns true.
 

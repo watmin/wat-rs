@@ -1,7 +1,7 @@
 //! Arc 259 — the `user.program` slot: the env's user-extension half (the floor).
 //!
 //! The env's `wat.*` fields are platform-owned. User data lives in a nested slot
-//! `user.program`, typed `:wat::Record` (the root — every record is a subtype, so
+//! `user.program`, typed `:wat::core::Record` (the root — every record is a subtype, so
 //! ANY user record fits). It is **always a record, never nil/optional** — the
 //! default is `:wat::program::EmptyEnv`, a 0-field NOMINAL record (not nil, not an
 //! anonymous map). That is what dodges optional-is-a-smell: there is no nil branch.
@@ -22,7 +22,7 @@ use wat::freeze::{eval_in_frozen, invoke_user_main, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// The record carries `user.program` holding a record (RED via arity at HEAD: a
-/// 6-arg `Env` constructor is an arity error). `conforms?` to `:wat::Record` proves
+/// 6-arg `Env` constructor is an arity error). `conforms?` to `:wat::core::Record` proves
 /// the slot holds a genuine record value.
 #[test]
 fn env_record_carries_user_program_slot() {

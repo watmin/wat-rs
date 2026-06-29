@@ -15,8 +15,8 @@
 
 ;; assoc_second_field_by_name
 (:wat::core::defn :user::assoc-second-field-by-name [] -> :wat::core::f64
-  (:y (:wat::Record/assoc (:my::Pt 1.0 2.0) :y 9.0)))
+  (:y (:wat::core::Record/assoc (:my::Pt 1.0 2.0) :y 9.0)))
 
 ;; assoc_second_leaves_first
 (:wat::core::defn :user::assoc-second-leaves-first [] -> :wat::core::f64
-  (:x (:wat::Record/assoc (:my::Pt 1.0 2.0) :y 9.0)))
+  (:x (:wat::core::Record/assoc (:my::Pt 1.0 2.0) :y 9.0)))

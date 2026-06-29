@@ -1227,7 +1227,7 @@ pub(crate) fn record_get_inner(
         Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
         other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: ":wat::Record instance",
+            expected: ":wat::core::Record instance",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     };
@@ -1278,7 +1278,7 @@ pub(crate) fn record_contains_field_q_inner(
         Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
         other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: ":wat::Record instance",
+            expected: ":wat::core::Record instance",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     };
@@ -1318,7 +1318,7 @@ pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
         Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::i64(a.fields.len() as i64)),
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: ":wat::Record instance",
+            expected: ":wat::core::Record instance",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }
@@ -1334,7 +1334,7 @@ pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
         Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::bool(a.fields.is_empty())),
         other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: ":wat::Record instance",
+            expected: ":wat::core::Record instance",
             got: Box::new(ValueSnapshot::of(other))
         } }.into()),
     }

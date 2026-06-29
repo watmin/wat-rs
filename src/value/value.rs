@@ -184,7 +184,7 @@ pub enum Value {
     /// the retired `:wat::kernel::wait-child` is gone (arc 112/214).
     wat__kernel__ChildHandle(Arc<ChildHandle>),
     /// Arc 293.R2.1 — unified aggregate value (replaces the three former variants:
-    /// `Value::Struct`, `Value::wat__Record`, `Value::wat__holon__Record`).
+    /// `Value::Struct`, `Value::wat__core__Record`, `Value::wat__holon__Record`).
     ///
     /// A tagged positional product type. The `holder` field is the ONLY axis of
     /// variance: `{Struct, Record, HolonRecord}` — it gates wire portability,
@@ -331,7 +331,7 @@ pub enum Value {
     /// Constructed by `:wat::stream::empty`, `(:wat::stream::cons h t)`,
     /// `(:wat::stream::lazy <body>)`.
     wat__stream__Stream(Arc<Stream>),
-    // Arc 293.R2.1: wat__holon__Record and wat__Record DELETED.
+    // Arc 293.R2.1: wat__holon__Record and wat__core__Record DELETED.
     // Both are now represented by Value::Aggregate with holder=HolonRecord/Record.
     // See AggregateValue for the unified repr.
     /// Stone 237.2 — `:wat::core::defclause` multi-arity dispatcher.
@@ -667,7 +667,7 @@ impl PartialEq for Value {
             (Value::Engram(a), Value::Engram(b)) => Arc::ptr_eq(a, b),
             (Value::EngramLibrary(a), Value::EngramLibrary(b)) => Arc::ptr_eq(a, b),
             (Value::Hologram(a), Value::Hologram(b)) => Arc::ptr_eq(a, b),
-            // Arc 293.R2.1: wat__holon__Record and wat__Record arms removed; handled by Aggregate above.
+            // Arc 293.R2.1: wat__holon__Record and wat__core__Record arms removed; handled by Aggregate above.
             // Stone 237.2 — wat__core__clauses: pointer equality (two ClauseSet instances
             // are the same dispatcher iff they are the same Arc). Structural equality
             // over clause bodies is not implemented — same rationale as wat__core__fn.
@@ -913,7 +913,7 @@ impl std::hash::Hash for Value {
                  src/check.rs should have rejected this. If you see this panic, \
                  the predicate has drifted."
             ),
-            // Arc 293.R2.1: wat__holon__Record and wat__Record Hash arms removed; handled by Aggregate above.
+            // Arc 293.R2.1: wat__holon__Record and wat__core__Record Hash arms removed; handled by Aggregate above.
             // Stone 237.2 — wat__core__clauses: hash via Arc pointer (consistent with
             // pointer-equality PartialEq). Same discipline as wat__core__fn.
             Value::wat__core__clauses(cs) => {
@@ -960,7 +960,7 @@ pub enum HolonForm {
 /// Arc 293.R2.1 — unified product-type value payload.
 ///
 /// Replaces `StructValue` + the three inline record variant payloads
-/// (the old `Value::Struct`, `Value::wat__Record`, `Value::wat__holon__Record` — all gone).
+/// (the old `Value::Struct`, `Value::wat__core__Record`, `Value::wat__holon__Record` — all gone).
 ///
 /// `class` is the COLON-FREE FQDN (e.g. `"myapp::Voltage"` — no leading `:`).
 /// `fields` is the positional field vec in declaration order.
@@ -970,7 +970,7 @@ pub enum HolonForm {
 pub struct AggregateValue {
     /// Colon-free FQDN of the declared type (e.g. `"wat::kernel::Process"`).
     /// Was `StructValue.type_name` (stripped of leading `:`) /
-    /// `wat__Record.class_fqdn` / `wat__holon__Record.class_fqdn`.
+    /// `wat__core__Record.class_fqdn` / `wat__holon__Record.class_fqdn`.
     pub class: String,
     /// Positional field values in declaration order.
     /// Was `StructValue.fields` (wrapped in Arc) / the old `struct_form` local name.
@@ -1115,10 +1115,10 @@ impl Value {
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
             // Arc 293.R2.1 — Aggregate: holder gates the kind-string.
-            // Struct holder → "wat::core::Struct"; Record/HolonRecord → "wat::Record".
+            // Struct holder → "wat::core::Struct"; Record/HolonRecord → "wat::core::Record".
             Value::Aggregate(a) => match a.holder {
                 Holder::Struct => "wat::core::Struct",
-                Holder::Record | Holder::HolonRecord => "wat::Record",
+                Holder::Record | Holder::HolonRecord => "wat::core::Record",
             },
             Value::Enum(_) => "wat::core::Enum",
             Value::Vector(_) => "wat::holon::Vector",
@@ -1136,7 +1136,7 @@ impl Value {
             Value::wat__core__List(_) => "wat::core::List",
             // Arc 118 — lazy seq.
             Value::wat__stream__Stream(_) => "wat::stream::Stream",
-            // Arc 293.R2.1: wat__holon__Record and wat__Record removed; covered by Aggregate arm above.
+            // Arc 293.R2.1: wat__holon__Record and wat__core__Record removed; covered by Aggregate arm above.
             // Stone 237.2 — multi-arity callable dispatcher.
             Value::wat__core__clauses(_) => "wat::core::clauses",
             // Arc 232 Stone 232.1 — protocol registry carriers (not runtime-callable values).

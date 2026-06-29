@@ -2,12 +2,12 @@
 //!
 //! See `docs/arc/2026/05/237-polymorphism-consolidation/DESIGN-STONE-S-C3.md`.
 //!
-//! `:wat::core::defrecord` → BASE (struct only; recordtype parent :wat::Record).
-//! `:wat::holon::defrecord` → HOLONIC (struct + holon; parent :wat::holon::Record <: :wat::Record).
+//! `:wat::core::defrecord` → BASE (struct only; recordtype parent :wat::core::Record).
+//! `:wat::holon::defrecord` → HOLONIC (struct + holon; parent :wat::holon::Record <: :wat::core::Record).
 //! The recordtype parent IS the Liskov mechanism: a func wanting :wat::holon::Record rejects a
-//! base-defined record at CHECK time; wanting :wat::Record accepts both.
+//! base-defined record at CHECK time; wanting :wat::core::Record accepts both.
 //!
-//! RED at the arc-237 strike: `:wat::holon::Record::def` did not exist, and `:wat::Record::def` still
+//! RED at the arc-237 strike: `:wat::holon::Record::def` did not exist, and `:wat::core::Record::def` still
 //! built holonic (so base ops + to-holon-error + Liskov rejection were unmet). GREEN after the stone.
 //! (Both macros were later renamed — arc 293.2 — to `:wat::core::defrecord` / `:wat::holon::defrecord`,
 //! the names used in the design lines above.)
@@ -69,11 +69,11 @@ fn eval_i64(fn_name: &str) -> i64 {
 // in the startup proves they type-check (startup_beside succeeds only if ALL pass).
 
 #[test] fn liskov_base_into_base_ok() {
-    startup_beside(file!()).expect("liskov: :fb [p <- :my::Pt] calling :wb [v <- :wat::Record] must type-check");
+    startup_beside(file!()).expect("liskov: :fb [p <- :my::Pt] calling :wb [v <- :wat::core::Record] must type-check");
 }
 #[test] fn liskov_holonic_into_base_ok() {
     // holonic <: base — a func wanting base accepts a holonic-defined record.
-    startup_beside(file!()).expect("liskov: :fh [p <- :my::HPt] calling :wb [v <- :wat::Record] must type-check");
+    startup_beside(file!()).expect("liskov: :fh [p <- :my::HPt] calling :wb [v <- :wat::core::Record] must type-check");
 }
 #[test] fn liskov_holonic_into_holon_ok() {
     startup_beside(file!()).expect("liskov: :gh [p <- :my::HPt] calling :wh [v <- :wat::holon::Record] must type-check");

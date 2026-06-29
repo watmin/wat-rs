@@ -2,7 +2,7 @@
 ;; Co-located fixture for probe_arc234_stone2a_record_primitives.rs (arc 234 Stone 234.2a).
 ;; Each :user::probe-N function corresponds to its Rust probe contract.
 
-;; ─── Probe 1: construction returns :wat::Record ──────────────────────────────
+;; ─── Probe 1: construction returns :wat::core::Record ──────────────────────────────
 (:wat::core::defn :user::probe-1 [] -> :wat::holon::Record
   (:wat::holon::Record::of
     :myapp::Voltage
@@ -80,7 +80,7 @@
                   (:wat::holon::Atom (:wat::holon::to-holon "y"))
                   (:wat::holon::Atom (:wat::holon::to-holon 4)))])
              "Bundle failed in Probe 5")))]
-    (:wat::Record/field-at v 1)))
+    (:wat::core::Record/field-at v 1)))
 
 ;; ─── Probe 7: equality via holon_form ────────────────────────────────────────
 (:wat::core::defn :user::probe-7 [] -> :wat::holon::Record

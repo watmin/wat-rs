@@ -1,5 +1,5 @@
 ;; arc 293 — inheritance ANNIHILATED. A recordtype/aggregatetype parent MUST be a holder-root
-;; (:wat::core::Value / :wat::core::Struct / :wat::Record / :wat::holon::Record). A USER-type
+;; (:wat::core::Value / :wat::core::Struct / :wat::core::Record / :wat::holon::Record). A USER-type
 ;; parent is nominal inheritance — REJECTED at registration. Reuse-of-shape is surface-splice, not a base.
 ;;
 ;; RED at HEAD: register_with_span (types.rs:457) registers :my::Child <: :my::Base for ANY existing

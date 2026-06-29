@@ -293,7 +293,7 @@ pub enum RuntimeErrorKind {
         got: String,
         path: String,
     },
-    /// Arc 234 Stone 234.3b.fix — `:wat::Record/assoc` was invoked with
+    /// Arc 234 Stone 234.3b.fix — `:wat::core::Record/assoc` was invoked with
     /// a field key that does not exist on the record's class. Carries the
     /// bare class FQDN (no leading colon), the attempted field name, the
     /// list of actually-available field names, and the call site span.

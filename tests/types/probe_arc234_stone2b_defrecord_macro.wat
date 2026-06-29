@@ -6,8 +6,8 @@
 (:wat::core::defrecord :myapp::Triple [a <- :wat::core::i64  b <- :wat::core::String  c <- :wat::core::bool])
 (:wat::core::defrecord :myapp::Tag [])
 
-;; ─── Probe 1: single-field construction returns :wat::Record ─────────────────
-(:wat::core::defn :user::probe-1 [] -> :wat::Record (:myapp::Voltage 5.0))
+;; ─── Probe 1: single-field construction returns :wat::core::Record ─────────────────
+(:wat::core::defn :user::probe-1 [] -> :wat::core::Record (:myapp::Voltage 5.0))
 
 ;; ─── Probe 2: per-field accessor returns value ───────────────────────────────
 (:wat::core::defn :user::probe-2 [] -> :wat::core::f64

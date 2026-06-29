@@ -9,7 +9,7 @@
   (:wat::core::let
     [peer (:wat::kernel::spawn-program'
             (:wat::spawn::thread/init
-              (:wat::core::fn [] -> :wat::Record (:user::MyEnv 8080)))
+              (:wat::core::fn [] -> :wat::core::Record (:user::MyEnv 8080)))
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self
                 (:user::MyEnv/port
@@ -23,7 +23,7 @@
   (:wat::core::let
     [peer (:wat::kernel::spawn-program'
             (:wat::spawn::thread/init
-              (:wat::core::fn [] -> :wat::Record
+              (:wat::core::fn [] -> :wat::core::Record
                 (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv))))
             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self 7)))

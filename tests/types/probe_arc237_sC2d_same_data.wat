@@ -18,12 +18,12 @@
   (:wat::core::= (:wat::core::record->map (:my::Pt 0 0))
                  (:wat::core::record->map (:my::Pt 0 9))))
 
-;; samedata_* — the verb :wat::Record/same-data?
+;; samedata_* — the verb :wat::core::Record/same-data?
 (:wat::core::defn :user::samedata-same-type-equal [] -> :wat::core::bool
-  (:wat::Record/same-data? (:my::Pt 0 0) (:my::Pt 0 0)))
+  (:wat::core::Record/same-data? (:my::Pt 0 0) (:my::Pt 0 0)))
 
 (:wat::core::defn :user::samedata-cross-type-equal [] -> :wat::core::bool
-  (:wat::Record/same-data? (:my::Pt 0 0) (:my::Coord 0 0)))
+  (:wat::core::Record/same-data? (:my::Pt 0 0) (:my::Coord 0 0)))
 
 (:wat::core::defn :user::samedata-diff-value [] -> :wat::core::bool
-  (:wat::Record/same-data? (:my::Pt 0 0) (:my::Pt 0 9)))
+  (:wat::core::Record/same-data? (:my::Pt 0 0) (:my::Pt 0 9)))

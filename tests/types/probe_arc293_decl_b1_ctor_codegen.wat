@@ -10,7 +10,7 @@
 ;; (the ctor was macro-only) → `(:test::db::BR 7 8)` is unresolved. GREEN after decl-b.1.
 
 ;; A record via the RAW primitive — no macro, so any ctor MUST come from codegen.
-(:wat::core::recordtype :test::db::BR :wat::Record [a <- :wat::core::i64  b <- :wat::core::i64])
+(:wat::core::recordtype :test::db::BR :wat::core::Record [a <- :wat::core::i64  b <- :wat::core::i64])
 
 ;; Construct via the bare ctor (codegen'd) + read field a = 7.
 (:wat::core::defn :user::db-br-a [] -> :wat::core::i64
@@ -24,7 +24,7 @@
 
 ;; The holon record built via the RAW primitive must be a REAL holon record — it must
 ;; carry a hologram (cosine with itself = 1.0). At HEAD the register_aggregate_methods
-;; fallback builds it via :wat::Record::of (BASE ctor) → no hologram → this misbehaves.
+;; fallback builds it via :wat::core::Record::of (BASE ctor) → no hologram → this misbehaves.
 ;; decl-b.1 routes the fallback through aggregate-new (holder-dispatched) → hologram derived.
 (:wat::core::defn :user::db-hr-cos [] -> :wat::core::f64
   (:wat::core::let [h (:test::db::HR 7 8)]

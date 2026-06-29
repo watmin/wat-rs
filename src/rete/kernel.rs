@@ -38,7 +38,7 @@ use crate::types::Holder;
 /// `bindings` stays `rpds::HashTrieMapSync` so `production_pass` → `build_insert_fact` reads it
 /// directly (no `matcher.rs` change, no per-firing conversion).
 ///
-/// Replaces the per-token `Value::wat__Record` + `VectorSync<Tuple>` allocation chain (~6 allocs
+/// Replaces the per-token `Value::wat__core__Record` + `VectorSync<Tuple>` allocation chain (~6 allocs
 /// per token) with a single struct holding a plain `Vec` push + an rpds map fold.
 #[derive(Clone)]
 pub(crate) struct Token {
@@ -159,7 +159,7 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
             span: Span::unknown(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::rete::Token (a wat::Record)",
+                expected: ":wat::rete::Token (a wat::core::Record)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }.into()),
@@ -311,7 +311,7 @@ fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
 /// `network, rules, alpha-memory, beta-memory, production-memory, facts, next-id`.
 ///
 /// Returns `RuntimeError::TypeMismatch` if:
-/// - the value is not a `Value::wat__Record` with `class_fqdn == "wat::rete::Session"`,
+/// - the value is not a `Value::wat__core__Record` with `class_fqdn == "wat::rete::Session"`,
 /// - any of the three memory fields is not a `Value::wat__core__PersistentMap`,
 /// - any memory key is not `Value::i64`, or
 /// - any memory value is not a `Value::wat__core__PersistentVector`.
@@ -326,7 +326,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
                 span: Span::unknown(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::rete::Session (a wat::Record)",
+                    expected: ":wat::rete::Session (a wat::core::Record)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             }
@@ -378,7 +378,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
 /// Convert a `WorkingMemory` back into a frozen `:wat::rete::Session` `Value`.
 ///
 /// Rebuilds each memory `HashMap<i64,Vec<Value>>` into a `PersistentMap<i64,PersistentVector<Value>>`,
-/// then constructs a `Value::wat__Record` with `struct_form` in declaration order:
+/// then constructs a `Value::wat__core__Record` with `struct_form` in declaration order:
 /// `[network, rules, alpha-memory, beta-memory, production-memory, facts, next-id]`.
 ///
 /// An empty memory map → an empty `PersistentMap` (never `nil`; the field is always present).
@@ -510,7 +510,7 @@ fn explained_class_fqdn() -> Arc<String> {
 }
 
 /// Build an `Element` record value.
-/// Element: `{ fact: :wat::Record, bindings: :wat::core::PersistentMap }` (positional).
+/// Element: `{ fact: :wat::core::Record, bindings: :wat::core::PersistentMap }` (positional).
 /// class_fqdn = "wat::rete::Element", struct_form = [fact, bindings_pm].
 fn make_element(fact: Value, bindings: rpds::HashTrieMapSync<Value, Value>) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
@@ -2192,7 +2192,7 @@ mod tests {
                             "supporting fact must be Temperature or WindSpeed; got: {cls}"
                         );
                     }
-                    other => panic!("matches fact must be a wat::Record; got: {other:?}"),
+                    other => panic!("matches fact must be a wat::core::Record; got: {other:?}"),
                 }
             }
 

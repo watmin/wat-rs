@@ -2274,16 +2274,16 @@ fn is_atomizable(ty: &TypeExpr) -> bool {
                 // Stone 242.1 — renamed from :wat::core::Char (PascalCase) to
                 // :wat::core::char (lowercase per Doctrine 2; scalar types lowercase).
                 | ":wat::core::char"
-                // Arc 234 Stone 234.5 — wat::Record is atomizable via the hologram
+                // Arc 234 Stone 234.5 — wat::core::Record is atomizable via the hologram
                 // property: holon_form is pre-built at construction. to-holon on a record
                 // returns the holon_form directly; no recomputation. The atomizable gate
-                // must accept :wat::Record so (:wat::holon::to-holon r) type-checks.
+                // must accept :wat::core::Record so (:wat::holon::to-holon r) type-checks.
                 // Stone S-C.3 — :wat::holon::Record is also atomizable (holonic flavor
-                // carries holon_form). Base :wat::Record to-holon still type-checks
+                // carries holon_form). Base :wat::core::Record to-holon still type-checks
                 // (checker passes, runtime emits the "base has no holon flavor" teaching
                 // error). Both flavors accepted here so the checker is permissive at the
                 // supertype level; flavor enforcement is a runtime contract.
-                | ":wat::Record"
+                | ":wat::core::Record"
                 | ":wat::holon::Record"
                 // Arc 221 Stone 221.4 — nil (Value::Unit) is atomizable; value_to_atom
                 // dispatches via the Nil arm → HolonAST::Nil leaf. The nil type is
@@ -3253,7 +3253,7 @@ fn check_function_body(
     // looks like a typo'd variant constructor (keyword literal vs enum type).
     // Arc 258 cascade — use `assignable` instead of bare `unify` so that a
     // specifically-typed record (e.g. :myapp::Voltage) satisfies a declared
-    // return of :wat::Record via the is_subtype hierarchy.
+    // return of :wat::core::Record via the is_subtype hierarchy.
     if let Some(body_ty) = body_ty {
         if !assignable(&body_ty, &scheme.ret, &mut subst, env) {
             let resolved_ret = apply_subst(&scheme.ret, &subst);
@@ -4718,11 +4718,11 @@ fn infer_list(
                 }
                 if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                     let resolved = apply_subst(&arg_ty, subst);
-                    // Arc 258 cascade — a specifically-typed record (subtype of :wat::Record
+                    // Arc 258 cascade — a specifically-typed record (subtype of :wat::core::Record
                     // or :wat::holon::Record) is atomizable via its holon_form; is_atomizable
                     // only knows the exact root names, so check subtype first.
                     let is_record_subtype = matches!(&resolved, TypeExpr::Path(p)
-                        if crate::types::is_subtype(p, ":wat::Record", env.types())
+                        if crate::types::is_subtype(p, ":wat::core::Record", env.types())
                             || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
                     if !is_record_subtype && !is_atomizable(&resolved) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -4824,8 +4824,8 @@ fn infer_list(
                 // HolonAST arg bypasses normal type-unification (same
                 // rationale as Bundle/children and extract-arg-names).
                 //
-                // Arc 234 Stone 234.5 — extended for :wat::Record args:
-                // (record :wat::Record) -> :wat::core::String
+                // Arc 234 Stone 234.5 — extended for :wat::core::Record args:
+                // (record :wat::core::Record) -> :wat::core::String
                 // Records always have a class_fqdn (mandatory at construction);
                 // the runtime returns Value::String directly (not Option).
                 // Return type is :String (not Option<String>) for record args.
@@ -4839,11 +4839,11 @@ fn infer_list(
                 if args.len() >= 1 {
                     if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                         let resolved = apply_subst(&arg_ty, subst);
-                        // Arc 258 cascade — accept any subtype of :wat::Record or
+                        // Arc 258 cascade — accept any subtype of :wat::core::Record or
                         // :wat::holon::Record (specifically-typed records always have a
                         // class_fqdn, so the return type is String, not Option<String>).
                         let is_record = matches!(&resolved, TypeExpr::Path(p)
-                            if crate::types::is_subtype(p, ":wat::Record", env.types())
+                            if crate::types::is_subtype(p, ":wat::core::Record", env.types())
                                 || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
                         if is_record {
                             // Record arg (base or holonic, any subtype) → return type is String (classifier always present).
@@ -4995,7 +4995,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 234 Stone 234.5 — Bind and Bundle accept :wat::Record in HolonAST
+            // Arc 234 Stone 234.5 — Bind and Bundle accept :wat::core::Record in HolonAST
             // positions. Custom handlers supersede the TypeScheme registrations at
             // lines 14311 and 14328 (retained as documentation; dead code at these
             // call sites). The handlers mirror infer_record_of's pattern (Stone
@@ -5021,8 +5021,8 @@ fn infer_list(
             // HolonAST or Vector as its single argument. Arc 061
             // extends the polymorphism to coincident? (mirroring
             // cosine's shape; differs only in the bool return type).
-            // Arc 234 Stone 234.5 — extended to also accept :wat::Record via
-            // is_holon_or_vector (which now includes :wat::Record).
+            // Arc 234 Stone 234.5 — extended to also accept :wat::core::Record via
+            // is_holon_or_vector (which now includes :wat::core::Record).
             ":wat::holon::cosine" | ":wat::holon::dot" => {
                 let (val, mut errs) = infer_polymorphic_holon_pair_to_f64(
                     k, head_span, args, env, locals, fresh, subst,
@@ -5396,7 +5396,7 @@ fn infer_list(
             // Records-doctrine slice: promotes the surface name from a HashMap-only alias to a
             // polymorphic intrinsic with a custom inference arm. Two arms:
             //   HashMap<K,V> + K + V → HashMap<K,V>   (type-preserving; arg2 unifies with V, NOT K)
-            //   :wat::Record + :keyword + ∀T → :wat::Record  (arg2 free; flavor preserved at runtime)
+            //   :wat::core::Record + :keyword + ∀T → :wat::core::Record  (arg2 free; flavor preserved at runtime)
             ":wat::core::assoc" => {
                 let (val, mut errs) = crate::collection::infer::infer_assoc(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -5565,9 +5565,9 @@ fn infer_list(
             // Custom handler takes precedence over the TypeScheme registration
             // (which was removed per T2 investigation: custom arms return early BEFORE
             // the generic TypeScheme fallback at the bottom of `infer_list`).
-            // Stone S-C.3: `:wat::Record::of` is now BASE (2-arg); `:wat::holon::Record::of`
+            // Stone S-C.3: `:wat::core::Record::of` is now BASE (2-arg); `:wat::holon::Record::of`
             // is HOLONIC (3-arg, returns :wat::holon::Record).
-            ":wat::Record::of" => {
+            ":wat::core::Record::of" => {
                 let (val, mut errs) = infer_record_of(head_span, args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -6254,7 +6254,7 @@ fn infer_list(
                 // does not start with `:wat::`.
                 //
                 // Three permitted receiver shapes for user keyword accessors:
-                //   - TypeExpr::Path(":wat::Record")     → record accessor
+                //   - TypeExpr::Path(":wat::core::Record")     → record accessor
                 //   - TypeExpr::Path(name) where name is a registered Struct
                 //   - TypeExpr::Parametric { head: "wat::core::HashMap", .. }
                 // Plus permissive for unresolved/unknown (Var or None).
@@ -6265,12 +6265,12 @@ fn infer_list(
                     let acceptable = match &resolved {
                         None => true,
                         Some(TypeExpr::Var(_)) => true,
-                        // Arc 258 cascade — accept any subtype of :wat::Record (includes
+                        // Arc 258 cascade — accept any subtype of :wat::core::Record (includes
                         // specifically-typed records like :myapp::Pt in addition to the
-                        // root :wat::Record). is_subtype is reflexive so :wat::Record itself
+                        // root :wat::core::Record). is_subtype is reflexive so :wat::core::Record itself
                         // still matches.
                         Some(TypeExpr::Path(p))
-                            if crate::types::is_subtype(p, ":wat::Record", env.types())
+                            if crate::types::is_subtype(p, ":wat::core::Record", env.types())
                                 || crate::types::is_subtype(
                                     p,
                                     ":wat::holon::Record",
@@ -6736,7 +6736,7 @@ fn infer_match(
         let mut arm_locals = locals.clone();
 
         // Arc 257.2 — hash-destructure match-arm: Map with {var :field ...} shape.
-        // Receiver-polymorphic over wat::Record / Struct / wat::core::HashMap.
+        // Receiver-polymorphic over wat::core::Record / Struct / wat::core::HashMap.
         // Bypasses shape/coverage machinery (Option/Result/Enum shape does not apply).
         // Per D4: each binding var receives fresh.fresh(). Coverage: Wildcard.
         if let WatAST::Map(pairs, _) = pattern {
@@ -11283,9 +11283,9 @@ fn infer_process_prog_type(
 /// - `args[0]`: program fn; inferred; must be `fn([Peer'<S,R>]) -> nil` (self-peer
 ///   model — the ONLY valid form post arc 259 S2c-ii-a purge); projects to
 ///   `Thread'<R,S>`. Uses `infer_thread_prog_type` (the shared projection helper).
-/// - `args[1]`: init-fn; a 0-arg fn returning `:wat::Record`; inferred but not
+/// - `args[1]`: init-fn; a 0-arg fn returning `:wat::core::Record`; inferred but not
 ///   further projected (the checker accepts any fn value here — runtime validates
-///   the return type is a :wat::Record subtype at peer start).
+///   the return type is a :wat::core::Record subtype at peer start).
 /// - `args[2]`: post-spawn-fn; `Fn(ThreadLaunch) -> nil`; inferred and unified
 ///   with `Fn(:wat::spawn::ThreadLaunch) -> :wat::core::nil`.
 ///
@@ -11346,7 +11346,7 @@ fn infer_spawn_thread_prime(
 ///   with `Fn(:wat::spawn::ProcessLaunch) -> :wat::core::nil`. This causes the
 ///   accessor type-check at parse time (ProcessLaunch/bogus-field → check error).
 /// - `args[2]`: env-fn; a `:wat::core::String` source string the child evals to
-///   produce `user.program`; inferred (runtime validates the result is a :wat::Record).
+///   produce `user.program`; inferred (runtime validates the result is a :wat::core::Record).
 /// - `args[3]`: max-message-bytes; an `:wat::core::i64` per-receiver frame-size
 ///   budget extracted from `ProcessOpts/max-message-bytes`; inferred only (runtime
 ///   validates the value is an i64).
@@ -12409,17 +12409,17 @@ fn infer_equality(
         // but the comparison is well-formed (Stone S-C.3: base-vs-holonic record
         // cross-flavor comparison is meaningful, result always false).
         // Arc 258 cascade — two specifically-typed records (e.g. :my::Pt and
-        // :my::HPt) both share :wat::Record as a common ancestor; comparing them
+        // :my::HPt) both share :wat::core::Record as a common ancestor; comparing them
         // is type-compatible (always evaluates to false at runtime, which is correct
         // and meaningful). Check: unify OR one is a subtype of the other OR both
-        // are record subtypes (share the :wat::Record common ancestor).
+        // are record subtypes (share the :wat::core::Record common ancestor).
         let types_compatible = if unify(&a_resolved, &b_resolved, subst, env.types()).is_ok() {
             true
         } else if let (TypeExpr::Path(ap), TypeExpr::Path(bp)) = (&a_resolved, &b_resolved) {
             crate::types::is_subtype(ap, bp, env.types())
                 || crate::types::is_subtype(bp, ap, env.types())
-                || (crate::types::is_subtype(ap, ":wat::Record", env.types())
-                    && crate::types::is_subtype(bp, ":wat::Record", env.types()))
+                || (crate::types::is_subtype(ap, ":wat::core::Record", env.types())
+                    && crate::types::is_subtype(bp, ":wat::core::Record", env.types()))
         } else {
             false
         };
@@ -12557,13 +12557,13 @@ fn infer_ordering(
 
 /// Arc 237 Stone S-C.3 — BASE record constructor inference.
 ///
-/// `:wat::Record::of` takes two arguments:
+/// `:wat::core::Record::of` takes two arguments:
 ///   #1  class-FQDN   — must be `:wat::core::keyword`
 ///   #2  struct-form  — must be a Vector literal `[...]` or `:wat::core::Vector` call;
 ///                      elements are type-checked independently; NO uniform-T unification
 ///                      (struct_form is Arc<Vec<Value>> by design — heterogeneous)
 ///
-/// Returns `:wat::Record`.
+/// Returns `:wat::core::Record`.
 ///
 /// The umbrella DESIGN (arc 234 line 19) specifies `struct_form: Arc<Vec<Value>>` which
 /// is heterogeneous by construction. The original TypeScheme registration used
@@ -12581,7 +12581,7 @@ fn infer_record_of(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    const CALLEE: &str = ":wat::Record::of";
+    const CALLEE: &str = ":wat::core::Record::of";
     // Arity check: exactly 2 args (class, struct_form).
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
@@ -12593,7 +12593,7 @@ fn infer_record_of(
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
         // HARVEST (236.2): existing diagnostic; partial — return Record placeholder.
-        return CheckResult::partial_with(TypeExpr::Path(":wat::Record".into()), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::core::Record".into()), local_errors);
     }
 
     // Arg #1: class-FQDN — must infer to :wat::core::keyword.
@@ -12653,20 +12653,20 @@ fn infer_record_of(
     }
 
     // The construction's type is the SPECIFIC record its class names — NOT the generic
-    // :wat::Record. Arc 258: records were collapsed to :wat::Record because this returned the
+    // :wat::core::Record. Arc 258: records were collapsed to :wat::core::Record because this returned the
     // root, which made the whole subtype hierarchy (register_subtype/is_subtype) unreachable —
     // no value could ever be typed as a specific record. The Record::def macro +
     // register_record_methods build arg[0] as `(:wat::core::keyword/from-string "user::MyEnv")`,
     // so the class FQDN is the static StringLit prefixed with ':'. If it names a recordtype,
-    // the construction IS that record. (Falls back to :wat::Record for a non-static/non-record class.)
+    // the construction IS that record. (Falls back to :wat::core::Record for a non-static/non-record class.)
     let ty = record_of_specific_type(&args[0], env)
-        .unwrap_or_else(|| TypeExpr::Path(":wat::Record".into()));
+        .unwrap_or_else(|| TypeExpr::Path(":wat::core::Record".into()));
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
 /// Recover the SPECIFIC record type a `Record::of` constructs, from its statically-known class
 /// argument `(:wat::core::keyword/from-string "<fqdn-without-leading-colon>")`. Returns `None`
-/// when the class is not a static, registered recordtype (caller falls back to `:wat::Record`).
+/// when the class is not a static, registered recordtype (caller falls back to `:wat::core::Record`).
 ///
 /// Arc 293.R2.2 — after `parse_recordtype` was fixed to store the BARE name (`:t::R` not `:t::R<T>`),
 /// the class string in the macro is `"t::R<T>"` but the TypeEnv key is `":t::R"`. Strip the type
@@ -13248,9 +13248,9 @@ fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError, span: 
 /// `:wat::holon::Vector` — the two algebra-tier value types accepted
 /// by polymorphic cosine / dot / simhash.
 fn is_holon_or_vector(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
-    // Arc 234 Stone 234.5 — extended to accept :wat::Record.
+    // Arc 234 Stone 234.5 — extended to accept :wat::core::Record.
     // Arc 237 Stone S-C.3 — extended to accept :wat::holon::Record (holonic variant).
-    // Arc 258 cascade — extended to accept any subtype of :wat::Record or
+    // Arc 258 cascade — extended to accept any subtype of :wat::core::Record or
     // :wat::holon::Record (specifically-typed records, e.g. :myapp::Pt).
     // Records carry a pre-built holon_form; the runtime auto-dispatches via
     // pair_values_to_vectors (coerce_to_holon_ast pattern). Cosine and dot
@@ -13259,7 +13259,7 @@ fn is_holon_or_vector(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
                 || p == ":wat::holon::Vector"
-                || crate::types::is_subtype(p, ":wat::Record", types)
+                || crate::types::is_subtype(p, ":wat::core::Record", types)
                 || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
         {
             true
@@ -13331,7 +13331,7 @@ fn infer_polymorphic_holon_pair_to_f64(
 /// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bind`.
 ///
 /// Extends the TypeScheme (which accepted only `:wat::holon::HolonAST` in
-/// both positions) to also accept `:wat::Record`. The runtime auto-dispatches
+/// both positions) to also accept `:wat::core::Record`. The runtime auto-dispatches
 /// via `coerce_to_holon_ast`; the check layer mirrors this polymorphism.
 ///
 /// Pattern: per `infer_record_of` (Stone 234.2a-CORRECTION) and
@@ -13361,8 +13361,8 @@ fn infer_holon_bind(
         // HARVEST (236.2): existing diagnostic; Bind returns HolonAST.
         return CheckResult::partial_with(holon_ty, local_errors);
     }
-    // Infer both args; accept HolonAST or wat::Record in either position.
-    // is_holon_or_vector now includes :wat::Record (Stone 234.5).
+    // Infer both args; accept HolonAST or wat::core::Record in either position.
+    // is_holon_or_vector now includes :wat::core::Record (Stone 234.5).
     for (idx, arg) in args.iter().enumerate() {
         if let Some(t) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             let resolved = apply_subst(&t, subst);
@@ -13370,7 +13370,7 @@ fn infer_holon_bind(
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::holon::Bind".into(),
                     param: format!("#{}", idx + 1),
-                    expected: ":wat::holon::HolonAST or :wat::Record".into(),
+                    expected: ":wat::holon::HolonAST or :wat::core::Record".into(),
                     got: format_type(&resolved)
                 } });
             }
@@ -13380,18 +13380,18 @@ fn infer_holon_bind(
 }
 
 /// Arc 234 Stone 234.5 — predicate. Recognizes `:wat::holon::HolonAST`
-/// and `:wat::Record` — the two types accepted in Bind/Bundle arg positions after
+/// and `:wat::core::Record` — the two types accepted in Bind/Bundle arg positions after
 /// Stone 234.5. Distinct from `is_holon_or_vector` (which also accepts
 /// `:wat::holon::Vector` for the cosine/dot algebra verbs).
 /// Arc 237 Stone S-C.3 — extended to also accept `:wat::holon::Record`
-/// (holonic variant; subtype of `:wat::Record`).
-/// Arc 258 cascade — extended to accept any subtype of :wat::Record or
+/// (holonic variant; subtype of `:wat::core::Record`).
+/// Arc 258 cascade — extended to accept any subtype of :wat::core::Record or
 /// :wat::holon::Record (specifically-typed records, e.g. :myapp::Voltage).
 fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
     match t {
         TypeExpr::Path(p)
             if p == ":wat::holon::HolonAST"
-                || crate::types::is_subtype(p, ":wat::Record", types)
+                || crate::types::is_subtype(p, ":wat::core::Record", types)
                 || crate::types::is_subtype(p, ":wat::holon::Record", types) =>
         {
             true
@@ -13517,7 +13517,7 @@ fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
 /// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bundle`.
 ///
 /// Extends Bundle to accept a `Vector<T>` where each element T is either
-/// `:wat::holon::HolonAST` or `:wat::Record`. The TypeScheme (line 14328)
+/// `:wat::holon::HolonAST` or `:wat::core::Record`. The TypeScheme (line 14328)
 /// declared `Vector<HolonAST>` and is retained as documentation; this
 /// dispatch arm supersedes it.
 ///
@@ -13553,7 +13553,7 @@ fn infer_holon_bundle(
         return CheckResult::partial_with(result_ty, local_errors);
     }
     // Inspect the single arg — expect a Vector literal or :wat::core::vec call.
-    // Elements can be HolonAST or wat::Record (Stone 234.5 extension).
+    // Elements can be HolonAST or wat::core::Record (Stone 234.5 extension).
     // Mirror infer_record_of's element-level independent inference.
     match &args[0] {
         WatAST::Vector(elems, _) => {
@@ -13564,7 +13564,7 @@ fn infer_holon_bundle(
                         local_errors.push(CheckError { span: elem.span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::holon::Bundle".into(),
                             param: "list element".into(),
-                            expected: ":wat::holon::HolonAST or :wat::Record".into(),
+                            expected: ":wat::holon::HolonAST or :wat::core::Record".into(),
                             got: format_type(&resolved)
                         } });
                     }
@@ -13591,7 +13591,7 @@ fn infer_holon_bundle(
                     local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::holon::Bundle".into(),
                         param: "#1".into(),
-                        expected: "wat::core::Vector<:wat::holon::HolonAST> or wat::core::Vector<:wat::Record>".into(),
+                        expected: "wat::core::Vector<:wat::holon::HolonAST> or wat::core::Vector<:wat::core::Record>".into(),
                         got: format_type(&resolved)
                     } });
                 }
@@ -19592,9 +19592,9 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 234 Stone 234.2a — :wat::Record::of + :wat::Record/field-at substrate primitives.
+    // Arc 234 Stone 234.2a — :wat::core::Record::of + :wat::core::Record/field-at substrate primitives.
     //
-    // :wat::Record::of — TypeScheme registration REMOVED (Stone 234.2a forward-correction).
+    // :wat::core::Record::of — TypeScheme registration REMOVED (Stone 234.2a forward-correction).
     // The constructor uses a custom inference handler `infer_record_of` in the primary
     // dispatcher (`infer_list`). The TypeScheme path is bypassed because custom dispatch arms
     // return early BEFORE the generic `env.get` fallback runs. The TypeScheme was removed to
@@ -19603,13 +19603,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // and the runtime (`eval_record_of` accepts any Vec without element-type enforcement).
     // The custom handler correctly accepts heterogeneous elements.
     //
-    // :wat::Record/field-at :: ∀T. :wat::Record × :wat::core::i64 -> :T
+    // :wat::core::Record/field-at :: ∀T. :wat::core::Record × :wat::core::i64 -> :T
     // Positional accessor: takes a record + i64 index; returns the field value.
     // Generic return T: type-checker propagates T via recipient inference (let-binding
     // or defn return-type annotation drives unification). Mirrors Vector/get's T pattern.
-    let record_ty = || TypeExpr::Path(":wat::Record".into());
+    let record_ty = || TypeExpr::Path(":wat::core::Record".into());
     env.register(
-        ":wat::Record/field-at".into(),
+        ":wat::core::Record/field-at".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![record_ty(), i64_ty()],
@@ -19633,9 +19633,9 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // :wat::core::record->map :: :wat::Record -> HashMap<:wat::core::keyword, :T>
+    // :wat::core::record->map :: :wat::core::Record -> HashMap<:wat::core::keyword, :T>
     // Extracts a HashMap from a record: field-name keywords → typed field values.
-    // Input is :wat::Record; output is HashMap with keyword keys + polymorphic value type.
+    // Input is :wat::core::Record; output is HashMap with keyword keys + polymorphic value type.
     // The keyword key type is fixed; the value type T is polymorphic (inferred from context).
     env.register(
         ":wat::core::record->map".into(),
@@ -19653,15 +19653,15 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 234 Stone 234.3b — write verb: :wat::Record/assoc.
+    // Arc 234 Stone 234.3b — write verb: :wat::core::Record/assoc.
     //
-    // :wat::Record/assoc :: ∀T. :wat::Record × :wat::core::keyword × :T -> :wat::Record
+    // :wat::core::Record/assoc :: ∀T. :wat::core::Record × :wat::core::keyword × :T -> :wat::core::Record
     // Returns a new record with the named field replaced by the new value.
-    // Polymorphic-T over the value position; fixed 3-arity; returns :wat::Record.
+    // Polymorphic-T over the value position; fixed 3-arity; returns :wat::core::Record.
     // Runtime enforces: field must exist (UnknownField); new value variant matches old
     // (TypeMismatch).
     env.register(
-        ":wat::Record/assoc".into(),
+        ":wat::core::Record/assoc".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![record_ty(), TypeExpr::Path(":wat::core::keyword".into()), t_var()],
@@ -19670,14 +19670,14 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 237 Stone S-C.2d — type-BLIND record data equality: :wat::Record/same-data?
+    // Arc 237 Stone S-C.2d — type-BLIND record data equality: :wat::core::Record/same-data?
     //
-    // :wat::Record/same-data? :: :wat::Record × :wat::Record -> :wat::core::bool
+    // :wat::core::Record/same-data? :: :wat::core::Record × :wat::core::Record -> :wat::core::bool
     // Compares field-name→value maps of two records, ignoring class (type) and flavor.
     // Distinct from `=` (arc 238, type-strict): cross-type same-named-fields → true.
-    // :wat::Record is the umbrella accepting any record (base or holonic, any class).
+    // :wat::core::Record is the umbrella accepting any record (base or holonic, any class).
     env.register(
-        ":wat::Record/same-data?".into(),
+        ":wat::core::Record/same-data?".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![record_ty(), record_ty()],
@@ -19732,7 +19732,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 278 Stone 2a — rete single-fact alpha matcher.
     // (:wat::rete::alpha-match cond fact) → Option<PersistentMap<String, V>>
     // cond: :wat::WatAST (a quoted condition form `(:FactType clause …)`)
-    // fact: :wat::Record
+    // fact: :wat::core::Record
     // Returns Some(bindings) iff the fact type matches the condition head AND every
     // clause holds; None otherwise (Clara no-error). Pure: no Environment, no eval.
     // The PersistentMap binds logic-var name strings ("?t") to their field-typed values.
@@ -19745,7 +19745,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["V".into()],
             params: vec![
                 TypeExpr::Path(":wat::WatAST".into()),
-                TypeExpr::Path(":wat::Record".into()),
+                TypeExpr::Path(":wat::core::Record".into()),
             ],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
@@ -19762,10 +19762,10 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
-    // (:wat::rete::eval-insert insert-form bindings) → :wat::Record
+    // (:wat::rete::eval-insert insert-form bindings) → :wat::core::Record
     // insert-form: :wat::WatAST (a quoted `(:wat::rete::insert (:RecordType arg…))` form)
     // bindings:    :wat::core::PersistentMap (the token's bound ?vars → values)
-    // Returns the derived :wat::Record; raises RuntimeError on malformed form / unresolved operand.
+    // Returns the derived :wat::core::Record; raises RuntimeError on malformed form / unresolved operand.
     // Pure: no Environment, no eval_inner on fact-args; resolve_operand handles ?var + literal only.
     env.register(
         ":wat::rete::eval-insert".into(),
@@ -19775,7 +19775,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::WatAST".into()),
                 TypeExpr::Path(":wat::core::PersistentMap".into()),
             ],
-            ret: TypeExpr::Path(":wat::Record".into()),
+            ret: TypeExpr::Path(":wat::core::Record".into()),
             rest_param_type: None,
         },
     );
@@ -19848,7 +19848,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::rete::Session".into()),
                 TypeExpr::Path(":wat::core::i64".into()),
                 TypeExpr::Path(":wat::core::PersistentMap".into()),
-                TypeExpr::Path(":wat::Record".into()),
+                TypeExpr::Path(":wat::core::Record".into()),
                 TypeExpr::Path(":wat::rete::DerivationNode".into()),
             ],
             ret: TypeExpr::Path(":wat::rete::DerivationStep".into()),

@@ -2,7 +2,7 @@
 //! briefing the alias-to-intrinsic promotion.
 //!
 //! `:wat::core::assoc` today is a `define-alias` (HashMap-only; arc 146 slice 4,
-//! `wat/core.wat:50`). `:wat::Record/assoc` exists separately (arc 234.3b) and
+//! `wat/core.wat:50`). `:wat::core::Record/assoc` exists separately (arc 234.3b) and
 //! already accepts both base + holonic records (Liskov; flavor-preserving via
 //! the early-return base arm + holonic fallthrough at runtime.rs:17129).
 //!

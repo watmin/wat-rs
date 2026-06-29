@@ -4,7 +4,7 @@
 //!
 //! A `defclause` dispatches at runtime via `value_matches_type_pattern`, whose
 //! `Path` arm exact-matches `v.type_name()` — which for a `Record::def` value
-//! returns the GENERIC variant tag `wat::Record`, not the specific class the
+//! returns the GENERIC variant tag `wat::core::Record`, not the specific class the
 //! value carries in `class_fqdn`. So a clause keyed on a specific record type
 //! never matches → `NoMatchingClause`. S2c-ii.0 teaches the dispatch to consult
 //! `class_fqdn` (the specific class A2 already put on every record value).
@@ -19,7 +19,7 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 /// A `defclause` keyed on the specific record type `:user::Tag`, called with a
-/// `(:user::Tag)` value. Pre-S2c-ii.0 the dispatch saw the generic `wat::Record`
+/// `(:user::Tag)` value. Pre-S2c-ii.0 the dispatch saw the generic `wat::core::Record`
 /// and failed (`NoMatchingClause`); post-S2c-ii.0 it consults `class_fqdn` and matches.
 #[test]
 fn s2cii0_defclause_dispatches_on_record_class() {

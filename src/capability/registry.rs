@@ -98,7 +98,7 @@ fn decode_in(caps: &[CapCodec], name: &str, body: &OwnedValue, types: &TypeEnv) 
 /// both the encode and decode paths. Changing the wire class name is a ONE-site edit here.
 const SOCKET_ADDRESS_WIRE_CLASS: &str = "wat::kernel::SocketAddressWire";
 
-/// Build the `SocketAddressWire` `Value::wat__Record` from its two fields.
+/// Build the `SocketAddressWire` `Value::wat__core__Record` from its two fields.
 /// struct_form = [i64(minter_pid), Value::Vec of i64 name bytes].
 /// Called by the encode closure so the class FQDN + field order live once, not twice.
 fn socket_address_wire_to_record(minter_pid: i32, name_bytes: Vec<u8>) -> Value {
@@ -243,7 +243,7 @@ mod waist_proof {
     /// Build a minimal TypeEnv with SocketAddressWire registered — enough for the codec tests.
     fn make_types_with_wire() -> TypeEnv {
         use crate::types::{AggregateDef, Holder, TypeDef, TypeExpr};
-        // with_builtins seeds :wat::Record (the required parent) + other kernel builtins.
+        // with_builtins seeds :wat::core::Record (the required parent) + other kernel builtins.
         let mut env = TypeEnv::with_builtins();
         env.register_stdlib(TypeDef::Aggregate(AggregateDef {
             name: ":wat::kernel::SocketAddressWire".to_string(),

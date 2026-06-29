@@ -23,7 +23,7 @@
 ;; clause arrive together, the sig unmoved. Until then: deliberately absent.
 ;;
 ;; See docs/arc/2026/06/259-forced-hand/DESIGN.md § "The spawn primitive".
-;; Loads AFTER wat/Record.wat (uses :wat::Record::def).
+;; Loads AFTER wat/Record.wat (uses :wat::core::Record::def).
 
 ;; ── Arc 272 6c.2 — SocketAddressWire (the portable address capability record) ──
 ;; The portable form of a process-tier Address': minter-pid + autobind name bytes
@@ -41,14 +41,14 @@
 (:wat::core::defrecord :wat::spawn::ProcessLaunch [pid <- :wat::core::i64])
 
 ;; ── The keys (locus opts records) ───────────────────────────────────────────
-;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::Record.
+;; ThreadOpts carries an init-fn: a 0-arg fn returning a :wat::core::Record.
 ;; The init-fn runs at the peer's start and populates user.program.
 ;; ProcessOpts carries no config — its TYPE is the whole message.
 ;; Both opts records carry post-spawn-fn: an owner-side fn that runs after
 ;; the peer is spawned, before spawn-program' returns, for effects. Receives
 ;; the per-env launch record. Required with a no-op default on the bare ctors.
 (:wat::core::defrecord :wat::spawn::ThreadOpts
-  [init-fn       <- :wat::core::Fn()->wat::Record
+  [init-fn       <- :wat::core::Fn()->wat::core::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil])
 (:wat::core::defrecord :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
@@ -70,16 +70,16 @@
 ;; (process/max-message-bytes n) — budget is n; post-spawn-fn + env-fn default.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))
+    (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
     (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)))
 
-(:wat::core::defn :wat::spawn::thread/init [f <- :wat::core::Fn()->wat::Record] -> :wat::spawn::ThreadOpts
+(:wat::core::defn :wat::spawn::thread/init [f <- :wat::core::Fn()->wat::core::Record] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts f
     (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)))
 
 (:wat::core::defn :wat::spawn::thread/post-spawn [g <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv))
+    (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
     g))
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts

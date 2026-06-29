@@ -384,7 +384,7 @@
                                  nil)))
                            nil
                            (:wat::core::range 0 n-kw-fields))
-         ;; Mint record form: (:wat::Record::def :<name>::Kwargs <kw-argvec>)
+         ;; Mint record form: (:wat::core::Record::def :<name>::Kwargs <kw-argvec>)
          record-def      `(:wat::core::defrecord ~kwargs-ty ~kw-argvec)
          ;; HYGIENIC hidden kwargs binder: fresh-symbol stamps a fresh unique scope (arc 274.1) so the
          ;; binder is capture-proof BY CONSTRUCTION — it cannot collide with any caller variable, even one
@@ -1031,7 +1031,7 @@
 
 ;; ─── Arc 293.2-parity: defstruct as a thin macro over structtype ──────────────
 ;;
-;; Mirror: :wat::Record::def (macro) → :wat::core::recordtype (Rust primitive).
+;; Mirror: :wat::core::Record::def (macro) → :wat::core::recordtype (Rust primitive).
 ;;         :wat::core::defstruct (macro) → :wat::core::structtype (Rust primitive).
 ;;
 ;; :wat::core::defstruct is now a macro that splices ALL its args straight through

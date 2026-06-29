@@ -46,7 +46,7 @@
 //! | `":wat::core::try"`               | 241.15 | lowercase try (arc 109 zombie)  | Result/try (PascalCase Type/method) |
 //! | `":wat::core::option::expect"`    | 241.15 | lowercase option::expect zombie | Option/expect (PascalCase canonical) |
 //! | `":wat::core::result::expect"`    | 241.15 | lowercase result::expect zombie | Result/expect (PascalCase canonical) |
-//! | `":wat::Record::def"`             | 293.2  | base record decl macro          | defrecord (`:wat::core::defrecord`)  |
+//! | `":wat::core::Record::def"`             | 293.2  | base record decl macro          | defrecord (`:wat::core::defrecord`)  |
 //! | `":wat::holon::Record::def"`      | 293.2  | holonic record decl macro       | defrecord (`:wat::holon::defrecord`) |
 
 use super::{Remedy, RemedyKind};
@@ -95,7 +95,7 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::option::expect",    replacement: ":wat::core::Option/expect", note: None },
     RetirementEntry { retired: ":wat::core::result::expect",    replacement: ":wat::core::Result/expect", note: None },
     // Arc 293.2-rename — defrecord replaces Record::def (the aggregate trio's final names).
-    RetirementEntry { retired: ":wat::Record::def",        replacement: ":wat::core::defrecord",  note: None },
+    RetirementEntry { retired: ":wat::core::Record::def",        replacement: ":wat::core::defrecord",  note: None },
     RetirementEntry { retired: ":wat::holon::Record::def", replacement: ":wat::holon::defrecord", note: None },
 ];
 

@@ -1,6 +1,6 @@
 ;; vigilatum: 2026-06-04T05:50:09Z — vigilia 4-spell L1+L2=0, checker-clean + deftest-green(record-def)
 ;;
-;; :wat::Record::def — BASE record macro.
+;; :wat::core::Record::def — BASE record macro.
 ;;
 ;; Defines a BASE record: struct_form only, NO holon_form.
 ;; The unmarked name is the cheap common case.
@@ -11,36 +11,36 @@
 ;;
 ;; Substrate primitives consumed:
 ;;   BASE:
-;;   - :wat::Record::of             — 2-arg constructor → Value::wat__Record (struct only)
-;;   - :wat::Record/field-at        — positional field accessor
+;;   - :wat::core::Record::of             — 2-arg constructor → Value::wat__Record (struct only)
+;;   - :wat::core::Record/field-at        — positional field accessor
 ;;   HOLONIC:
 ;;   - :wat::holon::Record::of      — 3-arg constructor → Value::wat__holon__Record
-;;   - :wat::Record/field-at        — positional field accessor (same; variant-agnostic)
+;;   - :wat::core::Record/field-at        — positional field accessor (same; variant-agnostic)
 ;;
 ;; Flavor hierarchy (Liskov):
-;;   :wat::Record                   — base parent (all records are :wat::Record)
-;;   :wat::holon::Record            — holonic parent (inherits from :wat::Record)
-;;   A func wanting :wat::Record    accepts BOTH base and holonic instances.
+;;   :wat::core::Record                   — base parent (all records are :wat::core::Record)
+;;   :wat::holon::Record            — holonic parent (inherits from :wat::core::Record)
+;;   A func wanting :wat::core::Record    accepts BOTH base and holonic instances.
 ;;   A func wanting :wat::holon::Record accepts ONLY holonic instances.
 ;;
 ;; Expansion shape for BASE:
-;;   (:wat::Record::def :myapp::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
+;;   (:wat::core::Record::def :myapp::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 ;;
 ;; →
 ;;   (:wat::core::do
-;;     ;; 1. recordtype declaration (parent = :wat::Record)
-;;     (:wat::core::recordtype :myapp::Pt :wat::Record [x y])
+;;     ;; 1. recordtype declaration (parent = :wat::core::Record)
+;;     (:wat::core::recordtype :myapp::Pt :wat::core::Record [x y])
 ;;
-;;     ;; 2. Constructor (2-arg :wat::Record::of — no holon_form)
-;;     (:wat::core::defn :myapp::Pt [x <- :wat::core::i64  y <- :wat::core::i64] -> :wat::Record
-;;       (:wat::Record::of
+;;     ;; 2. Constructor (2-arg :wat::core::Record::of — no holon_form)
+;;     (:wat::core::defn :myapp::Pt [x <- :wat::core::i64  y <- :wat::core::i64] -> :wat::core::Record
+;;       (:wat::core::Record::of
 ;;         :myapp::Pt
 ;;         [x y]))
 ;;
 ;;     ;; 3. Per-field accessor (one per field), receiver class-safety guarded:
 ;;     ;;    field-at runs only after (= (type v) :myapp::Pt) is checked.
-;;     (:wat::core::defn :myapp::Pt/x [v <- :wat::Record] -> :wat::core::i64
-;;       (:wat::Record/field-at <class-checked v> 0))
+;;     (:wat::core::defn :myapp::Pt/x [v <- :wat::core::Record] -> :wat::core::i64
+;;       (:wat::core::Record/field-at <class-checked v> 0))
 ;;
 ;;     ;; 4. Predicate (auto-minted elsewhere; NOT emitted by this macro)
 ;;     )
@@ -75,21 +75,21 @@
 ;;  auto-minted elsewhere, not emitted by this macro.)
 ;;
 ;; Accessor naming: <class-fqdn>/<field-name> as keyword (e.g. :myapp::Pt/x).
-;; Accessor signature: [v <- :wat::Record] -> :<declared-field-type>.
+;; Accessor signature: [v <- :wat::core::Record] -> :<declared-field-type>.
 ;;
 ;; FQDN doctrine (feedback_fqdn_is_the_namespace): users declare their own namespace.
 ;; The macro NEVER inserts into :user::* or any auto-namespace.
 ;;
-;; Accessor bodies are class-safety guarded: each runs (:wat::Record/field-at …)
+;; Accessor bodies are class-safety guarded: each runs (:wat::core::Record/field-at …)
 ;; only after checking (= (type v) <fqdn>), panicking with a "got class …" message
 ;; on a mismatched receiver (see the accessor expansion in the macro body below).
 ;; Field-type constraints are NOT enforced at expand time. No aliases, no single-arg
 ;; form — users MUST provide the field vector.
 
-;; ─── BASE macro (:wat::Record::def) ──────────────────────────────────────────
+;; ─── BASE macro (:wat::core::Record::def) ──────────────────────────────────────────
 
 ;; Arc 294.c.2a — base defrecord macro routes through aggregate-new (the ONE
-;; holder-dispatched ctor). Drop the :wat::Record::of wrapper + field-extraction
+;; holder-dispatched ctor). Drop the :wat::core::Record::of wrapper + field-extraction
 ;; let; bare field syms splice directly as positional args to aggregate-new.
 ;; Arc 291 hygiene preserved: raw-ch/nf/syms dance keeps scope-tagged AST nodes.
 (:wat::core::defmacro :wat::core::defrecord
@@ -97,7 +97,7 @@
    fields <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::core::do
-     (:wat::core::recordtype ~fqdn :wat::Record
+     (:wat::core::recordtype ~fqdn :wat::core::Record
        [~@fields])
      (:wat::core::defn ~fqdn [~@fields] -> ~fqdn
        (:wat::core::aggregate-new ~fqdn

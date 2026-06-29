@@ -5,7 +5,7 @@
   (:wat::core::do
     (:wat::kernel::spawn-thread'
       (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil nil)
-      (:wat::core::fn [] -> :wat::Record (:wat::program::EmptyEnv)))
+      (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv)))
     nil))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)
