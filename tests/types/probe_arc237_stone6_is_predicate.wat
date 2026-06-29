@@ -25,7 +25,7 @@
 
 ;; ─── newtype ──────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::probe05 [] -> :wat::core::bool
-  (:my::is-Price? (:my::Price/new 1.5)))
+  (:my::is-Price? (:my::Price 1.5)))
 
 (:wat::core::defn :user::probe06 [] -> :wat::core::bool
   (:my::is-Price? 1.5))

@@ -8,7 +8,7 @@
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
+       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
 
 ;; Drive ENTIRELY through the generated client face: start → connect → method calls via request
 ;; constructors. `h` stays bound for the whole let, so the service lives until compute returns;

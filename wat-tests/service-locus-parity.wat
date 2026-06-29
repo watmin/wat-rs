@@ -27,7 +27,7 @@
      (:wat::core::let [c (:wat::core::i64::+
                            (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)) n)]
        (:wat::service::Outcome::Reply
-         (:wat-tests::counter::State/new (:wat-tests::counter::Record c))
+         (:wat-tests::counter::State (:wat-tests::counter::Record c))
          (:wat-tests::counter::IncrementResponse c))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────

@@ -36,7 +36,7 @@
   [filter <- :wat::core::Fn(wat::core::f64)->wat::core::bool
    cap    <- :wat::core::i64]
   -> :wat::holon::lru::HologramCache
-  (:wat::holon::lru::HologramCache/new
+  (:wat::holon::lru::HologramCache
     (:wat::holon::Hologram/make filter)
     (:wat::lru::LocalCache::new cap)))
 

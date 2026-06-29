@@ -42,16 +42,16 @@
 ;; it via Event::Log/data-value<:demo::Trade>.
 (:wat::core::defn :demo::trade-event [time-ns <- :i64 side <- :String qty <- :i64 price <- :f64] -> :wat::telemetry::Event
   (:wat::core::let
-      [trade (:demo::Trade/new side qty price)
+      [trade (:demo::Trade side qty price)
        form (:wat::core::struct->form trade)
        data (:wat::holon::from-watast form)
-       tagged (:wat::edn::Tagged/new data)
+       tagged (:wat::edn::Tagged data)
        notag-ns
-        (:wat::edn::NoTag/new (:wat::holon::leaf :demo::trades))
+        (:wat::edn::NoTag (:wat::holon::leaf :demo::trades))
        notag-cal
-        (:wat::edn::NoTag/new (:wat::holon::leaf :demo::interrogate))
+        (:wat::edn::NoTag (:wat::holon::leaf :demo::interrogate))
        notag-lvl
-        (:wat::edn::NoTag/new (:wat::holon::leaf :info))
+        (:wat::edn::NoTag (:wat::holon::leaf :info))
        tags
         (:wat::core::HashMap
           :(wat::holon::HolonAST,wat::holon::HolonAST))]

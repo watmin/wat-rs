@@ -79,7 +79,7 @@ fn constructor_arity_mismatch_rejected_at_check() {
     let saw_arity = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 2, got: 1, .. }, .. }
-            if callee == ":my::market::Bar/new"
+            if callee == ":my::market::Bar"
     ));
     assert!(saw_arity, "expected ArityMismatch on Bar/new; got {:?}", errs);
 }
@@ -90,7 +90,7 @@ fn constructor_field_type_mismatch_rejected_at_check() {
     let saw_type = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. }
-            if callee == ":my::market::Bar/new"
+            if callee == ":my::market::Bar"
     ));
     assert!(saw_type, "expected TypeMismatch on Bar/new's open param; got {:?}", errs);
 }

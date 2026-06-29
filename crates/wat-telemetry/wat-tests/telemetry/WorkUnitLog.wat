@@ -136,7 +136,7 @@
                (:wat-telemetry::log-test::default-ns)
                (:wat-telemetry::log-test::empty-tags))
             logger
-             (:wat::telemetry::WorkUnitLog/new
+             (:wat::telemetry::WorkUnitLog
                handle
                (:wat-telemetry::log-test::default-caller)
                (:wat-telemetry::log-test::fixed-now-fn))]

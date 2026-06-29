@@ -8,5 +8,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::i64
   (:wat::core::i64::+
-    (:my::Point/x (:my::Point/new 3 4))
-    (:my::Point/y (:my::Point/new 3 4))))
+    (:my::Point/x (:my::Point 3 4))
+    (:my::Point/y (:my::Point 3 4))))

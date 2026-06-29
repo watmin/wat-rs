@@ -23,4 +23,4 @@
   (:wat::core::let [_chk (:r2::want-core (:r2::HR 20))]
     (:wat::core::i64::+
       (:wat::core::i64::+ (:r2::CR/v (:r2::CR 10)) (:r2::HR/v (:r2::HR 20)))
-      (:r2::ST/v (:r2::ST/new 30)))))
+      (:r2::ST/v (:r2::ST 30)))))

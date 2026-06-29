@@ -9,7 +9,7 @@
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
+       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
 
 ;; Exercise the GENERATED op enum (wrapped-record C.3 shape):
 ;;   1. Build an IncrementRequest via the generated constructor.

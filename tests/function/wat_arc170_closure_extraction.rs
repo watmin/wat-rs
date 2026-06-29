@@ -324,7 +324,7 @@ fn t3_toplevel_defn_uses_user_types() {
             "Coord must be in prologue (whole-registry sweep); got {:?}", type_decls);
     let fresh = re_freeze(package.prologue);
     // Build a Point in the fresh world directly via the constructor.
-    let new_func = fresh.symbols().get(":my::Point/new").expect("Point/new").clone();
+    let new_func = fresh.symbols().get(":my::Point").expect("Point ctor").clone();
     let point = apply_function(
         new_func,
         vec![Value::i64(3), Value::i64(4)],
@@ -538,7 +538,7 @@ fn t11_captures_with_recursive_struct() {
     let count_tree = type_decls.iter().filter(|n| *n == ":my::Tree").count();
     assert_eq!(count_tree, 1, "Tree must appear exactly once; got {:?}", type_decls);
     let fresh = re_freeze(package.prologue);
-    let new_func = fresh.symbols().get(":my::Tree/new").expect("Tree/new").clone();
+    let new_func = fresh.symbols().get(":my::Tree").expect("Tree ctor").clone();
     let empty_children = Value::Vec(Arc::new(Vec::new()));
     let tree = apply_function(
         new_func,

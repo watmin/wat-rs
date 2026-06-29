@@ -3,7 +3,7 @@
   {:restricted-to [:my::issuer::]}
   [payload <- :wat::core::i64])
 (:wat::core::defn :my::issuer::mint [] -> :my::PublicToken
-  (:my::PublicToken/new 42))
+  (:my::PublicToken 42))
 (:wat::core::defn :anyone::read
   [tok <- :my::PublicToken] -> :wat::core::i64
   (:my::PublicToken/payload tok))

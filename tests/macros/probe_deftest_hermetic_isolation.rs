@@ -43,8 +43,8 @@ fn probe_parent_has_no_prelude_struct_accessors() {
 
     // Prelude struct accessors are NOT in parent (strict isolation).
     assert!(
-        world.symbols().get(":test::g::IsolatedType/new").is_none(),
-        ":test::g::IsolatedType/new is in parent — isolation violated"
+        world.symbols().get(":test::g::IsolatedType").is_none(),
+        ":test::g::IsolatedType ctor is in parent — isolation violated"
     );
     assert!(
         world.symbols().get(":test::g::IsolatedType/field").is_none(),
@@ -92,8 +92,8 @@ fn probe_cross_test_prelude_isolation_same_fqdn_no_collision() {
         ":test::g::SharedName leaked into parent TypeEnv from one of the preludes"
     );
     assert!(
-        world.symbols().get(":test::g::SharedName/new").is_none(),
-        ":test::g::SharedName/new leaked into parent sym from one of the preludes"
+        world.symbols().get(":test::g::SharedName").is_none(),
+        ":test::g::SharedName ctor leaked into parent sym from one of the preludes"
     );
 }
 
@@ -123,8 +123,8 @@ fn probe_test_fn_visible_prelude_content_invisible() {
         ":test::g::HiddenStruct in parent TypeEnv — isolation violated"
     );
     assert!(
-        world.symbols().get(":test::g::HiddenStruct/new").is_none(),
-        ":test::g::HiddenStruct/new in parent sym — isolation violated"
+        world.symbols().get(":test::g::HiddenStruct").is_none(),
+        ":test::g::HiddenStruct ctor in parent sym — isolation violated"
     );
     assert!(
         world.symbols().get(":test::g::HiddenStruct/x").is_none(),

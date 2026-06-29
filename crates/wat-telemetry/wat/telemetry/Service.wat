@@ -56,7 +56,7 @@
 
 (:wat::core::defn :wat::telemetry::null-metrics-cadence
   [] -> :wat::telemetry::MetricsCadence<wat::core::nil>
-  (:wat::telemetry::MetricsCadence/new
+  (:wat::telemetry::MetricsCadence
     nil
     (:wat::core::fn
       [gate <- :wat::core::nil _stats <- :wat::telemetry::Stats] -> :(wat::core::nil,wat::core::bool)
@@ -64,7 +64,7 @@
 
 (:wat::core::defn :wat::telemetry::Stats/zero
   [] -> :wat::telemetry::Stats
-  (:wat::telemetry::Stats/new 0 0 0))
+  (:wat::telemetry::Stats 0 0 0))
 
 
 ;; ─── Protocol typealiases (arc 095) ──────────────────────────────
@@ -142,7 +142,7 @@
      gate' (:wat::core::first tick)
      fired (:wat::core::second tick)
      cadence'
-      (:wat::telemetry::MetricsCadence/new gate' tick-fn)]
+      (:wat::telemetry::MetricsCadence gate' tick-fn)]
     (:wat::core::if fired
       -> :wat::telemetry::Step<G>
       (:wat::core::let
@@ -270,7 +270,7 @@
       (:wat::core::if (:wat::core::> batch-size max-prev) -> :wat::core::i64
         batch-size
         max-prev)]
-    (:wat::telemetry::Stats/new
+    (:wat::telemetry::Stats
       (:wat::core::+ (:wat::telemetry::Stats/batches stats) 1)
       (:wat::core::+ (:wat::telemetry::Stats/entries stats) batch-size)
       max')))

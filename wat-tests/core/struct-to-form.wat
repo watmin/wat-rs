@@ -3,7 +3,7 @@
 ;;
 ;; struct->form lifts a struct VALUE to its constructor-call FORM
 ;; — `Value::Struct{type_name, fields}` becomes a
-;; `Value::wat__WatAST(List(:type-name/new field0 field1 ...))`.
+;; `Value::wat__WatAST(List(:type-name field0 field1 ...))`.
 ;; Inverse of struct construction; round-trips through eval-ast!.
 ;;
 ;; Quasiquote is a sibling: same shape, but the user composes the
@@ -20,7 +20,7 @@
       (:wat::test::run-thread
         (:wat::core::do
           (:wat::core::let
-            [p (:my::Pair/new 7 9)
+            [p (:my::Pair 7 9)
              form (:wat::core::struct->form p)
              _roundtrip (:wat::eval-ast! form)]
             ())))
@@ -42,7 +42,7 @@
     [x 42
      y "hello"
      form
-      (:wat::core::quasiquote (:my::Foo/new ~x ~y))]
+      (:wat::core::quasiquote (:my::Foo ~x ~y))]
     ;; Quasiquote at runtime: unquoting ~x and ~y must not panic (they
     ;; are live bindings); the WatAST is constructed. Successful
     ;; construction without panicking is the provable fact — the

@@ -43,7 +43,7 @@
 (:deftest :wat-tests::edn::newtypes::tagged-ctor-accessor
   (:wat::core::let
     [ast    (:wat::holon::to-holon "hello")
-     tagged (:wat::edn::Tagged/new ast)
+     tagged (:wat::edn::Tagged ast)
      inner  (:wat::edn::Tagged/0 tagged)]
     (:wat::test::assert-eq inner ast)))
 
@@ -58,7 +58,7 @@
 (:deftest :wat-tests::edn::newtypes::notag-ctor-accessor
   (:wat::core::let
     [ast   (:wat::holon::to-holon "hello")
-     notag (:wat::edn::NoTag/new ast)
+     notag (:wat::edn::NoTag ast)
      inner (:wat::edn::NoTag/0 notag)]
     (:wat::test::assert-eq inner ast)))
 

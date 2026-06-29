@@ -11,7 +11,7 @@
   [(:Record [s <- :State n <- :wat::core::i64]
             -> [ok <- :wat::core::bool]
      (:wat::service::Outcome::Reply
-       (:wat-tests::recorder::State/new
+       (:wat-tests::recorder::State
          (:wat-tests::recorder::Record
            (:wat::core::i64::+
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)) n)))
@@ -29,7 +29,7 @@
   :init (:wat::core::fn [record        <- :wat-tests::worker::Record
                          recorder-addr <- :wat::kernel::Address'<wat-tests::recorder::Op,wat-tests::recorder::Reply>]
           -> :wat-tests::worker::State
-          (:wat-tests::worker::State/new record (:wat::kernel::connect' recorder-addr)))
+          (:wat-tests::worker::State record (:wat::kernel::connect' recorder-addr)))
   :ops
   [(:Work [s <- :State n <- :wat::core::i64]
           -> [done <- :wat::core::bool]

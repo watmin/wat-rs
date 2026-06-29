@@ -145,18 +145,18 @@
                      server-tx! <- :wat::kernel::Sender<counter::Response>]
                     -> :wat::core::nil
                     (:counter::dispatch
-                      (:wat::kernel::ThreadPeer/new server-rx! server-tx!)
+                      (:wat::kernel::ThreadPeer server-rx! server-tx!)
                       initial)))
         ;; Build user-side peer: reads Responses, sends Requests.
         ;; Thread/output = Receiver<Response> (rx); Thread/input = Sender<Request> (tx).
-        user-peer! (:wat::kernel::ThreadPeer/new
+        user-peer! (:wat::kernel::ThreadPeer
                      (:wat::kernel::Thread/output thread)
                      (:wat::kernel::Thread/input  thread))
         ;; Mint the capability struct. Constructor is restricted to :counter::*.
         ;; Arc 207: IDs are typed :wat::core::Uuid minted fresh via Uuid/v4.
         server-uuid (:wat::core::Uuid/v4)
         user-uuid   (:wat::core::Uuid/v4)
-        user!    (:counter::User/new
+        user!    (:counter::User
                    server-uuid
                    user-uuid
                    user-peer!)

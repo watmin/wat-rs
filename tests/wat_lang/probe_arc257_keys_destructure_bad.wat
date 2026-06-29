@@ -6,6 +6,6 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-      [v (:myapp::Voltage/new 5.0)
+      [v (:myapp::Voltage 5.0)
        {magnitude something} v]
       magnitude))

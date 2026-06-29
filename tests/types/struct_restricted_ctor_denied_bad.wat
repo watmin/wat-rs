@@ -3,4 +3,4 @@
   {:restricted-to [:my::issuer::]}
   [id <- :wat::core::i64])
 (:wat::core::defn :user::bad-mint [] -> :my::Token
-  (:my::Token/new 7))
+  (:my::Token 7))

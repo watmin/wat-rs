@@ -6,13 +6,13 @@
 ;; `service-locus-parity.wat`; the ONLY addition is the `:init` clause.
 ;;
 ;; arc 291 4b-ii: State is now a defstruct; :durable [count] mints ::Record; ::State holds it.
-;; :init now defaults to (fn [d <- ::Record] -> ::State (::State/new d)) for pure-data services.
+;; :init now defaults to (fn [d <- ::Record] -> ::State (::State d)) for pure-data services.
 ;; start takes a ::Record (not a raw i64). The "seeded" semantics now live in start taking the
 ;; record: (seeded-counter/start locus (seeded-counter::Record 42)).
 ;; Op body reads count through State/durable.
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
-;; :init defaults — pure-data service, ephemeral empty → default init = (fn [d <- ::Record] -> ::State (::State/new d))
+;; :init defaults — pure-data service, ephemeral empty → default init = (fn [d <- ::Record] -> ::State (::State d))
 (:wat::service::defservice :wat-tests::seeded-counter
   :durable [count <- :wat::core::i64]
   :ephemeral []

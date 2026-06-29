@@ -13,8 +13,6 @@ use wat::runtime::{Environment, Value};
 
 /// A struct and a newtype construct via their bare type name, at parity with records.
 #[test]
-#[ignore = "RED at HEAD: arc-293.R2.3 — bare :T construction for structs/newtypes not built (still :T/new); \
-            un-ignore when /new is dropped and every type-name is its own constructor"]
 fn construction_form_parity_bare_ctor_for_struct_and_newtype() {
     let world = startup_beside(file!())
         .expect("293.R2.3: a struct + newtype must construct via the bare type name (parity with records)");

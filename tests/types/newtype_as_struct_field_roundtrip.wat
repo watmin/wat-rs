@@ -6,8 +6,8 @@
    qty   <- :wat::core::i64])
 (:wat::core::defn :my::compute [] -> :wat::core::String
   (:wat::core::let
-    [p         (:my::trading::Price/new 99.5)
-     o         (:my::Order/new "BTC" p 7)
+    [p         (:my::trading::Price 99.5)
+     o         (:my::Order "BTC" p 7)
      retrieved (:my::Order/price o)
      inner     (:my::trading::Price/0 retrieved)]
     (:wat::core::f64::to-string inner)))

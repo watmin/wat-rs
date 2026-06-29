@@ -29,10 +29,10 @@
         cal-ast (:wat::holon::leaf :test::reader::roundtrip)
         lvl-ast (:wat::holon::leaf :info)
         data-ast (:wat::holon::leaf msg)
-        ns-notag  (:wat::edn::NoTag/new ns-ast)
-        cal-notag  (:wat::edn::NoTag/new cal-ast)
-        lvl-notag  (:wat::edn::NoTag/new lvl-ast)
-        data-tag (:wat::edn::Tagged/new data-ast)
+        ns-notag  (:wat::edn::NoTag ns-ast)
+        cal-notag  (:wat::edn::NoTag cal-ast)
+        lvl-notag  (:wat::edn::NoTag lvl-ast)
+        data-tag (:wat::edn::Tagged data-ast)
         tags
          (:wat::core::HashMap
            :wat::holon::HolonAST :wat::holon::HolonAST)]

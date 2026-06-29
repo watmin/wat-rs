@@ -33,8 +33,8 @@
         ack-rx
          (:wat::core::second handle)
         ast (:wat::holon::to-holon "hello")
-        tagged  (:wat::edn::Tagged/new ast)
-        notag   (:wat::edn::NoTag/new  ast)
+        tagged  (:wat::edn::Tagged ast)
+        notag   (:wat::edn::NoTag  ast)
         entries
          (:wat::core::Vector :test::Edn::Event
            (:test::Edn::Event::Log tagged notag))

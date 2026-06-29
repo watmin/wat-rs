@@ -17,7 +17,7 @@
               (:wat::core::forms
                 (:wat::core::newtype :h::LocalAmount :wat::core::i64)
                 (:wat::core::defn :user::main [] -> :wat::core::nil
-                  (:wat::core::let [a (:h::LocalAmount/new 100)] nil)))))
+                  (:wat::core::let [a (:h::LocalAmount 100)] nil)))))
 
 ;; Test 5: typealias in fn body do-prefix lifts to prologue.
 (:wat::core::defn :my::launch-typealias [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
@@ -45,9 +45,9 @@
                 (:wat::core::defmacro :h::mix-id [z <- :wat::WatAST] -> :wat::WatAST `~z)
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
-                    [_p  (:h::MixPoint/new 1 2)
+                    [_p  (:h::MixPoint 1 2)
                      _d  :h::MixDir::Up
-                     _a  (:h::MixAmount/new 10)
+                     _a  (:h::MixAmount 10)
                      _n  (:h::mix-i64 7)]
                     nil)))))
 

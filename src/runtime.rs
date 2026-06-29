@@ -858,7 +858,7 @@ pub fn register_stdlib_defines(
 /// **What's synthesized, per struct `:my::ns::T` with fields
 /// `(f1 :T1) (f2 :T2) ... (fn :Tn)`:**
 ///
-/// - One constructor at keyword path `:my::ns::T/new`:
+/// - One constructor at the bare keyword path `:my::ns::T` (arc 293.R2.3 — `/new` annihilated):
 ///   ```text
 ///   :fn(T1, T2, ..., Tn) -> :my::ns::T
 ///   body: (:wat::core::struct-new :my::ns::T p1 p2 ... pn)
@@ -946,11 +946,12 @@ pub fn register_struct_methods(
         // synthesized through the same machinery.)
         let struct_type = parametric_decl_type(&struct_def.name, &struct_def.type_params);
 
-        // Constructor — `<struct>/new`. One param per field, same
-        // order as declaration. Body invokes `:wat::core::struct-new`
-        // with the struct's type-name keyword and the params as
-        // symbols.
-        let constructor_path = format!("{}/new", struct_def.name);
+        // Constructor — bare `<struct>` (parity with records; arc 293.R2.3:
+        // every type-name is its own constructor, `/new` annihilated).
+        // One param per field, same order as declaration. Body invokes
+        // `:wat::core::struct-new` with the struct's type-name keyword
+        // and the params as symbols.
+        let constructor_path = struct_def.name.clone();
         let param_names: Vec<String> =
             struct_def.fields.iter().map(|(n, _)| n.clone()).collect();
         let param_types: Vec<crate::types::TypeExpr> = struct_def
@@ -996,7 +997,7 @@ pub fn register_struct_methods(
         // Stone 241.14 — populate-target changed from the deleted
         // `defined_value_restrictions` to `binding_metadata`.
         if let Some(restrictions) = &struct_def.restrictions {
-            let ctor_path = format!("{}/new", struct_def.name);
+            let ctor_path = struct_def.name.clone();
             let ctor_ast = restrictions_to_binding_metadata_ast(&restrictions.ctor_whitelist);
             sym.binding_metadata
                 .entry(ctor_path)
@@ -1386,8 +1387,8 @@ pub fn register_enum_methods(
 ///
 /// Per newtype `:my::ns::Price` with inner `:f64`:
 ///
-/// - Constructor `:my::ns::Price/new` — Function `(:fn(:f64) -> :Price)`,
-///   body invokes `(:wat::core::struct-new :Price value)`.
+/// - Constructor `:my::ns::Price` (bare — arc 293.R2.3, `/new` annihilated) —
+///   Function `(:fn(:f64) -> :Price)`, body invokes `(:wat::core::struct-new :Price value)`.
 /// - Accessor `:my::ns::Price/0` — Function `(:fn(:Price) -> :f64)`,
 ///   body invokes `(:wat::core::struct-field self 0)`. The `/0` name
 ///   mirrors Rust's `.0` tuple-struct positional access — embodying
@@ -1412,10 +1413,12 @@ pub fn register_newtype_methods(
 
         let nt_type = crate::types::TypeExpr::Path(nt_def.name.clone());
 
-        // Constructor — `<newtype>/new`. Single param `value` of inner
-        // type. Body invokes `:wat::core::struct-new` with the type-name
-        // keyword and the param. Same shape as a struct of arity 1.
-        let constructor_path = format!("{}/new", nt_def.name);
+        // Constructor — bare `<newtype>` (parity with records; arc 293.R2.3:
+        // every type-name is its own constructor, `/new` annihilated).
+        // Single param `value` of inner type. Body invokes
+        // `:wat::core::struct-new` with the type-name keyword and the param.
+        // Same shape as a struct of arity 1.
+        let constructor_path = nt_def.name.clone();
         let new_body = WatAST::List(
             vec![
                 WatAST::Keyword(":wat::core::struct-new".into(), Span::unknown()),
@@ -2217,7 +2220,7 @@ fn is_enum_form(form: &WatAST) -> bool {
 /// `(:wat::core::struct :Name (field1 :T1) ...)` form is found in a `do`/`let`
 /// body. Extracts the type name and field names from the form and inserts
 /// minimal stub `Function` entries into `sym.functions` for:
-///   - `{name}/new` — the constructor
+///   - `{name}` — the constructor (bare; arc 293.R2.3, `/new` annihilated)
 ///   - `{name}/{field}` for each field — the field accessors
 ///
 /// The stubs have `closed_env: None` and unit return type — they exist only
@@ -2258,8 +2261,8 @@ fn preregister_struct_accessors_from_form(
     let stub_body = Arc::new(WatAST::List(vec![], Span::unknown()));
     let unit_type = crate::types::TypeExpr::Path(":()".into());
 
-    // Constructor: `{type}/new`
-    let constructor_path = format!("{}/new", type_base);
+    // Constructor: bare `{type}` (arc 293.R2.3 — parity with records; `/new` annihilated)
+    let constructor_path = type_base.to_string();
     if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
         let span = form.span().clone();
         return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
@@ -10005,6 +10008,27 @@ pub fn lookup_form<'a>(
     name: &str,
     sym: &'a SymbolTable,
 ) -> Option<Binding<'a>> {
+    // Arc 293.R2.3 — struct/newtype ctors now register at the bare type name.
+    // When `name` IS a declared Struct or Newtype type, return the Type binding
+    // FIRST so that reflection primitives (lookup-define, body-of, signature-of-defn)
+    // see the type definition rather than the synthesized ctor function that lives
+    // under the same key in sym.functions.
+    if let Some(types) = &sym.types {
+        if let Some(def) = types.get(name) {
+            let is_auto_ctor = match def {
+                crate::types::TypeDef::Aggregate(a) => a.holder == crate::types::Holder::Struct,
+                crate::types::TypeDef::Newtype(_) => true,
+                _ => false,
+            };
+            if is_auto_ctor {
+                return Some(Binding::Type {
+                    name: name.to_string(),
+                    def,
+                    doc_string: None,
+                });
+            }
+        }
+    }
     // 1. User defines shadow builtins (call-dispatch precedent).
     if let Some(f) = sym.functions.get(name) {
         return Some(Binding::UserFunction {

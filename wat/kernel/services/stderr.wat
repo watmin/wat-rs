@@ -40,5 +40,5 @@
     [_bytes
       (:wat::io::IOWriter/writeln out
         (:wat::kernel::services::StdErrService::Req/line req))]
-    (:wat::kernel::services::StdErrService::Rep/new
+    (:wat::kernel::services::StdErrService::Rep
       (:wat::kernel::services::StdErrService::Req/thread-id req))))

@@ -4,5 +4,5 @@
    volume <- :wat::core::i64])
 (:wat::core::defn :my::probe [] -> :wat::core::f64
   (:wat::core::let
-    [b (:my::market::Bar/new 1.0 100)]
+    [b (:my::market::Bar 1.0 100)]
     (:my::market::Bar/volume b)))

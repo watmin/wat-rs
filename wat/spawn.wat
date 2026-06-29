@@ -248,7 +248,7 @@
                 (:wat::spawn::Bound/listener b)
                 (:wat::core::Vector :wat::kernel::Peer'<R,S>)
                 (:wat::core::apply -> :St init ship []) [])))]
-      (:wat::spawn::Launched/new sp (:wat::spawn::Bound/address b)))))
+      (:wat::spawn::Launched sp (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
 ;; prepend `(def :wat::spawn::service-locus (process))` (the transport literal lives HERE,
@@ -269,4 +269,4 @@
        lu   (:wat::kernel::recv' svc)
        addr (:wat::core::apply -> :wat::kernel::Address'<S,R> lu-addr-kw lu [])
        _    (:wat::kernel::send' svc ship)]
-      (:wat::spawn::Launched/new svc addr))))
+      (:wat::spawn::Launched svc addr))))

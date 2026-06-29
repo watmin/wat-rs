@@ -53,7 +53,7 @@ fn struct_restricted_ctor_restriction_fires_on_illegal_caller() {
     // DefRestrictedCallerNotAllowed.
     let err = startup_err("tests/types/struct_restricted_ctor_denied_bad.wat");
     assert!(
-        err.contains(":my::Token/new"),
+        err.contains(":my::Token"),
         "error should name the restricted constructor; got: {}",
         err
     );

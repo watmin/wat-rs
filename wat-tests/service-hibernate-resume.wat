@@ -25,7 +25,7 @@
      (:wat::core::let [c (:wat::core::i64::+
                            (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s)) n)]
        (:wat::service::Outcome::Reply
-         (:wat-tests::hib-counter::State/new (:wat-tests::hib-counter::Record c))
+         (:wat-tests::hib-counter::State (:wat-tests::hib-counter::Record c))
          (:wat-tests::hib-counter::IncrementResponse c))))  ]
   ;; :stop projects State → i64 (the count) via State/durable
   :stop (:wat::core::fn [s <- :wat-tests::hib-counter::State] -> :wat::core::i64

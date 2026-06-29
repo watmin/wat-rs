@@ -25,7 +25,7 @@ fn do_struct_registers_in_type_env() {
     let world = startup_from_file("tests/macros/probe_register_types_splice_aware_do_struct.wat")
         .expect("startup failed");
     assert!(world.types().get(":diag::Point").is_some(), ":diag::Point must be registered in TypeEnv after Gap J");
-    assert!(world.symbols().get(":diag::Point/new").is_some(), ":diag::Point/new accessor stub must be present");
+    assert!(world.symbols().get(":diag::Point").is_some(), ":diag::Point ctor stub must be present");
     assert!(world.symbols().get(":diag::origin").is_some(), ":diag::origin must be registered");
 }
 

@@ -164,7 +164,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
         (:wat::core::let
           [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
            tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer/new rx tx)]
+           peer (:wat::kernel::ProcessPeer rx tx)]
           (:wat::core::match (:wat::kernel::Process/println peer "hello")
             -> :wat::core::String
             ((:wat::core::Ok _)

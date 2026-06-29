@@ -227,12 +227,12 @@
   (:wat::telemetry::Event::Metric
     start-time-ns
     end-time-ns
-    (:wat::edn::NoTag/new namespace)
+    (:wat::edn::NoTag namespace)
     uuid
     tags
-    (:wat::edn::NoTag/new name)
-    (:wat::edn::NoTag/new (:wat::holon::leaf count))
-    (:wat::edn::NoTag/new (:wat::holon::leaf :count))))
+    (:wat::edn::NoTag name)
+    (:wat::edn::NoTag (:wat::holon::leaf count))
+    (:wat::edn::NoTag (:wat::holon::leaf :count))))
 
 
 ;; ONE sample → ONE row. The scope's foldl over durations-keys
@@ -251,12 +251,12 @@
   (:wat::telemetry::Event::Metric
     start-time-ns
     end-time-ns
-    (:wat::edn::NoTag/new namespace)
+    (:wat::edn::NoTag namespace)
     uuid
     tags
-    (:wat::edn::NoTag/new name)
-    (:wat::edn::NoTag/new (:wat::holon::leaf sample))
-    (:wat::edn::NoTag/new (:wat::holon::leaf :seconds))))
+    (:wat::edn::NoTag name)
+    (:wat::edn::NoTag (:wat::holon::leaf sample))
+    (:wat::edn::NoTag (:wat::holon::leaf :seconds))))
 
 
 ;; Per-name duration fanout — one Event::Metric row per sample.

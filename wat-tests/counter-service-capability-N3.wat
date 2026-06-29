@@ -453,7 +453,7 @@
                         0 server-id)))
         adm-tx    (:wat::kernel::Thread/input  thread)
         adm-rx    (:wat::kernel::Thread/output thread)]
-       (:counter::Admin/new server-id adm-tx adm-rx thread)))
+       (:counter::Admin server-id adm-tx adm-rx thread)))
 
    ;; :counter::provision — sends Provision(initial), receives Provisioned, returns User.
    ;;
@@ -494,7 +494,7 @@
                    (:wat::core::match resp
                      -> :wat::core::Result<counter::User,counter::ServiceError>
                      ((:counter::AdminResp::Provisioned id user-tx user-rx)
-                       (:wat::core::Ok (:counter::User/new sid id user-tx user-rx)))
+                       (:wat::core::Ok (:counter::User sid id user-tx user-rx)))
                      (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
                      ((:counter::AdminResp::Deprovisioned _id)

@@ -214,7 +214,7 @@
      ;; Sender/from-pipe writes to the subprocess's stdin (what it reads).
      rx        (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
      tx        (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
-     peer!     (:wat::kernel::ProcessPeer/new rx tx)
+     peer!     (:wat::kernel::ProcessPeer rx tx)
      ;; Same operations + assertions as thread tier (BRIEF § "same body shape").
      after-inc-5  (:counter-proc/increment peer! 5)
      _            (:wat::test::assert-eq after-inc-5 15)

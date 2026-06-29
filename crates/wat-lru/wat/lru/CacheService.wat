@@ -146,7 +146,7 @@
 (:wat::core::defn :wat::lru::null-metrics-cadence
   []
   -> :wat::lru::MetricsCadence<wat::core::nil>
-  (:wat::lru::MetricsCadence/new
+  (:wat::lru::MetricsCadence
     nil
     (:wat::core::fn
       [gate <- :wat::core::nil _stats <- :wat::lru::Stats] -> :(wat::core::nil,wat::core::bool)
@@ -163,7 +163,7 @@
 (:wat::core::defn :wat::lru::Stats/zero
   []
   -> :wat::lru::Stats
-  (:wat::lru::Stats/new 0 0 0 0 0))
+  (:wat::lru::Stats 0 0 0 0 0))
 
 ;; ─── Service state — cache + running stats ─────────────────────
 ;;
@@ -229,13 +229,13 @@
               (:wat::kernel::send reply-tx (:wat::lru::Reply::GetResult results))
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
-            (:wat::lru::Stats/new
+            (:wat::lru::Stats
               (:wat::core::i64::+ (:wat::lru::Stats/lookups stats) n)
               (:wat::core::i64::+ (:wat::lru::Stats/hits stats) hit-count)
               (:wat::core::i64::+ (:wat::lru::Stats/misses stats) miss-count)
               (:wat::lru::Stats/puts stats)
               (:wat::lru::Stats/cache-size stats))]
-          (:wat::lru::State/new cache stats')))
+          (:wat::lru::State cache stats')))
       ((:wat::lru::Request::Put entries)
         (:wat::core::let
           [_
@@ -256,13 +256,13 @@
               (:wat::kernel::send reply-tx (:wat::lru::Reply::PutAck nil))
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
-            (:wat::lru::Stats/new
+            (:wat::lru::Stats
               (:wat::lru::Stats/lookups stats)
               (:wat::lru::Stats/hits stats)
               (:wat::lru::Stats/misses stats)
               (:wat::core::i64::+ (:wat::lru::Stats/puts stats) n)
               (:wat::lru::Stats/cache-size stats))]
-          (:wat::lru::State/new cache stats'))))))
+          (:wat::lru::State cache stats'))))))
 
 
 ;; ─── Tick the metrics window — advance gate, emit+reset on fire ──
@@ -283,13 +283,13 @@
      gate' (:wat::core::first tick)
      fired (:wat::core::second tick)
      cadence'
-      (:wat::lru::MetricsCadence/new gate' tick-fn)]
+      (:wat::lru::MetricsCadence gate' tick-fn)]
     (:wat::core::if fired -> :wat::lru::Step<K,V,G>
       (:wat::core::let
         [cache
           (:wat::lru::State/cache state)
          final-stats
-          (:wat::lru::Stats/new
+          (:wat::lru::Stats
             (:wat::lru::Stats/lookups stats)
             (:wat::lru::Stats/hits stats)
             (:wat::lru::Stats/misses stats)
@@ -297,7 +297,7 @@
             (:wat::lru::LocalCache::len cache))
          _ (reporter (:wat::lru::Report::Metrics final-stats))
          state'
-          (:wat::lru::State/new
+          (:wat::lru::State
             cache (:wat::lru::Stats/zero))]
         (:wat::core::Tuple state' cadence'))
       (:wat::core::Tuple state cadence'))))
@@ -353,7 +353,7 @@
     [cache
       (:wat::lru::LocalCache::new capacity)
      initial
-      (:wat::lru::State/new
+      (:wat::lru::State
         cache (:wat::lru::Stats/zero))]
     (:wat::lru::loop-step
       initial driver-pairs reporter metrics-cadence)))

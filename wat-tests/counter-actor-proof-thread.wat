@@ -127,7 +127,7 @@
           server-tx! <- :wat::kernel::Sender<counter::Response>]
          -> :wat::core::nil
          (:counter/dispatch
-           (:wat::kernel::ThreadPeer/new server-rx! server-tx!)
+           (:wat::kernel::ThreadPeer server-rx! server-tx!)
            initial))))
 
    ;; ─── Client-side wrappers ────────────────────────────────────────────
@@ -193,7 +193,7 @@
   ;; Drain and join the thread.
   (:wat::core::let
     [thread       (:counter/spawn 10)
-     peer!        (:wat::kernel::ThreadPeer/new
+     peer!        (:wat::kernel::ThreadPeer
                     (:wat::kernel::Thread/output thread)
                     (:wat::kernel::Thread/input  thread))
      after-inc-5  (:counter/increment peer! 5)

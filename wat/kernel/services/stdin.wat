@@ -79,7 +79,7 @@
   (:wat::core::match (:wat::io::IOReader/read-frame in (:wat::kernel::services::StdInService::Req/max-buffer-bytes req))
       -> :wat::kernel::services::StdInService::Rep
     ((:wat::core::Some line)
-      (:wat::kernel::services::StdInService::Rep/new
+      (:wat::kernel::services::StdInService::Rep
         (:wat::kernel::services::StdInService::Req/thread-id req)
         line))
     (:wat::core::None

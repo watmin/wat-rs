@@ -163,7 +163,7 @@
                                   (:wat::core::keyword/to-string o0)
                                   ">")))]
             -> :wat::core::nil
-            (~factory-0 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
+            (~factory-0 (:wat::kernel::ThreadPeer server-rx server-tx))))
       ~(:wat::holon::to-wat
           (:wat::core::Option/expect  
             (:wat::core::get
@@ -171,7 +171,7 @@
                 (:wat::runtime::signature-of-fn coordinator))
               0)
             "run-threads-n1: coordinator has no binder at position 0"))
-        (:wat::kernel::ThreadPeer/new
+        (:wat::kernel::ThreadPeer
           (:wat::kernel::Thread/output thread-0)
           (:wat::kernel::Thread/input  thread-0))
       result
@@ -239,7 +239,7 @@
                                   (:wat::core::keyword/to-string o0)
                                   ">")))]
             -> :wat::core::nil
-            (~factory-0 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
+            (~factory-0 (:wat::kernel::ThreadPeer server-rx server-tx))))
       ~(:wat::holon::to-wat
           (:wat::core::Option/expect  
             (:wat::core::get
@@ -247,7 +247,7 @@
                 (:wat::runtime::signature-of-fn coordinator))
               0)
             "run-threads-n3: coordinator has no binder at position 0"))
-        (:wat::kernel::ThreadPeer/new
+        (:wat::kernel::ThreadPeer
           (:wat::kernel::Thread/output thread-0)
           (:wat::kernel::Thread/input  thread-0))
       thread-1
@@ -286,7 +286,7 @@
                                   (:wat::core::keyword/to-string o1)
                                   ">")))]
             -> :wat::core::nil
-            (~factory-1 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
+            (~factory-1 (:wat::kernel::ThreadPeer server-rx server-tx))))
       ~(:wat::holon::to-wat
           (:wat::core::Option/expect  
             (:wat::core::get
@@ -294,7 +294,7 @@
                 (:wat::runtime::signature-of-fn coordinator))
               1)
             "run-threads-n3: coordinator has no binder at position 1"))
-        (:wat::kernel::ThreadPeer/new
+        (:wat::kernel::ThreadPeer
           (:wat::kernel::Thread/output thread-1)
           (:wat::kernel::Thread/input  thread-1))
       thread-2
@@ -333,7 +333,7 @@
                                   (:wat::core::keyword/to-string o2)
                                   ">")))]
             -> :wat::core::nil
-            (~factory-2 (:wat::kernel::ThreadPeer/new server-rx server-tx))))
+            (~factory-2 (:wat::kernel::ThreadPeer server-rx server-tx))))
       ~(:wat::holon::to-wat
           (:wat::core::Option/expect  
             (:wat::core::get
@@ -341,7 +341,7 @@
                 (:wat::runtime::signature-of-fn coordinator))
               2)
             "run-threads-n3: coordinator has no binder at position 2"))
-        (:wat::kernel::ThreadPeer/new
+        (:wat::kernel::ThreadPeer
           (:wat::kernel::Thread/output thread-2)
           (:wat::kernel::Thread/input  thread-2))
       result

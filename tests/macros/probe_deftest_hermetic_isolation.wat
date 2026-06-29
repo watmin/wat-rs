@@ -8,7 +8,7 @@
 (:wat::test::deftest-hermetic :test::g::my-hermetic-test
   ((:wat::core::defstruct :test::g::IsolatedType [field <- :wat::core::i64]))
   (:wat::core::do
-    (:test::g::IsolatedType/new 42)
+    (:test::g::IsolatedType 42)
     :wat::core::nil))
 
 ;; Probe 2: cross-test prelude isolation — two tests each declare :test::g::SharedName.
@@ -26,7 +26,7 @@
      [x <- :wat::core::i64
       y <- :wat::core::i64])
    (:wat::core::defn :test::g::hidden-helper [] -> :test::g::HiddenStruct
-     (:test::g::HiddenStruct/new 0 0)))
+     (:test::g::HiddenStruct 0 0)))
   :wat::core::nil)
 
 ;; Probe 4: make-deftest-hermetic with define prelude freezes cleanly; parent isolated.

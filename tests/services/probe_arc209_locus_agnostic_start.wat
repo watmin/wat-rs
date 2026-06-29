@@ -8,7 +8,7 @@
    (:Increment [s <- :State n <- :wat::core::i64]
                -> [value <- :wat::core::i64]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State/new (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
+       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
 
 ;; Drive through the client face, but start now takes a LOCUS — `(thread)` selects the shared-memory
 ;; launch via the Locus protocol. Same round-trip as C.3 (increment 5 → get → 5).

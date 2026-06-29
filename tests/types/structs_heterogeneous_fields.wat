@@ -5,6 +5,6 @@
    volume <- :wat::core::i64])
 (:wat::core::defn :my::compute [] -> :wat::core::i64
   (:wat::core::let
-    [t (:my::market::Tick/new "BTC" 50000.0 1000)
+    [t (:my::market::Tick "BTC" 50000.0 1000)
      v (:my::market::Tick/volume t)]
     v))

@@ -5,6 +5,6 @@
 (:wat::core::defn :my::y-of [p <- :my::Point] -> :wat::core::i64 (:my::Point/y p))
 (:wat::core::defn :my::compute [] -> :wat::core::i64
   (:wat::core::let
-    [p (:my::Point/new 3 7)
+    [p (:my::Point 3 7)
      q p]
     (:my::y-of q)))

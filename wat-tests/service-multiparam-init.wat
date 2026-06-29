@@ -17,7 +17,7 @@
   :init (:wat::core::fn [record <- :wat-tests::offset-counter::Record
                          offset <- :wat::core::i64]
           -> :wat-tests::offset-counter::State
-          (:wat-tests::offset-counter::State/new record offset))
+          (:wat-tests::offset-counter::State record offset))
   :ops
   [(:Total [s <- :State]
            -> [value <- :wat::core::i64]

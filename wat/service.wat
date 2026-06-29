@@ -181,15 +181,15 @@
                       (:wat::core::string::interpolate "{fqdn-str}::Record" :fqdn-str fqdn-str))
 
      ;; ── 4b-ii: :init option ────────────────────────────────────────────────────
-     ;; :init : Record → State. Default (fn [d <- ::Record] -> ::State (::State/new d))
+     ;; :init : Record → State. Default (fn [d <- ::Record] -> ::State (::State d))
      ;;   when :ephemeral is empty. When :ephemeral non-empty and :init absent → macro-error.
      ;; A synthetic symbol-node "record" for the default init param (hygiene: Unquote at def time).
      ;; arc 291 kwargs-start: renamed "d"→"record" so the default-init start kwarg is :record.
      d-sym          (:wat::core::symbol-node "record")
      s-sym          (:wat::core::symbol-node "s")
-     ;; state-new-kw: :<fqdn>::State/new — the struct ctor
+     ;; state-new-kw: :<fqdn>::State — the bare struct ctor (arc 293.R2.3: /new annihilated)
      state-new-kw   (:wat::core::keyword/from-string
-                      (:wat::core::string::interpolate "{fqdn-str}::State/new" :fqdn-str fqdn-str))
+                      (:wat::core::string::interpolate "{fqdn-str}::State" :fqdn-str fqdn-str))
      ;; init-fn-node: user-provided fn, or default, or macro-error
      init-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "init")
                       -> :wat::WatAST

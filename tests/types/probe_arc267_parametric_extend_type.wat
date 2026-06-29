@@ -13,5 +13,5 @@
   (:t::Tagged/tag x))
 
 (:wat::core::defn :user::go [] -> :wat::core::String
-  (:user::tag-of (:t::Box/new 5)))
+  (:user::tag-of (:t::Box 5)))
 

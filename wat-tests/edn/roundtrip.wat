@@ -68,7 +68,7 @@
 
 (:deftest :wat-tests::edn::roundtrip-struct
   (:wat::core::let
-    [w (:test::Wrapper/new "score" 42)
+    [w (:test::Wrapper "score" 42)
      s (:wat::edn::write w)
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back w)))
@@ -79,7 +79,7 @@
 (:deftest :wat-tests::edn::roundtrip-nested
   (:wat::core::let
     [w
-      (:test::Wrapper/new "trade" (:test::Event::Sell 102.25 3 "stop"))
+      (:test::Wrapper "trade" (:test::Event::Sell 102.25 3 "stop"))
      s (:wat::edn::write w)
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back w)))

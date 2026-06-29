@@ -5,7 +5,7 @@
   [secret <- :wat::core::i64
    id     <- :wat::core::i64])
 (:wat::core::defn :my::issuer::mint [] -> :my::Token
-  (:my::Token/new 42 99))
+  (:my::Token 42 99))
 (:wat::core::defn :my::issuer::get-secret
   [tok <- :my::Token] -> :wat::core::i64
   (:my::Token/secret tok))

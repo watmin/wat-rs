@@ -12,4 +12,4 @@
   true)
 
 (:wat::core::defn :user::main [] -> :wat::core::bool
-  (:geo::accepts-shape (:geo::Bare/new 42)))
+  (:geo::accepts-shape (:geo::Bare 42)))

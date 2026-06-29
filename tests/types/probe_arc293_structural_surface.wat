@@ -14,4 +14,4 @@
   true)
 
 (:wat::core::defn :user::main [] -> :wat::core::bool
-  (:geo::accepts-shape (:geo::Circle/new "red" 2.0)))
+  (:geo::accepts-shape (:geo::Circle "red" 2.0)))

@@ -14,7 +14,7 @@ use wat::freeze::startup_from_file;
 #[test]
 fn probe_do_struct_accessor_visible() {
     let world = startup_from_file("tests/macros/probe_do_splice_struct_accessor.wat").expect("freeze");
-    assert!(world.symbols().get(":my::State/new").is_some(), ":my::State/new not registered");
+    assert!(world.symbols().get(":my::State").is_some(), ":my::State ctor not registered");
     assert!(world.symbols().get(":my::main").is_some(), ":my::main not registered");
 }
 
@@ -22,7 +22,7 @@ fn probe_do_struct_accessor_visible() {
 #[test]
 fn probe_do_struct_via_macro_emission() {
     let world = startup_from_file("tests/macros/probe_do_splice_struct_via_macro.wat").expect("freeze");
-    assert!(world.symbols().get(":my::probe::Point/new").is_some(), ":my::probe::Point/new not registered");
+    assert!(world.symbols().get(":my::probe::Point").is_some(), ":my::probe::Point ctor not registered");
     assert!(world.symbols().get(":my::probe::Point/x").is_some(), ":my::probe::Point/x not registered");
     assert!(world.symbols().get(":my::probe::Point/y").is_some(), ":my::probe::Point/y not registered");
     assert!(world.symbols().get(":my::probe::make-origin").is_some(), ":my::probe::make-origin not registered");

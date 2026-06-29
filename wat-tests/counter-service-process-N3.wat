@@ -432,10 +432,10 @@
         ;; ProcessPeer/new(rx, tx) per slice 2 SCORE delta 6: rx first, tx second
         rx      (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
         tx      (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
-        peer!   (:wat::kernel::ProcessPeer/new rx tx)]
+        peer!   (:wat::kernel::ProcessPeer rx tx)]
        ;; proc! stored in AdminProc so stop-proc can drain-and-join.
        ;; Arc 207: server-id is Uuid/nil — matches the subprocess's self-server-id.
-       (:counter::AdminProc/new (:wat::core::Uuid/nil) peer! proc)))
+       (:counter::AdminProc (:wat::core::Uuid/nil) peer! proc)))
 
    ;; :counter::provision-proc — sends Wire/Admin Provision; reads WireResp/Admin Provisioned.
    ;;
@@ -470,7 +470,7 @@
                  ((:counter::WireResp::Admin admin-resp)
                    (:wat::core::match admin-resp -> :wat::core::Result<counter::UserProc,counter::ServiceError>
                      ((:counter::AdminResp::Provisioned id)
-                       (:wat::core::Ok (:counter::UserProc/new sid id pr)))
+                       (:wat::core::Ok (:counter::UserProc sid id pr)))
                      (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
                      ((:counter::AdminResp::Deprovisioned _id)

@@ -167,7 +167,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
         (:wat::core::let
           [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
            tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer/new rx tx)]
+           peer (:wat::kernel::ProcessPeer rx tx)]
           (:wat::core::match (:wat::kernel::Process/println peer "arc208-ok")
             -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
             ((:wat::core::Ok _)  (:wat::core::Ok ()))
@@ -192,7 +192,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
         (:wat::core::let
           [rx    (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
            tx    (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer  (:wat::kernel::ProcessPeer/new rx tx)
+           peer  (:wat::kernel::ProcessPeer rx tx)
            reply (:wat::core::match (:wat::kernel::Process/readln peer)
                    -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
                    ((:wat::core::Ok v)  (:wat::core::Ok v))
@@ -256,7 +256,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
         (:wat::core::let
           [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server2))
            tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server2))
-           peer (:wat::kernel::ProcessPeer/new rx tx)
+           peer (:wat::kernel::ProcessPeer rx tx)
            _    (:wat::kernel::Process/drain-and-join server2)]
           (:wat::core::match (:wat::kernel::Process/println peer "should-fail")
             -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
@@ -306,7 +306,7 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
         (:wat::core::let
           [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
            tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer/new rx tx)
+           peer (:wat::kernel::ProcessPeer rx tx)
            _    (:wat::kernel::Process/drain-and-join server)]
           (:wat::core::match (:wat::kernel::Process/readln peer)
             -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
@@ -356,7 +356,7 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
         (:wat::core::let
           [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
            tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer/new rx tx)
+           peer (:wat::kernel::ProcessPeer rx tx)
            _    (:wat::kernel::Process/drain-and-join server)]
           (:wat::core::match (:wat::kernel::Process/readln peer)
             -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>

@@ -1106,14 +1106,43 @@ fn record_dep_dependency(
     // declared type. The freeze pipeline re-synthesizes these when the
     // type definition is registered; including them as deps would cause
     // DuplicateDefine on re-freeze. Type accessors like `:my::Point/x`
-    // and constructors like `:my::Point/new` fall under this rule. We
-    // ALSO need to walk the type's signature for type-extraction so
-    // the corresponding TypeDef makes it into the package.
-    if let Some(slash_idx) = name.rfind('/') {
-        let type_part = &name[..slash_idx];
-        if state.parent_types.get(type_part).is_some()
-            || state.captured_types.contains_key(type_part)
-        {
+    // fall under this rule. We ALSO need to walk the type's signature
+    // for type-extraction so the corresponding TypeDef makes it into
+    // the package.
+    //
+    // Arc 293.R2.3 — struct/newtype ctors now register at the BARE type
+    // name (no `/new`). A bare name that IS a declared struct/newtype in
+    // the parent types is an auto-synthesized ctor — skip as dep exactly
+    // like accessors (re-freeze re-generates it via register_struct_methods
+    // / register_newtype_methods).
+    {
+        let type_part_to_check: Option<&str> = {
+            // Case 1: name has `/` — accessor or (legacy) `/new` ctor.
+            if let Some(slash_idx) = name.rfind('/') {
+                let tp = &name[..slash_idx];
+                if state.parent_types.get(tp).is_some()
+                    || state.captured_types.contains_key(tp)
+                {
+                    Some(tp)
+                } else {
+                    None
+                }
+            }
+            // Case 2: bare name — arc 293.R2.3 struct/newtype bare ctor.
+            else {
+                let is_auto_ctor = {
+                    let opt = state.parent_types.get(name)
+                        .or_else(|| state.captured_types.get(name));
+                    match opt {
+                        Some(TypeDef::Aggregate(a)) => a.holder == crate::types::Holder::Struct,
+                        Some(TypeDef::Newtype(_)) => true,
+                        _ => false,
+                    }
+                };
+                if is_auto_ctor { Some(name) } else { None }
+            }
+        };
+        if let Some(type_part) = type_part_to_check {
             // Ensure the type is extracted so re-freeze regenerates the
             // accessor / constructor.
             record_type_dependency_by_name(state, type_part);
@@ -1901,7 +1930,8 @@ fn encode_struct(
             None
         }
     });
-    let constructor = format!(":{}/new", sv.class);
+    // Arc 293.R2.3 — bare struct/newtype ctor; `/new` annihilated.
+    let constructor = format!(":{}", sv.class);
     let mut out = Vec::with_capacity(sv.fields.len() + 1);
     out.push(WatAST::Keyword(constructor, span.clone()));
     for (i, f) in sv.fields.iter().enumerate() {

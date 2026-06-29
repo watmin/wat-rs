@@ -4,6 +4,6 @@
    grace-residue <- :wat::core::f64])
 (:wat::core::defn :user::compute [] -> :wat::core::f64
   (:wat::core::let
-    [p (:test::PaperResolved/new "Grace" 9.25)
+    [p (:test::PaperResolved "Grace" 9.25)
      {:keys [grace-residue]} p]
     grace-residue))

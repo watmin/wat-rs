@@ -21,10 +21,10 @@
 
 ;; ─── newtype ──────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::probe04 [] -> :wat::core::bool
-  (:wat::core::conforms? (:my::Price/new 1.5) :my::Price))
+  (:wat::core::conforms? (:my::Price 1.5) :my::Price))
 
 (:wat::core::defn :user::probe05 [] -> :wat::core::bool
-  (:wat::core::conforms? (:my::Price/new 1.5) :wat::core::f64))
+  (:wat::core::conforms? (:my::Price 1.5) :wat::core::f64))
 
 ;; ─── struct ───────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::probe06 [] -> :wat::core::bool
@@ -45,7 +45,7 @@
   (:wat::core::type :my::Color::Red))
 
 (:wat::core::defn :user::probe11 [] -> :wat::core::String
-  (:wat::core::type (:my::Price/new 1.5)))
+  (:wat::core::type (:my::Price 1.5)))
 
 (:wat::core::defn :user::probe12 [] -> :wat::core::String
   (:wat::core::type (:wat::core::struct-new :my::Point 3 4)))

@@ -8,7 +8,7 @@
                   :A
                   :B)
                 (:wat::core::defn :h::make-item [] -> :h::LocalItem
-                  (:h::LocalItem/new 99))
+                  (:h::LocalItem 99))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
                     [item (:h::make-item)

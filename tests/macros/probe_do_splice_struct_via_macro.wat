@@ -8,4 +8,4 @@
      ~body))
 
 (:my::probe
-  (:wat::core::defn :my::probe::make-origin [] -> :my::probe::Point (:my::probe::Point/new 0 0)))
+  (:wat::core::defn :my::probe::make-origin [] -> :my::probe::Point (:my::probe::Point 0 0)))

@@ -4,5 +4,5 @@
 (:wat::core::defn :my::trading::price-pretty [p <- :my::trading::Price] -> :wat::core::String (:wat::core::f64::to-string (:my::trading::Price/0 p)))
 (:wat::core::defn :my::probe [] -> :wat::core::String
   (:wat::core::let
-    [a (:my::trading::Amount/new 50.0)]
+    [a (:my::trading::Amount 50.0)]
     (:my::trading::price-pretty a)))
