@@ -12,12 +12,12 @@
 //! THE GAP (RED at HEAD):
 //!   1. `SurfaceDef` has no `holder` field (`types.rs:233`).
 //!   2. `parse_defsurface` requires exactly `args.len() == 2` (name + member-vector); the
-//!      `:holder :holon-record` clause yields 4 args → MalformedDecl ("got 4 args after head").
+//!      `:holder :wat::holon::Record` clause yields 4 args → MalformedDecl ("got 4 args after head").
 //!   3. The `assignable` surface arm (`check.rs:14229`) width-matches fields only — it never
 //!      checks the holder.
 //!
 //! GREEN when the additive `:holder` layer lands: `SurfaceDef { holder: Option<Holder> }`,
-//! `parse_defsurface` accepts the optional `:holder <kw>` clause, and the `assignable` arm
+//! `parse_defsurface` accepts the optional `:holder <holder-root-symbol>` clause, and the `assignable` arm
 //! enforces `surf.holder == Some(h) ⇒ agg.holder == h` (categorical, hard).
 //!
 //! NOTE on the trap: the `:holder` clause makes `defsurface` a >2-arg form, so EVERY test here
@@ -28,7 +28,7 @@
 
 use wat::freeze::startup_from_file;
 
-/// THE ACCEPT CASE — a holon record satisfies a `:holder :holon-record` surface.
+/// THE ACCEPT CASE — a holon record satisfies a `:holder :wat::holon::Record` surface.
 /// `:env::HEnv` is a holon record with the `slot` member, so it satisfies `:env::Holon`
 /// both structurally (has `slot`) AND categorically (holder == HolonRecord).
 #[test]
@@ -45,7 +45,7 @@ fn holon_record_satisfies_holder_bound_surface() {
 
 /// THE REJECT CASE (the categorical bound) — a CORE record with the SAME members is REJECTED.
 /// `:env::CEnv` has `slot` (structural match passes) but its holder is `Record`, not
-/// `HolonRecord`, so the `:holder :holon-record` bound must reject it. The rejection must CITE
+/// `HolonRecord`, so the `:holder :wat::holon::Record` bound must reject it. The rejection must CITE
 /// the surface (a holder mismatch), NOT be the incidental MalformedDecl parse error of HEAD.
 #[test]
 fn core_record_rejected_by_holon_holder_bound() {

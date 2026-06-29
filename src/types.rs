@@ -146,6 +146,18 @@ impl Holder {
             Holder::HolonRecord => ":wat::holon::Record",
         }
     }
+
+    /// Strict inverse of `root_keyword` — the single canonical keyword→holder map.
+    /// Called by both the surface `:holder` parser and `parse_aggregate`.
+    /// Returns `None` for anything that is not a holder-root symbol.
+    pub fn from_root_keyword(kw: &str) -> Option<Holder> {
+        match kw {
+            ":wat::core::Struct"  => Some(Holder::Struct),
+            ":wat::Record"        => Some(Holder::Record),
+            ":wat::holon::Record" => Some(Holder::HolonRecord),
+            _                     => None,
+        }
+    }
 }
 
 /// Arc 293 inheritance annihilation — unified product-type declaration (replaces the annihilated
@@ -2096,26 +2108,6 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
     }))
 }
 
-/// Arc 293 decl-a — derive the `Holder` from the parent-root keyword.
-///
-/// The categorical position IS the parent. Each holder-root keyword maps to exactly one holder:
-///   `:wat::core::Struct`    → `Holder::Struct`
-///   `:wat::holon::Record`   → `Holder::HolonRecord`
-///   anything else           → `Holder::Record` (`:wat::Record` + any non-root record base)
-///
-/// For non-root record bases (e.g. `:wat::program::Env` extends `:wat::Record`),
-/// the immediate-parent check correctly returns `Record` — non-root holon extension
-/// always declares against `:wat::holon::Record` directly (a STOP-ROOT trigger otherwise).
-///
-/// Struct-extending-Struct chain-walk (GAP-6) is a decl-b concern; decl-a only sees
-/// `:wat::core::Struct` as the immediate parent for new user structs.
-fn root_holder_of(parent: &str) -> Holder {
-    match parent {
-        ":wat::core::Struct" => Holder::Struct,
-        ":wat::holon::Record" => Holder::HolonRecord,
-        _ => Holder::Record,
-    }
-}
 
 /// Arc 293 decl-a — thin alias for `structtype` dispatch.
 ///
@@ -2192,23 +2184,18 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str) -> Re
         }
     };
 
-    let holder = root_holder_of(&parent);
-
     // Arc 293 inheritance annihilation — reject any parent that is not a holder-root.
     // Reuse-of-shape is surface-splice (`[~@:Surface own <- :T]`), not nominal inheritance.
-    const HOLDER_ROOTS: &[&str] = &[":wat::core::Struct", ":wat::Record", ":wat::holon::Record"];
-    if !HOLDER_ROOTS.contains(&parent.as_str()) {
-        return Err(TypeError {
-            span: decl_span,
-            kind: TypeErrorKind::MalformedDecl {
-                head: head.into(),
-                reason: format!(
-                    "parent '{}' is not a holder-root; inheritance is unsupported — reuse a shape via surface-splice `[~@:Surface \u{2026}]`",
-                    parent
-                ),
-            },
-        });
-    }
+    let holder = Holder::from_root_keyword(&parent).ok_or_else(|| TypeError {
+        span: decl_span.clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: head.into(),
+            reason: format!(
+                "parent '{}' is not a holder-root; inheritance is unsupported — reuse a shape via surface-splice `[~@:Surface \u{2026}]`",
+                parent
+            ),
+        },
+    })?;
 
     // Discriminate: 1 remaining arg (just fields) vs 2 remaining (metadata + fields).
     let (metadata_node_opt, fields_node) = if iter.len() == 1 {

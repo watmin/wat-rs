@@ -319,21 +319,19 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             // Slot 2 — holder-value keyword.
             let val_node = iter.next().unwrap();
             let holder_val = match &val_node {
-                WatAST::Keyword(v, _) => match v.as_str() {
-                    ":struct"       => Holder::Struct,
-                    ":record"       => Holder::Record,
-                    ":holon-record" => Holder::HolonRecord,
-                    other => {
-                        return Err(TypeError {
+                WatAST::Keyword(v, _) => {
+                    match Holder::from_root_keyword(v.as_str()) {
+                        Some(h) => h,
+                        None => return Err(TypeError {
                             span: val_node.span().clone(),
                             kind: TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: format!(
-                                    ":holder value must be :struct, :record, or :holon-record; got {}",
-                                    other
+                                    ":holder value must be a holder-root symbol (:wat::core::Struct, :wat::Record, or :wat::holon::Record); got {}",
+                                    v
                                 ),
                             },
-                        });
+                        }),
                     }
                 },
                 other => {
@@ -341,7 +339,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                         span: other.span().clone(),
                         kind: TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
-                            reason: ":holder value must be a keyword (:struct, :record, or :holon-record)".into(),
+                            reason: ":holder value must be a keyword (:wat::core::Struct, :wat::Record, or :wat::holon::Record)".into(),
                         },
                     });
                 }

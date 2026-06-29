@@ -38,13 +38,21 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 
 1. ✅ **decl-a LANDED (`f51465d7`)** — `aggregatetype` is the ONE type-reg primitive (holder from the parent's
    holder-root); `:wat::core::Struct` node minted; `parse_recordtype` absorbed; field-parser unified. 4112/0/91.
-2. ▶ **INHERITANCE ANNIHILATION (NEXT — replaces decl-b.1.0)** *(293)* — `program::Env` → a **surface** ("must be a
-   record with these minimal properties"); `aggregatetype`/`recordtype` parent restricted to a **holder-root** (reject
-   user parents); **delete** `collect_all_record_fields`, inherited-field storage + abs-idx, the record subtype edges.
-   Flat records only → `aggregate-new`'s own-only arity becomes correct, **decl-b.1.0 + its probe DELETED**. The
-   `rete.wat`/`program.wat` `[x <- :wat::Record]` params → `:wat::core::Value` (guts) or a surface — the **surfaces-only
-   migration** (`[fact <- :wat::Record]` → `[fact <- :wat::core::Value]`, confirmed opaque/reflective). **STOP:** verify
-   `program::Env`'s spawn-injection (#211/#238) works via the surface, not a nominal base.
+2. ✅ **INHERITANCE ANNIHILATION LANDED (`c7572929`)** *(293)* — `AggregateDef.parent` DELETED (it was the
+   stringly-typed shadow of `holder` — the inheritance vestige; builder: *"parent as an attribute is wrong"*). Subtype
+   edges derive from `holder` via new **`Holder::root_keyword()`** (the first brick of item 5). A non-holder-root parent
+   is REJECTED at parse (closing `root_holder_of`'s `_ => Record` leak). `collect_all_record_fields` + inherited-field
+   machinery + `ROOT_PARENTS` + abs-idx deleted; 2 inheritance fixtures (arc237 sA1 probe05, arc258 c02) deleted; the
+   rest of arc-237's subtype suite (holder-membership: `:Circle <: :wat::Record`, `holon <: core`) UNTOUCHED. `4113/0/92`,
+   weighed forced-clean. RED probe `probe_arc293_reject_user_parent` GREEN. `program::Env` is a **flat record** — NOT a
+   surface (nothing requires "an Env"; the spawn-injection constructs it concretely — STOP cleared). decl-b.1.0 stays DELETED.
+   ▷ The bare-holder migration SPLITS OUT (item 2a): `user.program` is NOT `Value` (it ships → must be ≥ Record) — a
+   0-member `:holder :wat::core::Record` surface `:wat::spawn::user-env`; rete's `[fact <- :wat::Record]` → `Value` (in-locus).
+2a. ▶ **SURFACE `:holder` VOCAB + `user-env` surface (NEXT)** *(293, item-5 surface piece)* — `surface.rs:332` hand-matches
+   magic `:struct`/`:record`/`:holon-record`; route `:holder` through new **`Holder::from_root_keyword()`** so it takes the
+   **holder-root symbol** (`:wat::core::Record`); migrate existing `:holder :<magic>` surfaces; mint `:wat::spawn::user-env`
+   (`:holder :wat::core::Record` `[]`) + retype `program::Env.user.program` to it. RED probe: user.program rejects a struct,
+   accepts a record. (The other 4 magic sites + `:wat::Record`→`:wat::core::Record` rename = the rest of item 5.)
 3. ▷ **decl-b.1 — the latent HOLON bug + kill the dup** *(still real, not inheritance)* — the ctor fallback
    (`runtime.rs:1093-1151`) builds record/holon ctors via `:wat::Record::of` (BASE) → a raw-`recordtype` **holon**
    record has NO hologram (`cosine` errors "has no holon flavor"). Route the fallback → `aggregate-new` + DELETE the
