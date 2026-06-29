@@ -5,6 +5,20 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e91
 `4102 passed / 0 failed / 91 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`; the R2 parity +
 ctor-parity + struct->form-roundtrip probes are GREEN).
 
+> ⚠⚠ **CORRECTION (2026-06-28, SESSION 10 — the drift, named) — READ THIS FIRST. The "293.R2.x" label below is WRONG.**
+> The `Value`-repr collapse done this session (R2.1/R2.2/R2.3 + the sweep) is **arc 294's deliverable, NOT 293's** —
+> the 293 DESIGN explicitly scopes the Value-repr collapse OUT (`293/DESIGN.md:182` *"Unifying the Value reprs … Keep"*);
+> 294 owns it (`294/DESIGN.md:131`). The apparatus drifted: did 294 work, mislabeled it 293.R2, then invented a
+> non-existent "R2.4," then dragged 294 in confusingly — a multi-prompt degradation the builder caught. **The work is
+> committed, green, pushed, and a real (off-design) down-payment on 294 — DO NOT REVERT (persist + change).**
+> **The corrected map = `docs/arc/2026/06/294-holon-returns-to-vsa/REMAINING-PATH.md`** (committed `e625a87a`):
+> destination (one EDN-canonical aggregate, identity-on-data, hologram-derived, one `aggregate-new`, `/from-map`,
+> holder=policy) + where-we-are (294.0/a/b LANDED pre-session; R2.x = structural collapse + ctor-parity but carried
+> 294's disease — hologram-as-identity, stored — forward) + the 9-step path. **293's type-system (surfaces,
+> methods-as-accessors, `defprotocol` annihilated) IS DONE** (demo green, `cf89fb52`). **Forward-without-294:**
+> Seqable → 118 needs only 293.4 (done); 294 is NOT a blocker for building, only for CLOSING 293's construction tail.
+> Everything below is pre-correction R2.x narrative — true as commit-history, MIS-FRAMED as "293."
+
 **✅ 293.R2 purgare+intueri SWEEP LANDED (`e918c505`) — the grimoire caught a real regression the gate hid.**
 A grimoire cast on the R2-rewritten core (builder: *"we have not reached for the grimoire in quite a while"*),
 weighed forced-clean: **B1 (REGRESSION, FIXED)** — `struct->form` emitted `:T/new` which R2.3 unregistered → the
