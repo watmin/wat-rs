@@ -1,5 +1,8 @@
 # Arc 294 — Holon returns to VSA: EDN is canonical; the data over its encodings; the hologram a derived index; the strange loop closing
 
+> **▶ 293 and 294 close TOGETHER. The live close ORDER + STATUS is `CLOSE-SEQUENCE-293-294.md` (the single
+> maintained tracker). This DESIGN is the gut's model/flaws — context, not the sequence.**
+
 > **Name (intueri, crowned by the builder 2026-06-27):** `holon-returns-to-vsa` — *"that one is just pleasant to
 > read."* HolonAST was minted for VSA, accreted the AST + wire roles to force `EdnRepresentable` into being, and
 > now sheds them to return to its origin: pure VSA. The strange loop closes. (Thesis: **EDN is canonical.**)

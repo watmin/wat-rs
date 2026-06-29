@@ -9,6 +9,8 @@
 > may NEVER be passed where a holon record is required). **Every holder-branch that is NOT one of those three is a
 > spurious split and must unify to `aggregate`.** 293 closes only when **`AGGREGATE-AUDIT.md`** reaches zero spurious
 > splits. The full model, the classification criterion, the ~99-branch scope, and the living checklist live there.
+> **The live close ORDER + STATUS for 293+294 (they close TOGETHER) is
+> `../294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md` — the single maintained tracker.**
 
 **Status: SCOPED → MODEL SETTLED (2026-06-25); CLOSURE GATED on the aggregate audit (2026-06-28).** Began as "struct/record construction symmetry" (surfaced by
 arc 291's `/from-map` work); a long co-design grew it into the real thing: **wat's nominal/structural type

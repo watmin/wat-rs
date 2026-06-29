@@ -1,5 +1,8 @@
 # The Aggregate Audit — 293's closure gate (the holder is a passing policy, nothing else)
 
+> **▶ The live close ORDER + STATUS for 293+294 is `../294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md` (the single
+> maintained tracker). This doc is the closure-gate DETAIL (the model + the ~99-branch checklist), not the sequence.**
+
 > **Status: OPEN — 293 CANNOT BE RESOLVED until this audit is complete (builder, 2026-06-28).**
 > *"the audit we need to do — mark 293 cannot be closed without doing this — is finding every example of a record
 > not being used like a struct. nearly all things need to be 'aggregate'-whatever, neither struct nor record. the

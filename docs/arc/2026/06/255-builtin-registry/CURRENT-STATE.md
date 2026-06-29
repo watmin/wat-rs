@@ -5,7 +5,9 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `eaa
 `4111 passed / 0 failed / 91 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
-> then we go to 118."* **The spine is now `293/AGGREGATE-AUDIT.md` — 293 CANNOT close until zero spurious holder-splits**
+> then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`
+> (the single maintained tracker — they close TOGETHER; never work out of sequence).** Closure-gate detail:
+> `293/AGGREGATE-AUDIT.md` — 293 CANNOT close until zero spurious holder-splits
 > (builder closure gate; `293/DESIGN.md` § CLOSURE GATE). The holder is a PASSING POLICY only — it governs the
 > aggregate at THREE boundaries (comms eligibility / EDN-repr / directional `holon <: core` assignability); every
 > holder-branch that is not one of those is a spurious struct/record split → unify to `aggregate`. ~99 holder-branches

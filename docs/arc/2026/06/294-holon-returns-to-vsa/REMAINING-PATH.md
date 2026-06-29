@@ -1,5 +1,8 @@
 # 294 — The remaining path: from the half-collapsed repr to EDN-canonical aggregates
 
+> **▶ The live close ORDER + STATUS for 293+294 is `CLOSE-SEQUENCE-293-294.md` (the single maintained tracker).
+> This doc is the value-layer PATH detail/context, not the sequence — when they disagree, the tracker wins.**
+
 > **Why this doc (2026-06-28, written after a drift).** Chasing 293's *"annihilate the variance,"* the apparatus did
 > a **`Value`-repr collapse** and labeled it `293.R2.x`. But the `Value`-repr collapse is **294's deliverable** — the
 > 293 DESIGN explicitly scopes it OUT (*"Unifying the `Value` reprs … Keep"*, DESIGN.md:182) and 294 owns it. The work
