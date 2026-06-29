@@ -16,7 +16,6 @@ use wat::freeze::startup_from_file;
 
 /// A STRUCT constructs via its bare type name — `(:geo::SPt 3 4)`, parity with a record's `(:geo::Circle …)`.
 #[test]
-#[ignore = "RED at HEAD: arc-293 ctor-parity not built (struct ctor is :T/new); un-ignore when :T is the ctor"]
 fn struct_constructs_via_bare_type_name() {
     // GREEN TARGET: (:geo::SPt 3 4) constructs the struct (the bare type name is the ctor).
     // RED AT HEAD: the ctor is :geo::SPt/new; bare :geo::SPt is unresolved as a function.
@@ -30,7 +29,6 @@ fn struct_constructs_via_bare_type_name() {
 
 /// A NEWTYPE constructs via its bare type name — `(:my::Amount 42)`, no `/new`.
 #[test]
-#[ignore = "RED at HEAD: arc-293 ctor-parity not built (newtype ctor is :T/new); un-ignore when :T is the ctor"]
 fn newtype_constructs_via_bare_type_name() {
     // GREEN TARGET: (:my::Amount 42) wraps the value (the bare type name is the ctor).
     // RED AT HEAD: the ctor is :my::Amount/new; bare :my::Amount is unresolved as a function.

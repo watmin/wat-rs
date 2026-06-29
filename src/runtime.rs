@@ -46,11 +46,10 @@ use crate::config::Config;
 use holon::{encode, HolonAST, Similarity};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt;
 use std::os::fd::FromRawFd;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
-use wat_macros::{restricted_to, wat_value};
+use wat_macros::restricted_to;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
@@ -1102,7 +1101,7 @@ pub fn register_aggregate_methods(
             && !sym.functions.contains_key(&agg.name)
         {
             let name_str = agg.name.trim_start_matches(':').to_string();
-            // All fields in struct_form order: inherited first, then own.
+            // All fields in declaration order: inherited first, then own.
             let all_fields: Vec<(String, crate::types::TypeExpr)> = inherited_fields
                 .iter()
                 .chain(agg.fields.iter())
@@ -1111,7 +1110,7 @@ pub fn register_aggregate_methods(
             let all_param_names: Vec<String> = all_fields.iter().map(|(n, _)| n.clone()).collect();
             let all_param_types: Vec<crate::types::TypeExpr> =
                 all_fields.iter().map(|(_, t)| t.clone()).collect();
-            let struct_form_elems: Vec<WatAST> = all_param_names
+            let field_asts: Vec<WatAST> = all_param_names
                 .iter()
                 .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), Span::unknown()))
                 .collect();
@@ -1126,7 +1125,7 @@ pub fn register_aggregate_methods(
                 vec![
                     WatAST::Keyword(":wat::Record::of".into(), Span::unknown()),
                     kw_from_str_call,
-                    WatAST::Vector(struct_form_elems, Span::unknown()),
+                    WatAST::Vector(field_asts, Span::unknown()),
                 ],
                 Span::unknown(),
             );
@@ -1382,7 +1381,7 @@ pub fn register_enum_methods(
 /// a positional constructor + accessor into `sym`. Arc 049. Mirrors
 /// [`register_struct_methods`] for arity-1 tuple structs — newtype's
 /// Rust compilation per 058-030 line 538 IS `struct A(B);`, so the
-/// natural representation is `Value::Struct` of arity 1 with the
+/// natural representation is `Value::Aggregate(holder=Struct)` of arity 1 with the
 /// inner value at index 0.
 ///
 /// Per newtype `:my::ns::Price` with inner `:f64`:
@@ -1395,8 +1394,8 @@ pub fn register_enum_methods(
 ///   the host language. No invented field name.
 ///
 /// Atom hashing of newtype values gets nominal distinction for free
-/// because `Value::Struct` carries `type_name` in its EDN encoding —
-/// `(Atom (:Price/new 100.0))` and `(Atom 100.0)` produce different
+/// because `Value::Aggregate(Struct)` carries the class FQDN in its EDN encoding —
+/// `(Atom (:Price 100.0))` and `(Atom 100.0)` produce different
 /// vectors.
 pub fn register_newtype_methods(
     types: &crate::types::TypeEnv,
@@ -1479,10 +1478,10 @@ pub fn register_newtype_methods(
 /// Arc 293.2b fix — collect ALL fields (own + inherited from parent chain) for a record type.
 ///
 /// Walks up the parent hierarchy, stopping at root holders (`:wat::Record`, `:wat::holon::Record`)
-/// or the Value top (`:wat::core::Value`). Returns the complete flat field list in struct_form order:
+/// or the Value top (`:wat::core::Value`). Returns the complete flat field list in declaration order:
 /// grandparent fields first, then parent's own fields, then the target's own fields.
 ///
-/// Used by `register_record_methods` to determine inherited fields for records with
+/// Used by `register_aggregate_methods` to determine inherited fields for records with
 /// non-root parents (e.g. a user record extending `:wat::program::Env`).
 fn collect_all_record_fields(
     type_name: &str,
@@ -4032,15 +4031,15 @@ fn dispatch_keyword_head_value(
         // Error contract: well-formed known type names → bool; unknown name → Err.
         ":wat::core::subtype?" => eval_subtype(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::Record::of` constructor + `:wat::Record/field-at` accessor.
-        // Constructor: (class-fqdn struct-form) -> :wat::Record (BASE, no holon_form)
-        // Accessor:    (record index) -> field-value at struct_form[index]
+        // Constructor: (class fields) -> :wat::Record (BASE, no hologram)
+        // Accessor:    (record index) -> field-value at fields[index]
         // These are the substrate primitives consumed by the Stone 234.2b defrecord macro.
-        // Stone S-C.3 — `:wat::holon::Record::of` is the holonic constructor (3-arg: class + struct + holon).
+        // Stone S-C.3 — `:wat::holon::Record::of` is the holonic constructor (3-arg: class + fields + hologram).
         ":wat::Record::of" => eval_record_of(args, list_span, env, sym),
         ":wat::holon::Record::of" => eval_holon_record_of(args, list_span, env, sym),
         ":wat::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
-        // record?   :: ∀T. T -> bool          — true iff input is Value::wat__holon__Record
+        // record?   :: ∀T. T -> bool          — true iff input is Value::Aggregate (Record/HolonRecord holder)
         // record->map :: :wat::Record -> HashMap<keyword, T> — extract field-name/value map
         ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
         ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
@@ -5464,7 +5463,7 @@ fn dispatch_keyword_head_value(
                     }
                     // Arc 234 Stone 234.3c — keyword-as-accessor fall-through.
                     // When head is an unknown verb AND args.len() == 1 AND receiver is
-                    // {wat__holon__Record, Struct, wat__std__HashMap}, dispatch as field accessor.
+                    // {Value::Aggregate (Record/HolonRecord/Struct), wat__std__HashMap}, dispatch as field accessor.
                     // Fires LAST: after user-fn lookup, after def-bound check, after sandbox
                     // leak detection. Only unknown single-arg keyword calls reach here.
                     if args.len() == 1 {
@@ -5522,16 +5521,16 @@ fn dispatch_keyword_head_value(
 // ─── Arc 234 Stone 234.3c — keyword-as-accessor helpers ──────────────────────
 
 /// Resolve `bare_name` → field index via the class's `RecordDef.field_names` and
-/// return the corresponding value from `struct_form`. Miss → `UnknownField`.
+/// return the corresponding value from `fields`. Miss → `UnknownField`.
 ///
 /// Stone S-C.2b re-route: name→index now goes through `RecordDef.field_names`
-/// (the CLASS property, Ruby model) instead of walking `holon_form`. Variant-agnostic:
+/// (the CLASS property, Ruby model). Variant-agnostic:
 /// works for holonic records today; will work for base records (S-C.2c) without change.
 /// Parity: for holonic records the answer is IDENTICAL (same positions, new source).
 fn keyword_accessor_record(
     bare_name: &str,
     class_fqdn: Arc<String>,
-    struct_form: Arc<Vec<Value>>,
+    fields: Arc<Vec<Value>>,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
@@ -5557,7 +5556,7 @@ fn keyword_accessor_record(
     };
     let available: Vec<String> = record_def.field_names().map(|s| s.to_string()).collect();
     match record_def.field_names().position(|n| n == bare_name) {
-        Some(i) => Ok(struct_form[i].clone()),
+        Some(i) => Ok(fields[i].clone()),
         None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::UnknownField {
             record_class: class_fqdn.as_ref().to_string(),
             field: bare_name.to_string(),
@@ -5603,58 +5602,6 @@ fn keyword_accessor_struct(
             field: bare_name.to_string(),
             available
         } }.into()),
-    }
-}
-
-// ─── Arc 146 slice 1 — dispatch runtime dispatch ─────────────────────
-
-/// Match a runtime [`Value`]'s tag against a [`TypeExpr`] arm-pattern
-/// element. Returns true if the value tag is consistent with the
-/// pattern. Concrete `Path` patterns require a tag-match; type-variable
-/// `Path` patterns (single uppercase-leading bare segment) match any
-/// value (the substrate's rank-1 instantiation freshens them per call
-/// site, but at runtime any value satisfies the constraint). Parametric
-/// patterns (e.g. `Vec<T>`) match by container head; the inner type-vars
-/// are treated as wildcards at runtime (the type checker has already
-/// ensured shape consistency).
-fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bool {
-    use crate::types::TypeExpr;
-    match pattern {
-        TypeExpr::Path(p) => {
-            let stripped = p.strip_prefix(':').unwrap_or(p);
-            if !stripped.contains("::")
-                && stripped
-                    .chars()
-                    .next()
-                    .map(|c| c.is_ascii_uppercase())
-                    .unwrap_or(false)
-            {
-                // Type variable — matches anything.
-                return true;
-            }
-            // Concrete path. Compare against the value's type tag.
-            let value_tag = v.type_name();
-            // Compare against the value's FQDN type tag.
-            // Arc 163 slice 3e — type_name() now returns canonical
-            // FQDN for all arms; bare-form alias bridge retired.
-            stripped == value_tag
-        }
-        TypeExpr::Parametric { head, .. } => {
-            // Container-head matching only — type-vars in args are
-            // wildcards at runtime (check-time has enforced shape).
-            let value_tag = v.type_name();
-            match head.as_str() {
-                "wat::core::Vector" => value_tag == "wat::core::Vector",
-                "wat::core::HashMap" => value_tag == "wat::core::HashMap",
-                "wat::core::HashSet" => value_tag == "wat::core::HashSet",
-                "wat::core::Option" => value_tag == "wat::core::Option",
-                "wat::core::Result" => value_tag == "wat::core::Result",
-                _ => false,
-            }
-        }
-        TypeExpr::Tuple(_) => v.type_name() == "wat::core::Tuple",
-        TypeExpr::Fn { .. } => v.type_name() == "wat::core::fn",
-        TypeExpr::Var(_) => true,
     }
 }
 
@@ -6897,7 +6844,7 @@ fn bind_let_binding(
         }
         // Arc 169 slice 1 — struct destructure. The 12-word rule:
         // *bind the field's value to the field's name in this
-        // scope*. RHS must evaluate to a `Value::Struct`; each
+        // scope*. RHS must evaluate to a `Value::Aggregate(Struct)`; each
         // requested field-name resolves against the struct type's
         // declared fields (looked up via the SymbolTable's TypeEnv);
         // the field's value is bound to the local of the same name.
@@ -6982,9 +6929,9 @@ fn bind_let_binding(
         }
         // Arc 234 Stone 234.4 — hash-destructure.
         // Evaluates the RHS once; dispatches on Value variant:
-        //   wat__holon__Record    → walk holon_form by field name; bind to struct_form[i]
-        //   Struct         → look up field in TypeDef; bind sv.fields[i]
-        //   wat__std__HashMap → keyword key lookup; bind to Value::Option(Some/None)
+        //   Aggregate (Record/HolonRecord) → look up field index via AggregateDef; bind fields[i]
+        //   Aggregate (Struct)             → look up field in TypeDef; bind fields[i]
+        //   wat__std__HashMap              → keyword key lookup; bind to Value::Option(Some/None)
         //   Other          → TypeMismatch
         //
         // Reuses keyword_accessor_record / keyword_accessor_struct helpers
@@ -7163,7 +7110,7 @@ enum LetBinding<'a> {
     },
     /// Arc 234 Stone 234.4 — Clojure-style hash-destructure.
     /// `{var :field  var2 :field2 ...}` in let-binding position.
-    /// Receiver-polymorphic over wat__holon__Record, Struct, and wat__std__HashMap.
+    /// Receiver-polymorphic over Value::Aggregate (all holders) and wat__std__HashMap.
     ///
     /// Each binding carries (var_name, bare_field_name, var_span).
     /// Runtime evaluates the RHS once and dispatches on Value variant
@@ -8990,9 +8937,9 @@ pub fn value_is_key_hashable(v: &Value) -> bool {
 /// Polymorphic write verb spanning two heterogeneous collection families:
 ///
 /// - `Value::wat__std__HashMap(_)` → `hashmap_assoc_inner` (functional clone-insert).
-/// - `Value::wat__Record { .. } | Value::wat__holon__Record { .. }` →
-///   `eval_record_assoc` (base early-return rebuilds struct only; holonic fallthrough
-///   rebuilds BOTH struct_form + holon_form in parity — the PARITY invariant).
+/// - `Value::Aggregate (Record/HolonRecord holder)` →
+///   `eval_record_assoc` (base early-return rebuilds fields only; holonic fallthrough
+///   rebuilds BOTH fields + hologram in parity — the PARITY invariant).
 ///   Flavor is preserved: base → base, holonic → holonic.
 /// - else → teaching `RuntimeError::TypeMismatch`.
 fn eval_assoc(
@@ -9464,14 +9411,14 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
 /// `(:wat::core::struct->form <struct-value>) -> :wat::WatAST`.
 ///
 /// Arc 091 slice 8. Lift a struct VALUE to its constructor-call
-/// FORM. Reads the struct's `type_name` and field values; builds a
-/// `WatAST::List` shaped like `(:type-name/new field0 field1 ...)`
+/// FORM. Reads the struct's `class` and field values; builds a
+/// `WatAST::List` shaped like `(:type-name field0 field1 ...)` (bare ctor — arc 293.R2.3)
 /// with each field rendered via `value_to_watast`. The result is a
 /// `Value::wat__WatAST` ready to pass to `:wat::holon::Atom` or
 /// any consumer that wants a WatAST shape.
 ///
 /// Surfaces the inverse of struct construction: where
-/// `(:my::Foo/new a b)` evaluates to a `Value::Struct`, this
+/// `(:my::Foo a b)` evaluates to a `Value::Aggregate` (Struct holder), this
 /// primitive recovers the constructor-call form from a built struct.
 /// Round-trips through `eval-ast!` → re-construction.
 ///
@@ -9502,13 +9449,13 @@ fn eval_struct_to_form(
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "struct value (e.g. `:my::Foo/new`'s output)",
+                expected: "struct value (e.g. the output of bare `:my::Foo` ctor)",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }
     };
-    // Build constructor keyword: `:class::Foo/new` from class `class::Foo` (colon-free).
-    let constructor = format!(":{}/new", s.class);
+    // Build constructor keyword: `:class::Foo` from class `class::Foo` (colon-free, no /new — arc 293.R2.3).
+    let constructor = format!(":{}", s.class);
     let span = Span::unknown();
     let mut items = Vec::with_capacity(s.fields.len() + 1);
     items.push(WatAST::Keyword(constructor, span.clone()));
@@ -11033,9 +10980,9 @@ fn eval_bundle_first(
 /// Returns `:bool`. Per the DESIGN's runtime semantics:
 ///
 /// - Subject is `:None` / `(Some non-struct)` / non-Struct / a
-///   Struct of a different type → `false` (no error; Clara
+///   Struct of a different class → `false` (no error; Clara
 ///   semantics).
-/// - Subject is a `Struct` with the matching `type_name` → walk
+/// - Subject is a `Value::Aggregate(Struct)` with the matching `class` → walk
 ///   clauses; AND every constraint result.
 ///
 /// Bindings (`(= ?var :field)`) push `?var → field-value` into the
@@ -11870,7 +11817,7 @@ fn eval_result_expect(
 /// Arc 113 slice 2 — pull the `Vec<*DiedError>` chain out of a
 /// `Value::Result`'s Err arm so `result::expect` can carry it
 /// through the panic. The Err arg's runtime shape post-arc-113
-/// slice 1 is a `Value::Vec` of `Value::Struct` (each one a
+/// slice 1 is a `Value::Vec` of `Value::Aggregate(Struct)` (each one a
 /// `:wat::kernel::ThreadDiedError` or `:wat::kernel::ProcessDiedError`).
 ///
 /// Returns `Some(chain)` when the Err arg is a Vec (the post-slice-1
@@ -12005,9 +11952,9 @@ fn eval_kernel_raise(
 /// - First arg is a keyword (the struct's type name).
 /// - Remaining args evaluate; their count becomes the field count.
 ///
-/// Emits [`Value::Struct`] with the type name and positional fields.
+/// Emits `Value::Aggregate(holder=Struct)` with the class FQDN and positional fields.
 /// Arity vs field-count mismatch is enforced by the type checker at
-/// the `<struct>/new` scheme — this primitive trusts the caller.
+/// the bare `<struct>` ctor scheme — this primitive trusts the caller.
 fn eval_struct_new(
     args: &[WatAST],
     list_span: &Span,
@@ -12124,7 +12071,7 @@ fn eval_variant(
 /// baked in.
 ///
 /// Validates:
-/// - First arg evaluates to a [`Value::Struct`].
+/// - First arg evaluates to a `Value::Aggregate(holder=Struct)`.
 /// - Second arg is an integer literal in range `[0, fields.len())`.
 ///
 /// Returns the field value by position. Bounds and type alignment are
@@ -12787,12 +12734,11 @@ pub(crate) fn from_holon_item(item: &HolonAST, op: &str, op_span: &Span) -> Resu
 ///
 /// - `Value::holon__HolonAST(h)` → `extract_classifier(h)` (classifier-wrap FQDN)
 ///   with fallback to `"wat::holon::HolonAST"` for non-classifier-wrapped HolonAST.
-/// - `Value::Struct(sv)` → `sv.type_name.trim_start_matches(':')` (per-instance FQDN,
-///   leading colon stripped for consistency with extract_classifier convention).
+/// - `Value::Aggregate(a)` → `a.class` (per-instance FQDN, colon-free; covers Struct/Record/HolonRecord).
 /// - Any other Value → `Value::type_name()` (existing Rust method; returns FQDN per
 ///   arc 224 Stone 224.5 naming audit).
 ///
-/// - `Value::wat__holon__Record { class_fqdn, .. }` → `class_fqdn` (per-instance FQDN; arc 234 Stone 234.1).
+/// Routes through `Value::declared_type_name` which is the ONE exhaustive authority (arc 237 Stone 237.5).
 fn eval_type(
     args: &[WatAST],
     list_span: &Span,
@@ -12851,7 +12797,7 @@ fn eval_length(
         Some(m) if m.measurable() => return match m {
             MapContainer::HashMap => crate::collection::eval::hashmap_length_inner(&arg_val),
             MapContainer::PersistentMap => crate::collection::eval::persistentmap_length_inner(&arg_val),
-            // Arc-278-A2 — Record: length = field count (struct_form.len()), no registry needed.
+            // Arc-278-A2 — Record: length = field count (fields.len()), no registry needed.
             MapContainer::Record => crate::collection::eval::record_length_inner(&arg_val),
         },
         Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
@@ -12927,7 +12873,7 @@ fn eval_empty(
         Some(m) if m.measurable() => return match m {
             MapContainer::HashMap => crate::collection::eval::hashmap_empty_q_inner(&arg_val),
             MapContainer::PersistentMap => crate::collection::eval::persistentmap_empty_q_inner(&arg_val),
-            // Arc-278-A2 — Record: empty? = struct_form.is_empty(), no registry needed.
+            // Arc-278-A2 — Record: empty? = fields.is_empty(), no registry needed.
             MapContainer::Record => crate::collection::eval::record_empty_q_inner(&arg_val),
         },
         Some(_) => return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
@@ -13292,8 +13238,8 @@ fn conforms_check(
                         // Not a TypeDef, not a built-in.
                         // Record classes declared via `(:wat::core::defrecord ...)` expand
                         // to `defn` forms and are NOT registered in the TypeEnv — their
-                        // type identity lives in `Value::wat__holon__Record.class_fqdn`.
-                        // For a wat__holon__Record value, check class_fqdn directly (the value
+                        // type identity lives in `Value::Aggregate.class` (colon-free FQDN).
+                        // For an Aggregate value, check class directly (the value
                         // carries its own type tag — it is the ground truth). For all other
                         // value kinds, the name is genuinely unknown → Err (per error contract).
                         // Arc 293.R2.1 — Aggregate: class is colon-free.
@@ -13576,16 +13522,16 @@ fn eval_subtype(
 
 // ─── end Stone S-A ───────────────────────────────────────────────────────────
 
-/// `(:wat::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>>)`
-/// → `:wat::Record` — arc 237 Stone S-C.3 (BASE constructor; NO holon_form).
+/// `(:wat::Record::of <class: :wat::core::keyword> <fields: Vector<T>>)`
+/// → `:wat::Record` — arc 237 Stone S-C.3 (BASE constructor; no hologram).
 ///
-/// Substrate constructor for `Value::wat__Record` (base flavor). Takes two args:
+/// Substrate constructor for `Value::Aggregate(holder=Record)`. Takes two args:
 /// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Pt`); the keyword's stored
 ///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
-///   `class_fqdn` field (e.g. `"myapp::Pt"`).
-/// - `struct-form`: `Vector<T>` of field values in declaration order.
+///   `class` field (e.g. `"myapp::Pt"`).
+/// - `fields`: `Vector<T>` of field values in declaration order.
 ///
-/// Returns `Value::wat__Record { class_fqdn, struct_form }`.
+/// Returns `Value::Aggregate { class, fields, holder: Record, holon: Empty }`.
 /// Consumed by the Stone S-C.3 `:wat::core::defrecord` (BASE) macro.
 fn eval_record_of(
     args: &[WatAST],
@@ -13618,12 +13564,12 @@ fn eval_record_of(
     let class_fqdn_str = class_arc.strip_prefix(':').unwrap_or(&class_arc).to_string();
     let class_fqdn = Arc::new(class_fqdn_str);
 
-    let struct_form = match struct_val {
+    let fields = match struct_val {
         Value::Vec(arc_vec) => arc_vec,
         other => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector<T> (struct-form field values in declaration order)",
+                expected: "Vector<T> (field values in declaration order)",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }
@@ -13632,21 +13578,21 @@ fn eval_record_of(
     // Arc 293.R2.1 — AggregateValue::record.
     Ok(Value::Aggregate(Arc::new(AggregateValue::record(
         (*class_fqdn).clone(),
-        struct_form,
+        fields,
     ))))
 }
 
-/// `(:wat::holon::Record::of <class: :wat::core::keyword> <struct-form: Vector<T>> <holon-form: HolonAST>)`
+/// `(:wat::holon::Record::of <class: :wat::core::keyword> <fields: Vector<T>> <hologram: HolonAST>)`
 /// → `:wat::holon::Record` — arc 234 Stone 234.2a (renamed from `:wat::Record::of` at Stone S-C.3).
 ///
-/// Substrate constructor for `Value::wat__holon__Record`. Takes three args:
+/// Substrate constructor for `Value::Aggregate(holder=HolonRecord)`. Takes three args:
 /// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Voltage`); the keyword's stored
 ///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
-///   `class_fqdn` field (e.g. `"myapp::Voltage"`).
-/// - `struct-form`: `Vector<T>` of field values in declaration order.
-/// - `holon-form`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
+///   `class` field (e.g. `"myapp::Voltage"`).
+/// - `fields`: `Vector<T>` of field values in declaration order.
+/// - `hologram`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
 ///
-/// Returns `Value::wat__holon__Record { class_fqdn, struct_form, holon_form }`.
+/// Returns `Value::Aggregate { class, fields, holder: HolonRecord, holon: Hologram(hologram) }`.
 /// Consumed by the Stone S-C.3 `:wat::holon::defrecord` (HOLONIC) macro.
 fn eval_holon_record_of(
     args: &[WatAST],
@@ -13680,23 +13626,23 @@ fn eval_holon_record_of(
     let class_fqdn_str = class_arc.strip_prefix(':').unwrap_or(&class_arc).to_string();
     let class_fqdn = Arc::new(class_fqdn_str);
 
-    let struct_form = match struct_val {
+    let fields = match struct_val {
         Value::Vec(arc_vec) => arc_vec,
         other => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector<T> (struct-form field values in declaration order)",
+                expected: "Vector<T> (field values in declaration order)",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }
     };
 
-    let holon_form = match holon_val {
+    let hologram = match holon_val {
         Value::holon__HolonAST(arc_h) => arc_h,
         other => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::holon::HolonAST (holon-form classifier-wrap)",
+                expected: ":wat::holon::HolonAST (hologram classifier-wrap)",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }
@@ -13705,16 +13651,16 @@ fn eval_holon_record_of(
     // Arc 293.R2.1 — AggregateValue::holon_record.
     Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
         (*class_fqdn).clone(),
-        struct_form,
-        holon_form,
+        fields,
+        hologram,
     ))))
 }
 
 /// `(:wat::Record/field-at <record: :wat::Record> <index: i64>)` → field value
 /// — arc 234 Stone 234.2a.
 ///
-/// Positional accessor for `Value::wat__holon__Record`. Returns `struct_form[index]`.
-/// Out-of-bounds index (negative or >= struct_form.len()) → TypeMismatch error.
+/// Positional accessor for a Record/HolonRecord Aggregate. Returns `fields[index]`.
+/// Out-of-bounds index (negative or >= fields.len()) → TypeMismatch error.
 /// Consumed by the Stone 234.2b defrecord macro's per-field accessor codegen.
 fn eval_record_field_at(
     args: &[WatAST],
@@ -13733,8 +13679,8 @@ fn eval_record_field_at(
     let record_val = eval_inner(&args[0], env, sym)?.value_owned();
     let index_val = eval_inner(&args[1], env, sym)?.value_owned();
 
-    // Arc 293.R2.1 — Aggregate (Record/HolonRecord): fields is struct_form.
-    let struct_form = match record_val {
+    // Arc 293.R2.1 — Aggregate (Record/HolonRecord): positional field store.
+    let fields = match record_val {
         Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.clone(),
         other => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
@@ -13756,28 +13702,28 @@ fn eval_record_field_at(
         }
     };
 
-    if index < 0 || (index as usize) >= struct_form.len() {
+    if index < 0 || (index as usize) >= fields.len() {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "i64 index within bounds of struct_form",
+            expected: "i64 index within bounds of fields",
             got: Box::new(ValueSnapshot::described(
                 "i64",
                 format!(
-                    "index {} out of bounds (struct_form.len() = {})",
+                    "index {} out of bounds (fields.len() = {})",
                     index,
-                    struct_form.len()
+                    fields.len()
                 ),
             ))
         } }.into());
     }
 
-    Ok(struct_form[index as usize].clone())
+    Ok(fields[index as usize].clone())
 }
 
 /// `(:wat::core::record? v)` — arc 234 Stone 234.3a.
 ///
-/// Polymorphic predicate: true iff `v` is `Value::wat__holon__Record`. Accepts any value
-/// (∀T) and returns bool. Mirrors `:wat::core::vector?` / `:wat::core::map?` family.
+/// Polymorphic predicate: true iff `v` is `Value::Aggregate` (Record or HolonRecord holder).
+/// Accepts any value (∀T) and returns bool. Mirrors `:wat::core::vector?` / `:wat::core::map?` family.
 fn eval_record_q(
     args: &[WatAST],
     list_span: &Span,
@@ -13880,15 +13826,10 @@ fn record_field_map(
     }
 }
 
-/// Extracts a `HashMap<:wat::core::keyword, value>` from a `Value::wat__holon__Record`.
-/// Walks the record's `holon_form` to extract field names and pairs each name
-/// (as a `:wat::core::keyword` key) with the corresponding value from `struct_form`
-/// (positional match — index i in Bundle children corresponds to struct_form[i]).
+/// Extracts a `HashMap<:wat::core::keyword, value>` from a `Value::Aggregate` (Record/HolonRecord).
+/// Field names come from the `AggregateDef` in the TypeEnv; values from `fields` by index
+/// (positional match — field i in declaration order corresponds to fields[i]).
 ///
-/// Field names are stored in `holon_form` as:
-///   `Bind(Atom(String(class)), Bundle([ Bind(Atom(String(field-name)), Atom(...)), ... ]))`
-/// The Bundle's children are the field-Binds; each field-Bind's left is
-/// `Atom(String(field-name))` (no leading colon, per `keyword/to-string` contract).
 /// Keys in the returned HashMap are `Value::wat__core__keyword(":<field-name>")`.
 ///
 /// Zero-field record: returns empty HashMap.
@@ -13947,7 +13888,7 @@ fn eval_record_same_data(
 
 /// `(:wat::Record/assoc record key new-value)` — arc 234 Stone 234.3b.
 ///
-/// Write verb in the polymorphic record-y family. Returns a NEW `Value::wat__holon__Record`
+/// Write verb in the polymorphic record-y family. Returns a NEW `Value::Aggregate` (same holder)
 /// with the field named by `key` replaced by `new-value`. The original record is
 /// unchanged (immutable; Arc-functional).
 ///
@@ -14044,27 +13985,27 @@ fn record_assoc_inner(
     new_fields[field_index] = new_val.clone();
     let new_fields_arc = Arc::new(new_fields);
 
-    // For HolonRecord: also rebuild holon_form. For base Record: Empty stays Empty.
+    // For HolonRecord: also rebuild hologram. For base Record: Empty stays Empty.
     let new_holon = match &agg.holon {
         HolonForm::Empty => HolonForm::Empty,
-        HolonForm::Hologram(holon_form) => {
-            // Hoist field_binds from holon_form (PARITY invariant: holonic rebuilds BOTH).
-            let field_binds = match holon_form.as_ref() {
+        HolonForm::Hologram(hologram) => {
+            // Hoist field_binds from hologram (PARITY invariant: holonic rebuilds BOTH).
+            let field_binds = match hologram.as_ref() {
                 HolonAST::Bind(_, right) => match right.as_ref() {
                     HolonAST::Bundle(children) => children.clone(),
                     _ => {
                         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
-                            expected: "holon_form outer Bind right to be Bundle(field-binds)",
-                            got: Box::new(ValueSnapshot::unavailable("non-Bundle holon_form inner"))
+                            expected: "hologram outer Bind right to be Bundle(field-binds)",
+                            got: Box::new(ValueSnapshot::unavailable("non-Bundle hologram inner"))
                         } }.into());
                     }
                 },
                 _ => {
                     return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "holon_form to be Bind(class, Bundle)",
-                        got: Box::new(ValueSnapshot::unavailable("non-Bind holon_form"))
+                        expected: "hologram to be Bind(class, Bundle)",
+                        got: Box::new(ValueSnapshot::unavailable("non-Bind hologram"))
                     } }.into());
                 }
             };
@@ -14083,7 +14024,7 @@ fn record_assoc_inner(
             let mut new_children: Vec<HolonAST> = (*field_binds).clone();
             new_children[field_index] = new_field_bind;
             let new_bundle = HolonAST::Bundle(Arc::new(new_children));
-            let class_atom = match holon_form.as_ref() {
+            let class_atom = match hologram.as_ref() {
                 HolonAST::Bind(left, _) => left.clone(),
                 _ => unreachable!("guarded above"),
             };
@@ -15764,8 +15705,8 @@ fn eval_algebra_bind(
         } }.into());
     }
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
-    // Accepts Value::holon__HolonAST (existing) OR Value::wat__holon__Record (NEW).
-    // Records flow through natively; auto-dispatch unwraps holon_form at the boundary.
+    // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
+    // Records flow through natively; auto-dispatch extracts the hologram at the boundary.
     let a = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[0], env, sym)?.value_owned(), &args[0].span())?;
     let b = coerce_to_holon_ast(":wat::holon::Bind", eval_inner(&args[1], env, sym)?.value_owned(), &args[1].span())?;
 
@@ -15831,8 +15772,8 @@ fn eval_algebra_bundle(
         }
     };
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
-    // Accepts Value::holon__HolonAST (existing) OR Value::wat__holon__Record (NEW).
-    // Records in [r1 r2 r3] auto-unwrap to holon_form at the boundary.
+    // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
+    // Records auto-extract their hologram at the coerce boundary.
     // Span::unknown() per arc 138 discipline (we have Value, not WatAST).
     let children: Vec<HolonAST> = list
         .iter()
@@ -16216,12 +16157,12 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, EvalBreak> {
 
 /// Arc 234 Stone 234.5 — centralized "ensure HolonAST" helper (D1).
 ///
-/// Accepts either a HolonAST value (existing case) OR a wat::Record value
-/// (NEW — auto-unwraps the pre-built holon_form). Records flow through VSA
+/// Accepts either a HolonAST value (existing case) OR a `Value::Aggregate(HolonRecord)`
+/// (auto-extracts the pre-built hologram). Records flow through VSA
 /// verbs natively without user-facing conversion calls; this helper is the
 /// single site that normalises the two representations into a HolonAST.
 ///
-/// Pattern mirrored from T1 trap-door: `holon_form.as_ref().clone()` is
+/// Pattern mirrored from T1 trap-door: `hologram.as_ref().clone()` is
 /// safe even when the Arc is shared (proven at Stone 234.2a eval_record_field_at).
 fn coerce_to_holon_ast(op: &str, v: Value, arg_span: &Span) -> Result<HolonAST, EvalBreak> {
     match v {
@@ -16573,8 +16514,8 @@ fn pair_values_to_vectors(
     list_span: &Span,
 ) -> Result<(holon::Vector, holon::Vector), EvalBreak> {
     let ctx = require_encoding_ctx(op, sym, list_span)?;
-    // Arc 234 Stone 234.5 — D3: normalize wat::Record → HolonAST before dispatch.
-    // Records carry a pre-built holon_form; coerce both sides so the existing
+    // Arc 234 Stone 234.5 — D3: normalize Value::Aggregate(HolonRecord) → HolonAST before dispatch.
+    // HolonRecord carries a pre-built hologram; coerce both sides so the existing
     // HolonAST arms handle them. Vector and HolonAST pass through unchanged.
     //
     // Arc 294.a — widen: any other value is lifted via to_holon_inner (which accepts
@@ -19335,38 +19276,6 @@ fn eval_socket_pair_prime(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 }
 
 /// Arc 209 C0b.2c / C0b.2e-i-b / Arc 258.5b-ii — wrap a connected `UnixStream` as a
-/// unified `Peer'` opaque.
-///
-/// Converts the stream into an `OwnedFd`, calls `sender_receiver_from_fd` to produce
-/// `(Sender<Value>, Receiver<Value>)`, reinterprets the sender as `Sender<String>` for
-/// the honest eval-encode path (arc 258.5b-ii), then wraps as `Peer::from_socket`.
-/// Called by both `eval_connect_prime` (client side) and `eval_accept_prime` (server
-/// side).
-fn wrap_stream_as_socket_peer(
-    stream: std::os::unix::net::UnixStream,
-    span: &Span,
-    op: &'static str,
-) -> Result<Value, EvalBreak> {
-    use std::os::fd::OwnedFd;
-    // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String> — eval layer pre-encodes.
-    let (tx, rx) = crate::comms::process::sender_receiver_from_fd::<Value>(OwnedFd::from(stream))
-        .map_err(|e| RuntimeError {
-            span: span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
-                head: op.into(),
-                reason: format!("wrap socket stream failed: {}", e),
-            },
-        })?;
-    use crate::kernel::peer::Peer;
-    use crate::kernel::spawn::PEER_TYPE_PATH;
-    use crate::rust_deps::custodia::ThreadOwnedCell;
-    use crate::rust_deps::marshal::make_rust_opaque;
-    Ok(make_rust_opaque(
-        PEER_TYPE_PATH,
-        Arc::new(ThreadOwnedCell::new(Some(Peer::from_socket(tx.reinterpret::<String>(), rx)))),
-    ))
-}
-
 /// `(:wat::kernel::listener' host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
 ///
 /// Thread tier (C0b.1): `(listener' (thread) :S :R)` — mints a crossbeam rendezvous
@@ -21653,7 +21562,7 @@ fn thread_died_error_panic(
 ) -> Value {
     let failure_field = match assertion {
         Some(p) => {
-            // Build a :wat::kernel::Failure Value::Struct out of the
+            // Build a :wat::kernel::Failure Value::Aggregate(Struct) out of the
             // AssertionPayload's owned fields. Same shape arc 064
             // produced via the now-deleted build_failure helper in
             // src/sandbox.rs.
@@ -21669,7 +21578,7 @@ fn thread_died_error_panic(
 }
 
 /// Convert an [`AssertionPayload`] into a `:wat::kernel::Failure`
-/// Value::Struct. Field order mirrors the type registration:
+/// `Value::Aggregate(Struct)`. Field order mirrors the type registration:
 /// `(message, location, frames, actual, expected)`.
 fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
     let crate::assertion::AssertionPayload {
@@ -21717,7 +21626,7 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
     )))
 }
 
-/// Convert a `Span` into a `:wat::kernel::Location` Value::Struct.
+/// Convert a `Span` into a `:wat::kernel::Location` `Value::Aggregate(Struct)`.
 /// Field order: `(file, line, col)`.
 fn value_from_span(span: crate::span::Span) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::struct_(
@@ -21731,7 +21640,7 @@ fn value_from_span(span: crate::span::Span) -> Value {
 }
 
 /// Convert a `FrameInfo` (wat call-stack frame from the trampoline)
-/// into a `:wat::kernel::Frame` Value::Struct. Field order matches
+/// into a `:wat::kernel::Frame` `Value::Aggregate(Struct)`. Field order matches
 /// the arc 016 type registration: `(file, line, symbol)`. The
 /// callee path becomes the `symbol` field.
 fn value_from_frame_info(frame: FrameInfo) -> Value {
@@ -22218,7 +22127,7 @@ fn eval_died_error_to_failure(
     }
 }
 
-/// Build a `:wat::kernel::Failure` Value::Struct with just the
+/// Build a `:wat::kernel::Failure` `Value::Aggregate(Struct)` with just the
 /// message populated; actual / expected / location are `:wat::core::None`,
 /// frames is empty `Vec<Frame>`.
 fn message_only_failure(message: String) -> Value {
@@ -32348,7 +32257,7 @@ mod tests {
     // ─── Stone S-C.2c — Bucket C co-located unit test ─────────────────────────
     //
     // `to_holon_inner` is private; this is its only reachable home.
-    // Contract: calling to_holon_inner on a base `Value::wat__Record` MUST return
+    // Contract: calling to_holon_inner on a base `Value::Aggregate(Record)` MUST return
     // `Err(..)` carrying the teaching message.  It MUST NOT panic or return `Ok`.
     #[test]
     fn to_holon_inner_base_record_returns_err_with_teaching_message() {
@@ -32491,7 +32400,7 @@ mod tests {
         }
 
         // Negative: Build a Rock value and call :t::Swimmer/swim on it directly
-        // via a direct keyword-head eval.  The Rock value is a wat__Record whose
+        // via a direct keyword-head eval.  The Rock value is a Value::Aggregate(Record) whose
         // class_fqdn is "t::Rock"; the extend-def for "extend::t::Swimmer::t::Rock"
         // does NOT exist → must yield a clean UnknownFunction, not a panic.
         //

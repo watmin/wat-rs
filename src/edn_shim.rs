@@ -170,7 +170,7 @@ pub fn eval_edn_write_json_natural(
 ///
 /// Tag dispatch — the body shape disambiguates struct vs enum:
 ///   - Tagged + Map body → look up `:<dotted-ns>::<name>` as Struct;
-///     reconstruct `Value::Struct` with declared field names.
+///     reconstruct `Value::Aggregate(Struct)` with declared field names.
 ///   - Tagged + Vector body → look up `:<dotted-ns>` as Enum; find
 ///     variant `<name>`; reconstruct `Value::Enum` with the vector
 ///     elements as positional fields.
@@ -2269,7 +2269,7 @@ fn tagged_to_value(
         Edn::Nil => reconstruct_enum_unit(ns, name, types),
         // Arc 234 Stone 234.7b — holon-tagged body: a #wat-edn.holon/* tagged value
         // under a class tag. If the class resolves to a record Aggregate (kind!=Struct),
-        // this is a holon record (encoded by the 234.7b encode arm as holon_form-as-edn).
+        // this is a holon record (encoded by the 234.7b encode arm as hologram-as-edn).
         // Base records have Edn::Map bodies (handled above) — these are distinct.
         Edn::Tagged(inner_tag, _) if inner_tag.namespace() == "wat-edn.holon" => {
             let path = ns_to_wat_path(ns, name);
@@ -2399,7 +2399,7 @@ fn reconstruct_struct(
     ))))
 }
 
-/// Arc 234 Stone 234.7a — Decode a base-record tagged-map back to `Value::wat__Record`.
+/// Arc 234 Stone 234.7a — Decode a base-record tagged-map back to `Value::Aggregate(holder=Record)`.
 ///
 /// Arc 293.2b: uses `AggregateDef` (kind=Record|HolonRecord) instead of the annihilated
 /// `RecordDef`. Fields are always-typed (D2), so `rewrap_option_field` applies.
@@ -2454,19 +2454,19 @@ fn reconstruct_record(
 }
 
 /// Arc 234 Stone 234.7b — Decode a holon-record tagged body (a `#wat-edn.holon/Bind[…]`
-/// inner value) back to `Value::wat__holon__Record`.
+/// inner value) back to `Value::Aggregate(holder=HolonRecord)`.
 ///
 /// Steps:
-/// 1. Reconstruct `holon_form` exactly via `edn_to_holon_ast` (the proven round-trip).
-/// 2. Project `struct_form` from the Bundle leaves:
-///    `holon_form` must be `Bind(_, Bundle(children))`;
+/// 1. Reconstruct `hologram` exactly via `edn_to_holon_ast` (the proven round-trip).
+/// 2. Project `fields` from the Bundle leaves:
+///    `hologram` must be `Bind(_, Bundle(children))`;
 ///    each child must be `Bind(_, val_node)`;
-///    `struct_form[i] = from_holon_item(val_node)` (pure; no eval context).
+///    `fields[i] = from_holon_item(val_node)` (pure; no eval context).
 ///    `val_node` is typically `Atom(to-holon(val))` — the Atom is unwrapped locally
 ///    here (confined to record projection) before calling `from_holon_item`.
-/// 3. class_fqdn from the wire tag path (strip leading ':').
+/// 3. class from the wire tag path (strip leading ':').
 ///
-/// STOP: if `holon_form` is not `Bind(_, Bundle(_))` → `EdnReadError::Other`.
+/// STOP: if `hologram` is not `Bind(_, Bundle(_))` → `EdnReadError::Other`.
 fn reconstruct_holon_record(
     ns: &str,
     name: &str,
@@ -2986,12 +2986,12 @@ pub fn value_to_edn_with(
             let type_key = format!(":{}", a.class);
             let tag = tag_from_type_path(&type_key);
             match &a.holon {
-                HolonForm::Hologram(holon_form) => {
-                    // Arc 234 Stone 234.7b — HolonRecord: ride holon_form as edn.
+                HolonForm::Hologram(hologram) => {
+                    // Arc 234 Stone 234.7b — HolonRecord: ride hologram as edn.
                     // The body is a #wat-edn.holon/Bind[...] value (NOT a map) so the decode
                     // path can distinguish holon records from base records (which have Map bodies).
-                    // fields (struct_form projection) is not read here — identity lives in holon_form.
-                    OwnedValue::Tagged(tag, Box::new(holon_ast_to_edn(holon_form)))
+                    // fields projection is not read here — identity lives in the hologram.
+                    OwnedValue::Tagged(tag, Box::new(holon_ast_to_edn(hologram)))
                 }
                 HolonForm::Empty => {
                     // Arc 234 Stone 234.7a — base Record: named-field tagged-map.

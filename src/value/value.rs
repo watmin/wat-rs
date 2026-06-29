@@ -559,13 +559,13 @@ where
 ///
 /// **Atomizable** (may appear as HashSet elements / HashMap keys):
 /// `bool`, `i64`, `f64`, `String`, `wat__core__keyword`, `holon__HolonAST`,
-/// `wat__WatAST`, `wat__core__Uuid`, `wat__core__Char`, `wat__holon__Record`,
-/// `wat__Record`, `Unit` (`:wat::core::nil`), `Vec` (recursive),
+/// `wat__WatAST`, `wat__core__Uuid`, `wat__core__Char`, `Aggregate` (Record/HolonRecord),
+/// `Unit` (`:wat::core::nil`), `Vec` (recursive),
 /// `wat__std__HashSet` (recursive), `wat__std__HashMap` (recursive),
 /// `Tuple` (iff all element types atomizable).
 ///
 /// **Structurally-equal but NOT atomizable** (natural equality; not predicate-admitted):
-/// `u8`, `Option`, `Result`, `Struct`, `Enum`, `Vector` (holon::Vector),
+/// `u8`, `Option`, `Result`, `Aggregate(Struct)`, `Enum`, `Vector` (holon::Vector),
 /// `Instant`, `Duration`, `wat__core__List` (not in `is_atomizable`).
 ///
 /// **Opaque handles** (pointer equality; not atomizable; never in HashSet/HashMap keys):
@@ -621,7 +621,7 @@ impl PartialEq for Value {
             (Value::Result(a), Value::Result(b)) => a == b,
             // Arc 293.R2.1 — Aggregate: branch on holon per STOP-1 contract.
             // Hologram vs Empty (or vice-versa) → not equal (cross-pair).
-            // Two holograms → eq on (class, holon_form) — identity lives in holon_form.
+            // Two holograms → eq on (class, hologram) — identity lives in hologram.
             // Two non-holograms → structural (class, fields). Holder mismatch → false.
             (Value::Aggregate(a), Value::Aggregate(b)) => {
                 if a.holder != b.holder { return false; }
@@ -632,7 +632,7 @@ impl PartialEq for Value {
                     (HolonForm::Empty, HolonForm::Empty) => {
                         a.class == b.class && a.fields == b.fields
                     }
-                    _ => false, // cross holon/empty
+                    _ => unreachable!("AggregateValue holder/holon invariant violated: same holder {:?}, mismatched HolonForm", a.holder),
                 }
             }
             (Value::Enum(a), Value::Enum(b)) => {
@@ -711,7 +711,7 @@ impl Eq for Value {}
 /// If this panic ever fires, the predicate has drifted from the Hash impl.
 ///
 /// **Structural-but-not-atomizable variants** (`u8`, `Unit`, `Tuple`, `Option`,
-/// `Result`, `Struct`, `Enum`, `Vector`, `Instant`, `Duration`) receive structural
+/// `Result`, `Aggregate(Struct)`, `Enum`, `Vector`, `Instant`, `Duration`) receive structural
 /// Hash impls rather than `unreachable!()`. Per STOP-4: these variants ARE reachable
 /// in Rust code (e.g., as HashMap values or as elements of an outer Tuple) and have
 /// well-defined structural hash semantics. They are NOT currently atomizable (not in
@@ -821,8 +821,8 @@ impl std::hash::Hash for Value {
                     e.hash(state);
                 }
             },
-            // Arc 293.R2.1 — Aggregate: sub-discriminant separates holon from structural.
-            // Hologram → hash on holon_form (canonical identity, Stone 234.1).
+            // Arc 293.R2.1 — Aggregate: sub-discriminant separates holonic from structural.
+            // Hologram → hash on hologram (canonical identity, Stone 234.1).
             // Empty → hash on (class, fields) (structural identity).
             // Holder also hashed to prevent spurious cross-holder equality.
             Value::Aggregate(a) => {
@@ -972,7 +972,7 @@ pub enum HolonForm {
 /// Arc 293.R2.1 — unified product-type value payload.
 ///
 /// Replaces `StructValue` + the three inline record variant payloads
-/// (`Value::Struct`, `Value::wat__Record`, `Value::wat__holon__Record`).
+/// (the old `Value::Struct`, `Value::wat__Record`, `Value::wat__holon__Record` — all gone).
 ///
 /// `class` is the COLON-FREE FQDN (e.g. `"myapp::Voltage"` — no leading `:`).
 /// `fields` is the positional field vec in declaration order.
@@ -985,7 +985,7 @@ pub struct AggregateValue {
     /// `wat__Record.class_fqdn` / `wat__holon__Record.class_fqdn`.
     pub class: String,
     /// Positional field values in declaration order.
-    /// Was `StructValue.fields` (wrapped in Arc) / `struct_form`.
+    /// Was `StructValue.fields` (wrapped in Arc) / the old `struct_form` local name.
     pub fields: Arc<Vec<Value>>,
     /// The categorical label: `{Struct, Record, HolonRecord}`.
     pub holder: Holder,
@@ -1004,8 +1004,8 @@ impl AggregateValue {
         AggregateValue { class, fields, holder: Holder::Record, holon: HolonForm::Empty }
     }
     /// Construct a HolonRecord aggregate (with hologram).
-    pub fn holon_record(class: String, fields: Arc<Vec<Value>>, holon_form: Arc<HolonAST>) -> Self {
-        AggregateValue { class, fields, holder: Holder::HolonRecord, holon: HolonForm::Hologram(holon_form) }
+    pub fn holon_record(class: String, fields: Arc<Vec<Value>>, hologram: Arc<HolonAST>) -> Self {
+        AggregateValue { class, fields, holder: Holder::HolonRecord, holon: HolonForm::Hologram(hologram) }
     }
 }
 
@@ -1174,9 +1174,8 @@ impl Value {
     /// Per-form FQDN source:
     /// - `holon__HolonAST` → `extract_classifier` (classifier-wrap FQDN) with
     ///   fallback to `"wat::holon::HolonAST"`.
-    /// - `Struct` → `sv.type_name` with leading `:` stripped (also covers newtype,
-    ///   which is a `Value::Struct` at runtime).
-    /// - `wat__holon__Record` → `class_fqdn` (already colon-free FQDN).
+    /// - `Aggregate(Struct)` → `agg.class` (colon-free FQDN; covers newtype too).
+    /// - `Aggregate(Record/HolonRecord)` → `agg.class` (colon-free FQDN).
     /// - `Enum` → `ev.type_path` with leading `:` stripped (the declared enum
     ///   FQDN, e.g. `"my::Color"` — NOT the generic `"wat::core::Enum"`).
     /// - Every primitive/kind-only variant → `self.type_name().to_string()`.

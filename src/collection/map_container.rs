@@ -41,7 +41,7 @@
 //! | PersistentMap | ✓         | ✓                  | ✓       | ✓          | ∅       |
 //! | Record        | ✓         | ✓                  | ✓       | ✓          | ✓       |
 //!
-//! `Record` is ordered (declaration order; `struct_form` is a `Vec<Value>`).
+//! `Record` is ordered (declaration order; `fields` is a `Vec<Value>`).
 //! That is a real property with no op consumer yet; promoted to an `ordered()`
 //! capability method when keys/vals/seq-over-pairs is built.
 
@@ -55,7 +55,7 @@ use crate::value::Value;
 ///
 /// `Record` is a member because it IS a keyed collection on the wire:
 /// `edn_shim.rs` decodes records as tagged maps; Clojure treats records as
-/// maps; `struct_form: Arc<Vec<Value>>` is the internal repr (ordered field
+/// maps; `fields: Arc<Vec<Value>>` is the internal repr (ordered field
 /// values — declaration order), exactly as `Vec`/`LinkedList`/`VectorSync`
 /// are the inner reprs of seq-container members. Inner-repr ≠ family
 /// membership; the capability table (below) records its true profile.
@@ -67,7 +67,7 @@ use crate::value::Value;
 pub(crate) enum MapContainer {
     HashMap,
     PersistentMap,
-    /// Ordered tagged-map. `struct_form` is a Vec<Value> of field values in
+    /// Ordered tagged-map. `fields` is a Vec<Value> of field values in
     /// declaration order. Also ORDERED: a real property with no op consumer yet;
     /// promote to an `ordered()` capability when keys/vals/seq-over-pairs lands.
     Record,
@@ -76,8 +76,8 @@ pub(crate) enum MapContainer {
 impl MapContainer {
     /// Runtime classifier — the ONLY `Value → MapContainer` map. Pure.
     ///
-    /// Maps BOTH `Value::wat__Record` and `Value::wat__holon__Record` to
-    /// `MapContainer::Record` (one variant, two Value variants — like
+    /// Maps `Value::Aggregate` (Record and HolonRecord holders) to
+    /// `MapContainer::Record` (one runtime variant, holder is the only variance — like
     /// `StreamContainer::WatAstList` mapping `WatAST::List` forms).
     pub(crate) fn of_value(v: &Value) -> Option<MapContainer> {
         match v {

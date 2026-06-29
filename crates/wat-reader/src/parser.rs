@@ -496,28 +496,6 @@ impl<'a> Cursor<'a> {
 
 }
 
-/// Human-readable AST variant name — for parser-side diagnostics
-/// pointing at out-of-shape children (e.g. inside `{...}`). Matches
-/// the language-surface vocabulary the user authored, not the Rust
-/// variant identifier. Arc 169 slice 1.
-fn ast_variant_label(ast: &WatAST) -> &'static str {
-    match ast {
-        WatAST::IntLit(_, _) => "integer literal",
-        WatAST::FloatLit(_, _) => "float literal",
-        WatAST::BoolLit(_, _) => "boolean literal",
-        WatAST::StringLit(_, _) => "string literal",
-        // Arc 244 — NilLit joins the literal group.
-        WatAST::NilLit(_) => "nil literal",
-        WatAST::Keyword(_, _) => "keyword",
-        WatAST::Symbol(_, _) => "symbol",
-        WatAST::List(_, _) => "list",
-        WatAST::Vector(_, _) => "vector",
-        // Arc 257 slice 1.
-        WatAST::Map(_, _) => "map literal",
-        WatAST::Set(_, _) => "set literal",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

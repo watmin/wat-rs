@@ -19545,7 +19545,7 @@ fn register_builtins(env: &mut CheckEnv) {
     //
     // :wat::core::record? :: ∀T. T -> bool
     // Polymorphic predicate: accepts any value; returns true iff the value is
-    // Value::wat__holon__Record. Mirrors :wat::holon::to-holon's ∀T pattern.
+    // Value::Aggregate (Record or HolonRecord holder). Mirrors :wat::holon::to-holon's ∀T pattern.
     env.register(
         ":wat::core::record?".into(),
         TypeScheme {

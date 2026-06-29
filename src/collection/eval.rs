@@ -1212,9 +1212,9 @@ pub(crate) fn eval_persistentmap_ctor(
 /// Arc-278-A2 — `record_get_inner`: keyword-keyed lookup on a Record.
 ///
 /// Resolves the keyword key to a field index via `RecordDef.field_names`;
-/// returns `Some(struct_form[idx])` if the field exists, `None` if the keyword
+/// returns `Some(fields[idx])` if the field exists, `None` if the keyword
 /// is not a declared field (not an error — same Option<V> contract as HashMap/get).
-/// Accepts BOTH `Value::wat__Record` and `Value::wat__holon__Record`.
+/// Accepts `Value::Aggregate` (Record and HolonRecord holders).
 pub(crate) fn record_get_inner(
     record: &Value,
     key: &Value,
@@ -1265,7 +1265,7 @@ pub(crate) fn record_get_inner(
 /// Arc-278-A2 — `record_contains_field_q_inner`: field existence test on a Record.
 ///
 /// Returns `true` iff `key` (a keyword) names a declared field of the record's class.
-/// Missing-from-struct_form is impossible (schema == struct_form shape by construction);
+/// Missing-from-fields is impossible (schema == fields shape by construction);
 /// the check is purely "is this keyword a declared field name?".
 pub(crate) fn record_contains_field_q_inner(
     record: &Value,
@@ -1310,8 +1310,8 @@ pub(crate) fn record_contains_field_q_inner(
 
 /// Arc-278-A2 — `record_length_inner`: field count of a Record.
 ///
-/// Returns the number of declared fields (= `struct_form.len()` = `RecordDef.field_names.len()`).
-/// Does NOT need the type registry — `struct_form` length IS the field count.
+/// Returns the number of declared fields (= `fields.len()` = `RecordDef.field_names.len()`).
+/// Does NOT need the type registry — `fields` length IS the field count.
 pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/length";
     match record {
