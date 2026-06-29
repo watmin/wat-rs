@@ -1,6 +1,16 @@
 # Arc 293 — the aggregate type system: structural surfaces over a nominal holder
 
-**Status: SCOPED → MODEL SETTLED (2026-06-25).** Began as "struct/record construction symmetry" (surfaced by
+> ## ⛔ CLOSURE GATE (builder, 2026-06-28) — 293 IS NOT RESOLVABLE until the AGGREGATE AUDIT is done
+> *"the audit we need to do — mark 293 cannot be closed without doing this — is finding every example of a record
+> not being used like a struct. nearly all things need to be 'aggregate', neither struct nor record. the only place
+> these aggregates differ is when they are being passed around."* There is ONE aggregate citizen; the **holder is a
+> passing policy only**, governing the value at exactly THREE boundaries — **comms eligibility** (a struct crosses
+> none), **EDN-repr** (record/holon must, to cross), **directional assignability** (`holon <: core`; a core record
+> may NEVER be passed where a holon record is required). **Every holder-branch that is NOT one of those three is a
+> spurious split and must unify to `aggregate`.** 293 closes only when **`AGGREGATE-AUDIT.md`** reaches zero spurious
+> splits. The full model, the classification criterion, the ~99-branch scope, and the living checklist live there.
+
+**Status: SCOPED → MODEL SETTLED (2026-06-25); CLOSURE GATED on the aggregate audit (2026-06-28).** Began as "struct/record construction symmetry" (surfaced by
 arc 291's `/from-map` work); a long co-design grew it into the real thing: **wat's nominal/structural type
 system, decomplected.** **291 is BLOCKED on this arc** (builder: *"291 is blocked on this new arc — this is
 our priority"*). The arc's name (`struct-record-symmetry`) now undersells it — the true subject is the
@@ -170,7 +180,7 @@ A confluence derived by solving (*"why do we even need parent?"*), not by readin
 - **293.2 — construction symmetry + `defstruct`/`defrecord` peer macros + `/from-map`.** The shared emission layer; `Record::def → :wat::core::defrecord`, `holon::Record::def → :wat::holon::defrecord` (fix-wat the `.wat`, scripted-keyword-substitute the `.rs`, retirement-table the old heads); `register_*_methods` annihilated; built-in structs → wat `defstruct`. `/from-map` falls out of the shared layer.
 - **293.3 — structural surfaces + `definterface` + holder∩surface params.** The named-argspec `definterface`; `assignable` gains structural-product matching; `[holder surface]` intersection in param position; `:parent` + surface-edges annihilated (structural width-subtyping replaces them).
 - **293.4 — methods-are-accessors + `definterface` subsumes `defprotocol` + `extend-type` demotion.** Method members in `definterface`; the generated dispatcher; `extend-type` as the foreign-accessor adapter; `defprotocol` annihilated. **The demo (293.0) goes GREEN — the arc's gate.**
-- **293.5 — close + amend.** Full workspace SET-diff ∅; home warded; amend 291's `CURRENT-STATE` to unblock `/from-map` → resume 291.
+- **293.5 — close + amend.** Full workspace SET-diff ∅; home warded; amend 291's `CURRENT-STATE` to unblock `/from-map` → resume 291. **⛔ GATED — 293.5 cannot run until `AGGREGATE-AUDIT.md` reaches ZERO spurious holder-splits (builder, 2026-06-28; see § CLOSURE GATE).**
 
 ## Blast radius + migration
 `Record::def` in 85 files (10 `.wat`, 75 `.rs`); `defstruct` in 60 (12 `.wat`, 48 `.rs`); 9 holon sites; 15
