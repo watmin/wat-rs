@@ -25,16 +25,28 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 - ✅ **294.c.2a — `aggregate-new`** — one holder-dispatched ctor; hologram derived in Rust (`build_holon_hologram`); 3 macros + struct codegen emit it; `defholon` hologram-quasiquote deleted (`f301a6fc`). *(294, steps 2+3)*
 - ✅ **kanerva_capacity dedup** — `floor(sqrt(d))` budget driven to ONE copy (`eaaa6930`). *(294, one-canonical-path)*
 
-### Remaining (in order)
-1. ▶ **DECLARATION UNIFICATION** *(293)* — `structtype`+`recordtype` → one `aggregatetype` (holder + parent-root + metadata, keyed by holder); `parse_defstruct`+`parse_recordtype` → one `parse_aggregate`; the 3 def macros → thin holder-keyed delegations over one emission. **Disk:** split at `types.rs:1730/1732/1740`; the 2 record macros are byte-identical except the `recordtype` holder keyword (confirmed by c.2a). Open micro-decision: type-reg-first vs macros-first.
-2. ▷ **294.c.2b — annihilate the of-funcs** *(294)* — `struct-new` / `Record::of` / `holon::Record::of` die (now uncalled by generated code). **Disk:** 3 still registered (`runtime.rs:4050/4051/4256`) + retirement-table the heads.
-3. ▷ **294.c.3 — base records lift / holon-from-EDN** *(294, step 4)* — `to_holon_inner` lifts base records. **Disk:** 5 "has no holon flavor" rejects remain.
-4. ▷ **THE AGGREGATE AUDIT** *(293 — THE CLOSURE GATE)* — classify the ~99 holder-branches / 14 files (`AGGREGATE-AUDIT.md`); unify every **spurious** split (keep only comms / EDN-repr / `holon<:core` assignability). Run against the stable post-declaration tree. **Also catches:** the assoc-incremental vs `build_holon_hologram`-from-scratch hologram-derivation dedup.
-5. ▷ **294.d — wire = plain EDN** *(294, step 6)* — kill `HolonRepresentable` + `#wat-edn.holon/*` tags + the HolonAST↔tagged-EDN round-trip. **Disk:** 80 `HolonRepresentable` uses, 47 tag sites.
-6. ▷ **294.e — `HolonAST → Hologram` rename + mint `src/holon/`** *(294, step 7 — the keystone)*. **Disk:** 1173 `HolonAST` mentions; `src/holon/` absent.
-7. ▷ **294.f — reflection-IR → WatAST** *(294, step 8)* — signatures-as-`HolonAST::Bundle` → WatAST. ~175 (census).
-8. ▷ **294.g — homes** *(293.1 + 294, step 9)* — `src/aggregate/` (construction) + `src/holon/` (VSA); both absent.
-9. ⛔ **293.5 — CLOSE** *(293)* — `/from-map` (the original 291 driver, step 5) + workspace SET-diff ∅ + ward the homes + amend 291 + INSCRIPTION(s). **GATED on:** the aggregate audit = zero spurious AND the 294 value-layer (1–8) done.
+### ⛔⛔ PHASE 1 — AGGREGATE PARITY (THE BLOCKING PRIORITY, builder 2026-06-28)
+> *"this is our priority — we block all 293 and 294 work until this is resolved. build solutions such that they
+> satisfy the closing requirements for 293 and 294 if applicable."* **No PHASE 2 item starts until PHASE 1 = ZERO
+> gaps.** Build each fix CLOSE-GRADE — canonical form, right home, one-canonical-path, no rework. The full ledger is
+> `293/AGGREGATE-AUDIT.md` § PARITY LEDGER (6 grounded GAPs + the ~99-branch systematic verify).
+1. ▶ **DECLARATION UNIFICATION** *(293 — closes declaration split + GAP-5 + GAP-6)* — `structtype`+`recordtype` → one `aggregatetype` (A2: holder DERIVED from parent root; mint `:wat::core::Struct`); `parse_defstruct`+`parse_recordtype` → one `parse_aggregate` (ONE field-parser; **restrictions uniform = GAP-5; parent uniform = GAP-6**); `defaggregate` = one shared emission; the 3 def macros → thin holder-keyed delegations. Split **decl-a** (Rust primitive+parse, aliases) / **decl-b** (macros emit + annihilate). DESIGN: `293/DESIGN-293-declaration-unification.md`.
+2. ▷ **GAP-1 — one field-READ primitive** — unify `struct-field` + `Record/field-at` → one `aggregate-field`.
+3. ▷ **GAP-2 — struct functional update** — generalize `Record/assoc` → `aggregate-assoc` (structs gain `assoc`).
+4. ▷ **GAP-3 — `aggregate->map`** — `record->map` generalized so a struct also maps.
+5. ▷ **GAP-4 — `aggregate->form`** — `struct->form` generalized so a record also forms (ctor-form / eval-ast).
+6. ▷ **294.c.2b — annihilate the of-funcs** *(construction-parity cleanup)* — `struct-new`/`Record::of`/`holon::Record::of` die (uncalled). **Disk:** `runtime.rs:4050/4051/4256` + retirement-table.
+7. ▷ **THE AGGREGATE AUDIT (systematic verify)** *(293 — THE CLOSURE GATE)* — classify the ~99 holder-branches / 14 files; unify every **spurious** split (keep only comms / EDN-repr / `holon<:core`). Proves PHASE 1 is complete — nothing else hides. Also catches the assoc-incremental vs `build_holon_hologram` dedup.
+
+**PHASE 1 done = full struct/record/holon parity (modulo the 3 legitimate passing boundaries: wire, `holon<:core`, VSA).**
+
+### PHASE 2 — the value-layer gut + close (UNBLOCKS only after PHASE 1 = 0)
+8. ▷ **294.c.3 — base records lift / holon-from-EDN** *(294, step 4)* — `to_holon_inner` lifts base records. **Disk:** 5 "has no holon flavor" rejects.
+9. ▷ **294.d — wire = plain EDN** *(294, step 6)* — kill `HolonRepresentable` (80) + `#wat-edn.holon/*` tags (47) + the round-trip.
+10. ▷ **294.e — `HolonAST → Hologram` rename + mint `src/holon/`** *(294, step 7 — keystone)*. **Disk:** 1173 mentions; `src/holon/` absent.
+11. ▷ **294.f — reflection-IR → WatAST** *(294, step 8)*. ~175.
+12. ▷ **294.g — homes** *(293.1 + 294, step 9)* — `src/aggregate/` + `src/holon/`; both absent.
+13. ⛔ **293.5 — CLOSE** *(293)* — `/from-map` (GAP — absent for ALL holders; the 291 driver) + SET-diff ∅ + ward homes + amend 291 + INSCRIPTION(s). **GATED on PHASE 1 = 0 AND 8–12 done.**
 
 ### Then
 10. ▷ **arc 118** — `Seqable` → the HOF family (needs only the DONE 293.4; 294 was never a blocker, only a co-close).

@@ -34,6 +34,14 @@ The two record macros are already byte-identical except the `recordtype` holder 
 argument — the parent keyword carries it, which is honest (the holder IS the categorical-root position). Metadata
 optional for ANY holder (a record could carry restrictions too — feature union, not struct-only). ONE field-parser.
 
+## GAP-5 + GAP-6 fold in here (the parity ledger) — built CLOSE-GRADE
+`parse_aggregate` is built to **accept a `:Parent` AND optional `{metadata}` for ANY holder** — restrictions are not a
+holder concern (GAP-5), and a struct extending a base struct is just `Struct <: Struct` (GAP-6; `root_holder_of` walks
+the parent chain to its root — a struct's root is `:wat::core::Struct`). **decl-a stays behavior-preserving** (the
+`structtype`/`recordtype` aliases map their CURRENT arg shapes onto `parse_aggregate`, so today's surface is unchanged,
+SET-diff ∅). The new capabilities become **user-reachable in decl-b** (the macros expose optional parent on `defstruct`,
+optional metadata on `defrecord`/`holon::defrecord`) — closing GAP-5 + GAP-6. The capability is built once, here.
+
 ## Decomposition (decl-a then decl-b — resolves the builder's open "type-reg-first" question)
 - **decl-a (Rust — the primitive + parse).** Mint `(:wat::core::aggregatetype …)` → ONE `parse_aggregate(args)`:
   `parse_declared_name` (shared) + optional metadata + ONE field-parser (the `parse_defstruct_fields` dedup) +
