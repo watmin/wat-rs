@@ -958,8 +958,10 @@ pub fn register_struct_methods(
             .iter()
             .map(|(_, t)| t.clone())
             .collect();
+        // Arc 294.c.2a — emit aggregate-new (the ONE holder-dispatched ctor)
+        // instead of struct-new. struct-new stays registered for 294.c.2b.
         let mut new_body_items = Vec::with_capacity(2 + struct_def.fields.len());
-        new_body_items.push(WatAST::Keyword(":wat::core::struct-new".into(), Span::unknown()));
+        new_body_items.push(WatAST::Keyword(":wat::core::aggregate-new".into(), Span::unknown()));
         new_body_items.push(WatAST::Keyword(struct_def.name.clone(), Span::unknown()));
         for param_name in &param_names {
             new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), Span::unknown()));
@@ -4030,6 +4032,16 @@ fn dispatch_keyword_head_value(
         // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
         // Error contract: well-formed known type names → bool; unknown name → Err.
         ":wat::core::subtype?" => eval_subtype(args, list_span, env, sym),
+        // Arc 294.c.2a — `:wat::core::aggregate-new` is the ONE holder-dispatched constructor.
+        // Signature: (:wat::core::aggregate-new :T field…) — varargs; `:T` is the type keyword.
+        // Looks up `:T`'s holder from the TypeEnv and builds the right AggregateValue:
+        //   Struct      → AggregateValue::struct_(class, fields)
+        //   Record      → AggregateValue::record(class, fields)
+        //   HolonRecord → AggregateValue::holon_record(class, fields, hologram)
+        // For HolonRecord, the hologram is derived internally by `build_holon_hologram`
+        // (no precomputed arg). struct-new / Record::of / holon::Record::of all route
+        // through this; their of-func registrations stay until 294.c.2b.
+        ":wat::core::aggregate-new" => eval_aggregate_new(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::Record::of` constructor + `:wat::Record/field-at` accessor.
         // Constructor: (class fields) -> :wat::Record (BASE, no hologram)
         // Accessor:    (record index) -> field-value at fields[index]
@@ -13656,6 +13668,171 @@ fn eval_holon_record_of(
     ))))
 }
 
+// ─── Arc 294.c.2a — aggregate-new + build_holon_hologram ─────────────────────
+
+/// Build the hologram for a HolonRecord from scratch.
+///
+/// Shape (verified against `wat/Record.wat:157-191` + `runtime.rs:14017-14031`):
+///   outer = `Bind(Atom(String(class)), Bundle(field_binds))`
+///   each  = `Bind(Atom(String(name)), Atom(<to_holon(val)>))`
+///
+/// Capacity is checked via the shared `bundle_capacity_verdict` guard (Arc 294.c.2a).
+/// Exceeded capacity → loud `RuntimeError` (construction cannot return a Result).
+///
+/// Called by `eval_aggregate_new` for `Holder::HolonRecord`; the caller already
+/// holds `ctx` from `require_encoding_ctx`.
+fn build_holon_hologram(
+    class: &str,
+    field_names: &[String],
+    field_values: &[Value],
+    ctx: &EncodingCtx,
+    span: &Span,
+) -> Result<Arc<HolonAST>, EvalBreak> {
+    let field_binds: Vec<HolonAST> = field_names
+        .iter()
+        .zip(field_values.iter())
+        .map(|(name, val)| -> Result<HolonAST, EvalBreak> {
+            let val_holon = match to_holon_inner(val.clone(), span)? {
+                Value::holon__HolonAST(h) => (*h).clone(),
+                _ => unreachable!("to_holon_inner always returns holon__HolonAST on Ok"),
+            };
+            Ok(HolonAST::Bind(
+                Arc::new(HolonAST::Atom(Arc::new(HolonAST::String(Arc::from(name.as_str()))))),
+                Arc::new(HolonAST::Atom(Arc::new(val_holon))),
+            ))
+        })
+        .collect::<Result<_, _>>()?;
+
+    // Capacity check via the shared guard — one guard, two callers.
+    // For construction, exceeded capacity is always a loud RuntimeError
+    // (mode-agnostic: the ctor cannot return a Result).
+    if let Some((cost_i, budget_i)) = bundle_capacity_verdict(field_binds.len(), ctx) {
+        return Err(RuntimeError {
+            span: span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::aggregate-new".into(),
+                reason: format!(
+                    "holon record construction capacity exceeded: \
+                     {} fields > budget {} (dim={})",
+                    cost_i, budget_i, ctx.dim_count
+                ),
+            },
+        }.into());
+    }
+
+    let bundle = HolonAST::bundle(field_binds);
+    let class_atom = HolonAST::Atom(Arc::new(HolonAST::String(Arc::from(class))));
+    Ok(Arc::new(HolonAST::Bind(Arc::new(class_atom), Arc::new(bundle))))
+}
+
+/// Arc 294.c.2a — `(:wat::core::aggregate-new :T field…)`.
+///
+/// The ONE holder-dispatched aggregate constructor. Looks up `:T`'s `AggregateDef`
+/// in the TypeEnv, reads `a.holder` + field names, validates arity, evaluates each
+/// field expression, then builds the appropriate `AggregateValue`:
+///   Struct      → `AggregateValue::struct_(class, fields)`
+///   Record      → `AggregateValue::record(class, Arc::new(fields))`
+///   HolonRecord → `AggregateValue::holon_record(class, Arc::new(fields), hologram)`
+///                  where `hologram` is derived by `build_holon_hologram` (internal,
+///                  no precomputed arg).
+///
+/// The three legacy ctors (`struct-new`, `Record::of`, `holon::Record::of`) stay
+/// registered until 294.c.2b. This is intentional runtime-only dispatch — no
+/// check-side scheme registered (mirrors `:wat::core::struct-new`; the checker's
+/// fresh-TypeVar fallthrough handles callers silently).
+fn eval_aggregate_new(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::aggregate-new";
+    if args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: 0,
+        } }.into());
+    }
+
+    // arg[0]: the type keyword `:T` (literal keyword, not evaluated).
+    let type_name = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "first argument must be a keyword literal (the aggregate's type name); got {}",
+                    other.variant_name()
+                ),
+            } }.into());
+        }
+    };
+    // Strip leading ':' and any type-params suffix `<…>` → colon-free bare class
+    // for AggregateValue.class and TypeEnv lookup.  The macro-expanded form may
+    // carry the full keyword (e.g. `:r2::HR<T>`) because the defrecord/defstruct
+    // macro template uses `~fqdn` verbatim; TypeEnv keys store the bare name only.
+    let bare_name: &str = if let Some(pos) = type_name.find('<') { &type_name[..pos] } else { &type_name };
+    let class = bare_name.trim_start_matches(':').to_string();
+    // TypeEnv key has leading ':'.
+    let type_key = format!(":{}", class);
+
+    // Evaluate args[1..] as the field values.
+    let mut fields: Vec<Value> = Vec::with_capacity(args.len().saturating_sub(1));
+    for arg in &args[1..] {
+        fields.push(eval_inner(arg, env, sym)?.value_owned());
+    }
+
+    // Look up the TypeDef in the TypeEnv.
+    let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: OP.into(),
+        reason: "aggregate-new requires the type registry (startup via freeze)".into(),
+    } })?;
+    let agg = match types.get(&type_key) {
+        Some(crate::types::TypeDef::Aggregate(a)) => a,
+        _ => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "type {} is not a registered aggregate (struct, record, or holon record)",
+                    type_key
+                ),
+            } }.into());
+        }
+    };
+
+    // Validate arity: fields.len() must equal agg.field_names() count.
+    let expected_count = agg.fields.len();
+    if fields.len() != expected_count {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: format!("{} (constructing {})", OP, type_key),
+            expected: expected_count,
+            got: fields.len(),
+        } }.into());
+    }
+
+    match agg.holder {
+        crate::types::Holder::Struct => {
+            Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(class, fields))))
+        }
+        crate::types::Holder::Record => {
+            Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
+        }
+        crate::types::Holder::HolonRecord => {
+            let field_names: Vec<String> = agg.field_names().map(|s| s.to_string()).collect();
+            let ctx = require_encoding_ctx(OP, sym, list_span)?;
+            let hologram = build_holon_hologram(&class, &field_names, &fields, ctx, list_span)?;
+            Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
+                class,
+                Arc::new(fields),
+                hologram,
+            ))))
+        }
+    }
+}
+
+// ─── End Arc 294.c.2a ─────────────────────────────────────────────────────────
+
 /// `(:wat::Record/field-at <record: :wat::Record> <index: i64>)` → field value
 /// — arc 234 Stone 234.2a.
 ///
@@ -15732,6 +15909,29 @@ fn eval_algebra_bind(
 /// trimming convention (`src/encoding/rhythm.rs` in holon-lab-trading).
 /// At d=10_000 → budget 100; at d=4_096 → 64; at d=1_024 → 32. Matches
 /// FOUNDATION's empirical "~100 at d=10k" statement exactly. There is
+/// Arc 294.c.2a — Kanerva width-bound verdict for holon Bundle construction.
+///
+/// Returns `Some((cost_i, budget_i))` when `cost` exceeds `ctx.capacity`
+/// (`floor(sqrt(ctx.dim_count))`); returns `None` when within capacity.
+///
+/// ONE guard, two callers — neither duplicates the cost/budget math:
+///   * `eval_algebra_bundle` (the `:wat::holon::Bundle` verb) — on `Some`,
+///     dispatches per `ctx.config.capacity_mode` (Panic → `panic!`;
+///     Error → `Ok(Value::Result(Err(CapacityExceeded{…})))`).
+///   * `build_holon_hologram` (`:wat::core::aggregate-new` for HolonRecord)
+///     — on `Some`, returns `Err(RuntimeError { MalformedForm })` (loud,
+///     mode-agnostic: construction cannot return a Result).
+fn bundle_capacity_verdict(cost: usize, ctx: &EncodingCtx) -> Option<(i64, i64)> {
+    // ctx.capacity is floor(sqrt(ctx.dim_count)).max(1), cached at freeze.
+    // For any realistic d (>= 1) this equals (d as f64).sqrt().floor() as usize.
+    let budget = ctx.capacity;
+    if cost > budget {
+        Some((cost as i64, budget as i64))
+    } else {
+        None
+    }
+}
+
 /// no codebook factor — under AST-primary, the only physical bound is
 /// the noise floor, and `sqrt(d)` is the safe-side item count.
 ///
@@ -15798,12 +15998,9 @@ fn eval_algebra_bundle(
     let mode = ctx.config.capacity_mode;
     let d = ctx.dim_count;
 
-    // Arc 077: capacity check is against the program's d.
-    // Budget = floor(sqrt(d)). Overflow when cost exceeds that.
-    let budget = (d as f64).sqrt().floor() as usize;
-    if cost > budget {
-        let cost_i = cost as i64;
-        let budget_i = budget as i64;
+    // Arc 077 / 294.c.2a: capacity check via the shared one-guard
+    // `bundle_capacity_verdict`. Budget = ctx.capacity = floor(sqrt(d)).
+    if let Some((cost_i, budget_i)) = bundle_capacity_verdict(cost, ctx) {
         match mode {
             crate::config::CapacityMode::Error => {
                 let err = Value::Aggregate(Arc::new(AggregateValue::struct_(

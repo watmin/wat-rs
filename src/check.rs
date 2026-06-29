@@ -5583,6 +5583,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 294.c.2a — holder-dispatched ctor. Returns the SPECIFIC type
+            // named by args[0] (a direct keyword literal, e.g. `:test::an::HR`)
+            // so downstream checks (cosine, accessor param) see the concrete type
+            // instead of a fresh TypeVar from the fall-through.
+            ":wat::core::aggregate-new" => {
+                let (val, mut errs) = infer_aggregate_new_check(head_span, args, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 155 — `:wat::core::fn` is the canonical operator for
             // function values (Clojure-faithful lowercase verb; mirrors
             // arc 154's let retirement recipe). Routes to `infer_fn`
@@ -12695,6 +12707,71 @@ fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExp
                 .collect(),
         })
     }
+}
+
+/// Arc 294.c.2a — type inference for `:wat::core::aggregate-new`.
+///
+/// `aggregate-new` is the ONE holder-dispatched constructor. It takes a direct
+/// keyword literal as args[0] (e.g. `:test::an::HR`) and zero or more field
+/// values. Returns the SPECIFIC aggregate type so downstream checks (cosine,
+/// accessor param unification) see the concrete type instead of a TypeVar.
+///
+/// Unlike `record_of_specific_type` (which parses `(:wat::core::keyword/from-string "...")`)
+/// the class here is a bare keyword literal — no sub-form to unwrap.
+fn infer_aggregate_new_check(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    const CALLEE: &str = ":wat::core::aggregate-new";
+
+    if args.is_empty() {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch { callee: CALLEE.into(), expected: 1, got: 0 },
+        });
+        return CheckResult::errs(local_errors);
+    }
+
+    // Infer all field args (args[1..]) for side effects (type propagation, error harvest).
+    for arg in args.iter().skip(1) {
+        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    }
+
+    // Extract specific type from args[0]: expected to be a direct keyword literal.
+    //
+    // For the macro-expanded case, the keyword may include a type-params suffix
+    // (e.g. `:wat::kernel::Thread<I,O>`) because ~fqdn in the macro template is
+    // the raw source keyword. TypeEnv stores keys WITHOUT the suffix (":wat::kernel::Thread"),
+    // so strip `<…>` before lookup.
+    //
+    // We look up the CTOR SCHEME from env rather than reconstructing the type from
+    // the TypeEnv's type_params. The scheme's ret field already has the correct
+    // parametric form — Rust-registered structs use Path("I") (no colon) via
+    // parametric_decl_type; WAT-parsed macro-generated types use Path(":I") via
+    // parse_type_inner. Reconstructing from type_params would produce the wrong
+    // form for one of these two sources, causing unify to fail even though both
+    // format_type displays appear identical (format_type_inner strips the colon).
+    let ty = if let WatAST::Keyword(k, _) = &args[0] {
+        let bare_k: &str = if let Some(pos) = k.find('<') { &k[..pos] } else { k.as_str() };
+        // Look up the ctor scheme — its ret IS the specific type in the correct form.
+        if let Some(scheme) = env.get(bare_k) {
+            scheme.ret.clone()
+        } else {
+            // No scheme registered yet (will error at resolve time); return the bare path.
+            TypeExpr::Path(bare_k.to_string())
+        }
+    } else {
+        // Non-static class arg — infer for side effects; fall back to fresh TypeVar.
+        let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        fresh.fresh()
+    };
+
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
 /// Arc 237 Stone S-C.3 — HOLONIC record constructor inference.

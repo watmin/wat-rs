@@ -88,6 +88,10 @@
 
 ;; ─── BASE macro (:wat::Record::def) ──────────────────────────────────────────
 
+;; Arc 294.c.2a — base defrecord macro routes through aggregate-new (the ONE
+;; holder-dispatched ctor). Drop the :wat::Record::of wrapper + field-extraction
+;; let; bare field syms splice directly as positional args to aggregate-new.
+;; Arc 291 hygiene preserved: raw-ch/nf/syms dance keeps scope-tagged AST nodes.
 (:wat::core::defmacro :wat::core::defrecord
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
@@ -96,9 +100,8 @@
      (:wat::core::recordtype ~fqdn :wat::Record
        [~@fields])
      (:wat::core::defn ~fqdn [~@fields] -> ~fqdn
-       (:wat::Record::of
-         (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
-         [~@(:wat::core::let
+       (:wat::core::aggregate-new ~fqdn
+         ~@(:wat::core::let
                ;; Arc 291 hygiene fix: use (ast->children (quote fields)) to get the original
                ;; AST nodes with scope preserved, not the holon round-trip (which strips scope).
                ;; The binders in [~@fields] carry the original scope (e.g. scope 433 when this
@@ -117,7 +120,7 @@
                                          "Record::def: struct_form field name index out of range")]
                                var-w))
                            (:wat::core::range 0 nf))]
-               syms)]))
+               syms)))
 ))
 
 ;; Arc 293.R2.2 — accessor emission removed from BASE macro.
@@ -127,6 +130,10 @@
 
 ;; ─── HOLONIC macro (:wat::holon::Record::def) ────────────────────────────────
 
+;; Arc 294.c.2a — holonic defrecord macro routes through aggregate-new (the ONE
+;; holder-dispatched ctor). The entire hologram quasiquote (former lines ~157-197)
+;; is DELETED — build_holon_hologram in Rust now derives the hologram internally.
+;; Arc 291 hygiene preserved: raw-ch/nf/syms dance keeps scope-tagged AST nodes.
 (:wat::core::defmacro :wat::holon::defrecord
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
@@ -135,9 +142,8 @@
      (:wat::core::recordtype ~fqdn :wat::holon::Record
        [~@fields])
      (:wat::core::defn ~fqdn [~@fields] -> ~fqdn
-       (:wat::holon::Record::of
-         (:wat::core::keyword/from-string ~(:wat::core::keyword/to-string fqdn))
-         [~@(:wat::core::let
+       (:wat::core::aggregate-new ~fqdn
+         ~@(:wat::core::let
                ;; Arc 291 hygiene fix: use (ast->children (quote fields)) to get the original
                ;; AST nodes with scope preserved, not the holon round-trip (which strips scope).
                ;; The binders in [~@fields] carry the original scope; the body references must
@@ -153,48 +159,7 @@
                                          "Record::def: struct_form field name index out of range")]
                                var-w))
                            (:wat::core::range 0 nf))]
-               syms)]
-         (:wat::holon::Bind
-           (:wat::holon::Atom (:wat::holon::to-holon ~(:wat::core::keyword/to-string fqdn)))
-           (:wat::core::Result/expect  
-             (:wat::holon::Bundle
-               [~@(:wat::core::let
-                     ;; Arc 291 hygiene fix: use (ast->children (quote fields)) so var-w
-                     ;; carries the original AST node (scope-preserving), matching the binder
-                     ;; in [~@fields]. name-s still derives from holon round-trip (safe: it is
-                     ;; a String, not a symbol reference in the emitted code).
-                     [raw-ch     (:wat::core::ast->children (:wat::core::quote fields))
-                      nf         (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
-                      ;; holon children still needed for name-s (field keyword → string)
-                      fields-h   (:wat::holon::from-wat (:wat::core::quote fields))
-                      h-children (:wat::holon::Bundle/children fields-h)
-                      field-binds (:wat::core::map
-                                    (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
-                                      (:wat::core::let
-                                        [idx    (:wat::core::i64::* fi 3)
-                                         name-h (:wat::core::Option/expect
-                                                  (:wat::core::Vector/get h-children idx)
-                                                  "Record::def: field name index out of range")
-                                         name-s (:wat::core::keyword/to-string
-                                                  (:wat::holon::from-holon name-h))
-                                         ;; Arc 291: reuse original AST node (scope-preserving)
-                                         var-w  (:wat::core::Option/expect
-                                                  (:wat::core::Vector/get raw-ch idx)
-                                                  "Record::def: holonic field var index out of range")]
-                                        (:wat::core::quasiquote
-                                          (:wat::holon::Bind
-                                            (:wat::holon::Atom
-                                              (:wat::holon::to-holon
-                                                (:wat::core::unquote name-s)))
-                                            (:wat::holon::Atom
-                                              (:wat::holon::to-holon
-                                                (:wat::core::unquote var-w)))))))
-                                    (:wat::core::range 0 nf))]
-                     field-binds)])
-             ~(:wat::core::string::concat
-                 "Record::def "
-                 (:wat::core::keyword/to-string fqdn)
-                 " instance: Bundle capacity exceeded")))))
+               syms)))
 ))
 
 ;; Arc 293.R2.2 — accessor emission removed from HOLONIC macro.
