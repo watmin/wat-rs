@@ -382,8 +382,6 @@ pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<Type
         type_params,
         fields,
         holder: Holder::Struct,
-        // Arc 293 decl-a — structs root at :wat::core::Struct (Struct <: Value transitively).
-        parent: ":wat::core::Struct".to_string(),
         restrictions,
     }))
 }

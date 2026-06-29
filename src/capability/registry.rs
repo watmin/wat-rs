@@ -249,7 +249,6 @@ mod waist_proof {
             name: ":wat::kernel::SocketAddressWire".to_string(),
             type_params: vec![],
             holder: Holder::Record,
-            parent: ":wat::Record".to_string(),
             restrictions: None,
             // minter-pid <- :wat::core::i64
             // name       <- :wat::core::Vector<wat::core::i64>

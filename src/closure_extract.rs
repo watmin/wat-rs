@@ -2381,12 +2381,12 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             }
             _ => {
                 // Stone S-B.1 — reconstruct recordtype form from AggregateDef.
-                // Use the stored parent directly (it's a field again — arc 293.2b fix).
+                // Arc 293 annihilation: parent field deleted; derive from holder.root_keyword().
                 WatAST::List(
                     vec![
                         WatAST::Keyword(":wat::core::recordtype".into(), span.clone()),
                         WatAST::Keyword(a.name.clone(), span.clone()),
-                        WatAST::Keyword(a.parent.clone(), span.clone()),
+                        WatAST::Keyword(a.holder.root_keyword().to_string(), span.clone()),
                     ],
                     span,
                 )

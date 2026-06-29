@@ -102,9 +102,8 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/Record.wat",
         source: include_str!("../wat/Record.wat"),
     },
-    // Arc 258 A2 — :wat::program::Env as a typed extensible recordtype base.
-    // Replaces the Rust-builtin typealias (HashMap<keyword, HolonAST>) with a
-    // proper record: one field `wat.started-at : :wat::time::Instant`. Loaded
+    // Arc 258 A2 — :wat::program::Env as a flat typed record (seven kernel-stamped fields).
+    // Arc 293 annihilation: no longer an extensible base; it is a plain defrecord. Loaded
     // AFTER Record.wat (uses :wat::core::defrecord) and :wat::time::Instant (builtin).
     WatSource {
         path: "wat/program.wat",

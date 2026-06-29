@@ -1024,9 +1024,8 @@ pub fn register_struct_methods(
 /// holders, bare name guaranteed by the `parse_declared_name` fix in
 /// `parse_recordtype`.
 ///
-/// For Record/HolonRecord with non-root parents (e.g. `:wat::program::Env`),
-/// the inherited field count is computed via [`collect_all_record_fields`] so
-/// each own-field accessor carries the correct absolute positional index.
+/// Arc 293 inheritance annihilation: all types are flat (holder + own fields only).
+/// Inherited fields are always 0; field index == own enumeration index.
 ///
 /// **DuplicateDefine is an error** — after the macro's accessor emission was
 /// removed, no other path registers these accessor paths.
@@ -1036,15 +1035,6 @@ pub fn register_aggregate_methods(
 ) -> Result<(), RuntimeError> {
     use crate::scope::Identifier;
     use crate::types::TypeDef;
-
-    const ROOT_PARENTS: &[&str] = &[
-        ":wat::core::Value",
-        // Arc 293 decl-a — :wat::core::Struct is the struct holder-root (sibling of :wat::Record).
-        // Structs rooted at :wat::core::Struct have 0 inherited fields (same as the Value case).
-        ":wat::core::Struct",
-        ":wat::Record",
-        ":wat::holon::Record",
-    ];
 
     for (_name, def) in types.iter() {
         let agg = match def {
@@ -1078,17 +1068,7 @@ pub fn register_aggregate_methods(
             }
         };
 
-        // Absolute base index for own fields = count of inherited fields.
-        // Struct's parent is `:wat::core::Struct` (in ROOT_PARENTS) → 0 inherited.
-        // Record/HolonRecord with root parent → 0.
-        // Record/HolonRecord with non-root parent → parent's full field count.
-        let inherited_fields: Vec<(String, crate::types::TypeExpr)> =
-            if ROOT_PARENTS.contains(&agg.parent.as_str()) {
-                vec![]
-            } else {
-                collect_all_record_fields(&agg.parent, types)
-            };
-        let inherited_count = inherited_fields.len();
+        // Arc 293 inheritance annihilation: all types are flat; field index == own enumeration index.
 
         // Arc 293.R2.2 — constructor fallback for raw `recordtype` declarations.
         //
@@ -1106,15 +1086,10 @@ pub fn register_aggregate_methods(
             && !sym.functions.contains_key(&agg.name)
         {
             let name_str = agg.name.trim_start_matches(':').to_string();
-            // All fields in declaration order: inherited first, then own.
-            let all_fields: Vec<(String, crate::types::TypeExpr)> = inherited_fields
-                .iter()
-                .chain(agg.fields.iter())
-                .cloned()
-                .collect();
-            let all_param_names: Vec<String> = all_fields.iter().map(|(n, _)| n.clone()).collect();
+            // Arc 293 annihilation: no inherited fields; own fields are the complete set.
+            let all_param_names: Vec<String> = agg.fields.iter().map(|(n, _)| n.clone()).collect();
             let all_param_types: Vec<crate::types::TypeExpr> =
-                all_fields.iter().map(|(_, t)| t.clone()).collect();
+                agg.fields.iter().map(|(_, t)| t.clone()).collect();
             let field_asts: Vec<WatAST> = all_param_names
                 .iter()
                 .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), Span::unknown()))
@@ -1165,7 +1140,6 @@ pub fn register_aggregate_methods(
             && agg.type_params.is_empty();
 
         for (own_idx, (field_name, field_type)) in agg.fields.iter().enumerate() {
-            let abs_idx = inherited_count + own_idx;
             let accessor_path = format!("{}/{}", agg.name, field_name);
 
             // Class-no-colon: what `(type self)` returns for this aggregate at runtime.
@@ -1183,7 +1157,7 @@ pub fn register_aggregate_methods(
                 //         (:wat::core::Some self)
                 //         :wat::core::None)
                 //       (:wat::core::string::concat "<msg-prefix>" (:wat::core::type self)))
-                //     <abs_idx>)
+                //     <own_idx>)
                 let msg_prefix = format!(
                     "{}/{}: expected receiver of class {}, got class :",
                     agg.name, field_name, agg.name
@@ -1226,14 +1200,14 @@ pub fn register_aggregate_methods(
                             ], Span::unknown()),
                         ], Span::unknown()),
                     ], Span::unknown()),
-                    WatAST::IntLit(abs_idx as i64, Span::unknown()),
+                    WatAST::IntLit(own_idx as i64, Span::unknown()),
                 ], Span::unknown())
             } else {
                 // Struct or generic Record/HolonRecord: bare struct-field (type system enforces).
                 WatAST::List(vec![
                     WatAST::Keyword(":wat::core::struct-field".into(), Span::unknown()),
                     WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
-                    WatAST::IntLit(abs_idx as i64, Span::unknown()),
+                    WatAST::IntLit(own_idx as i64, Span::unknown()),
                 ], Span::unknown())
             };
             let accessor_func = Function {
@@ -1480,39 +1454,9 @@ pub fn register_newtype_methods(
     Ok(())
 }
 
-/// Arc 293.2b fix — collect ALL fields (own + inherited from parent chain) for a record type.
-///
-/// Walks up the parent hierarchy, stopping at root holders (`:wat::Record`, `:wat::holon::Record`)
-/// or the Value top (`:wat::core::Value`). Returns the complete flat field list in declaration order:
-/// grandparent fields first, then parent's own fields, then the target's own fields.
-///
-/// Used by `register_aggregate_methods` to determine inherited fields for records with
-/// non-root parents (e.g. a user record extending `:wat::program::Env`).
-fn collect_all_record_fields(
-    type_name: &str,
-    types: &crate::types::TypeEnv,
-) -> Vec<(String, crate::types::TypeExpr)> {
-    use crate::types::{TypeDef, TypeExpr};
-    const ROOT_PARENTS: &[&str] = &[
-        ":wat::core::Value",
-        // Arc 293 decl-a — :wat::core::Struct is the struct holder-root (sibling of :wat::Record).
-        // Structs rooted at :wat::core::Struct have 0 inherited fields (same as the Value case).
-        ":wat::core::Struct",
-        ":wat::Record",
-        ":wat::holon::Record",
-    ];
-    let Some(TypeDef::Aggregate(agg)) = types.get(type_name) else {
-        return Vec::new();
-    };
-    if ROOT_PARENTS.contains(&agg.parent.as_str()) {
-        // Parent is a root holder — own fields are the complete set.
-        return agg.fields.clone();
-    }
-    // Non-root parent: collect parent's total fields first, then append own.
-    let mut all = collect_all_record_fields(&agg.parent, types);
-    all.extend(agg.fields.iter().cloned());
-    all
-}
+// Arc 293 inheritance annihilation: collect_all_record_fields DELETED.
+// All types are flat (holder + own fields); inherited fields were always 0 after
+// the parse-time holder-root guard. `register_aggregate_methods` uses `agg.fields` directly.
 
 // Arc 293.R2.2 — register_record_methods DELETED.
 // Accessor codegen for Record + HolonRecord is now in register_aggregate_methods

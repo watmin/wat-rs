@@ -1,7 +1,7 @@
-;; wat/program.wat — arc 258 A2 + arc 259 stone 5: :wat::program::Env as a typed extensible recordtype base.
+;; wat/program.wat — arc 258 A2 + arc 259 stone 5: :wat::program::Env as a flat typed record.
 ;;
-;; Replaces the Rust-builtin typealias (HashMap<keyword, HolonAST>) with a
-;; proper record definition, enabling subtype extension for user programs.
+;; Arc 293 annihilation: no longer an extensible base; it is a plain defrecord.
+;; Replaces the Rust-builtin typealias (HashMap<keyword, HolonAST>) with a proper record.
 ;;
 ;; Loading order: must load AFTER wat/Record.wat (uses :wat::Record::def)
 ;; and :wat::time::Instant is a builtin already available at startup.

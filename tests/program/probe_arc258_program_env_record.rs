@@ -42,12 +42,6 @@ fn c01_base_record_started_at() {
         "program::Env is a record with a wat.started-at : Instant field, constructed + read");
 }
 
-#[test]
-fn c02_user_extends_program_env() {
-    // A program EXTENDS program::Env with its own typed field; the extension is a subtype.
-    // Construct it, read the inherited wat.started-at AND the user field.
-    let world = startup_beside(file!()).expect("startup");
-    let got = call_i64(&world, ":probe::c02-compute");
-    assert_eq!(got, Ok(8080),
-        "a user recordtype can extend :wat::program::Env (it is a record base, not a HashMap typealias)");
-}
+// c02_user_extends_program_env DELETED — arc 293 inheritance annihilation:
+// (:wat::core::recordtype :user::MyEnv :wat::program::Env [...]) is rejected at registration
+// (non-holder-root parent). program::Env is a flat record; user types root at :wat::Record.
