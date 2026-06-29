@@ -62,6 +62,32 @@ macros, codegen, value-handling in rete/collection/closure_extract, etc.
 
 These are a pre-audit estimate; the audit replaces them with a per-branch classified table.
 
+## THE PARITY LEDGER (capability facet — grounded 2026-06-28; work to ZERO)
+
+> Builder: *"we've been fighting out of parity for like 2 days now — what else is not in parity?"* This is the
+> definitive capability-parity survey (grounded against the disk; the ~99-branch audit below verifies completeness).
+> A **GAP** = a capability one holder has and another lacks for a reason that is NOT a passing boundary → must unify.
+
+| capability | struct | record | holon | status |
+|---|---|---|---|---|
+| construction (`aggregate-new`) | ✅ | ✅ | ✅ | ✅ DONE (294.c.2a) |
+| identity (Eq/Hash) | ✅ | ✅ | ✅ | ✅ DONE (294.c.1) |
+| field READ accessor | ✅ | ✅ | ✅ | codegen unified (R2.2); **substrate primitive split `struct-field` vs `Record/field-at` → GAP-1** |
+| field UPDATE (`assoc`) | ❌ | ✅ `Record/assoc` | ✅ | **GAP-2** — struct has no functional update |
+| `→ map` | ❌ | ✅ `record->map` | ✅ | **GAP-3** — no `struct->map` |
+| `→ form` (ctor-form) | ✅ `struct->form` | ❌ | ❌ | **GAP-4** — no `record->form` |
+| restrictions/metadata | ✅ `StructRestrictions` | ❌ | ❌ | **GAP-5** — declarable only on structs |
+| extension (parent) | ❌ hardcoded `:Value` | ✅ | ✅ | **GAP-6** — struct can't extend a base (builder's call: spurious vs intentional?) |
+| `/from-map` | ❌ | ❌ | ❌ | absent for ALL (the 291 driver — additive, 293.5) |
+| declaration | split | split | split | ▶ unifying (declaration unification) |
+| surfaces (`defsurface`) | ✅ | ✅ | ✅ | ✅ DONE (293.4) |
+
+**Legitimate holder differences (NOT gaps — the three passing boundaries; these STAY):** struct can't cross the wire
+(comms/EDN-repr); `holon <: core` directional assignability; holon's VSA ops (`cosine`/`dot`/…, the +1 capability).
+
+**Closing the 6 GAPs (+ `/from-map`-for-all + declaration) is the bulk of 293's remaining unification.** Each becomes
+a strike in `CLOSE-SEQUENCE-293-294.md`. The ~99-branch audit below is the systematic guarantee that nothing else hides.
+
 ## The audit (to be produced against a stable tree, post-294.c.2)
 
 Fan read-only auditors across the 14 file-clusters; each returns every holder-branch with `file:line`, what it does,
