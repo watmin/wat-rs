@@ -30,21 +30,40 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 > satisfy the closing requirements for 293 and 294 if applicable."* **No PHASE 2 item starts until PHASE 1 = ZERO
 > gaps.** Build each fix CLOSE-GRADE — canonical form, right home, one-canonical-path, no rework. The full ledger is
 > `293/AGGREGATE-AUDIT.md` § PARITY LEDGER (6 grounded GAPs + the ~99-branch systematic verify).
-1. **DECLARATION UNIFICATION** *(293)* — DESIGN: `293/DESIGN-293-declaration-unification.md`.
-   - ✅ **decl-a LANDED (`f51465d7`)** — `aggregatetype` is the ONE type-reg primitive (holder = `root_holder_of(parent)`); `:wat::core::Struct` node minted; `parse_recordtype` absorbed into `parse_aggregate`; field-parser unified (`parse_aggregate_fields`); `structtype`/`recordtype` kept as thin aliases. Behaviour-preserving, 4112/0/91. **NOTE:** `root_holder_of` is immediate-match (right for all current callers); a struct extending a USER struct base needs the root-WALK — owed when GAP-6 exposes it.
-   - ▶ **decl-b — ctor-source unification (probes STRIKE-READY, the audit found 2 real bugs):**
-     - **decl-b.1.0 (PREREQ) — `aggregate-new` must handle INHERITED fields.** Grounded bug: `eval_aggregate_new` (`runtime.rs:13811`) arity-checks against `agg.fields.len()` (OWN only); an extending record (`MyEnv extends Env [port]` = 6 inherited + 1 own) needs inherited+own via `collect_all_record_fields` (`runtime.rs:1491`). Latent today (extending records only go through the `Record::of` fallback, which threads all fields). RED probe: construct an extending record via `aggregate-new`.
-     - **decl-b.1 — fix the latent HOLON bug + kill the dup.** The `register_aggregate_methods` ctor fallback (`runtime.rs:1093-1151`) builds record/holon ctors via `:wat::Record::of` (BASE) — so a raw-`recordtype` **holon** record comes out as a base record with NO hologram (confirmed: `cosine` errors "has no holon flavor"). Route the fallback through `aggregate-new` (holder-dispatched → derives the hologram) + DELETE the macro ctor `defn` → the fallback is the sole ctor source, the `syms`-extraction dies. Gate: `probe_arc293_decl_b1_ctor_codegen` (the `raw_recordtype_holon_has_a_hologram` test is `#[ignore]`'d RED until this lands).
-     - **decl-b.2 — annihilate `structtype`/`recordtype`.** Macros emit `aggregatetype` directly; migrate the ~5 direct fixture callers (`probe_arc293_structtype_primitive`, `probe_arc258_program_env_record`, `probe_arc237_sB1_recordtype`, …); retirement-table.
-     - then GAP-5/GAP-6 expose optional metadata/parent through the macros.
-2. ▷ **GAP-1 — one field-READ primitive** — unify `struct-field` + `Record/field-at` → one `aggregate-field`.
-3. ▷ **GAP-2 — struct functional update** — generalize `Record/assoc` → `aggregate-assoc` (structs gain `assoc`).
-4. ▷ **GAP-3 — `aggregate->map`** — `record->map` generalized so a struct also maps.
-5. ▷ **GAP-4 — `aggregate->form`** — `struct->form` generalized so a record also forms (ctor-form / eval-ast).
-6. ▷ **294.c.2b — annihilate the of-funcs** *(construction-parity cleanup)* — `struct-new`/`Record::of`/`holon::Record::of` die (uncalled). **Disk:** `runtime.rs:4050/4051/4256` + retirement-table.
-7. ▷ **THE AGGREGATE AUDIT (systematic verify)** *(293 — THE CLOSURE GATE)* — classify the ~99 holder-branches / 14 files; unify every **spurious** split (keep only comms / EDN-repr / `holon<:core`). Proves PHASE 1 is complete — nothing else hides. Also catches the assoc-incremental vs `build_holon_hologram` dedup.
+> **THE GOVERNING MODEL is `293/AGGREGATE-MODEL.md`** (the canonical contract, 2026-06-29): the holder enum is the
+> ONLY specialness; every operation is holder-blind + uniform; **NO inheritance** (flat + surface-splice); requirements
+> are **surfaces** (bare holder is an illegal Any; `Value` for guts); the edn wall lives at the locus boundary. Every
+> strike below is held to it. **The reshape this conversation forced: inheritance is ANNIHILATED, not supported — so
+> the earlier decl-b.1.0 is DELETED.**
 
-**PHASE 1 done = full struct/record/holon parity (modulo the 3 legitimate passing boundaries: wire, `holon<:core`, VSA).**
+1. ✅ **decl-a LANDED (`f51465d7`)** — `aggregatetype` is the ONE type-reg primitive (holder from the parent's
+   holder-root); `:wat::core::Struct` node minted; `parse_recordtype` absorbed; field-parser unified. 4112/0/91.
+2. ▶ **INHERITANCE ANNIHILATION (NEXT — replaces decl-b.1.0)** *(293)* — `program::Env` → a **surface** ("must be a
+   record with these minimal properties"); `aggregatetype`/`recordtype` parent restricted to a **holder-root** (reject
+   user parents); **delete** `collect_all_record_fields`, inherited-field storage + abs-idx, the record subtype edges.
+   Flat records only → `aggregate-new`'s own-only arity becomes correct, **decl-b.1.0 + its probe DELETED**. The
+   `rete.wat`/`program.wat` `[x <- :wat::Record]` params → `:wat::core::Value` (guts) or a surface — the **surfaces-only
+   migration** (`[fact <- :wat::Record]` → `[fact <- :wat::core::Value]`, confirmed opaque/reflective). **STOP:** verify
+   `program::Env`'s spawn-injection (#211/#238) works via the surface, not a nominal base.
+3. ▷ **decl-b.1 — the latent HOLON bug + kill the dup** *(still real, not inheritance)* — the ctor fallback
+   (`runtime.rs:1093-1151`) builds record/holon ctors via `:wat::Record::of` (BASE) → a raw-`recordtype` **holon**
+   record has NO hologram (`cosine` errors "has no holon flavor"). Route the fallback → `aggregate-new` + DELETE the
+   macro ctor `defn` (the `syms`-dup dies). Gate: `probe_arc293_decl_b1_ctor_codegen` (`#[ignore]`'d RED test).
+4. ▷ **decl-b.2 — annihilate `structtype`/`recordtype`** — macros emit `aggregatetype`; migrate the ~5 direct fixture
+   callers; retirement-table.
+5. ▷ **HOLDER VOCAB UNIFICATION** *(the enum owns its name)* — `Holder::root_keyword()` + `from_root_keyword()`; the
+   **5 hand-matches die** (`surface.rs:323`, `types.rs:2126`, `value.rs:1120`, `runtime.rs:6705`, `observe.rs:326`);
+   surface `:holder` takes a **holder-root keyword** (decision A); the stale `:wat::Record` → **`:wat::core::Record`**
+   rename falls out of the same change.
+6. ▷ **GAP-1 — one `aggregate-field`** (kill `struct-field` + `Record/field-at`).
+7. ▷ **GAP-2 — one `aggregate assoc`** (struct gains functional update).
+8. ▷ **GAP-3/4 — uniform `aggregate->map` / `aggregate->form`** (struct→map, record→form).
+9. ▷ **294.c.2b — annihilate the of-funcs** — `struct-new`/`Record::of`/`holon::Record::of` die.
+10. ▷ **THE AGGREGATE AUDIT (systematic verify)** *(293 CLOSURE GATE)* — classify the ~99 holder-branches; unify every
+    **spurious** split (keep only comms / EDN-repr / assignability). Proves PHASE 1 complete — nothing else hides.
+
+**PHASE 1 done = the AGGREGATE-MODEL holds: holder enum is the sole specialness, every op uniform, no inheritance,
+surfaces-only params, one holder vocabulary. (The 3 legitimate holder differences — comms/EDN-repr/assignability — stay.)**
 
 ### PHASE 2 — the value-layer gut + close (UNBLOCKS only after PHASE 1 = 0)
 8. ▷ **294.c.3 — base records lift / holon-from-EDN** *(294, step 4)* — `to_holon_inner` lifts base records. **Disk:** 5 "has no holon flavor" rejects.
