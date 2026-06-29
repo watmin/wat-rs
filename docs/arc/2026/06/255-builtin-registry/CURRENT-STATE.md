@@ -1,6 +1,6 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `eaaa6930` or later.** Tree CLEAN.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `0837e864` or later.** Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
 `4111 passed / 0 failed / 91 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
 
@@ -21,11 +21,19 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `eaa
 >   except the `recordtype` holder keyword.**
 > - ✅ **kanerva_capacity dedup (`eaaa6930`)** — drove the `floor(sqrt(d))` budget to ONE copy (`hologram.rs:90`); was
 >   recomputed in 3 live places. (Builder: *"drive these things to zero when we find them."* + *"'replicate' = 'duplicate'"*.)
-> - ▶ **DECLARATION UNIFICATION — NEXT (builder pre-approved scope).** Collapse `structtype`+`recordtype` → one
->   `aggregatetype` (holder + parent-root + metadata, keyed by holder); `parse_defstruct`+`parse_recordtype` → one
->   `parse_aggregate`; the 3 def macros → thin holder-keyed delegations over one emission. Subsumes the "two record
->   macros" duplication c.2a confirmed. Foundational (type-reg layer) — draw a DESIGN + RED probe first. Sequencing
->   (type-reg-first vs macros-first) is an OPEN micro-decision.
+> - ✅ **293 decl-a LANDED (`f51465d7`)** — `aggregatetype` is the ONE type-reg primitive (holder from parent's
+>   holder-root); `:wat::core::Struct` node minted; `parse_recordtype` absorbed.
+> - ▶▶ **THE MODEL IS SETTLED + RESHAPED (2026-06-29) — READ `293/AGGREGATE-MODEL.md` (the canonical contract).**
+>   A long co-design locked it: the **holder enum is the ONLY specialness**; every op is **holder-blind + uniform**;
+>   **NO inheritance** (flat + surface-splice); **requirements are SURFACES** (a bare holder param is an illegal Any;
+>   `Value` for guts like rete); the **edn wall is at the locus boundary** (`EdnValue` = a wire concept, not a rete
+>   constraint). **decl-b.1.0 (inheritance support) is DELETED — inheritance is ANNIHILATED, not supported.**
+> - ▶ **NEXT = INHERITANCE ANNIHILATION** (PHASE-1 item 2 in CLOSE-SEQUENCE): `program::Env` → a surface; reject user
+>   parents (parent must be a holder-root); kill `collect_all_record_fields` + inherited-field machinery; migrate the
+>   `rete.wat`/`program.wat` `[x <- :wat::Record]` params → `:wat::core::Value`/surfaces. **STOP: verify the
+>   `program::Env` spawn-injection (#211/#238) works via the surface.** Then decl-b.1 (holon ctor bug) · decl-b.2
+>   (annihilate structtype/recordtype) · holder-vocab unification (`Holder` owns its keyword; 5 hand-matches die;
+>   `:wat::Record`→`:wat::core::Record`) · GAP-1/2/3/4 (uniform field/assoc/->map/->form) · the audit.
 > - ▷ then **294.c.2b** (annihilate the of-funcs) · **294.c.3** (base records lift, step 4) · the **AGGREGATE AUDIT**
 >   (classify the ~99 branches) · **294.d-g** sweeps · **293.5 close (GATED on the audit)** → **118**.
 
