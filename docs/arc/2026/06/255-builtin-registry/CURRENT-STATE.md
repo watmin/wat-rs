@@ -307,9 +307,12 @@ NEVER inlined as a Rust string, never in `demos/` (= curated showpieces only); a
 not `./target/release/wat`.
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight work against the
-> disk; do not trust a single line you did not re-verify this session. THE NEXT = builder's steer among
-> (A) accessor param-type variance [owes a crawl] / (C) 293.R2.4 ctor-codegen unification / (D) purgare the R2.*
-> dead-code — see the "NEXT — pick" block above.** **✅ THE R2 TRILOGY LANDED + weighed forced-clean, SET-diff ∅:
+> disk; do not trust a single line you did not re-verify this session. **THE NEXT — read the ⚠ CORRECTION at the
+> TOP of this file first: the R2.x work is arc 294 (mislabeled 293); the MAP is `294/REMAINING-PATH.md`.** Pick there:
+> the **294 value-layer core** (identity→data / hologram-derived / `aggregate-new`) OR **forward-build Seqable→118**
+> (needs only the DONE 293.4, not 294). **The "293.R2.4 ctor-codegen unification" named below was an INVENTED
+> non-strike — ignore it.** Below is pre-correction R2.x narrative (true as commit-history, mis-framed as 293):
+> **✅ THE R2 TRILOGY LANDED + weighed forced-clean, SET-diff ∅:
 > R2.1 repr collapse (one `Value::Aggregate`, `9d1e3ff3`) · R2.2 accessor-codegen merge (parity break DEAD,
 > `register_record_methods` annihilated, `0e56dc87`) · R2.3 construction-form parity (every type-name its own bare
 > ctor, `/new` annihilated, `310aa793`). R2 *FRANGE UT UNUM FIAT* PROVEN — the aggregate is ONE toolkit (value +
