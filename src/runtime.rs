@@ -19297,7 +19297,8 @@ fn eval_config_dim_capacity(
         Some(ctx) => Ok(Value::i64(ctx.capacity as i64)),
         None => {
             let d = crate::config::DEFAULT_DIM_COUNT;
-            let cap = ((d as f64).sqrt().floor() as usize).max(1);
+            // Arc 294.c.2a — the ONE capacity formula (no recompute).
+            let cap = crate::hologram::kanerva_capacity(d);
             Ok(Value::i64(cap as i64))
         }
     }

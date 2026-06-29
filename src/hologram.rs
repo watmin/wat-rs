@@ -77,13 +77,26 @@ pub struct Hologram {
     filter: Arc<Function>,
 }
 
+/// The Kanerva capacity bound at `dims` dimensions: `floor(sqrt(dims))`
+/// (min 1). The SINGLE source of truth for the holon width budget — the
+/// per-`Bundle` fan-out limit AND the hologram store's slot count are the
+/// SAME physical bound (how many items superpose at `d` dims).
+/// d=10000 → 100; d=4096 → 64; d=1024 → 32.
+///
+/// Arc 294.c.2a — extracted so this formula exists in exactly ONE place
+/// (was independently recomputed in `value/encoding_ctx.rs`, the
+/// `:wat::config::dim-capacity` verb, and `Hologram::make`).
+pub fn kanerva_capacity(dims: usize) -> usize {
+    ((dims as f64).sqrt().floor() as usize).max(1)
+}
+
 impl Hologram {
     /// Construct an empty store sized for the given encoding `d`, with
     /// a filter func bound for the lifetime of the store. Capacity is
-    /// derived: `floor(sqrt(d))`. d=10000 → 100 slots; d=4096 → 64;
-    /// d=1024 → 32.
+    /// derived via [`kanerva_capacity`]: `floor(sqrt(d))`. d=10000 → 100
+    /// slots; d=4096 → 64; d=1024 → 32.
     pub fn make(d: usize, filter: Arc<Function>) -> Self {
-        let capacity = ((d as f64).sqrt().floor() as usize).max(1);
+        let capacity = kanerva_capacity(d);
         let slots = (0..capacity).map(|_| HashMap::new()).collect();
         Hologram { slots, capacity, d, filter }
     }
@@ -305,13 +318,11 @@ mod tests {
 
     #[test]
     fn capacity_derived_from_d() {
-        // The filter is irrelevant for capacity math; we use a dummy
-        // by constructing through the runtime's path in integration
-        // tests. Here we exercise the pure helpers.
-        let cap = ((10000_f64).sqrt().floor() as usize).max(1);
-        assert_eq!(cap, 100);
-        let cap = ((4096_f64).sqrt().floor() as usize).max(1);
-        assert_eq!(cap, 64);
+        // The canonical pin-test for the ONE capacity function (arc 294.c.2a):
+        // assert the single source of truth gives the known bounds.
+        assert_eq!(kanerva_capacity(10000), 100);
+        assert_eq!(kanerva_capacity(4096), 64);
+        assert_eq!(kanerva_capacity(1024), 32);
     }
 
     #[test]

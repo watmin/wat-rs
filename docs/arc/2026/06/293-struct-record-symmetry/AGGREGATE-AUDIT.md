@@ -74,11 +74,13 @@ the master table here. Format:
 
 The audit is the **master checklist** for 293 closure; strikes knock items off it:
 - ✅ **identity split** (Eq/Hash on hologram) — closed by **294.c.1** (`ed7ecd50`).
-- ▶ **construction split** (`struct-new`/`Record::of`/`holon::Record::of`) — closing via **294.c.2** (`aggregate-new`).
-- ▷ **declaration split** (`structtype`/`recordtype` → one `aggregatetype`; `parse_defstruct`/`parse_recordtype` →
-  one `parse_aggregate`; the three def macros → thin holder-keyed delegations over one emission). The builder's catch:
-  *"recordtype is the only varying value in the two forms … why are struct and record being tolerated as yet another
-  split not a unification."*
+- ✅ **construction split** (`struct-new`/`Record::of`/`holon::Record::of`) — closed by **294.c.2a** (`f301a6fc`):
+  `aggregate-new` is the one holder-dispatched ctor; all three macros + struct codegen emit it; the hologram is
+  derived in Rust. The of-funcs stay registered until **294.c.2b** (their annihilation — still OPEN on the audit).
+- ▶ **declaration split** (`structtype`/`recordtype` → one `aggregatetype`; `parse_defstruct`/`parse_recordtype` →
+  one `parse_aggregate`; the three def macros → thin holder-keyed delegations over one emission) — **NEXT.** The
+  builder's catch (confirmed on the disk by c.2a's diff): the two record macros are now byte-identical except the
+  `recordtype` holder keyword. *"why are struct and record being tolerated as yet another split not a unification."*
 - ▷ **the remainder** — whatever the audit surfaces in `edn_shim` / `closure_extract` / `rete` / `collection` /
   accessors, each classified COMMS/WIRE/ASSIGNABILITY (keep) or SPURIOUS (unify).
 

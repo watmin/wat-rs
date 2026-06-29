@@ -37,7 +37,8 @@ impl EncodingCtx {
     /// once dispatched on `Atom(Arc<dyn Any>)` no longer has work to do.
     pub fn from_config(cfg: &Config) -> Self {
         let dim_count = cfg.dim_count;
-        let capacity = ((dim_count as f64).sqrt().floor() as usize).max(1);
+        // Arc 294.c.2a — the ONE capacity formula (no recompute).
+        let capacity = crate::hologram::kanerva_capacity(dim_count);
         EncodingCtx {
             encoders: Arc::new(EncoderRegistry::new(cfg.global_seed)),
             dim_count,
