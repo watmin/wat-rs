@@ -7,7 +7,7 @@
 ;; ── THE SURFACE — a set-of-accessor (fields AND methods, uniformly) ──
 ;; All members go inside the single member-vector: field triples mixed with method-sig Lists.
 (:wat::core::defsurface :geo::Shape
-  [color <- :wat::core::String                ; FIELD-style accessor  → :T/color -> :String
+  :features [color <- :wat::core::String                ; FIELD-style accessor  → :T/color -> :String
    (area  [self] -> :wat::core::f64)          ; METHOD accessor       → :T/area  [self] -> :f64
    (label [self] -> :wat::core::String)])     ; METHOD accessor       → :T/label [self] -> :String
 

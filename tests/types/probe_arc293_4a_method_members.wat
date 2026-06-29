@@ -12,7 +12,7 @@
 
 ;; The surface mixes a FIELD member (color) and a METHOD member (area).
 (:wat::core::defsurface :t::Shape
-  [color <- :wat::core::String
+  :features [color <- :wat::core::String
    (area [self] -> :wat::core::f64)])
 
 ;; Sq backs `color` with a FIELD and `area` with a METHOD (a defn) — the satisfier's

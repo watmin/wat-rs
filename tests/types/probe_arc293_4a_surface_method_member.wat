@@ -7,7 +7,7 @@
 
 ;; surface with a single METHOD member (no fields)
 (:wat::core::defsurface :geo::Sized
-  (size [self] -> :wat::core::i64))
+  :features [(size [self] -> :wat::core::i64)])
 
 ;; a record that backs `size` with a method (a defn :geo::Box/size)
 (:wat::core::defrecord :geo::Box [w <- :wat::core::i64])

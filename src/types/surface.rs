@@ -290,15 +290,19 @@ fn parse_method_member_sig(
 /// consecutive non-List items as field-triple sub-runs and passes each to
 /// `parse_argspec_triples`; List items are parsed as Method members.
 pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    // Valid arities: 2 (name + members) or 4 (name + :holder + value + members).
-    if args.len() != 2 && args.len() != 4 {
+    // Valid shapes (arc 293 `:features` clause — ONE canonical path):
+    //   (:wat::core::defsurface :Name :features [members])                      — 3 args
+    //   (:wat::core::defsurface :Name :holder :<kw> :features [members])        — 5 args
+    // The :holder clause is optional and MUST precede :features.
+    // :features is MANDATORY — a member vector not introduced by :features is a MalformedDecl.
+    if args.len() != 3 && args.len() != 5 {
         return Err(TypeError {
             span: decl_span.clone(),
             kind: TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
-                    "expected (:wat::core::defsurface :Name [members]) or \
-                     (:wat::core::defsurface :Name :holder :<kw> [members]); \
+                    "expected (:wat::core::defsurface :Name :features [members]) or \
+                     (:wat::core::defsurface :Name :holder :<kw> :features [members]); \
                      got {} args after head",
                     args.len()
                 ),
@@ -312,7 +316,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     let name_kw = iter.next().unwrap();
     let (name, _type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
-    // Slot 1 — either the member-vector (arity 2) or `:holder` keyword (arity 4).
+    // Slot 1 — either `:holder` keyword or `:features` keyword.
     let next = iter.next().unwrap();
     let holder: Option<Holder> = match &next {
         WatAST::Keyword(k, _) if k == ":holder" => {
@@ -344,26 +348,46 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                     });
                 }
             };
+            // Slot 3 — REQUIRE :features keyword (holder MUST precede features).
+            let features_kw = iter.next().unwrap();
+            match &features_kw {
+                WatAST::Keyword(k, _) if k == ":features" => {}
+                other => {
+                    return Err(TypeError {
+                        span: other.span().clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: "expected :features clause after :holder value — \
+                                     (:wat::core::defsurface :Name :holder :<kw> :features [members])"
+                                .into(),
+                        },
+                    });
+                }
+            }
             Some(holder_val)
         }
-        // No :holder clause — next arg must be the member-vector (handled below).
-        _ => None,
+        WatAST::Keyword(k, _) if k == ":features" => {
+            // No :holder clause — :features introduces the member vector directly.
+            None
+        }
+        other => {
+            return Err(TypeError {
+                span: other.span().clone(),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "expected :features clause (or :holder :<kw> :features) after surface name \
+                             — (:wat::core::defsurface :Name :features [members]); \
+                             a member vector not introduced by :features is a malformed declaration"
+                        .into(),
+                },
+            });
+        }
     };
 
-    // The member-vector: either `next` (when no :holder) or the remaining arg (after :holder + value).
-    let members_node = if holder.is_some() {
-        iter.next().unwrap()
-    } else {
-        next
-    };
+    // The member-vector: the next arg after the :features keyword.
+    let members_node = iter.next().unwrap();
 
     // Arc 293.4d-fix — STRUCTURAL invariant: the member vector is the LAST arg; nothing follows it.
-    // The arity gate (`len == 2 || len == 4`) alone is too loose — a 4-arg form whose arg[1] is NOT
-    // `:holder` (the stale `definterface` shape: method members written as separate top-level args)
-    // passes the count, fails the holder probe, and is read as the 2-arg shape with args 2.. SILENTLY
-    // DROPPED. Reject any leftover so a mismatch cannot be coerced into a valid-looking surface:
-    // every member — a field `name <- :T` AND a method `(name [self] -> :ret)` — goes INSIDE the
-    // single `[...]` vector.
     if let Some(extra) = iter.next() {
         return Err(TypeError {
             span: extra.span().clone(),

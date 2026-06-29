@@ -2,7 +2,7 @@
 ;;
 ;; Arc 293.3-records — a HOLON record satisfies a core surface (R2 headline).
 
-(:wat::core::defsurface :geo::Shape [color <- :wat::core::String])
+(:wat::core::defsurface :geo::Shape :features [color <- :wat::core::String])
 (:wat::holon::defrecord :geo::HCircle [color <- :wat::core::String  radius <- :wat::core::f64])
 (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
   "ok")

@@ -6,6 +6,6 @@
 ;; so `:holder :wat::core::Record` is a MalformedDecl → this world fails to start.
 ;; GREEN once :holder routes through Holder::from_root_keyword (accepts the holder-root symbol).
 (:wat::core::defrecord :env::Rec [host <- :wat::core::String])
-(:wat::core::defsurface :env::Portable :holder :wat::core::Record [])
+(:wat::core::defsurface :env::Portable :holder :wat::core::Record :features [])
 (:wat::core::defn :env::take [p <- :env::Portable] -> :wat::core::i64 42)
 (:wat::core::defn :env::feed [] -> :wat::core::i64 (:env::take (:env::Rec "h")))
