@@ -62,6 +62,23 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ded
 >     2b (concrete accessors remove the loose-`:wat::core::Record` consumer that clashed when I first tried the surface).
 >   Then **item 3: of-funcs** (`::of`/`struct-new`/`holon::core::Record::of` → `aggregate-new`; = 294.c.2b). Order +
 >   PHASE-1 list in `294/CLOSE-SEQUENCE-293-294.md`. Then decl-b.1/b.2 · remaining GAP-2/3/4 · audit · 293.5 → 118.
+> - ▷▷ **RESUME POINT (paused mid-flight, SESSION 11 tail, 2026-06-29) — two design decisions settled, build next:**
+>   1. **The surface member clause is `:features`** (builder's call, overriding an intueri cast that crowned
+>      `:requires` — recorded as dissent; builder: *"'features' feels like the most intuitive label — these are the
+>      surface features"*; familiar-over-faithful, builder owns the surface vocab). The member vector is ALWAYS
+>      introduced by `:features` (ONE canonical path; the bare-vector + `:holder X [vec]` forms RETIRE):
+>      `(defsurface :S :features [members])` / `(defsurface :S :holder :wat::core::Record :features [members])`.
+>   2. **rete facts = a `:wat::rete::Fact` SURFACE, NOT `:wat::core::Value`** — builder corrected model §7's "rete uses
+>      Value": facts must be EDN-serializable, so `(defsurface :wat::rete::Fact :holder :wat::core::Record :features [])`
+>      ("must be a record, not a struct"). So item-2 has NO `Value` migration — every "must be a record" slot is a
+>      `:holder :wat::core::Record` surface (rete::Fact, user-env). §7 needs updating.
+>   **BUILD ORDER on resume:** (1) the **`:features` clause strike** — `parse_defsurface` (surface.rs:292, arity 2/4)
+>   grows `:features`; member vector introduced by it; retire bare-vector; migrate the ~15 existing `defsurface` decls
+>   (RED probe `tests/types/probe_arc293_requires_clause` was about-to-be-drawn — rename it to `…_features_clause`).
+>   → (2) **2a** rete `[fact/sfact/f <- :wat::core::Record]` (13 sites) + fact-storage PVs → `:wat::rete::Fact`; rete
+>   NODE records (lines 288/304, `Record/assoc`) STAY (GAP-1/2). → (3) **2b** accessors→concrete + GAP-1 one
+>   `aggregate-field`. → (4) **2c** `user.program`/spawn → its surface. (Grounded: decoded records concrete
+>   `reconstruct_record:2453`; rete fact entry `:wat::rete::insert` rete.wat:824.)
 
 > ⚠⚠ **CORRECTION (2026-06-28, SESSION 10 — the drift, named) — READ THIS FIRST. The "293.R2.x" label below is WRONG.**
 > The `Value`-repr collapse done this session (R2.1/R2.2/R2.3 + the sweep) is **arc 294's deliverable, NOT 293's** —
