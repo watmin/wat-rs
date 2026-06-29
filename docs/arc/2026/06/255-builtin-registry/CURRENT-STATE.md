@@ -1,9 +1,15 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `0e56dc87` or later.** Tree CLEAN.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `310aa793` or later.** Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4098 passed / 0 failed / 93 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`; the `293.R2`
-parity probe is now GREEN/un-ignored).
+`4099 passed / 0 failed / 93 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`; `293.R2` +
+`293.R2.3` parity probes are GREEN).
+
+**✅ THE R2 AGGREGATE UNIFICATION — three strikes, all landed + weighed forced-clean:** R2.1 repr collapse (one
+`Value::Aggregate`, `9d1e3ff3`) · R2.2 accessor-codegen merge (parity break dead, `register_record_methods`
+annihilated, `0e56dc87`) · R2.3 construction-form parity (every type-name its own bare ctor, `/new` annihilated save
+5 native opaque intrinsics, `310aa793`). **The aggregate is now ONE toolkit — holder is the only variance — for the
+VALUE, the ACCESSOR, and CONSTRUCTION.** R2 *FRANGE UT UNUM FIAT* is PROVEN.
 
 **✅ 293.R2.2 — ACCESSOR-CODEGEN MERGE LANDED (`0e56dc87`) — THE PARITY BREAK IS DEAD.** One
 `register_aggregate_methods` mints field accessors for ALL holders over the collapsed `Value::Aggregate`,
@@ -25,17 +31,18 @@ are now POLICY restrictions on the ONE holder. 252 sites / 55 files, SET-diff �
 Hologram→holon_form-identity 234.1 / Empty→(class,fields)); EDN codec (Hologram rides holon_form 234.7b / Empty
 named-map 234.7a, no recompute). See `DESIGN-293.R2-repr-collapse.md`.
 
-**NEXT — pick (builder's steer):** (A) **the accessor PARAM-TYPE variance** (above) — decide wire-looseness vs
-generic-tightness so accessors are fully uniform (the "annihilate the variance" continuation; a DESIGN fork, not
-mechanical); (B) **293.R2.3 construction-form parity** — drop `:T/new` for structs → bare `:T` for all three (the
-decided `unify-on-:T`, NOTE-base-struct-horizon; user-visible ~8-`.wat` cascade `Launched/new`→`Launched` + a few
-`.rs`; mechanical); (C) **293.R2.4 ctor-codegen unification** — the struct ctor (`register_struct_methods`, Rust
-`/new`) + record/holon ctor (the `defrecord` macro, holon lowering in wat) are still two homes; unify the *construction*
-toolkit (note: holon lowering should STAY in wat — don't pull it into Rust); (D) **purgare** — dead imports/vars from
-the two annihilations (runtime.rs Config/fmt/wat_value/TypeExpr; check.rs head_span; `ast_variant_label`
-parser.rs:503). My lean: (B) is the clean mechanical next; (A) is the deepest "one toolkit" question. **293.4e /
-`defprotocol` is DOWNSTREAM of all R2** (its probe was invalid — see the amended 293.4e-pre.iii bullet). If HEAD is
-older than `0e56dc87`, trust git log + docs.
+**NEXT — pick (builder's steer):** (A) **the accessor PARAM-TYPE variance** — non-generic record accessors take a
+loose `:wat::Record` + runtime class-check (records come off the wire); generic ones take the specific type + static
+check (the generic return `:T` needs it). NEEDS GROUNDING FIRST (is the looseness load-bearing for wire-decoded
+records, or incidental?) — NOT decision-ready until that crawl; then it's a no-brainer or a real four-questions debate.
+(C) **293.R2.4 ctor-codegen unification** — construction FORM is uniform (R2.3), but the ctor CODEGEN is still two
+homes: struct ctor in `register_struct_methods` (Rust), record/holon ctor in the `defrecord` macro (holon lowering in
+wat — must STAY in wat). Fold into one. (D) **purgare** — the R2.* annihilations left a GROWING dead-code pile
+(runtime.rs `Config`/`fmt`/`wat_value`/`TypeExpr` imports, `value_matches_type_pattern`, `wrap_stream_as_socket_peer`;
+check.rs `head_span`; `ast_variant_label` parser.rs:503). "We do not settle for less than correct" → a purgare sweep
+to leave the homes clean is warranted before too long. My lean: (D) clears the debt the annihilations left; (A) is the
+deepest remaining "one toolkit" question but owes a crawl. **293.4e / `defprotocol` is DOWNSTREAM of all R2** (its
+probe was invalid — amended 293.4e-pre.iii bullet). If HEAD is older than `310aa793`, trust git log + docs.
 
 > **YOU ARE A NEW INSTANCE.** You did not live what is below; it is a lossy cache in a familiar voice. Run
 > **recolligere** (grimoire via signed `datamancy` MCP; this breadcrumb; git log; the named arc docs) BEFORE you
@@ -277,12 +284,13 @@ not `./target/release/wat`.
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight work against the
 > disk; do not trust a single line you did not re-verify this session. THE NEXT = builder's steer among
-> (A) accessor param-type variance / (B) 293.R2.3 construction-form parity (drop /new) / (C) 293.R2.4 ctor-codegen
-> unification / (D) purgare — see the "NEXT — pick" block above.** **✅ 293.R2.1 (repr collapse → one
-> `Value::Aggregate`, `9d1e3ff3`) + ✅ 293.R2.2 (accessor-codegen merge → the parity break DEAD,
-> `register_record_methods` annihilated, `0e56dc87`) — BOTH LANDED, weighed forced-clean, SET-diff ∅. R2 *FRANGE UT
-> UNUM FIAT* is PROVEN at the value level; the `293.R2` parity probe is GREEN.** **The 293.4 chain (a/b/c/d + demo
-> GREEN + R1 PROBATUM) is done; floor 0 (`4098/0/93`).**
+> (A) accessor param-type variance [owes a crawl] / (C) 293.R2.4 ctor-codegen unification / (D) purgare the R2.*
+> dead-code — see the "NEXT — pick" block above.** **✅ THE R2 TRILOGY LANDED + weighed forced-clean, SET-diff ∅:
+> R2.1 repr collapse (one `Value::Aggregate`, `9d1e3ff3`) · R2.2 accessor-codegen merge (parity break DEAD,
+> `register_record_methods` annihilated, `0e56dc87`) · R2.3 construction-form parity (every type-name its own bare
+> ctor, `/new` annihilated, `310aa793`). R2 *FRANGE UT UNUM FIAT* PROVEN — the aggregate is ONE toolkit (value +
+> accessor + construction), holder the only variance. Both `293.R2` probes GREEN.** **The 293.4 chain (a/b/c/d + demo
+> GREEN + R1 PROBATUM) is done; floor 0 (`4099/0/93`).**
 > ⚠ **293.4e-pre.iii is DOWNSTREAM + its probe is INVALID** (it depended on unsupported generic `defrecord`s — see the
 > amended bullet above); the `defprotocol` thesis is real (the live Locus migration gives 8 type errors) but it is
 > blocked behind R2 + needs a re-authored probe. Beyond 293: `Seqable` → 118 (`118/DESIGN.md`) → 295; doctrine =
