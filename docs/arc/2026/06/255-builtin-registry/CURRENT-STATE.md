@@ -1,8 +1,8 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `dedcb74a` or later.** Tree CLEAN.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `85aa2d83` or later.** Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4116 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
+`4117 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
 > then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`
@@ -62,23 +62,41 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ded
 >     2b (concrete accessors remove the loose-`:wat::core::Record` consumer that clashed when I first tried the surface).
 >   Then **item 3: of-funcs** (`::of`/`struct-new`/`holon::core::Record::of` → `aggregate-new`; = 294.c.2b). Order +
 >   PHASE-1 list in `294/CLOSE-SEQUENCE-293-294.md`. Then decl-b.1/b.2 · remaining GAP-2/3/4 · audit · 293.5 → 118.
-> - ▷▷ **RESUME POINT (paused mid-flight, SESSION 11 tail, 2026-06-29) — two design decisions settled, build next:**
->   1. **The surface member clause is `:features`** (builder's call, overriding an intueri cast that crowned
->      `:requires` — recorded as dissent; builder: *"'features' feels like the most intuitive label — these are the
->      surface features"*; familiar-over-faithful, builder owns the surface vocab). The member vector is ALWAYS
->      introduced by `:features` (ONE canonical path; the bare-vector + `:holder X [vec]` forms RETIRE):
->      `(defsurface :S :features [members])` / `(defsurface :S :holder :wat::core::Record :features [members])`.
->   2. **rete facts = a `:wat::rete::Fact` SURFACE, NOT `:wat::core::Value`** — builder corrected model §7's "rete uses
->      Value": facts must be EDN-serializable, so `(defsurface :wat::rete::Fact :holder :wat::core::Record :features [])`
->      ("must be a record, not a struct"). So item-2 has NO `Value` migration — every "must be a record" slot is a
->      `:holder :wat::core::Record` surface (rete::Fact, user-env). §7 needs updating.
->   **BUILD ORDER on resume:** (1) the **`:features` clause strike** — `parse_defsurface` (surface.rs:292, arity 2/4)
->   grows `:features`; member vector introduced by it; retire bare-vector; migrate the ~15 existing `defsurface` decls
->   (RED probe `tests/types/probe_arc293_requires_clause` was about-to-be-drawn — rename it to `…_features_clause`).
->   → (2) **2a** rete `[fact/sfact/f <- :wat::core::Record]` (13 sites) + fact-storage PVs → `:wat::rete::Fact`; rete
->   NODE records (lines 288/304, `Record/assoc`) STAY (GAP-1/2). → (3) **2b** accessors→concrete + GAP-1 one
->   `aggregate-field`. → (4) **2c** `user.program`/spawn → its surface. (Grounded: decoded records concrete
->   `reconstruct_record:2453`; rete fact entry `:wat::rete::insert` rete.wat:824.)
+> - ▷▷ **RESUME POINT (SESSION 11 wrap, 2026-06-29) — `:features` clause DONE; resume at item-2a:**
+>   - ✅ **`:features` clause LANDED (`85aa2d83`)** — a surface's member vector is introduced by `:features` (ONE
+>     canonical path; bare-vector forms RETIRE). `parse_defsurface` arity 3/5. 21 surfaces migrated. (intueri crowned
+>     `:requires`; builder chose `:features`; builder owns the surface vocab, familiar-over-faithful.)
+>   - ⚠⚠ **CORRECTION OWED — FIRST resume item (corrects the strike above): `:holder` is MANDATORY, not optional.**
+>     Builder: *"the caller MUST declare what the surface is held on — you cannot accidentally pass a struct that meets
+>     the surface constraint — the default masks intent."* (= constraint engineering: a default masks intent →
+>     mandatory declaration.) `:holder` takes ONE of the THREE TRUE holders **{`:wat::core::Struct`, `:wat::core::Record`,
+>     `:wat::holon::Record`}**; NO default; the no-holder (arity-3) form RETIRES → `parse_defsurface` becomes **arity-5
+>     ONLY**. Migrate the ~17 holder-less surfaces to declare their real holder (struct-satisfies test → `:wat::core::Struct`;
+>     record/holon → theirs).
+>   - **`:wat::core::Value` is NOT a holder** (builder: *"calling Value a holder feels like a stretch — Value is an
+>     ASSIGNMENT CONSTRAINT 'you can put any value here'; Values have no declared surface feature nor transmission
+>     restriction"*). Holders carry surface features + a transmission restriction; Value is a different axis (the
+>     assignment top). Value = an ESCAPE HATCH for guts (rete-like: user-forms express facts/records, `PersistentMap`
+>     accepts the raw value; the next rete-thing has it) — NEVER advertised, hard to use intentionally; a param TYPE
+>     `[x <- :wat::core::Value]`, never a surface `:holder`. (So my earlier "4th holder = Value" table was WRONG framing.)
+>   - **OPEN sub-question (resolve with the holder-mandatory strike):** mandatory holder makes surfaces AGGREGATE-ONLY
+>     (the three holders) → FOREIGN-type satisfaction (293.4 R1 monkeypatch — the foreign holon-`Vector` taught to be
+>     `:geo::Shape`, `probe_arc293_acceptance_demo`; `check.rs:14725` *"foreign types cannot satisfy a holder-bound
+>     surface"*) is KILLED, or the foreign case must be rethought (it cannot route through `:holder` since Value isn't
+>     a holder). Decide: kill foreign-as-surface, or a separate non-`:holder` mechanism. **GROUND before deciding.**
+>   - **SETTLED (design):** rete facts = a `:wat::rete::Fact` SURFACE (`:holder :wat::core::Record :features []`), NOT
+>     `:wat::core::Value` — facts must be EDN-serializable (builder corrected model §7's "rete uses Value"). So item-2
+>     has **NO `Value` migration**: every "must be a record" slot is a `:holder :wat::core::Record` surface. §7 needs the fix.
+>   - **▶ NEXT = item-2a:** mint `(:wat::core::defsurface :wat::rete::Fact :holder :wat::core::Record :features [])`;
+>     migrate the **13 fact-typed** `[fact/sfact/f <- :wat::core::Record]` sites in `wat/rete.wat` + the fact-storage PVs
+>     → `:wat::rete::Fact`. rete's **node** records (rete.wat:288/304, `Record/assoc` on nodes) STAY — they're GAP-1/2,
+>     not facts. RED probe: a non-record value REJECTED at `:wat::rete::insert` (rete.wat:824). → then **2b** record
+>     accessors → CONCRETE receivers + FOLD GAP-1 (one holder-blind `aggregate-field`, kill `struct-field`/`Record/field-at`;
+>     codegen runtime.rs:1064-1238). → **2c** `user.program` + spawn init-fns → a `:holder :wat::core::Record :features []`
+>     surface. Then **item 3: of-funcs → aggregate-new** (294.c.2b). (Grounded: decoded records carry concrete class —
+>     `reconstruct_record:2453`.)
+>   - **DOCTRINE minted this session:** `scratch/CONSTRAINT-ENGINEERING.md` (`7dd6e3b`, scratch repo) — the dual of
+>     failure engineering ("you cannot do that"); arc 293 IS constraint engineering. [[project_constraint_engineering_doctrine]].
 
 > ⚠⚠ **CORRECTION (2026-06-28, SESSION 10 — the drift, named) — READ THIS FIRST. The "293.R2.x" label below is WRONG.**
 > The `Value`-repr collapse done this session (R2.1/R2.2/R2.3 + the sweep) is **arc 294's deliverable, NOT 293's** —
