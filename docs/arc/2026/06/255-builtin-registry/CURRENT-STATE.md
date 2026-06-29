@@ -1,9 +1,19 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `310aa793` or later.** Tree CLEAN.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e918c505` or later.** Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4099 passed / 0 failed / 93 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`; `293.R2` +
-`293.R2.3` parity probes are GREEN).
+`4102 passed / 0 failed / 91 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`; the R2 parity +
+ctor-parity + struct->form-roundtrip probes are GREEN).
+
+**✅ 293.R2 purgare+intueri SWEEP LANDED (`e918c505`) — the grimoire caught a real regression the gate hid.**
+A grimoire cast on the R2-rewritten core (builder: *"we have not reached for the grimoire in quite a while"*),
+weighed forced-clean: **B1 (REGRESSION, FIXED)** — `struct->form` emitted `:T/new` which R2.3 unregistered → the
+`eval-ast!` roundtrip was broken, INVISIBLE because its only test is `#[ignore]`'d for arc-170; now `format!(":{}")`,
+guarded by a new non-concurrent probe. + B2 (`_ => false` invariant-dead → `unreachable!`) + 5 dead items deleted +
+~30 stale dead-world names swept (incl. user-facing error strings citing the nonexistent `struct_form`) + the
+ctor-parity probes un-ignored. **LESSON: a green gate cannot see a regression whose only test is ignored — the
+grimoire (or a fresh probe) can.** Banked tiny purgare: 2 unused imports (runtime.rs `Config`@45, `TypeExpr`@1490) +
+the pre-existing `head_span`/`all_match`/`resolve_sandbox_loader` warnings.
 
 **✅ THE R2 AGGREGATE UNIFICATION — three strikes, all landed + weighed forced-clean:** R2.1 repr collapse (one
 `Value::Aggregate`, `9d1e3ff3`) · R2.2 accessor-codegen merge (parity break dead, `register_record_methods`
