@@ -54,14 +54,25 @@ fn build_holon_hologram(class: &str, field_names: &[String], field_values: &[Val
 This shape is verified against BOTH the macro (`Record.wat:157-191`) and the assoc-rebuild (`runtime.rs:14017-14031`):
 field-bind = `Bind(Atom(String(name)), Atom(<holon-of-value>))`; outer = `Bind(Atom(String(class)), Bundle(binds))`.
 
-## CAPACITY — the one real subtlety (resolve at the strike, do not hand-wave)
+## CAPACITY — ONE guard, two callers (EXTRACT, never copy — builder, 2026-06-28)
 The macro wraps the Bundle in `(:wat::core::Result/expect (:wat::holon::Bundle […]) "… capacity exceeded")` — so the
-`:wat::holon::Bundle` *verb* capacity-checks (Kanerva width bound: fan-out per frame ≤ N @ d dims, `config.rs`). The
-Rust `HolonAST::Bundle(...)` enum constructor is **infallible** and would SKIP that check. **The helper MUST replicate
-the verb's capacity check** (find `eval_bundle` / the `CapacityExceeded` path — `runtime.rs:876` names the built-in
-`:wat::holon::CapacityExceeded/…`) so `aggregate-new` on a too-wide holon record fails **loud at construction** (294
-Q-C: "CapacityExceeded fires at the mutation, loud"), exactly as the macro does today. STOP-trigger if the verb's
-check can't be cleanly reused.
+`:wat::holon::Bundle` *verb* capacity-checks (Kanerva width bound). **Grounded against the disk:** that check is
+**inline in `eval_algebra_bundle` (`runtime.rs:15791-15822`)** — `cost = children.len()`, `budget = floor(sqrt(d))`
+(`d = ctx.dim_count`), over-budget → `CapacityMode::Error` returns `Err(CapacityExceeded{cost,budget})` / `Panic`
+panics. It is NOT yet a shared function.
+
+> **The builder's law (2026-06-28): do NOT "replicate" the check — that word is "duplicate," a SECOND copy free to
+> drift, the flaw-#7 disease (equality-written-twice) in a new spot.** The one-canonical-path rule: *there is never
+> 1+ ways to do a thing.* So **EXTRACT** the inline check from `eval_algebra_bundle` into ONE guard,
+> `fn bundle_with_capacity(children: Vec<HolonAST>, ctx: &EncodingCtx, span: &Span) -> Result<HolonAST, EvalBreak>`
+> (returns the checked `HolonAST::Bundle` or raises CapacityExceeded per mode); `eval_algebra_bundle` is rewritten to
+> CALL it (pure extraction, behaviour-preserving, SET-diff ∅), and `build_holon_hologram` calls **the same one** for
+> its field-binds Bundle. One guard, two callers — `aggregate-new` on a too-wide holon record fails loud at
+> construction (294 Q-C) through the identical code path the verb uses. STOP-trigger if the inline check can't be
+> cleanly lifted (e.g. it's entangled with the verb's arg-eval — then surface the seam, don't copy).
+
+This extraction is a small prerequisite decomplection inside c.2a (or a clean c.2a.0 if the sonnet prefers): the
+capacity guard becomes a single function the moment a second caller needs it — which is exactly now.
 
 ## Decomposition
 ### 294.c.2a — mint `aggregate-new` + route all three emitters through it (additive; of-funcs stay)
