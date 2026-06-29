@@ -4,9 +4,12 @@
 //! the substrate scaffolding for the wat-record hologram:
 //!
 //!   - `Value::wat__Record { class_fqdn, struct_form, holon_form }` variant exists
-//!   - PartialEq impl delegates to holon_form (per Stone 221.5 canonical bytes
-//!     seed + arc 234 DESIGN equality section)
-//!   - Hash impl delegates to holon_form (consistent with Eq)
+//!   - PartialEq impl keys on (holder, class, fields) — identity is the EDN data,
+//!     hologram is a derived index (arc 294.c.1, flaw #7 collapse).
+//!     > SUPERSEDED 2026-06-28 by arc 294.c.1: was "delegates to holon_form (per Stone
+//!     > 221.5 canonical bytes seed + arc 234 DESIGN equality section)".
+//!   - Hash impl keys on (holder, class, fields), consistent with PartialEq (arc 294.c.1).
+//!     > SUPERSEDED 2026-06-28 by arc 294.c.1: was "delegates to holon_form".
 //!   - Display impl renders `<class_fqdn>(<field_1>, <field_2>, ...)`
 //!   - Value::type_name() returns `"wat::Record"` (generic kind; Stone 234.1.5 rename)
 //!
@@ -116,7 +119,9 @@ fn probe_1_variant_construction_compiles() {
 // ─── Probe 2 ────────────────────────────────────────────────────────────────
 //
 // Two wat_records with same class + same holon_form return PartialEq::eq → true.
-// Identity lives in the holon_form per Stone 221.5 canonical bytes seed.
+// Identity is the EDN data (class, fields) (arc 294.c.1); same-class+same-fields ⟹ equal.
+// > SUPERSEDED 2026-06-28 by arc 294.c.1: was "Identity lives in the holon_form per
+// > Stone 221.5 canonical bytes seed." — identity is now the EDN data, not the hologram.
 #[test]
 fn probe_2_eq_same_class_same_holon_form() {
     let a = make_record(

@@ -619,21 +619,16 @@ impl PartialEq for Value {
             (Value::Tuple(a), Value::Tuple(b)) => a == b,
             (Value::Option(a), Value::Option(b)) => a == b,
             (Value::Result(a), Value::Result(b)) => a == b,
-            // Arc 293.R2.1 — Aggregate: branch on holon per STOP-1 contract.
-            // Hologram vs Empty (or vice-versa) → not equal (cross-pair).
-            // Two holograms → eq on (class, hologram) — identity lives in hologram.
-            // Two non-holograms → structural (class, fields). Holder mismatch → false.
+            // Arc 294.c.1 — identity is the EDN data (Q-D): (holder, class, fields).
+            // The hologram is a DERIVED index, never identity. Collapses flaw #7 — the
+            // equality split-brain; aligns with values_equal in runtime.rs.
+            // > SUPERSEDED 2026-06-28 by arc 294.c.1: prior contract keyed on hologram
+            // > (arc 293.R2.1 "identity lives in hologram") — replaced by data identity.
             (Value::Aggregate(a), Value::Aggregate(b)) => {
-                if a.holder != b.holder { return false; }
-                match (&a.holon, &b.holon) {
-                    (HolonForm::Hologram(ha), HolonForm::Hologram(hb)) => {
-                        a.class == b.class && ha == hb
-                    }
-                    (HolonForm::Empty, HolonForm::Empty) => {
-                        a.class == b.class && a.fields == b.fields
-                    }
-                    _ => unreachable!("AggregateValue holder/holon invariant violated: same holder {:?}, mismatched HolonForm", a.holder),
-                }
+                // Arc 294.c.1 — identity is the EDN data (Q-D): (holder, class, fields).
+                // The hologram is a DERIVED index, never identity (collapses flaw #7 — the
+                // equality split-brain; aligns with values_equal in runtime.rs).
+                a.holder == b.holder && a.class == b.class && a.fields == b.fields
             }
             (Value::Enum(a), Value::Enum(b)) => {
                 a.type_path == b.type_path
@@ -821,23 +816,16 @@ impl std::hash::Hash for Value {
                     e.hash(state);
                 }
             },
-            // Arc 293.R2.1 — Aggregate: sub-discriminant separates holonic from structural.
-            // Hologram → hash on hologram (canonical identity, Stone 234.1).
-            // Empty → hash on (class, fields) (structural identity).
-            // Holder also hashed to prevent spurious cross-holder equality.
+            // Arc 294.c.1 — hash on the EDN data (holder, class, fields), matching PartialEq.
+            // The hologram is a derived index and is NOT part of identity (flaw #7 collapse).
+            // > SUPERSEDED 2026-06-28 by arc 294.c.1: prior contract hashed the hologram
+            // > (arc 293.R2.1 "Hologram → hash on hologram (canonical identity, Stone 234.1)").
             Value::Aggregate(a) => {
+                // Arc 294.c.1 — hash on the EDN data (holder, class, fields), matching PartialEq.
+                // The hologram is a derived index and is NOT part of identity (flaw #7 collapse).
                 a.holder.hash(state);
-                match &a.holon {
-                    HolonForm::Hologram(h) => {
-                        0u8.hash(state);
-                        h.hash(state);
-                    }
-                    HolonForm::Empty => {
-                        1u8.hash(state);
-                        a.class.hash(state);
-                        a.fields.hash(state);
-                    }
-                }
+                a.class.hash(state);
+                a.fields.hash(state);
             }
             Value::Enum(e) => {
                 e.type_path.hash(state);
