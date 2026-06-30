@@ -1,8 +1,13 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `85aa2d83` or later.** Tree CLEAN.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b708ff` or later** (the surface-kit BUILD is underway — K0+K1 landed). Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4117 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
+`4120 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
+> **▶▶ THE SURFACE KIT BUILD (2026-06-29): K0 + K1 COMPLETE.** The satisfaction layer + the grammar ARE the model.
+> ✅ K1a/K1b the holder ladder (aggregate+foreign, b′) · ✅ K0a/K0b/K0c mandatory `:holder` + explicit `self` +
+> cycle-guard. **▶ NEXT = K2** (`$record` backing-type emission) → K3 `to-record` → K4 extend-type un-demote →
+> K5 extend-surface. The kit DESIGN is `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`; the order is `294/CLOSE-SEQUENCE
+> § THE SURFACE KIT`; R6 *EX CINERIBVS RESVRGO* is sung (`c3689748`). Each Kn: RED probe → strike → weigh forced-clean.
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
 > then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`
