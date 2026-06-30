@@ -67,6 +67,19 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 7. ▷ **GAP-2 — one `aggregate assoc`** (struct gains functional update).
 8. ▷ **GAP-3/4 — uniform `aggregate->map` / `aggregate->form`** (struct→map, record→form).
 9. ▷ **294.c.2b — annihilate the of-funcs** — `struct-new`/`Record::of`/`holon::Record::of` die.
+9a. ▷ **CONSTRUCTION ERGONOMICS — kwargs is the DEFAULT surface; positional is a reserved escape hatch; `/from-map`
+    DIES (QUEUED 2026-06-29, builder).** Invert today's "bare = positional, `/from-map` = kwargs" → **bare = KWARGS**:
+    `(ns::Agg :field-1 22 :field-2 true :field-N #{1 2 3})` is the common, self-documenting, order-free form (a macro
+    that reorders to the positional substrate call — kwargs is always a macro, `feedback_kwargs_is_always_a_macro`).
+    The raw **positional** ctor moves to the **type-name PRIME**: `(ns::Agg' 22 true #{1 2 3})` — you can reach for it
+    but never need to know positions. **`/from-map` is ANNIHILATED** (kwargs IS the map/kwargs path; one less form).
+    **NAME DECISION: `:ns::Agg'`, NOT `/make`** (builder, correcting an apparatus error): `/make` would STEAL a name
+    from the user's method namespace — `:ns::Agg/make` lives in the exact `:ns::Agg/*` space the user fills with their
+    own accessors/methods; reserving it forbids a user method named `make`. **Don't take names from users.** The
+    type-name prime `:ns::Agg'` lives ABOVE the `/` namespace, so the user's entire `:ns::Agg/*` stays free — zero
+    collision. (The `project_prime_suffix_replaces_then_drops` migration convention is NARROW — substrate *verbs*
+    pending their un-prime, e.g. `recv'`/`send'`; it does NOT govern a permanent type-name-prime ctor. The apparatus
+    over-broadened it; corrected.) Pairs the of-funcs→aggregate-new work (9) + supersedes the 291 `/from-map` driver (293.5).
 10. ▷ **THE AGGREGATE AUDIT (systematic verify)** *(293 CLOSURE GATE)* — classify the ~99 holder-branches; unify every
     **spurious** split (keep only comms / EDN-repr / assignability). Proves PHASE 1 complete — nothing else hides.
 
