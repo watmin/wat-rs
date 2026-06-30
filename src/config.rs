@@ -237,6 +237,62 @@ impl fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
+// ─── Arc 296 — structured EDN ────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for ConfigError {
+    /// `#wat.kernel/<VariantName> {:span {…} <variant fields>}` — Pattern A:
+    /// span at the outer struct; each variant's fields are navigable, no
+    /// `:detail` prose.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_int, edn_kw, edn_str, edn_tag, push_span_field};
+        use wat_edn::OwnedValue;
+
+        let span = &self.span;
+        let (variant, mut fields): (&str, Vec<(OwnedValue, OwnedValue)>) = match &self.kind {
+            ConfigErrorKind::SetterAfterNonSetter { setter_head } => (
+                "SetterAfterNonSetter",
+                vec![(edn_kw("setter-head"), edn_str(setter_head))],
+            ),
+            ConfigErrorKind::DuplicateField { field } => {
+                ("DuplicateField", vec![(edn_kw("field"), edn_str(field))])
+            }
+            ConfigErrorKind::RequiredFieldMissing { field } => (
+                "RequiredFieldMissing",
+                vec![(edn_kw("field"), edn_str(field))],
+            ),
+            ConfigErrorKind::UnknownSetter { head } => {
+                ("UnknownSetter", vec![(edn_kw("head"), edn_str(head))])
+            }
+            ConfigErrorKind::BadArity { head, expected, got } => (
+                "BadArity",
+                vec![
+                    (edn_kw("head"), edn_str(head)),
+                    (edn_kw("expected"), edn_int(*expected as i64)),
+                    (edn_kw("got"), edn_int(*got as i64)),
+                ],
+            ),
+            ConfigErrorKind::BadType { field, expected, got } => (
+                "BadType",
+                vec![
+                    (edn_kw("field"), edn_str(field)),
+                    (edn_kw("expected"), edn_str(expected)),
+                    (edn_kw("got"), edn_str(got)),
+                ],
+            ),
+            ConfigErrorKind::BadValue { field, reason } => (
+                "BadValue",
+                vec![
+                    (edn_kw("field"), edn_str(field)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ],
+            ),
+            ConfigErrorKind::MalformedSetter => ("MalformedSetter", vec![]),
+        };
+        push_span_field(&mut fields, "span", span);
+        edn_tag(variant, OwnedValue::Map(fields))
+    }
+}
+
 /// Collect the entry file's leading `(:wat::config::set-*!)` setters and
 /// commit them to a [`Config`]. Returns the config plus the remaining
 /// forms (load!s, program body) for further processing.

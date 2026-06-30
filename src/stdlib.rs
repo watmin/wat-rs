@@ -411,6 +411,33 @@ impl std::fmt::Display for StdlibError {
 
 impl std::error::Error for StdlibError {}
 
+// ─── Arc 296 — structured EDN ────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for StdlibError {
+    /// `#wat.kernel/ParseFailed {:path "…" :source "…" :span {…}}`.
+    /// The `source` field carries the underlying parse-failure message: the
+    /// baked stdlib has no recoverable wat-source ParseError to nest (the
+    /// loader records the failure as a flat string at construction), so it is
+    /// a navigable named field, not a `:detail` blob.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_kw, edn_str, edn_tag, push_span_field};
+        use wat_edn::OwnedValue;
+
+        let span = &self.span;
+        let (variant, mut fields): (&str, Vec<(OwnedValue, OwnedValue)>) = match &self.kind {
+            StdlibErrorKind::ParseFailed { path, source } => (
+                "ParseFailed",
+                vec![
+                    (edn_kw("path"), edn_str(path)),
+                    (edn_kw("source"), edn_str(source)),
+                ],
+            ),
+        };
+        push_span_field(&mut fields, "span", span);
+        edn_tag(variant, OwnedValue::Map(fields))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

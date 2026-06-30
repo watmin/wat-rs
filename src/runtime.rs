@@ -22075,8 +22075,12 @@ fn process_died_error_runtime(message: String) -> Value {
 
 /// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs
 /// (arc 170 slice 1i — structured runtime-error exit path).
-pub(crate) fn process_died_error_runtime_value(message: String) -> Value {
-    process_died_error_runtime(message)
+///
+/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]: the payload is produced
+/// from the error's `ToEdn` impl via [`crate::to_edn::to_wire_edn`], so a
+/// non-`ToEdn` type cannot reach this wire boundary (it is a compile error).
+pub(crate) fn process_died_error_runtime_value(e: &impl crate::to_edn::ToEdn) -> Value {
+    process_died_error_runtime(crate::to_edn::to_wire_edn(e))
 }
 
 /// Build a `:wat::kernel::ProcessDiedError::ChannelDisconnected`
@@ -22101,8 +22105,13 @@ fn process_died_error_startup(message: String) -> Value {
 }
 
 /// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs.
-pub(crate) fn process_died_error_startup_value(message: String) -> Value {
-    process_died_error_startup(message)
+///
+/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]: the payload comes from
+/// the error's `ToEdn` impl (via [`crate::to_edn::to_wire_edn`]), so a raw
+/// `String` (or a non-`ToEdn` type) has no path to this boundary. Genuinely
+/// flat messages travel as a [`crate::to_edn::FlatMessage`] `ToEdn` value.
+pub(crate) fn process_died_error_startup_value(e: &impl crate::to_edn::ToEdn) -> Value {
+    process_died_error_startup(crate::to_edn::to_wire_edn(e))
 }
 
 
@@ -22118,8 +22127,12 @@ fn process_died_error_main_signature(message: String) -> Value {
 }
 
 /// Cross-module pub(crate) accessor.
-pub(crate) fn process_died_error_main_signature_value(message: String) -> Value {
-    process_died_error_main_signature(message)
+///
+/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]. The signature-validation
+/// message is a genuinely flat message, passed as a
+/// [`crate::to_edn::FlatMessage`] so even it travels as a `ToEdn` value.
+pub(crate) fn process_died_error_main_signature_value(e: &impl crate::to_edn::ToEdn) -> Value {
+    process_died_error_main_signature(crate::to_edn::to_wire_edn(e))
 }
 
 /// Build a `:wat::kernel::ProcessDiedError::BadReturn(message)`
@@ -22134,8 +22147,11 @@ fn process_died_error_bad_return(message: String) -> Value {
 }
 
 /// Cross-module pub(crate) accessor.
-pub(crate) fn process_died_error_bad_return_value(message: String) -> Value {
-    process_died_error_bad_return(message)
+///
+/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]. The bad-return type name
+/// is a genuinely flat message, passed as a [`crate::to_edn::FlatMessage`].
+pub(crate) fn process_died_error_bad_return_value(e: &impl crate::to_edn::ToEdn) -> Value {
+    process_died_error_bad_return(crate::to_edn::to_wire_edn(e))
 }
 
 /// `(:wat::kernel::ThreadDiedError/message err) -> :String`.

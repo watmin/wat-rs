@@ -63,7 +63,11 @@ fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
     match e {
         crate::freeze::StartupError::Macro(_) => {
             // Arc 296: structured EDN cause chain for Macro failures.
-            let cause_edn = crate::macros::error_edn::startup_error_to_edn(e);
+            // Route through the ToEdn trait — ONE canonical path.
+            let cause_edn = {
+                use crate::to_edn::ToEdn;
+                e.to_edn()
+            };
 
             // Build #wat.kernel.ProcessDiedError/StartupError [<cause>]
             let startup_err_edn = wat_edn::OwnedValue::Tagged(
@@ -79,11 +83,14 @@ fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
             crate::process::stdio::emit_panic_envelope(&line);
         }
         _ => {
-            // Other variants: String-based path — extract-panics can reconstruct,
-            // types.rs declares the field as :wat::core::String.
+            // Arc 296 — the StartupError is passed BY VALUE through the
+            // ToEdn-generic boundary; the builder serializes it via
+            // `to_wire_edn`. The String field stays :wat::core::String so
+            // extract-panics can still reconstruct the variant on the parent
+            // side; its CONTENT is structured EDN, not prose Display text.
             emit_structured_exit(
                 None,
-                crate::runtime::process_died_error_startup_value(format!("{}", e)),
+                crate::runtime::process_died_error_startup_value(e),
             );
         }
     }
@@ -171,27 +178,27 @@ fn finish_forked_child(
         // in exit-code arithmetic.
         Ok(Ok(Value::Unit)) => unsafe { libc::_exit(EXIT_SUCCESS) },
         Ok(Ok(other)) => {
-            // Arc 170 slice 1i — structured BadReturn.
+            // Arc 296 — structured BadReturn: the type name is a genuinely flat
+            // message, carried through the ToEdn-generic boundary as a
+            // FlatMessage (the string IS the datum — no structure to lose).
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_bad_return_value(format!(
-                    ":user::main returned non-nil value: {}",
-                    other.type_name()
-                )),
+                crate::runtime::process_died_error_bad_return_value(&crate::to_edn::FlatMessage {
+                    tag: "BadReturnType",
+                    key: "got-type",
+                    message: other.type_name(),
+                }),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
         Ok(Err(runtime_err)) => {
-            // Arc 233 Stone 233.3 — HARD CUT: EDN-serialized RuntimeError
-            // replaces the Display-text string inside the ProcessDiedError
-            // envelope. Structured fields flow over the wire as machine-
-            // consumable EDN rather than opaque text.
-            let runtime_edn = wat_edn::write(
-                &crate::runtime_error_edn::runtime_error_to_edn(&runtime_err)
-            );
+            // Arc 233 Stone 233.3 / arc 296 — the RuntimeError crosses the
+            // ToEdn-generic boundary BY VALUE; the builder serializes it via
+            // `to_wire_edn`. Structured fields flow over the wire as
+            // machine-consumable EDN rather than opaque text.
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_runtime_value(runtime_edn),
+                crate::runtime::process_died_error_runtime_value(&runtime_err),
             );
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
@@ -405,7 +412,11 @@ fn run_forked_child(
     if let Err(msg) = validate_user_main_signature(&world) {
         emit_structured_exit(
             Some(&world),
-            crate::runtime::process_died_error_main_signature_value(msg.to_string()),
+            crate::runtime::process_died_error_main_signature_value(&crate::to_edn::FlatMessage {
+                tag: "MainSignatureError",
+                key: "message",
+                message: &msg,
+            }),
         );
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
@@ -613,7 +624,11 @@ fn child_branch_from_source(
     if let Err(msg) = validate_user_main_signature(&world) {
         emit_structured_exit(
             Some(&world),
-            crate::runtime::process_died_error_main_signature_value(msg.to_string()),
+            crate::runtime::process_died_error_main_signature_value(&crate::to_edn::FlatMessage {
+                tag: "MainSignatureError",
+                key: "message",
+                message: &msg,
+            }),
         );
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }

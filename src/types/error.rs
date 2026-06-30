@@ -304,4 +304,147 @@ impl fmt::Display for TypeError {
     }
 }
 
+// ─── Arc 296 — structured EDN ────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for TypeError {
+    /// `#wat.kernel/<VariantName> {:span {…} <variant fields>}` — Pattern A:
+    /// the outer struct span is emitted as `:span` (elided when unknown);
+    /// each variant contributes its own domain fields. No `:detail` prose
+    /// blob — every field is navigable.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_int, edn_kw, edn_str, edn_tag, push_span_field};
+        use wat_edn::OwnedValue;
+
+        let span = &self.span;
+        let (variant, mut fields): (&str, Vec<(OwnedValue, OwnedValue)>) = match &self.kind {
+            TypeErrorKind::DuplicateType { name } => {
+                ("DuplicateType", vec![(edn_kw("name"), edn_str(name))])
+            }
+            TypeErrorKind::ReservedPrefix { name } => {
+                ("ReservedPrefix", vec![(edn_kw("name"), edn_str(name))])
+            }
+            TypeErrorKind::MalformedDecl { head, reason } => (
+                "MalformedDecl",
+                vec![
+                    (edn_kw("head"), edn_str(head)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ],
+            ),
+            TypeErrorKind::MalformedName { raw, reason } => (
+                "MalformedName",
+                vec![
+                    (edn_kw("raw"), edn_str(raw)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ],
+            ),
+            TypeErrorKind::MalformedField { reason } => {
+                ("MalformedField", vec![(edn_kw("reason"), edn_str(reason))])
+            }
+            TypeErrorKind::MalformedVariant {
+                enum_name,
+                offending,
+                reason,
+                remedies,
+            } => {
+                let mut f = vec![
+                    (edn_kw("enum-name"), edn_str(enum_name)),
+                    (edn_kw("offending"), edn_str(offending)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ];
+                if !remedies.is_empty() {
+                    f.push((
+                        edn_kw("remedies"),
+                        edn_str(&crate::remedy::render_remedies(remedies)),
+                    ));
+                }
+                ("MalformedVariant", f)
+            }
+            TypeErrorKind::MalformedTypeExpr { raw, reason } => (
+                "MalformedTypeExpr",
+                vec![
+                    (edn_kw("raw"), edn_str(raw)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ],
+            ),
+            TypeErrorKind::AnyBanned { raw } => {
+                ("AnyBanned", vec![(edn_kw("raw"), edn_str(raw))])
+            }
+            TypeErrorKind::CyclicAlias { name } => {
+                ("CyclicAlias", vec![(edn_kw("name"), edn_str(name))])
+            }
+            TypeErrorKind::AliasArityMismatch { name, expected, got } => (
+                "AliasArityMismatch",
+                vec![
+                    (edn_kw("name"), edn_str(name)),
+                    (edn_kw("expected"), edn_int(*expected as i64)),
+                    (edn_kw("got"), edn_int(*got as i64)),
+                ],
+            ),
+            TypeErrorKind::InnerColonInCompoundArg { raw, offending } => (
+                "InnerColonInCompoundArg",
+                vec![
+                    (edn_kw("raw"), edn_str(raw)),
+                    (edn_kw("offending"), edn_str(offending)),
+                ],
+            ),
+            TypeErrorKind::CyclicUnion { name } => {
+                ("CyclicUnion", vec![(edn_kw("name"), edn_str(name))])
+            }
+            TypeErrorKind::EmptyUnion { name } => {
+                ("EmptyUnion", vec![(edn_kw("name"), edn_str(name))])
+            }
+            TypeErrorKind::SingleMemberUnion { name } => {
+                ("SingleMemberUnion", vec![(edn_kw("name"), edn_str(name))])
+            }
+            TypeErrorKind::InvalidUnionMember {
+                union_name,
+                member_form,
+                reason,
+            } => (
+                "InvalidUnionMember",
+                vec![
+                    (edn_kw("union-name"), edn_str(union_name)),
+                    (edn_kw("member-form"), edn_str(member_form)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ],
+            ),
+            TypeErrorKind::CyclicSubtype { child, parent } => (
+                "CyclicSubtype",
+                vec![
+                    (edn_kw("child"), edn_str(child)),
+                    (edn_kw("parent"), edn_str(parent)),
+                ],
+            ),
+            TypeErrorKind::ImpureFieldInPureAggregate {
+                aggregate,
+                field,
+                field_ty,
+            } => (
+                "ImpureFieldInPureAggregate",
+                vec![
+                    (edn_kw("aggregate"), edn_str(aggregate)),
+                    (edn_kw("field"), edn_str(field)),
+                    (edn_kw("field-ty"), edn_str(field_ty)),
+                ],
+            ),
+            TypeErrorKind::ImpureVariantFieldInPureEnum {
+                enum_name,
+                variant,
+                field,
+                field_ty,
+            } => (
+                "ImpureVariantFieldInPureEnum",
+                vec![
+                    (edn_kw("enum-name"), edn_str(enum_name)),
+                    (edn_kw("variant"), edn_str(variant)),
+                    (edn_kw("field"), edn_str(field)),
+                    (edn_kw("field-ty"), edn_str(field_ty)),
+                ],
+            ),
+        };
+        push_span_field(&mut fields, "span", span);
+        edn_tag(variant, OwnedValue::Map(fields))
+    }
+}
+
 impl std::error::Error for TypeError {}

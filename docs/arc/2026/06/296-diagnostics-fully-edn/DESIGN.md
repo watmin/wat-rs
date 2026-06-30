@@ -1,8 +1,8 @@
 # Arc 296 — Error → EDN, unified under ONE trait: every diagnostic is structured EDN by construction
 
-> **Status: RE-SCOPED (2026-06-30, builder) — from "fix the macro prose-blob" to "unify error→EDN under one
-> trait."** Arc-sized. **Slice 1 (the macro chain) LANDED (`f397aba6`, weighed 4141/0/91).** Parked behind the
-> 293/294 line; this is the real shape. **Intueri the trait name at strike time.**
+> **Status: CLOSED (2026-06-30) — slices 296.2–296.5 landed, gate 4157/0/91, awaiting orchestrator weigh.**
+> Slice 1 (the macro chain) landed at `f397aba6`. Slices 2–5 are uncommitted from HEAD `59dad529`.
+> See INSCRIPTION.md for the full close record.
 
 ## What opened it, and what re-opened it
 A macro error printed its whole cause-chain as ONE prose string inside an otherwise-EDN envelope (builder, while

@@ -305,9 +305,11 @@ pub(crate) fn child_post_fork_init_preserving(lifeline_r_raw: i32, extra_preserv
         let err = std::io::Error::last_os_error();
         emit_structured_exit(
             None,
-            crate::runtime::process_died_error_startup_value(
-                format!("setpgid(0, 0) failed: {}", err),
-            ),
+            crate::runtime::process_died_error_startup_value(&crate::to_edn::FlatMessage {
+                tag: "StartupError",
+                key: "message",
+                message: &format!("setpgid(0, 0) failed: {}", err),
+            }),
         );
         unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }

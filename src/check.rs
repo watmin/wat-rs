@@ -50,6 +50,7 @@ pub mod env;
 pub use env::CheckEnv;
 pub mod error;
 pub use error::{CheckError, CheckErrorKind, CheckErrors};
+pub mod error_edn;
 
 use crate::ast::WatAST;
 use crate::scope::Identifier;

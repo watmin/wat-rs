@@ -300,6 +300,65 @@ impl fmt::Display for LoadError {
 
 impl std::error::Error for LoadError {}
 
+// ─── Arc 296 — structured EDN ────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for LoadError {
+    /// `#wat.kernel/<VariantName> {:span {…} <variant fields>}` — Pattern A:
+    /// span at the outer struct; the nested `Parse` variant carries the
+    /// underlying [`ParseError`]'s own structured EDN. The leaf `Fetch` /
+    /// `VerificationFailed` sub-errors are foreign opaque error types
+    /// (`LoadFetchError`, `HashError`) carrying only a human message, so
+    /// their `:cause` is a string — the LoadError LEVEL stays structured.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_kw, edn_str, edn_tag, push_span_field};
+        use wat_edn::OwnedValue;
+
+        let span = &self.span;
+        let (variant, mut fields): (&str, Vec<(OwnedValue, OwnedValue)>) = match &self.kind {
+            LoadErrorKind::MalformedLoadForm { reason } => (
+                "MalformedLoadForm",
+                vec![(edn_kw("reason"), edn_str(reason))],
+            ),
+            LoadErrorKind::SetterInLoadedFile { loaded_path, setter_head } => (
+                "SetterInLoadedFile",
+                vec![
+                    (edn_kw("loaded-path"), edn_str(loaded_path)),
+                    (edn_kw("setter-head"), edn_str(setter_head)),
+                ],
+            ),
+            LoadErrorKind::DuplicateLoad { path } => {
+                ("DuplicateLoad", vec![(edn_kw("path"), edn_str(path))])
+            }
+            LoadErrorKind::CycleDetected { cycle } => (
+                "CycleDetected",
+                vec![(
+                    edn_kw("cycle"),
+                    OwnedValue::Vector(cycle.iter().map(|p| edn_str(p)).collect()),
+                )],
+            ),
+            LoadErrorKind::Fetch(e) => {
+                ("Fetch", vec![(edn_kw("cause"), edn_str(&e.to_string()))])
+            }
+            LoadErrorKind::Parse { path, err } => (
+                "Parse",
+                vec![
+                    (edn_kw("path"), edn_str(path)),
+                    (edn_kw("cause"), err.to_edn()),
+                ],
+            ),
+            LoadErrorKind::VerificationFailed { path, err } => (
+                "VerificationFailed",
+                vec![
+                    (edn_kw("path"), edn_str(path)),
+                    (edn_kw("cause"), edn_str(&err.to_string())),
+                ],
+            ),
+        };
+        push_span_field(&mut fields, "span", span);
+        edn_tag(variant, OwnedValue::Map(fields))
+    }
+}
+
 impl From<LoadFetchError> for LoadError {
     fn from(e: LoadFetchError) -> Self {
         LoadError { span: Span::unknown(), kind: LoadErrorKind::Fetch(e) }

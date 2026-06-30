@@ -237,7 +237,7 @@ pub fn run_tests_from_dir_with_loader(
         ) {
             Ok(f) => f,
             Err(e) => {
-                // Arc 116 slice 4 — emit one structured Diagnostic per
+                // Arc 116 slice 4 / arc 296 — emit one structured EDN envelope per
                 // freeze error to stdout (when WAT_TEST_OUTPUT set);
                 // text rendering preserves today's "test-runner: file:
                 // startup: <error>" shape so cargo test users see no
@@ -245,8 +245,8 @@ pub fn run_tests_from_dir_with_loader(
                 // (LSP, agents, CI) field-level access to expected /
                 // got / hint without parsing text.
                 let label = format!("test-runner: {}", file.display());
-                for diag in e.diagnostics() {
-                    emit_structured_diagnostic(&label, &diag);
+                for edn in e.to_edn_values() {
+                    emit_structured_edn(&label, &edn);
                 }
                 summary.failure_summaries.push(format!(
                     "test-runner: {}: startup: {}",
@@ -296,24 +296,23 @@ pub fn run_tests_from_dir_with_loader(
             }));
             let elapsed_ms = start.elapsed().as_millis();
             match invoke {
-                Ok(Ok(value)) => match failure_to_diagnostic(&value) {
+                Ok(Ok(value)) => match failure_to_edn(&value) {
                     None => {
                         println!("... ok ({}ms)", elapsed_ms);
                         summary.passed += 1;
                     }
-                    Some(diag) => {
+                    Some(edn) => {
                         println!("... FAILED ({}ms)", elapsed_ms);
-                        emit_structured_diagnostic(&label, &diag);
-                        let fail = render_failure_text(&diag);
+                        emit_structured_edn(&label, &edn);
+                        let fail = render_failure_text(&edn);
                         summary.failure_summaries.push(format!("{}\n{}", label, fail));
                         summary.failed += 1;
                     }
                 },
                 Ok(Err(err)) => {
                     println!("... FAILED ({}ms)", elapsed_ms);
-                    let diag = crate::diagnostic::Diagnostic::new("RuntimeError")
-                        .field("message", format!("{}", err));
-                    emit_structured_diagnostic(&label, &diag);
+                    let edn = make_simple_edn("RuntimeError", "message", &format!("{}", err));
+                    emit_structured_edn(&label, &edn);
                     summary.failure_summaries.push(format!(
                         "{}\n  runtime: {}",
                         label, err
@@ -322,11 +321,12 @@ pub fn run_tests_from_dir_with_loader(
                 }
                 Err(_) => {
                     println!("... FAILED ({}ms)", elapsed_ms);
-                    let diag = crate::diagnostic::Diagnostic::new("TestPanicEscaped").field(
+                    let edn = make_simple_edn(
+                        "TestPanicEscaped",
                         "reason",
                         "panic escaped test body (assertion panics should be caught inside)",
                     );
-                    emit_structured_diagnostic(&label, &diag);
+                    emit_structured_edn(&label, &edn);
                     summary.failure_summaries.push(format!(
                         "{}\n  panic escaped test body (assertion panics should be caught inside)",
                         label
@@ -454,8 +454,8 @@ pub fn run_single_deftest(
         Ok(f) => f,
         Err(e) => {
             let label = format!("test-runner: {}", file.display());
-            for diag in e.diagnostics() {
-                emit_structured_diagnostic(&label, &diag);
+            for edn in e.to_edn_values() {
+                emit_structured_edn(&label, &edn);
             }
             panic!("test-runner: {}: startup: {}", file.display(), e);
         }
@@ -480,26 +480,26 @@ pub fn run_single_deftest(
     }));
 
     match invoke {
-        Ok(Ok(value)) => match failure_to_diagnostic(&value) {
+        Ok(Ok(value)) => match failure_to_edn(&value) {
             None => {} // pass
-            Some(diag) => {
-                emit_structured_diagnostic(&label, &diag);
-                let fail = render_failure_text(&diag);
+            Some(edn) => {
+                emit_structured_edn(&label, &edn);
+                let fail = render_failure_text(&edn);
                 panic!("{}\n{}", label, fail);
             }
         },
         Ok(Err(err)) => {
-            let diag = crate::diagnostic::Diagnostic::new("RuntimeError")
-                .field("message", format!("{}", err));
-            emit_structured_diagnostic(&label, &diag);
+            let edn = make_simple_edn("RuntimeError", "message", &format!("{}", err));
+            emit_structured_edn(&label, &edn);
             panic!("{}\n  runtime: {}", label, err);
         }
         Err(_) => {
-            let diag = crate::diagnostic::Diagnostic::new("TestPanicEscaped").field(
+            let edn = make_simple_edn(
+                "TestPanicEscaped",
                 "reason",
                 "panic escaped test body (assertion panics should be caught inside)",
             );
-            emit_structured_diagnostic(&label, &diag);
+            emit_structured_edn(&label, &edn);
             panic!(
                 "{}\n  panic escaped test body (assertion panics should be caught inside)",
                 label,
@@ -624,39 +624,43 @@ fn strip_leading_colon(s: &str) -> &str {
     s.strip_prefix(':').unwrap_or(s)
 }
 
-/// Arc 116 slice 1 — extract the failure as a structured
-/// [`Diagnostic`] from a RunResult. Returns `None` when the
-/// RunResult.failure slot is `:None` (test passed) and `Some(diag)`
-/// when it carries a Failure struct.
+/// Arc 116 slice 1 / arc 296 — extract a structured `OwnedValue` from a
+/// RunResult when it carries a Failure struct. Returns `None` when the
+/// RunResult.failure slot is `:None` (test passed).
 ///
-/// The Diagnostic carries the same fields the text renderer uses
-/// (message, location, actual, expected, frames). Renderers
-/// (text via [`render_failure_text`], EDN via
-/// `wat::diagnostic::render_edn`, JSON via `render_json`) consume
-/// this single source of truth.
+/// The returned tagged envelope:
+/// ```text
+/// #wat.kernel/AssertionFailed {:message "..." :location "..." :actual "..." :expected "..." ...}
+/// #wat.kernel/Panic {:message "..." ...}
+/// ```
 ///
 /// **Data first.** The substrate's :wat::kernel::Failure struct
 /// already IS structured (arc 064); arc 116 stops flattening it
-/// at the test runner's panic boundary.
-fn failure_to_diagnostic(v: &Value) -> Option<crate::diagnostic::Diagnostic> {
-    use crate::diagnostic::Diagnostic;
+/// at the test runner's panic boundary. Arc 296 moves from the
+/// intermediate `Diagnostic` type to `OwnedValue` directly.
+fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
+    use std::borrow::Cow;
+    use wat_edn::{Keyword, OwnedValue, Tag};
+
     let sv = match v {
         Value::Aggregate(a) if a.holder == Holder::Struct && a.class == "wat::kernel::RunResult" => a,
         _ => {
-            return Some(
-                Diagnostic::new("MalformedTestResult")
-                    .field("reason", "test did not return :wat::kernel::RunResult"),
-            );
+            return Some(make_simple_edn(
+                "MalformedTestResult",
+                "reason",
+                "test did not return :wat::kernel::RunResult",
+            ));
         }
     };
     let failure_field = sv.fields.get(2)?;
     let failure_opt = match failure_field {
         Value::Option(opt) => opt,
         _ => {
-            return Some(
-                Diagnostic::new("MalformedTestResult")
-                    .field("reason", "malformed RunResult.failure slot"),
-            );
+            return Some(make_simple_edn(
+                "MalformedTestResult",
+                "reason",
+                "malformed RunResult.failure slot",
+            ));
         }
     };
     let failure = match &**failure_opt {
@@ -666,10 +670,11 @@ fn failure_to_diagnostic(v: &Value) -> Option<crate::diagnostic::Diagnostic> {
     let fv = match failure {
         Value::Aggregate(a) if a.holder == Holder::Record && a.class == "wat::kernel::Failure" => a,
         _ => {
-            return Some(
-                Diagnostic::new("MalformedTestResult")
-                    .field("reason", "failure slot is not :wat::kernel::Failure"),
-            );
+            return Some(make_simple_edn(
+                "MalformedTestResult",
+                "reason",
+                "failure slot is not :wat::kernel::Failure",
+            ));
         }
     };
     let message = match fv.fields.first() {
@@ -683,55 +688,74 @@ fn failure_to_diagnostic(v: &Value) -> Option<crate::diagnostic::Diagnostic> {
     // Discriminate AssertionFailed from generic Panic by whether
     // actual/expected are populated — arc 064's `assert-eq` pathway
     // populates both; plain `panic!` calls leave them `:None`.
-    let kind = if actual.is_some() && expected.is_some() {
+    let variant = if actual.is_some() && expected.is_some() {
         "AssertionFailed"
     } else {
         "Panic"
     };
-    let mut diag = Diagnostic::new(kind).field("message", message);
+
+    let str_val = |s: String| OwnedValue::String(Cow::Owned(s));
+    let kw = |name: &str| OwnedValue::Keyword(Keyword::new(name));
+
+    let mut fields = vec![(kw("message"), str_val(message))];
     if let Some(loc) = location {
-        diag = diag.field("location", loc);
+        fields.push((kw("location"), str_val(loc)));
     }
     if let Some(a) = actual {
-        diag = diag.field("actual", a);
+        fields.push((kw("actual"), str_val(a)));
     }
     if let Some(e) = expected {
-        diag = diag.field("expected", e);
+        fields.push((kw("expected"), str_val(e)));
     }
-    // Frames render as repeated `frame_N` fields — preserves order;
+    // Frames render as repeated `frame-N` fields — preserves order;
     // each tooling consumer (LSP, GitHub Actions, agent) decides
     // how to lay them out.
     if let Some(frames) = fv.fields.get(2).and_then(failure_frames_vec) {
         for (i, frame) in frames.iter().enumerate() {
-            diag = diag.field(format!("frame_{}", i), frame.as_str());
+            fields.push((kw(&format!("frame-{}", i)), str_val(frame.clone())));
         }
     }
-    Some(diag)
+
+    Some(OwnedValue::Tagged(
+        Tag::ns("wat.kernel", variant),
+        Box::new(OwnedValue::Map(fields)),
+    ))
 }
 
-/// Render a failure Diagnostic as the human-readable text block
-/// `extract_failure` used to produce inline. Walks the Diagnostic's
-/// fields in order; preserves the existing `cargo test` output
-/// shape so users see the same view as before arc 116.
-fn render_failure_text(diag: &crate::diagnostic::Diagnostic) -> String {
-    use crate::diagnostic::DiagnosticValue;
+/// Render a failure OwnedValue as the human-readable text block.
+/// Walks the tagged map's fields by keyword; preserves the existing
+/// `cargo test` output shape so users see the same view as before arc 116.
+fn render_failure_text(edn: &wat_edn::OwnedValue) -> String {
+    use wat_edn::{Keyword, OwnedValue};
 
-    let backtrace_on = std::env::var("RUST_BACKTRACE")
-        .map(|v| v != "0" && !v.is_empty())
-        .unwrap_or(false);
+    // Extract the body map from a tagged value.
+    let map: &[(OwnedValue, OwnedValue)] = match edn {
+        OwnedValue::Tagged(_, body) => match body.as_ref() {
+            OwnedValue::Map(m) => m,
+            _ => return String::new(),
+        },
+        OwnedValue::Map(m) => m,
+        _ => return String::new(),
+    };
 
     let get = |name: &str| -> Option<String> {
-        diag.fields.iter().find_map(|(k, v)| {
-            if k == name {
+        let target = OwnedValue::Keyword(Keyword::new(name));
+        map.iter().find_map(|(k, v)| {
+            if k == &target {
                 match v {
-                    DiagnosticValue::String(s) => Some(s.clone()),
-                    DiagnosticValue::Int(n) => Some(n.to_string()),
+                    OwnedValue::String(s) => Some(s.to_string()),
+                    OwnedValue::Integer(n) => Some(n.to_string()),
+                    _ => None,
                 }
             } else {
                 None
             }
         })
     };
+
+    let backtrace_on = std::env::var("RUST_BACKTRACE")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false);
 
     let message = get("message").unwrap_or_default();
     let mut out = format!("  failure: {}", message);
@@ -745,9 +769,9 @@ fn render_failure_text(diag: &crate::diagnostic::Diagnostic) -> String {
         out.push_str(&format!("\n    expected: {}", e));
     }
     if backtrace_on {
-        // Walk frame_0, frame_1, ... in order.
+        // Walk frame-0, frame-1, ... in order.
         let frames: Vec<String> = (0..)
-            .map_while(|i| get(&format!("frame_{}", i)))
+            .map_while(|i| get(&format!("frame-{}", i)))
             .collect();
         if !frames.is_empty() {
             out.push_str("\n    frames (newest first):");
@@ -759,8 +783,8 @@ fn render_failure_text(diag: &crate::diagnostic::Diagnostic) -> String {
     out
 }
 
-/// Arc 116 slice 3 — `WAT_TEST_OUTPUT` env var controls structured
-/// emission of failure Diagnostics to stdout. Set to `"edn"` for
+/// Arc 116 slice 3 / arc 296 — `WAT_TEST_OUTPUT` env var controls structured
+/// emission of failure envelopes to stdout. Set to `"edn"` for
 /// EDN records (one per line, arc 092 v4 wire format) or `"json"`
 /// for JSON records (one object per line). Default (unset): no
 /// structured output — only the human-readable text via stderr at
@@ -783,30 +807,73 @@ fn structured_output_format() -> Option<StructuredOutputFormat> {
     }
 }
 
-/// Emit one structured diagnostic record to stdout, prefixed with
-/// the test label so consumers can correlate. No-op when
+/// Emit one structured EDN envelope to stdout, prefixed with the
+/// test label so consumers can correlate. No-op when
 /// `WAT_TEST_OUTPUT` is unset.
-fn emit_structured_diagnostic(label: &str, diag: &crate::diagnostic::Diagnostic) {
+/// Wire boundary: generic over [`crate::to_edn::ToEdn`].
+///
+/// A type that does not implement `ToEdn` cannot reach this function —
+/// the compiler rejects the call site. This is the compile fence from
+/// arc 296 slice 5: new error variants are forced to implement `ToEdn`
+/// before they can be emitted to the structured output stream.
+fn emit_structured_edn(label: &str, edn: &impl crate::to_edn::ToEdn) {
     let format = match structured_output_format() {
         Some(f) => f,
         None => return,
     };
-    // Inject the test label as the first field so the consumer can
+    // Inject :test "label" as the first field so the consumer can
     // correlate without parsing the test_runner's text output.
-    let with_label = crate::diagnostic::Diagnostic {
-        kind: diag.kind.clone(),
-        fields: std::iter::once((
-            "test".to_string(),
-            crate::diagnostic::DiagnosticValue::String(label.to_string()),
-        ))
-        .chain(diag.fields.iter().cloned())
-        .collect(),
-    };
+    let value = edn.to_edn();
+    let with_label = prepend_field(&value, "test", label);
     let line = match format {
-        StructuredOutputFormat::Edn => crate::diagnostic::render_edn(&with_label),
-        StructuredOutputFormat::Json => crate::diagnostic::render_json(&with_label),
+        StructuredOutputFormat::Edn => wat_edn::write(&with_label),
+        StructuredOutputFormat::Json => wat_edn::to_json_string(&with_label),
     };
     println!("{}", line);
+}
+
+/// Prepend a `key "value"` field to the body of a tagged OwnedValue.
+/// When the body is a Map, inserts at position 0. Otherwise wraps the
+/// body in a one-element map under `:value`.
+fn prepend_field(edn: &wat_edn::OwnedValue, key: &str, value: &str) -> wat_edn::OwnedValue {
+    use std::borrow::Cow;
+    use wat_edn::{Keyword, OwnedValue};
+
+    let entry = (
+        OwnedValue::Keyword(Keyword::new(key)),
+        OwnedValue::String(Cow::Owned(value.to_owned())),
+    );
+
+    match edn {
+        OwnedValue::Tagged(tag, body) => {
+            let mut fields = match body.as_ref() {
+                OwnedValue::Map(m) => m.clone(),
+                other => vec![(OwnedValue::Keyword(Keyword::new("value")), other.clone())],
+            };
+            fields.insert(0, entry);
+            OwnedValue::Tagged(tag.clone(), Box::new(OwnedValue::Map(fields)))
+        }
+        other => OwnedValue::Map(vec![
+            entry,
+            (OwnedValue::Keyword(Keyword::new("value")), other.clone()),
+        ]),
+    }
+}
+
+/// Build a minimal `#wat.kernel/<variant> {key "value"}` OwnedValue.
+/// Used for ad-hoc error envelopes (RuntimeError, TestPanicEscaped, etc.)
+/// that don't have a dedicated EDN serializer.
+fn make_simple_edn(variant: &str, key: &str, value: &str) -> wat_edn::OwnedValue {
+    use std::borrow::Cow;
+    use wat_edn::{Keyword, OwnedValue, Tag};
+
+    OwnedValue::Tagged(
+        Tag::ns("wat.kernel", variant),
+        Box::new(OwnedValue::Map(vec![(
+            OwnedValue::Keyword(Keyword::new(key)),
+            OwnedValue::String(Cow::Owned(value.to_owned())),
+        )])),
+    )
 }
 
 /// Extract `file:line:col` from the Failure's `location` field
@@ -927,9 +994,11 @@ fn shuffle<T>(items: &mut [T], rng: &mut Xorshift64) {
 }
 
 #[cfg(test)]
+// Arc 296: arc116_diagnostic_tests migrated from `Diagnostic` to `OwnedValue`.
+// The tests now verify the EDN envelope shape (`#wat.kernel/...`) rather than
+// the old `#wat.diag/...` flat-Diagnostic shape.
 mod arc116_diagnostic_tests {
     use super::*;
-    use crate::diagnostic::{render_edn, render_json, DiagnosticValue};
     use crate::value::value::AggregateValue;
     use std::sync::Arc;
 
@@ -983,13 +1052,15 @@ mod arc116_diagnostic_tests {
     }
 
     #[test]
-    fn passing_run_result_yields_no_diagnostic() {
+    fn passing_run_result_yields_no_edn() {
         let rr = make_run_result(None);
-        assert!(failure_to_diagnostic(&rr).is_none());
+        assert!(failure_to_edn(&rr).is_none());
     }
 
     #[test]
-    fn assertion_failure_yields_assertion_failed_diagnostic() {
+    fn assertion_failure_yields_assertion_failed_edn() {
+        use wat_edn::{Keyword, OwnedValue};
+
         let failure = make_failure(
             "assert-eq failed",
             Some(("test.wat", 42, 13)),
@@ -997,37 +1068,62 @@ mod arc116_diagnostic_tests {
             Some("2"),
         );
         let rr = make_run_result(Some(failure));
-        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
-        assert_eq!(diag.kind, "AssertionFailed");
+        let edn = failure_to_edn(&rr).expect("edn produced");
 
-        let get = |name: &str| -> Option<&DiagnosticValue> {
-            diag.fields.iter().find_map(|(k, v)| {
-                if k == name {
-                    Some(v)
-                } else {
-                    None
-                }
+        // Must be tagged AssertionFailed in wat.kernel namespace.
+        let s = wat_edn::write(&edn);
+        assert!(s.starts_with("#wat.kernel/AssertionFailed"), "got: {}", s);
+
+        // Extract map body.
+        let map = match &edn {
+            OwnedValue::Tagged(_, body) => match body.as_ref() {
+                OwnedValue::Map(m) => m.clone(),
+                _ => panic!("body must be a map"),
+            },
+            _ => panic!("must be tagged"),
+        };
+        let get = |name: &str| -> Option<String> {
+            let target = OwnedValue::Keyword(Keyword::new(name));
+            map.iter().find_map(|(k, v)| {
+                if k == &target {
+                    match v {
+                        OwnedValue::String(s) => Some(s.to_string()),
+                        _ => None,
+                    }
+                } else { None }
             })
         };
-        assert!(matches!(get("message"), Some(DiagnosticValue::String(s)) if s == "assert-eq failed"));
-        assert!(matches!(get("location"), Some(DiagnosticValue::String(s)) if s == "test.wat:42:13"));
-        assert!(matches!(get("actual"), Some(DiagnosticValue::String(s)) if s == "1"));
-        assert!(matches!(get("expected"), Some(DiagnosticValue::String(s)) if s == "2"));
+        assert_eq!(get("message").as_deref(), Some("assert-eq failed"));
+        assert_eq!(get("location").as_deref(), Some("test.wat:42:13"));
+        assert_eq!(get("actual").as_deref(), Some("1"));
+        assert_eq!(get("expected").as_deref(), Some("2"));
     }
 
     #[test]
-    fn plain_panic_yields_panic_kind_no_actual_expected() {
+    fn plain_panic_yields_panic_edn_no_actual_expected() {
+        use wat_edn::{Keyword, OwnedValue};
+
         let failure = make_failure("intentional panic", None, None, None);
         let rr = make_run_result(Some(failure));
-        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
-        assert_eq!(diag.kind, "Panic");
-        // No actual/expected fields when not an assertion.
-        assert!(!diag.fields.iter().any(|(k, _)| k == "actual"));
-        assert!(!diag.fields.iter().any(|(k, _)| k == "expected"));
+        let edn = failure_to_edn(&rr).expect("edn produced");
+        let s = wat_edn::write(&edn);
+        assert!(s.starts_with("#wat.kernel/Panic"), "got: {}", s);
+        // No actual/expected fields.
+        let actual_kw = OwnedValue::Keyword(Keyword::new("actual"));
+        let expected_kw = OwnedValue::Keyword(Keyword::new("expected"));
+        let map = match &edn {
+            OwnedValue::Tagged(_, body) => match body.as_ref() {
+                OwnedValue::Map(m) => m.clone(),
+                _ => panic!("body must be a map"),
+            },
+            _ => panic!("must be tagged"),
+        };
+        assert!(!map.iter().any(|(k, _)| k == &actual_kw));
+        assert!(!map.iter().any(|(k, _)| k == &expected_kw));
     }
 
     #[test]
-    fn render_edn_assertion_failure_round_trip() {
+    fn edn_assertion_failure_round_trip() {
         let failure = make_failure(
             "assert-eq failed",
             Some(("step-A.wat", 42, 13)),
@@ -1035,25 +1131,28 @@ mod arc116_diagnostic_tests {
             Some("2"),
         );
         let rr = make_run_result(Some(failure));
-        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
-        let edn = render_edn(&diag);
-        assert!(edn.starts_with("#wat.diag/AssertionFailed"));
-        assert!(edn.contains(r#":message "assert-eq failed""#));
-        assert!(edn.contains(r#":location "step-A.wat:42:13""#));
-        assert!(edn.contains(r#":actual "1""#));
-        assert!(edn.contains(r#":expected "2""#));
+        let edn = failure_to_edn(&rr).expect("edn produced");
+        let s = wat_edn::write(&edn);
+        // Arc 296: tag is now #wat.kernel/ (not #wat.diag/).
+        assert!(s.starts_with("#wat.kernel/AssertionFailed"), "got: {}", s);
+        assert!(s.contains(r#":message "assert-eq failed""#), "got: {}", s);
+        assert!(s.contains(r#":location "step-A.wat:42:13""#), "got: {}", s);
+        assert!(s.contains(r#":actual "1""#), "got: {}", s);
+        assert!(s.contains(r#":expected "2""#), "got: {}", s);
     }
 
     #[test]
-    fn render_json_assertion_failure_round_trip() {
+    fn json_assertion_failure_round_trip() {
         let failure = make_failure("assert-eq failed", None, Some("1"), Some("2"));
         let rr = make_run_result(Some(failure));
-        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
-        let json = render_json(&diag);
-        assert!(json.contains(r#""kind":"AssertionFailed""#));
-        assert!(json.contains(r#""message":"assert-eq failed""#));
-        assert!(json.contains(r#""actual":"1""#));
-        assert!(json.contains(r#""expected":"2""#));
+        let edn = failure_to_edn(&rr).expect("edn produced");
+        let json = wat_edn::to_json_string(&edn);
+        // Arc 296: JSON shape uses sentinel #tag convention.
+        assert!(json.contains("\"#tag\":\"wat.kernel/AssertionFailed\""), "got: {}", json);
+        // Fields live under "body" key; keyword keys include colon prefix.
+        assert!(json.contains("\":message\":\"assert-eq failed\""), "got: {}", json);
+        assert!(json.contains("\":actual\":\"1\""), "got: {}", json);
+        assert!(json.contains("\":expected\":\"2\""), "got: {}", json);
     }
 
     #[test]
@@ -1068,8 +1167,8 @@ mod arc116_diagnostic_tests {
             Some("2"),
         );
         let rr = make_run_result(Some(failure));
-        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
-        let text = render_failure_text(&diag);
+        let edn = failure_to_edn(&rr).expect("edn produced");
+        let text = render_failure_text(&edn);
         assert!(text.contains("failure: assert-eq failed"));
         assert!(text.contains("at:       test.wat:42:13"));
         assert!(text.contains("actual:   1"));

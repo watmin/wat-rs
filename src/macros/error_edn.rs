@@ -128,74 +128,59 @@ pub fn macro_error_to_edn(err: &MacroError) -> OwnedValue {
 
 /// Serialize a [`StartupError`] to a tagged [`OwnedValue`].
 ///
-/// The `Macro` variant delegates to `macro_error_to_edn`, surfacing the
-/// full typed cause chain. The `Runtime` variant delegates to
-/// `runtime_error_to_edn`. All other variants carry their display string
-/// as `:detail` (arc 296 covers only the macro and runtime paths — other
-/// startup variants are left with prose detail for now).
+/// Every variant that carries a structured underlying error delegates to that
+/// error's own `ToEdn` impl, so the wire value is fully navigable (span +
+/// kind + fields) — no `:detail` prose blob smuggling structure in a string:
 ///
-/// Tag convention: `#wat.kernel/StartupPhaseError {:phase :<variant> ...}`
-/// for string-only variants; the Macro and Runtime variants return the
-/// richer typed EDN directly (the phase is inferable from the tag).
+/// - `Macro` → `MacroError::to_edn` (the full typed cause chain).
+/// - `Runtime` → `RuntimeError::to_edn` (arc 233's serializer).
+/// - `Parse` → `ParseError::to_edn` (span + variant fields).
+/// - `Config` → `ConfigError::to_edn` (Pattern A, span + fields).
+/// - `Load` → `LoadError::to_edn` (Pattern A; nested `ParseError` structured).
+/// - `Type` → `TypeError::to_edn` (Pattern A, span + 18 variants' fields).
+/// - `Resolve` → `ResolveError::to_edn` (vector of structured references).
+/// - `Check` → `CheckErrors::to_edn` (`#wat.kernel/CheckErrors {:errors […]}`,
+///   each `CheckError` a navigable tagged value).
+/// - `Stdlib` → `StdlibError::to_edn` (Pattern A, span + fields).
+///
+/// The phase is inferable from the returned tag's variant name (the same
+/// convention `Macro`/`Runtime` already used). The ONLY variant that carries
+/// a genuinely flat human message with no span/cause/structured fields is
+/// `SigmaFn(String)` — a bare diagnostic string from the sigma-fn registration
+/// path — so its `:detail` is honest, not a deferral.
 pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
+    use crate::to_edn::ToEdn;
     match err {
-        // Arc 296 target: Macro variant carries the fully structured cause chain.
-        StartupError::Macro(macro_err) => {
-            macro_error_to_edn(macro_err)
-        }
-        // Runtime variant delegates to arc 233's serializer.
-        StartupError::Runtime(e) => {
-            crate::runtime_error_edn::runtime_error_to_edn(e)
-        }
-        // All other variants: structured envelope with `:phase` discriminator.
-        StartupError::Parse(e) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("parse"),
-                kw("detail"), str_val(&e.to_string()),
-            ))
-        }
-        StartupError::Config(e) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("config"),
-                kw("detail"), str_val(&e.to_string()),
-            ))
-        }
-        StartupError::Load(e) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("load"),
-                kw("detail"), str_val(&e.to_string()),
-            ))
-        }
-        StartupError::Type(e) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("type"),
-                kw("detail"), str_val(&e.to_string()),
-            ))
-        }
-        StartupError::Resolve(e) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("resolve"),
-                kw("detail"), str_val(&e.to_string()),
-            ))
-        }
-        StartupError::Check(e) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("check"),
-                kw("detail"), str_val(&e.to_string()),
-            ))
-        }
-        StartupError::Stdlib(e) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("stdlib"),
-                kw("detail"), str_val(&e.to_string()),
-            ))
-        }
-        StartupError::SigmaFn(msg) => {
-            tagged("StartupPhaseError", map2(
-                kw("phase"), kw("sigma-fn"),
-                kw("detail"), str_val(msg),
-            ))
-        }
+        StartupError::Macro(e) => e.to_edn(),
+        StartupError::Runtime(e) => crate::runtime_error_edn::runtime_error_to_edn(e),
+        StartupError::Parse(e) => e.to_edn(),
+        StartupError::Config(e) => e.to_edn(),
+        StartupError::Load(e) => e.to_edn(),
+        StartupError::Type(e) => e.to_edn(),
+        StartupError::Resolve(e) => e.to_edn(),
+        StartupError::Check(e) => e.to_edn(),
+        StartupError::Stdlib(e) => e.to_edn(),
+        // SigmaFn carries a bare String message (no span, no kind, no
+        // structured fields — see `StartupError::SigmaFn(String)`), so a
+        // `:detail` string is the honest serialization, not a deferral.
+        StartupError::SigmaFn(msg) => tagged(
+            "SigmaFnError",
+            OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
+        ),
+    }
+}
+
+// ─── ToEdn impls ─────────────────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for MacroError {
+    fn to_edn(&self) -> OwnedValue {
+        macro_error_to_edn(self)
+    }
+}
+
+impl crate::to_edn::ToEdn for crate::freeze::StartupError {
+    fn to_edn(&self) -> OwnedValue {
+        startup_error_to_edn(self)
     }
 }
 

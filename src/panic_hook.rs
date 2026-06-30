@@ -267,6 +267,20 @@ fn keyword_from_callee_path(path: &str) -> OwnedValue {
     }
 }
 
+// ─── ToEdn impls ─────────────────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for crate::span::Span {
+    fn to_edn(&self) -> OwnedValue {
+        span_to_edn(self)
+    }
+}
+
+impl crate::to_edn::ToEdn for crate::assertion::AssertionPayload {
+    fn to_edn(&self) -> OwnedValue {
+        payload_to_edn(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

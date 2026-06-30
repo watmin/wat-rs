@@ -23,8 +23,8 @@
 
 use std::sync::Arc;
 use wat::check::{CheckError, CheckErrorKind};
-use wat::diagnostic::DiagnosticValue;
 use wat::span::Span;
+use wat_edn;
 
 /// Contract 1: CheckError carries `span: Span` at the outer struct level —
 /// every variant inherits the location discipline by construction.
@@ -206,20 +206,21 @@ fn checkerror_display_elides_unknown_span() {
     );
 }
 
-/// Contract 5: `diagnostic()` elides unknown spans — the single `loc_field`
-/// helper makes it structurally impossible to emit "<runtime>:0:0" as a
-/// diagnostic field value.
+/// Contract 5: `to_edn()` elides unknown spans — the `push_span` helper
+/// makes it structurally impossible to emit "<runtime>:0:0" as an EDN
+/// field key or value.
 ///
-/// Variant under test: `ScopeDeadlock` — previously one of the unguarded arms
-/// (`.field("location", format!("{}", span))`).
+/// Variant under test: `ScopeDeadlock` — the `:location` key is only added
+/// to the EDN body when `!span.is_unknown()` (via `push_span`).
 ///
-/// (a) UNKNOWN outer span — no field value in the Diagnostic may contain
-///     `"<runtime>"`.
-/// (b) KNOWN outer span — a field named `"location"` must be present and its
-///     value must contain the file:line:col string.
+/// (a) UNKNOWN outer span — the serialized EDN must not contain `"<runtime>"`.
+/// (b) KNOWN outer span — the serialized EDN must contain `:location` and
+///     the file:line:col data.
 #[test]
-fn diagnostic_elides_unknown_span() {
-    // --- (a) UNKNOWN span: no field value may contain "<runtime>" ---
+fn edn_elides_unknown_span() {
+    use wat::to_edn::ToEdn;
+
+    // --- (a) UNKNOWN span: serialized EDN must not mention "<runtime>" ---
     let err_unknown = CheckError {
         span: Span::unknown(),
         kind: CheckErrorKind::ScopeDeadlock {
@@ -228,17 +229,13 @@ fn diagnostic_elides_unknown_span() {
             offending_kind: "Sender",
         },
     };
-    let diag = err_unknown.diagnostic();
-    for (name, value) in &diag.fields {
-        if let DiagnosticValue::String(s) = value {
-            assert!(
-                !s.contains("<runtime>"),
-                "diagnostic field '{name}' must not contain '<runtime>'; got: {s:?}"
-            );
-        }
-    }
+    let edn_str = wat_edn::write(&err_unknown.to_edn());
+    assert!(
+        !edn_str.contains("<runtime>"),
+        "unknown span must not appear in EDN output; got: {edn_str:?}"
+    );
 
-    // --- (b) KNOWN span: "location" field must be present with correct value ---
+    // --- (b) KNOWN span: :location key + file:line:col must appear ---
     let known_span = Span::new(Arc::new("src/baz.wat".to_string()), 7, 4);
     let err_known = CheckError {
         span: known_span,
@@ -248,20 +245,13 @@ fn diagnostic_elides_unknown_span() {
             offending_kind: "Sender",
         },
     };
-    let diag_known = err_known.diagnostic();
-    let location_field = diag_known
-        .fields
-        .iter()
-        .find(|(name, _)| name == "location")
-        .map(|(_, v)| v);
+    let edn_str_known = wat_edn::write(&err_known.to_edn());
     assert!(
-        location_field.is_some(),
-        "known span must produce a 'location' field in diagnostic()"
+        edn_str_known.contains(":location"),
+        "known span must produce a :location key in EDN output; got: {edn_str_known:?}"
     );
-    if let Some(DiagnosticValue::String(s)) = location_field {
-        assert!(
-            s.contains("src/baz.wat:7:4"),
-            "location field must contain file:line:col; got: {s:?}"
-        );
-    }
+    assert!(
+        edn_str_known.contains("src/baz.wat"),
+        "known span must include the file name; got: {edn_str_known:?}"
+    );
 }

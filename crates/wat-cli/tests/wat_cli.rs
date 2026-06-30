@@ -624,17 +624,19 @@ fn check_output_edn_emits_record_per_diagnostic() {
         lines.len(),
         stdout
     );
+    // Arc 296: namespace changed from wat.diag to wat.kernel.
     assert!(
-        lines[0].starts_with("#wat.diag/CommCallOutOfPosition"),
+        lines[0].starts_with("#wat.kernel/CommCallOutOfPosition"),
         "first line should be CommCallOutOfPosition tag; got: {}",
         lines[0]
     );
     assert!(
-        lines[1].starts_with("#wat.diag/ReturnTypeMismatch"),
+        lines[1].starts_with("#wat.kernel/ReturnTypeMismatch"),
         "second line should be ReturnTypeMismatch tag; got: {}",
         lines[1]
     );
     // Structured fields preserved verbatim — not text-wrapped.
+    // :file field is prepended first; callee and function follow.
     assert!(lines[0].contains(":callee \":wat::kernel::send\""));
     assert!(lines[1].contains(":function \":user::main\""));
 }
@@ -660,18 +662,20 @@ fn check_output_json_emits_record_per_diagnostic() {
         lines.len(),
         stdout
     );
+    // Arc 296: JSON shape uses #tag sentinel; field keys carry EDN colon prefix.
     assert!(
-        lines[0].contains("\"kind\":\"CommCallOutOfPosition\""),
-        "first line should have kind=CommCallOutOfPosition; got: {}",
+        lines[0].contains("\"#tag\":\"wat.kernel/CommCallOutOfPosition\""),
+        "first line should have #tag=wat.kernel/CommCallOutOfPosition; got: {}",
         lines[0]
     );
     assert!(
-        lines[1].contains("\"kind\":\"ReturnTypeMismatch\""),
-        "second line should have kind=ReturnTypeMismatch; got: {}",
+        lines[1].contains("\"#tag\":\"wat.kernel/ReturnTypeMismatch\""),
+        "second line should have #tag=wat.kernel/ReturnTypeMismatch; got: {}",
         lines[1]
     );
-    assert!(lines[0].contains("\"callee\":\":wat::kernel::send\""));
-    assert!(lines[1].contains("\"function\":\":user::main\""));
+    // Keyword field keys carry leading colon in JSON (EDN keyword serialization).
+    assert!(lines[0].contains("\":callee\":\":wat::kernel::send\""));
+    assert!(lines[1].contains("\":function\":\":user::main\""));
 }
 
 #[test]

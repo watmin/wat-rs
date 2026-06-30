@@ -359,6 +359,26 @@ fn variant_name(err: &RuntimeError) -> &'static str {
     }
 }
 
+// ─── ToEdn impls ─────────────────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for RuntimeError {
+    fn to_edn(&self) -> OwnedValue {
+        runtime_error_to_edn(self)
+    }
+}
+
+impl crate::to_edn::ToEdn for ValueSnapshot {
+    fn to_edn(&self) -> OwnedValue {
+        value_snapshot_to_edn(self)
+    }
+}
+
+impl crate::to_edn::ToEdn for Provenance {
+    fn to_edn(&self) -> OwnedValue {
+        provenance_to_edn(self)
+    }
+}
+
 // ─── Low-level builders (eliminate boilerplate) ──────────────────────────────
 
 fn kw(name: &'static str) -> OwnedValue {

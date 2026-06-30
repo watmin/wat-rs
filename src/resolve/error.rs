@@ -48,3 +48,35 @@ impl fmt::Display for ResolveError {
 }
 
 impl std::error::Error for ResolveError {}
+
+// ─── Arc 296 — structured EDN ────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for ResolveError {
+    /// `#wat.kernel/UnresolvedReferences {:unresolved [#wat.kernel/UnresolvedReference {…} …]}`
+    /// — each failed reference is a navigable tagged value (path, context,
+    /// span), not a line in a prose blob.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_kw, edn_str, edn_tag, push_span_field};
+        use wat_edn::OwnedValue;
+
+        match self {
+            ResolveError::UnresolvedReferences(list) => {
+                let refs: Vec<OwnedValue> = list
+                    .iter()
+                    .map(|r| {
+                        let mut fields = vec![
+                            (edn_kw("path"), edn_str(&r.path)),
+                            (edn_kw("context"), edn_str(r.context)),
+                        ];
+                        push_span_field(&mut fields, "span", &r.span);
+                        edn_tag("UnresolvedReference", OwnedValue::Map(fields))
+                    })
+                    .collect();
+                edn_tag(
+                    "UnresolvedReferences",
+                    OwnedValue::Map(vec![(edn_kw("unresolved"), OwnedValue::Vector(refs))]),
+                )
+            }
+        }
+    }
+}
