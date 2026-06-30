@@ -1,23 +1,23 @@
-//! Arc 293.4e-pre.iii — extend-type impl on a surface inherits the surface method's types (the disconfirming probe).
+//! Arc 293.4e-pre.iii — a bare-binder `extend-type` impl on a surface inherits the surface method's types.
 //!
-//! THE GAP: the 293.4c surface-extend scheme (check.rs:8954) is built from the bare impl clause's types (→ `nil`), not
-//! the surface member's declared sig. The 293.4c probe used a CONSTANT body so it never bit; a typed body that uses
-//! `self` and returns a non-nil value fails (`ReturnTypeMismatch expected :nil got <T>`; `self: :()`). This is the
-//! `:wat::spawn::Locus` `launch` shape → it BLOCKS the `defprotocol` annihilation (293.4e).
+//! THE GENERIC SHAPE: a `make<T>` surface method, a BARE impl `(make [self x] (:t::Box x))` whose body wraps the
+//! `:T`-typed arg in a `:t::Box<T>` — the `:wat::spawn::Locus` `launch<S,R,St,Sh,Lu>` shape. For the body to
+//! type-check, the impl must inherit the surface member's sig (self → the extending type, `x : T`, ret `Box<T>`,
+//! type-params carried), since the bare binders carry no annotations.
 //!
-//! RED at HEAD. GREEN at 293.4e-pre.iii — the extend-impl scheme inherits the surface method's sig (self → the
-//! extending type, args + ret from the member, type-params carried).
+//! STATUS (grounded 2026-06-30): the capability is PRESENT on current HEAD — it landed via 293.4e-pre.ii
+//! (`c62a817c`, generic surface-method call-site instantiation) + the Clause→ArgSpec heresy fix (`7d983012`),
+//! both after this probe's original "RED at HEAD" framing. So the probe is GREEN and un-ignored. (It was briefly
+//! RED only on a wrong assertion: the body wraps `x` (42), not the Id's tag.)
 
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// A bare extend-impl whose body uses `self` (typed) and returns a non-nil value type-checks + dispatches.
+/// A bare generic extend-impl whose body wraps the `:T` arg in `Box<T>` type-checks + dispatches.
 #[test]
-#[ignore = "RED at HEAD: arc-293.4e-pre.iii (extend-type-for-surface impl inherits the surface method's types) \
-            not built; un-ignore when GREEN — it unblocks the Locus migration / defprotocol annihilation (293.4e)"]
 fn extend_impl_inherits_surface_method_types() {
     let world = startup_beside(file!())
-        .expect("293.4e-pre.iii: a surface extend-impl with a typed body must type-check (inherit the surface sig)");
+        .expect("293.4e-pre.iii: a surface extend-impl with a bare generic body must type-check (inherit the surface sig)");
 
     let got = eval_in_frozen(
         &wat::parse_one!("(:t::probe)").expect("parse"),
@@ -28,7 +28,8 @@ fn extend_impl_inherits_surface_method_types() {
     .value_owned();
 
     match got {
-        Value::i64(n) => assert_eq!(n, 7, "the extend-impl body (Box wrapping the Id's tag) should yield 7; got {n}"),
-        other => panic!("expected i64 7 from the typed extend-impl dispatch; got {other:?}"),
+        // (:t::Maker/make (:t::Id 7) 42) → (:t::Box 42) → (:t::Box/v …) = 42.
+        Value::i64(n) => assert_eq!(n, 42, "the extend-impl body (Box wrapping x=42) should yield 42; got {n}"),
+        other => panic!("expected i64 42 from the bare generic extend-impl dispatch; got {other:?}"),
     }
 }

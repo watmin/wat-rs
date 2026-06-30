@@ -2,13 +2,11 @@
 ;; method's TYPE-PARAM (T) — both in an arg (x <- :T) and the return (:t::Box<T>). This is the shape
 ;; `:wat::spawn::Locus`'s generic `launch<S,R,St,Sh,Lu>` impls need (the body references S,R,St,Sh,Lu).
 ;;
-;; RED at HEAD (post-293.4c): the surface-extend scheme (check.rs:8957) hardcodes `type_params: vec![]`
-;; AND uses the bare impl clause's nil types — so the impl body's `T` is unbound + `self`/args mistyped,
-;; exactly the Locus failure (self: :(), ReturnTypeMismatch). The monomorphic constant-body case worked,
-;; so this generic typed-body case is the real gap.
+;; GREEN on current HEAD: the bare generic extend-impl inherits the surface member's sig (self → extending
+;; type, x → :T, ret → :t::Box<T>) so `T` resolves in the body. The capability landed via 293.4e-pre.ii
+;; (generic surface-method call-site instantiation, `c62a817c`) + the Clause→ArgSpec heresy fix (`7d983012`).
 ;;
-;; GREEN at 293.4e-pre.iii: the scheme inherits the surface member's sig (self → extending type, args + ret
-;; from the member, type_params carried) so `T` resolves in the body.
+;; (:t::Maker/make (:t::Id 7) 42) → (:t::Box 42) → (:t::Box/v …) = 42. The body wraps `x` (42), not the tag.
 
 (:wat::core::defsurface :t::Maker
   :holder :wat::core::Struct
