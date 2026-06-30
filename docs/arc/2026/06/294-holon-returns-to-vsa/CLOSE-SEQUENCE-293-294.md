@@ -181,11 +181,16 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
   regression `tests/types/probe_arc293_k4_extend_type_own_aggregate.{rs,wat}` (GREEN at HEAD, → 25; guards K5's seam),
   (2) doc truing of the "foreign-only / demoted / monkeypatch" framing (`293/DESIGN.md § extend-type` superseding
   block; AGGREGATE-MODEL already stated it). No Rust change. (examinare: the thing you would build already existed.)
-- ▷ **K5 — `extend-surface` macro** — a wat `defmacro` → `(extend-type S$record S …)`, method types filled from S
-  (the user writes body only). Needs the surface method-sig reflection seam (expand/check-time read). `$record`
-  inherits the default for free.
-- Landmark showcase: `wat-scripts/demos/aggregates/showcase.wat.disabled` (done-detector `cargo wat <it>`; rename
-  `.wat.disabled`→`.wat` when green → the wat-scripts load gate owns it).
+- ✅ **K5 — `extend-surface` LANDED (`06ede1dd`, weighed forced-clean 4138/0/91)** — a thin wat `defmacro` in
+  `wat/core.wat` that emits one `extend-type` per PAIR backing tier (`$core-record` + `$holon-record`), forwarding the
+  user's TYPELESS method body. **NO reflection seam needed** (the model's feared "one substrate dependency"): `extend-type`
+  already fills the impl's types from the surface (the 293.4e-pre.iii capability, confirmed present on HEAD this session),
+  so the macro is pure form-production, ZERO `src/` change. Per the K5 decision (option A) the default rides BOTH pair
+  tiers → a `to-record`'d value at either inherits it for free. Probe `probe_arc293_k5_extend_surface` RED→GREEN (84 =
+  42 core + 42 holon). **⇒ THE FOUR-TOOL SURFACE KIT IS COMPLETE: `defsurface` + `to-record` + `extend-type` + `extend-surface`.**
+- ▶ **Landmark showcase (NEXT surface-kit step):** `wat-scripts/demos/aggregates/showcase.wat.disabled` — rebuild it
+  against the settled kit (the pair, `is_pure` vocab, `to-record` + `extend-surface`), then rename `.wat.disabled`→`.wat`
+  when green (done-detector `cargo wat <it>`; the wat-scripts load gate then owns it).
 
 **PHASE 1 done = the AGGREGATE-MODEL holds: holder enum is the sole specialness, every op uniform, no inheritance,
 surfaces-only params, one holder vocabulary. (The 3 legitimate holder differences — comms/EDN-repr/assignability — stay.)**
