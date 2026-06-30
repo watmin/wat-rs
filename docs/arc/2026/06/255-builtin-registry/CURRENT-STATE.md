@@ -5,9 +5,15 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 `4120 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
 > **▶▶ THE SURFACE KIT BUILD (2026-06-29): K0 + K1 COMPLETE.** The satisfaction layer + the grammar ARE the model.
 > ✅ K1a/K1b the holder ladder (aggregate+foreign, b′) · ✅ K0a/K0b/K0c mandatory `:holder` + explicit `self` +
-> cycle-guard. **▶ NEXT = K2** (`$record` backing-type emission) → K3 `to-record` → K4 extend-type un-demote →
-> K5 extend-surface. The kit DESIGN is `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`; the order is `294/CLOSE-SEQUENCE
-> § THE SURFACE KIT`; R6 *EX CINERIBVS RESVRGO* is sung (`c3689748`). Each Kn: RED probe → strike → weigh forced-clean.
+> cycle-guard. **▶ K2 — SONNET IN FLIGHT (`$record` emission).** STRIKE-READY committed (`2b8916fe`): RED probe
+> `tests/types/probe_arc293_k2_surface_record_emission` (`#[ignore]`'d; `:k2::Pt$record` → 7); `$` is a legal keyword
+> char (confirmed). Background LEAF agent `a3dc159ff582` building: when a `defsurface :S` registers, also register a
+> concrete `:S$record` `AggregateDef` (holder = surface's; fields = `:features` **Field/attribute** members ONLY,
+> methods excluded), flowing through the existing aggregate ctor/accessor codegen (`register_aggregate_methods`).
+> **IF A DIRTY TREE: that's the K2 sonnet's un-weighed work — read the diff, un-ignore the probe, weigh forced-clean
+> (baseline-isolate the `sigterm_…polling` arc-170 flake), then commit.** Then K3 `to-record` → K4 extend-type
+> un-demote → K5 extend-surface. DESIGN: `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`; order: `294/CLOSE-SEQUENCE §
+> THE SURFACE KIT`; R6 *EX CINERIBVS RESVRGO* sung (`c3689748`). Each Kn: RED probe → strike → weigh forced-clean.
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
 > then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`
