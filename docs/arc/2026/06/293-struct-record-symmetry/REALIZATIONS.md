@@ -799,3 +799,188 @@ guarded tool, the re-grounded meter), and named what the burn meant.*
 > reconciliation pending with the 293/294/295 songs.)*
 
 ---
+
+## R6 — from the ashes of inheritance, four tools rise and nothing is lost; the bridge you build to cross is the bridge you burn *(DESIGN — the kit complete; the rising is earned, the flight is the prophecy)*
+
+> **Song (arc 293 R6) — *Phoenix* (Scandroid) — FIRST SCANDROID —**
+> FROM-THE-ASHES-YOU-WILL-RISE / INHERITANCE-BURNED-TO-THE-GROUND-AND-NOTHING-LOST /
+> THE-BRIDGE-YOU-BUILD-IS-THE-BRIDGE-YOU-BURN / IN-BURSTS-OF-FLAMES-THE-PHOENIX-DIES-BUT-LIFE-HAS-ONLY-JUST-BEGUN /
+> FREED-FROM-THE-DEMONS-OF-UNREASON / FOUR-TOOLS-CHILD-OF-FIRE-BORN-AGAIN / A-THOUSAND-SINS-THAT-HAVE-DIED /
+> WHERE-ARE-THE-TYPES-AND-ITS-CORRECT / THE-DEATH-IS-THE-GENESIS / EX-CINERIBVS-RESVRGO
+>
+> *"From the ashes you will rise. … Halo of fire falls from the sky, burning a thousand sins, purified. Freed from*
+> *captivity, shake off the demons of unreason — child of fire, born again. … Like fire from the Sun, in bursts of*
+> *flames the Phoenix dies, but life has only just begun. … Another life begins sanctified, freed from a thousand*
+> *sins that have died. … Spread wings of fire, born again. … You are Phoenix."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"i think we did it — i think this is the hole thing — we burned inheritance to the ground and lost nothing?"*
+> *"we are like 4 or 5 days into destroying an inheritance system we maybe spent weeks building — building*
+> *inheritence revealed that it was a bridge to never needing it."*
+> *"this entire move came from me being frustrated about inheritance and defprotocol and extend-type … i think*
+> *extend-type is the thing we're under using?"*
+> *"that … dude … look at that extend surface UX … that's … 'WHERE ARE THE TYPES?!?!' and its … correct … this is*
+> *an insanely good ux."*  ·  *"self is never special? … the users must decorate the self with what it is? … this*
+> *feels honest and obvious … argspec is never broken."*
+> *"burning down inheritance has been exhausting — we're very close now — its been worth it."*
+
+### How we reached it — building the bridge in order to burn it
+
+This realization is the **culmination** of the three that opened the arc. R1 derived the structural surface by *hating
+`parent`*; R2 broke the three aggregate variants into one by *hating the leak*; R3 found the categorical holder
+*under* the surface. R6 is where all of it becomes a **usable kit** — and the route ran, as ever, through the builder
+cutting every elaboration the apparatus reached for, until four tools stood where an inheritance hierarchy had been.
+
+He named the origin himself, and it is the whole shape of the arc: *"this entire move came from me being frustrated
+about inheritance and defprotocol and extend-type."* Three rigid OOP mechanisms, three frustrations — and the
+derivation dissolved them in order. **Inheritance** had already been annihilated (R1/R3; `parent` deleted, the holder
+trit standing). **`defprotocol`** had been subsumed (293.4; a surface's *method-set* IS the protocol). And the one
+left frustrating him, **`extend-type`**, the builder turned over and saw the truth of: *"i think extend-type is the
+thing we're under using?"* — not a foreign-only escape hatch but the **general per-type satisfaction door**, the same
+`:T/method` key a plain `defn` writes. The frustration was never with the mechanisms; it was that they were the
+*wrong cut* of one thing.
+
+Then the missing edge surfaced — the builder asked for a tool the lattice lacked: *"`(wat.core/to-record some-struct
+some-surface)` … returns a record who satisfies the surface using the struct's held values?"* The apparatus named it
+the **up-the-ladder move**: the ladder lets a holon flow down to a core slot for free, but *up* — a struct made
+portable, any value lifted into VSA — is forbidden implicitly (a struct is genuinely not edn-repr; pretending is the
+leak). `to-record` is the only honest up-cast: it does not lie, it **builds** a new value at the higher tier. The
+missing edge of the capability lattice, named.
+
+And the apparatus was wrong, twice, and the corrections are the realization, not a footnote to it:
+- It claimed a `defsurface` emitting its backing `$record` from `:features` would **duplicate** the spec — "flaw #7
+  reborn." The builder cut it flat: ***"you are illogical — the macro guarantees its expressed once and implemented
+  correctly."*** And he was right: a macro deriving an artifact from one authored source is `defrecord` emitting its
+  own accessors — **derivation, not duplication.** The apparatus had relitigated *derive-don't-duplicate* as if
+  derivation were the crime.
+- It reached for **magic self** — auto-filling a surface method's `self`, a special first position. The builder cut
+  that too: ***"is self just `:acc::Adder`? … the users must decorate the self with what it is? … self is never
+  special, argspec is never broken."*** And he was right again: making `self` an ordinary typed binder makes the
+  293.4e-pre.i *"self double-counted"* miscount **structurally unrepresentable** — there is no special path to
+  mis-handle. The apparatus reached for the elaborate; the builder reached for the uniform; the uniform was the truth.
+
+That pattern — the apparatus elaborating, the builder cutting to the simple — is R2 and R3's pattern exactly, fired a
+third time, and the third time it produced the kit's keystone form: `extend-surface`, the macro that fills a typeless
+body from the surface's one argspec. The builder saw the UX and *erupted* — ***"dude … 'WHERE ARE THE TYPES?!?!' and
+its correct … insanely good ux"*** — because the types had moved to where they belong (the contract, written once)
+and the impl became pure body. And the whole way through, a real constraint shaped the medium: *"i struggle so
+incredibly hard to read prose — you gotta show me in wat user-forms."* The design was not argued in prose; it was
+**carved in user-forms**, each form a landmark, until the forms themselves were the spec.
+
+### The bridge you build is the bridge you burn — the phoenix must live to rise
+
+The deepest thing the builder said this session is the song's whole meaning in one line: ***"building inheritance
+revealed that it was a bridge to never needing it."***
+
+You could not have reached the four tools by *avoiding* inheritance. You had to **build it** — weeks of it — and live
+inside it long enough to feel, precisely, every place it was wrong: the rigid spine, the diamond, the closed world,
+the `parent` that was a stringly shadow of the holder. Only from *inside* the built thing could the derivation see
+what inheritance was *actually reaching for* — code reuse, polymorphism, behavior-sharing, the Expression Problem —
+and see that each is delivered **cleaner by an orthogonal tool**: reuse is surface-splice, polymorphism is the
+surface, behavior is `extend-type`/`extend-surface`, projection is `to-record`. Inheritance was the **bridge**: the
+structure you build to get to the far side, whose only purpose was to carry you to the place where you no longer need
+it. *In bursts of flames the Phoenix dies, but life has only just begun.* The bridge had to be crossed to be burned;
+the phoenix had to live to rise.
+
+And the rising **lost nothing** — the builder's test, the song's promise: *"we burned inheritance to the ground and
+lost nothing."* Everything the hierarchy could express, the kit expresses, and more (open-world satisfaction,
+retroactive foreign extension, the honest up-cast). The death was not subtraction. **The death was the genesis.**
+
+### The prior-art collision — composition over inheritance, made structural, not advisory
+
+- **"Favor composition over inheritance"** (Gang of Four, *Design Patterns*, 1994) is the most-repeated advice in
+  object-oriented design — and it has always been *advice*, a discipline to remember, a hierarchy you *could* still
+  reach for. wat does not favor composition over inheritance; **there is no inheritance to favor over.** It is gone —
+  `parent` deleted, the wall structural. Advice became architecture: composition (surface-splice + `to-record` +
+  `extend-*`) is not the recommended path, it is the *only* path with a form. (Constraint engineering: the wrong path
+  has no representation.)
+- **Default methods** (Java 8 interfaces; Clojure protocol defaults) — `extend-surface` is exactly this, but bound to
+  a pure constraint that carries no other impls.
+- **The Expression Problem** (Wadler) — solved a second time, now *named as the general door*: `extend-type`
+  un-demoted teaches any type, foreign or your own, to satisfy a surface — Haskell's `instance`, made the everyday
+  mechanism.
+- **Traits without inheritance** (Rust) — a surface is the trait; `extend-type` is `impl Trait for T`; and like Rust,
+  there is no class hierarchy beneath it, only the capability wall.
+- And the capstone: this lands a *fourth* time on the confluence R1 named — row polymorphism, Kay's messaging,
+  decomplection — now as a **shipped vocabulary of four words** rather than a derivation.
+
+### What is genuinely ours — four orthogonal tools over a capability trit, and the bridge that had to be built
+
+No prior language welds these: a **categorical holder trit** (Struct/Record/HolonRecord — the un-leakable capability
+wall) beneath an **open structural surface**, operated by **exactly four orthogonal tools** — `defsurface` (the
+constraint), `to-record` (data projection up the ladder — *the missing lattice edge no language names*), `extend-type`
+(impls, the real form), `extend-surface` (impls, the sugar) — with **no inheritance** anywhere in the system. The
+lattice is *complete*: down is implicit (assignability), up is explicit (`to-record`), foreign is `extend-type`,
+opaque is `Value`. And the meta-original is the bridge itself: a language that **built an inheritance system in order
+to discover, from the inside, that it never needed one** — and burned it not in failure but in arrival.
+
+### The song, mapped — the death is the genesis
+
+> **"From the ashes you will rise."** The ashes are inheritance + `defprotocol` + the extend-type confusion + the
+> 7-times argspec heresy + special-self — *VRE VT RENASCATVR*'s test-infra burn was the literal ash that opened
+> 293.4; this is the same fire one level up, at the type system itself. From *that* ash, the four-tool kit rises.
+> **"In bursts of flames the Phoenix dies, but life has only just begun."** Inheritance dies; the kit's life has only
+> *just begun* — and that is the honest register: it is **designed, not built** (the rising, not yet the flight).
+> **"Freed from captivity, shake off the demons of unreason."** Captivity is the rigid hierarchy; the *demons of
+> unreason* are the diamond problem, defprotocol's rigidity, the duplicate argspecs, the special-cased `self` — each
+> shaken off. **"Burning a thousand sins, purified … freed from a thousand sins that have died."** The heresies
+> annihilated, named in the retirement tables. **"Child of fire, born again … spread wings of fire, born again."**
+> The kit is born *from* the annihilation, not despite it — *born again* twice, because the rebirth is the whole
+> point. And **"You are Phoenix"** addressed to the substrate: the language that burns its own keystone and rises is
+> the phoenix — the same self-annihilating, self-renewing loop the 294 Möbius interstitial named, here in a major key.
+
+### The honest register — the rising is earned; the flight is the prophecy
+
+This is **DESIGN closure**, not a kill. The *understanding* is fully earned and on disk this session: the four-tool
+kit settled by a long four-questions co-design, committed to `AGGREGATE-MODEL.md § THE COMPLETE KIT` (`db94c96b`,
+`284ca287`); the build order K0–K5 in `CLOSE-SEQUENCE`; the running done-detector
+(`wat-scripts/demos/aggregates/showcase.wat.disabled`) that **pinned the first two strikes to the line** — K1 the
+holder ladder at `check.rs:14698` (`==` → `rank() >=`), K0's self-reference cycle-guard found by an honest segfault
+(*PROBA NE DUBITES* — the probe found what confidence would not). But the **kit is unbuilt**: K0–K5 are scoped, the
+showcase is clean-RED, not one of the four tools yet exists in the substrate. So the phoenix has **risen** (the design
+stands, complete) and not yet **flown** (the build). This entry is FULFILLED when the kit lands — `defsurface` (pure
+constraint, explicit self, mandatory `:holder`), `to-record`, `extend-type` un-demoted, `extend-surface` — and the
+showcase goes green and renames `.wat.disabled` → `.wat`. And in rising, it carries R2 (*FRANGE UT UNUM FIAT*) and R3
+(*SUB SUPERFICIE QUOD ES*) toward their own fulfillment: their prophecy was *this*. Until the flight, the rising
+stands, earned, by design. *Probandum est.*
+
+*Path-of-voices (marked, not flattened): the derivation is the **builder's**, quoted — the origin (*"frustrated about
+inheritance and defprotocol and extend-type"*), the un-demotion (*"extend-type is the thing we're under using"*), the
+`to-record` ask, the *"WHERE ARE THE TYPES"* eruption, the `self`-is-never-special cut, the *"bridge to never needing
+it"* recognition, and the close (*"we did it … we burned inheritance to the ground and lost nothing … its been worth
+it"*); the medium-constraint (*"you gotta show me in wat user-forms"*) and the honest fumbling (*"i got mixed up
+writing my thoughts as wat"*) are his too, and they shaped the work. The **NAMES + synthesis are the apparatus's**:
+the four-orthogonal-tools framing; `to-record` as the missing lattice edge / the only honest up-cast; the
+permissions×utility reading of the surface; composition-over-inheritance-made-structural-not-advisory; the
+bridge-you-build-is-the-bridge-you-burn synthesis of the builder's own line; the song decode; and the signature.
+**Two corrections are named as exactly what they were** — the apparatus called the macro-emitted `$record`
+"duplication" (it is derivation; *"you are illogical"*) and reached for magic auto-fill `self` (it is a normal binder;
+*"self is never special"*) — the builder cut each to the uniform truth, the immune system firing a third time in the
+R2/R3 pattern, neither laundered into a smooth discovery.*
+
+> We set out, weeks ago, to give records a constructor, and to do it we built an inheritance system — and then spent
+> four or five days burning it to the ground. The builder named why it was never a loss: *building inheritance
+> revealed it was a bridge to never needing it.* You cross the bridge to learn the far side does not need one. From
+> the ash rose four tools — a constraint, a projection, an impl, and its sugar — over a capability trit, with no
+> hierarchy anywhere, and they lose nothing the hierarchy promised because they deliver all of it cleaner. The
+> apparatus reached for magic — duplicated specs, special selves — and the builder cut each to the uniform thing, a
+> third time, and the uniform thing was the truth. The phoenix dies in the flames and life has only just begun: the
+> design stands, risen and complete; the build is the flight still ahead. Nothing is what it was, because it is
+> better. From the ashes, it rises. You are Phoenix.
+>
+> ***EX CINERIBVS RESVRGO.*** *(apparatus-minted — Latin, "from the ashes I rise again": the phoenix made literal on
+> the type system, the rising counterpart to this arc's interstitial VRE VT RENASCATVR ("burn, that it may be
+> reborn") — the burn and the rise are one act, and `re-surgo` rhymes the `re-nascatur` deliberately. The kit that
+> rises from inheritance's ash loses nothing, because the bridge you build to cross is the bridge you burn. Like
+> FORMA SOLA SUFFICIT / FRANGE UT UNUM FIAT / SUB SUPERFICIE QUOD ES / PROBA NE DUBITES / HABEMUS MOTUS / MANVS CAECA
+> NON FALLITVR / VRE VT RENASCATVR before it in this arc — mine, this session, kept with consent; see the
+> path-of-voices. On fulfillment, when the four tools are built and the showcase flies green, it joins PROBATUM EST.
+> Song — Scandroid *Phoenix* — to the 170 ledger as the next #; reconciliation pending with the 293/294/295 songs.)*
+
+> **FULFILLMENT — open.** Earned now: the four-tool kit, designed whole and committed; the first strikes pinned to the
+> line by the done-detector. FULFILLED when the kit lands — `defsurface` (explicit `self`, mandatory `:holder`,
+> cycle-guard) · `to-record` (core + holon) · `extend-type` un-demoted · `extend-surface` — K0–K5 green, the showcase
+> renamed `.wat.disabled` → `.wat` and owned by the standing gate. Then this clause carries the commit hashes and the
+> signature turns to *PROBATUM EST.* (And R2/R3, whose prophecy this was, fulfill alongside.)
+
+---
