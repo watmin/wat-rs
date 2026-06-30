@@ -50,12 +50,19 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >   293 closure gate = the AGGREGATE AUDIT (verify the holder at its 3 boundaries: comms / EDN-repr / assignability).
 >   Every step SETTLES a boundary categorically → turns the audit from DISCOVERY into VERIFICATION. `is_portable_type`
 >   is the atom; settle inner-predicate-first:
+>   ⊹ **SCOPE CORRECTED (2026-06-30): THE WIRE WALL IS PURELY COMPILE-TIME — the runtime checks (2a/2c) RETIRE.** The
+>   job is ONE sentence: *the compiler won't let you write code that reads or writes a struct over non-thread memory.*
+>   Bad bytes (untrusted input) = the USER's validation problem, explicitly OUT OF SCOPE. (`293/DESIGN-293.W` §contract.)
 >   1. **293.W.2b** — enum recursion in `is_portable_type` + rune the service-enum `Receiver<T>` fields + KILL the
->      `"enum portability not yet enforced"` deferral comment (exigere). *Completes THE PREDICATE every wall rung uses*
->      → W.1/2a/2c/2d all become total for free. (Cascade: 3+ wat enums w/ `Receiver`/`Sender`/`Fn` — triage like W.1.)
->   2. **293.W.2d** (NOT optional — builder) — split overloaded `Peer'` → `ConnPeer'` (wire) / `ThreadSelfPeer'`
->      (in-locus). Consumes 2b's total predicate → compile-time wall total across all peer tiers; erases the comms
->      ambiguity the audit would puzzle over. → **COMMS boundary categorical.**
+>      `"enum portability not yet enforced"` deferral comment (exigere). *Completes THE PREDICATE the rules consume*
+>      → W.1's gate + 2d's containment become total. (Cascade: 3+ wat enums w/ `Receiver`/`Sender`/`Fn` — triage like W.1.)
+>   2. **293.W.2d** (NOT optional — builder) — **PEER-TYPE CONTAINMENT** (the W.1 rule lifted to the peer): a wire peer
+>      (`Process'`/`ConnPeer'`) may NOT be TYPED with a non-portable `I`/`O` (split overloaded `Peer'` → `ConnPeer'` wire /
+>      `ThreadSelfPeer'` in-locus to express it). Then the ORDINARY type checker forbids struct-on-wire — `send'(peer,
+>      struct)` is a `struct≠portable-I` unify error; `recv'(peer)` can't produce a struct; the "read into a struct off
+>      a wire peer" call path **has no form.** **DELETE the interim 293.W.2a runtime guards (`fe012223`) + the 293.W.2c
+>      send'-site gate (`7a040b0e`)** — once containment is total, a struct can never reach the wire from any wat program
+>      (the guards defend a door no wat code can walk through). → **COMMS boundary categorical; the wall = ZERO runtime code.**
 >   3. **K3-REVISE → K5** — annihilate `to-struct`+`$struct` → the pair (`$core-record`/`$holon-record`); then
 >      `extend-surface` rides the pair (K5 hard-needs K3-revise; STRIKE-READY `7d2892b8`). → **SURFACE settled.**
 >   4. **9a + of-funcs→`aggregate-new`** — construction unification (kwargs default + `:ns::Agg'` positional +

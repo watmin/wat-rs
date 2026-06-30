@@ -102,10 +102,19 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 >   ONLY portable fields; a `Struct` field is ILLEGAL at declaration (it could never be reconstructed across the wire).
 >   This turns the wire wall into a TYPE guarantee (a record cannot *hold* a struct → can never *carry* one across).
 > - **▶▶ 293.W — THE DEEP WIRE WALL (the priority, builder: this IS core 293 — the holder's categorical comms
->   boundary).** Enforce the containment rule at declaration + a `recv'` backstop refusing to reconstruct a bare
->   `Holder::Struct` value (the untyped top-level path) + kill the deferral comment (rune the legit service-enum
->   `Receiver<T>` fields with reasons, never a blanket "not yet"). RED probe: declaring a record-with-struct-field is
->   REJECTED; the breach roundtrip errors. Sits UNDER K3-revise + K5.
+>   boundary).** **SCOPE: PURELY COMPILE-TIME (2026-06-30) — *the compiler won't let you write code that reads or
+>   writes a struct over non-thread memory.* Bad bytes (untrusted input) = the USER's validation problem, OUT OF
+>   SCOPE.** Three compile-time rules, ZERO runtime code (`293/DESIGN-293.W` §contract):
+>   - ✅ **W.1 — aggregate containment (`ff29f135`)** — a record can't HOLD a struct field (declaration gate).
+>   - **2b** — complete `is_portable_type` (enum arm recurses) + rune the legit service-enum `Receiver<T>` fields +
+>     KILL the `"enum portability not yet enforced"` deferral comment (exigere). The predicate the rules consume.
+>   - **2d** (NOT optional) — **PEER-TYPE CONTAINMENT** (W.1 lifted to the peer): a wire peer (`Process'`/`ConnPeer'`)
+>     may NOT be typed with a non-portable `I`/`O`; split overloaded `Peer'` → `ConnPeer'`/`ThreadSelfPeer'` to express
+>     it. The ordinary type checker then forbids struct-on-wire (`send'(peer, struct)` = unify error; `recv'` can't
+>     produce a struct; the "read a struct off a wire peer" call path has no form). **DELETE the interim runtime
+>     guards** — 293.W.2a (`fe012223`, the inbound/outbound runtime checks) + 293.W.2c (`7a040b0e`, the send'-site gate)
+>     — they held the line + caught/proved the breach while no compile wall existed; once containment is total a struct
+>     can never reach the wire from any wat program. **The wall ends as zero runtime code.** Sits UNDER K3-revise + K5.
 > - **▶ K3-REVISE** (after 293.W): annihilate `to-struct` + the `$struct` emission; `derive_surface_backing_records`
 >   emits the PAIR; retire the `probe_arc293_k3_to_record` struct-tier assertions; retirement-table `to-struct`.
 > - **▶ K5** (`extend-surface`) then rides the pair (STRIKE-READY at `7d2892b8`; the probe's surface is Struct-floored

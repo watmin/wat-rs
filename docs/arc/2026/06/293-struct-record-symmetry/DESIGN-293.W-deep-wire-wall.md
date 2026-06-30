@@ -30,6 +30,30 @@ portable by the rule).
 
 ## The contract (pinned)
 
+> ⊹⊹ **SCOPE CORRECTED (2026-06-30, builder) — THE WIRE WALL IS PURELY COMPILE-TIME; the runtime checks RETIRE.**
+> The job is ONE sentence: *the compiler won't let you write code that reads or writes a struct over non-thread
+> memory.* It is NOT trust-boundary / bad-bytes defense — deserialization of untrusted input is the user's validation
+> problem (every language punts it to the caller), explicitly OUT OF SCOPE. Builder: *"this is a user problem — they
+> gotta validate their inputs — we are not solving that … we are solving 'you cannot read or write structs from
+> non-thread memory' — the compiler doesn't let you write code that does that."*
+>
+> The wall is **THREE compile-time rules, ZERO runtime code:**
+> 1. **W.1 — aggregate containment** (a record can't HOLD a struct field; the declaration gate, item 1 below). LANDED (`ff29f135`).
+> 2. **2b — complete `is_portable_type`** (the enum arm recurses) — the predicate the rules consume.
+> 3. **2d — PEER-TYPE CONTAINMENT** (the W.1 rule lifted to the peer): a wire peer (`Process'`/`ConnPeer'`) may not be
+>    TYPED with a non-portable `I`/`O`. Then the ORDINARY type checker forbids struct-on-wire — `send'(peer, struct)`
+>    is a `struct ≠ portable-I` unify error; `recv'(peer)` can never produce a struct (its `O` isn't one); the "read
+>    into a struct off a wire peer" call path **has no form.** No special send'/recv' gate needed.
+>
+> **RETIRED into 2d** — the 293.W.2a runtime guards (`decode_trusted_wire` reject `fe012223` + `reject_non_portable_on_wire`)
+> AND the 293.W.2c send'-site gate (`7a040b0e`). They were the correct INTERIM enforcement (held the line + caught/proved
+> the breach while no compile wall existed); once peer containment is total, a struct can never reach the wire from any
+> wat program → the runtime guard defends a door no wat code can walk through: DEAD (send' side) / OUT-OF-SCOPE (decode =
+> bad bytes). **DELETE both in the 2d strike.** The wall ends as zero runtime code.
+>
+> So below: **item 1 (declaration gate) STANDS; item 2 (recv' backstop) RETIRES** (it was bad-bytes defense); **item 3's
+> predicate-completion is 2b** (the rune still applies); the new keystone is **2d peer containment.**
+
 1. **Declaration gate (the core):** registering a `Record` / `HolonRecord` aggregate whose any field type is
    non-portable is a **hard declaration error** (`MalformedDecl` / a typed error in `register_types` / the aggregate
    registration path). "Non-portable field type" = `is_portable_type(field_ty) == false`. (Reuse the existing
