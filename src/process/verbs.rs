@@ -36,6 +36,59 @@ pub const EXIT_PANIC: i32 = 2;
 pub const EXIT_STARTUP_ERROR: i32 = 3;
 pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 
+// ─── Arc 296 — structured StartupError EDN emission ────────────────────────
+//
+// For startup failures the `Value::Enum` path (used by emit_structured_exit)
+// cannot carry a nested `MacroError` tree as a typed field — the field is
+// declared as `:wat::core::String` in `types.rs` and `edn_shim.rs` would
+// emit a prose string instead of a structured tagged value.
+//
+// This helper bypasses Value entirely: it builds the wire-format EDN directly
+// from `OwnedValue`, matching the `#wat.kernel/ProcessPanics [...]` envelope
+// shape that `emit_chain_envelope` produces for other exit paths.
+
+/// Arc 296 — emit the startup-error exit envelope.
+///
+/// For `StartupError::Macro`, builds the `#wat.kernel/ProcessPanics [...]`
+/// line directly from `OwnedValue` so the field carries a fully structured
+/// `MacroError` tree (not a prose String). This is the arc 296 target:
+/// the leaf cause is machine-navigable tagged EDN.
+///
+/// For all OTHER `StartupError` variants, falls back to the original
+/// `process_died_error_startup_value(format!("{}", e))` path so that
+/// `extract-panics` on the WAT side can still reconstruct the value —
+/// `types.rs` declares `ProcessDiedError::StartupError` field as `String`,
+/// and `edn_to_value` would fail on a tagged payload for those variants.
+fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
+    match e {
+        crate::freeze::StartupError::Macro(_) => {
+            // Arc 296: structured EDN cause chain for Macro failures.
+            let cause_edn = crate::macros::error_edn::startup_error_to_edn(e);
+
+            // Build #wat.kernel.ProcessDiedError/StartupError [<cause>]
+            let startup_err_edn = wat_edn::OwnedValue::Tagged(
+                wat_edn::Tag::ns("wat.kernel.ProcessDiedError", "StartupError"),
+                Box::new(wat_edn::OwnedValue::Vector(vec![cause_edn])),
+            );
+
+            // Build the chain vec: [#wat.kernel.ProcessDiedError/StartupError [...]]
+            let chain_vec = wat_edn::OwnedValue::Vector(vec![startup_err_edn]);
+
+            // Format as the canonical ProcessPanics wire line and emit.
+            let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&chain_vec));
+            crate::process::stdio::emit_panic_envelope(&line);
+        }
+        _ => {
+            // Other variants: String-based path — extract-panics can reconstruct,
+            // types.rs declares the field as :wat::core::String.
+            emit_structured_exit(
+                None,
+                crate::runtime::process_died_error_startup_value(format!("{}", e)),
+            );
+        }
+    }
+}
+
 // ─── emit_structured_exit (single copy — all fork/spawn paths share this) ───
 //
 // Stone 6.w merge: fork.rs + spawn_process.rs copies unified here.
@@ -343,11 +396,8 @@ fn run_forked_child(
     let world = match startup_result {
         Ok(w) => w,
         Err(e) => {
-            // Arc 170 slice 1i — structured StartupError (no world yet).
-            emit_structured_exit(
-                None,
-                crate::runtime::process_died_error_startup_value(format!("{}", e)),
-            );
+            // Arc 296: emit structured EDN cause chain (not prose string).
+            emit_startup_error_structured_exit(&e);
             unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
         }
     };
@@ -431,10 +481,8 @@ pub(crate) fn run_forms_as_server_child(
     let world = match startup_result {
         Ok(w) => w,
         Err(e) => {
-            emit_structured_exit(
-                None,
-                crate::runtime::process_died_error_startup_value(format!("{}", e)),
-            );
+            // Arc 296: emit structured EDN cause chain (not prose string).
+            emit_startup_error_structured_exit(&e);
             unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
         }
     };
@@ -556,10 +604,8 @@ fn child_branch_from_source(
     let world = match startup_result {
         Ok(w) => w,
         Err(e) => {
-            emit_structured_exit(
-                None,
-                crate::runtime::process_died_error_startup_value(format!("{}", e)),
-            );
+            // Arc 296: emit structured EDN cause chain (not prose string).
+            emit_startup_error_structured_exit(&e);
             unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
         }
     };

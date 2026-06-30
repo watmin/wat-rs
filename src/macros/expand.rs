@@ -508,11 +508,13 @@ fn expand_program_body(
     // immutable definition body, already validated ONCE at definition time by
     // validate_macro_definition (the hoist — arc 249 stone O). Skipping re-validation
     // here is intentional; see macro_eval_pre_validated in eval.rs for the invariant.
+    // Arc 296: surface structured cause chain instead of collapsing to prose.
     let result_tv = crate::macros::eval::macro_eval_pre_validated(template, &body_env, sym)
         .map_err(|e| MacroError {
             span: call_site_span.clone(),
-            kind: MacroErrorKind::MalformedTemplate {
-                reason: format!("macro {} — program body eval failed: {}", macro_name, e),
+            kind: MacroErrorKind::ProgramBodyEvalFailed {
+                macro_name: macro_name.to_string(),
+                cause: Box::new(e),
             },
         })?;
 

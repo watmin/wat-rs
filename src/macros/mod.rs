@@ -104,6 +104,7 @@ pub(crate) mod registry;
 pub(crate) mod parse;
 pub(crate) mod expand;
 pub(crate) mod eval;
+pub mod error_edn;
 
 pub use error::{MacroError, MacroErrorKind};
 pub use registry::{MacroDef, MacroRegistry};

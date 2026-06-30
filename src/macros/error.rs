@@ -1,3 +1,4 @@
+use crate::runtime::RuntimeError;
 use crate::span::{span_prefix, Span};
 use std::fmt;
 
@@ -67,6 +68,23 @@ pub enum MacroErrorKind {
     ///
     /// Arc 249 Stone 249.2b-ii — gate E hygiene bound.
     ProgramBodyIntroducesName { macro_name: String, binder: String },
+
+    /// Macro program-body evaluation failed with a nested `MacroError`.
+    ///
+    /// Arc 296: replaces the prose-collapsed
+    /// `MalformedTemplate { reason: "macro NAME — program body eval failed: …" }`.
+    /// The cause carries the full typed chain; callers inspect `cause.kind`
+    /// instead of parsing the reason string.
+    ProgramBodyEvalFailed { macro_name: String, cause: Box<MacroError> },
+
+    /// Runtime `eval` in macro-eval context failed with a `RuntimeError`.
+    ///
+    /// Arc 296: replaces the prose-collapsed `MalformedTemplate` in the
+    /// non-`MacroAbort` arm of `macro_eval_pre_validated`. The `MacroAbort`
+    /// arm retains `MalformedTemplate { reason: message }` (clean user
+    /// message, no structural cause). All other runtime failures carry the
+    /// typed `RuntimeError` here.
+    MacroEvalRuntimeFailed { cause: Box<RuntimeError> },
 }
 
 impl fmt::Display for MacroErrorKind {
@@ -128,6 +146,16 @@ impl fmt::Display for MacroErrorKind {
                  gate E, arc 249 stone 249.2b-ii); use ~-unquote to splice the name from a \
                  macro parameter",
                 macro_name, binder
+            ),
+            MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause } => write!(
+                f,
+                "macro {} — program body eval failed: {}",
+                macro_name, cause
+            ),
+            MacroErrorKind::MacroEvalRuntimeFailed { cause } => write!(
+                f,
+                "macro_eval: runtime::eval failed: {}",
+                cause
             ),
         }
     }

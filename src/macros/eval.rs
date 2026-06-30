@@ -112,13 +112,17 @@ pub(super) fn macro_eval_pre_validated(
         };
         // Arc 258 Stone 258.2b: MacroAbort surfaces clean — user message only,
         // no "macro_eval: runtime::eval failed:" prefix noise.
-        let reason = match &e.kind {
-            crate::runtime::RuntimeErrorKind::MacroAbort { message } => message.clone(),
-            _ => format!("macro_eval: runtime::eval failed: {}", e),
-        };
-        MacroError {
-            span,
-            kind: MacroErrorKind::MalformedTemplate { reason },
+        // Arc 296: non-MacroAbort failures carry the typed RuntimeError cause
+        // instead of collapsing to a prose string.
+        match &e.kind {
+            crate::runtime::RuntimeErrorKind::MacroAbort { message } => MacroError {
+                span,
+                kind: MacroErrorKind::MalformedTemplate { reason: message.clone() },
+            },
+            _ => MacroError {
+                span,
+                kind: MacroErrorKind::MacroEvalRuntimeFailed { cause: Box::new(e) },
+            },
         }
     })
 }
