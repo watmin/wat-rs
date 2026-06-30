@@ -44,19 +44,12 @@
     (:w2a::R/val (:wat::kernel::recv' p))))
 
 ;; ── OUTBOUND: send' guard ─────────────────────────────────────────
-
-;; Send-struct probe — parent send's a bare struct to a PROCESS child.
-;; The guard fires BEFORE serialization, so the child body is irrelevant;
-;; it just keeps stdin open (blocks on a String readln) so a portable send
-;; would otherwise succeed. After fix: send' raises before the write.
-(:wat::core::defn :w2a::probe-send-struct [] -> :wat::core::nil
-  (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::core::let [_ (:wat::kernel::readln -> :wat::core::String)] nil))))
-     _ (:wat::kernel::send' p (:w2a::S 99))]
-    nil))
+;;
+;; Arc 293.W.2c (compile-time supersession): probe-send-struct (typed struct → process peer)
+;; is now REJECTED BY THE TYPE-CHECKER (infer_send_prime portability gate). Including it in
+;; this world would cause startup to fail, breaking the inbound and thread-control tests above.
+;; It lives in tests/comms/probe_arc293_W2c_compile_time_send.wat and is tested there.
+;; The Rust test struct_rejected_at_wire_SEND below points to that probe via startup_from_file.
 
 ;; Send-record control — parent send's a base record to a PROCESS child.
 ;; Must succeed (records are portable): send' returns nil. The child reads the

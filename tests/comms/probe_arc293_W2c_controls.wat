@@ -1,0 +1,36 @@
+;; tests/comms/probe_arc293_W2c_controls.wat
+;; Control fixture for probe_arc293_W2c_compile_time_send.rs.
+;;
+;; Arc 293.W.2c — guards against over-rejection by the send' wire-wall.
+;;
+;; Two controls that MUST type-check (world loads without error):
+;;
+;;   1. struct over a THREAD peer — exempt (in-locus, same address space,
+;;      crossbeam channel; no serialization). The gate must NOT fire for Thread'.
+;;
+;;   2. record over a PROCESS peer — portable (records are wire-serializable).
+;;      The gate must NOT fire for portable payload types.
+
+(:wat::core::defstruct :w2c_ctrl::S [val <- :wat::core::i64])
+(:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
+
+;; Thread control: parent spawns a thread child that echoes structs back via
+;; its Peer' self-handle. The gate must not fire — Thread' is in-locus.
+(:wat::core::defn :w2c_ctrl::probe-send-struct-thread [] -> :wat::core::i64
+  (:wat::core::let
+    [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
+            (:wat::core::fn [self <- :wat::kernel::Peer'<w2c_ctrl::S,w2c_ctrl::S>] -> :wat::core::nil
+              (:wat::kernel::send' self (:wat::kernel::recv' self))))
+     _   (:wat::kernel::send' peer (:w2c_ctrl::S 99))
+     got (:wat::kernel::recv' peer)]
+    (:w2c_ctrl::S/val got)))
+
+;; Record control: parent sends a portable record to a PROCESS child.
+;; Records are wire-serializable; the gate must not fire.
+(:wat::core::defn :w2c_ctrl::probe-send-record-to-process [] -> :wat::core::nil
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
+           (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
+    (:wat::kernel::send' p (:w2c_ctrl::R 42))))

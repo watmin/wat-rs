@@ -11443,8 +11443,10 @@ fn infer_spawn_process_prime(
 // project I and/or O. Non-peer arg0 → TypeMismatch "peer (Thread'<I,O> | Process'<I,O>)".
 
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
-/// Returns `Ok((i_ty, o_ty))` on success. On failure, pushes a TypeMismatch
-/// into `local_errors` and returns `Err(())`.
+/// Returns `Ok((i_ty, o_ty, is_wire))` on success, where `is_wire` is `true`
+/// for `Process'` (cross-universe, serialized stdin/stdout) and `false` for
+/// `Thread'` and `Peer'` (see match arm comment for `Peer'` nuance). On
+/// failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.
 fn project_peer_io(
     args: &[WatAST],
     head_span: &Span,
@@ -11454,7 +11456,7 @@ fn project_peer_io(
     fresh: &mut InferCtx,
     subst: &mut Subst,
     local_errors: &mut Vec<CheckError>,
-) -> Result<(TypeExpr, TypeExpr), ()> {
+) -> Result<(TypeExpr, TypeExpr, bool), ()> {
     let peer_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(local_errors) {
         Some(t) => t,
         None => return Err(()),
@@ -11469,7 +11471,20 @@ fn project_peer_io(
                 || head == "wat::kernel::Peer'")
                 && args.len() == 2 =>
         {
-            Ok((args[0].clone(), args[1].clone()))
+            // Thread' is in-locus (same address space, no serialization); wire = false.
+            // Process' crosses a universe boundary (serialized stdin/stdout); wire = true.
+            // Peer' covers BOTH connection peers (from connect', wire) AND thread
+            // self-peers (fn [self <- Peer'<I,O>] — in-locus over crossbeam). The type
+            // system cannot distinguish these two uses of Peer' at the send' call site;
+            // gating all Peer' sends would falsely reject legitimate thread self-peer
+            // echoes (W2a probe-send-struct-thread). This is NOT an unenforced hole: a
+            // struct over a SOCKET Peer' is still caught at RUNTIME by the 293.W.2a send'
+            // wire guard (reject_non_portable_on_wire). Only the COMPILE-TIME catch for
+            // Peer' is unavailable here, and only because Peer' conflates the two tiers;
+            // it becomes statically gateable once a type-level tier split exists
+            // (ConnPeer' vs ThreadSelfPeer') — the 293.W.2d follow-on.
+            let is_wire = head == "wat::kernel::Process'";
+            Ok((args[0].clone(), args[1].clone(), is_wire))
         }
         other => {
             local_errors.push(CheckError {
@@ -11612,9 +11627,9 @@ fn infer_send_prime(
         return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
     }
 
-    let (i_ty, _o_ty) =
+    let (i_ty, _o_ty, is_wire) =
         match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
-            Ok(pair) => pair,
+            Ok(triple) => triple,
             Err(()) => {
                 // Still infer args[1] for nested error coverage.
                 let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11643,6 +11658,41 @@ fn infer_send_prime(
                 got: format_type(&apply_subst(&payload_ty, subst)),
             },
         });
+    }
+
+    // Arc 293.W.2c — compile-time wire-wall for send'.
+    // A wire peer (Process') must carry a portable payload (records, scalars,
+    // portable containers). The thread tier is exempt — in-locus, same address
+    // space, no serialization (§7 — a struct is in-locus only).
+    //
+    // GUARD: skip when the resolved payload type is still a type variable
+    // (unresolved inference var). `is_portable_type` is conservatively false for
+    // Var — that is the right policy for channel-declaration gates (254.1), where
+    // the keyword argument is always concrete. At a send' call site, the payload
+    // type may still be a fresh var when the caller is itself polymorphic (e.g.
+    // a `send' peer cap-addr` where cap-addr's type is not yet pinned). Rejecting
+    // an unknown-type send' produces a false positive. Only fire for concrete types
+    // that are KNOWN to be non-portable (e.g. Aggregate{Holder::Struct}).
+    if is_wire {
+        let resolved = apply_subst(&payload_ty, subst);
+        let is_concrete_non_portable = !matches!(resolved, TypeExpr::Var(_))
+            && !is_portable_type(&resolved, env.types());
+        if is_concrete_non_portable {
+            local_errors.push(CheckError {
+                span: args[1].span().clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "send' payload type {} is not portable — a wire peer carries \
+                         records, scalars, and portable containers; not structs, handles, \
+                         or closures (§7 — a struct is in-locus and never crosses a \
+                         comms boundary)",
+                        format_type(&resolved)
+                    ),
+                    remedies: vec![],
+                },
+            });
+        }
     }
 
     let ret = TypeExpr::Path(":wat::core::nil".into());
@@ -11724,7 +11774,7 @@ fn infer_recv_prime(
     }
 
     match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
-        Ok((_i_ty, o_ty)) => {
+        Ok((_i_ty, o_ty, _is_wire)) => {
             let ret = apply_subst(&o_ty, subst);
             if local_errors.is_empty() {
                 CheckResult::ok(ret)
