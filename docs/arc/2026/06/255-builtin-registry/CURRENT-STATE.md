@@ -2,17 +2,24 @@
 
 Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b708ff` or later** (the surface-kit BUILD is underway — K0+K1 landed). Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4120 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
-> **▶▶ THE SURFACE KIT BUILD (2026-06-29): K0 + K1 COMPLETE.** The satisfaction layer + the grammar ARE the model.
+`4122 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
+> **▶▶ THE SURFACE KIT BUILD (2026-06-29): K0 + K1 + K2 + K3 COMPLETE.** The satisfaction layer + the grammar ARE the model.
 > ✅ K1a/K1b the holder ladder (aggregate+foreign, b′) · ✅ K0a/K0b/K0c mandatory `:holder` + explicit `self` +
 > cycle-guard · ✅ **K2 `$record` emission (`d3fe912b`)** — `defsurface :S` also registers a concrete `:S$record`
 > `AggregateDef` (holder = surface's; fields = `:features` attributes ONLY, methods excluded) via the existing
 > aggregate ctor/accessor codegen (`derive_surface_backing_record` + inject in `register_types_impl`; `$` is a legal
-> keyword char). **▶ NEXT = K3 — `to-record`** (`:wat::core::to-record` + `:wat::holon::to-record`: project a
-> satisfier's attributes into `:S$record` at the target tier ≥ the surface's holder floor — the honest up-the-ladder
-> move; the only legal promotion). Then K4 extend-type un-demote → K5 extend-surface. DESIGN:
-> `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`; order: `294/CLOSE-SEQUENCE § THE SURFACE KIT`; R6 *EX CINERIBVS
-> RESVRGO* sung (`c3689748`). Each Kn: RED probe → strike → weigh forced-clean. (Six strikes shipped; K3–K5 remain.)
+> keyword char). ✅ **K3 — THE THREE PROJECTION VERBS (`3c0c25ea`)** — `to-struct` / `to-record` (core) /
+> `:wat::holon::to-record`: project a satisfier's EDN attributes into `:S$struct` / `:S$core-record` /
+> `:S$holon-record` at the tier the CALLER names. **Design EXPANDED with the builder (2026-06-29):** projection is a
+> FREE EXPLICIT tier choice — the floor governs *satisfaction*, NOT *projection*; a surface emits ALL THREE backing
+> records; ONE shared `project_surface_attrs` extraction; holon's ctor derives the hologram (294.c.2a). K3 SUBSUMED K2
+> (`$record`→ the triple). Probe `probe_arc293_k3_to_record` GREEN (3+4+3=10); weighed forced-clean **4122/0/92**. See
+> `293/AGGREGATE-MODEL.md § to-record` superseding block (the old "up-only / never-to-struct" framing is dead).
+> **▶ NEXT = K4 — `extend-type` UN-DEMOTE** (foreign-only adapter → the general per-type impl door, any type; the ONE
+> canonical `ArgSpec`, same `:…/method` key as ambient `defn :T/method`). Then K5 `extend-surface` macro → showcase
+> graduates `.wat.disabled`→`.wat`. DESIGN: `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`; order: `294/CLOSE-SEQUENCE §
+> THE SURFACE KIT`; R6 *EX CINERIBVS RESVRGO* sung (`c3689748`). Each Kn: RED probe → strike → weigh forced-clean.
+> (K0+K1+K2+K3 shipped — three of four tools live; K4–K5 remain.)
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
 > then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`
