@@ -40,11 +40,29 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >   portable paths (293.W b2; four-questions chose b2 over folding item-2 — keeps 293.W scoped to PORTABILITY).
 >   Probe `probe_arc293_W_containment` RED→GREEN; weighed forced-clean **4124/0/93**. **item-2 (kill the loose
 >   `:wat::core::Record` writable type — rete facts → `Value`, `user.program` → surface) STAYS its own PRECISION arc.**
-> - **▶▶ NEXT = 293.W.2** — the `recv'` backstop (refuse to reconstruct a bare top-level `Holder::Struct` off the wire,
->   the untyped path) + the enum recursion in `is_portable_type` + **rune the legit service-enum `Receiver<T>` fields
->   and KILL the deferral comment** (`"enum portability not yet enforced"`, the exigere violation). **Then ▶ K3-REVISE**
->   (annihilate `to-struct` + `$struct` emission → the pair) **then ▶ K5** (`extend-surface`, STRIKE-READY `7d2892b8`)
->   → showcase graduates `.wat.disabled`→`.wat`.
+> - ✅ **293.W.2a — RUNTIME wire wall, BOTH directions (`fe012223`)** — a struct can neither be written to nor read
+>   from a comms wire (`decode_trusted_wire` inbound + `reject_non_portable_on_wire` outbound; one `Holder::is_portable`
+>   predicate); thread tier exempt. ✅ **293.W.2c — COMPILE-TIME wall for `Process'` (`7a040b0e`)** — a typed
+>   struct→process `send'` is a CHECK error (`infer_send_prime` gate, mirrors the 254.1 channel gate); `Peer'` left to
+>   the runtime backstop (overloaded socket-vs-thread → 293.W.2d). **THE WALL STANDS AT 3 RUNGS: declaration (W.1) ·
+>   runtime both-directions (W.2a) · compile-time Process' (W.2c).**
+> - **▶▶ DEP ORDER FOR THE REMAINING WORK (builder, 2026-06-29 — "the order that makes each step tractable").** The
+>   293 closure gate = the AGGREGATE AUDIT (verify the holder at its 3 boundaries: comms / EDN-repr / assignability).
+>   Every step SETTLES a boundary categorically → turns the audit from DISCOVERY into VERIFICATION. `is_portable_type`
+>   is the atom; settle inner-predicate-first:
+>   1. **293.W.2b** — enum recursion in `is_portable_type` + rune the service-enum `Receiver<T>` fields + KILL the
+>      `"enum portability not yet enforced"` deferral comment (exigere). *Completes THE PREDICATE every wall rung uses*
+>      → W.1/2a/2c/2d all become total for free. (Cascade: 3+ wat enums w/ `Receiver`/`Sender`/`Fn` — triage like W.1.)
+>   2. **293.W.2d** (NOT optional — builder) — split overloaded `Peer'` → `ConnPeer'` (wire) / `ThreadSelfPeer'`
+>      (in-locus). Consumes 2b's total predicate → compile-time wall total across all peer tiers; erases the comms
+>      ambiguity the audit would puzzle over. → **COMMS boundary categorical.**
+>   3. **K3-REVISE → K5** — annihilate `to-struct`+`$struct` → the pair (`$core-record`/`$holon-record`); then
+>      `extend-surface` rides the pair (K5 hard-needs K3-revise; STRIKE-READY `7d2892b8`). → **SURFACE settled.**
+>   4. **9a + of-funcs→`aggregate-new`** — construction unification (kwargs default + `:ns::Agg'` positional +
+>      `/from-map` dies + `::of` funcs die; CLOSE-SEQUENCE 9/9a). Before the showcase. → **CONSTRUCTION settled.**
+>   5. **Showcase graduates** `.wat.disabled`→`.wat` on the settled surfaces.
+>   6. **THE AGGREGATE AUDIT** — 3 boundaries categorical → classify ~99 branches, drive spurious→0 → **293 closes**
+>      → 294 value-layer gut + 293.5.
 > (K0–K4 done — three tools live: `defsurface` + `to-record` (being revised to the pair) + `extend-type`; the wire
 > wall is now the gating correctness work; `extend-surface` is the last tool.)
 
