@@ -16,7 +16,8 @@
 ;; so no String-length semantics are in question — the test is the ADAPTER, not the body.
 
 (:wat::core::defsurface :t::Tagged
-  :features [(tag [self] -> :wat::core::i64)])
+  :holder :wat::core::Struct
+  :features [(tag [self <- :t::Tagged] -> :wat::core::i64)])
 
 ;; THE MONKEYPATCH — teach the foreign `:wat::core::String` to be `:t::Tagged`.
 (:wat::core::extend-type :wat::core::String :t::Tagged

@@ -7,8 +7,8 @@
 ;; GREEN once the parser reads the member vector from the `:features` clause.
 (:wat::core::defrecord :geo::Circle [color <- :wat::core::String  radius <- :wat::core::f64])
 
-;; `:features` alone (no holder bound)
-(:wat::core::defsurface :geo::Colored :features [color <- :wat::core::String])
+;; `:holder` + `:features` (holder is now mandatory)
+(:wat::core::defsurface :geo::Colored :holder :wat::core::Struct :features [color <- :wat::core::String])
 
 ;; `:holder` + `:features` — the two parallel constraint clauses
 (:wat::core::defsurface :geo::PortableColored

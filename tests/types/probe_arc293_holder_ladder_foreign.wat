@@ -13,7 +13,7 @@
 ;; type-checks. GREEN after K1b: the derived holder (Record) < the floor (HolonRecord) -> rejected.
 
 (:wat::core::defsurface :k1b::Vsa :holder :wat::holon::Record
-  :features [(measure [self] -> :wat::core::f64)])
+  :features [(measure [self <- :k1b::Vsa] -> :wat::core::f64)])
 
 (:wat::core::extend-type :wat::core::String :k1b::Vsa
   (measure [self] -> :wat::core::f64 0.0))

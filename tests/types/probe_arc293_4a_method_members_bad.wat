@@ -6,8 +6,9 @@
 ;; because :t::NoMethod does not satisfy :t::Shape's method member `area`).
 
 (:wat::core::defsurface :t::Shape
+  :holder :wat::core::Struct
   :features [color <- :wat::core::String
-   (area [self] -> :wat::core::f64)])
+   (area [self <- :t::Shape] -> :wat::core::f64)])
 
 ;; :t::NoMethod has `color` field (satisfies the field member) but NO `defn :t::NoMethod/area`.
 (:wat::core::defrecord :t::NoMethod [color <- :wat::core::String])

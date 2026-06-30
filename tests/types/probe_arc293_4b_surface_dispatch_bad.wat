@@ -5,7 +5,8 @@
 ;; (receiver type :t::NoArea is not assignable to the surface :t::Shape).
 
 (:wat::core::defsurface :t::Shape
-  :features [(area [self] -> :wat::core::f64)])
+  :holder :wat::core::Struct
+  :features [(area [self <- :t::Shape] -> :wat::core::f64)])
 
 (:wat::core::defrecord :t::NoArea [x <- :wat::core::f64])
 

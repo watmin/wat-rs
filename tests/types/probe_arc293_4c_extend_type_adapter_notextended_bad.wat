@@ -6,7 +6,8 @@
 ;; Proves that surface satisfaction is a real check, not always-true (STOP-3 guard).
 
 (:wat::core::defsurface :t::TaggedNeg
-  :features [(tag [self] -> :wat::core::i64)])
+  :holder :wat::core::Struct
+  :features [(tag [self <- :t::TaggedNeg] -> :wat::core::i64)])
 
 ;; String IS taught — but i64 is NOT (proves selectivity, not blanket acceptance).
 (:wat::core::extend-type :wat::core::String :t::TaggedNeg

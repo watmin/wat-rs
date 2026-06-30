@@ -7,9 +7,10 @@
 ;; ── THE SURFACE — a set-of-accessor (fields AND methods, uniformly) ──
 ;; All members go inside the single member-vector: field triples mixed with method-sig Lists.
 (:wat::core::defsurface :geo::Shape
-  :features [color <- :wat::core::String                ; FIELD-style accessor  → :T/color -> :String
-   (area  [self] -> :wat::core::f64)          ; METHOD accessor       → :T/area  [self] -> :f64
-   (label [self] -> :wat::core::String)])     ; METHOD accessor       → :T/label [self] -> :String
+  :holder :wat::core::Struct
+  :features [color <- :wat::core::String                       ; FIELD-style accessor  → :T/color -> :String
+   (area  [self <- :geo::Shape] -> :wat::core::f64)   ; METHOD accessor       → :T/area  [self] -> :f64
+   (label [self <- :geo::Shape] -> :wat::core::String)]); METHOD accessor       → :T/label [self] -> :String
 
 ;; ── OWN TYPE #1 — Circle (core record). :geo::Circle/color is generated FREE by the field. ──
 (:wat::core::defrecord :geo::Circle [color <- :wat::core::String  radius <- :wat::core::f64])

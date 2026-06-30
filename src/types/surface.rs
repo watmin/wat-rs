@@ -144,11 +144,11 @@ fn split_method_name_type_params(name: &str, sig_span: &Span) -> Result<(String,
 /// carries the extracted param names (e.g. `["T"]`). Monomorphic methods store `vec![]`.
 ///
 /// The argspec vector `[args...]` is parsed via `parse_argspec_triples`, keeping the full
-/// `ArgSpec` (not flattened to `Vec<TypeExpr>`). If the argvec contains only bare symbols
-/// without `<-` type annotations (e.g. `[self]`), `parse_argspec_triples` would fail with
-/// `IncompleteTriple`; in that case we fall back to an empty `ArgSpec` — the surface member
-/// constrains only the return type. Typed args (e.g. `[self <- :Shape  n <- :i64]`) produce
-/// a populated `ArgSpec` whose `fixed_params` are checked per-position at satisfaction time.
+/// `ArgSpec` (not flattened to `Vec<TypeExpr>`). Arc 293 K0b — ALL binders must be typed
+/// (`name <- :Type`), including `self`. Bare untyped binders (e.g. `[self]` without `<-`)
+/// are a `MalformedDecl`; write `[self <- :TheSurface  …]` (the surface's own name as the
+/// self type). Typed args (e.g. `[self <- :Shape  n <- :i64]`) produce a populated `ArgSpec`
+/// whose `fixed_params` are checked per-position at satisfaction time.
 fn parse_method_member_sig(
     sig_items: &[WatAST],
     sig_span: &Span,
@@ -192,8 +192,9 @@ fn parse_method_member_sig(
     };
 
     // Item 1: argspec Vector — parse via parse_argspec_triples, keeping the full ArgSpec.
-    // If the argvec has only bare symbols (e.g. `[self]` without `<-`), fall back to an
-    // empty ArgSpec (satisfaction will only check the return type).
+    // Arc 293 K0b — ALL binders in a surface method member MUST be typed (`name <- :Type`),
+    // including `self`. A bare untyped binder (e.g. `[self]` without `<-`) is a MalformedDecl;
+    // write `[self <- :TheSurface  …]` (the surface's own name as the self type).
     let args = match &sig_items[1] {
         WatAST::Vector(items, vec_span) => {
             match crate::argspec::parse_argspec_triples(
@@ -204,12 +205,20 @@ fn parse_method_member_sig(
             ) {
                 Ok(spec) => spec,
                 Err(_) => {
-                    // Argvec has bare symbols without type annotations (e.g. `[self]`).
-                    // Produce an empty ArgSpec — the surface constrains only the return type.
-                    crate::argspec::ArgSpec {
-                        fixed_params: vec![],
-                        rest_param: None,
-                    }
+                    // Arc 293 K0b — bare untyped binders are no longer accepted.
+                    return Err(TypeError {
+                        span: vec_span.clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "all binders in a surface method member must be typed (`name <- :Type`); \
+                                 `self` must be written `[self <- :TheSurface  …]` (the surface's own \
+                                 name); bare untyped binders (e.g. `[self]`) are not accepted in \
+                                 method member `{}`",
+                                method_name
+                            ),
+                        },
+                    });
                 }
             }
         }
@@ -296,19 +305,18 @@ fn parse_method_member_sig(
 /// consecutive non-List items as field-triple sub-runs and passes each to
 /// `parse_argspec_triples`; List items are parsed as Method members.
 pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    // Valid shapes (arc 293 `:features` clause — ONE canonical path):
-    //   (:wat::core::defsurface :Name :features [members])                      — 3 args
-    //   (:wat::core::defsurface :Name :holder :<kw> :features [members])        — 5 args
-    // The :holder clause is optional and MUST precede :features.
+    // Valid shape (arc 293 K0a — `:holder` is MANDATORY; the 3-arg bare-:features form is retired):
+    //   (:wat::core::defsurface :Name :holder :<holder-root> :features [members])  — 5 args only
+    // :holder is mandatory and MUST precede :features.
     // :features is MANDATORY — a member vector not introduced by :features is a MalformedDecl.
-    if args.len() != 3 && args.len() != 5 {
+    if args.len() != 5 {
         return Err(TypeError {
             span: decl_span.clone(),
             kind: TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
-                    "expected (:wat::core::defsurface :Name :features [members]) or \
-                     (:wat::core::defsurface :Name :holder :<kw> :features [members]); \
+                    "expected (:wat::core::defsurface :Name :holder :<holder-root> :features [members]); \
+                     :holder is mandatory — the bare :features-only form is retired; \
                      got {} args after head",
                     args.len()
                 ),
@@ -373,8 +381,16 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             Some(holder_val)
         }
         WatAST::Keyword(k, _) if k == ":features" => {
-            // No :holder clause — :features introduces the member vector directly.
-            None
+            // Arc 293 K0a — :holder is mandatory; the bare :features-only form is retired.
+            return Err(TypeError {
+                span: next.span().clone(),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "`:holder` is mandatory — found `:features` where `:holder` was expected; \
+                             write (:wat::core::defsurface :Name :holder :<holder-root> :features [members])"
+                        .into(),
+                },
+            });
         }
         other => {
             return Err(TypeError {
