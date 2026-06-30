@@ -106,8 +106,14 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 >   writes a struct over non-thread memory.* Bad bytes (untrusted input) = the USER's validation problem, OUT OF
 >   SCOPE.** Three compile-time rules, ZERO runtime code (`293/DESIGN-293.W` §contract):
 >   - ✅ **W.1 — aggregate containment (`ff29f135`)** — a record can't HOLD a struct field (declaration gate).
->   - **2b** — complete `is_portable_type` (enum arm recurses) + rune the legit service-enum `Receiver<T>` fields +
->     KILL the `"enum portability not yet enforced"` deferral comment (exigere). The predicate the rules consume.
+>   - **2b — THE ENUM MOBILITY MARKER** (DESIGN SETTLED + ratified 2026-06-30; `293/DESIGN-293.W § 293.W.2b`). Enums
+>     **DECLARE** `:wat::enum::Portable` | `:wat::enum::Anchored` (mandatory positional marker; `Mobility{Portable,
+>     Anchored}` on `EnumDef`, mirrors `Holder`); `is_portable_type` READS the declaration (`e.mobility.is_portable()`);
+>     an enum-containment pass enforces it (a `Portable` enum holds only portable variant fields). The deferral comment
+>     dies. **Supersedes the earlier "enum arm recurses (derived) + rune" framing** — four-questioned out (derived masks
+>     intent, the surface-`:holder`-mandatory rule); grounding found no live enum carries a direct `Receiver<T>` (the
+>     cited `StdOutService::Event` died in the Rust rehome). Surfaced a VALID finding: `:svc::Request` (reply-`Sender`s)
+>     is genuinely `Anchored`; its thread-tier `make-channel` exemption rides forward to 2d. The predicate the rules consume.
 >   - **2d** (NOT optional) — **PEER-TYPE CONTAINMENT** (W.1 lifted to the peer): a wire peer (`Process'`/`ConnPeer'`)
 >     may NOT be typed with a non-portable `I`/`O`; split overloaded `Peer'` → `ConnPeer'`/`ThreadSelfPeer'` to express
 >     it. The ordinary type checker then forbids struct-on-wire (`send'(peer, struct)` = unify error; `recv'` can't

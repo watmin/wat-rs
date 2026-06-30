@@ -53,9 +53,18 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >   ⊹ **SCOPE CORRECTED (2026-06-30): THE WIRE WALL IS PURELY COMPILE-TIME — the runtime checks (2a/2c) RETIRE.** The
 >   job is ONE sentence: *the compiler won't let you write code that reads or writes a struct over non-thread memory.*
 >   Bad bytes (untrusted input) = the USER's validation problem, explicitly OUT OF SCOPE. (`293/DESIGN-293.W` §contract.)
->   1. **293.W.2b** — enum recursion in `is_portable_type` + rune the service-enum `Receiver<T>` fields + KILL the
->      `"enum portability not yet enforced"` deferral comment (exigere). *Completes THE PREDICATE the rules consume*
->      → W.1's gate + 2d's containment become total. (Cascade: 3+ wat enums w/ `Receiver`/`Sender`/`Fn` — triage like W.1.)
+>   1. **293.W.2b — THE ENUM MOBILITY MARKER (DESIGN SETTLED + ratified 2026-06-30; `293/DESIGN-293.W § 293.W.2b`).**
+>      Enums **DECLARE** `:wat::enum::Portable` | `:wat::enum::Anchored` (mandatory positional marker; `Mobility{Portable,
+>      Anchored}` on `EnumDef`, mirrors `Holder`); `is_portable_type` **reads** the declaration; an enum-containment pass
+>      (parallel to W.1) enforces it; deferral comment dies. *Completes THE PREDICATE the rules consume* → W.1's gate +
+>      2d's containment become total. **Supersedes the earlier "enum arm recurses (derived) + rune" plan** — derived was
+>      four-questioned OUT (masks intent, the surface-`:holder`-mandatory rule); intueri double-cast crowned the names
+>      (killed `:locus` — process/remote are loci too — and `ThreadLocal` — an inverted lie). Grounding: NO live enum
+>      carries a direct `Receiver<T>` (the cited `StdOutService::Event` died in the Rust rehome) → the predicted "3+ enum"
+>      cascade is essentially the migration of ~10 wat + 4 Rust enums to declare mobility. **STRIKE-READY:** RED probe
+>      `probe_arc293_W2b_enum_recursion` written (disconfirms at HEAD); the derived-recursion code (cycle-guard) is held
+>      UNCOMMITTED and gets REPLACED by the marker. Surfaced a VALID finding (`:svc::Request` reply-`Sender`s → genuinely
+>      `Anchored`); its thread-tier `make-channel` exemption rides to 2d.
 >   2. **293.W.2d** (NOT optional — builder) — **PEER-TYPE CONTAINMENT** (the W.1 rule lifted to the peer): a wire peer
 >      (`Process'`/`ConnPeer'`) may NOT be TYPED with a non-portable `I`/`O` (split overloaded `Peer'` → `ConnPeer'` wire /
 >      `ThreadSelfPeer'` in-locus to express it). Then the ORDINARY type checker forbids struct-on-wire — `send'(peer,

@@ -49,6 +49,12 @@
    side) — §7 / R3 *SUB SUPERFICIE QUOD ES* violated. The fix is this rule (declaration-time) + a `recv'` backstop
    for the bare-top-level-struct untyped path. (The 293.W strike. Builder: *"we cannot decide a default value for a
    bound socket … the record literally cannot hold a struct."*)
+   **GENERALIZES to the enum (293.W.2b):** the containment rule is the wire-wall-as-type-guarantee for ANY portable
+   container. An `enum` declares its capability with a parallel marker — `Mobility { Portable, Anchored }`, surfaced as
+   the mandatory `:wat::enum::Portable` | `:wat::enum::Anchored` kind-word on `defenum` (NOT the holder — a sum has no
+   backing; "an enum has a holder" is a category pun) — and a `Portable` enum may declare only portable variant fields,
+   exactly as a portable aggregate may declare only portable fields. One model: declared capability + containment gate;
+   `is_portable_type` reads the declaration (`holder.is_portable()` / `mobility.is_portable()`). See `DESIGN-293.W § 293.W.2b`.
 
 ## The holder trit
 `Struct (−1)` in-locus, non-portable, holds resources, never crosses · `Record (0)` edn-repr, crosses ·
