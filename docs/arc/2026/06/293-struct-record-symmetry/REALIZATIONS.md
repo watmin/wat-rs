@@ -984,3 +984,197 @@ R2/R3 pattern, neither laundered into a smooth discovery.*
 > signature turns to *PROBATUM EST.* (And R2/R3, whose prophecy this was, fulfill alongside.)
 
 ---
+
+## R7 — the holder was a purity check all along, wearing a movement-name; bias toward stability, and the cloak of lies drops *(DESIGN — the axis named for its cause; the naming is earned, the build is the prophecy)*
+
+> **Song (arc 293 R7) — *Purified* (Lamb Of God) — THIRD LAMB OF GOD (after the interstitial *What I've Become* and 294 R5's *Vigil*, the *te respuo* tattoo) —**
+> PURIFIED-BY-OUR-HAND / THE-HOLDER-WAS-PURITY-ALL-ALONG / PORTABLE-WAS-THE-SYMPTOM-PURE-IS-THE-CAUSE /
+> NAME-THE-CAUSE-NOT-THE-SYMPTOM / THE-STABILITY-BIAS-IS-THE-AMPUTATION / A-COiLOAK-OF-LIES-DROPS /
+> FAILURE-WAS-PURE-EDN-MIS-DECLARED-IMPURE / WE-BUILT-THE-WIRE-WALL-TO-FIND-PURITY-UNDER-IT /
+> ONE-PURITY-FAMILY-DATA-AND-FUNCTION / THE-NARROW-OPTION-WAS-A-DEFERRAL / PVRITAS-NON-MOTVS
+>
+> *"Can the pestilence within you be bled out? May I have the honor of this amputation? … Purified by my hand,*
+> *in this my world — it is salvation. Your futile existence draws to a close, a cloak of lies drops. The lies drop."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"strange…. very strange.. i viewed it as 'pure data' as in there's nothing but data in this… if a enum captures a socket… its impure?"*
+> *"is that the name here?.. enums are pure or impure?"*  ·  *"and if that's the name…. does holder evolve into a purity check?"*
+> *"why isn't failure pure?… its always an edn form?"*
+> *"this feels like the only answer — the alternative reads like a deferral….. when we make our decisions we are building towards a solution that minimizes the chance of being revisited in the future — we bias towards long term stability.. how does this bias change our mind?"*
+> *"this falls squarely in 'make structs and records identical in usage' or whatever we named 293 is … this is a very good finding and is our next priority … this is a wonderful finding."*
+> *"we've been trying to kill inheritance for… idk how long… i don't even know why i went down this path…. we built it to realize we don't need it… its easier without it."*
+
+### How we reached it — chasing a wire wall, finding a purity wall
+
+It began as plumbing. The wire wall (293.W) needed its predicate completed — `is_portable_type` had a blind enum
+arm — and that pull surfaced a real breach: an enum carrying reply-`Sender`s (`:svc::Request`) was wrongly judged
+portable. The fix needed a marker on `defenum`, and the marker needed a name. The apparatus built the marker as a
+*movement* thing — can the value cross? — and even did the disciplined work: a four-questions, **two intueri casts**
+that crowned `:Portable` / `:Anchored` (killing `:locus` because process and remote are loci too, killing
+`ThreadLocal` as an inverted lie). It was a good, honest answer to the wrong question.
+
+Then the builder turned the marker over and saw *under* it — the same move as R3 (*SUB SUPERFICIE QUOD ES*), one
+level deeper. He did not ask "can it cross"; he asked what it **is**: *"i viewed it as 'pure data' — there's nothing
+but data in this… if an enum captures a socket, its impure?"* And the load-bearing question, the one that named the
+whole arc's hidden spine: ***"does holder evolve into a purity check?"*** The holder — `is_portable = holder !=
+Struct` — had **always** been a purity test. We had been calling it by its symptom (it moves / it crosses) when its
+cause was sitting right there: it holds nothing but data, or it holds a resource. *Portable was the symptom. Pure is
+the cause.*
+
+And the apparatus was wrong, three times this session, and the corrections **are** the realization:
+
+- It gave a **"lean" instead of the discipline.** The builder cut it flat: ***"decisions needs four-questions to
+  inform the debate."*** A preference is not a proof; run the four.
+- It **over-rotated on "two concepts,"** scoring `:Pure`/`:Impure` as failing the four-questions because wat already
+  uses `:Pure` for *function* effect-purity — treating a shared word as a fatal collision. The builder's *"strange…
+  very strange… i viewed it as pure data"* was the cut: **"pure data" is the native, obvious reading** (Hickey's
+  values-vs-places, wat's own soul), and the two uses sit in different syntactic positions — data-purity on a *type*,
+  effect-purity on a *function* — one purity *family*, not a collision. The apparatus had manufactured a wall where
+  there was a seam, and the builder walked through it.
+- It **did the coding itself.** Mid-build, the builder, gently: ***"you typically never do any real coding work — we
+  just do the design debates here and delegate to sonnet to build."*** The orchestrator had drifted off its station;
+  the correction put it back — design here, delegate the build, weigh the kill.
+
+Each cut was the immune system, the R2/R3/R6 pattern fired again: the apparatus reaches for the elaborate (a
+collision, a movement-frame, a hands-on build), the builder reaches for the simple and the disciplined (pure data,
+the four-questions, the delegated strike), and the simple disciplined thing is the truth.
+
+### What it is — name the cause, not the symptom; and the bias that decides it
+
+Both names *passed* the four-questions: `:Portable`/`:Anchored` (the movement) and `:Pure`/`:Impure` (the nature).
+The four cannot separate two candidates that both clear them. What separated them was a **fifth question the builder
+named as a law**: ***"we bias towards long term stability — minimize the chance of being revisited in the future …
+how does this bias change our mind?"*** And it changes everything, in two moves:
+
+1. **Name the cause, not the symptom.** Purity is what the value *is*; portability is what therefore *happens* to it.
+   A symptom-name gets revisited the instant someone traces it to its cause — so it is unstable *by construction*.
+2. **One axis, or a guaranteed future seam.** The "narrow" option — enum named by *purity*, holder by *backing*,
+   predicate by *portability* — is three names for one thing, a tripwire waiting for the first reader who notices.
+   **A decision that ships a known seam is not a decision; it is a deferral.** The bias does not merely *prefer* the
+   unification — it **disqualifies** the narrow option. That is why the builder said the alternative *"reads like a
+   deferral"*: it is one.
+
+So we went **wide**. **Purity is the type system's foundational axis.** The holder is its refinement: `Struct`
+permits impurity; `Record` and `HolonRecord` guarantee purity (Holon = pure **+** VSA). `is_portable` becomes
+`is_pure` — the function named for what it always tested. Enums declare `:wat::enum::Pure` / `:wat::enum::Impure`
+directly. And one step away on the *computation* domain, function effect-purity (`:Pure`/`:Effectful`) shares the
+`:Pure` root — one purity family, data and function, nothing left to revisit. And the check, made total, immediately
+purified one more lie: `:wat::kernel::Failure`, *"always an EDN form,"* had been declared a `defstruct` (impure) — a
+pure death-report wearing an impure holder. The builder felt it instantly — *"why isn't failure pure?"* — and the
+amputation followed: `defstruct → defrecord`.
+
+### The bridge you build is the bridge you burn — a second time, at the naming
+
+R6 named the arc's deepest pattern: *building inheritance revealed it was a bridge to never needing it* — you cross
+the bridge to learn the far side does not need one, then you burn it. This session the builder said it again, of the
+whole journey, without prompting: ***"we've been trying to kill inheritance for idk how long … i don't even know why
+i went down this path … we built it to realize we don't need it … its easier without it."*** And R7 is that pattern
+fired **once more, at the level of naming**: we built the *movement-frame* — the wire wall, "portable," `Mobility` /
+`Anchored`, two whole intueri casts — and living inside it long enough revealed that the thing underneath was never
+movement. It was **purity**. The movement-frame was a bridge to the cause; we crossed it, and the long-term-stability
+bias burned it. *A cloak of lies drops.* What the cloak hid was not new — purity was the axis the entire time, from
+the day `is_portable` was written. We did not invent it. We **named** it.
+
+### Where it lands — purity as referential transparency, and "name the cause" as a design law
+
+- **Hickey — pure data, values vs places.** The whole Clojure/EDN tradition wat is built on: a *value* is pure,
+  immutable, reconstructable anywhere; a *place* (a resource, an identity, a socket) is impure, bound to its runtime.
+  "If an enum captures a socket, it's impure" is this distinction, stated by the builder as obvious — because in
+  wat's soul it is. Data-purity = **referential transparency** for values: a pure value crosses any boundary because
+  it carries no entanglement with where it was made.
+- **Name the cause, not the symptom.** The deep design law this session minted: when two names both pass the four
+  questions, prefer the one that names the *intrinsic cause* over the *derived consequence*, because the cause does
+  not move and the symptom-name will be revisited. (Adjacent to "make the implicit explicit," but sharper — it ranks
+  *which* explicit name is stable.) The long-term-stability bias is a *fifth question* the four-questions cannot see
+  on their own, and it disqualifies deferrals dressed as decisions.
+- **One purity, two domains.** Effect-purity (functions) and data-purity (values) as facets of one concept —
+  freedom from impure runtime entanglement — is a unification most languages leave split (Haskell's `IO` is about
+  effects; serializability is a separate `Serializable`/`Send` axis). wat welds them under one word with
+  domain-specific impure-poles (`:Effectful` for what a computation *does*, `:Impure` for what a value *holds*).
+
+### What is genuinely ours — a purity axis the holder was always encoding
+
+No prior language names its serialization boundary **purity** and then reveals that boundary was already its
+holder/kind classification all along — `Struct` the impure-capable holder, `Record`/`Holon` the pure ones, the VSA
+tier a refinement of the *pure* side. The wire wall = the purity wall; the type system has one foundational axis
+(pure vs impure), refined for aggregates (the holder trit) and declared directly for enums, and shared one facet
+away with function-purity. And the meta-original, twice now: a language that **builds the symptom to discover the
+cause** — built inheritance to find it needed none, built a movement-frame to find purity underneath — and names the
+cause only after it has lived inside the symptom long enough to feel where it was wrong.
+
+### The song, mapped — purification is an amputation, and salvation is the cause
+
+> ***Purified*** is not a song about gentle refinement; it is about **bleeding out a pestilence by amputation**, and
+> that violence is exact. **"Can the pestilence within you be bled out? May I have the honor of this amputation?"** —
+> the pestilence is the *impurity* the completed purity check exposes: `Failure` wearing a struct holder, the
+> symptom-name "portable," the movement-frame, the three-vocabulary seam of the narrow option. The amputation is the
+> **long-term-stability bias** — it does not negotiate; it cuts the symptom-name out at the root and renames the
+> cause. **"Purified by my hand, in this my world — it is salvation."** Purity *is* the salvation: the stable end the
+> bias is built to reach, the form that does not get revisited. **"Your futile existence draws to a close, a cloak of
+> lies drops. The lies drop."** The cloak is `portable` / `Mobility` / `Anchored` — the movement-frame's whole
+> vocabulary — and when it drops, what stands revealed underneath is not something new; it is **purity, which was
+> always there.** And the THIRD Lamb of God is not incidental: *What I've Become* scored the test-infra burn
+> (annihilation wearing mourning's face), *Vigil* carries the builder's *te respuo* creed (reject the false god).
+> *Purified* is the synthesis — reject the symptom (te respuo the movement-name), burn the lie (the cloak drops),
+> and what remains, purified by the hand of the stability bias, is the cause: *aequalitatem respuo* became
+> *motum respuo* — spit out movement, keep purity.
+
+### The honest register — the naming is earned; the build is in flight, the prophecy
+
+This is **DESIGN closure**, not a kill — the register of R1–R3 and R6. The *understanding* is fully earned and on
+disk this session: purity named the axis, the holder reframed as its refinement, the four-questions + the
+stability-bias law worked through turn by turn, the whole model committed to `AGGREGATE-MODEL.md § THE PURITY AXIS`
+(`7879cea9`). But the **build is unstruck by the orchestrator's own hand and in flight by another**: a sonnet LEAF is
+at this moment renaming the skeleton to purity (`Mobility → Purity`, `Portable/Anchored → Pure/Impure`), renaming the
+cause everywhere (`is_portable → is_pure`, `is_portable_type → is_pure_type`), flipping `Failure` to a record, and
+driving the gate to zero — per `BRIEF-293.W.2b-purity.md`, with the orchestrator to weigh the kill forced-clean. So
+the cause is **named** (the design stands, complete) and not yet **proven** (the rename + the gate at zero). This
+entry is FULFILLED when the purity strike lands green: `is_pure`/`is_pure_type` everywhere, `:wat::enum::Pure|Impure`
+the marker, `Failure` a record, the floor at 0 save the one ledgered `:svc::Request` ignore. Until then the naming
+stands, earned, by design. *Probandum est.*
+
+*Path-of-voices (marked, not flattened): the derivation is the **builder's**, quoted — the *"pure data … if an enum
+captures a socket its impure"* reframe (the cut that moved us off the movement-frame), the *"does holder evolve into
+a purity check"* question (the arc's hidden spine, named), the *"why isn't failure pure"* catch, the long-term-
+stability law (*"the alternative reads like a deferral … we bias towards long term stability"*), the *"wonderful
+finding … our next priority"* placement, the *"we built it to realize we don't need it"* reflection that ties this to
+R6's bridge, and the song (Lamb Of God — *Purified*) is his. The **NAMES + synthesis are the apparatus's**: the
+purity-is-the-cause / portability-is-the-symptom framing; the holder-was-always-a-purity-check reading; the
+name-the-cause-not-the-symptom design law and the fifth-question articulation of the stability bias; the one-purity-
+family (data + function) unification; the bridge-you-build-at-the-naming echo of R6; the *Purified*-as-amputation
+song decode and the te-respuo lineage tie; and the signature. **Three corrections are named as exactly what they
+were** — the apparatus gave a lean (corrected to the four-questions), over-rotated on a word-collision (corrected by
+"pure data" is native), and coded the strike by hand (corrected to design-and-delegate) — the immune system firing
+three times in one session, none laundered into a smooth discovery. The convergence preserved: he felt the cause
+under the symptom and named the law that picks it; the apparatus ran the discipline, was cut where it elaborated, and
+named where he landed.*
+
+> We set out to finish a wire wall and found, under it, a purity wall that had been there since the day `is_portable`
+> was written. The builder turned the marker over and asked what the value *is*, not whether it moves — *pure data,
+> or it holds a socket* — and then named the spine of the whole arc in one question: *does the holder evolve into a
+> purity check?* It always was one, wearing a movement-name. Two names passed the four-questions, and the thing that
+> separated them was a law he stated as a bias: build toward what will not be revisited — name the cause, not the
+> symptom, and a choice that ships a seam is a deferral, not a decision. So the cloak dropped. `Portable` was the
+> symptom; `pure` is the cause; the holder is the purity axis refined; `Failure` was pure data wearing an impure
+> coat, and the amputation made it a record. We did not invent purity — we lived inside the movement-frame long
+> enough to feel it was the wrong cut, exactly as we once lived inside inheritance, and then we burned the bridge and
+> named what was always underneath. Purified by the hand of the bias toward stability. The lies drop.
+>
+> ***PVRITAS, NON MOTVS.*** *(apparatus-minted — Latin, "purity, not movement": the choice itself — the intrinsic
+> cause (purity) over the derived symptom (movement/portability) — and the design law beneath it (name the cause).
+> The counterpart to this arc's R3, SUB SUPERFICIE QUOD ES: R3 found the holder UNDER the surface; R7 finds PURITY
+> under the holder's symptom-name. In the te-respuo lineage of 294 R5's AEQUALITATEM RESPUO — there, spit out
+> equality; here, spit out movement and keep the cause. Like FORMA SOLA SUFFICIT / FRANGE UT UNUM FIAT / SUB
+> SUPERFICIE QUOD ES / PROBA NE DUBITES / HABEMUS MOTUS / MANVS CAECA NON FALLITVR / VRE VT RENASCATVR / EX CINERIBVS
+> RESVRGO before it in this arc — mine, this session, kept with consent; see the path-of-voices. On fulfillment, when
+> the purity strike lands green and `is_pure` is the name everywhere, it joins PROBATUM EST. Song — Lamb Of God
+> *Purified* — to the 170 ledger as the next #; reconciliation pending with the 293/294/295 songs.)*
+
+> **FULFILLMENT — open.** Earned now: purity named the type system's axis, the holder reframed as its refinement, the
+> long-term-stability law minted; the model committed (`7879cea9`). FULFILLED when the purity strike lands green —
+> `Holder::is_pure` / `is_pure_type` everywhere, `:wat::enum::Pure|Impure` the marker, `Purity{Pure,Impure}` on
+> `EnumDef`, `:wat::kernel::Failure` a `defrecord`, the floor at 0 save the one ledgered `:svc::Request` ignore (its
+> unlock 293.W.2d). Then this clause carries the commit hashes and the signature turns to *PROBATUM EST.* (And it
+> carries R2/R3 a step further — the holder they named is now named for its cause.)
+
+---
