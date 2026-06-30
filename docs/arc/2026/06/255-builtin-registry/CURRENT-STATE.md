@@ -81,10 +81,13 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >      (ledger EMPTY); `NonPortableCapture → ImpureCapture`. **⊹⊹ 293.W is COMPLETE — W.1 (containment) + 2b (purity
 >      axis) + 2d (peer-type purity); the deep wire wall is a PURELY COMPILE-TIME, ZERO-RUNTIME-CODE structural
 >      guarantee.** R7 *PVRITAS NON MOTVS* + R8 *ANIMA NON FERRVM* on the record.
->   3. **▶ NEXT = K3-REVISE → K5** — annihilate `to-struct`+`$struct` → the pair (`$core-record`/`$holon-record`); then
->      `extend-surface` rides the pair (K5 hard-needs K3-revise; STRIKE-READY `7d2892b8`). → **SURFACE settled.**
->      *(NOTE: the projection pair is now `$core-record`/`$holon-record` and the holder language is PURITY (293.W.2b) —
->      K3-revise inherits the `is_pure` vocabulary; verify the projection tiers against the purity axis when drawing it.)*
+>   3. **K3-REVISE — ✅ LANDED (`c8f68460`, weighed 4136/0/93).** `to-struct` + `$struct` annihilated; a `defsurface`
+>      emits the PURE PAIR (`$core-record` Record / `$holon-record` HolonRecord); projection is one-way UP (you never
+>      project down to the impure `$struct` tier — the purity work made it obvious). Zero callers beyond the probe.
+>      **▶ NEXT = K5 — `extend-surface` macro** (a wat `defmacro` → `(extend-type S$core-record S …)`, method types
+>      filled from S; the user writes body only). STRIKE-READY probe `7d2892b8` was Struct-floored — **RE-GROUND it**
+>      against the post-K3-revise pair + the purity vocabulary before building (the `$struct` tier it referenced is gone).
+>      → **SURFACE settled.**
 >   4. **9a + of-funcs→`aggregate-new`** — construction unification (kwargs default + `:ns::Agg'` positional +
 >      `/from-map` dies + `::of` funcs die; CLOSE-SEQUENCE 9/9a). Before the showcase. → **CONSTRUCTION settled.**
 >   5. **Showcase graduates** `.wat.disabled`→`.wat` on the settled surfaces.
