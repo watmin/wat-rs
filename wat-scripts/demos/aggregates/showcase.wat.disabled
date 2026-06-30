@@ -69,13 +69,30 @@
 ;;  Further-out targets; loaded + type-checked by this file even though main does not run them.
 ;; ════════════════════════════════════════════════════════════════════════════
 
-;; a surface whose DATA lets a struct's values cross the wire (the struct itself never crosses):
+;; ── ONE LARGE AGGREGATE SATISFIES MANY SURFACES AT ONCE — no conversion, just passed around ──
+;; A fat record has everything several scoped consumers need; each reads only the surface it wants.
+;; (Identified needs `id`; Persistable needs `at`. :dev::Telemetry has BOTH — so it satisfies BOTH.)
+(:wat::core::defrecord :dev::Telemetry
+  [id <- :wat::core::String  at <- :wat::core::i64  value <- :wat::core::f64  region <- :wat::core::String])
+(:wat::core::defn :dev::route [t <- :dev::Telemetry] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::kernel::pprintln (:dev::label  t))    ; ONE aggregate → :dev::Identified slot  (reads id)
+    (:wat::kernel::pprintln (:dev::store!  t))))  ; SAME aggregate → :dev::Persistable slot (reads at)
+
+;; ── THE BRIDGE: a complex STRUCT with parts → to-record onto the surface a SCOPED caller wants ──
+;; :dev::Sensor is an in-locus struct (holds `port`, could hold sockets/caches). A scoped func wants
+;; only "a portable record with id + port" — :dev::Wire. The caller keeps their Sensor; one to-record
+;; call lifts exactly Wire's attributes off it → :dev::Wire$core-record, which the scoped func just takes.
 (:wat::core::defsurface :dev::Wire :holder :wat::core::Record
   :features [id <- :wat::core::String  port <- :wat::core::i64])
-
-;; project a Sensor (struct, in-locus) onto :dev::Wire → the macro-emitted :dev::Wire$record (portable):
+(:wat::core::defn :dev::accept-wire [w <- :dev::Wire] -> :wat::core::nil       ; the SCOPED caller — wants only Wire
+  (:dev::dead-letter! w))
 (:wat::core::defn :dev::ship [s <- :dev::Sensor] -> :wat::core::nil
-  (:dev::dead-letter! (:wat::core::to-record s :dev::Wire)))     ; ◀ K3 to-record → :dev::Wire$record {id port}
+  (:dev::accept-wire (:wat::core::to-record s :dev::Wire)))   ; ◀ to-record (surface-targeted, ONE-WAY UP)
+;;                    └─ → :dev::Wire$core-record {id port} — exactly what :dev::accept-wire's slot needs.
+;;   (:wat::holon::to-record s :dev::Wire) would instead yield :dev::Wire$core-record's holon sibling
+;;   (:dev::Wire$holon-record + a derived hologram) — the namespace is the "do I want VSA?" choice.
+;;   There is NO to-struct: you never project DOWN. The struct's non-portable parts stay in the locus.
 
 ;; a surface carrying a DEFAULT method impl, written ONCE — the types come from the surface:
 (:wat::core::defsurface :acc::Adder :holder :wat::core::Record
