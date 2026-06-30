@@ -106,7 +106,7 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 >   writes a struct over non-thread memory.* Bad bytes (untrusted input) = the USER's validation problem, OUT OF
 >   SCOPE.** Three compile-time rules, ZERO runtime code (`293/DESIGN-293.W` §contract):
 >   - ✅ **W.1 — aggregate containment (`ff29f135`)** — a record can't HOLD a struct field (declaration gate).
->   - **2b — PURITY IS THE AXIS** (DESIGN SETTLED + ratified 2026-06-30; builder: *"a wonderful finding … our next
+>   - **2b — PURITY IS THE AXIS — ✅ LANDED (`76d1d890`, weighed forced-clean 4132/0/94).** (Ratified 2026-06-30; builder: *"a wonderful finding … our next
 >     priority"*; canonical = `293/AGGREGATE-MODEL.md § THE PURITY AXIS`, strike-detail `293/DESIGN-293.W § 293.W.2b`).
 >     The holder was always a PURITY classification wearing a movement name. Enums **declare** `:wat::enum::Pure` |
 >     `:wat::enum::Impure` (`Purity{Pure,Impure}` on `EnumDef`); the holder is the purity axis refined (`Struct` permits
@@ -215,7 +215,7 @@ the row, and confirm the test is GREEN (not still skipped).
 
 | # | test (`#[ignore]`'d) | why ignored | the UNLOCK that removes it | status |
 |---|---|---|---|---|
-| 1 | `deftest_svc_test_svc_assert_state` (`wat-tests/service-template.wat`) — *pending 293.W.2b* | `:svc::Request` becomes a declared `:wat::enum::Anchored` enum, but its **thread-tier** `make-channel` still rejects an `Anchored` payload (the 254.1 gate is not yet tier-aware) | **293.W.2d** — `make-channel` becomes tier-aware (a thread channel accepts `Anchored`; a process/remote channel requires `Portable`) | ▷ to be created in the 2b strike |
+| 1 | `deftest_svc_test_svc_assert_state` (`wat-tests/service-template.wat`) | `:svc::Request` is a declared `:wat::enum::Impure` enum (holds reply-`Sender`s), but its **thread-tier** `make-channel` still hits the 254.1 purity gate (not yet tier-aware) | **293.W.2d** — tier-aware `make-channel` (a thread channel accepts `:Impure`; a process/remote channel requires `:Pure`) | ⏳ CREATED + code-marked (`76d1d890`); awaits 2d |
 
 *(Pre-existing ignores NOT created by this campaign — e.g. arc-170's `293.4e-pre.iii`, task #183's arc-170 gate — are
 their own arcs' ledgers, not this one. This ledger tracks ONLY what 293/294 introduces.)*

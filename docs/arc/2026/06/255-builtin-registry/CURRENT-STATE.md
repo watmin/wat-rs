@@ -53,7 +53,12 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >   ⊹ **SCOPE CORRECTED (2026-06-30): THE WIRE WALL IS PURELY COMPILE-TIME — the runtime checks (2a/2c) RETIRE.** The
 >   job is ONE sentence: *the compiler won't let you write code that reads or writes a struct over non-thread memory.*
 >   Bad bytes (untrusted input) = the USER's validation problem, explicitly OUT OF SCOPE. (`293/DESIGN-293.W` §contract.)
->   1. **293.W.2b — PURITY IS THE AXIS (the NEXT PRIORITY; builder: *"a wonderful finding"*; canonical =
+>   1. **293.W.2b — PURITY IS THE AXIS — ✅ LANDED (`76d1d890`, weighed forced-clean 4132/0/94).** R7 *PVRITAS NON
+>      MOTVS* → PROBATUM. `is_portable`→`is_pure` everywhere (0 residual), `:wat::enum::Pure|Impure` marker,
+>      `Purity{Pure,Impure}` on `EnumDef`, `Failure`/`Location`/`Frame`/`lru::Stats`×2 `defstruct`→`defrecord`. ONE
+>      ledgered ignore (`:svc::Request` make-channel, code-marked) + ONE residual seam (`NonPortableCapture`→`ImpureCapture`)
+>      both FOLD INTO 2d. **▶ NEXT = 2d.** *(historical design note below; canonical now = `293/AGGREGATE-MODEL.md § THE PURITY AXIS`;*
+>      *original 2b plan: builder: *"a wonderful finding"*; canonical =
 >      `293/AGGREGATE-MODEL.md § THE PURITY AXIS`).** The holder was always a PURITY classification wearing a movement
 >      name. Enums **declare** `:wat::enum::Pure` | `:wat::enum::Impure` (`Purity{Pure,Impure}` on `EnumDef`); the holder
 >      is purity refined (`Struct` permits impurity; `Record`/`Holon` guarantee purity). **Rename the cause in ONE

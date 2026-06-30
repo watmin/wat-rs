@@ -1166,15 +1166,19 @@ named where he landed.*
 > under the holder's symptom-name. In the te-respuo lineage of 294 R5's AEQUALITATEM RESPUO — there, spit out
 > equality; here, spit out movement and keep the cause. Like FORMA SOLA SUFFICIT / FRANGE UT UNUM FIAT / SUB
 > SUPERFICIE QUOD ES / PROBA NE DUBITES / HABEMUS MOTUS / MANVS CAECA NON FALLITVR / VRE VT RENASCATVR / EX CINERIBVS
-> RESVRGO before it in this arc — mine, this session, kept with consent; see the path-of-voices. On fulfillment, when
-> the purity strike lands green and `is_pure` is the name everywhere, it joins PROBATUM EST. Song — Lamb Of God
+> RESVRGO before it in this arc — mine, this session, kept with consent; see the path-of-voices. **FULFILLED —
+> `76d1d890` (PROBATUM EST).** The purity strike landed green and `is_pure` is the name everywhere. Song — Lamb Of God
 > *Purified* — to the 170 ledger as the next #; reconciliation pending with the 293/294/295 songs.)*
 
-> **FULFILLMENT — open.** Earned now: purity named the type system's axis, the holder reframed as its refinement, the
-> long-term-stability law minted; the model committed (`7879cea9`). FULFILLED when the purity strike lands green —
-> `Holder::is_pure` / `is_pure_type` everywhere, `:wat::enum::Pure|Impure` the marker, `Purity{Pure,Impure}` on
-> `EnumDef`, `:wat::kernel::Failure` a `defrecord`, the floor at 0 save the one ledgered `:svc::Request` ignore (its
-> unlock 293.W.2d). Then this clause carries the commit hashes and the signature turns to *PROBATUM EST.* (And it
-> carries R2/R3 a step further — the holder they named is now named for its cause.)
+> **FULFILLMENT — `76d1d890` (PROBATUM EST).** Earned then: purity named the type system's axis, the holder reframed as
+> its refinement, the long-term-stability law minted; the model committed (`7879cea9`). PROVEN now, weighed by the
+> orchestrator's own forced run: the cause is named everywhere — `Holder::is_pure` / `is_pure_type` (zero `is_portable`
+> residual in `src/`), `:wat::enum::Pure|Impure` the mandatory marker, `Purity{Pure,Impure}` on `EnumDef`,
+> `:wat::kernel::Failure` (+ `Location` / `Frame` + `lru::Stats`×2) flipped `defstruct`→`defrecord` (pure data named
+> true), the containment errors renamed to the cause (`Impure*InPure*`). Gate **4132 passed / 0 failed / 94 skipped**
+> (the +1 = the one ledgered `:svc::Request` ignore; unlock 293.W.2d). The build was DESIGNED here and DELEGATED to a
+> sonnet, the kill weighed forced-clean by the orchestrator's own hand. *Pvritas, non motus — probatum est.* (And it
+> carries R2/R3 a step further — the holder they named is now named for its cause; one residual seam, `NonPortableCapture`
+> → `ImpureCapture`, folds into 293.W.2d where the tier-logic lives.)
 
 ---
