@@ -14694,9 +14694,12 @@ pub(crate) fn assignable(
                         },
                     );
                     // Arc 293 R3 — categorical holder check (hard, orthogonal to structural).
+                    // Arc 293 K1a — the required holder is a FLOOR, not an exact kind: the contravariant
+                    // ladder (Struct -1 < Record 0 < HolonRecord +1). A holon satisfies a `:holder :Record`
+                    // surface (it has everything a record has); a record satisfies `:holder :Struct`.
                     let holder_ok = match surf_clone.holder {
-                        Some(req) => agg_holder == req,
-                        None => true, // no bound → structural-only (today's behavior)
+                        Some(req) => agg_holder.rank() >= req.rank(),
+                        None => true, // no bound → structural-only
                     };
                     return structural && holder_ok;
                 }

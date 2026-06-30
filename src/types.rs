@@ -137,6 +137,18 @@ impl Holder {
     /// The R8 wire wall: structs never cross the wire; records (core + holon) do.
     pub fn is_portable(&self) -> bool { !matches!(self, Holder::Struct) }
 
+    /// Arc 293 K1a — the capability-ladder rank (the balanced trit). A required `:holder` on a surface
+    /// is a FLOOR, not an exact kind: a candidate satisfies it iff `candidate.rank() >= required.rank()`.
+    /// So `:holder :Struct` (-1) accepts struct+record+holon, `:holder :Record` (0) accepts record+holon,
+    /// `:holder :HolonRecord` (+1) accepts holon only — the contravariant ladder of AGGREGATE-MODEL § principle 6.
+    pub fn rank(&self) -> i8 {
+        match self {
+            Holder::Struct => -1,
+            Holder::Record => 0,
+            Holder::HolonRecord => 1,
+        }
+    }
+
     /// Arc 293 inheritance annihilation — the holder-root keyword for subtype edge registration.
     /// Every parsed aggregate registers `:Name <: root_keyword()`.
     pub fn root_keyword(&self) -> &'static str {
