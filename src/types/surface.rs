@@ -74,13 +74,19 @@ where
                 // ArgSpec.fixed_params), check that the defn's arg types are assignable
                 // per-position. An empty fixed_params means the surface only constrains
                 // the return type (e.g. bare `[self]` with no annotation).
-                if !margs.fixed_params.is_empty() {
+                // Arc 293 K0c — SKIP position 0 (self). A surface method's `self` is the receiver,
+                // tautologically the surface; comparing it (`is_assignable(defn_self, surface_self)`)
+                // re-enters satisfaction of the surface — which wrongly rejects, or, on a heavier
+                // graph, recurses to a stack overflow. The real per-position constraints are args 1..;
+                // self-to-self is never checked. (Bare `[self]` left `fixed_params` empty, masking this.)
+                if margs.fixed_params.len() > 1 {
                     let member_arg_types: Vec<&TypeExpr> =
-                        margs.fixed_params.iter().map(|(_, ty)| ty).collect();
-                    if defn_arg_types.len() < member_arg_types.len() {
+                        margs.fixed_params.iter().skip(1).map(|(_, ty)| ty).collect();
+                    let defn_rest: Vec<&TypeExpr> = defn_arg_types.iter().skip(1).collect();
+                    if defn_rest.len() < member_arg_types.len() {
                         return false;
                     }
-                    for (defn_ty, member_ty) in defn_arg_types.iter().zip(member_arg_types.iter()) {
+                    for (defn_ty, member_ty) in defn_rest.iter().zip(member_arg_types.iter()) {
                         if !is_assignable(defn_ty, member_ty) {
                             return false;
                         }
