@@ -100,8 +100,12 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
     Upgrade (b)→**(b′)**: foreign satisfaction is holder-CHECKED, never exempt. RED probe
     `probe_arc293_holder_ladder_foreign` RED→GREEN; weighed forced-clean 4119/0/92.
   - **⇒ K1 COMPLETE — the holder ladder is aggregate + foreign, both honest.**
-- ▷ **K2 — `$record` backing-type emission** — `defsurface` emits its backing `AggregateDef` (`:S$record`) from the
-  ONE `:features` **attribute** set (methods excluded — a record holds no functions). Derived, never a second copy.
+- ✅ **K2 — `$record` backing-type emission LANDED (`d3fe912b`)** — `derive_surface_backing_record` (Field members
+  only, Method→None) + a 5-line inject in `register_types_impl` registers the twin `:S$record` `AggregateDef`
+  (holder = surface's; fields = `:features` attributes) via the SAME `register` closure; it flows through the EXISTING
+  `register_aggregate_methods` for ctor+accessors (no new codegen). `$` confirmed legal. Method-exclusion verified
+  (`:t::Shape$record` = `color` only). RED probe `probe_arc293_k2_surface_record_emission` RED→GREEN; weighed
+  forced-clean 4121 (the lone fail = the arc-170 `sigterm_…polling` flake, isolated 2/2). `to-record`'s return type is live.
 - ▷ **K3 — `to-record`** — `:wat::core::to-record` + `:wat::holon::to-record`: project a satisfier's attributes into
   `:S$record` at the target tier (≥ S's `:holder` floor). The honest up-the-ladder move (the only legal promotion).
 - ▷ **K4 — `extend-type` UN-DEMOTE** — from foreign-only adapter to the general per-type impl door (any type); the
