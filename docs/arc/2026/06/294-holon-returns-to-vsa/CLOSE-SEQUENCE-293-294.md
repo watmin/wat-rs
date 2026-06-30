@@ -74,6 +74,29 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 > Additive to PHASE 1's parity work — the surface's projection + extension story. Settled by a long four-questions
 > co-design; builder at close: *"we burned inheritance to the ground and lost nothing."* Four tools, no loss
 > (inheritance · `defprotocol` · the extend-type confusion all collapse in). Build order, each RED-probe gated:
+
+> ⚠⚠ **DESIGN PIVOT (2026-06-29, later co-design — supersedes the "all three tiers" decision) + A GROUNDED WIRE-WALL
+> BREACH.** Pulling the projection-depth thread surfaced that **a `Struct` field nested in a `Record` CROSSES a process
+> peer** (probe: `#w/S {:a 99}` reconstructed on the far side) — §7 / R3 *SUB SUPERFICIE QUOD ES* violated; the
+> `is_portable_type` wall is shallow (top-holder only) and the deferral comment *"enum payload portability is not yet
+> enforced"* (exigere violation) was sitting on it. The co-design that followed locked the kit's final shape AND the
+> fix:
+> - **NO `to-struct`** — projection is ONE-WAY UP. `to-record` only, **surface-targeted** (`to-record x :S` →
+>   `:S$core-record` / `:S$holon-record`, the receiver's named backing record); the namespace picks hologram-or-not.
+>   Surfaceless `to-record x` is rejected — no clean return type (no anonymous structural records in wat).
+> - **A surface emits a PAIR** (`$core-record` + `$holon-record`), not a triple. `$struct` is dead.
+> - **THE CONTAINMENT RULE** (`293/AGGREGATE-MODEL.md` § principle 8) — a portable aggregate (record/holon) may hold
+>   ONLY portable fields; a `Struct` field is ILLEGAL at declaration (it could never be reconstructed across the wire).
+>   This turns the wire wall into a TYPE guarantee (a record cannot *hold* a struct → can never *carry* one across).
+> - **▶▶ 293.W — THE DEEP WIRE WALL (the priority, builder: this IS core 293 — the holder's categorical comms
+>   boundary).** Enforce the containment rule at declaration + a `recv'` backstop refusing to reconstruct a bare
+>   `Holder::Struct` value (the untyped top-level path) + kill the deferral comment (rune the legit service-enum
+>   `Receiver<T>` fields with reasons, never a blanket "not yet"). RED probe: declaring a record-with-struct-field is
+>   REJECTED; the breach roundtrip errors. Sits UNDER K3-revise + K5.
+> - **▶ K3-REVISE** (after 293.W): annihilate `to-struct` + the `$struct` emission; `derive_surface_backing_records`
+>   emits the PAIR; retire the `probe_arc293_k3_to_record` struct-tier assertions; retirement-table `to-struct`.
+> - **▶ K5** (`extend-surface`) then rides the pair (STRIKE-READY at `7d2892b8`; the probe's surface is Struct-floored
+>   — revisit if K3-revise changes tier availability). Then the showcase graduates `.wat.disabled` → `.wat`.
 - **K0 — surface grammar: `:holder` MANDATORY + `self` EXPLICIT + the cycle-guard.**
   - ✅ **K0c — the self-reference cycle-guard LANDED (`311b20bf`)** — the enabler. Explicit `self <- :TheSurface`
     made `struct_satisfies_surface` (`surface.rs:83`) compare self's type (= the surface) via `is_assignable`,

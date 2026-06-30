@@ -20,14 +20,23 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 > the registration generically; 293.4e-pre.i gave it the canonical `ArgSpec`; same `:…/method` key as ambient `defn`).
 > K4 = lock-in regression `probe_arc293_k4_extend_type_own_aggregate` (GREEN, → 25; guards K5's `(extend-type S$record
 > S …)` seam) + doc truing (`293/DESIGN.md § extend-type` superseding block). examinare: the thing you'd build existed.
-> **▶ NEXT = K5 — `extend-surface` (THE LAST TOOL)** — a wat `defmacro` expanding `(extend-surface S (m [self x] body)…)`
-> → `(extend-type S$record S (m [self <- :S$record  …typed-from-S…] -> …ret-from-S…) …)`: fills the method types FROM
-> the surface's declared sigs (the user writes BODY only — "WHERE ARE THE TYPES? the contract"). Needs the surface
-> method-sig reflection seam (expand-time read of S's members + `$record` name). Then the showcase graduates
-> `.wat.disabled`→`.wat` (the wat-scripts load gate owns it). DESIGN: `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`
-> (the `:acc::Adder` exemplar) + § One substrate dependency; order: `294/CLOSE-SEQUENCE § THE SURFACE KIT`; R6
-> *EX CINERIBVS RESVRGO* sung (`c3689748`). (K0–K4 done — THREE of four tools live: `defsurface` + `to-record`/`to-struct`
-> + `extend-type`; `extend-surface` (K5) is the last.)
+> ⚠⚠ **DESIGN PIVOT + GROUNDED WIRE-WALL BREACH (2026-06-29, later co-design).** Pulling the projection-depth thread
+> found that **a `Struct` nested in a `Record` CROSSES a process peer** (probe `#w/S {:a 99}` reconstructed far-side;
+> §7 / R3 violated; `is_portable_type` shallow + the exigere-violating *"enum portability not yet enforced"* comment
+> sat on it). The co-design locked the kit's FINAL shape AND the fix (`293/AGGREGATE-MODEL.md` § `to-record` top block
+> + § principle 8 CONTAINMENT RULE; `294/CLOSE-SEQUENCE § THE SURFACE KIT` pivot banner):
+> - **NO `to-struct`** — projection is ONE-WAY UP; `to-record x :S` is **surface-targeted** → `:S$core-record` /
+>   `:S$holon-record` (the receiver's named backing record); namespace picks hologram. Surfaceless `to-record x` is OUT
+>   (no clean return type — no anonymous structural records). A surface emits a **PAIR**, not a triple; `$struct` dead.
+> - **THE CONTAINMENT RULE** — a portable aggregate (record/holon) may hold ONLY portable fields; a `Struct` field is
+>   ILLEGAL at declaration (un-reconstructable across the wire). The wire wall becomes a TYPE guarantee.
+> - **▶▶ NEXT = 293.W — THE DEEP WIRE WALL (priority; builder: this IS core 293).** Enforce the containment rule at
+>   declaration + a `recv'` backstop refusing to reconstruct a bare `Holder::Struct` + kill the deferral comment (rune
+>   the legit service-enum `Receiver<T>` fields). RED probe: a record-with-struct-field is REJECTED; the breach
+>   roundtrip errors. **Then ▶ K3-REVISE** (annihilate `to-struct` + `$struct` emission → the pair) **then ▶ K5**
+>   (`extend-surface`, STRIKE-READY `7d2892b8`) → showcase graduates `.wat.disabled`→`.wat`.
+> (K0–K4 done — three tools live: `defsurface` + `to-record` (being revised to the pair) + `extend-type`; the wire
+> wall is now the gating correctness work; `extend-surface` is the last tool.)
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
 > then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`

@@ -35,6 +35,21 @@
    rejects a non-portable value), not in its signature. (Confirmed live: rete uses facts opaquely — as map keys,
    stored, reflected via `type` — never by named field; `[fact <- :wat::Record]` → `[fact <- :wat::core::Value]`.)
 
+8. **THE CONTAINMENT RULE — a portable aggregate holds ONLY portable fields** (2026-06-29; the wire wall made a TYPE
+   guarantee). A `Struct` holds **anything** (in-locus — sockets, caches, nested structs). A `Record` / `HolonRecord`
+   may declare **only portable** field types (record/holon/EDN-scalar) — a non-portable (`Struct`) field is **ILLEGAL
+   at declaration**. *Why:* a non-portable field cannot be **reconstructed** from EDN bytes on the far side (you
+   cannot materialize a bound socket — there is no default), so a portable container that held one could never be
+   reconstructed, so it must not exist. This makes principle 7's *"a struct crosses NO comms"* a **structural
+   guarantee instead of a runtime hope**: a record cannot *hold* a struct, so it can never *carry* one across — the
+   illegal state has no form (extirpare's top rung). It also makes `to-record`'s recursive strip well-defined (the
+   kept fields are portable by the rule) and means `is_portable_type` checking only the top holder is *correct* (the
+   rule guarantees the depth). **GROUNDED BREACH this surfaced (the disconfirming probe):** at HEAD a record carrying
+   a `Struct` field serialized and a struct **crossed a process peer** (`#w/S {:a 99}` reconstructed on the far
+   side) — §7 / R3 *SUB SUPERFICIE QUOD ES* violated. The fix is this rule (declaration-time) + a `recv'` backstop
+   for the bare-top-level-struct untyped path. (The 293.W strike. Builder: *"we cannot decide a default value for a
+   bound socket … the record literally cannot hold a struct."*)
+
 ## The holder trit
 `Struct (−1)` in-locus, non-portable, holds resources, never crosses · `Record (0)` edn-repr, crosses ·
 `HolonRecord (+1)` edn-repr + VSA. `is_portable = holder != Struct` (`types.rs:138`). `:wat::core::Value` is the
@@ -112,11 +127,42 @@ attributes-only surface = a data contract · methods-only = the old `defprotocol
 | edge | mechanism | how |
 |---|---|---|
 | **USE-AS, downward** (pass a holon where a core is wanted) | assignability | **implicit, free** (a holon already IS a core for slot purposes) |
-| **MATERIALIZE at ANY tier** (build a new value at struct/core/holon) | **`to-struct` / `to-record`** | **explicit** — you BUILD a new value at exactly the policy you name, up OR down (2026-06-29) |
+| **MATERIALIZE UP** (build a new portable value the receiver needs) | **`to-record`** (core / holon) | **explicit, one-way UP** — name the receiver's surface; get `:S$core-record` / `:S$holon-record`. NO `to-struct` (2026-06-29) |
 | **FOREIGN → surface** | **`extend-type`** | **explicit** adapter — teach a type you don't own |
 | **OPAQUE carry** | **`Value`** | move-only — receive anything, use nothing, only move |
 
-## `to-record` — the data projection (MATERIALIZE the surface's data at any tier)
+## `to-record` — the data projection (lift a value's data UP to the tier a receiver needs)
+
+> ⊹⊹ **SETTLED (2026-06-29, later co-design — supersedes the block below) — NO `to-struct`; `to-record` is
+> ONE-WAY UP and SURFACE-TARGETED.** The "all three tiers / free tier choice / `to-struct` exists" framing in the
+> block below is itself superseded. The final shape:
+>
+> - **There is NO `to-struct`.** You never project *down* to a struct — you already have the struct; an in-locus copy
+>   of in-locus data buys nothing. Projection climbs the ladder, never descends. (Builder: *"there is no to-struct …
+>   you can promote up, not down."*)
+> - **`to-record` is the only projection verb, and it is SURFACE-TARGETED.** You name the receiver's requirement (a
+>   surface); you get back its concrete, named backing record — *the literal thing the receiver's `[c <- :S]` slot
+>   wants*. The namespace picks hologram-or-not:
+>   ```clojure
+>   (:wat::core::to-record  x :S)   ; → :S$core-record   {S's attributes}            — portable data
+>   (:wat::holon::to-record x :S)   ; → :S$holon-record  {S's attributes} + hologram — portable data, VSA-lifted
+>   ```
+> - **A surface emits a PAIR of backing records** (`$core-record` + `$holon-record`), NOT a triple. `$struct` is dead.
+> - **No SURFACELESS `to-record x`** — it has no clean return type: "all portable fields" is an *anonymous structural
+>   record*, and wat has no anonymous structural value types (surfaces are the named structural mechanism; anonymous
+>   structural products are out-of-scope, `293/DESIGN.md`). A per-struct shadow would be typeable but produces the
+>   *whole* struct's data, not the receiver's need. Targeted is the only well-typed path. (Builder: *"we must produce
+>   the thing the receiver needs … what is the return type of [surfaceless]?"*)
+> - **The use case it serves** (builder's): a user holds a massive, deeply-nested struct (sockets, caches, nested
+>   structs). A func wants only "a record with 2 fields + a method." The struct *has* them but is a struct (the holder
+>   floor blocks it). One quick `(:api::register (:wat::core::to-record my-session :api::Caller))` lifts exactly
+>   `uid`+`name` off the struct → `:api::Caller$core-record`, the method supplied by `extend-surface`'s default →
+>   *it just works*. The caller's `my-session` is untouched; `to-record` builds a new minimal value. Data
+>   (`to-record`) + behavior (`extend-surface`) = a satisfier of the receiver's surface.
+> - **The recursive strip is the CONTAINMENT RULE doing its job** (see governing principle 8): `to-record` keeps the
+>   surface's attributes (portable by the rule — a portable surface cannot *name* a non-portable attribute) and leaves
+>   non-portable fields (the socket) in the locus, because they could never be reconstructed on the far side. The
+>   strip is well-defined *because* a portable aggregate holds only portable fields.
 
 > ⊘ **SUPERSEDED + COMPLETED (2026-06-29 co-design) — projection is a FREE EXPLICIT tier choice; not "up-only", not
 > "never to a struct".** The prose below framed `to-record` as the only honest *up*-cast (output tier ≥ S's floor, no
