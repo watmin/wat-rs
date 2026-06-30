@@ -101,6 +101,8 @@ use std::os::fd::{AsRawFd, OwnedFd};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
 
+mod staleness;
+
 // ─── Child process-group atomic for signal cascade (arc 104d → arc 106) ─
 //
 // Set after fork; read by signal handlers. -1 sentinel = no child yet
@@ -239,6 +241,13 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // triggered here so that wat.started-at reflects real boot→entry latency
     // rather than the seam's frame time.
     let _ = wat::time::process_boot_instant();
+
+    // Dev-only staleness guard: if the wat source repo is present relative to
+    // pwd (a dev checkout), warn when the installed binary is older than the
+    // source. Self-disables (silent) for a plain binary user with no repo.
+    // Placed in `run_with_args` — the funnel BOTH `wat` (via `run`) and
+    // `cargo-wat` (direct) pass through — so neither entry point misses it.
+    staleness::check_dev_staleness();
 
     // Silence the default panic handler for assertion-failed! payloads.
     // Those panics are expected — the outer sandbox catches them and
