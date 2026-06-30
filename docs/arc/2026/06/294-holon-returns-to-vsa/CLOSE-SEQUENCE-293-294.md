@@ -106,8 +106,16 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
   `register_aggregate_methods` for ctor+accessors (no new codegen). `$` confirmed legal. Method-exclusion verified
   (`:t::Shape$record` = `color` only). RED probe `probe_arc293_k2_surface_record_emission` RED→GREEN; weighed
   forced-clean 4121 (the lone fail = the arc-170 `sigterm_…polling` flake, isolated 2/2). `to-record`'s return type is live.
-- ▷ **K3 — `to-record`** — `:wat::core::to-record` + `:wat::holon::to-record`: project a satisfier's attributes into
-  `:S$record` at the target tier (≥ S's `:holder` floor). The honest up-the-ladder move (the only legal promotion).
+- ▷ **K3 — `to-record` / `to-struct` (the THREE projection verbs)** *(design EXPANDED 2026-06-29 co-design — see
+  `293/AGGREGATE-MODEL.md § to-record` superseding block).* Projection is a FREE EXPLICIT tier choice — the floor
+  governs *satisfaction*, NOT *projection*. **Three verbs over ONE shared `project(x, S)`** (reads S's attributes off
+  x), differing only in the target holder:
+  - `(:wat::core::to-struct  x :S)` → `:S$struct`        (in-locus; type forbids crossing comms)
+  - `(:wat::core::to-record  x :S)` → `:S$core-record`   (portable EDN data)
+  - `(:wat::holon::to-record x :S)` → `:S$holon-record`  (portable EDN data + a derived hologram, free from the holon ctor)
+  **AMENDS K2:** `derive_surface_backing_record` emits the TRIPLE (`$struct` / `$core-record` / `$holon-record`, all
+  three holders, same fields) instead of the single `:S$record`. The showcase comment `→ :dev::Wire$record` updates to
+  `$core-record`. *FRANGE UT UNUM FIAT* on projection: one extraction tool, the holder is the only variance.
 - ▷ **K4 — `extend-type` UN-DEMOTE** — from foreign-only adapter to the general per-type impl door (any type); the
   ONE canonical `ArgSpec`; same `:…/method` key as ambient `defn :T/method`.
 - ▷ **K5 — `extend-surface` macro** — a wat `defmacro` → `(extend-type S$record S …)`, method types filled from S

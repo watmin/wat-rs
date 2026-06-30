@@ -111,12 +111,34 @@ attributes-only surface = a data contract · methods-only = the old `defprotocol
 ## The capability lattice — FOUR edges between holders, now COMPLETE
 | edge | mechanism | how |
 |---|---|---|
-| **DOWN** the ladder (holon→core→struct) | assignability | **implicit, free** (a holon has everything a core has) |
-| **UP** the ladder (struct→core→holon) | **`to-record`** | **explicit** — the ladder forbids implicit up; you BUILD a new value at the higher tier |
+| **USE-AS, downward** (pass a holon where a core is wanted) | assignability | **implicit, free** (a holon already IS a core for slot purposes) |
+| **MATERIALIZE at ANY tier** (build a new value at struct/core/holon) | **`to-struct` / `to-record`** | **explicit** — you BUILD a new value at exactly the policy you name, up OR down (2026-06-29) |
 | **FOREIGN → surface** | **`extend-type`** | **explicit** adapter — teach a type you don't own |
 | **OPAQUE carry** | **`Value`** | move-only — receive anything, use nothing, only move |
 
-## `to-record` — the data projection (the only honest up-cast)
+## `to-record` — the data projection (MATERIALIZE the surface's data at any tier)
+
+> ⊘ **SUPERSEDED + COMPLETED (2026-06-29 co-design) — projection is a FREE EXPLICIT tier choice; not "up-only", not
+> "never to a struct".** The prose below framed `to-record` as the only honest *up*-cast (output tier ≥ S's floor, no
+> struct target). Settled with the builder: **the floor governs SATISFACTION (who may be passed to a `[x <- :S]`
+> slot), NOT PROJECTION (what a `to-record` builds).** A surface's `:features` are EDN data; the hologram is a derived
+> index, never a field — so the *same data* materializes at ANY of the three holders, the caller's deliberate choice:
+>
+> ```clojure
+> (:wat::core::to-struct  x :S)   ; → :S$struct        in-locus; the type FORBIDS crossing comms ("stays here")
+> (:wat::core::to-record  x :S)   ; → :S$core-record   portable EDN data
+> (:wat::holon::to-record x :S)   ; → :S$holon-record  portable EDN data + a derived hologram
+> ```
+>
+> **Every surface emits ALL THREE backing records** (same fields; holder is the only variance — *FRANGE UT UNUM
+> FIAT*). **ONE shared `project(x, S)`** reads S's attributes off `x`; the three verbs differ only in the target
+> holder, and holon's ctor additionally derives the hologram (294.c.2a — free machinery). **Footprint honesty:**
+> holon→core drops the thousand-dim hologram (a real memory win); core→struct is the SAME `Value::Aggregate` plus a
+> 1-byte holder tag (NO memory win) — its value is the **static in-locus guarantee**, the compiler refusing to ship
+> it. The one direction with no verb: there is no `to-struct`-from-the-other-side oddity — `to-struct` always lands
+> in-locus, deliberately. (Builder: *"why shouldn't we allow a user to downgrade … an explicit choice for smaller
+> footprint and faster use"* + *"this is in the spirit of what 293 is trying to attack."*)
+
 `(:wat::core::to-record x :S)` → a **core**-record · `(:wat::holon::to-record x :S)` → a **holon**-record (hologram
 derived from the projected attributes). It is **the DATA face**: it carries the surface's ATTRIBUTES only; methods
 are behavior, never carried. *"i get back an aggregate with an attribute set populated and whatever limits imposed
