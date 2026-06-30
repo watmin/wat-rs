@@ -19,7 +19,7 @@
 use std::collections::HashMap;
 
 use crate::ast::WatAST;
-use crate::check::{validate_arc170_legacy_callsites, validate_bare_legacy_primitives, CheckError, CheckErrors};
+use crate::check::{validate_aggregate_containment, validate_arc170_legacy_callsites, validate_bare_legacy_primitives, CheckError, CheckErrors};
 use crate::macros::{expand_all, register_defmacros, register_stdlib_defmacros, MacroRegistry};
 use crate::resolve::{normalize_symbol_refs, resolve_references};
 use crate::runtime::{
@@ -141,6 +141,12 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     let mut types = TypeEnv::with_builtins();
     let stdlib_post_types = register_stdlib_types(expanded_stdlib, &mut types)?;
     let post_types = register_types(expanded_user, &mut types)?;
+    // Arc 293.W — containment rule: after BOTH stdlib and user types are fully
+    // registered, verify that no portable aggregate (record/holon) declares a
+    // non-portable (struct) field. Forward references are now resolved, so the
+    // check is complete and sound. TypeError converts to StartupError::Type via
+    // the From impl in freeze.rs.
+    validate_aggregate_containment(&types)?;
 
     // 6. Function definitions.
     let mut symbols = SymbolTable::new();

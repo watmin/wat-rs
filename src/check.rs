@@ -55,7 +55,7 @@ use crate::ast::WatAST;
 use crate::scope::Identifier;
 use crate::runtime::{Function, FunctionBody, SymbolTable};
 use crate::span::Span;
-use crate::types::{TypeEnv, TypeExpr};
+use crate::types::{TypeError, TypeErrorKind, TypeEnv, TypeExpr};
 use std::collections::HashMap;
 
 /// A function's declared signature: universally-quantified type
@@ -13540,7 +13540,7 @@ fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
 ///   `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
 /// - `TypeExpr::Fn` — closures never cross universe boundaries.
 /// - `TypeExpr::Var` — unresolved type variable; conservatively non-portable.
-fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
+pub(crate) fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
     // Canonicalize: expand aliases and walk through any substitution.
     let ty = reduce(ty, &Subst::new(), types);
     match &ty {
@@ -13589,7 +13589,13 @@ fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::core::Uuid"
                 | "wat::core::char"
                 | "wat::core::nil"
-                | "wat::core::unit" => return true,
+                | "wat::core::unit"
+                // the :wat::core::Record umbrella means "any record" — portable;
+                // assignability rejects structs from it (293.W b2).
+                // Must short-circuit BEFORE the types.get(p) aggregate arm, which
+                // sees Record registered as Holder::Struct (opaque umbrella) and
+                // would return a FALSE POSITIVE non-portable verdict.
+                | "wat::core::Record" => return true,
                 _ => {}
             }
             // Look up user-defined types.
@@ -13625,6 +13631,48 @@ fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
             }
         }
     }
+}
+
+/// Arc 293.W — THE CONTAINMENT RULE post-registration pass.
+///
+/// A portable aggregate (`Record` | `HolonRecord`) may declare ONLY portable
+/// field types. A non-portable field (e.g. a `Struct`) cannot be reconstructed
+/// from EDN bytes on the far side of a comms boundary, so a portable container
+/// holding one could never cross — the breach must be unrepresentable at the
+/// type level (§7: "a struct crosses NO comms" → type guarantee).
+///
+/// **Must run as a post-registration pass** — after both stdlib and user types
+/// are fully registered — because fields may forward-reference types not yet
+/// registered when the aggregate itself registers. Running inline at
+/// registration would miss those forward references (unknown paths fall to
+/// "portable by convention" in `is_portable_type`'s `None` arm).
+///
+/// Returns the first violation found, naming the aggregate, the offending
+/// field, and the non-portable type. The caller (the startup pipeline in
+/// `freeze/env.rs`) converts the `TypeError` to `StartupError::Type`.
+pub(crate) fn validate_aggregate_containment(
+    env: &crate::types::TypeEnv,
+) -> Result<(), TypeError> {
+    use crate::types::TypeDef;
+    for (name, def) in env.iter() {
+        if let TypeDef::Aggregate(a) = def {
+            if a.holder.is_portable() {
+                for (fname, fty) in &a.fields {
+                    if !is_portable_type(fty, env) {
+                        return Err(TypeError {
+                            span: crate::span::Span::unknown(),
+                            kind: TypeErrorKind::NonPortableFieldInPortableAggregate {
+                                aggregate: name.clone(),
+                                field: fname.clone(),
+                                field_ty: format_type(fty),
+                            },
+                        });
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bundle`.

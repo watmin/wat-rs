@@ -30,11 +30,21 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >   (no clean return type — no anonymous structural records). A surface emits a **PAIR**, not a triple; `$struct` dead.
 > - **THE CONTAINMENT RULE** — a portable aggregate (record/holon) may hold ONLY portable fields; a `Struct` field is
 >   ILLEGAL at declaration (un-reconstructable across the wire). The wire wall becomes a TYPE guarantee.
-> - **▶▶ NEXT = 293.W — THE DEEP WIRE WALL (priority; builder: this IS core 293).** Enforce the containment rule at
->   declaration + a `recv'` backstop refusing to reconstruct a bare `Holder::Struct` + kill the deferral comment (rune
->   the legit service-enum `Receiver<T>` fields). RED probe: a record-with-struct-field is REJECTED; the breach
->   roundtrip errors. **Then ▶ K3-REVISE** (annihilate `to-struct` + `$struct` emission → the pair) **then ▶ K5**
->   (`extend-surface`, STRIKE-READY `7d2892b8`) → showcase graduates `.wat.disabled`→`.wat`.
+> - ✅ **293.W.1 LANDED — THE CONTAINMENT GATE (the wire wall is now a TYPE guarantee).** A post-registration pass
+>   (`validate_aggregate_containment`, `check.rs`; called in `freeze/env.rs` after all types register) rejects any
+>   portable aggregate (record/holon) declaring a non-portable field, reusing `is_portable_type`. The rule CAUGHT 6
+>   real stdlib mis-declarations (a design oracle): **(A)** `:wat::spawn::ThreadOpts`/`ProcessOpts` held `Fn(…)`
+>   closures → converted to `defstruct` (they're in-locus by nature; no ripple — nothing sends them); **(B)** 4 loose
+>   `:wat::core::Record` fields tripped a FALSE POSITIVE — the umbrella is registered `Holder::Struct` but
+>   *assignability rejects structs from it* (GROUNDED), so it's portable → added to `is_portable_type`'s well-known
+>   portable paths (293.W b2; four-questions chose b2 over folding item-2 — keeps 293.W scoped to PORTABILITY).
+>   Probe `probe_arc293_W_containment` RED→GREEN; weighed forced-clean **4124/0/93**. **item-2 (kill the loose
+>   `:wat::core::Record` writable type — rete facts → `Value`, `user.program` → surface) STAYS its own PRECISION arc.**
+> - **▶▶ NEXT = 293.W.2** — the `recv'` backstop (refuse to reconstruct a bare top-level `Holder::Struct` off the wire,
+>   the untyped path) + the enum recursion in `is_portable_type` + **rune the legit service-enum `Receiver<T>` fields
+>   and KILL the deferral comment** (`"enum portability not yet enforced"`, the exigere violation). **Then ▶ K3-REVISE**
+>   (annihilate `to-struct` + `$struct` emission → the pair) **then ▶ K5** (`extend-surface`, STRIKE-READY `7d2892b8`)
+>   → showcase graduates `.wat.disabled`→`.wat`.
 > (K0–K4 done — three tools live: `defsurface` + `to-record` (being revised to the pair) + `extend-type`; the wire
 > wall is now the gating correctness work; `extend-surface` is the last tool.)
 

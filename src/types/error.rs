@@ -146,6 +146,21 @@ pub enum TypeErrorKind {
     /// of `child`. Refused at registration time so `is_subtype` cannot loop.
     /// The span is the caller-supplied declaration span, not a baked-in unknown.
     CyclicSubtype { child: String, parent: String },
+
+    // ─── Arc 293.W — containment rule ──────────────────────────────────────
+
+    /// A portable aggregate (Record | HolonRecord) declared a field whose type
+    /// is non-portable (e.g. a Struct). Such a field cannot be reconstructed
+    /// from EDN bytes on the far side of a comms boundary, so a portable
+    /// container holding one could never cross — it must not be representable.
+    ///
+    /// Detected in the post-registration validation pass (after all types are
+    /// registered) so forward-references resolve before the check runs.
+    NonPortableFieldInPortableAggregate {
+        aggregate: String,
+        field: String,
+        field_ty: String,
+    },
 }
 
 
@@ -246,6 +261,13 @@ impl fmt::Display for TypeErrorKind {
                 "register_subtype({child:?}, {parent:?}) would close a cycle in the typesub \
                  hierarchy — {parent:?} is already a transitive subtype of {child:?}; \
                  refused at registration time so `is_subtype` cannot loop"
+            ),
+            TypeErrorKind::NonPortableFieldInPortableAggregate { aggregate, field, field_ty } => write!(
+                f,
+                "containment rule (arc 293.W): portable aggregate {aggregate:?} may only hold \
+                 portable fields — field {field:?} has non-portable (struct) type {field_ty:?}. \
+                 A struct cannot be reconstructed from EDN bytes across a comms boundary; \
+                 a record or holon holding a struct field could never cross — it must not exist."
             ),
         }
     }

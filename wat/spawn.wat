@@ -47,10 +47,10 @@
 ;; Both opts records carry post-spawn-fn: an owner-side fn that runs after
 ;; the peer is spawned, before spawn-program' returns, for effects. Receives
 ;; the per-env launch record. Required with a no-op default on the bare ctors.
-(:wat::core::defrecord :wat::spawn::ThreadOpts
+(:wat::core::defstruct :wat::spawn::ThreadOpts
   [init-fn       <- :wat::core::Fn()->wat::core::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil])
-(:wat::core::defrecord :wat::spawn::ProcessOpts
+(:wat::core::defstruct :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
    env-fn           <- :wat::core::String
    max-message-bytes <- :wat::core::i64])

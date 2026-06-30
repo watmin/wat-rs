@@ -17,7 +17,6 @@
 use wat::freeze::startup_beside;
 
 #[test]
-#[ignore = "arc 293.W — RED until the containment rule rejects a record declaring a struct field"]
 fn a_record_cannot_declare_a_struct_field() {
     match startup_beside(file!()) {
         Ok(_) => panic!(
