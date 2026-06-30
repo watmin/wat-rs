@@ -16,7 +16,6 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 #[test]
-#[ignore = "arc 293 K5 — RED until extend-surface (the defmacro emitting extend-type per pair tier) lands"]
 fn extend_surface_default_rides_both_pair_tiers() {
     let world = startup_beside(file!())
         .expect("extend-surface must emit extend-type per pair tier so the default `dbl` rides $core-record + $holon-record");

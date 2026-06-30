@@ -1047,3 +1047,25 @@
   [& args <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
   `(:wat::core::structtype ~@args))
+
+;; ─── Arc 293 K5: extend-surface — default method impls over both pair tiers ────
+;;
+;; Takes a surface keyword :S plus N typeless method forms (m [binders] body) and emits
+;; one extend-type per PAIR backing tier ($core-record and $holon-record). The user writes
+;; BODY ONLY — extend-type already fills the method's types from the surface (the
+;; 293.4e-pre.iii capability), so the macro needs no reflection seam. Pure form-production.
+;;
+;; Per the K5 decision (option A, 2026-06-30): the default rides BOTH pair tiers, so a
+;; to-record'd value at either tier inherits it for free.
+(:wat::core::defmacro :wat::core::extend-surface
+  [surf <- :wat::WatAST  & methods <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::let
+    [surf-str   (:wat::core::keyword/to-string surf)            ;; "k5::HasX" (no leading colon)
+     core-kw    (:wat::core::keyword/from-string
+                  (:wat::core::string::concat surf-str "$core-record"))
+     holon-kw   (:wat::core::keyword/from-string
+                  (:wat::core::string::concat surf-str "$holon-record"))]
+    `(:wat::core::do
+       (:wat::core::extend-type ~core-kw  ~surf ~@methods)
+       (:wat::core::extend-type ~holon-kw ~surf ~@methods))))
