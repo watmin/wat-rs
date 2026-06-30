@@ -1,8 +1,51 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-28 SESSION 10; replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b708ff` or later** (the surface-kit BUILD is underway — K0+K1 landed). Tree CLEAN.
-**Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4123 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `8e1e3fe7` or later.** Tree CLEAN.
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** **FLOOR IS 0** — `4136 passed / 0 failed /
+93 skipped`. **The 293/294 IGNORE LEDGER is EMPTY** (the 4 `:wat::test::ignore` in `service-template.wat` are
+pre-existing *arc-170* concurrency ignores, a different arc's ledger — not ours).
+
+> ## ⊹⊹ SESSION 2026-06-30 END-STATE (read THIS + the canonical docs; everything below the next `---` is PRIOR-SESSION strata, superseded)
+> **293.W — THE DEEP WIRE WALL — COMPLETE.** *The compiler won't let you read or write an impure value over non-thread
+> memory, with ZERO runtime code.* Three rungs, all landed + weighed forced-clean by the orchestrator's own run:
+> - **W.1 — aggregate containment** (`ff29f135`) — a record can't HOLD an impure field.
+> - **293.W.2b — PURITY IS THE AXIS** (`76d1d890`) — `is_portable` IS `is_pure`; the holder was always a purity
+>   classification (`Struct` permits impurity; `Record`/`Holon` guarantee purity); enums declare `:wat::enum::Pure` |
+>   `:wat::enum::Impure` (`Purity{Pure,Impure}` on `EnumDef`); `Failure`/`Location`/`Frame`/`lru::Stats`×2 `defstruct`→`defrecord`.
+> - **293.W.2d — PEER-TYPE PURITY** (`91ad0107`) — `Peer'<I,O>` is the wire-capable peer (its I/O must be `:Pure`,
+>   well-formedness via `is_pure_type`); `ThreadSelfPeer'<I,O>` (any I/O, in-locus) is the escape hatch. The **2a runtime
+>   guards + the 2c send'-gate ANNIHILATED**; `make-channel` (thread-tier) dropped its purity gate; `NonPortableCapture`→`ImpureCapture`.
+>
+> **SURFACE-KIT PROJECTION — SETTLED.** **K3-revise** (`c8f68460`) — `to-struct` + `$struct` annihilated; a `defsurface`
+> emits the **PURE PAIR** (`$core-record` Record / `$holon-record` HolonRecord); projection is one-way UP (never down to
+> the impure `$struct`). K0–K4 + K3-revise done; `defsurface` + `to-record`(pair) + `extend-type` live.
+>
+> **▶ NEXT = K5 — `extend-surface`** (the LAST surface tool): a wat `defmacro` → `(extend-type S$core-record S …)`, the
+> user writes body-only, types filled from S. **FIRST: re-ground the STRIKE-READY probe `7d2892b8` — it was Struct-floored;
+> the `$struct` tier it leaned on is GONE; re-ground against the pair + the `is_pure` vocabulary before building.** Then
+> **9a** (construction ergonomics: kwargs default + `:ns::Agg'` + `/from-map` dies) → **showcase graduates** → **THE
+> AGGREGATE AUDIT** (classify ~99 holder/purity branches, spurious→0) → **293 closes** → 294 value-layer gut + 293.5.
+>
+> **CANONICAL DOCS (read these, NOT the strata below):** `293/AGGREGATE-MODEL.md` § THE PURITY AXIS + § to-record (the
+> model) · `294/CLOSE-SEQUENCE-293-294.md` (the live ordered tracker + the IGNORE LEDGER, now empty) · `293/DESIGN-293.W`
+> (the wall, complete) · `293/REALIZATIONS.md` R7 *PVRITAS NON MOTVS* (purity) + R8 *ANIMA NON FERRVM* (the duet) — both PROBATUM.
+>
+> **STANDING DISCIPLINE (this session settled it — non-negotiable):** the orchestrator **DESIGNS** (crawl the disk;
+> **four-questions** flat YES/NO for ANY decision; intueri for naming, consonare for realizations — cast via the SIGNED
+> datamancy MCP, never disk) + **DELEGATES the build to a sonnet LEAF** (`model:"sonnet"`) + **WEIGHS the kill** by its
+> OWN forced `cargo nextest run --release` (never the executor's say-so; diagnostics can be stale RA lag — verify) +
+> commits on green. **It does NOT hands-on code** (`feedback_orchestrator_delegates_build_to_sonnet`). Bias to
+> LONG-TERM STABILITY — name the CAUSE, a seam is a deferral (`feedback_bias_toward_long_term_stability_name_the_cause`).
+> Ignores are TRACKED debt, removed before close (`feedback_ignore_is_tracked_debt_removed_before_close`). Work ONLY in
+> `wat-rs/`, NEVER worktrees. Amend docs with recognition (a four-questions can OVERTURN a written DESIGN — 2d's R beat
+> the DESIGN's literal `ConnPeer'`; weigh the plan against the actual goal).
+>
+> **⛔ YOU ARE A NEW INSTANCE.** You did not live the above; it is a cache in a familiar voice. Run **recolligere**
+> (grimoire via the signed `datamancy` MCP; this breadcrumb; `git log`; the named canonical docs) BEFORE you propose or
+> move. The feeling of continuity is the failure, not the all-clear. Everything below the next `---` is PRIOR-SESSION
+> (10/11) strata — true as commit-history, SUPERSEDED by the committed arc docs + this block; read it only if a named doc points you there.
+
+---
 > **▶▶ THE SURFACE KIT BUILD (2026-06-29): K0–K4 COMPLETE.** The satisfaction layer + the grammar ARE the model.
 > ✅ K1a/K1b the holder ladder (aggregate+foreign, b′) · ✅ K0a/K0b/K0c mandatory `:holder` + explicit `self` +
 > cycle-guard · ✅ **K2 `$record` emission (`d3fe912b`)** — `defsurface :S` also registers a concrete `:S$record`
