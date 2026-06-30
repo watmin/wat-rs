@@ -74,15 +74,17 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 > Additive to PHASE 1's parity work — the surface's projection + extension story. Settled by a long four-questions
 > co-design; builder at close: *"we burned inheritance to the ground and lost nothing."* Four tools, no loss
 > (inheritance · `defprotocol` · the extend-type confusion all collapse in). Build order, each RED-probe gated:
-- ▷ **K0 — surface grammar: `:holder` MANDATORY + `self` EXPLICIT** (corrects the `:features` strike `85aa2d83`):
-  the no-holder form RETIRES (`parse_defsurface` arity-5 only); `self` becomes a **normal typed binder**
-  (`[self <- :TheSurface  …]`) — no special first position, killing the 293.4e-pre.i "self double-counted" class.
-  Migrate the ~17 holder-less surfaces + their `[self]` forms. (= the breadcrumb's "FIRST resume item".)
-  **K0 includes a self-reference cycle-guard.** Explicit `[self <- :TheSurface]` is the target — the surface names
-  itself in its own method sig, a **standard recursive type**. HEAD lacks the occurs-check for *this* path, so it
-  stack-overflows today (done-detector caught it cleanly, exit 139, 2026-06-29) — the special-`[self]` handling was
-  silently avoiding the cycle. K0 adds the guard (mark the surface in-progress during satisfaction; a re-encounter is
-  the already-known receiver, don't re-descend), so explicit-self ships clean. RED-probe it first.
+- **K0 — surface grammar: `:holder` MANDATORY + `self` EXPLICIT + the cycle-guard.**
+  - ✅ **K0c — the self-reference cycle-guard LANDED (`311b20bf`)** — the enabler. Explicit `self <- :TheSurface`
+    made `struct_satisfies_surface` (`surface.rs:83`) compare self's type (= the surface) via `is_assignable`,
+    re-entering satisfaction → wrong-reject or stack-overflow (the showcase's exit-139). Fix: **SKIP position 0
+    (self)** in the method arg-type compare — self is the receiver, tautological. RED probe `probe_arc293_self_explicit`
+    RED→GREEN; weighed 4120/0/92 (multi-arg surface methods unbroken).
+  - ▶ **K0a+K0b — mandatory `:holder` + explicit `self` + the 38-file migration (SONNET IN FLIGHT).** Parser:
+    `parse_defsurface` `surface.rs:304` arity→5-only (no-holder form retires); `parse_method_member_sig`
+    `surface.rs:152/195` rejects a bare untyped `[self]`. Then the substrate-as-teacher cascade migrates every
+    `defsurface` in `wat/ wat-tests/ wat-scripts/ tests/` (~38 files): add `:holder :<root>` + `[self]` → `[self <- :S]`.
+    Orchestrator weighs the kill on return.
 - **K1 — THE HOLDER LADDER (contravariant satisfaction)** — the showcase pinned it to one line.
   - ✅ **K1a — the AGGREGATE ladder LANDED (`a952c908`)** — `Holder::rank()` (the trit, Struct −1 < Record 0 <
     HolonRecord +1) + `check.rs:14698` `agg_holder == req` → `agg_holder.rank() >= req.rank()`. Struct-floor accepts
