@@ -2394,10 +2394,13 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
         },
         TypeDef::Enum(e) => {
             // Stone 241.9 — emit defenum positional grammar:
-            //   :V1_unit_kw  :V2_tagged_kw [f1 <- :T1 ...]  :V3_unit_kw ...
+            //   :TypeName :wat::enum::Pure|:wat::enum::Impure :V1_unit_kw :V2_tagged_kw [f1 <- :T1 ...]
+            // Arc 293.W.2b — the mandatory purity marker must come immediately after the name.
+            let purity_marker = if e.purity.is_pure() { ":wat::enum::Pure" } else { ":wat::enum::Impure" };
             let mut items = vec![
                 WatAST::Keyword(":wat::core::defenum".into(), span.clone()),
                 WatAST::Keyword(format_type_decl_name(&e.name, &e.type_params), span.clone()),
+                WatAST::Keyword(purity_marker.to_string(), span.clone()),
             ];
             for variant in &e.variants {
                 match variant {

@@ -48,13 +48,13 @@
    ;; so values round-trip across the process boundary without any shared
    ;; type registry.
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :counter::Request
+   (:wat::core::defenum :counter::Request :wat::enum::Pure
      :Get
      :Increment [n <- :wat::core::i64]
      :Reset
      :Shutdown)
 
-   (:wat::core::defenum :counter::Response
+   (:wat::core::defenum :counter::Response :wat::enum::Pure
      :Value [v <- :wat::core::i64]
      :Ok    [v <- :wat::core::i64]
      :Final [v <- :wat::core::i64])
@@ -169,12 +169,12 @@
            ;; Subprocess type declarations — independent from parent's types.
            ;; Same names → same EDN tags → interoperable across process boundary.
            ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-           (:wat::core::defenum :counter::Request
+           (:wat::core::defenum :counter::Request :wat::enum::Pure
              :Get
              :Increment [n <- :wat::core::i64]
              :Reset
              :Shutdown)
-           (:wat::core::defenum :counter::Response
+           (:wat::core::defenum :counter::Response :wat::enum::Pure
              :Value [v <- :wat::core::i64]
              :Ok    [v <- :wat::core::i64]
              :Final [v <- :wat::core::i64])

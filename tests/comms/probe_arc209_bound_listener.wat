@@ -3,7 +3,7 @@
 
 ;; The client op protocol: compute-and-reply. No Stop op — the owner dropping its
 ;; handle (→ :Shutdown) terminates the service structurally (the c0b1b guarantee).
-(:wat::core::defenum :user::Op
+(:wat::core::defenum :user::Op :wat::enum::Pure
   :Compute [n <- :wat::core::i64])
 
 ;; The service loop — poll' multiplexes the self-peer, the listener, the clients.

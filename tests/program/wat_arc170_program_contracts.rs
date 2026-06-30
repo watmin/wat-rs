@@ -830,7 +830,7 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     };
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
-        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Failure" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Record && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
     // Failure.message (field 0) must carry the structured assert-eq diagnostic,
@@ -992,7 +992,7 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
 
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
-        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Failure" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Record && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 

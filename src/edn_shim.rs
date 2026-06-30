@@ -2740,9 +2740,9 @@ pub(crate) fn decode_trusted_wire(
     // Structs are in-locus only; the tagged EDN may decode successfully (the
     // parent's type registry knows the struct), but the wire-decode door refuses
     // the top-level value so the portability guarantee holds. Records and
-    // HolonRecords (holder.is_portable() == true) pass through unchanged.
+    // HolonRecords (holder.is_pure() == true) pass through unchanged.
     if let Value::Aggregate(ref agg) = v {
-        if !agg.holder.is_portable() {
+        if !agg.holder.is_pure() {
             return Err(EdnReadError {
                 span: Span::unknown(),
                 kind: EdnReadErrorKind::StructOnWire { class: agg.class.clone() },

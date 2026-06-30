@@ -35,7 +35,7 @@
                 (:wat::core::defstruct :h::MixPoint
                   [x <- :wat::core::i64
                    y <- :wat::core::i64])
-                (:wat::core::defenum :h::MixDir
+                (:wat::core::defenum :h::MixDir :wat::enum::Pure
                   :Up
                   :Down)
                 (:wat::core::newtype :h::MixAmount :wat::core::i64)

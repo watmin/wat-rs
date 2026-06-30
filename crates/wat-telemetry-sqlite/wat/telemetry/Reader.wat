@@ -61,7 +61,7 @@
 ;;
 ;; AND-semantics across the vec. Empty vec = no narrowing
 ;; (full-table scan, slice-1 behavior preserved).
-(:wat::core::defenum :wat::telemetry::TimeConstraint
+(:wat::core::defenum :wat::telemetry::TimeConstraint :wat::enum::Pure
   :Since [instant <- :wat::time::Instant]
   :Until [instant <- :wat::time::Instant])
 

@@ -136,7 +136,7 @@ fn probe_run_hermetic_panic_body_no_deadlock() {
 
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
-        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Failure" => s,
+        wat::runtime::Value::Aggregate(s) if s.holder == wat::Holder::Record && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 

@@ -2,7 +2,7 @@
 (:wat::core::defn :my::launch [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>
   (:wat::kernel::spawn-process
               (:wat::core::forms
-                (:wat::core::defenum :h::LocalDir
+                (:wat::core::defenum :h::LocalDir :wat::enum::Pure
                   :North
                   :South)
                 (:wat::core::defn :user::main [] -> :wat::core::nil

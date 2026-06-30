@@ -57,7 +57,7 @@
    ;; Deprovision: admin requests removal of a specific client by id.
    ;; Stop: admin requests server shutdown.
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :counter::AdminReq
+   (:wat::core::defenum :counter::AdminReq :wat::enum::Pure
      :Provision   [initial <- :wat::core::i64]
      :Deprovision [id      <- :wat::core::String]
      :Stop)
@@ -66,18 +66,18 @@
    ;; Server mints the id; creates channel pair; hands user-side ends to admin.
    ;; Admin is the broker — it hands tx+rx to the user client.
    ;; NOTE: rx is Receiver<UserResp> (not Receiver<Wire>) — user receives responses.
-   (:wat::core::defenum :counter::AdminResp
+   (:wat::core::defenum :counter::AdminResp :wat::enum::Pure
      :Provisioned   [id <- :wat::core::String tx <- :wat::kernel::Sender<counter::Wire> rx <- :wat::kernel::Receiver<counter::UserResp>]
      :Deprovisioned [id <- :wat::core::String]
      :Stopped)
 
    ;; ─── User protocol (unchanged from 3a) ───────────────────────────────
-   (:wat::core::defenum :counter::UserReq
+   (:wat::core::defenum :counter::UserReq :wat::enum::Pure
      :Get
      :Increment [n <- :wat::core::i64]
      :Reset)
 
-   (:wat::core::defenum :counter::UserResp
+   (:wat::core::defenum :counter::UserResp :wat::enum::Pure
      :Value [v <- :wat::core::i64]
      :Ok    [v <- :wat::core::i64])
 
@@ -85,7 +85,7 @@
    ;;
    ;; Unified request type — select is ∀T, all receivers must share T.
    ;; Wire wraps both admin and user requests.
-   (:wat::core::defenum :counter::Wire
+   (:wat::core::defenum :counter::Wire :wat::enum::Pure
      :Admin [req <- :counter::AdminReq]
      :User  [req <- :counter::UserReq])
 

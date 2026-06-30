@@ -87,37 +87,37 @@
    ;; the server cannot rely on transport identity alone.
    ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :counter::Wire
+   (:wat::core::defenum :counter::Wire :wat::enum::Pure
      :Admin [server-id <- :wat::core::Uuid req <- :counter::AdminReq]
      :User  [server-id <- :wat::core::Uuid user-id <- :wat::core::Uuid req <- :counter::UserReq])
 
    ;; ─── WireResp enum (subprocess → parent) ────────────────────────────────────
    ;; Tags Admin vs User responses so the parent can demux by category.
-   (:wat::core::defenum :counter::WireResp
+   (:wat::core::defenum :counter::WireResp :wat::enum::Pure
      :Admin [resp <- :counter::AdminResp]
      :User  [resp <- :counter::UserResp])
 
    ;; ─── AdminReq / AdminResp ────────────────────────────────────────────────────
    ;; AdminResp::Provisioned returns ONLY the minted id.
    ;; No channels at process tier; user ops go via the shared peer.
-   (:wat::core::defenum :counter::AdminReq
+   (:wat::core::defenum :counter::AdminReq :wat::enum::Pure
      :Provision   [initial <- :wat::core::i64]
      :Deprovision [id      <- :wat::core::Uuid]
      :Stop)
 
-   (:wat::core::defenum :counter::AdminResp
+   (:wat::core::defenum :counter::AdminResp :wat::enum::Pure
      :Provisioned   [id <- :wat::core::Uuid]
      :Deprovisioned [id <- :wat::core::Uuid]
      :Stopped
      :AccessDenied)                           ;; server refused — server-id mismatch
 
    ;; ─── UserReq / UserResp ─────────────────────────────────────────────────────
-   (:wat::core::defenum :counter::UserReq
+   (:wat::core::defenum :counter::UserReq :wat::enum::Pure
      :Get
      :Increment [n <- :wat::core::i64]
      :Reset)
 
-   (:wat::core::defenum :counter::UserResp
+   (:wat::core::defenum :counter::UserResp :wat::enum::Pure
      :Value [v <- :wat::core::i64]
      :Ok    [v <- :wat::core::i64]
      :AccessDenied)                           ;; server refused — server-id mismatch
@@ -139,7 +139,7 @@
    ;;   2. stop-proc → Process/drain-and-join → Err(chain) → Err(ServerDied(chain))
    ;;   3. crash-test-proc → spawn crashing subprocess → drain-and-join → Err(ServerDied(chain))
    ;;      (retained to cover the drain-and-join Err path independently)
-   (:wat::core::defenum :counter::ServiceError
+   (:wat::core::defenum :counter::ServiceError :wat::enum::Pure
      :AccessDenied
      :ServerDied  [chain <- :wat::core::Vector<wat::kernel::ProcessDiedError>]
      :Disconnected)
@@ -213,31 +213,31 @@
               ;; Wire now carries server-id as the first field on both variants.
               ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
               ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-              (:wat::core::defenum :counter::Wire
+              (:wat::core::defenum :counter::Wire :wat::enum::Pure
                 :Admin [server-id <- :wat::core::Uuid req <- :counter::AdminReq]
                 :User  [server-id <- :wat::core::Uuid user-id <- :wat::core::Uuid req <- :counter::UserReq])
 
-              (:wat::core::defenum :counter::WireResp
+              (:wat::core::defenum :counter::WireResp :wat::enum::Pure
                 :Admin [resp <- :counter::AdminResp]
                 :User  [resp <- :counter::UserResp])
 
-              (:wat::core::defenum :counter::AdminReq
+              (:wat::core::defenum :counter::AdminReq :wat::enum::Pure
                 :Provision   [initial <- :wat::core::i64]
                 :Deprovision [id      <- :wat::core::Uuid]
                 :Stop)
 
-              (:wat::core::defenum :counter::AdminResp
+              (:wat::core::defenum :counter::AdminResp :wat::enum::Pure
                 :Provisioned   [id <- :wat::core::Uuid]
                 :Deprovisioned [id <- :wat::core::Uuid]
                 :Stopped
                 :AccessDenied)               ;; server refused — server-id mismatch
 
-              (:wat::core::defenum :counter::UserReq
+              (:wat::core::defenum :counter::UserReq :wat::enum::Pure
                 :Get
                 :Increment [n <- :wat::core::i64]
                 :Reset)
 
-              (:wat::core::defenum :counter::UserResp
+              (:wat::core::defenum :counter::UserResp :wat::enum::Pure
                 :Value [v <- :wat::core::i64]
                 :Ok    [v <- :wat::core::i64]
                 :AccessDenied)               ;; server refused — server-id mismatch

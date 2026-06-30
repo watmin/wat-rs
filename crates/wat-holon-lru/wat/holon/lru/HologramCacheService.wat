@@ -66,7 +66,7 @@
 ;; Put returns PutAck carrying unit. Both verbs share ONE reply channel
 ;; per slot (pair-by-index via HandlePool). Replaces the old per-verb
 ;; channel families (PutAck* + GetReply*).
-(:wat::core::defenum :wat::holon::lru::HologramCacheService::Reply
+(:wat::core::defenum :wat::holon::lru::HologramCacheService::Reply :wat::enum::Pure
   :GetResult [results <- :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>]
   :PutAck)
 
@@ -91,7 +91,7 @@
 ;; Arc 130: embedded reply-tx/ack-tx removed; reply routing is by pair index.
 ;;   Get carries Vec<HolonAST> probes; driver replies via indexed ReplyTx.
 ;;   Put carries Vec<Entry> entries; driver replies PutAck via same.
-(:wat::core::defenum :wat::holon::lru::HologramCacheService::Request
+(:wat::core::defenum :wat::holon::lru::HologramCacheService::Request :wat::enum::Pure
   :Get [probes  <- :wat::core::Vector<wat::holon::HolonAST>]
   :Put [entries <- :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>])
 
@@ -169,7 +169,10 @@
 ;; Both injection points are required. Pass null-reporter and
 ;; (null-metrics-cadence) for the explicit "no reporting" choice.
 
-(:wat::core::defstruct :wat::holon::lru::HologramCacheService::Stats
+;; Arc 293.W.2b — Stats is pure EDN data (only i64 counters; EDN-reconstructable across
+;; address spaces). Changed from defstruct to defrecord so it can be held in the Pure
+;; Report enum (containment rule: Pure enum may hold only pure variant fields).
+(:wat::core::defrecord :wat::holon::lru::HologramCacheService::Stats
   [lookups    <- :wat::core::i64   ;; total Gets in this window
    hits       <- :wat::core::i64   ;; Gets returning Some
    misses     <- :wat::core::i64   ;; Gets returning :None
@@ -185,7 +188,7 @@
 ;; Each new variant earns its slot when the service has a concrete
 ;; reason to communicate it. Producer/consumer agree on the variant
 ;; set; consumers add an arm to their match when a new one ships.
-(:wat::core::defenum :wat::holon::lru::HologramCacheService::Report
+(:wat::core::defenum :wat::holon::lru::HologramCacheService::Report :wat::enum::Pure
   :Metrics [stats <- :wat::holon::lru::HologramCacheService::Stats])
 
 ;; MetricsCadence<G> — stateful rate gate. Holds the gate state

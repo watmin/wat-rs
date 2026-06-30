@@ -45,7 +45,7 @@
 ;; (named — NOT a bare `(:Tuple state reply)`; a structured result with distinct roles is a
 ;; record/sum, per the ADT identity, not an order-convention pair). Generic + stdlib: every
 ;; service reuses it (not minted per-service). C.4 GROWS it by ADDING variants — no reshape.
-(:wat::core::defenum :wat::service::Outcome<S,R>
+(:wat::core::defenum :wat::service::Outcome<S,R> :wat::enum::Pure
   :Reply [state <- :S  reply <- :R]
   :Stop  [state <- :S  reply <- :R])
 
@@ -415,13 +415,13 @@
      ;; arc 291 4b-ii: Admin now has four variants:
      ;;   Init (startup seed), Stop (unit), Hibernate (unit), Resume (snapshot).
      ;;   Init and Resume both carry ::Record (not ::State — structs never cross the wire).
-     admin-enum-def `(:wat::core::defenum ~admin-ty
+     admin-enum-def `(:wat::core::defenum ~admin-ty :wat::enum::Pure
                        :Init     ~init-params-vec
                        :Stop
                        :Hibernate
                        :Resume   ~init-params-vec)
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
-     status-enum-def `(:wat::core::defenum ~status-ty
+     status-enum-def `(:wat::core::defenum ~status-ty :wat::enum::Pure
                              :Started   [addr     <- ~addr-ty]
                              :Stopped     [resp     <- ~resp-ty]
                              :Hibernated [snapshot <- ~record-ty])
@@ -1004,8 +1004,8 @@
                         ~state-def
                         ~@request-records
                         ~@response-records
-                        (:wat::core::defenum ~enum-name ~@variants)
-                        (:wat::core::defenum ~reply-name ~@reply-variants)
+                        (:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
+                        (:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
                         (:wat::core::defn ~serve-name ~serve-params
                           -> :wat::core::nil ~serve-body)
                         ~init-def
@@ -1039,8 +1039,8 @@
                          (:wat::core::forms
                            ~@request-records
                            ~@response-records
-                           (:wat::core::defenum ~enum-name ~@variants)
-                           (:wat::core::defenum ~reply-name ~@reply-variants)
+                           (:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
+                           (:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
                            ~@constructors
                            ~@op-methods))
 
@@ -1119,8 +1119,8 @@
        ~state-def
        ~@request-records
        ~@response-records
-       (:wat::core::defenum ~enum-name ~@variants)
-       (:wat::core::defenum ~reply-name ~@reply-variants)
+       (:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
+       (:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
        ~admin-enum-def
        ~status-enum-def
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)

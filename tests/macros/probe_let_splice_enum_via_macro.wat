@@ -2,7 +2,7 @@
   [body <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::core::let []
-     (:wat::core::defenum :my::probe::Event
+     (:wat::core::defenum :my::probe::Event :wat::enum::Pure
        :Created [id <- :wat::core::i64]
        :Deleted [id <- :wat::core::i64]
        :NoOp)

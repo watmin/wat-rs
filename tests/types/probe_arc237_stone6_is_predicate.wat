@@ -5,7 +5,7 @@
 (:wat::core::defrecord :my::Circle [radius <- :wat::core::f64])
 (:wat::core::defrecord :my::Square [side <- :wat::core::f64])
 (:wat::core::typeunion :my::Shape [:my::Circle :my::Square])
-(:wat::core::defenum :my::Color :Red :Blue :Green)
+(:wat::core::defenum :my::Color :wat::enum::Pure :Red :Blue :Green)
 (:wat::core::newtype :my::Price :wat::core::f64)
 (:wat::core::defstruct :my::Point [x <- :wat::core::i64 y <- :wat::core::i64])
 

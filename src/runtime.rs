@@ -21883,8 +21883,9 @@ fn thread_died_error_panic(
 }
 
 /// Convert an [`AssertionPayload`] into a `:wat::kernel::Failure`
-/// `Value::Aggregate(Struct)`. Field order mirrors the type registration:
+/// `Value::Aggregate(Record)`. Field order mirrors the type registration:
 /// `(message, location, frames, actual, expected)`.
+/// Arc 293.W.2b — Failure is now Holder::Record (pure EDN data; all fields pure).
 fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
     let crate::assertion::AssertionPayload {
         message,
@@ -21893,12 +21894,12 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
         location,
         frames,
         // Arc 113 — chain rides on the panic payload but doesn't
-        // become part of the Failure struct (Failure pre-dates the
+        // become part of the Failure record (Failure pre-dates the
         // chain; cascade reconstruction lives one layer up, in
         // join-result).
         upstream_chain: _,
         // Arc 138 F-NAMES-1d — thread_name is for the panic hook render
-        // only; it doesn't map to a Failure struct field.
+        // only; it doesn't map to a Failure record field.
         thread_name: _,
     } = p;
     let location_field = match location {
@@ -21919,46 +21920,48 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
         Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
         None => Value::Option(Arc::new(None)),
     };
-    Value::Aggregate(Arc::new(AggregateValue::struct_(
+    Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Failure".into(),
-        vec![
+        Arc::new(vec![
             Value::String(Arc::new(message)),
             location_field,
             frames_field,
             actual_field,
             expected_field,
-        ],
+        ]),
     )))
 }
 
-/// Convert a `Span` into a `:wat::kernel::Location` `Value::Aggregate(Struct)`.
+/// Convert a `Span` into a `:wat::kernel::Location` `Value::Aggregate(Record)`.
 /// Field order: `(file, line, col)`.
+/// Arc 293.W.2b — Location is now Holder::Record (pure EDN data).
 fn value_from_span(span: crate::span::Span) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::struct_(
+    Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Location".into(),
-        vec![
+        Arc::new(vec![
             Value::String(Arc::new((*span.file).clone())),
             Value::i64(span.line),
             Value::i64(span.col),
-        ],
+        ]),
     )))
 }
 
 /// Convert a `FrameInfo` (wat call-stack frame from the trampoline)
-/// into a `:wat::kernel::Frame` `Value::Aggregate(Struct)`. Field order matches
+/// into a `:wat::kernel::Frame` `Value::Aggregate(Record)`. Field order matches
 /// the arc 016 type registration: `(file, line, symbol)`. The
 /// callee path becomes the `symbol` field.
+/// Arc 293.W.2b — Frame is now Holder::Record (pure EDN data).
 fn value_from_frame_info(frame: FrameInfo) -> Value {
     let FrameInfo { callee_path, call_span } = frame;
-    Value::Aggregate(Arc::new(AggregateValue::struct_(
+    Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Frame".into(),
-        vec![
+        Arc::new(vec![
             Value::Option(Arc::new(Some(Value::String(Arc::new(
                 (*call_span.file).clone(),
             ))))),
             Value::Option(Arc::new(Some(Value::i64(call_span.line)))),
             Value::Option(Arc::new(Some(Value::String(Arc::new(callee_path))))),
-        ],
+        ]),
     )))
 }
 
@@ -22432,19 +22435,20 @@ fn eval_died_error_to_failure(
     }
 }
 
-/// Build a `:wat::kernel::Failure` `Value::Aggregate(Struct)` with just the
+/// Build a `:wat::kernel::Failure` `Value::Aggregate(Record)` with just the
 /// message populated; actual / expected / location are `:wat::core::None`,
 /// frames is empty `Vec<Frame>`.
+/// Arc 293.W.2b — Failure is now Holder::Record (pure EDN data).
 fn message_only_failure(message: String) -> Value {
-    Value::Aggregate(Arc::new(AggregateValue::struct_(
+    Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Failure".into(),
-        vec![
+        Arc::new(vec![
             Value::String(Arc::new(message)),
             Value::Option(Arc::new(None)),       // location
             Value::Vec(Arc::new(Vec::new())),    // frames
             Value::Option(Arc::new(None)),       // actual
             Value::Option(Arc::new(None)),       // expected
-        ],
+        ]),
     )))
 }
 
@@ -24492,7 +24496,7 @@ fn is_mutation_head(head: &str) -> bool {
 /// with no serialization (same address space), so a struct over a thread peer is
 /// legitimate — they do NOT call this. Symmetric to the inbound backstop in
 /// `edn_shim::decode_trusted_wire` (the process/socket decode door), which has no
-/// thread-tier analogue either. One predicate (`Holder::is_portable`) backs both
+/// thread-tier analogue either. One predicate (`Holder::is_pure`) backs both
 /// directions.
 fn reject_non_portable_on_wire(
     payload: &Value,
@@ -24500,7 +24504,7 @@ fn reject_non_portable_on_wire(
     span: &Span,
 ) -> Result<(), EvalBreak> {
     if let Value::Aggregate(agg) = payload {
-        if !agg.holder.is_portable() {
+        if !agg.holder.is_pure() {
             return Err(RuntimeError {
                 span: span.clone(),
                 kind: RuntimeErrorKind::MalformedForm {

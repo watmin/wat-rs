@@ -8,7 +8,7 @@
       (:wat::core::defstruct :h::MixPoint8
         [x <- :wat::core::i64
          y <- :wat::core::i64])
-      (:wat::core::defenum :h::MixDir8
+      (:wat::core::defenum :h::MixDir8 :wat::enum::Pure
         :Up
         :Down)
       (:wat::core::newtype :h::MixAmount8 :wat::core::i64)

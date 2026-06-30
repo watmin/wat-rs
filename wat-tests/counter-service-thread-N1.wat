@@ -50,18 +50,18 @@
    ;; :counter::AdminReq — privileged operations.
    ;; 3a: only Stop. 3b adds Provision/Deprovision.
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :counter::AdminReq
+   (:wat::core::defenum :counter::AdminReq :wat::enum::Pure
      :Stop)
 
    ;; :counter::AdminResp — server's reply to admin.
    ;; Stopped carries the server's final state (for auditing/handoff).
-   (:wat::core::defenum :counter::AdminResp
+   (:wat::core::defenum :counter::AdminResp :wat::enum::Pure
      :Stopped [final <- :wat::core::i64])
 
    ;; ─── User protocol ───────────────────────────────────────────────────
    ;;
    ;; :counter::UserReq — RPC operations.
-   (:wat::core::defenum :counter::UserReq
+   (:wat::core::defenum :counter::UserReq :wat::enum::Pure
      :Get
      :Increment [n <- :wat::core::i64]
      :Reset)
@@ -69,7 +69,7 @@
    ;; :counter::UserResp — server's reply to user.
    ;;   Value — reply to Get (current, unchanged state)
    ;;   Ok    — reply to Increment + Reset (new state)
-   (:wat::core::defenum :counter::UserResp
+   (:wat::core::defenum :counter::UserResp :wat::enum::Pure
      :Value [v <- :wat::core::i64]
      :Ok    [v <- :wat::core::i64])
 
@@ -79,7 +79,7 @@
    ;; select is ∀T — all receivers must share the same T.
    ;; Wire wraps both admin and user requests so the select Vec is homogeneous.
    ;; Server dispatches by matching the Wire variant.
-   (:wat::core::defenum :counter::Wire
+   (:wat::core::defenum :counter::Wire :wat::enum::Pure
      :Admin [req <- :counter::AdminReq]
      :User  [req <- :counter::UserReq])
 

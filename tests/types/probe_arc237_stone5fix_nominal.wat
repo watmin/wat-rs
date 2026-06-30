@@ -2,8 +2,8 @@
 ;; Co-located fixture for probe_arc237_stone5fix_nominal.rs
 ;; Loaded via startup_beside(file!()). Each named fn is exercised by its sibling Rust test.
 
-(:wat::core::defenum :my::Color :Red :Blue :Green)
-(:wat::core::defenum :my::Suit :Hearts :Spades)
+(:wat::core::defenum :my::Color :wat::enum::Pure :Red :Blue :Green)
+(:wat::core::defenum :my::Suit :wat::enum::Pure :Hearts :Spades)
 (:wat::core::newtype :my::Price :wat::core::f64)
 (:wat::core::defstruct :my::Point [x <- :wat::core::i64 y <- :wat::core::i64])
 (:wat::core::defstruct :my::Pair [a <- :wat::core::i64 b <- :wat::core::i64])

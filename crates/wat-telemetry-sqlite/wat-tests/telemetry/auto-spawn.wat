@@ -14,7 +14,7 @@
 
 (:wat::test::make-deftest :deftest
   (;; Tiny test enum with two Tagged variants and mixed types.
-   (:wat::core::defenum :test::Event
+   (:wat::core::defenum :test::Event :wat::enum::Pure
      :Buy [price <- :wat::core::f64
            qty   <- :wat::core::i64]
      :Sell [price  <- :wat::core::f64

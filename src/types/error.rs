@@ -156,8 +156,24 @@ pub enum TypeErrorKind {
     ///
     /// Detected in the post-registration validation pass (after all types are
     /// registered) so forward-references resolve before the check runs.
-    NonPortableFieldInPortableAggregate {
+    ImpureFieldInPureAggregate {
         aggregate: String,
+        field: String,
+        field_ty: String,
+    },
+
+    /// Arc 293.W.2b — the enum counterpart of the containment rule. A `Pure`
+    /// enum (`:wat::enum::Pure`) declares that its values hold only pure data (fully
+    /// EDN-reconstructable anywhere) — so every variant field must itself be pure.
+    /// An impure variant field (a struct, a channel handle) could never be
+    /// reconstructed on the far side, so a `Pure` enum holding one could never
+    /// cross — it must not be representable. (An `Impure` enum is unrestricted;
+    /// declare the enum `:wat::enum::Impure` if it must hold a live resource.)
+    ///
+    /// Detected in the same post-registration validation pass as the aggregate rule.
+    ImpureVariantFieldInPureEnum {
+        enum_name: String,
+        variant: String,
         field: String,
         field_ty: String,
     },
@@ -262,12 +278,20 @@ impl fmt::Display for TypeErrorKind {
                  hierarchy — {parent:?} is already a transitive subtype of {child:?}; \
                  refused at registration time so `is_subtype` cannot loop"
             ),
-            TypeErrorKind::NonPortableFieldInPortableAggregate { aggregate, field, field_ty } => write!(
+            TypeErrorKind::ImpureFieldInPureAggregate { aggregate, field, field_ty } => write!(
                 f,
-                "containment rule (arc 293.W): portable aggregate {aggregate:?} may only hold \
-                 portable fields — field {field:?} has non-portable (struct) type {field_ty:?}. \
+                "containment rule (arc 293.W): pure aggregate {aggregate:?} may only hold \
+                 pure fields — field {field:?} has impure (struct) type {field_ty:?}. \
                  A struct cannot be reconstructed from EDN bytes across a comms boundary; \
                  a record or holon holding a struct field could never cross — it must not exist."
+            ),
+            TypeErrorKind::ImpureVariantFieldInPureEnum { enum_name, variant, field, field_ty } => write!(
+                f,
+                "containment rule (arc 293.W.2b): :wat::enum::Pure enum {enum_name:?} may only hold \
+                 pure variant fields — variant {variant:?} field {field:?} has impure type \
+                 {field_ty:?}, which cannot be reconstructed from EDN bytes across an address-space \
+                 boundary. Declare the enum :wat::enum::Impure if it must hold a live resource (it then \
+                 stays in shared memory and never crosses)."
             ),
         }
     }

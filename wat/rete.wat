@@ -153,7 +153,7 @@
 ;; Node — the sum type over all MVP node records (exact defenum syntax per wat/service.wat).
 ;; Variants wrap their respective record. Used by compile + fire (stones 1b+);
 ;; the Session.network stores raw node records in v1 (the probe hand-builds with raw records).
-(:wat::core::defenum :wat::rete::Node
+(:wat::core::defenum :wat::rete::Node :wat::enum::Pure
   :AlphaNode       [node <- :wat::rete::AlphaNode]
   :RootJoinNode    [node <- :wat::rete::RootJoinNode]
   :HashJoinNode    [node <- :wat::rete::HashJoinNode]

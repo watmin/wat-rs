@@ -134,8 +134,9 @@ pub enum Holder {
 }
 
 impl Holder {
-    /// The R8 wire wall: structs never cross the wire; records (core + holon) do.
-    pub fn is_portable(&self) -> bool { !matches!(self, Holder::Struct) }
+    /// The purity wall: `Struct` permits impurity (holds resources); `Record`/`HolonRecord` guarantee purity.
+    /// Arc 293.W.2b — the purity predicate (was renamed from the symptom-name to the cause-name).
+    pub fn is_pure(&self) -> bool { !matches!(self, Holder::Struct) }
 
     /// Arc 293 K1a — the capability-ladder rank (the balanced trit). A required `:holder` on a surface
     /// is a FLOOR, not an exact kind: a candidate satisfies it iff `candidate.rank() >= required.rank()`.
@@ -168,6 +169,39 @@ impl Holder {
             ":wat::core::Record"        => Some(Holder::Record),
             ":wat::holon::Record" => Some(Holder::HolonRecord),
             _                     => None,
+        }
+    }
+}
+
+/// Arc 293.W.2b — `Purity` is the enum's purity axis, the sum-type counterpart of the aggregate's
+/// `Holder`. An enum has no *backing* (a sum is not "made of" a struct/record), so it declares
+/// PURITY directly — whether its values hold only pure data or may hold live resources:
+///   Pure   = values hold nothing but data (scalars, records, sums of data; fully EDN-reconstructable
+///            anywhere); they serialize to EDN and cross an address-space boundary (process / remote).
+///   Impure = values may hold live resources (Sender/socket/closure); bound to their locus; can
+///            drift between threads (shared memory, by reference) but never serialize, never leave.
+/// Declared (not derived) — mandatory `:wat::enum::Pure` | `:wat::enum::Impure` on `defenum`;
+/// the enum-containment pass enforces that a `Pure` enum holds only pure variant fields,
+/// exactly as the W.1 pass enforces it for a pure aggregate's fields. See `293/DESIGN-293.W § 293.W.2b`.
+/// (⊘ Supersedes `Mobility { Portable, Anchored }` / `:wat::enum::Portable|Anchored` — the movement-frame.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Purity {
+    Pure,
+    Impure,
+}
+
+impl Purity {
+    /// The purity wall for enums: a `Pure` enum's values cross address spaces; an `Impure` enum's never do.
+    /// Read by `is_pure_type`'s enum arm (mirrors `Holder::is_pure`).
+    pub fn is_pure(&self) -> bool { matches!(self, Purity::Pure) }
+
+    /// The single canonical marker-keyword → purity map, for `parse_defenum`'s mandatory marker.
+    /// Returns `None` for anything that is not one of the two `:wat::enum::*` markers.
+    pub fn from_marker_keyword(kw: &str) -> Option<Purity> {
+        match kw {
+            ":wat::enum::Pure"   => Some(Purity::Pure),
+            ":wat::enum::Impure" => Some(Purity::Impure),
+            _                    => None,
         }
     }
 }
@@ -208,6 +242,9 @@ impl AggregateDef {
 pub struct EnumDef {
     pub name: String,
     pub type_params: Vec<String>,
+    /// Arc 293.W.2b — the enum's purity, declared via the mandatory `:wat::enum::*` marker
+    /// on `defenum` (the sum-type counterpart of `AggregateDef.holder`).
+    pub purity: Purity,
     pub variants: Vec<EnumVariant>,
 }
 
@@ -510,6 +547,26 @@ impl TypeEnv {
             "built-in type {} registered twice",
             name
         );
+        // Arc 293.W.2b — register the holder-root subtype edge for Aggregate builtins,
+        // mirroring what `register` does for user-defined aggregates (types.rs:525-532).
+        // Without this edge, builtin Record types (e.g. :wat::kernel::Failure after its
+        // Holder::Struct → Holder::Record flip) have no entry in `subtype_edges`, so
+        // `is_subtype(":wat::kernel::Failure", ":wat::core::Record")` returns false and
+        // the accessor param-type check (accessor param = :wat::core::Record for monomorphic
+        // Record types) rejects callers passing the concrete type.
+        // Guard: skip the edge when the aggregate IS the root (e.g. :wat::core::Struct
+        // registering :wat::core::Struct <: :wat::core::Struct is a reflexive cycle).
+        // Builtins are registered acyclically (root comes first), so unwrap is safe.
+        if let TypeDef::Aggregate(agg) = &def {
+            let root = agg.holder.root_keyword();
+            let child = name.clone();
+            self.types.insert(name, def);
+            if child != root {
+                self.register_subtype(&child, root, Span::unknown())
+                    .expect("builtin aggregate subtype edge must not cycle");
+            }
+            return;
+        }
         self.types.insert(name, def);
     }
 
@@ -759,6 +816,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::eval::StepResult".into(),
         type_params: vec![],
+        purity: Purity::Impure, // in-locus eval-step control; carries WatAST forms — Impure (never crosses)
         variants: vec![
             EnumVariant::Tagged {
                 name: "StepNext".into(),
@@ -806,6 +864,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::eval::WalkStep".into(),
         type_params: vec!["A".into()],
+        purity: Purity::Impure, // in-locus walk control — Impure (never crosses)
         variants: vec![
             EnumVariant::Tagged {
                 name: "Continue".into(),
@@ -849,6 +908,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::ThreadDiedError".into(),
         type_params: vec![],
+        purity: Purity::Pure, // a death report — Pure (crosses back to the owner as EDN data)
         variants: vec![
             // Arc 105c: Panic variant carries TWO fields. `message`
             // is always populated. `failure` is `:Some(...)` when
@@ -900,6 +960,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::ProcessDiedError".into(),
         type_params: vec![],
+        purity: Purity::Pure, // a death report — Pure (crosses the process boundary as EDN data)
         variants: vec![
             EnumVariant::Tagged {
                 name: "Panic".into(),
@@ -946,7 +1007,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
     // location, and by future assertion primitives whose failure-payload
     // needs to cite file:line:col.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
         name: ":wat::kernel::Location".into(),
         type_params: vec![],
         fields: vec![
@@ -963,7 +1024,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `RUST_BACKTRACE` is enabled (otherwise the frames vec is empty).
     // Each field is Option because Rust's backtrace symbol resolution
     // can fail per-frame (stripped symbols, jit frames).
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
         name: ":wat::kernel::Frame".into(),
         type_params: vec![],
         fields: vec![
@@ -997,7 +1058,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // message / location / frames from `catch_unwind`; slice 3's
     // `:wat::test::assert-*` primitives additionally populate actual /
     // expected when the panic payload carries an AssertionPayload.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    // Arc 293.W.2b — Failure is pure EDN data (all fields are pure scalars/records); flipped
+    // Struct → Record. Location and Frame also flipped to Record (pure data, no live resources).
+    // This is the 2616-cascade root: ThreadDiedError/ProcessDiedError (Pure enums) carry
+    // `failure: Option<Failure>` — containment passes once Failure is a Record.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
         name: ":wat::kernel::Failure".into(),
         type_params: vec![],
         fields: vec![
@@ -1888,6 +1953,32 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     let name_kw = iter.next().unwrap();
     let (name, type_params) = parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
+    // Slot 1 — MANDATORY purity marker (arc 293.W.2b): the enum DECLARES whether its values are pure
+    // (hold only data, fully EDN-reconstructable anywhere) or impure (hold live resources, bound to
+    // their locus). One of `:wat::enum::Pure` | `:wat::enum::Impure`, positional, immediately after
+    // the name. No default — a default would mask intent (the surface-`:holder`-mandatory rule).
+    // Being namespaced, it is unmistakable from the bare Capitalized variant keywords that follow.
+    let purity = match iter.next() {
+        Some(WatAST::Keyword(k, _)) if Purity::from_marker_keyword(&k).is_some() => {
+            Purity::from_marker_keyword(&k).unwrap()
+        }
+        other => {
+            return Err(TypeError {
+                span: other.as_ref().map(|n| n.span().clone()).unwrap_or_else(|| decl_span.clone()),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: format!(
+                        "defenum requires a mandatory purity marker immediately after the name — \
+                         one of :wat::enum::Pure (values hold only data; serialize to EDN; cross \
+                         address spaces) | :wat::enum::Impure (values may hold live resources; \
+                         never cross); got {}",
+                        other.map(|n| format!("{:?}", n)).unwrap_or_else(|| "end of form".into()),
+                    ),
+                },
+            });
+        }
+    };
+
     // Collect remaining args for metadata + variants.
     let remaining: Vec<WatAST> = iter.collect();
 
@@ -2029,6 +2120,7 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     Ok(TypeDef::Enum(EnumDef {
         name,
         type_params,
+        purity,
         variants,
     }))
 }
@@ -3445,7 +3537,7 @@ mod tests {
     #[test]
     fn unit_variant_enum() {
         // Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-        let (env, _) = collect(r#"(:wat::core::defenum :my::Direction :up :down :left :right)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::defenum :my::Direction :wat::enum::Pure :up :down :left :right)"#).unwrap();
         if let TypeDef::Enum(e) = env.get(":my::Direction").unwrap() {
             assert_eq!(e.variants.len(), 4);
             assert!(matches!(&e.variants[0], EnumVariant::Unit(n) if n == "up"));
@@ -3458,7 +3550,7 @@ mod tests {
     fn tagged_variant_enum() {
         // Stone 241.9 — migrated to defenum positional + argspec-Vector form.
         let (env, _) = collect(
-            r#"(:wat::core::defenum :my::Event
+            r#"(:wat::core::defenum :my::Event :wat::enum::Pure
                   :empty
                   :candle  [open <- :f64 close <- :f64]
                   :deposit [amount <- :f64])"#,
@@ -3483,7 +3575,7 @@ mod tests {
     fn parametric_enum() {
         // Stone 241.9 — migrated to defenum form.
         let (env, _) = collect(
-            r#"(:wat::core::defenum :my::Option<T>
+            r#"(:wat::core::defenum :my::Option<T> :wat::enum::Pure
                   :none
                   :some [value <- :T])"#,
         )

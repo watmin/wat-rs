@@ -18,7 +18,7 @@
      go-var   (:wat::core::keyword/from-string (:wat::core::string::concat base-str "::Op::Go"))]
     `(:wat::core::do
        (:wat::core::defrecord ~req-name [n <- :wat::core::i64])
-       (:wat::core::defenum ~op-name :Go [req <- ~req-ty])
+       (:wat::core::defenum ~op-name :wat::enum::Pure :Go [req <- ~req-ty])
        (:wat::core::defn ~go-name [n <- :wat::core::i64] -> :wat::core::i64
          (:wat::core::match (~go-var (~req-name n)) -> :wat::core::i64
            ((~go-var req) (~acc-name req)))))))

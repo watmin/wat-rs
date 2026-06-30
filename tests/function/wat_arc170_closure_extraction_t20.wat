@@ -1,5 +1,5 @@
 ;; T20: user enum Shape with tagged variants Rect/Circle — pattern bindings w,h,r must not be free.
-(:wat::core::defenum :my::Shape
+(:wat::core::defenum :my::Shape :wat::enum::Pure
   :Rect [w <- :wat::core::i64
          h <- :wat::core::i64]
   :Circle [r <- :wat::core::i64])

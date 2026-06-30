@@ -26,7 +26,7 @@
 ;; registry and emits named fields (:price :qty) rather than (:field-0 :field-1).
 
 (:wat::test::make-deftest :deftest
-  ((:wat::core::defenum :test::edn::nt::Event
+  ((:wat::core::defenum :test::edn::nt::Event :wat::enum::Pure
      :Buy  [price <- :wat::core::f64
             qty   <- :wat::core::i64]
      :Sell [price  <- :wat::core::f64

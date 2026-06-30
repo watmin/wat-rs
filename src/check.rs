@@ -10570,7 +10570,7 @@ fn infer_make_channel(
                 // messages, not resources; the payload type must be portable
                 // (wire-serializable / universe-crossable). Mirrors the
                 // value-level classifier in closure_extract.rs.
-                if !is_portable_type(&t, env.types()) {
+                if !is_pure_type(&t, env.types()) {
                     local_errors.push(CheckError {
                         span: args[0].span().clone(),
                         kind: CheckErrorKind::MalformedForm {
@@ -11666,7 +11666,7 @@ fn infer_send_prime(
     // space, no serialization (§7 — a struct is in-locus only).
     //
     // GUARD: skip when the resolved payload type is still a type variable
-    // (unresolved inference var). `is_portable_type` is conservatively false for
+    // (unresolved inference var). `is_pure_type` is conservatively false for
     // Var — that is the right policy for channel-declaration gates (254.1), where
     // the keyword argument is always concrete. At a send' call site, the payload
     // type may still be a fresh var when the caller is itself polymorphic (e.g.
@@ -11676,7 +11676,7 @@ fn infer_send_prime(
     if is_wire {
         let resolved = apply_subst(&payload_ty, subst);
         let is_concrete_non_portable = !matches!(resolved, TypeExpr::Var(_))
-            && !is_portable_type(&resolved, env.types());
+            && !is_pure_type(&resolved, env.types());
         if is_concrete_non_portable {
             local_errors.push(CheckError {
                 span: args[1].span().clone(),
@@ -13466,7 +13466,7 @@ fn infer_polymorphic_holon_pair_to_f64(
         let resolved = apply_subst(t, subst);
         // Arc 294.a — widen: accept any EDN-representable value (portable type) in addition
         // to the algebra-native types. The runtime lifts via to_holon_inner internally.
-        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
+        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -13479,7 +13479,7 @@ fn infer_polymorphic_holon_pair_to_f64(
         let resolved = apply_subst(t, subst);
         // Arc 294.a — widen: accept any EDN-representable value (portable type) in addition
         // to the algebra-native types. The runtime lifts via to_holon_inner internally.
-        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
+        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -13567,38 +13567,39 @@ fn is_holon_or_record(t: &TypeExpr, types: &crate::types::TypeEnv) -> bool {
 ///
 /// A type is portable (wire-serializable / universe-crossable) iff it can be
 /// reconstructed in a fresh world. Mirrors `closure_extract.rs`'s value-level
-/// split in `encode_value_with_path` (portable arms ~1492-1544; non-portable
+/// split in `encode_value_with_path` (pure arms ~1492-1544; impure
 /// arms ~1729-1745).
 ///
 /// Classification:
-/// - **Portable scalars** (Path): `i64`, `f64`, `bool`, `u8`, `String`,
+/// - **Pure scalars** (Path): `i64`, `f64`, `bool`, `u8`, `String`,
 ///   `keyword`, `Uuid`, `Char`, `nil` — exactly the primitive arms of the
 ///   value-level encoder.
-/// - **Portable containers** (Parametric with portable element types):
+/// - **Pure containers** (Parametric with pure element types):
 ///   `Vector`, `List`, `HashMap`, `HashSet`, `Option`, `Result`, `Tuple`.
-/// - **Tuples**: all elements must be portable.
+/// - **Tuples**: all elements must be pure.
 /// - **User types** (Path resolved via TypeEnv):
-///   - `TypeDef::Aggregate(kind=Record|HolonRecord)` — portable by construction (holon-representable).
-///   - `TypeDef::Aggregate(kind=Struct)` — categorically non-portable (structs never cross the wire).
-///   - `TypeDef::Enum` — portable iff every variant's field types are portable.
-///   - `TypeDef::Newtype` — portable iff inner type is portable.
+///   - `TypeDef::Aggregate(kind=Record|HolonRecord)` — pure by declaration (guaranteed pure fields).
+///   - `TypeDef::Aggregate(kind=Struct)` — categorically impure (structs never cross the wire).
+///   - `TypeDef::Enum` — pure iff declared `:wat::enum::Pure` (DECLARED, not derived).
+///   - `TypeDef::Newtype` — pure iff inner type is pure.
 ///   - `TypeDef::Alias` — transparent (expand_alias handles this in `reduce`).
-///   - `TypeDef::Union` — conservative: false (union members may be non-portable).
-/// - **Non-portable** (Parametric with non-portable head regardless of args):
+///   - `TypeDef::Union` — conservative: false (union members may be impure).
+/// - **Impure** (Parametric with impure head regardless of args):
 ///   `Sender`, `Receiver`, `ProgramHandle`, `HandlePool`.
-/// - **Non-portable** (Path): `ChildHandle`, `IOReader`, `IOWriter`,
+/// - **Impure** (Path): `ChildHandle`, `IOReader`, `IOWriter`,
 ///   `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`, `Hologram`.
 /// - `TypeExpr::Fn` — closures never cross universe boundaries.
-/// - `TypeExpr::Var` — unresolved type variable; conservatively non-portable.
-pub(crate) fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
+/// - `TypeExpr::Var` — unresolved type variable; conservatively impure.
+/// (Arc 293.W.2b — renamed from `is_pure_type`; the cause is purity, not movement.)
+pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
     // Canonicalize: expand aliases and walk through any substitution.
     let ty = reduce(ty, &Subst::new(), types);
     match &ty {
         TypeExpr::Fn { .. } => false,
         TypeExpr::Var(_) => false,
-        TypeExpr::Tuple(elems) => elems.iter().all(|e| is_portable_type(e, types)),
+        TypeExpr::Tuple(elems) => elems.iter().all(|e| is_pure_type(e, types)),
         TypeExpr::Parametric { head, args } => {
-            // Non-portable parametric heads regardless of type args.
+            // Impure parametric heads regardless of type args.
             match head.as_str() {
                 "rust::crossbeam_channel::Sender"
                 | "rust::crossbeam_channel::Receiver"
@@ -13606,17 +13607,17 @@ pub(crate) fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::kernel::Receiver"
                 | "wat::kernel::ProgramHandle"
                 | "wat::kernel::HandlePool" => false,
-                // Portable container: portable iff all type args are portable.
+                // Pure container: pure iff all type args are pure.
                 // Vector<T>, List<T>, Option<T>, Result<T,E>, HashMap<K,V>,
                 // HashSet<T>, Tuple<...> — any other parametric is conservatively
-                // portable-if-args-portable (falls through to the arg check).
-                _ => args.iter().all(|a| is_portable_type(a, types)),
+                // pure-if-args-pure (falls through to the arg check).
+                _ => args.iter().all(|a| is_pure_type(a, types)),
             }
         }
         TypeExpr::Path(p) => {
             // Strip leading ':' for TypeEnv lookup.
             let bare = p.strip_prefix(':').unwrap_or(p.as_str());
-            // Well-known non-portable opaque paths (not parametric).
+            // Well-known impure opaque paths (not parametric).
             match bare {
                 "wat::kernel::ChildHandle"
                 | "wat::io::IOReader"
@@ -13628,7 +13629,7 @@ pub(crate) fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::holon::Hologram" => return false,
                 _ => {}
             }
-            // Well-known portable scalar paths.
+            // Well-known pure scalar paths.
             match bare {
                 "wat::core::i64"
                 | "wat::core::f64"
@@ -13640,29 +13641,28 @@ pub(crate) fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::core::char"
                 | "wat::core::nil"
                 | "wat::core::unit"
-                // the :wat::core::Record umbrella means "any record" — portable;
+                // the :wat::core::Record umbrella means "any record" — pure;
                 // assignability rejects structs from it (293.W b2).
                 // Must short-circuit BEFORE the types.get(p) aggregate arm, which
                 // sees Record registered as Holder::Struct (opaque umbrella) and
-                // would return a FALSE POSITIVE non-portable verdict.
+                // would return a FALSE POSITIVE impure verdict.
                 | "wat::core::Record" => return true,
                 _ => {}
             }
             // Look up user-defined types.
             match types.get(p) {
-                // Arc 293.2b — Holder::is_portable() encodes the wire wall:
-                // Record | HolonRecord → portable; Struct → non-portable.
-                Some(crate::types::TypeDef::Aggregate(a)) => a.holder.is_portable(),
-                // Enum: treated as portable at the type level. Enum variant
-                // fields may include Receiver<T> in substrate service-control
-                // enums (e.g. StdOutService::Event) — recursing into them
-                // would over-reject legitimate stdlib usage. The probe target
-                // (254.1) is struct payloads with direct non-portable fields;
-                // enum payload portability is not yet enforced.
-                Some(crate::types::TypeDef::Enum(_)) => true,
-                // Newtype: portable iff inner type is portable.
+                // Arc 293.2b — Holder::is_pure() encodes the purity wall:
+                // Record | HolonRecord → pure; Struct → impure.
+                Some(crate::types::TypeDef::Aggregate(a)) => a.holder.is_pure(),
+                // Arc 293.W.2b — an enum's purity is DECLARED via its `Purity` marker
+                // (`:wat::enum::Pure` | `:wat::enum::Impure`), read here exactly like the
+                // aggregate's `holder` above. The enum-containment pass
+                // (`validate_aggregate_containment`) guarantees a `Pure` enum holds only pure
+                // variant fields, so reading the declaration is total (no recursion through the sum).
+                Some(crate::types::TypeDef::Enum(e)) => e.purity.is_pure(),
+                // Newtype: pure iff inner type is pure.
                 Some(crate::types::TypeDef::Newtype(n)) => {
-                    is_portable_type(&n.inner, types)
+                    is_pure_type(&n.inner, types)
                 }
                 // Alias: expand_alias in reduce should have handled this;
                 // treat remaining as portable (alias will have been expanded).
@@ -13695,7 +13695,7 @@ pub(crate) fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
 /// are fully registered — because fields may forward-reference types not yet
 /// registered when the aggregate itself registers. Running inline at
 /// registration would miss those forward references (unknown paths fall to
-/// "portable by convention" in `is_portable_type`'s `None` arm).
+/// "portable by convention" in `is_pure_type`'s `None` arm).
 ///
 /// Returns the first violation found, naming the aggregate, the offending
 /// field, and the non-portable type. The caller (the startup pipeline in
@@ -13703,15 +13703,15 @@ pub(crate) fn is_portable_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
 pub(crate) fn validate_aggregate_containment(
     env: &crate::types::TypeEnv,
 ) -> Result<(), TypeError> {
-    use crate::types::TypeDef;
+    use crate::types::{TypeDef, EnumVariant};
     for (name, def) in env.iter() {
-        if let TypeDef::Aggregate(a) = def {
-            if a.holder.is_portable() {
+        match def {
+            TypeDef::Aggregate(a) if a.holder.is_pure() => {
                 for (fname, fty) in &a.fields {
-                    if !is_portable_type(fty, env) {
+                    if !is_pure_type(fty, env) {
                         return Err(TypeError {
                             span: crate::span::Span::unknown(),
-                            kind: TypeErrorKind::NonPortableFieldInPortableAggregate {
+                            kind: TypeErrorKind::ImpureFieldInPureAggregate {
                                 aggregate: name.clone(),
                                 field: fname.clone(),
                                 field_ty: format_type(fty),
@@ -13720,6 +13720,28 @@ pub(crate) fn validate_aggregate_containment(
                     }
                 }
             }
+            // Arc 293.W.2b — the enum counterpart: a `Pure` enum may declare only pure
+            // variant fields (an `Impure` enum is unrestricted — it never crosses).
+            TypeDef::Enum(e) if e.purity.is_pure() => {
+                for variant in &e.variants {
+                    if let EnumVariant::Tagged { name: vname, fields } = variant {
+                        for (fname, fty) in fields {
+                            if !is_pure_type(fty, env) {
+                                return Err(TypeError {
+                                    span: crate::span::Span::unknown(),
+                                    kind: TypeErrorKind::ImpureVariantFieldInPureEnum {
+                                        enum_name: name.clone(),
+                                        variant: vname.clone(),
+                                        field: fname.clone(),
+                                        field_ty: format_type(fty),
+                                    },
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
     Ok(())
@@ -13845,7 +13867,7 @@ fn infer_polymorphic_holon_pair_to_bool(
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         // Arc 294.a — widen: accept any EDN-representable value (portable type).
-        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
+        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -13857,7 +13879,7 @@ fn infer_polymorphic_holon_pair_to_bool(
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
         // Arc 294.a — widen: accept any EDN-representable value (portable type).
-        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
+        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -13904,7 +13926,7 @@ fn infer_polymorphic_holon_pair_to_path(
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         // Arc 294.a — widen: accept any EDN-representable value (portable type).
-        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
+        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -13916,7 +13938,7 @@ fn infer_polymorphic_holon_pair_to_path(
     if let Some(t) = &b_ty {
         let resolved = apply_subst(t, subst);
         // Arc 294.a — widen: accept any EDN-representable value (portable type).
-        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
+        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -13957,7 +13979,7 @@ fn infer_polymorphic_holon_to_i64(
     if let Some(t) = &a_ty {
         let resolved = apply_subst(t, subst);
         // Arc 294.a — widen: accept any EDN-representable value (portable type).
-        if !is_holon_or_vector(&resolved, env.types()) && !is_portable_type(&resolved, env.types()) {
+        if !is_holon_or_vector(&resolved, env.types()) && !is_pure_type(&resolved, env.types()) {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#1".into(),
@@ -14832,7 +14854,7 @@ fn derived_holder(t: &TypeExpr, types: &TypeEnv) -> crate::types::Holder {
     }
     if is_holon_or_vector(t, types) {
         Holder::HolonRecord
-    } else if is_portable_type(t, types) {
+    } else if is_pure_type(t, types) {
         Holder::Record
     } else {
         Holder::Struct
@@ -20658,7 +20680,7 @@ mod tests {
         // `:my::Box<T>`, match patterns reference variants under the
         // bare `:my::Box::*` prefix.
         let src = r#"
-            (:wat::core::defenum :my::Box<T>
+            (:wat::core::defenum :my::Box<T> :wat::enum::Pure
               :Empty
               :Filled [value <- :T])
 
@@ -20681,7 +20703,7 @@ mod tests {
         // Two type params, tagged variants. Mirrors arc 119's
         // `:wat::lru::Request<K,V>` shape directly.
         let src = r#"
-            (:wat::core::defenum :my::Either<L,R>
+            (:wat::core::defenum :my::Either<L,R> :wat::enum::Pure
               :Left  [value <- :L]
               :Right [value <- :R])
 
@@ -20705,7 +20727,7 @@ mod tests {
         // instantiation. If the scrutinee is :my::Box<i64>, then
         // (Filled v) must bind v as :i64.
         let src = r#"
-            (:wat::core::defenum :my::Box<T>
+            (:wat::core::defenum :my::Box<T> :wat::enum::Pure
               :Empty
               :Filled [value <- :T])
 

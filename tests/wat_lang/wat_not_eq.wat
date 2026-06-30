@@ -10,7 +10,7 @@
   (:wat::core::not= 7 7))
 
 ;; test4: enum unit variant equality via = and not=
-(:wat::core::defenum :my::Color :Red :Blue :Green)
+(:wat::core::defenum :my::Color :wat::enum::Pure :Red :Blue :Green)
 
 (:wat::core::defn :t::test4-enum-eq [] -> :wat::core::bool
   (:wat::core::let

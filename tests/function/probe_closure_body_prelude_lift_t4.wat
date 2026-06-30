@@ -4,7 +4,7 @@
               (:wat::core::forms
                 (:wat::core::defstruct :h::LocalItem
                   [value <- :wat::core::i64])
-                (:wat::core::defenum :h::LocalKind
+                (:wat::core::defenum :h::LocalKind :wat::enum::Pure
                   :A
                   :B)
                 (:wat::core::defn :h::make-item [] -> :h::LocalItem

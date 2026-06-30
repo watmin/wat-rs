@@ -11,7 +11,7 @@
 ;;   :thread  — shares the parent's address space (a thread peer)
 ;;   :process — owns its own address space (the root :user::main, OR a forked process peer)
 ;; The root :user::main owns its address space → seam stamps :process.
-(:wat::core::defenum :wat::program::PeerKind
+(:wat::core::defenum :wat::program::PeerKind :wat::enum::Pure
   :thread
   :process)
 

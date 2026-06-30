@@ -124,7 +124,7 @@
 ;; Mirror Peer'<I,O>: the accepted peer is Peer'<I,O>, message is O.
 ;; Arc 291 3a-i: A is the self-peer's receive type (owner→service admin channel).
 ;;
-(:wat::core::defenum :wat::spawn::ServiceEvent<I,O,A>
+(:wat::core::defenum :wat::spawn::ServiceEvent<I,O,A> :wat::enum::Impure
   :Shutdown                                                              ;; owner dropped the handle (self-peer drained) — exit; deadlock-free termination
   :Admin      [msg   <- :A]                                             ;; owner sent an admin op over the lineage peer (Ok path); A = self-peer's recv type
   :Connection [peer  <- :wat::kernel::Peer'<I,O>]

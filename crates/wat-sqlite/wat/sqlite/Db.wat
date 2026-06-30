@@ -44,7 +44,7 @@
 ;; each value at the call site is explicitly tagged with its
 ;; SQLite affinity. rusqlite hides this on the Rust side via
 ;; `params![]`; wat surfaces it.
-(:wat::core::defenum :wat::sqlite::Param
+(:wat::core::defenum :wat::sqlite::Param :wat::enum::Pure
   :I64  [n <- :wat::core::i64]
   :F64  [x <- :wat::core::f64]
   :Str  [s <- :wat::core::String]

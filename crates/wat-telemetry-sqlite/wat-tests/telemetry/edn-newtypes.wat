@@ -14,7 +14,7 @@
 ;; NoTag column should not.
 
 (:wat::test::make-deftest :deftest
-  ((:wat::core::defenum :test::Edn::Event
+  ((:wat::core::defenum :test::Edn::Event :wat::enum::Pure
      :Log [data    <- :wat::edn::Tagged
            subject <- :wat::edn::NoTag])
 

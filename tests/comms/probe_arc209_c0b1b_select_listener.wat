@@ -1,7 +1,7 @@
 ;; tests/comms/probe_arc209_c0b1b_select_listener.wat — co-located fixture slurped via startup_beside(file!()).
 ;; Arc 209 C0b.1b / C0b.2e-i-c — poll' as service multiplexer + ServiceEvent<I,O> sum.
 
-(:wat::core::defenum :user::Op
+(:wat::core::defenum :user::Op :wat::enum::Pure
   :Compute [n <- :wat::core::i64])
 
 (:wat::core::defn :user::serve

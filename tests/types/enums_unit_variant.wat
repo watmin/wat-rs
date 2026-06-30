@@ -1,5 +1,5 @@
 ;; enums_unit_variant.wat — unit variant construction + match.
-(:wat::core::defenum :my::Color :Red :Green :Blue)
+(:wat::core::defenum :my::Color :wat::enum::Pure :Red :Green :Blue)
 (:wat::core::defn :my::pick [] -> :my::Color :my::Color::Green)
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match (:my::pick) -> :wat::core::nil

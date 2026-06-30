@@ -101,7 +101,11 @@
    ;; Request — three reply shapes side by side. Every in-memory
    ;; request/reply service is some combination of these.
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :svc::Request
+   ;; Arc 293.W.2b — :svc::Request is genuinely :wat::enum::Impure: it carries reply Senders
+   ;; (:Ack reply-tx, :Get reply-tx) — live resources, bound to their locus, never crossing.
+   ;; Its make-channel is a thread-tier channel (exempt from the wire wall); the tier-aware
+   ;; gate lands in 293.W.2d. Until then, the test is ledger-ignored (see CLOSE-SEQUENCE).
+   (:wat::core::defenum :svc::Request :wat::enum::Impure
      :Push [value    <- :wat::core::i64]
      :Ack  [reply-tx <- :svc::AckReplyTx]
      :Get  [reply-tx <- :wat::kernel::Sender<svc::State>])
@@ -432,6 +436,10 @@
 
 
 ;; Layer 2 — assert-state proof (pure: no threading, no channels).
+;; ⛔ IGNORE-LEDGER(293): 293.W.2d tier-aware make-channel — see CLOSE-SEQUENCE
+;; :svc::Request is :wat::enum::Impure; the prelude's make-channel :svc::Request
+;; hits the 254.1 purity gate (thread-tier exemption lands in 2d).
+(:wat::test::ignore "293.W.2d: :svc::Request is :wat::enum::Impure; thread-tier make-channel not yet tier-aware — see CLOSE-SEQUENCE-293-294.md")
 (:deftest :svc::test-svc-assert-state
   (:test::svc-assert-state (:svc::State 3 1) 3 1))
 

@@ -1,5 +1,5 @@
 ;; enums_tagged_variant.wat — tagged variant construction + match with binders.
-(:wat::core::defenum :my::Event
+(:wat::core::defenum :my::Event :wat::enum::Pure
   :Candle  [open <- :wat::core::f64 close <- :wat::core::f64]
   :Deposit [amount <- :wat::core::f64]
   :Nothing)

@@ -54,7 +54,7 @@
 ;; Vec<Option<V>>; Put returns PutAck carrying unit. Both verbs share ONE
 ;; reply channel per slot (pair-by-index via HandlePool). Replaces the
 ;; old per-verb channel families (PutAck* + bare-Sender ReplyTx<V>).
-(:wat::core::defenum :wat::lru::Reply<V>
+(:wat::core::defenum :wat::lru::Reply<V> :wat::enum::Pure
   :GetResult [results <- :wat::core::Vector<wat::core::Option<V>>]
   :PutAck [unit <- :wat::core::nil])
 
@@ -83,7 +83,7 @@
 ;; Request<K,V> — enum-based (arc 119); embedded channels removed (arc 130).
 ;;   Get carries a Vec<K> probe batch; driver replies via indexed ReplyTx.
 ;;   Put carries a Vec<Entry<K,V>> entries batch; driver replies PutAck via same.
-(:wat::core::defenum :wat::lru::Request<K,V>
+(:wat::core::defenum :wat::lru::Request<K,V> :wat::enum::Pure
   :Get [probes <- :wat::core::Vector<K>]
   :Put [entries <- :wat::core::Vector<wat::lru::Entry<K,V>>])
 
@@ -116,7 +116,10 @@
 ;; Both are required; pass null-reporter / null-metrics-cadence for
 ;; the explicit "no reporting" choice.
 
-(:wat::core::defstruct :wat::lru::Stats
+;; Arc 293.W.2b — Stats is pure EDN data (only i64 counters; EDN-reconstructable across
+;; address spaces). Changed from defstruct to defrecord so it can be held in the Pure
+;; Report enum (containment rule: Pure enum may hold only pure variant fields).
+(:wat::core::defrecord :wat::lru::Stats
   [lookups    <- :wat::core::i64   ;; total Gets (in probe count) in this window
    hits       <- :wat::core::i64   ;; probe slots returning Some
    misses     <- :wat::core::i64   ;; probe slots returning :None
@@ -127,7 +130,7 @@
 ;; Future variants (lifecycle, errors, evictions) extend additively
 ;; without breaking consumers — same grow-by-arms pattern as the
 ;; archive's TreasuryRequest.
-(:wat::core::defenum :wat::lru::Report
+(:wat::core::defenum :wat::lru::Report :wat::enum::Pure
   :Metrics [stats <- :wat::lru::Stats])
 
 ;; MetricsCadence<G> — stateful rate gate. The user picks G; the

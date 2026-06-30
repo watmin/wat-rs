@@ -32,7 +32,7 @@
 ;; Arc 241.9 — `:wat::core::enum` was hard-cut in favour of
 ;; `:wat::core::defenum` (keyword variant heads + argspec-triple
 ;; tagged fields). Same two flat-field variants, new declaration form.
-(:wat::core::defenum :wat::telemetry::Event
+(:wat::core::defenum :wat::telemetry::Event :wat::enum::Pure
   :Metric [start-time-ns <- :wat::core::i64              ; wu start (wall-clock epoch ns)
            end-time-ns   <- :wat::core::i64              ; wu end
            namespace     <- :wat::edn::NoTag             ; producing fn's fqdn keyword

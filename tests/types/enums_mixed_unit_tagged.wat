@@ -1,5 +1,5 @@
 ;; enums_mixed_unit_tagged.wat — mixed unit + tagged arms in one match.
-(:wat::core::defenum :my::Event
+(:wat::core::defenum :my::Event :wat::enum::Pure
   :Open [size <- :wat::core::f64]
   :Hold)
 (:wat::core::defn :my::act [e <- :my::Event] -> :wat::core::String

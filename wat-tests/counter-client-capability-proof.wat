@@ -46,7 +46,7 @@
    ;; Unit variants use (VariantName) list syntax per substrate honest delta.
    ;; Payload variant uses named field per substrate honest delta.
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :counter::Request
+   (:wat::core::defenum :counter::Request :wat::enum::Pure
      :Get
      :Increment [n <- :wat::core::i64]
      :Reset
@@ -56,7 +56,7 @@
    ;;   Value — reply to Get; carries the current (unchanged) state
    ;;   Ok    — reply to Increment and Reset; carries the new state
    ;;   Final — convention: reply to Shutdown; carries the terminal state
-   (:wat::core::defenum :counter::Response
+   (:wat::core::defenum :counter::Response :wat::enum::Pure
      :Value [v <- :wat::core::i64]
      :Ok    [v <- :wat::core::i64]
      :Final [v <- :wat::core::i64])

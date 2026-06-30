@@ -14,7 +14,7 @@
 ;;   :Fn          — a user-defined :wat::core::defn
 ;;   :Macro       — a user-defined :wat::core::defmacro
 ;;   :SpecialForm — a substrate special form (no NativeHandler; runtime-dispatched)
-(:wat::core::defenum :wat::runtime::Kind
+(:wat::core::defenum :wat::runtime::Kind :wat::enum::Pure
   :Macro
   :Fn
   :Intrinsic
@@ -23,14 +23,14 @@
 ;; DefinedIn — implementation language.
 ;;   :Rust — written in Rust (all intrinsics)
 ;;   :Wat  — written in wat (user defn / defmacro)
-(:wat::core::defenum :wat::runtime::DefinedIn
+(:wat::core::defenum :wat::runtime::DefinedIn :wat::enum::Pure
   :Wat
   :Rust)
 
 ;; Layer — where in the system stack does this live?
 ;;   :Substrate — kernel/stdlib layer (all intrinsics)
 ;;   :Userland  — user-written code above the substrate
-(:wat::core::defenum :wat::runtime::Layer
+(:wat::core::defenum :wat::runtime::Layer :wat::enum::Pure
   :Substrate
   :Userland)
 
@@ -38,7 +38,7 @@
 ;;   :Pure      — produces the same output for the same input, no observable side effects
 ;;   :Effectful — has observable side effects (I/O, mutation, etc.)
 ;;   :Preserving — special forms that preserve the purity of their sub-forms
-(:wat::core::defenum :wat::runtime::Purity
+(:wat::core::defenum :wat::runtime::Purity :wat::enum::Pure
   :Pure
   :Effectful
   :Preserving)
@@ -47,7 +47,7 @@
 ;;   :Deterministic    — same input always produces same output
 ;;   :Nondeterministic — output may differ across calls (e.g. UUID, random)
 ;;   :Preserving       — special forms that preserve the determinism of their sub-forms
-(:wat::core::defenum :wat::runtime::Determinism
+(:wat::core::defenum :wat::runtime::Determinism :wat::enum::Pure
   :Deterministic
   :Nondeterministic
   :Preserving)
@@ -57,7 +57,7 @@
 ;;   :Reflection  — reflection and introspection
 ;;   :ControlFlow — control flow special forms (if, cond, etc.)
 ;;   :Binding     — binding special forms (let, etc.)
-(:wat::core::defenum :wat::runtime::Category
+(:wat::core::defenum :wat::runtime::Category :wat::enum::Pure
   :Encoding
   :Reflection
   :ControlFlow

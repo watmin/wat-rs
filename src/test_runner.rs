@@ -664,7 +664,7 @@ fn failure_to_diagnostic(v: &Value) -> Option<crate::diagnostic::Diagnostic> {
         None => return None,
     };
     let fv = match failure {
-        Value::Aggregate(a) if a.holder == Holder::Struct && a.class == "wat::kernel::Failure" => a,
+        Value::Aggregate(a) if a.holder == Holder::Record && a.class == "wat::kernel::Failure" => a,
         _ => {
             return Some(
                 Diagnostic::new("MalformedTestResult")
@@ -819,7 +819,7 @@ fn failure_location(v: &Value) -> Option<String> {
     };
     let inner = opt.as_ref().as_ref()?;
     let loc = match inner {
-        Value::Aggregate(a) if a.holder == Holder::Struct && a.class == "wat::kernel::Location" => a,
+        Value::Aggregate(a) if a.holder == Holder::Record && a.class == "wat::kernel::Location" => a,
         _ => return None,
     };
     let file = match loc.fields.first()? {
@@ -851,7 +851,7 @@ fn failure_frames_vec(v: &Value) -> Option<Vec<String>> {
     let mut out = Vec::with_capacity(xs.len());
     for frame_v in xs.iter() {
         let f = match frame_v {
-            Value::Aggregate(a) if a.holder == Holder::Struct && a.class == "wat::kernel::Frame" => a,
+            Value::Aggregate(a) if a.holder == Holder::Record && a.class == "wat::kernel::Frame" => a,
             _ => continue,
         };
         let file = f
@@ -943,11 +943,12 @@ mod arc116_diagnostic_tests {
     ) -> Value {
         let location_field = match location {
             Some((file, line, col)) => Value::Option(Arc::new(Some(Value::Aggregate(Arc::new(
-                AggregateValue::struct_("wat::kernel::Location".into(), vec![
+                // Arc 293.W.2b — Location is now Holder::Record (pure EDN data)
+                AggregateValue::record("wat::kernel::Location".into(), Arc::new(vec![
                     Value::String(Arc::new(file.to_string())),
                     Value::i64(line),
                     Value::i64(col),
-                ]),
+                ])),
             ))))),
             None => Value::Option(Arc::new(None)),
         };
@@ -959,13 +960,14 @@ mod arc116_diagnostic_tests {
             Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s.to_string()))))),
             None => Value::Option(Arc::new(None)),
         };
-        Value::Aggregate(Arc::new(AggregateValue::struct_("wat::kernel::Failure".into(), vec![
+        // Arc 293.W.2b — Failure is now Holder::Record (pure EDN data)
+        Value::Aggregate(Arc::new(AggregateValue::record("wat::kernel::Failure".into(), Arc::new(vec![
             Value::String(Arc::new(message.to_string())),
             location_field,
             Value::Vec(Arc::new(Vec::new())), // no frames
             actual_field,
             expected_field,
-        ])))
+        ]))))
     }
 
     fn make_run_result(failure: Option<Value>) -> Value {

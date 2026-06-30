@@ -12,7 +12,7 @@
 (:wat::test::make-deftest :deftest
   (;; Test enum + struct used across the deftests below.
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :test::Event
+   (:wat::core::defenum :test::Event :wat::enum::Pure
      :Buy  [price <- :wat::core::f64
             qty   <- :wat::core::i64]
      :Sell [price  <- :wat::core::f64

@@ -67,24 +67,24 @@
 (:wat::test::deftest :counter-service::capability-N3
   (;; ─── Admin protocol ──────────────────────────────────────────────────────
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :counter::AdminReq
+   (:wat::core::defenum :counter::AdminReq :wat::enum::Pure
      :Provision   [initial <- :wat::core::i64]
      :Deprovision [id      <- :wat::core::Uuid]
      :Stop)
 
-   (:wat::core::defenum :counter::AdminResp
+   (:wat::core::defenum :counter::AdminResp :wat::enum::Pure
      :Provisioned   [id <- :wat::core::Uuid tx <- :wat::kernel::Sender<counter::Wire> rx <- :wat::kernel::Receiver<counter::UserResp>]
      :Deprovisioned [id <- :wat::core::Uuid]
      :Stopped
      :AccessDenied)                           ;; server refused — server-id mismatch
 
    ;; ─── User protocol ───────────────────────────────────────────────────────
-   (:wat::core::defenum :counter::UserReq
+   (:wat::core::defenum :counter::UserReq :wat::enum::Pure
      :Get
      :Increment [n <- :wat::core::i64]
      :Reset)
 
-   (:wat::core::defenum :counter::UserResp
+   (:wat::core::defenum :counter::UserResp :wat::enum::Pure
      :Value [v <- :wat::core::i64]
      :Ok    [v <- :wat::core::i64]
      :AccessDenied)                           ;; server refused — server-id mismatch
@@ -94,7 +94,7 @@
    ;; Every wrapper embeds the capability's server-id when constructing Wire.
    ;; The server validates server-id against its own before processing.
    ;; Arc 207: server-id and user-id are typed :wat::core::Uuid.
-   (:wat::core::defenum :counter::Wire
+   (:wat::core::defenum :counter::Wire :wat::enum::Pure
      :Admin [server-id <- :wat::core::Uuid req <- :counter::AdminReq]
      :User  [server-id <- :wat::core::Uuid user-id <- :wat::core::Uuid req <- :counter::UserReq])
 
@@ -115,7 +115,7 @@
    ;;   - recv Ok(None) → Disconnected
    ;;   - recv Err → PeerDied (Shutdown chain — rare, process-wide shutdown)
    ;;   - drain-and-join Err → PeerDied (chain)
-   (:wat::core::defenum :counter::ServiceError
+   (:wat::core::defenum :counter::ServiceError :wat::enum::Pure
      :AccessDenied
      :PeerDied   [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>]
      :Disconnected)
