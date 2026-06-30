@@ -14609,6 +14609,39 @@ fn unify_union_union(
     Err(UnifyError)
 }
 
+/// Arc 293 K1b — a type's holder for the contravariant satisfaction ladder. An aggregate uses its
+/// DECLARED holder; a foreign type DERIVES one from its capability (holon/vector -> HolonRecord,
+/// edn-repr -> Record, else Struct). Used to gate an `extend-type` satisfaction of a holder-bound surface.
+fn derived_holder(t: &TypeExpr, types: &TypeEnv) -> crate::types::Holder {
+    use crate::types::Holder;
+    if let TypeExpr::Path(p) = t {
+        if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(p) {
+            return agg.holder;
+        }
+    }
+    if is_holon_or_vector(t, types) {
+        Holder::HolonRecord
+    } else if is_portable_type(t, types) {
+        Holder::Record
+    } else {
+        Holder::Struct
+    }
+}
+
+/// Arc 293 K1b — when `actual` satisfies `surface_path` via an `extend-type` subtype edge, that edge
+/// must still clear the surface's `:holder` FLOOR (the contravariant ladder: `derived_holder(actual)
+/// .rank() >= req.rank()`). A target that is NOT a holder-bound surface (a plain protocol / lattice
+/// edge) is unaffected — the edge stands as before. This upgrades foreign satisfaction from
+/// holder-exempt (option b) to holder-CHECKED (option b').
+fn holder_floor_ok(actual: &TypeExpr, surface_path: &str, types: &TypeEnv) -> bool {
+    if let Some(crate::types::TypeDef::Surface(surf)) = types.get(surface_path) {
+        if let Some(req) = surf.holder {
+            return derived_holder(actual, types).rank() >= req.rank();
+        }
+    }
+    true
+}
+
 /// Arg-boundary acceptance: is `actual` assignable to `expected`?
 /// Liskov — a subtype is accepted where its supertype is wanted. Checks the
 /// `typesub` hierarchy FIRST (mutation-free; only concrete distinct paths with a
@@ -14632,7 +14665,8 @@ pub(crate) fn assignable(
     let e = reduce(&walk(expected, subst), subst, types);
     if let (TypeExpr::Path(ap), TypeExpr::Path(ep)) = (&a, &e) {
         if ap != ep && crate::types::is_subtype(ap, ep, types) {
-            return true;
+            // Arc 293 K1b — an extend-type edge to a holder-bound surface must clear the floor.
+            return holder_floor_ok(&a, ep, types);
         }
     }
     // Arc 267 — a parametric type satisfies a plain protocol bound iff its CONSTRUCTOR
@@ -14640,7 +14674,8 @@ pub(crate) fn assignable(
     // Parametric.head does not — reconcile with `format!(":{head}")`.
     if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
         if crate::types::is_subtype(&format!(":{head}"), ep, types) {
-            return true;
+            // Arc 293 K1b — an extend-type edge to a holder-bound surface must clear the floor.
+            return holder_floor_ok(&a, ep, types);
         }
     }
     // Arc 291 3a-ii-β — a parametric type satisfies a parametric bound iff its head DERIVES
