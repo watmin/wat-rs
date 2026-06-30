@@ -145,12 +145,24 @@ on the kind of aggregate."*
 - A `to-record`'d `$record` is a satisfier of S → it **inherits the `extend-surface` default for free** (data from
   `to-record`, behavior from `extend-surface`, each written once).
 
+## `self` is a normal typed binder — never special (2026-06-29)
+A surface method's `self` is **just `:TheSurface`**, written like any other binder: `(add [self <- :acc::Adder  x <-
+:wat::core::i64] -> …)`. There is **no auto-fill, no special first position, no off-by-one** — an argspec is a flat list
+of typed binders, and position 0 is not a case. (`self`'s type is the **surface** — "any satisfier" — not the
+`$record`; a concrete `defn`/`extend-type` impl re-types `self` to its concrete target.) This makes the
+**293.4e-pre.i "self double-counted" miscount structurally unrepresentable** — there is no special path to mis-handle.
+`extend-surface` is then the *one* deliberately-relaxed form: it fills **every** binder (self **and** args) from the
+surface — sugar over a uniform argspec, not a carve-out for `self`. **Migration:** today's `[self]` (untyped, special)
+becomes `[self <- :TheSurface]` across existing surfaces — pairs with K0's holder migration. **K0 includes a
+self-reference cycle-guard** (a standard occurs-check; the surface names itself, so HEAD's checker stack-overflows
+until the guard lands) — explicit-self ships clean with it.
+
 ## The landmark forms (canonical — match these)
 ```clojure
 ;; (1) a surface = pure constraint: an ATTRIBUTE (data) + a METHOD (behavior). no impls.
 (:wat::core::defsurface :acc::Adder :holder :wat::core::Record
-  :features [n <- :wat::core::i64                                      ; attribute — data
-             (add [self x <- :wat::core::i64] -> :wat::core::i64)])     ; method — behavior (signature only)
+  :features [n <- :wat::core::i64                                              ; attribute — data
+             (add [self <- :acc::Adder  x <- :wat::core::i64] -> :wat::core::i64)])  ; method — behavior; self is a normal binder
 
 ;; (2) project the DATA up a tier — returns the macro-emitted backing record :acc::Adder$record
 (:wat::core::to-record some-thing :acc::Adder)     ; -> :acc::Adder$record {n …}   (attributes only)

@@ -74,11 +74,23 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 > Additive to PHASE 1's parity work — the surface's projection + extension story. Settled by a long four-questions
 > co-design; builder at close: *"we burned inheritance to the ground and lost nothing."* Four tools, no loss
 > (inheritance · `defprotocol` · the extend-type confusion all collapse in). Build order, each RED-probe gated:
-- ▷ **K0 — `:holder` MANDATORY** (corrects the `:features` strike `85aa2d83`): the no-holder surface form RETIRES;
-  `parse_defsurface` arity-5 only; migrate the ~17 holder-less surfaces. (= the breadcrumb's "FIRST resume item".)
-- ▷ **K1 — foreign-holder DERIVED + checked** (the (b′)-Arm-1 decision): a foreign type sources its holder from
-  `is_portable`/`is_holon`, so it may satisfy a HOLDER-BOUND surface via `extend-type` (today `check.rs:14725`
-  rejects). ONE satisfaction rule for aggregate AND foreign. Resolves the OPEN foreign-type question — **(b′)**, not (a)/(b).
+- ▷ **K0 — surface grammar: `:holder` MANDATORY + `self` EXPLICIT** (corrects the `:features` strike `85aa2d83`):
+  the no-holder form RETIRES (`parse_defsurface` arity-5 only); `self` becomes a **normal typed binder**
+  (`[self <- :TheSurface  …]`) — no special first position, killing the 293.4e-pre.i "self double-counted" class.
+  Migrate the ~17 holder-less surfaces + their `[self]` forms. (= the breadcrumb's "FIRST resume item".)
+  **K0 includes a self-reference cycle-guard.** Explicit `[self <- :TheSurface]` is the target — the surface names
+  itself in its own method sig, a **standard recursive type**. HEAD lacks the occurs-check for *this* path, so it
+  stack-overflows today (done-detector caught it cleanly, exit 139, 2026-06-29) — the special-`[self]` handling was
+  silently avoiding the cycle. K0 adds the guard (mark the surface in-progress during satisfaction; a re-encounter is
+  the already-known receiver, don't re-descend), so explicit-self ships clean. RED-probe it first.
+- ▷ **K1 — THE HOLDER LADDER (contravariant satisfaction)** — the showcase **pinned it to one line**: `check.rs:14698`
+  does `agg_holder == req` (EXACT match) → must be `agg_holder.rank() >= req.rank()` (Struct −1 < Record 0 <
+  HolonRecord +1; struct-floor accepts all, record-floor accepts record+holon, holon-floor accepts holon). Its twin
+  `check.rs:14726` (foreign `holder.is_none()`) → derive the foreign's holder from `is_portable`/`is_holon`, **same**
+  `rank() >=`. **BIGGER than the old "foreign-derivation" framing: the AGGREGATE ladder itself was never built (a
+  record can't satisfy a struct-floor surface today) — the 293.4 demo missed it (holder-LESS surfaces).** Needs a
+  `Holder::rank()`. ~2 lines + the rank. Resolves the foreign-type question — **(b′)**. (Probe:
+  `wat-scripts/demos/aggregates/showcase.wat.disabled`, clean-RED on exactly these 3.)
 - ▷ **K2 — `$record` backing-type emission** — `defsurface` emits its backing `AggregateDef` (`:S$record`) from the
   ONE `:features` **attribute** set (methods excluded — a record holds no functions). Derived, never a second copy.
 - ▷ **K3 — `to-record`** — `:wat::core::to-record` + `:wat::holon::to-record`: project a satisfier's attributes into

@@ -91,8 +91,18 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `85a
 >     THE TYPES" = the contract; NOT a 2nd argspec). **Canonical forms + build order K0–K5 = `293/AGGREGATE-MODEL.md`
 >     § THE COMPLETE KIT + `294/CLOSE-SEQUENCE-293-294.md` § THE SURFACE KIT.** Landmark runnable:
 >     `wat-scripts/demos/aggregates/showcase.wat.disabled` (RED; done-detector `cargo wat <it>`).
->     ⚠ `~/.cargo/bin/wat` is STALE (Jun 26, pre-`:features`) → `cargo install --path crates/wat-cli --force` (or
->     `cargo run -q --bin wat --`) before trusting a `cargo wat` run, or it reports pre-`:features` parser errors.
+>     `~/.cargo/bin/wat` REBUILT this session (was stale pre-`:features`; `cargo install --path crates/wat-cli --force`).
+>   - ✅ **`self` is a NORMAL typed binder (2026-06-29) — folded into K0.** A surface method's `self` is just
+>     `:TheSurface` (`[self <- :acc::Adder  x <- :i64]`); NO special first position, NO auto-fill → the 293.4e-pre.i
+>     "self double-counted" class is unrepresentable. `extend-surface` fills self+args uniformly. Migrate `[self]` → `[self <- :S]`.
+>     explicit `[self <- :TheSurface]` is the TARGET; **K0 includes a self-reference cycle-guard** (a standard
+>     occurs-check — the surface names itself; HEAD lacks the guard so it stack-overflows today, exit 139, done-detector
+>     caught it). Showcase keeps `[self]` only until K0 lands (so it stays a clean K1 probe).
+>   - 🎯 **K1 PINNED to ONE line (the showcase earned it):** `check.rs:14698` does `agg_holder == req` (EXACT) → must be
+>     `agg_holder.rank() >= req.rank()` (the contravariant ladder; Struct −1 < Record 0 < HolonRecord +1). Twin
+>     `check.rs:14726` (foreign `is_none()`) → derive holder + same `>=`. **The AGGREGATE ladder itself was never built**
+>     (293.4 demo used holder-LESS surfaces). Showcase `wat-scripts/demos/aggregates/showcase.wat.disabled` is now
+>     clean-RED on EXACTLY these 3 (`cargo wat` it). Needs a `Holder::rank()`. **K1 is the smallest, most obvious first strike.**
 >   - **SETTLED (design):** rete facts = a `:wat::rete::Fact` SURFACE (`:holder :wat::core::Record :features []`), NOT
 >     `:wat::core::Value` — facts must be EDN-serializable (builder corrected model §7's "rete uses Value"). So item-2
 >     has **NO `Value` migration**: every "must be a record" slot is a `:holder :wat::core::Record` surface. §7 needs the fix.

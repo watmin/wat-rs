@@ -3,48 +3,48 @@
 ;;
 ;;  Three holders declared by CONSTRAINT · a surface couples permissions(:holder) with
 ;;  utility(:features) · aggregates satisfy AMBIENTLY · passing follows the contravariant
-;;  ladder · a FOREIGN type joins via extend-type (holder DERIVED from capability, then
-;;  CHECKED — never exempt) · Value is the unidirectional move-only hatch.
+;;  ladder · a FOREIGN type joins via extend-type (holder DERIVED + CHECKED) · Value is the
+;;  unidirectional move-only hatch · to-record (data projection) · extend-surface (default impls).
 ;;
-;;  STATUS: RED until holder-mandatory + foreign-holder-derivation land. The gap this file
-;;  isolates is the line marked ◀ THE GAP: a foreign type (:wat::holon::Vector) satisfying
-;;  a HOLDER-BOUND surface (:dev::Measurable :holder :wat::holon::Record) — today rejected
-;;  (check.rs:14725 "foreign types cannot satisfy a holder-bound surface").
+;;  STATUS: RED — the acceptance gate for the surface-kit (K0–K5). Idioms grounded against the
+;;  PROBATUM tests/types/probe_arc293_acceptance_demo.wat (Vector = :wat::core::Vector; concat =
+;;  :wat::core::string::concat; bare `nil` in value position).
 ;;
 ;;  Done-detector:  cargo wat wat-scripts/demos/aggregates/showcase.wat.disabled
 ;;  When GREEN: rename .wat.disabled -> .wat — the wat-scripts load gate then owns it forever.
-;;  The must-REJECT arms (no-holder surface, Socket->Persistable, core->holon slot,
-;;  struct->wire, Value misuse) live in a tests/ probe — a runnable demo holds only green forms.
 ;; ════════════════════════════════════════════════════════════════════════════
 
-;; ── THE THREE HOLDERS (declared by their constraint, not a "kind" label) ──────
-(:wat::core::defstruct  :dev::Sensor  [id <- :wat::core::String  port <- :wat::core::i64])                            ; struct  — may hold non-edn; NEVER crosses the wire
-(:wat::core::defrecord  :dev::Reading [id <- :wat::core::String  value <- :wat::core::f64  at <- :wat::core::i64])    ; core    — edn-repr; crosses
-(:wat::holon::defrecord :dev::Signal  [id <- :wat::core::String  at <- :wat::core::i64  samples <- :wat::holon::Vector]) ; holon — edn + hologram
+;; ── THE THREE HOLDERS (declared by their constraint) ──────────────────────────
+(:wat::core::defstruct  :dev::Sensor  [id <- :wat::core::String  port <- :wat::core::i64])                          ; struct — never crosses
+(:wat::core::defrecord  :dev::Reading [id <- :wat::core::String  value <- :wat::core::f64  at <- :wat::core::i64])  ; core   — edn-repr
+(:wat::holon::defrecord :dev::Signal  [id <- :wat::core::String  at <- :wat::core::i64  samples <- :wat::core::Vector<wat::core::f64>]) ; holon — edn + VSA
 
 ;; ── THE SURFACES — permissions(:holder) × utility(:features) ──────────────────
-(:wat::core::defsurface :dev::Identified  :holder :wat::core::Struct   :features [(id [self] -> :wat::core::String)])      ; widest: anything named, even a struct
-(:wat::core::defsurface :dev::Persistable :holder :wat::core::Record   :features [at <- :wat::core::i64])                  ; must be edn-repr (struct rejected)
-(:wat::core::defsurface :dev::Measurable  :holder :wat::holon::Record  :features [(holo [self] -> :wat::holon::Vector)])   ; must be a holon (VSA)
+;; NOTE: self written as `[self]` (auto) below — explicit `[self <- :TheSurface]` (the K0 target) currently
+;; SEGFAULTS at HEAD (the surface self-references itself in its own method sig → checker recurses to stack overflow).
+;; K0 must add a self-reference cycle-guard before explicit-self can land. Kept `[self]` so this stays a clean K1 probe.
+(:wat::core::defsurface :dev::Identified  :holder :wat::core::Struct   :features [(id [self] -> :wat::core::String)])                  ; widest: anything named
+(:wat::core::defsurface :dev::Persistable :holder :wat::core::Record   :features [at <- :wat::core::i64])                              ; must be edn-repr
+(:wat::core::defsurface :dev::Measurable  :holder :wat::holon::Record  :features [(holo [self] -> :wat::core::Vector<wat::core::f64>)]) ; must be a holon
 
-;; ── A method backs an accessor: Signal supplies `holo` from its samples field ─
-(:wat::core::defn :dev::Signal/holo [self <- :dev::Signal] -> :wat::holon::Vector
+;; ── a method backs an accessor: Signal supplies `holo` from its samples field ─
+(:wat::core::defn :dev::Signal/holo [self <- :dev::Signal] -> :wat::core::Vector<wat::core::f64>
   (:dev::Signal/samples self))
 
-;; ── FOREIGN type joins via extend-type — holder DERIVED (Vector is edn+VSA) + CHECKED ──  ◀ THE GAP
-(:wat::core::extend-type :wat::holon::Vector :dev::Measurable
-  (holo [self] -> :wat::holon::Vector self))
+;; ── FOREIGN type joins via extend-type — holder DERIVED + CHECKED ──  ◀ K1 GAP
+(:wat::core::extend-type :wat::core::Vector :dev::Identified
+  (id [self] -> :wat::core::String "vector"))
 
-;; ── CONSUMERS — each uses ONE feature of ONE surface; blind to the rest ───────
+;; ── CONSUMERS — each uses ONE feature; blind to the rest ──────────────────────
 (:wat::core::defn :dev::label   [x <- :dev::Identified]  -> :wat::core::String
-  (:wat::core::str "<" (:dev::Identified/id x) ">"))
+  (:wat::core::string::concat "<" (:dev::Identified/id x) ">"))
 (:wat::core::defn :dev::store!  [x <- :dev::Persistable] -> :wat::core::i64
   (:dev::Persistable/at x))
 (:wat::core::defn :dev::compare [a <- :dev::Measurable  b <- :dev::Measurable] -> :wat::core::f64
   (:wat::holon::cosine (:dev::Measurable/holo a) (:dev::Measurable/holo b)))
 
 ;; ── Value — receive ANY value; never USE it; only MOVE it ─────────────────────
-(:wat::core::defn :dev::archive!     [v <- :wat::core::Value] -> :wat::core::nil :wat::core::nil)
+(:wat::core::defn :dev::archive!     [v <- :wat::core::Value] -> :wat::core::nil nil)
 (:wat::core::defn :dev::dead-letter! [x <- :wat::core::Value] -> :wat::core::nil (:dev::archive! x))
 
 ;; ── THE DEMO ─────────────────────────────────────────────────────────────────
@@ -55,17 +55,17 @@
      signal  (:dev::Signal  "s-7" 1719000000 (:wat::core::Vector :wat::core::f64 0.1 0.2 0.3))
      other   (:dev::Signal  "s-9" 1719000050 (:wat::core::Vector :wat::core::f64 0.1 0.2 0.4))]
     (:wat::core::do
-      (:wat::kernel::pprintln (:dev::label sensor))                                                 ; <s-7>  struct via the widest surface
-      (:wat::kernel::pprintln (:dev::label reading))                                                ; <s-7>  core
-      (:wat::kernel::pprintln (:dev::label signal))                                                 ; <s-7>  holon
-      (:wat::kernel::pprintln (:dev::store! reading))                                               ; 1719000000  core -> core slot
-      (:wat::kernel::pprintln (:dev::store! signal))                                                ; 1719000000  holon -> core slot (the ladder)
-      (:wat::kernel::pprintln (:dev::compare signal other))                                         ; cosine of two holons
-      (:wat::kernel::pprintln (:dev::compare signal (:wat::core::Vector :wat::core::f64 0.1 0.2 0.3))) ; ◀ foreign type via extend-type
-      (:dev::dead-letter! sensor)                                                                   ; Value moves a struct
-      (:dev::dead-letter! reading)                                                                  ; ... a record
-      (:dev::dead-letter! 42)                                                                       ; ... an i64
-      :wat::core::nil)))
+      (:wat::kernel::pprintln (:dev::label sensor))                                     ; <s-7>  struct via the widest surface
+      (:wat::kernel::pprintln (:dev::label reading))                                    ; <s-7>  core  (ladder: record -> struct-floor)
+      (:wat::kernel::pprintln (:dev::label signal))                                     ; <s-7>  holon (ladder)
+      (:wat::kernel::pprintln (:dev::label (:wat::core::Vector :wat::core::i64 1 2 3)))  ; <vector>  ◀ foreign via extend-type
+      (:wat::kernel::pprintln (:dev::store! reading))                                   ; 1719000000  core -> core slot
+      (:wat::kernel::pprintln (:dev::store! signal))                                    ; 1719000000  holon -> core slot (ladder)
+      (:wat::kernel::pprintln (:dev::compare signal other))                             ; cosine of two holons
+      (:dev::dead-letter! sensor)                                                       ; Value moves a struct
+      (:dev::dead-letter! reading)                                                      ; ... a record
+      (:dev::dead-letter! 42)                                                           ; ... an i64
+      nil)))
 
 ;; ════════════════════════════════════════════════════════════════════════════
 ;;  THE KIT (K2–K5) — to-record (data projection UP the ladder) + extend-surface (default impls).
@@ -82,8 +82,8 @@
 
 ;; a surface carrying a DEFAULT method impl, written ONCE — the types come from the surface:
 (:wat::core::defsurface :acc::Adder :holder :wat::core::Record
-  :features [n <- :wat::core::i64                                       ; attribute (data)
-             (add [self x <- :wat::core::i64] -> :wat::core::i64)])      ; method signature only
+  :features [n <- :wat::core::i64                                                   ; attribute (data)
+             (add [self <- :acc::Adder  x <- :wat::core::i64] -> :wat::core::i64)])  ; method sig — self is a normal binder
 
 (:wat::core::extend-surface :acc::Adder                                  ; ◀ K5 macro → (extend-type :acc::Adder$record :acc::Adder …)
   (add [self x] (:wat::core::i64::+ (:acc::Adder/n self) x)))            ;   write the BODY only — WHERE ARE THE TYPES? the surface.
