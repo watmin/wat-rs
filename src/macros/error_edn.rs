@@ -217,10 +217,6 @@ fn span_val(span: &Span) -> OwnedValue {
     crate::panic_hook::span_to_edn(span)
 }
 
-fn map1(k1: OwnedValue, v1: OwnedValue) -> OwnedValue {
-    OwnedValue::Map(vec![(k1, v1)])
-}
-
 fn map2(k1: OwnedValue, v1: OwnedValue, k2: OwnedValue, v2: OwnedValue) -> OwnedValue {
     OwnedValue::Map(vec![(k1, v1), (k2, v2)])
 }
