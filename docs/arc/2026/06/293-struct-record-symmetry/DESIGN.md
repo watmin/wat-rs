@@ -137,6 +137,18 @@ concept + internal variant = **`Surface`** / `TypeExpr::Surface` (user-vocab == 
 as type-theory-obscure). `extend-type` is KEPT (not renamed), demoted to the foreign-type accessor adapter.
 
 ### `extend-type` — the typed, compile-checked foreign-accessor adapter (survives, demoted)
+
+> ⊘ **SUPERSEDED (2026-06-29, arc 293 K4) — extend-type is the GENERAL per-type door, never code-restricted to
+> foreign.** The "demoted / foreign-only adapter / monkeypatch" framing below was DOCTRINAL only. 293.4c built the
+> registration generically (it inserts `:T/method` for ANY T, never gated to foreign) and 293.4e-pre.i gave it the one
+> canonical `ArgSpec` — so `extend-type` already binds method impls on your OWN aggregates exactly as on foreign types,
+> the SAME `:T/method` key a plain `(defn :T/method …)` writes (two front-doors, one mechanism). The "un-demotion" was
+> therefore already true in the substrate; K4 did not change code — a disconfirming probe printed the working result,
+> and the lock-in regression `tests/types/probe_arc293_k4_extend_type_own_aggregate.{rs,wat}` (GREEN at HEAD, → 25)
+> proves + guards it. This is K5's load-bearing seam: `extend-surface` expands to `(extend-type S$record S …)` and
+> `S$record` is an own aggregate. See `AGGREGATE-MODEL.md § extend-type` (the canonical statement). The prose below is
+> preserved as the original framing.
+
 Its one real job: add accessors to a type you don't own (the monkeypatch — `:wat::holon::Vector`). Solves the
 **Expression Problem**, safely: collisions are `DuplicateDefine` *compile errors*, bodies are type-checked
 against the surface, no runtime class mutation (cf. Ruby/JS global monkeypatch chaos — *"insane in Ruby, sane

@@ -119,8 +119,13 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
   holon_record}`; check: `infer_projection_verb_check`. RED probe `probe_arc293_k3_to_record` RED→GREEN (3+4+3=10);
   weighed forced-clean **4122/0/92** (the arc-170 flake did not surface; the 2 E0283 were RA noise in untouched files).
   *FRANGE UT UNUM FIAT* on projection: one extraction tool, the holder is the only variance.
-- ▷ **K4 — `extend-type` UN-DEMOTE** — from foreign-only adapter to the general per-type impl door (any type); the
-  ONE canonical `ArgSpec`; same `:…/method` key as ambient `defn :T/method`.
+- ✅ **K4 — `extend-type` UN-DEMOTE — RESOLVED HONESTLY (no code; already general).** A disconfirming probe proved
+  `extend-type` already binds method impls on your OWN aggregates, not just foreign types — 293.4c built the
+  registration generically (`:T/method` for ANY T, never gated to foreign) + 293.4e-pre.i gave it the one canonical
+  `ArgSpec` (same `:…/method` key as ambient `defn :T/method`; two front-doors, one mechanism). So K4 = (1) lock-in
+  regression `tests/types/probe_arc293_k4_extend_type_own_aggregate.{rs,wat}` (GREEN at HEAD, → 25; guards K5's seam),
+  (2) doc truing of the "foreign-only / demoted / monkeypatch" framing (`293/DESIGN.md § extend-type` superseding
+  block; AGGREGATE-MODEL already stated it). No Rust change. (examinare: the thing you would build already existed.)
 - ▷ **K5 — `extend-surface` macro** — a wat `defmacro` → `(extend-type S$record S …)`, method types filled from S
   (the user writes body only). Needs the surface method-sig reflection seam (expand/check-time read). `$record`
   inherits the default for free.

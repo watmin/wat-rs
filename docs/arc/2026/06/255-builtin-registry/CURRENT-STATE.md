@@ -2,8 +2,8 @@
 
 Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b708ff` or later** (the surface-kit BUILD is underway — K0+K1 landed). Tree CLEAN.
 **Gate: `cargo nextest run --release` (WHOLE workspace / default-members, NOT `-p wat`).** **FLOOR IS 0** —
-`4122 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
-> **▶▶ THE SURFACE KIT BUILD (2026-06-29): K0 + K1 + K2 + K3 COMPLETE.** The satisfaction layer + the grammar ARE the model.
+`4123 passed / 0 failed / 92 skipped` (ONE committed `#[ignore]`'d RED probe left: `293.4e-pre.iii`).
+> **▶▶ THE SURFACE KIT BUILD (2026-06-29): K0–K4 COMPLETE.** The satisfaction layer + the grammar ARE the model.
 > ✅ K1a/K1b the holder ladder (aggregate+foreign, b′) · ✅ K0a/K0b/K0c mandatory `:holder` + explicit `self` +
 > cycle-guard · ✅ **K2 `$record` emission (`d3fe912b`)** — `defsurface :S` also registers a concrete `:S$record`
 > `AggregateDef` (holder = surface's; fields = `:features` attributes ONLY, methods excluded) via the existing
@@ -15,11 +15,19 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 > records; ONE shared `project_surface_attrs` extraction; holon's ctor derives the hologram (294.c.2a). K3 SUBSUMED K2
 > (`$record`→ the triple). Probe `probe_arc293_k3_to_record` GREEN (3+4+3=10); weighed forced-clean **4122/0/92**. See
 > `293/AGGREGATE-MODEL.md § to-record` superseding block (the old "up-only / never-to-struct" framing is dead).
-> **▶ NEXT = K4 — `extend-type` UN-DEMOTE** (foreign-only adapter → the general per-type impl door, any type; the ONE
-> canonical `ArgSpec`, same `:…/method` key as ambient `defn :T/method`). Then K5 `extend-surface` macro → showcase
-> graduates `.wat.disabled`→`.wat`. DESIGN: `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`; order: `294/CLOSE-SEQUENCE §
-> THE SURFACE KIT`; R6 *EX CINERIBVS RESVRGO* sung (`c3689748`). Each Kn: RED probe → strike → weigh forced-clean.
-> (K0+K1+K2+K3 shipped — three of four tools live; K4–K5 remain.)
+> ✅ **K4 — `extend-type` UN-DEMOTE — RESOLVED HONESTLY (no code).** A disconfirming probe proved `extend-type` is
+> ALREADY the general per-type door — it binds method impls on your OWN aggregates, not just foreign types (293.4c built
+> the registration generically; 293.4e-pre.i gave it the canonical `ArgSpec`; same `:…/method` key as ambient `defn`).
+> K4 = lock-in regression `probe_arc293_k4_extend_type_own_aggregate` (GREEN, → 25; guards K5's `(extend-type S$record
+> S …)` seam) + doc truing (`293/DESIGN.md § extend-type` superseding block). examinare: the thing you'd build existed.
+> **▶ NEXT = K5 — `extend-surface` (THE LAST TOOL)** — a wat `defmacro` expanding `(extend-surface S (m [self x] body)…)`
+> → `(extend-type S$record S (m [self <- :S$record  …typed-from-S…] -> …ret-from-S…) …)`: fills the method types FROM
+> the surface's declared sigs (the user writes BODY only — "WHERE ARE THE TYPES? the contract"). Needs the surface
+> method-sig reflection seam (expand-time read of S's members + `$record` name). Then the showcase graduates
+> `.wat.disabled`→`.wat` (the wat-scripts load gate owns it). DESIGN: `293/AGGREGATE-MODEL.md § THE COMPLETE KIT`
+> (the `:acc::Adder` exemplar) + § One substrate dependency; order: `294/CLOSE-SEQUENCE § THE SURFACE KIT`; R6
+> *EX CINERIBVS RESVRGO* sung (`c3689748`). (K0–K4 done — THREE of four tools live: `defsurface` + `to-record`/`to-struct`
+> + `extend-type`; `extend-surface` (K5) is the last.)
 
 > ▶▶ **293+294 JOINT-RESOLUTION CAMPAIGN UNDERWAY (2026-06-28).** Builder: *"let's work 293+294 joint resolution —
 > then we go to 118."* **⟶ THE LIVE CLOSE ORDER + STATUS = `docs/arc/2026/06/294-holon-returns-to-vsa/CLOSE-SEQUENCE-293-294.md`
