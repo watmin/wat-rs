@@ -80,11 +80,12 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
     re-entering satisfaction → wrong-reject or stack-overflow (the showcase's exit-139). Fix: **SKIP position 0
     (self)** in the method arg-type compare — self is the receiver, tautological. RED probe `probe_arc293_self_explicit`
     RED→GREEN; weighed 4120/0/92 (multi-arg surface methods unbroken).
-  - ▶ **K0a+K0b — mandatory `:holder` + explicit `self` + the 38-file migration (SONNET IN FLIGHT).** Parser:
-    `parse_defsurface` `surface.rs:304` arity→5-only (no-holder form retires); `parse_method_member_sig`
-    `surface.rs:152/195` rejects a bare untyped `[self]`. Then the substrate-as-teacher cascade migrates every
-    `defsurface` in `wat/ wat-tests/ wat-scripts/ tests/` (~38 files): add `:holder :<root>` + `[self]` → `[self <- :S]`.
-    Orchestrator weighs the kill on return.
+  - ✅ **K0a+K0b LANDED (`98639f0d`)** — `parse_defsurface` arity→5-only (no-holder form retires, MalformedDecl);
+    `parse_method_member_sig` rejects bare untyped `[self]` (self must be `[self <- :TheSurface]`). 20 fixtures
+    migrated (sonnet LEAF; orchestrator-weighed: parser diffs read end-to-end, **forced-clean re-run 4120/0/92**).
+    Holder-testing probes kept intentional holders; structural-satisfaction fixtures defaulted to `:wat::core::Struct`
+    (widest). `_bad` negatives still reject.
+  - **⇒ K0 COMPLETE (K0a + K0b + K0c).** The surface grammar IS the model: `:holder` mandatory, `self` a normal binder.
 - **K1 — THE HOLDER LADDER (contravariant satisfaction)** — the showcase pinned it to one line.
   - ✅ **K1a — the AGGREGATE ladder LANDED (`a952c908`)** — `Holder::rank()` (the trit, Struct −1 < Record 0 <
     HolonRecord +1) + `check.rs:14698` `agg_holder == req` → `agg_holder.rank() >= req.rank()`. Struct-floor accepts

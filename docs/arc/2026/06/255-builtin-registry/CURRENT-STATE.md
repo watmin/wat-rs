@@ -105,11 +105,12 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `85a
 >     CINERIBVS RESVRGO* banked (`c3689748`).
 >   - ✅ **K0c — self-reference cycle-guard LANDED (`311b20bf`)** — skip self (position 0) in surface-method
 >     satisfaction; explicit `self <- :TheSurface` type-checks (no overflow). Probe `probe_arc293_self_explicit`. 4120/0/92.
->   - ▶ **K0a+K0b — mandatory `:holder` + explicit `self` + 38-file migration: SONNET IN FLIGHT** (background LEAF,
->     agent `aedeca0dff2`). Parser `surface.rs:304` (arity→5) + `parse_method_member_sig` (reject bare `[self]`) +
->     the cascade migration. **Orchestrator must WEIGH the kill against the disk on return** (baseline-isolate any
->     in-band fail; the arc-170 `sigterm_…polling` flake passes isolated). Then K2 `$record` → K3 `to-record` →
->     K4 extend-type un-demote → K5 extend-surface.
+>   - ✅✅ **K0 COMPLETE (`98639f0d`) — the surface grammar IS the model.** K0a mandatory `:holder` (arity-5-only) +
+>     K0b explicit `self` (bare `[self]` rejected; self a normal typed binder) + K0c cycle-guard. 20 fixtures migrated
+>     (sonnet LEAF, orchestrator-weighed forced-clean 4120/0/92). **▶ NEXT = K2** (`$record` backing-type emission —
+>     `defsurface` emits its concrete `AggregateDef` from the `:features` ATTRIBUTES, methods excluded; `to-record`'s
+>     return type). Then K3 `to-record` → K4 extend-type un-demote → K5 extend-surface.
+>     (Follow-up: `showcase.wat.disabled` `[self]` migrated to explicit too — `98639f0d`+.)
 >   - **SETTLED (design):** rete facts = a `:wat::rete::Fact` SURFACE (`:holder :wat::core::Record :features []`), NOT
 >     `:wat::core::Value` — facts must be EDN-serializable (builder corrected model §7's "rete uses Value"). So item-2
 >     has **NO `Value` migration**: every "must be a record" slot is a `:holder :wat::core::Record` surface. §7 needs the fix.

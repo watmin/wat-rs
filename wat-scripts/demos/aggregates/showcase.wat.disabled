@@ -20,12 +20,9 @@
 (:wat::holon::defrecord :dev::Signal  [id <- :wat::core::String  at <- :wat::core::i64  samples <- :wat::core::Vector<wat::core::f64>]) ; holon — edn + VSA
 
 ;; ── THE SURFACES — permissions(:holder) × utility(:features) ──────────────────
-;; NOTE: self written as `[self]` (auto) below — explicit `[self <- :TheSurface]` (the K0 target) currently
-;; SEGFAULTS at HEAD (the surface self-references itself in its own method sig → checker recurses to stack overflow).
-;; K0 must add a self-reference cycle-guard before explicit-self can land. Kept `[self]` so this stays a clean K1 probe.
-(:wat::core::defsurface :dev::Identified  :holder :wat::core::Struct   :features [(id [self] -> :wat::core::String)])                  ; widest: anything named
-(:wat::core::defsurface :dev::Persistable :holder :wat::core::Record   :features [at <- :wat::core::i64])                              ; must be edn-repr
-(:wat::core::defsurface :dev::Measurable  :holder :wat::holon::Record  :features [(holo [self] -> :wat::core::Vector<wat::core::f64>)]) ; must be a holon
+(:wat::core::defsurface :dev::Identified  :holder :wat::core::Struct   :features [(id [self <- :dev::Identified] -> :wat::core::String)])                  ; widest: anything named
+(:wat::core::defsurface :dev::Persistable :holder :wat::core::Record   :features [at <- :wat::core::i64])                                                 ; must be edn-repr
+(:wat::core::defsurface :dev::Measurable  :holder :wat::holon::Record  :features [(holo [self <- :dev::Measurable] -> :wat::core::Vector<wat::core::f64>)]) ; must be a holon
 
 ;; ── a method backs an accessor: Signal supplies `holo` from its samples field ─
 (:wat::core::defn :dev::Signal/holo [self <- :dev::Signal] -> :wat::core::Vector<wat::core::f64>
