@@ -12,7 +12,6 @@
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-#[ignore = "arc 293 K2 — defsurface does not yet emit the :S$record backing type; un-ignore when K2 lands"]
 #[test]
 fn defsurface_emits_a_backing_record_from_its_attributes() {
     let world = startup_beside(file!())
