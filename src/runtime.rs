@@ -3992,6 +3992,15 @@ fn dispatch_keyword_head_value(
         // (no precomputed arg). struct-new / Record::of / holon::Record::of all route
         // through this; their of-func registrations stay until 294.c.2b.
         ":wat::core::aggregate-new" => eval_aggregate_new(args, list_span, env, sym),
+        // Arc 293 K3 — three projection verbs: project a satisfier's surface attributes
+        // into a new backing record at the caller-chosen holder tier.
+        //   (:wat::core::to-struct  x :S) → :S$struct       (in-locus; Struct holder)
+        //   (:wat::core::to-record  x :S) → :S$core-record  (portable EDN; Record holder)
+        //   (:wat::holon::to-record x :S) → :S$holon-record (portable EDN + hologram)
+        // arg0 `x` is evaluated; arg1 `:S` is a literal surface keyword (NOT evaluated).
+        ":wat::core::to-struct" => eval_to_struct(args, list_span, env, sym),
+        ":wat::core::to-record" => eval_to_core_record(args, list_span, env, sym),
+        ":wat::holon::to-record" => eval_to_holon_record(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::core::Record::of` constructor + `:wat::core::Record/field-at` accessor.
         // Constructor: (class fields) -> :wat::core::Record (BASE, no hologram)
         // Accessor:    (record index) -> field-value at fields[index]
@@ -13782,6 +13791,154 @@ fn eval_aggregate_new(
 }
 
 // ─── End Arc 294.c.2a ─────────────────────────────────────────────────────────
+
+// ─── Arc 293 K3 — three projection verbs ──────────────────────────────────────
+
+/// Extract surface S's Field-member attributes off `x_val`, returning one `Value` per
+/// field in declaration order. Reuses the surface-accessor routing (5282 pattern):
+/// derives `x_val`'s concrete FQDN, then looks up `:<T>/<field>` in `sym` and calls it.
+/// Works for any satisfier whose field accessors are registered (Struct, Record,
+/// HolonRecord, or a foreign type with extend-type).
+fn project_surface_attrs(
+    x_val: &Value,
+    surface: &crate::types::SurfaceDef,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Vec<Value>, EvalBreak> {
+    // Mirror of 5282's concrete_type_fqdn derivation.
+    let concrete_type_fqdn: String = match x_val {
+        Value::Aggregate(a) => format!(":{}", a.class),
+        Value::RustOpaque(inner) => inner.type_path.to_string(),
+        other_val => format!(":{}", other_val.type_name()),
+    };
+    let mut field_values = Vec::new();
+    for member in &surface.members {
+        if let crate::types::SurfaceMember::Field { name: fname, .. } = member {
+            let method_key = format!("{}/{}", concrete_type_fqdn, fname);
+            let func = match sym.get(canonical_callable_name(&method_key)) {
+                Some(f) => f.clone(),
+                None => return Err(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::UnknownFunction(format!(
+                        "to-struct/to-record: type `{}` does not have accessor `{}`",
+                        concrete_type_fqdn, method_key
+                    )),
+                }.into()),
+            };
+            let v = apply_function(func, vec![x_val.clone()], sym, list_span.clone())
+                .map_err(EvalBreak::from)?;
+            field_values.push(v);
+        }
+    }
+    Ok(field_values)
+}
+
+/// Parse the two-arg form `(verb x :S)` for the three projection verbs.
+/// Returns `(x_val, surface_name_keyword, surface_def)`.
+fn parse_projection_args<'a>(
+    op: &'static str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &'a SymbolTable,
+) -> Result<(Value, String, crate::types::SurfaceDef), EvalBreak> {
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: op.into(), expected: 2, got: args.len() },
+        }.into());
+    }
+    // args[1]: literal surface keyword (not evaluated — exactly like aggregate-new's args[0]).
+    let surface_kw = match &args[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => return Err(RuntimeError {
+            span: other.span().clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "second argument must be a surface keyword literal (e.g. :my::Surface); got {}",
+                    other.variant_name()
+                ),
+            },
+        }.into()),
+    };
+    // Look up the surface in the TypeEnv.
+    let types = sym.types().ok_or_else(|| RuntimeError {
+        span: list_span.clone(),
+        kind: RuntimeErrorKind::MalformedForm {
+            head: op.into(),
+            reason: "projection verbs require the type registry (startup via freeze)".into(),
+        },
+    })?;
+    let surf = match types.get(&surface_kw) {
+        Some(crate::types::TypeDef::Surface(s)) => s.clone(),
+        _ => return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!("{} is not a registered surface", surface_kw),
+            },
+        }.into()),
+    };
+    // Evaluate args[0] (x).
+    let x_val = eval_inner(&args[0], env, sym)?.value_owned();
+    Ok((x_val, surface_kw, surf))
+}
+
+/// Arc 293 K3 — `(:wat::core::to-struct x :S)` → `:S$struct` (Struct holder).
+fn eval_to_struct(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &'static str = ":wat::core::to-struct";
+    let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
+    let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
+    let class = format!("{}$struct", surface_kw.trim_start_matches(':'));
+    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(class, field_values))))
+}
+
+/// Arc 293 K3 — `(:wat::core::to-record x :S)` → `:S$core-record` (Record holder).
+fn eval_to_core_record(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &'static str = ":wat::core::to-record";
+    let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
+    let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
+    let class = format!("{}$core-record", surface_kw.trim_start_matches(':'));
+    Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(field_values)))))
+}
+
+/// Arc 293 K3 — `(:wat::holon::to-record x :S)` → `:S$holon-record` (HolonRecord holder;
+/// hologram derived internally from the projected field values).
+fn eval_to_holon_record(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &'static str = ":wat::holon::to-record";
+    let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
+    let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
+    let class = format!("{}$holon-record", surface_kw.trim_start_matches(':'));
+    // Field names in surface Field-member order (the same order project_surface_attrs used).
+    let field_names: Vec<String> = surf.members.iter()
+        .filter_map(|m| if let crate::types::SurfaceMember::Field { name, .. } = m { Some(name.clone()) } else { None })
+        .collect();
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
+    let hologram = build_holon_hologram(&class, &field_names, &field_values, ctx, list_span)?;
+    Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
+        class,
+        Arc::new(field_values),
+        hologram,
+    ))))
+}
+
+// ─── End Arc 293 K3 ───────────────────────────────────────────────────────────
 
 /// `(:wat::core::Record/field-at <record: :wat::core::Record> <index: i64>)` → field value
 /// — arc 234 Stone 234.2a.

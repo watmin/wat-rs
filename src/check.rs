@@ -5595,6 +5595,34 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 293 K3 — three projection verbs.
+            // Each takes two args: x (evaluated) and :S (literal surface keyword).
+            // Returns the specific backing-type path so downstream checks see the
+            // concrete type instead of a fresh TypeVar.
+            ":wat::core::to-struct" => {
+                let (val, mut errs) = infer_projection_verb_check(":wat::core::to-struct", "$struct", head_span, args, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::to-record" => {
+                let (val, mut errs) = infer_projection_verb_check(":wat::core::to-record", "$core-record", head_span, args, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::holon::to-record" => {
+                let (val, mut errs) = infer_projection_verb_check(":wat::holon::to-record", "$holon-record", head_span, args, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 155 — `:wat::core::fn` is the canonical operator for
             // function values (Clojure-faithful lowercase verb; mirrors
             // arc 154's let retirement recipe). Routes to `infer_fn`
@@ -12772,6 +12800,91 @@ fn infer_aggregate_new_check(
     };
 
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 293 K3 — type inference for the three projection verbs:
+///   `:wat::core::to-struct`  (x :S) → :S$struct
+///   `:wat::core::to-record`  (x :S) → :S$core-record
+///   `:wat::holon::to-record` (x :S) → :S$holon-record
+///
+/// Validates: arity == 2; args[0] (`x`) satisfies the surface named by args[1] (`:S`,
+/// a literal keyword); returns the specific backing-type path (`TypeExpr::Path`).
+/// If `x` does not satisfy `S`, emits a TypeMismatch.
+fn infer_projection_verb_check(
+    callee: &str,
+    suffix: &str,
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    use crate::types::TypeDef;
+
+    let mut local_errors: Vec<CheckError> = Vec::new();
+
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch { callee: callee.into(), expected: 2, got: args.len() },
+        });
+        return CheckResult::errs(local_errors);
+    }
+
+    // args[1]: literal surface keyword (not evaluated).
+    let surface_kw = match &args[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            // Infer arg 0 for side-effects, then error.
+            let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            local_errors.push(CheckError {
+                span: other.span().clone(),
+                kind: CheckErrorKind::MalformedForm {
+                    head: callee.into(),
+                    reason: format!(
+                        "second argument must be a surface keyword literal (e.g. :my::Surface); got {}",
+                        other.variant_name()
+                    ),
+                    remedies: vec![],
+                },
+            });
+            return CheckResult::errs(local_errors);
+        }
+    };
+
+    // Verify it names a registered Surface.
+    let surf_opt = env.types().get(&surface_kw).and_then(|td| {
+        if let TypeDef::Surface(s) = td { Some(s.clone()) } else { None }
+    });
+    if surf_opt.is_none() {
+        let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        local_errors.push(CheckError {
+            span: args[1].span().clone(),
+            kind: CheckErrorKind::UnknownCallee { callee: surface_kw.clone() },
+        });
+        return CheckResult::errs(local_errors);
+    }
+
+    // Infer args[0] (x) and verify it satisfies surface S.
+    if let Some(x_ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+        let surface_expected = TypeExpr::Path(surface_kw.clone());
+        if !assignable(&x_ty, &surface_expected, subst, env) {
+            local_errors.push(CheckError {
+                span: args[0].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: callee.into(),
+                    param: "#1 (satisfier)".into(),
+                    expected: surface_kw.clone(),
+                    got: format_type(&apply_subst(&x_ty, subst)),
+                },
+            });
+        }
+    }
+
+    // Return the specific backing-type path.
+    let backing_type = TypeExpr::Path(format!("{}{}", surface_kw, suffix));
+    if local_errors.is_empty() { CheckResult::ok(backing_type) } else { CheckResult::partial_with(backing_type, local_errors) }
 }
 
 /// Arc 237 Stone S-C.3 — HOLONIC record constructor inference.

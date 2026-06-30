@@ -15,7 +15,6 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
 #[test]
-#[ignore = "arc 293 K3 — RED until the three projection verbs (to-struct / to-record core+holon) land"]
 fn three_projection_verbs_materialize_a_surface_at_each_tier() {
     let world = startup_beside(file!())
         .expect("the three projection verbs must emit + populate :S$struct / :S$core-record / :S$holon-record");
