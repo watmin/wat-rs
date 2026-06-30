@@ -503,6 +503,12 @@ fixture** beside its probe (`tests/<group>/<probe>.{rs,wat}`), slurped via `wat:
 NEVER inlined as a Rust string, never in `demos/` (= curated showpieces only); a committed RED probe is `#[ignore]`'d
 + run the WHOLE gate after any new test (`feedback_test_wat_is_colocated_fixture`). Run wat via `cargo wat <file>`,
 not `./target/release/wat`.
+**⛔ THE IGNORE LEDGER (builder, 2026-06-30, NON-NEGOTIABLE):** *"all ignores we create must be removed before arc
+closure."* An `#[ignore]` is a TEMPORARY debt with a named unlock, never permanent and never a quiet way to hold the
+floor green. Every `#[ignore]` the 293/294 campaign creates is logged in `294/CLOSE-SEQUENCE-293-294.md § THE IGNORE
+LEDGER` the moment it's made (with its exact unlock) + marked in code `// ⛔ IGNORE-LEDGER(293): <unlock> — see
+CLOSE-SEQUENCE`; **293.5 cannot close until that ledger is EMPTY** (each un-ignored + GREEN, or deleted because its
+subject is gone).
 
 > **⛔ END OF MAP. You are new. The above is a cache, not your memory. Run recolligere; weigh any in-flight work against the
 > disk; do not trust a single line you did not re-verify this session. **THE NEXT — read the ⚠ CORRECTION at the

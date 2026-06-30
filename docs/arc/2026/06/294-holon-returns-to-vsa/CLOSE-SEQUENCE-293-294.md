@@ -192,10 +192,29 @@ surfaces-only params, one holder vocabulary. (The 3 legitimate holder difference
 10. ▷ **294.e — `HolonAST → Hologram` rename + mint `src/holon/`** *(294, step 7 — keystone)*. **Disk:** 1173 mentions; `src/holon/` absent.
 11. ▷ **294.f — reflection-IR → WatAST** *(294, step 8)*. ~175.
 12. ▷ **294.g — homes** *(293.1 + 294, step 9)* — `src/aggregate/` + `src/holon/`; both absent.
-13. ⛔ **293.5 — CLOSE** *(293)* — `/from-map` (GAP — absent for ALL holders; the 291 driver) + SET-diff ∅ + ward homes + amend 291 + INSCRIPTION(s). **GATED on PHASE 1 = 0 AND 8–12 done.**
+13. ⛔ **293.5 — CLOSE** *(293)* — `/from-map` (GAP — absent for ALL holders; the 291 driver) + SET-diff ∅ + ward homes + amend 291 + INSCRIPTION(s). **GATED on PHASE 1 = 0 AND 8–12 done AND the IGNORE LEDGER below is EMPTY.**
 
 ### Then
 10. ▷ **arc 118** — `Seqable` → the HOF family (needs only the DONE 293.4; 294 was never a blocker, only a co-close).
+
+## ⛔⛔ THE IGNORE LEDGER — must be EMPTY before 293/294 close (builder, 2026-06-30, NON-NEGOTIABLE)
+
+> **THE RULE, verbatim:** *"all ignores we create must be removed before arc closure."* An `#[ignore]` is a **temporary
+> debt with a named unlock**, NEVER a permanent state and NEVER a quiet way to keep the floor green. Every `#[ignore]`
+> this 293/294 campaign introduces is logged HERE the moment it is created — with its exact unlock — and **293.5 cannot
+> close until this ledger is EMPTY** (every entry un-ignored: the test passes, or it is deleted because its subject is
+> gone, never merely left silent). A campaign `#[ignore]` not in this ledger is the bug this ledger exists to kill.
+
+**Discipline when you create one:** add a row below AND mark the `#[ignore]` in code with `// ⛔ IGNORE-LEDGER(293):
+<unlock> — see CLOSE-SEQUENCE` so the code site points back here. When the unlock lands, remove the attribute, remove
+the row, and confirm the test is GREEN (not still skipped).
+
+| # | test (`#[ignore]`'d) | why ignored | the UNLOCK that removes it | status |
+|---|---|---|---|---|
+| 1 | `deftest_svc_test_svc_assert_state` (`wat-tests/service-template.wat`) — *pending 293.W.2b* | `:svc::Request` becomes a declared `:wat::enum::Anchored` enum, but its **thread-tier** `make-channel` still rejects an `Anchored` payload (the 254.1 gate is not yet tier-aware) | **293.W.2d** — `make-channel` becomes tier-aware (a thread channel accepts `Anchored`; a process/remote channel requires `Portable`) | ▷ to be created in the 2b strike |
+
+*(Pre-existing ignores NOT created by this campaign — e.g. arc-170's `293.4e-pre.iii`, task #183's arc-170 gate — are
+their own arcs' ledgers, not this one. This ledger tracks ONLY what 293/294 introduces.)*
 
 ## Maintenance rule
 When a step lands: flip its ✅, add the commit hash, and (if it closed an `AGGREGATE-AUDIT.md` row) tick that row too.
