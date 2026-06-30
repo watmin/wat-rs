@@ -24482,6 +24482,42 @@ fn is_mutation_head(head: &str) -> bool {
 // The Option wrap added in Stone 4.6a-ii lets close' consume the peer and
 // lets send'/recv' detect use-after-close (None → RuntimeError).
 
+/// §7 wire-wall (OUTBOUND): a bare `Holder::Struct` value must not be WRITTEN to a
+/// comms wire. Structs are in-locus only — they never cross a comms boundary. The
+/// process/socket `send'` branches serialize the payload via `value_to_edn_with`
+/// (the wire encode); this guard refuses a non-portable payload BEFORE that encode.
+///
+/// Called ONLY from the two wire-serializing branches of `eval_peer_send_prime`
+/// (PROCESS + socket-tier PEER'). The THREAD branches pass the `Value` in-process
+/// with no serialization (same address space), so a struct over a thread peer is
+/// legitimate — they do NOT call this. Symmetric to the inbound backstop in
+/// `edn_shim::decode_trusted_wire` (the process/socket decode door), which has no
+/// thread-tier analogue either. One predicate (`Holder::is_portable`) backs both
+/// directions.
+fn reject_non_portable_on_wire(
+    payload: &Value,
+    op: &str,
+    span: &Span,
+) -> Result<(), EvalBreak> {
+    if let Value::Aggregate(agg) = payload {
+        if !agg.holder.is_portable() {
+            return Err(RuntimeError {
+                span: span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: op.into(),
+                    reason: format!(
+                        "a struct cannot be sent across a comms boundary — \
+                         a struct is in-locus and never crosses; §7 (class: :{})",
+                        agg.class
+                    ),
+                },
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
 /// `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii / Arc 258.5b-ii.
 ///
 /// Thread': `peer.send(value)` Value pass-through (crossbeam, no serialisation).
@@ -24554,6 +24590,8 @@ fn eval_peer_send_prime(
                 OP,
                 list_span.clone(),
             )?;
+            // §7 wire-wall: a bare struct must not be written to the process wire.
+            reject_non_portable_on_wire(&payload_val, OP, list_span)?;
             // Arc 258.5b — thread sym.types() into the encoder so records cross
             // the process wire with named fields (e.g. {:x 7, :y 35}) rather than
             // positional fallback ({:field-0 7, :field-1 35}). The decoder on the
@@ -24625,6 +24663,8 @@ fn eval_peer_send_prime(
                     }
                     .into()),
                     Some(peer) if peer.is_socket_tier() => {
+                        // §7 wire-wall: a bare struct must not be written to the socket wire.
+                        reject_non_portable_on_wire(&payload_val, OP, list_span)?;
                         // Socket-tier: encode with type registry in eval, ship the wire String.
                         let wire = crate::edn_shim::value_to_edn_string_with(
                             &payload_val,

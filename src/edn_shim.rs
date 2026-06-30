@@ -884,6 +884,12 @@ pub enum EdnReadErrorKind {
     /// `wat_edn::Value` variant like Symbol or BigInt, or a
     /// surface-level parse error wrapped here).
     Other(String),
+    /// A bare `Holder::Struct` value arrived at the top level of the comms
+    /// wire. Structs are in-locus only (§7 — "a struct is never portable");
+    /// the tagged EDN decoded successfully but the top-level result is a
+    /// struct, which the wire-decode door refuses so the in-locus guarantee
+    /// holds. `class` is the colon-free FQDN (e.g. `"w2a::S"`).
+    StructOnWire { class: String },
 }
 
 impl std::fmt::Display for EdnReadErrorKind {
@@ -912,6 +918,11 @@ impl std::fmt::Display for EdnReadErrorKind {
             Self::Other(s) => {
                 write!(f, "{s}")
             }
+            Self::StructOnWire { class } => write!(
+                f,
+                "a struct cannot arrive over a comms boundary — \
+                 a struct is in-locus and never crosses; §7 (class: :{class})"
+            ),
         }
     }
 }
@@ -2724,7 +2735,21 @@ pub(crate) fn decode_trusted_wire(
     s: &str,
     types: Option<&crate::types::TypeEnv>,
 ) -> Result<Value, EdnReadError> {
-    read_edn_caps(s, types, true)
+    let v = read_edn_caps(s, types, true)?;
+    // §7 wire-wall: a bare Holder::Struct must not arrive over a comms boundary.
+    // Structs are in-locus only; the tagged EDN may decode successfully (the
+    // parent's type registry knows the struct), but the wire-decode door refuses
+    // the top-level value so the portability guarantee holds. Records and
+    // HolonRecords (holder.is_portable() == true) pass through unchanged.
+    if let Value::Aggregate(ref agg) = v {
+        if !agg.holder.is_portable() {
+            return Err(EdnReadError {
+                span: Span::unknown(),
+                kind: EdnReadErrorKind::StructOnWire { class: agg.class.clone() },
+            });
+        }
+    }
+    Ok(v)
 }
 
 #[cfg(test)]
