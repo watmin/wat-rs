@@ -53,18 +53,20 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >   ⊹ **SCOPE CORRECTED (2026-06-30): THE WIRE WALL IS PURELY COMPILE-TIME — the runtime checks (2a/2c) RETIRE.** The
 >   job is ONE sentence: *the compiler won't let you write code that reads or writes a struct over non-thread memory.*
 >   Bad bytes (untrusted input) = the USER's validation problem, explicitly OUT OF SCOPE. (`293/DESIGN-293.W` §contract.)
->   1. **293.W.2b — THE ENUM MOBILITY MARKER (DESIGN SETTLED + ratified 2026-06-30; `293/DESIGN-293.W § 293.W.2b`).**
->      Enums **DECLARE** `:wat::enum::Portable` | `:wat::enum::Anchored` (mandatory positional marker; `Mobility{Portable,
->      Anchored}` on `EnumDef`, mirrors `Holder`); `is_portable_type` **reads** the declaration; an enum-containment pass
->      (parallel to W.1) enforces it; deferral comment dies. *Completes THE PREDICATE the rules consume* → W.1's gate +
->      2d's containment become total. **Supersedes the earlier "enum arm recurses (derived) + rune" plan** — derived was
->      four-questioned OUT (masks intent, the surface-`:holder`-mandatory rule); intueri double-cast crowned the names
->      (killed `:locus` — process/remote are loci too — and `ThreadLocal` — an inverted lie). Grounding: NO live enum
->      carries a direct `Receiver<T>` (the cited `StdOutService::Event` died in the Rust rehome) → the predicted "3+ enum"
->      cascade is essentially the migration of ~10 wat + 4 Rust enums to declare mobility. **STRIKE-READY:** RED probe
->      `probe_arc293_W2b_enum_recursion` written (disconfirms at HEAD); the derived-recursion code (cycle-guard) is held
->      UNCOMMITTED and gets REPLACED by the marker. Surfaced a VALID finding (`:svc::Request` reply-`Sender`s → genuinely
->      `Anchored`); its thread-tier `make-channel` exemption rides to 2d.
+>   1. **293.W.2b — PURITY IS THE AXIS (the NEXT PRIORITY; builder: *"a wonderful finding"*; canonical =
+>      `293/AGGREGATE-MODEL.md § THE PURITY AXIS`).** The holder was always a PURITY classification wearing a movement
+>      name. Enums **declare** `:wat::enum::Pure` | `:wat::enum::Impure` (`Purity{Pure,Impure}` on `EnumDef`); the holder
+>      is purity refined (`Struct` permits impurity; `Record`/`Holon` guarantee purity). **Rename the cause in ONE
+>      change** (long-term-stability bias, `feedback_bias_toward_long_term_stability_name_the_cause`):
+>      `Holder::is_portable`→`is_pure`, `is_portable_type`→`is_pure_type`, wire wall→**purity wall**, containment = "a
+>      pure aggregate/enum holds only pure fields". `:wat::kernel::Failure` = pure data mis-declared `defstruct` →
+>      `defrecord` (the 2616-cascade ROOT). One purity family w/ function-purity (`:wat::runtime::Purity`=`:Pure`/`:Effectful`).
+>      **SUPERSEDES** the `Mobility`/`Portable`/`Anchored` movement-frame (intueri-crowned path — kept, marked) + the
+>      "enum arm recurses (derived)" plan (four-questioned out). **STATE:** uncommitted tree has the structural skeleton
+>      under the OLD `Portable`/`Anchored` names (EnumDef field, parser slot, containment pass, 54-fixture sweep) — to be
+>      REVISED to purity + the `is_pure` renames + `Failure` fix + driven to green (DELEGATE the build to a sonnet; the
+>      orchestrator designs/weighs). RED probe `probe_arc293_W2b_enum_recursion` written. The one ledgered ignore
+>      (`:svc::Request` make-channel) rides to 2d.
 >   2. **293.W.2d** (NOT optional — builder) — **PEER-TYPE CONTAINMENT** (the W.1 rule lifted to the peer): a wire peer
 >      (`Process'`/`ConnPeer'`) may NOT be TYPED with a non-portable `I`/`O` (split overloaded `Peer'` → `ConnPeer'` wire /
 >      `ThreadSelfPeer'` in-locus to express it). Then the ORDINARY type checker forbids struct-on-wire — `send'(peer,

@@ -105,6 +105,18 @@ zero). Service enums with `Receiver<T>` → runed. **Weigh forced-clean; the cas
 
 ## § 293.W.2b — THE ENUM MOBILITY MARKER (DESIGN SETTLED + builder-ratified 2026-06-30)
 
+> ⊹⊹ **SUPERSEDED → PURITY (2026-06-30, builder: *"a wonderful finding … our next priority"*).** The marker is
+> **`:wat::enum::Pure` | `:wat::enum::Impure`** (Rust **`Purity { Pure, Impure }`** on `EnumDef`), NOT `Portable`/
+> `Anchored`. The axis is **PURITY** (the value holds nothing but data vs holds a live resource) — the *cause*; crossing
+> the wire is the *consequence*. The long-term-stability bias renames the cause everywhere, in one change, so no seam
+> survives: **`Holder::is_portable` → `is_pure`**, **`is_portable_type` → `is_pure_type`**, the wire wall → the **purity
+> wall**, and the holder is understood as the purity axis refined (`Struct` permits impurity; `Record`/`HolonRecord`
+> guarantee purity). `:wat::kernel::Failure` is pure data mis-declared `defstruct` → **`defrecord`** (the 2616-cascade
+> root). One purity family with function effect-purity (`:wat::runtime::Purity` = `:Pure`/`:Effectful`) — shared `:Pure`
+> root, domain-specific impure-poles. **THE CANONICAL STATEMENT is now `AGGREGATE-MODEL.md § THE PURITY AXIS.** The
+> `Mobility`/`Portable`/`Anchored` content below is the PATH (the movement-frame, intueri-crowned, then renamed to the
+> cause) — preserved, marked. Read it for the four-questions + the two intueri casts; read AGGREGATE-MODEL for the model.
+>
 > SUPERSEDES the "the enum arm recurses (derived)" framing above. Portability is **declared**, not inferred —
 > mirroring how an aggregate declares its `Holder`. The model becomes uniform: **every portable container (record,
 > holon, enum) = a DECLARED capability + a CONTAINMENT gate; `is_portable_type` READS the declaration; the gate

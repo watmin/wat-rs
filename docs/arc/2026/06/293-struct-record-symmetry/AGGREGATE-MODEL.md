@@ -5,10 +5,35 @@
 > everything else is holder-blind. Pairs `AGGREGATE-AUDIT.md` (the parity ledger) + `CLOSE-SEQUENCE-293-294.md`
 > (the live order).
 
+## ⊹⊹ THE PURITY AXIS — the foundational finding (2026-06-30, builder: *"a wonderful finding … our next priority"*)
+
+> The deepest statement of what the holder IS — and it lands squarely in 293's thesis (struct/record identical in
+> usage). **PURITY is the type system's foundational axis.** A value is **`:Pure`** — *nothing but data* (scalars,
+> records, sums of data; fully EDN-reconstructable anywhere) — or **`:Impure`** — it *holds a live resource* (a
+> `Sender`/socket/closure; bound to its locus). **The wire wall IS the purity wall:** a value crosses an address-space
+> boundary **iff it is pure.** Portability/crossing is the *consequence*; purity is the *cause* — and we name the cause
+> (long-term stability: a symptom-name gets revisited the moment someone traces it to its cause; see
+> `feedback_bias_toward_long_term_stability_name_the_cause`).
+>
+> **The holder is the purity axis, refined.** `is_portable = holder != Struct` was *always* a purity test wearing a
+> movement name → it becomes **`is_pure`** (`Holder::is_pure()`, `is_pure_type`). The trit refines the axis:
+> **`Struct` permits impurity** (may hold resources — the impure-capable holder); **`Record` / `HolonRecord` guarantee
+> purity** (the two *pure* holders, Holon = pure **+** VSA). So the holder did not change — it is *named correctly* now:
+> a purity classification with a VSA refinement on the pure side.
+>
+> **Enums declare purity directly** (a sum has no backing to refine): the mandatory `:wat::enum::Pure` |
+> `:wat::enum::Impure` marker on `defenum` (`Purity { Pure, Impure }` on `EnumDef`). One concept across the type
+> system. **And one step away on the *computation* domain:** function effect-purity (`:wat::runtime::Purity` =
+> `:Pure`/`:Effectful`) shares the `:Pure` root — the impure-poles stay domain-specific and honest (a *computation* is
+> `:Effectful` — it *does* impure things; a *value* is `:Impure` — it *holds* them). **One purity family, nothing left
+> to revisit.** (Supersedes the `Mobility { Portable, Anchored }` / `:wat::enum::Portable|Anchored` naming below — the
+> movement-frame; path preserved, marked. See `DESIGN-293.W § 293.W.2b`.)
+
 ## The 7 governing principles
 
 1. **ONE citizen — the aggregate** (`class` + positional `fields`). `struct` / `record` / `holon-record` are the
-   *same thing wearing a holder*, never three kinds.
+   *same thing wearing a holder*, never three kinds. **The holder is the PURITY axis (above): `Struct` permits
+   impurity; `Record`/`HolonRecord` guarantee purity.**
 2. **The HOLDER ENUM is the only specialness.** `{ Struct, Record, HolonRecord }`. It is consulted at **exactly three
    boundaries** and nowhere else: **comms** (can it leave the locus?), **edn-repr** (the wire form), **assignability**
    (the `:holder` bound on a surface, contravariant). Construction, field access, identity, the data — all holder-blind.
@@ -49,17 +74,20 @@
    side) — §7 / R3 *SUB SUPERFICIE QUOD ES* violated. The fix is this rule (declaration-time) + a `recv'` backstop
    for the bare-top-level-struct untyped path. (The 293.W strike. Builder: *"we cannot decide a default value for a
    bound socket … the record literally cannot hold a struct."*)
-   **GENERALIZES to the enum (293.W.2b):** the containment rule is the wire-wall-as-type-guarantee for ANY portable
-   container. An `enum` declares its capability with a parallel marker — `Mobility { Portable, Anchored }`, surfaced as
-   the mandatory `:wat::enum::Portable` | `:wat::enum::Anchored` kind-word on `defenum` (NOT the holder — a sum has no
-   backing; "an enum has a holder" is a category pun) — and a `Portable` enum may declare only portable variant fields,
-   exactly as a portable aggregate may declare only portable fields. One model: declared capability + containment gate;
-   `is_portable_type` reads the declaration (`holder.is_portable()` / `mobility.is_portable()`). See `DESIGN-293.W § 293.W.2b`.
+   **GENERALIZES to the enum (293.W.2b) — as PURITY (see § THE PURITY AXIS):** the containment rule is the
+   purity-wall-as-type-guarantee for ANY pure container. An `enum` declares its purity directly — the mandatory
+   `:wat::enum::Pure` | `:wat::enum::Impure` marker on `defenum` (`Purity { Pure, Impure }` on `EnumDef`; NOT the holder
+   — a sum has no backing to refine) — and a `:Pure` enum may declare only pure variant fields, exactly as a pure
+   aggregate (record/holon) may declare only pure fields. One model: declared purity + containment gate; `is_pure_type`
+   reads the declaration (`holder.is_pure()` for aggregates / `purity.is_pure()` for enums). ⊘ *(Superseded path: first
+   framed as `Mobility { Portable, Anchored }` / `:wat::enum::Portable|Anchored` — the movement-frame, intueri-crowned;
+   the long-term-stability bias renamed it to the cause, purity. Kept, marked.)* See `DESIGN-293.W § 293.W.2b`.
 
-## The holder trit
-`Struct (−1)` in-locus, non-portable, holds resources, never crosses · `Record (0)` edn-repr, crosses ·
-`HolonRecord (+1)` edn-repr + VSA. `is_portable = holder != Struct` (`types.rs:138`). `:wat::core::Value` is the
-universal top (arc 278).
+## The holder trit (= the purity axis, refined)
+`Struct (−1)` **impure-capable** (in-locus, holds resources, never crosses) · `Record (0)` **pure**, edn-repr, crosses ·
+`HolonRecord (+1)` **pure** + VSA. The wire wall is the purity wall: **`is_pure = holder != Struct`** (`Holder::is_pure`,
+ex-`is_portable`, `types.rs:138`) — `Struct` permits impurity; `Record`/`HolonRecord` guarantee purity (Holon refines
+the pure side with VSA). `:wat::core::Value` is the universal top (arc 278).
 
 ## The user forms (the UX)
 

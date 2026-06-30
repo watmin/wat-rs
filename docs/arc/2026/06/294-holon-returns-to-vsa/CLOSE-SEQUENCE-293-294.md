@@ -106,14 +106,18 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 >   writes a struct over non-thread memory.* Bad bytes (untrusted input) = the USER's validation problem, OUT OF
 >   SCOPE.** Three compile-time rules, ZERO runtime code (`293/DESIGN-293.W` §contract):
 >   - ✅ **W.1 — aggregate containment (`ff29f135`)** — a record can't HOLD a struct field (declaration gate).
->   - **2b — THE ENUM MOBILITY MARKER** (DESIGN SETTLED + ratified 2026-06-30; `293/DESIGN-293.W § 293.W.2b`). Enums
->     **DECLARE** `:wat::enum::Portable` | `:wat::enum::Anchored` (mandatory positional marker; `Mobility{Portable,
->     Anchored}` on `EnumDef`, mirrors `Holder`); `is_portable_type` READS the declaration (`e.mobility.is_portable()`);
->     an enum-containment pass enforces it (a `Portable` enum holds only portable variant fields). The deferral comment
->     dies. **Supersedes the earlier "enum arm recurses (derived) + rune" framing** — four-questioned out (derived masks
->     intent, the surface-`:holder`-mandatory rule); grounding found no live enum carries a direct `Receiver<T>` (the
->     cited `StdOutService::Event` died in the Rust rehome). Surfaced a VALID finding: `:svc::Request` (reply-`Sender`s)
->     is genuinely `Anchored`; its thread-tier `make-channel` exemption rides forward to 2d. The predicate the rules consume.
+>   - **2b — PURITY IS THE AXIS** (DESIGN SETTLED + ratified 2026-06-30; builder: *"a wonderful finding … our next
+>     priority"*; canonical = `293/AGGREGATE-MODEL.md § THE PURITY AXIS`, strike-detail `293/DESIGN-293.W § 293.W.2b`).
+>     The holder was always a PURITY classification wearing a movement name. Enums **declare** `:wat::enum::Pure` |
+>     `:wat::enum::Impure` (`Purity{Pure,Impure}` on `EnumDef`); the holder is the purity axis refined (`Struct` permits
+>     impurity; `Record`/`Holon` guarantee purity). **Rename the cause everywhere in ONE change** (long-term stability):
+>     `Holder::is_portable`→`is_pure`, `is_portable_type`→`is_pure_type`, the wire wall → the **purity wall**, a
+>     containment pass enforces "a pure aggregate/enum holds only pure fields". `:wat::kernel::Failure` is pure data
+>     mis-declared `defstruct` → `defrecord` (the 2616-cascade root). One purity family with function-purity
+>     (`:wat::runtime::Purity` = `:Pure`/`:Effectful`). **Supersedes** the `Mobility`/`Portable`/`Anchored` movement-frame
+>     (the path) AND the earlier "enum arm recurses (derived)" framing. Surfaced VALID findings (`:svc::Request`
+>     reply-`Sender`s = impure → its thread-tier `make-channel` exemption rides to 2d; `Failure` mis-declared). The
+>     predicate the rules consume. **Falls squarely in 293's thesis (struct/record identical) — the NEXT PRIORITY.**
 >   - **2d** (NOT optional) — **PEER-TYPE CONTAINMENT** (W.1 lifted to the peer): a wire peer (`Process'`/`ConnPeer'`)
 >     may NOT be typed with a non-portable `I`/`O`; split overloaded `Peer'` → `ConnPeer'`/`ThreadSelfPeer'` to express
 >     it. The ordinary type checker then forbids struct-on-wire (`send'(peer, struct)` = unify error; `recv'` can't
