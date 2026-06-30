@@ -72,15 +72,19 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `14b
 >      REVISED to purity + the `is_pure` renames + `Failure` fix + driven to green (DELEGATE the build to a sonnet; the
 >      orchestrator designs/weighs). RED probe `probe_arc293_W2b_enum_recursion` written. The one ledgered ignore
 >      (`:svc::Request` make-channel) rides to 2d.
->   2. **293.W.2d** (NOT optional — builder) — **PEER-TYPE CONTAINMENT** (the W.1 rule lifted to the peer): a wire peer
->      (`Process'`/`ConnPeer'`) may NOT be TYPED with a non-portable `I`/`O` (split overloaded `Peer'` → `ConnPeer'` wire /
->      `ThreadSelfPeer'` in-locus to express it). Then the ORDINARY type checker forbids struct-on-wire — `send'(peer,
->      struct)` is a `struct≠portable-I` unify error; `recv'(peer)` can't produce a struct; the "read into a struct off
->      a wire peer" call path **has no form.** **DELETE the interim 293.W.2a runtime guards (`fe012223`) + the 293.W.2c
->      send'-site gate (`7a040b0e`)** — once containment is total, a struct can never reach the wire from any wat program
->      (the guards defend a door no wat code can walk through). → **COMMS boundary categorical; the wall = ZERO runtime code.**
->   3. **K3-REVISE → K5** — annihilate `to-struct`+`$struct` → the pair (`$core-record`/`$holon-record`); then
+>   2. **293.W.2d — PEER-TYPE PURITY — ✅ LANDED (`91ad0107`, weighed forced-clean 4135/0/93, IGNORE LEDGER EMPTY).**
+>      Option R (four-questioned over the DESIGN's literal `ConnPeer'` rename): `Peer'<I,O>` keeps its name + gains the
+>      well-formedness `I,O` must be `:Pure` (the wire-capable peer); `ThreadSelfPeer'<I,O>` (any I/O, in-locus) is the
+>      escape hatch for thread self-peers that hold resources. Then bare-`Peer'` `send'` is statically pure-safe by
+>      ordinary unify → the **2a runtime guards (`reject_non_portable_on_wire` + `StructOnWire` decode) + the 2c
+>      send'-site gate ANNIHILATED**; `make-channel` (thread-tier) drops its purity gate → `:svc::Request` un-ignored
+>      (ledger EMPTY); `NonPortableCapture → ImpureCapture`. **⊹⊹ 293.W is COMPLETE — W.1 (containment) + 2b (purity
+>      axis) + 2d (peer-type purity); the deep wire wall is a PURELY COMPILE-TIME, ZERO-RUNTIME-CODE structural
+>      guarantee.** R7 *PVRITAS NON MOTVS* + R8 *ANIMA NON FERRVM* on the record.
+>   3. **▶ NEXT = K3-REVISE → K5** — annihilate `to-struct`+`$struct` → the pair (`$core-record`/`$holon-record`); then
 >      `extend-surface` rides the pair (K5 hard-needs K3-revise; STRIKE-READY `7d2892b8`). → **SURFACE settled.**
+>      *(NOTE: the projection pair is now `$core-record`/`$holon-record` and the holder language is PURITY (293.W.2b) —
+>      K3-revise inherits the `is_pure` vocabulary; verify the projection tiers against the purity axis when drawing it.)*
 >   4. **9a + of-funcs→`aggregate-new`** — construction unification (kwargs default + `:ns::Agg'` positional +
 >      `/from-map` dies + `::of` funcs die; CLOSE-SEQUENCE 9/9a). Before the showcase. → **CONSTRUCTION settled.**
 >   5. **Showcase graduates** `.wat.disabled`→`.wat` on the settled surfaces.
