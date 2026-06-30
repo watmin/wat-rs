@@ -98,11 +98,13 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `85a
 >     explicit `[self <- :TheSurface]` is the TARGET; **K0 includes a self-reference cycle-guard** (a standard
 >     occurs-check — the surface names itself; HEAD lacks the guard so it stack-overflows today, exit 139, done-detector
 >     caught it). Showcase keeps `[self]` only until K0 lands (so it stays a clean K1 probe).
->   - 🎯 **K1 PINNED to ONE line (the showcase earned it):** `check.rs:14698` does `agg_holder == req` (EXACT) → must be
->     `agg_holder.rank() >= req.rank()` (the contravariant ladder; Struct −1 < Record 0 < HolonRecord +1). Twin
->     `check.rs:14726` (foreign `is_none()`) → derive holder + same `>=`. **The AGGREGATE ladder itself was never built**
->     (293.4 demo used holder-LESS surfaces). Showcase `wat-scripts/demos/aggregates/showcase.wat.disabled` is now
->     clean-RED on EXACTLY these 3 (`cargo wat` it). Needs a `Holder::rank()`. **K1 is the smallest, most obvious first strike.**
+>   - ✅✅ **BUILD STARTED — K1 (THE HOLDER LADDER) COMPLETE.** K1a aggregate (`a952c908`): `Holder::rank()` +
+>     `check.rs:14698` `==`→`rank() >=`. K1b foreign (`88818acd`): the real path was the **extend-type subtype edge**
+>     (`assignable` arms 14633/14641), holder-exempt (b) → `derived_holder` + `holder_floor_ok` gate = (b′) holder-CHECKED.
+>     Two RED probes (`probe_arc293_holder_ladder` + `_foreign`) RED→GREEN; weighed forced-clean 4119/0/92. R6 *EX
+>     CINERIBVS RESVRGO* banked (`c3689748`). **▶ NEXT = K0** (surface grammar: mandatory `:holder` + explicit `self`
+>     + the self-reference cycle-guard + migrate the ~17 holder-less surfaces & `[self]` forms). Then K2 `$record` →
+>     K3 `to-record` → K4 extend-type un-demote → K5 extend-surface.
 >   - **SETTLED (design):** rete facts = a `:wat::rete::Fact` SURFACE (`:holder :wat::core::Record :features []`), NOT
 >     `:wat::core::Value` — facts must be EDN-serializable (builder corrected model §7's "rete uses Value"). So item-2
 >     has **NO `Value` migration**: every "must be a record" slot is a `:holder :wat::core::Record` surface. §7 needs the fix.

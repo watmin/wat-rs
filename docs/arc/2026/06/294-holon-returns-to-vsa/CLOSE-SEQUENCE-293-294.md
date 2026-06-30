@@ -89,8 +89,14 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
     struct+record+holon, record-floor accepts record+holon, holon-floor accepts holon only. The aggregate ladder was
     never built (the 293.4 demo used holder-LESS surfaces); RED probe `probe_arc293_holder_ladder` RED→GREEN; weighed
     forced-clean (4118 run, the lone in-band fail `sigterm_…polling` passes isolated 2/2 = the arc-170 flake).
-  - ▷ **K1b — the FOREIGN twin (next)** — `check.rs:14726` (`holder.is_none()`) → derive a foreign type's holder from
-    `is_portable`/`is_holon`, then the **same** `rank() >=`. Resolves the foreign-type question — **(b′)**.
+  - ✅ **K1b — the FOREIGN floor LANDED (`88818acd`)** — the plan mis-pinned this at `check.rs:14726` (dead for
+    parametric foreigns). Foreign satisfaction flows through the **extend-type subtype edge** (`assignable` arms
+    `14633`/`14641`), which returned `true` with NO holder check (option **(b)**, exempt — a String wrongly satisfied a
+    `:holder :HolonRecord` surface). Fix: `derived_holder` (aggregate→declared, foreign→`is_holon_or_vector`/`is_portable_type`)
+    + `holder_floor_ok` gating BOTH arms **only** for holder-bound surfaces (protocols untouched), same `rank() >=`.
+    Upgrade (b)→**(b′)**: foreign satisfaction is holder-CHECKED, never exempt. RED probe
+    `probe_arc293_holder_ladder_foreign` RED→GREEN; weighed forced-clean 4119/0/92.
+  - **⇒ K1 COMPLETE — the holder ladder is aggregate + foreign, both honest.**
 - ▷ **K2 — `$record` backing-type emission** — `defsurface` emits its backing `AggregateDef` (`:S$record`) from the
   ONE `:features` **attribute** set (methods excluded — a record holds no functions). Derived, never a second copy.
 - ▷ **K3 — `to-record`** — `:wat::core::to-record` + `:wat::holon::to-record`: project a satisfier's attributes into
