@@ -1565,14 +1565,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
 /// Arc 293 K3 — derive the THREE backing aggregates from a surface declaration.
 ///
 /// For every `SurfaceDef` with a `holder`, emits THREE companion `TypeDef::Aggregate` values:
-///   - `<surface-name>$struct`        (holder = Struct)
 ///   - `<surface-name>$core-record`   (holder = Record)
 ///   - `<surface-name>$holon-record`  (holder = HolonRecord)
-/// All three share the same fields (surface's `Field` members only; methods excluded).
+/// Both share the same fields (surface's `Field` members only; methods excluded).
 /// The surface's own `:holder` governs satisfaction (who may pass `[x <- :S]` slots);
-/// these three backing types are always emitted regardless of the surface's holder so
-/// callers may project at whichever tier they choose via `to-struct` / `to-record` /
-/// `:wat::holon::to-record`.
+/// these two backing types are always emitted regardless of the surface's holder so
+/// callers may project at either pure tier via `to-record` / `:wat::holon::to-record`.
+/// RETIRED 293 K3-revise: `$struct` (Struct-holder backing) — projection is ONE-WAY UP;
+/// `$struct` is the impure tier; you already have the struct in locus. See retirement.rs.
 ///
 /// Returns an empty Vec for surfaces without a `:holder` (abstract surfaces; defensive skip).
 /// Each flows through `register_aggregate_methods` (step 6.8a in freeze/env.rs) to
@@ -1589,14 +1589,9 @@ fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
             SurfaceMember::Method { .. } => None,
         })
         .collect();
+    // RETIRED 293 K3-revise: $struct (Struct-holder) removed — see retirement.rs.
+    // A surface emits the PAIR: $core-record (portable EDN) + $holon-record (EDN + VSA).
     vec![
-        TypeDef::Aggregate(AggregateDef {
-            name: format!("{}$struct", surface.name),
-            type_params: vec![],
-            fields: fields.clone(),
-            holder: Holder::Struct,
-            restrictions: None,
-        }),
         TypeDef::Aggregate(AggregateDef {
             name: format!("{}$core-record", surface.name),
             type_params: vec![],
@@ -1633,13 +1628,13 @@ fn register_types_impl(
                 // every emission site for source-coordinate prefixes.
                 let decl_span = form.span().clone();
                 let def = parse_type_decl(head, form, decl_span.clone())?;
-                // Arc 293 K3 — when a surface is registered, derive and register all THREE
-                // backing aggregates (`:S$struct`, `:S$core-record`, `:S$holon-record`).
+                // Arc 293 K3-revise — when a surface is registered, derive and register the
+                // PAIR of backing aggregates (`:S$core-record`, `:S$holon-record`).
                 // Field members only; methods are behavior. The `register` closure is re-used
                 // so stdlib surfaces (if any) get the same privilege as the surface itself;
                 // user surfaces go through the reserved-prefix gate automatically (their
-                // `$struct`/`$core-record`/`$holon-record` names are in the same non-reserved
-                // namespace as the surface).
+                // `$core-record`/`$holon-record` names are in the same non-reserved namespace).
+                // RETIRED 293 K3-revise: `:S$struct` — see retirement.rs.
                 let derived = if let TypeDef::Surface(ref surf) = def {
                     derive_surface_backing_records(surf)
                 } else {

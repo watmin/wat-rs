@@ -97,6 +97,13 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // Arc 293.2-rename — defrecord replaces Record::def (the aggregate trio's final names).
     RetirementEntry { retired: ":wat::core::Record::def",        replacement: ":wat::core::defrecord",  note: None },
     RetirementEntry { retired: ":wat::holon::Record::def", replacement: ":wat::holon::defrecord", note: None },
+    // Arc 293 K3-revise — to-struct + $struct are RETIRED. Projection is ONE-WAY UP (never
+    // down to the impure tier). A surface now emits the PAIR: $core-record + $holon-record.
+    // `to-struct` → use `:wat::core::to-record` (portable EDN) or `:wat::holon::to-record`
+    //               (portable EDN + VSA hologram) to project up to the tier you need.
+    // `$struct`   → no replacement — the type no longer exists; you do not need it.
+    RetirementEntry { retired: ":wat::core::to-struct", replacement: ":wat::core::to-record",
+        note: Some("projection is ONE-WAY UP (AGGREGATE-MODEL.md § to-record, 2026-06-29): choose :wat::core::to-record for portable EDN or :wat::holon::to-record for EDN + VSA hologram") },
 ];
 
 /// Look up `needle` in the retirement table.

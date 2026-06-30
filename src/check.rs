@@ -5595,18 +5595,12 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 293 K3 — three projection verbs.
+            // Arc 293 K3-revise — the TWO projection verbs (the PAIR). `:wat::core::to-struct`
+            // is RETIRED (293 K3-revise); projection is ONE-WAY UP, never down.
             // Each takes two args: x (evaluated) and :S (literal surface keyword).
             // Returns the specific backing-type path so downstream checks see the
             // concrete type instead of a fresh TypeVar.
-            ":wat::core::to-struct" => {
-                let (val, mut errs) = infer_projection_verb_check(":wat::core::to-struct", "$struct", head_span, args, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
+            // RETIRED 293 K3-revise: ":wat::core::to-struct" arm — see retirement.rs.
             ":wat::core::to-record" => {
                 let (val, mut errs) = infer_projection_verb_check(":wat::core::to-record", "$core-record", head_span, args, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -12896,10 +12890,10 @@ fn infer_aggregate_new_check(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Arc 293 K3 — type inference for the three projection verbs:
-///   `:wat::core::to-struct`  (x :S) → :S$struct
+/// Arc 293 K3-revise — type inference for the TWO projection verbs (the PAIR):
 ///   `:wat::core::to-record`  (x :S) → :S$core-record
 ///   `:wat::holon::to-record` (x :S) → :S$holon-record
+/// (`:wat::core::to-struct` is RETIRED — 293 K3-revise; projection is ONE-WAY UP.)
 ///
 /// Validates: arity == 2; args[0] (`x`) satisfies the surface named by args[1] (`:S`,
 /// a literal keyword); returns the specific backing-type path (`TypeExpr::Path`).

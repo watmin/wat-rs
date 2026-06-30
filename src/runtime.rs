@@ -3992,13 +3992,15 @@ fn dispatch_keyword_head_value(
         // (no precomputed arg). struct-new / Record::of / holon::Record::of all route
         // through this; their of-func registrations stay until 294.c.2b.
         ":wat::core::aggregate-new" => eval_aggregate_new(args, list_span, env, sym),
-        // Arc 293 K3 — three projection verbs: project a satisfier's surface attributes
-        // into a new backing record at the caller-chosen holder tier.
-        //   (:wat::core::to-struct  x :S) → :S$struct       (in-locus; Struct holder)
+        // Arc 293 K3-revise — the TWO projection verbs (the PAIR): project a satisfier's
+        // surface attributes into a new backing record at the pure tier the caller names.
+        // Projection is ONE-WAY UP — you never project down to a struct (you already have
+        // the struct; an in-locus copy of in-locus data buys nothing).
         //   (:wat::core::to-record  x :S) → :S$core-record  (portable EDN; Record holder)
         //   (:wat::holon::to-record x :S) → :S$holon-record (portable EDN + hologram)
         // arg0 `x` is evaluated; arg1 `:S` is a literal surface keyword (NOT evaluated).
-        ":wat::core::to-struct" => eval_to_struct(args, list_span, env, sym),
+        // RETIRED 293 K3-revise: `:wat::core::to-struct` — projection is ONE-WAY UP, never
+        // down; `$struct` is the impure tier; you already have the struct in locus.
         ":wat::core::to-record" => eval_to_core_record(args, list_span, env, sym),
         ":wat::holon::to-record" => eval_to_holon_record(args, list_span, env, sym),
         // Arc 234 Stone 234.2a — `:wat::core::Record::of` constructor + `:wat::core::Record/field-at` accessor.
@@ -13820,7 +13822,7 @@ fn project_surface_attrs(
                 None => return Err(RuntimeError {
                     span: list_span.clone(),
                     kind: RuntimeErrorKind::UnknownFunction(format!(
-                        "to-struct/to-record: type `{}` does not have accessor `{}`",
+                        "to-record: type `{}` does not have accessor `{}`",
                         concrete_type_fqdn, method_key
                     )),
                 }.into()),
@@ -13885,21 +13887,12 @@ fn parse_projection_args<'a>(
     Ok((x_val, surface_kw, surf))
 }
 
-/// Arc 293 K3 — `(:wat::core::to-struct x :S)` → `:S$struct` (Struct holder).
-fn eval_to_struct(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &'static str = ":wat::core::to-struct";
-    let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
-    let field_values = project_surface_attrs(&x_val, &surf, sym, list_span)?;
-    let class = format!("{}$struct", surface_kw.trim_start_matches(':'));
-    Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(class, field_values))))
-}
+// RETIRED 293 K3-revise — `fn eval_to_struct` (`:wat::core::to-struct x :S` → `:S$struct`).
+// Projection is ONE-WAY UP (AGGREGATE-MODEL.md § to-record, settled 2026-06-29): you never
+// project down to a struct; `$struct` is the impure tier; you already hold the struct in locus.
+// Retirement entry lives in `src/remedy/retirement.rs`.
 
-/// Arc 293 K3 — `(:wat::core::to-record x :S)` → `:S$core-record` (Record holder).
+/// Arc 293 K3-revise — `(:wat::core::to-record x :S)` → `:S$core-record` (Record holder).
 fn eval_to_core_record(
     args: &[WatAST],
     list_span: &Span,
