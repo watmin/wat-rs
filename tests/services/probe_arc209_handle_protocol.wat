@@ -16,6 +16,6 @@
 (:wat::core::defn :user::go [] -> :wat::core::String
   (:wat::core::let
     [svc (:wat::kernel::spawn-program' (:wat::spawn::thread)
-           (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
              nil))]
     (:user::tag-of svc)))

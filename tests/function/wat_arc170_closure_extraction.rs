@@ -449,25 +449,25 @@ fn t8_lambda_captures_sender_is_non_portable() {
     // The lambda captures `tx` (a Sender) by closing over it but
     // never reads/writes the channel — the send call would trigger
     // CommCallOutOfPosition at type-check, which is a separate
-    // discipline. We're only testing extraction's portability gate
+    // discipline. We're only testing extraction's impure-capture gate
     // here. Capturing the Sender in the closed env is enough to
-    // surface NonPortableCapture.
+    // surface ImpureCapture.
     let parent = freeze("tests/function/wat_arc170_closure_extraction_t8.wat");
     let lambda = synth_lambda(&parent, ":my::make-snd");
     let err = extract_err(&parent, &lambda, None);
     match &err {
-        ExtractionError { kind: ExtractionErrorKind::NonPortableCapture { name, type_name, path: _ }, .. } => {
+        ExtractionError { kind: ExtractionErrorKind::ImpureCapture { name, type_name, path: _ }, .. } => {
             assert_eq!(name, "tx");
             assert!(type_name.contains("Sender"), "type_name={}", type_name);
         }
-        other => panic!("expected NonPortableCapture; got {:?}", other),
+        other => panic!("expected ImpureCapture; got {:?}", other),
     }
     // Verify the Display rendering carries the substrate-as-teacher
     // diagnostic. The report shape mandates a verbatim sample.
     let msg = format!("{}", err);
     assert!(msg.contains("`tx`"), "missing capture name: {}", msg);
     assert!(msg.contains("Sender"), "missing type: {}", msg);
-    assert!(msg.contains("Channel-bearing types cannot cross"),
+    assert!(msg.contains("Impure types") || msg.contains("impure type"),
             "missing teacher hint: {}", msg);
     assert!(msg.contains("stdin/stdout/stderr"),
             "missing pipes pointer: {}", msg);
@@ -486,7 +486,7 @@ fn t9_captured_struct_holds_sender_field_nested() {
     // The substrate admits structs holding kernel-channel types as
     // fields (the type system has Sender<T> as a parametric type).
     // The captured value is a struct; encoding walks fields and the
-    // Sender field surfaces as NonPortableCapture.
+    // Sender field surfaces as ImpureCapture.
     let parent = match startup_from_file("tests/function/wat_arc170_closure_extraction_t9.wat") {
         Ok(w) => w,
         Err(_e) => {
@@ -500,11 +500,11 @@ fn t9_captured_struct_holds_sender_field_nested() {
     let lambda = synth_lambda(&parent, ":my::make-pack");
     let err = extract_err(&parent, &lambda, None);
     match err {
-        ExtractionError { kind: ExtractionErrorKind::NonPortableCapture { name: _, type_name, path }, .. } => {
+        ExtractionError { kind: ExtractionErrorKind::ImpureCapture { name: _, type_name, path }, .. } => {
             assert!(type_name.contains("Sender"), "type_name={}", type_name);
             assert!(!path.is_empty(), "expected nested path naming the offending field");
         }
-        other => panic!("expected NonPortableCapture; got {:?}", other),
+        other => panic!("expected ImpureCapture; got {:?}", other),
     }
 }
 

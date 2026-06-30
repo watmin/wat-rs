@@ -191,8 +191,11 @@
   ;; The locus's init-fn (extracted via ThreadOpts/init-fn) runs at the peer's start.
   ;; The locus's post-spawn-fn (extracted via ThreadOpts/post-spawn-fn) runs owner-side
   ;; after the peer is spawned, before spawn-program' returns, for effects.
+  ;; Arc 293.W.2d: thread programs take ThreadSelfPeer' (in-locus, any I/O) as the self
+  ;; parameter. Peer' is the wire-capable peer (pure I/O only); ThreadSelfPeer' is the
+  ;; in-locus escape hatch for thread workers that carry Sender/Receiver or other impure types.
   ([locus <- :wat::spawn::ThreadOpts
-    prog <- [:wat::kernel::Peer'<S,R> :-> :wat::core::nil]] -> :wat::kernel::Thread'<R,S>
+    prog <- [:wat::kernel::ThreadSelfPeer'<S,R> :-> :wat::core::nil]] -> :wat::kernel::Thread'<R,S>
     (:wat::kernel::spawn-thread' prog (:wat::spawn::ThreadOpts/init-fn locus) (:wat::spawn::ThreadOpts/post-spawn-fn locus)))
   ;; process — forms (Vector<wat::WatAST>); I,O are the forms-server's free request/response vars.
   ;; The locus's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
@@ -243,7 +246,7 @@
     (:wat::core::let
       [b  (:wat::kernel::listener' self :S :R)
        sp (:wat::kernel::spawn-program' self
-            (:wat::core::fn [self-peer <- :wat::kernel::Peer'<Lu,Sh>] -> :wat::core::nil
+            (:wat::core::fn [self-peer <- :wat::kernel::ThreadSelfPeer'<Lu,Sh>] -> :wat::core::nil
               (:wat::core::apply -> :wat::core::nil serve self-peer
                 (:wat::spawn::Bound/listener b)
                 (:wat::core::Vector :wat::kernel::Peer'<R,S>)

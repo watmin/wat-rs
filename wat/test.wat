@@ -795,7 +795,7 @@
   -> :wat::WatAST
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
             (:wat::core::do ~body (:wat::kernel::send' self 0))))
       _ (:wat::kernel::recv' p)]
      (:wat::core::struct-new :wat::kernel::RunResult

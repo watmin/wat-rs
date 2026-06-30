@@ -5,7 +5,7 @@
   :Compute [n <- :wat::core::i64])
 
 (:wat::core::defn :user::serve
-  [self    <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>
+  [self    <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>
    l       <- :wat::kernel::Listener'<user::Op,wat::core::i64>
    clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,user::Op>>]
   -> :wat::core::nil
@@ -31,7 +31,7 @@
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))
      c1   (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c1 (:user::Op::Compute 5))

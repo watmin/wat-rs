@@ -8,7 +8,7 @@
      l     (:wat::spawn::Bound/listener pair)
      addr  (:wat::spawn::Bound/address pair)
      svc   (:wat::kernel::spawn-program' (:wat::spawn::thread)
-              (:wat::core::fn [_admin <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+              (:wat::core::fn [_admin <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                 (:wat::core::let
                   [conn (:wat::kernel::accept' l)
                    n    (:wat::kernel::recv' conn)

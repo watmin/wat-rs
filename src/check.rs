@@ -10566,26 +10566,15 @@ fn infer_make_channel(
     let t_ty = match &args[0] {
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => {
-                // Arc 254 Stone 254.1 — portability gate. Channels carry
-                // messages, not resources; the payload type must be portable
-                // (wire-serializable / universe-crossable). Mirrors the
-                // value-level classifier in closure_extract.rs.
-                if !is_pure_type(&t, env.types()) {
-                    local_errors.push(CheckError {
-                        span: args[0].span().clone(),
-                        kind: CheckErrorKind::MalformedForm {
-                            head: form.into(),
-                            reason: format!(
-                                "channel payload type {} is not portable — channels carry \
-                                 messages, not resources; a payload must be wire-serializable \
-                                 (records, scalars, and portable containers; not \
-                                 Sender/Receiver/handles/closures)",
-                                k
-                            ),
-                            remedies: vec![],
-                        },
-                    });
-                }
+                // Arc 293.W.2d — make-channel's portability gate (Arc 254 Stone 254.1)
+                // is DELETED. make-channel is thread-tier (crossbeam, in-process);
+                // a thread channel is NEVER wire-serialized — it carries values by
+                // reference in shared memory. The purity constraint (§7) applies only
+                // to wire peers (Peer'/Process'). A thread channel may carry any type
+                // (including Sender/Receiver handles, structs, etc.) — the THREAD WALL
+                // exempts it. Deleting this gate unblocks `:svc::Request` (an Impure
+                // enum carrying reply-Senders) in thread-tier channels: make-channel
+                // :svc::Request now type-checks correctly, closing the IGNORE-LEDGER row.
                 t
             }
             Err(_) => {
@@ -10634,6 +10623,54 @@ fn infer_make_channel(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
+/// Arc 293.W.2d — validate that a `Peer'<I,O>` type argument is pure.
+///
+/// A wire peer (`Peer'`) carries only pure data (records, scalars, pure containers).
+/// Impure types (structs, handles, closures) cannot cross a comms boundary.
+/// The structural guarantee: the producers enforce purity → an impure payload
+/// to a `Peer'` is an ordinary unify error (payload ≠ pure-I), no separate gate.
+///
+/// Guard: only fire when the type is RESOLVED (not a type variable). An unresolved
+/// var is conservative-false in `is_pure_type`; gating on a var would produce false
+/// positives on polymorphic functions where the type is not yet pinned.
+fn check_wire_peer_purity(
+    ty: &TypeExpr,
+    arg: &WatAST,
+    op: &str,
+    types: &crate::types::TypeEnv,
+    errs: &mut Vec<CheckError>,
+) {
+    check_wire_peer_purity_span(ty, arg.span(), op, types, errs);
+}
+
+/// Span-based variant for producers that infer types (connect'/accept').
+fn check_wire_peer_purity_span(
+    ty: &TypeExpr,
+    span: &Span,
+    op: &str,
+    types: &crate::types::TypeEnv,
+    errs: &mut Vec<CheckError>,
+) {
+    if !matches!(ty, TypeExpr::Var(_)) && !is_pure_type(ty, types) {
+        errs.push(CheckError {
+            span: span.clone(),
+            kind: CheckErrorKind::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "a wire peer (Peer'<I,O>) carries only pure data — type {} is not \
+                     pure (§7 purity wall). If this peer is used only within a thread \
+                     (in-locus, shared memory), use ThreadSelfPeer'<I,O> — any I/O types \
+                     are allowed in-locus. If this peer must cross a process boundary \
+                     (wire), redesign I/O types to use records, scalars, or pure enums \
+                     (no Sender/Receiver/handle fields).",
+                    format_type(ty)
+                ),
+                remedies: vec![],
+            },
+        });
+    }
+}
+
 /// Arc 209 Stone C0 — `(:wat::kernel::peer-pair' :S :R)` →
 /// `(Tuple Peer'<S,R> Peer'<R,S>)`. The two type-keyword args type the crossed
 /// bare-`Peer'` ends (mirror of `infer_make_channel`'s type-keyword → parametric
@@ -10641,7 +10678,7 @@ fn infer_make_channel(
 fn infer_peer_pair_prime(
     args: &[WatAST],
     head_span: &Span,
-    _env: &CheckEnv,
+    env: &CheckEnv,
     _locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     _subst: &mut Subst,
@@ -10660,6 +10697,13 @@ fn infer_peer_pair_prime(
 
     let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
     let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+
+    // Arc 293.W.2d — Peer'<I,O> well-formedness: I,O must be `:Pure`.
+    // peer-pair' creates wire-capable Peer's; their type args must be pure.
+    // Guard: skip when the type is an unresolved var (mirrors the 2c guard).
+    check_wire_peer_purity(&s_ty, &args[0], OP, env.types(), &mut local_errors);
+    check_wire_peer_purity(&r_ty, &args[1], OP, env.types(), &mut local_errors);
+
     let ty = peer_pair_tuple(s_ty, r_ty);
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -10712,7 +10756,7 @@ fn peer_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
 fn infer_socket_pair_prime(
     args: &[WatAST],
     head_span: &Span,
-    _env: &CheckEnv,
+    env: &CheckEnv,
     _locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     _subst: &mut Subst,
@@ -10731,6 +10775,11 @@ fn infer_socket_pair_prime(
 
     let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
     let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+
+    // Arc 293.W.2d — socket-pair' creates wire-capable Peer's; type args must be pure.
+    check_wire_peer_purity(&s_ty, &args[0], OP, env.types(), &mut local_errors);
+    check_wire_peer_purity(&r_ty, &args[1], OP, env.types(), &mut local_errors);
+
     let ty = socket_pair_tuple(s_ty, r_ty);
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -10756,7 +10805,7 @@ fn socket_pair_tuple(s: TypeExpr, r: TypeExpr) -> TypeExpr {
 fn infer_program_self_peer(
     args: &[WatAST],
     head_span: &Span,
-    _env: &CheckEnv,
+    env: &CheckEnv,
     _locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
     _subst: &mut Subst,
@@ -10778,6 +10827,12 @@ fn infer_program_self_peer(
 
     let s_ty = parse_peer_pair_type_arg(&args[0], OP, &mut local_errors, fresh);
     let r_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+
+    // Arc 293.W.2d — self-peer (process-tier, socket-backed) creates a wire Peer'.
+    // Its S/R type args must be pure (same wall as connect'/accept'/peer-pair').
+    check_wire_peer_purity(&s_ty, &args[0], OP, env.types(), &mut local_errors);
+    check_wire_peer_purity(&r_ty, &args[1], OP, env.types(), &mut local_errors);
+
     let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s_ty, r_ty] };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
@@ -10947,6 +11002,11 @@ fn infer_connect_prime(
     match unify(&addr_reduced, &expected, subst, env.types()) {
         Ok(_) => {
             // Arc 209 C0b.2e-iii — unified Address'<S,R> → Peer'<S,R> (both tiers).
+            // Arc 293.W.2d — Peer'<I,O> well-formedness: I,O must be pure.
+            let s_resolved = apply_subst(&s, subst);
+            let r_resolved = apply_subst(&r, subst);
+            check_wire_peer_purity_span(&s_resolved, args[0].span(), OP, env.types(), &mut local_errors);
+            check_wire_peer_purity_span(&r_resolved, args[0].span(), OP, env.types(), &mut local_errors);
             let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
             if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
         }
@@ -11003,7 +11063,12 @@ fn infer_accept_prime(
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener'" && args.len() == 2 => {
             // Arc 209 C0b.2e-ii — unified Listener'<S,R> (both thread + process tiers)
             // → Peer'<R,S> (server recvs S, sends R — the flipped pair).
-            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![args[1].clone(), args[0].clone()] }
+            // Arc 293.W.2d — Peer'<I,O> well-formedness: I,O must be pure.
+            let r_ty = args[1].clone(); // S in Listener'<S,R> → R in Peer'<R,S>
+            let s_ty = args[0].clone(); // R in Listener'<S,R> → S in Peer'<R,S>
+            check_wire_peer_purity_span(&r_ty, head_span, OP, env.types(), &mut local_errors);
+            check_wire_peer_purity_span(&s_ty, head_span, OP, env.types(), &mut local_errors);
+            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r_ty, s_ty] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -11230,20 +11295,25 @@ fn infer_thread_prog_type(
 
     // Arc 259 S2c-ii-a — PURGE. Only the self-peer model is valid.
     //
-    // If the fn arg type is `Peer'<S,R>` the prog is a ThreadProg (self-peer
-    // handoff model): the spawned thread's `tx` sends S to the parent, and
-    // its `rx` receives R from the parent.  The parent-side `Thread'<I,O>`
-    // has `I = R` (parent sends R → worker receives R) and `O = S` (parent
-    // receives S ← worker sends S).  So return `Thread'<R, S>` = `Thread'<args[1], args[0]>`.
+    // If the fn arg type is `ThreadSelfPeer'<S,R>` (arc 293.W.2d — in-locus, any I/O)
+    // or `Peer'<S,R>` (wire-safe, pure I/O only), the prog is a ThreadProg:
+    // the spawned thread's `tx` sends S to the parent, and its `rx` receives R from the
+    // parent. The parent-side `Thread'<I,O>` has `I = R` (parent sends R → worker recvs R)
+    // and `O = S` (parent recvs S ← worker sends S). Return `Thread'<R, S>`.
     //
-    // Any other prog — the legacy apply-loop `fn([I]) -> O` — is REJECTED with a
-    // clear error. The heresy burns; the true forms remain.
+    // ThreadSelfPeer' is the escape hatch for thread workers that carry impure I/O
+    // (e.g. Sender/Receiver handles for reply channels). Any I/O is allowed in-locus.
+    // Peer' constrains I/O to pure types (enforced by the producers); a Peer' self-peer
+    // is valid for thread workers that happen to use pure types.
+    //
+    // Any other prog — the legacy apply-loop `fn([I]) -> O` — is REJECTED.
     let param_reduced = reduce(&apply_subst(&i_ty, subst), subst, env.types());
     match &param_reduced {
         TypeExpr::Parametric { head, args: peer_args }
-            if head == "wat::kernel::Peer'" && peer_args.len() == 2 =>
+            if (head == "wat::kernel::Peer'" || head == "wat::kernel::ThreadSelfPeer'")
+                && peer_args.len() == 2 =>
         {
-            // Self-peer model: Thread'<R, S> (param-swap of Peer'<S, R>).
+            // Self-peer model: Thread'<R, S> (param-swap of Peer'<S,R> or ThreadSelfPeer'<S,R>).
             let s_ty = peer_args[0].clone();
             let r_ty = peer_args[1].clone();
             let ty = TypeExpr::Parametric {
@@ -11259,7 +11329,9 @@ fn infer_thread_prog_type(
                 kind: CheckErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
-                        "spawn-program' :thread expects a self-peer prog [Peer'<S,R>] -> nil; got {}",
+                        "spawn-program' :thread expects a self-peer prog \
+                         [ThreadSelfPeer'<S,R>] -> nil (arc 293.W.2d) or \
+                         [Peer'<S,R>] -> nil (for pure I/O only); got {}",
                         format_type(other)
                     ),
                     remedies: vec![],
@@ -11443,10 +11515,13 @@ fn infer_spawn_process_prime(
 // project I and/or O. Non-peer arg0 → TypeMismatch "peer (Thread'<I,O> | Process'<I,O>)".
 
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
-/// Returns `Ok((i_ty, o_ty, is_wire))` on success, where `is_wire` is `true`
-/// for `Process'` (cross-universe, serialized stdin/stdout) and `false` for
-/// `Thread'` and `Peer'` (see match arm comment for `Peer'` nuance). On
-/// failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.
+///
+/// Arc 293.W.2d: Returns `Ok((i_ty, o_ty))` on success. The purity constraint is
+/// now STRUCTURAL (carried by the peer type): `Peer'<I,O>` requires pure I,O by
+/// well-formedness (enforced at producers — connect'/accept'/peer-pair'/socket-pair');
+/// `ThreadSelfPeer'<I,O>` is in-locus (any I/O). The ops are purity-blind here.
+///
+/// On failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.
 fn project_peer_io(
     args: &[WatAST],
     head_span: &Span,
@@ -11456,7 +11531,7 @@ fn project_peer_io(
     fresh: &mut InferCtx,
     subst: &mut Subst,
     local_errors: &mut Vec<CheckError>,
-) -> Result<(TypeExpr, TypeExpr, bool), ()> {
+) -> Result<(TypeExpr, TypeExpr), ()> {
     let peer_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(local_errors) {
         Some(t) => t,
         None => return Err(()),
@@ -11465,26 +11540,21 @@ fn project_peer_io(
     let peer_reduced = reduce(&peer_surface, subst, env.types());
     match peer_reduced {
         // Arc 209 C0b.2e-i-b: SocketPeer' is retired — all connection peers are Peer'.
+        // Arc 293.W.2d: ThreadSelfPeer' is the in-locus (any I/O) peer type.
         TypeExpr::Parametric { ref head, ref args }
             if (head == "wat::kernel::Thread'"
                 || head == "wat::kernel::Process'"
-                || head == "wat::kernel::Peer'")
+                || head == "wat::kernel::Peer'"
+                || head == "wat::kernel::ThreadSelfPeer'")
                 && args.len() == 2 =>
         {
-            // Thread' is in-locus (same address space, no serialization); wire = false.
-            // Process' crosses a universe boundary (serialized stdin/stdout); wire = true.
-            // Peer' covers BOTH connection peers (from connect', wire) AND thread
-            // self-peers (fn [self <- Peer'<I,O>] — in-locus over crossbeam). The type
-            // system cannot distinguish these two uses of Peer' at the send' call site;
-            // gating all Peer' sends would falsely reject legitimate thread self-peer
-            // echoes (W2a probe-send-struct-thread). This is NOT an unenforced hole: a
-            // struct over a SOCKET Peer' is still caught at RUNTIME by the 293.W.2a send'
-            // wire guard (reject_non_portable_on_wire). Only the COMPILE-TIME catch for
-            // Peer' is unavailable here, and only because Peer' conflates the two tiers;
-            // it becomes statically gateable once a type-level tier split exists
-            // (ConnPeer' vs ThreadSelfPeer') — the 293.W.2d follow-on.
-            let is_wire = head == "wat::kernel::Process'";
-            Ok((args[0].clone(), args[1].clone(), is_wire))
+            // Purity is guaranteed by the peer TYPE, not by ops:
+            //   Peer'<I,O>:           wire peer, I/O are pure by producer well-formedness.
+            //   ThreadSelfPeer'<I,O>: in-locus, any I/O (the 2d escape hatch).
+            //   Thread'<I,O>:         parent handle to spawned thread (in-locus crossbeam).
+            //   Process'<I,O>:        parent handle to spawned process (wire, pure I/O).
+            // The ops (send'/recv') go purity-blind — the peer type carries the guarantee.
+            Ok((args[0].clone(), args[1].clone()))
         }
         other => {
             local_errors.push(CheckError {
@@ -11492,7 +11562,7 @@ fn project_peer_io(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "peer".into(),
-                    expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)".into(),
+                    expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R> | ThreadSelfPeer'<S,R>)".into(),
                     got: format_type(&other),
                 },
             });
@@ -11627,9 +11697,9 @@ fn infer_send_prime(
         return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
     }
 
-    let (i_ty, _o_ty, is_wire) =
+    let (i_ty, _o_ty) =
         match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
-            Ok(triple) => triple,
+            Ok(pair) => pair,
             Err(()) => {
                 // Still infer args[1] for nested error coverage.
                 let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11638,6 +11708,11 @@ fn infer_send_prime(
         };
 
     // args[1]: payload — must unify with I.
+    // Arc 293.W.2d: the purity guarantee is STRUCTURAL, not a separate gate here.
+    // A wire peer's I type is pure by well-formedness (the producer enforces it);
+    // an impure payload to a wire peer is an ordinary UNIFY ERROR below (payload ≠ pure-I).
+    // ThreadSelfPeer'/Thread' are in-locus — any I/O, no purity constraint needed.
+    // The 2c runtime gate (Arc 293.W.2c) is DELETED: the peer type carries the wall.
     let payload_ty =
         match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             Some(t) => t,
@@ -11658,41 +11733,6 @@ fn infer_send_prime(
                 got: format_type(&apply_subst(&payload_ty, subst)),
             },
         });
-    }
-
-    // Arc 293.W.2c — compile-time wire-wall for send'.
-    // A wire peer (Process') must carry a portable payload (records, scalars,
-    // portable containers). The thread tier is exempt — in-locus, same address
-    // space, no serialization (§7 — a struct is in-locus only).
-    //
-    // GUARD: skip when the resolved payload type is still a type variable
-    // (unresolved inference var). `is_pure_type` is conservatively false for
-    // Var — that is the right policy for channel-declaration gates (254.1), where
-    // the keyword argument is always concrete. At a send' call site, the payload
-    // type may still be a fresh var when the caller is itself polymorphic (e.g.
-    // a `send' peer cap-addr` where cap-addr's type is not yet pinned). Rejecting
-    // an unknown-type send' produces a false positive. Only fire for concrete types
-    // that are KNOWN to be non-portable (e.g. Aggregate{Holder::Struct}).
-    if is_wire {
-        let resolved = apply_subst(&payload_ty, subst);
-        let is_concrete_non_portable = !matches!(resolved, TypeExpr::Var(_))
-            && !is_pure_type(&resolved, env.types());
-        if is_concrete_non_portable {
-            local_errors.push(CheckError {
-                span: args[1].span().clone(),
-                kind: CheckErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!(
-                        "send' payload type {} is not portable — a wire peer carries \
-                         records, scalars, and portable containers; not structs, handles, \
-                         or closures (§7 — a struct is in-locus and never crosses a \
-                         comms boundary)",
-                        format_type(&resolved)
-                    ),
-                    remedies: vec![],
-                },
-            });
-        }
     }
 
     let ret = TypeExpr::Path(":wat::core::nil".into());
@@ -11774,7 +11814,7 @@ fn infer_recv_prime(
     }
 
     match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
-        Ok((_i_ty, o_ty, _is_wire)) => {
+        Ok((_i_ty, o_ty)) => {
             let ret = apply_subst(&o_ty, subst);
             if local_errors.is_empty() {
                 CheckResult::ok(ret)
@@ -12024,8 +12064,10 @@ fn infer_poll_prime(
     const OP: &str = ":wat::kernel::poll'";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // args[0]: self-peer — infer and extract the receive type A (targs[1] of Peer'<S,A>).
-    // A is the type the service receives from the owner over the lineage channel (admin ops).
+    // args[0]: self-peer — infer and extract the receive type A (targs[1] of Peer'<S,A>
+    // or ThreadSelfPeer'<S,A>). A is the type the service receives from the owner over
+    // the lineage channel (admin ops).
+    // Arc 293.W.2d: accept both Peer' (wire-safe) and ThreadSelfPeer' (in-locus, any I/O).
     let a_ty: TypeExpr = {
         let self_peer_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         match self_peer_ty {
@@ -12034,9 +12076,11 @@ fn infer_poll_prime(
                 let reduced = reduce(&surface, subst, env.types());
                 match &reduced {
                     TypeExpr::Parametric { head, args: targs }
-                        if head == "wat::kernel::Peer'" && targs.len() == 2 =>
+                        if (head == "wat::kernel::Peer'"
+                            || head == "wat::kernel::ThreadSelfPeer'")
+                            && targs.len() == 2 =>
                     {
-                        // Peer'<S, R>: targs[1] = R = what the service receives from the owner.
+                        // Peer'<S, R> or ThreadSelfPeer'<S,R>: targs[1] = R = the receive type A.
                         targs[1].clone()
                     }
                     _ => {
@@ -13606,7 +13650,11 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::kernel::Sender"
                 | "wat::kernel::Receiver"
                 | "wat::kernel::ProgramHandle"
-                | "wat::kernel::HandlePool" => false,
+                | "wat::kernel::HandlePool"
+                // Arc 293.W.2d — ThreadSelfPeer' is always in-locus (never wire-safe).
+                // Even if its I/O are pure scalars, the peer itself is an in-locus opaque
+                // (crossbeam channel) that cannot cross a comms boundary.
+                | "wat::kernel::ThreadSelfPeer'" => false,
                 // Pure container: pure iff all type args are pure.
                 // Vector<T>, List<T>, Option<T>, Result<T,E>, HashMap<K,V>,
                 // HashSet<T>, Tuple<...> — any other parametric is conservatively

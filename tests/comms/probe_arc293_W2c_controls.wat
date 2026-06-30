@@ -19,7 +19,7 @@
 (:wat::core::defn :w2c_ctrl::probe-send-struct-thread [] -> :wat::core::i64
   (:wat::core::let
     [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::Peer'<w2c_ctrl::S,w2c_ctrl::S>] -> :wat::core::nil
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<w2c_ctrl::S,w2c_ctrl::S>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self))))
      _   (:wat::kernel::send' peer (:w2c_ctrl::S 99))
      got (:wat::kernel::recv' peer)]

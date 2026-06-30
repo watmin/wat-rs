@@ -39,18 +39,20 @@ fn bare_sender_payload_rejected_by_type_keyword_gate_not_portability() {
     );
 }
 
-// FM-2-bis DISCONFIRMING probe (RED at HEAD): the composite gap. At HEAD this
-// type-checks clean (gap open); after 254.1's is_portable_type gate it is
-// rejected. Run un-ignored to confirm RED, then keep #[ignore]'d (baseline green)
-// until 254.1 lands and un-ignores it.
+// Arc 293.W.2d: thread-tier make-channel is exempt from the portability gate.
+// `make-channel` is always thread-local (crossbeam channel); only wire-peer
+// PRODUCERS (peer-pair', socket-pair', etc.) enforce the purity wall.
+// A struct-with-Sender-field as a make-channel payload now type-checks clean.
 #[test]
 fn channel_of_struct_with_opaque_field_must_be_rejected() {
     let result = check_result("tests/channel/probe_arc254_channel_payload_portable_struct_with_sender_bad.wat");
     println!("=== STRUCT_WITH_SENDER check result ===\n{:?}\n=== end ===", result);
     assert!(
-        result.is_err(),
-        "a struct-with-Sender-field channel payload type-checked CLEAN — the composite \
-         portability gap is open (this is the RED-at-HEAD disconfirming probe for 254.1)"
+        result.is_ok(),
+        "arc 293.W.2d: thread make-channel with a struct+opaque-field payload MUST \
+         type-check (thread-tier exemption — the purity wall is at wire-peer producers, \
+         not at make-channel). got: {:?}",
+        result.err()
     );
 }
 
@@ -65,19 +67,18 @@ fn portable_channel_payload_still_accepted() {
     );
 }
 
-// ── arc 291 strike-4b-i: the FIRM rule — struct ↛ wire, categorically ──────────
-// An ALL-EDN struct (no opaque field) as a channel payload. At HEAD this is
-// ACCEPTED — is_portable_type recurses the fields, finds them all portable, and
-// lets the struct cross (254.1's "mirror the encoder" behaviour). The firm rule
-// (arc 291 4b) makes a struct non-portable BY KIND: a struct shall never cross the
-// wire; if you want that, you want a record. RED at HEAD; GREEN once
-// is_portable_type(Struct) → false.
+// Arc 293.W.2d: thread-tier make-channel is exempt from the purity wall.
+// An all-EDN struct (e.g. Point{x:i64, y:i64}) as a make-channel payload is
+// now accepted — `make-channel` is always in-locus (crossbeam), never serialized.
+// The struct↛wire firm rule (arc 291 4b-i) applies to WIRE PEERS, not channels.
 #[test]
 fn channel_of_all_edn_struct_must_be_rejected() {
     let result = check_result("tests/channel/probe_arc254_channel_payload_portable_all_edn_struct_bad.wat");
     assert!(
-        result.is_err(),
-        "an ALL-EDN struct channel payload type-checked CLEAN — the firm struct↛wire \
-         rule (arc 291 4b-i) is not yet enforced; a struct must be non-portable BY KIND"
+        result.is_ok(),
+        "arc 293.W.2d: thread make-channel with an all-EDN struct payload MUST \
+         type-check (thread-tier exemption — make-channel is always in-locus; \
+         the purity wall lives at wire-peer producers only). got: {:?}",
+        result.err()
     );
 }

@@ -66,9 +66,9 @@
 //!
 //! ## Sandbox walker for `:process`
 //!
-//! Non-portable captures (Sender, Receiver, handles, IOReader, IOWriter)
+//! Impure captures (Sender, Receiver, handles, IOReader, IOWriter)
 //! cannot cross the `fork(2)` address-space boundary. The sandbox walker
-//! reuses `closure_extract::extract_closure` — its `NonPortableCapture`
+//! reuses `closure_extract::extract_closure` — its `ImpureCapture`
 //! error maps to a `RuntimeError::MalformedForm` before the fork.
 //! `:thread` programs skip the walker (in-process sharing via `Arc` is safe).
 

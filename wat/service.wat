@@ -363,8 +363,10 @@
      ;;   :Started [addr <- :addr-ty]    — startup address handoff (replaces raw addr)
      ;;   :Stopped   [state <- :state-ty]  — stop response (3a-ii-β uses this)
      ;;
-     ;; self-peer type in child-main-form: Peer'<Status, Admin>
+     ;; self-peer type in child-main-form: ThreadSelfPeer'<Status, Admin>
      ;;   child sends Status up, receives Admin down.
+     ;;   Arc 293.W.2d: thread-tier uses ThreadSelfPeer' (any I/O); process-tier `apply`
+     ;;   bypasses the type check so the same serve fn works for both tiers.
      ;;
      ;; dispatch-admin: fn [ai <- Admin] -> State
      ;;   wraps the startup handshake: matches Admin::Init, applies <fqdn>::init.
@@ -380,8 +382,12 @@
      status-ty  (:wat::core::keyword/from-string status-ty-str)
      ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
      ;; serve binds `self` to this (distinct from the client peer-ty Peer'<Reply,Op>).
+     ;; Arc 293.W.2d: serve's self is ThreadSelfPeer'<Status,Admin> for thread-tier.
+     ;; Process-tier calls serve via `apply` (Locus/launch child-main-form), which bypasses
+     ;; the type check — the process-tier Peer'<Status,Admin> from self-peer is accepted at
+     ;; runtime without a static mismatch.
      lineage-peer-ty (:wat::core::keyword/from-string
-                       (:wat::core::string::concat "wat::kernel::Peer'<"
+                       (:wat::core::string::concat "wat::kernel::ThreadSelfPeer'<"
                          (:wat::core::string::concat fqdn-str
                            (:wat::core::string::concat "::Status,"
                              (:wat::core::string::concat fqdn-str "::Admin>")))))

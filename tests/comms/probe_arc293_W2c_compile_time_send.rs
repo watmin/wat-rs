@@ -36,29 +36,29 @@ use wat::freeze::{startup_beside, startup_from_file};
 
 // ─── Main probe (compile-time rejection) ──────────────────────────────────────
 
-/// A typed struct `send'` to a `Process'` peer MUST fail at CHECK.
+/// A wire peer (`peer-pair'`) with a struct type arg MUST fail at CHECK.
 ///
-/// GREEN after the 2c gate: `startup_beside` returns `Err` with a check error
-/// whose message mentions portability/struct/wire/§7.
+/// Arc 293.W.2d: the purity wall moved from `send'` time (2c, deleted) to wire-peer
+/// PRODUCER time. `peer-pair'<Struct,i64>` is a CHECK error because a struct is
+/// impure (Holder::Struct) and the producer's purity gate fires (§7 purity wall).
 ///
-/// RED at HEAD: the send' type-checks (no 2c gate yet) — `startup_beside`
-/// returns `Ok`, and this assertion fails.
+/// GREEN after 2d: `startup_beside` returns `Err` with a check error mentioning
+/// "pure", "struct", or "wire".
 #[test]
 fn struct_send_to_process_peer_is_check_error() {
     let result = startup_beside(file!());
     assert!(
         result.is_err(),
-        "send' of a bare struct to a Process' peer MUST fail at CHECK (arc 293.W.2c — \
-         a struct is in-locus only, §7; the type-checker must reject this world before \
-         it can run). If this assertion fails, the infer_send_prime portability gate is \
-         missing."
+        "peer-pair' with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
+         a struct is impure, §7; the wire-peer producer's purity gate must reject \
+         this world). If this assertion fails, the peer-pair' purity gate is missing."
     );
     let err_str = format!("{}", result.unwrap_err());
     let lower = err_str.to_lowercase();
     assert!(
-        lower.contains("portable") || lower.contains("struct") || lower.contains("wire"),
-        "check error must mention portability, struct, or wire (§7 rejection by \
-         infer_send_prime); got: {err_str}"
+        lower.contains("pure") || lower.contains("portable") || lower.contains("struct") || lower.contains("wire"),
+        "check error must mention pure/portability/struct/wire (§7 rejection by \
+         wire-peer producer); got: {err_str}"
     );
 }
 

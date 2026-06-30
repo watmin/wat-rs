@@ -14,8 +14,8 @@
 //!    entry_form path).
 //! 6. spawn-process with factory-fn (single-level capture via slice
 //!    1b's prologue).
-//! 7. spawn-process with non-portable Sender capture fires
-//!    `NonPortableCapture` (slice 1's portability check).
+//! 7. spawn-process with impure Sender capture fires
+//!    `ImpureCapture` (arc 293.W.2d rename of NonPortableCapture).
 //! 8. `(:wat::kernel::fork-program ...)` callsite — walker fires.
 //! 9. `(:wat::kernel::spawn-program ...)` callsite — walker fires.
 //! 10. `(:wat::kernel::spawn-thread fn)` — UNCHANGED behavior;
@@ -462,13 +462,13 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
             match result {
                 Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. }) => {
                     assert!(
-                        reason.contains("non-portable")
-                            || reason.contains("NonPortableCapture")
-                            || reason.contains("Channel-bearing")
+                        reason.contains("impure")
+                            || reason.contains("ImpureCapture")
+                            || reason.contains("Impure types")
                             || reason.contains("Sender")
                             || reason.contains("Receiver")
                             || reason.contains("captures"),
-                        "expected non-portable diagnostic; got reason: {}",
+                        "expected impure-capture diagnostic; got reason: {}",
                         reason
                     );
                 }

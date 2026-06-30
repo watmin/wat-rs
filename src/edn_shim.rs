@@ -884,12 +884,14 @@ pub enum EdnReadErrorKind {
     /// `wat_edn::Value` variant like Symbol or BigInt, or a
     /// surface-level parse error wrapped here).
     Other(String),
-    /// A bare `Holder::Struct` value arrived at the top level of the comms
-    /// wire. Structs are in-locus only (§7 — "a struct is never portable");
-    /// the tagged EDN decoded successfully but the top-level result is a
-    /// struct, which the wire-decode door refuses so the in-locus guarantee
-    /// holds. `class` is the colon-free FQDN (e.g. `"w2a::S"`).
-    StructOnWire { class: String },
+    // ── RETIRED arc 293.W.2a ──────────────────────────────────────────────────
+    // StructOnWire { class: String } — deleted by arc 293.W.2d.
+    // The §7 struct-on-wire runtime backstop is superseded by the compile-time
+    // purity wall at wire-peer PRODUCERS (peer-pair', socket-pair', connect',
+    // accept', program-self-peer'). A struct can no longer be typed into a wire
+    // peer at CHECK time, so the runtime decode door has no reachable struct case
+    // to reject. The untyped pprintln path is an out-of-scope trust-boundary
+    // concern (user validates inputs — the compiler wall is the primary defense).
 }
 
 impl std::fmt::Display for EdnReadErrorKind {
@@ -918,11 +920,7 @@ impl std::fmt::Display for EdnReadErrorKind {
             Self::Other(s) => {
                 write!(f, "{s}")
             }
-            Self::StructOnWire { class } => write!(
-                f,
-                "a struct cannot arrive over a comms boundary — \
-                 a struct is in-locus and never crosses; §7 (class: :{class})"
-            ),
+            // StructOnWire retired by arc 293.W.2d (compile-time wall supersedes runtime backstop).
         }
     }
 }
@@ -2736,19 +2734,12 @@ pub(crate) fn decode_trusted_wire(
     types: Option<&crate::types::TypeEnv>,
 ) -> Result<Value, EdnReadError> {
     let v = read_edn_caps(s, types, true)?;
-    // §7 wire-wall: a bare Holder::Struct must not arrive over a comms boundary.
-    // Structs are in-locus only; the tagged EDN may decode successfully (the
-    // parent's type registry knows the struct), but the wire-decode door refuses
-    // the top-level value so the portability guarantee holds. Records and
-    // HolonRecords (holder.is_pure() == true) pass through unchanged.
-    if let Value::Aggregate(ref agg) = v {
-        if !agg.holder.is_pure() {
-            return Err(EdnReadError {
-                span: Span::unknown(),
-                kind: EdnReadErrorKind::StructOnWire { class: agg.class.clone() },
-            });
-        }
-    }
+    // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────
+    // The §7 runtime backstop that refused a top-level Holder::Struct at the
+    // wire-decode door is gone. The compile-time purity wall at wire-peer
+    // PRODUCERS (peer-pair', socket-pair', connect', accept', program-self-peer')
+    // makes the reachable struct-on-wire case structurally unrepresentable. The
+    // untyped pprintln path is a trust-boundary concern outside our scope.
     Ok(v)
 }
 

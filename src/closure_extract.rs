@@ -66,12 +66,12 @@ pub struct ClosurePackage {
 /// Errors surfaced during extraction. Pattern A (Stone 243.7d): span
 /// at the outer struct level; variant data in `ExtractionErrorKind`.
 ///
-/// `NonPortableCapture` is the substrate-as-teacher rejection: a
-/// captured value whose type is channel-bearing / IO / process-handle
-/// cannot cross a process boundary because pointer-identity does not
-/// survive `fork(2)`. The diagnostic names the offending capture, its
-/// type, the field path inside (when nested), and points the user at
-/// pipes / restructure.
+/// `ImpureCapture` is the substrate-as-teacher rejection: a captured
+/// value whose type is channel-bearing / IO / process-handle cannot
+/// cross a process boundary because pointer-identity does not survive
+/// `fork(2)`. The diagnostic names the offending capture, its type,
+/// the field path inside (when nested), and points the user at pipes /
+/// restructure. (Renamed from `NonPortableCapture` by arc 293.W.2d.)
 #[derive(Debug, Clone)]
 pub struct ExtractionError {
     pub span: Span,
@@ -82,9 +82,12 @@ pub struct ExtractionError {
 /// variants carry ONLY data unique to each failure kind.
 #[derive(Debug, Clone)]
 pub enum ExtractionErrorKind {
-    /// A captured value of a non-portable type was found.
+    /// A captured value of an impure (non-wire-serializable) type was found
+    /// in a PROCESS-spawn closure. Process spawns cross address-space boundaries
+    /// and cannot carry impure values (channels, handles, structs, etc.).
+    /// Thread-spawn closures are in-locus and are NOT checked here.
     /// No span — constructs with outer `Span::unknown()`.
-    NonPortableCapture {
+    ImpureCapture {
         /// The let-scope name of the offending capture.
         name: String,
         /// The type name (may be a `Sender<i64>`, `Process<I,O>`, etc.).
@@ -105,7 +108,7 @@ pub enum ExtractionErrorKind {
 impl std::fmt::Display for ExtractionErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExtractionErrorKind::NonPortableCapture {
+            ExtractionErrorKind::ImpureCapture {
                 name,
                 type_name,
                 path,
@@ -117,10 +120,11 @@ impl std::fmt::Display for ExtractionErrorKind {
                 };
                 write!(
                     f,
-                    "spawn-process closure captures `{}` of type `{}`{}.\n\
-                     Channel-bearing types cannot cross process boundaries (different memory).\n\
+                    "spawn-process closure captures `{}` of impure type `{}`{}.\n\
+                     Impure types (channels, handles, structs) cannot cross process \
+                     boundaries (different address space, §7).\n\
                      Use stdin/stdout/stderr pipes for inter-process communication, or\n\
-                     restructure the program so the channel is created in the spawned program.",
+                     restructure the program so the resource is created in the spawned program.",
                     name, type_name, path_suffix
                 )
             }
@@ -1535,7 +1539,7 @@ fn topo_sort(
 /// Encode a captured Value into an AST whose evaluation produces an
 /// equal Value in the fresh world.
 ///
-/// `binding_name` is used in error messages (NonPortableCapture).
+/// `binding_name` is used in error messages (ImpureCapture).
 fn encode_value_to_ast(
     v: &Value,
     binding_name: &str,
@@ -1848,7 +1852,7 @@ fn encode_value_with_path(
         | Value::EngramLibrary(_)
         | Value::Hologram(_) => Err(ExtractionError {
             span: crate::span::Span::unknown(),
-            kind: ExtractionErrorKind::NonPortableCapture {
+            kind: ExtractionErrorKind::ImpureCapture {
                 name: binding_name.to_string(),
                 type_name: v.type_name().to_string(),
                 path: path.clone(),

@@ -28,7 +28,7 @@
      ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<Status,Admin>),
      ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
      svc  (:wat::kernel::spawn-program' (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::Peer'<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
+            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer'<my::counter::Reply,my::counter::Op>)
                 (:my::counter::State (:my::counter::Record 0)))))

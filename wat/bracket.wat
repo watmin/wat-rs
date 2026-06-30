@@ -18,7 +18,7 @@
 ;; Loads AFTER wat/spawn.wat (uses :wat::kernel::Peer', recv', send').
 
 (:wat::core::defn :wat::bracket::runner-loop<I,O>
-  [self    <- :wat::kernel::Peer'<O,I>
+  [self    <- :wat::kernel::ThreadSelfPeer'<O,I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil
   (:wat::core::let [item (:wat::kernel::recv' self)
@@ -116,7 +116,7 @@
                        (:wat::core::Tuple (:wat::core::first pair)
                          (work-fn (:wat::core::second pair))))
                   p (:wat::kernel::spawn-program' locus
-                       (:wat::core::fn [self <- :wat::kernel::Peer'<(wat::core::i64,O),(wat::core::i64,I)>]
+                       (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,O),(wat::core::i64,I)>]
                            -> :wat::core::nil
                          (:wat::bracket::runner-loop self wf)))
                   _ (:wat::kernel::send' p (:wat::core::Tuple i (:wat::core::nth items i)))]

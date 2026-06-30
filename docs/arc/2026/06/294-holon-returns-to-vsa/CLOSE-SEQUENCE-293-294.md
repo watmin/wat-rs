@@ -215,7 +215,9 @@ the row, and confirm the test is GREEN (not still skipped).
 
 | # | test (`#[ignore]`'d) | why ignored | the UNLOCK that removes it | status |
 |---|---|---|---|---|
-| 1 | `deftest_svc_test_svc_assert_state` (`wat-tests/service-template.wat`) | `:svc::Request` is a declared `:wat::enum::Impure` enum (holds reply-`Sender`s), but its **thread-tier** `make-channel` still hits the 254.1 purity gate (not yet tier-aware) | **293.W.2d** — tier-aware `make-channel` (a thread channel accepts `:Impure`; a process/remote channel requires `:Pure`) | ⏳ CREATED + code-marked (`76d1d890`); awaits 2d |
+| 1 | `deftest_svc_test_svc_assert_state` (`wat-tests/service-template.wat`) | `:svc::Request` is a declared `:wat::enum::Impure` enum (holds reply-`Sender`s), but its **thread-tier** `make-channel` still hits the 254.1 purity gate (not yet tier-aware) | **293.W.2d** — tier-aware `make-channel` (a thread channel accepts `:Impure`; a process/remote channel requires `:Pure`) | ✅ UN-IGNORED by arc 293.W.2d — `make-channel` purity gate deleted; thread channels accept any type |
+
+**LEDGER IS NOW EMPTY.** The 293.W.2d unlock landed; the ignore was removed from `wat-tests/service-template.wat`.
 
 *(Pre-existing ignores NOT created by this campaign — e.g. arc-170's `293.4e-pre.iii`, task #183's arc-170 gate — are
 their own arcs' ledgers, not this one. This ledger tracks ONLY what 293/294 introduces.)*

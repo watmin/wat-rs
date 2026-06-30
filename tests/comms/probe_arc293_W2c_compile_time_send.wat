@@ -1,24 +1,25 @@
 ;; tests/comms/probe_arc293_W2c_compile_time_send.wat
 ;; Co-located fixture for probe_arc293_W2c_compile_time_send.rs (startup_beside).
 ;;
-;; Arc 293.W.2c — compile-time send' wire-wall (the higher rung above the 2a runtime guard).
+;; Arc 293.W.2d supersedes 2c: the wall moved from send' time to peer PRODUCER time.
 ;;
-;; A typed struct sent to a PROCESS peer is rejected by the type-checker
-;; (infer_send_prime portability gate, src/check.rs). The world FAILS TO LOAD
-;; with a check error. The runtime backstop (2a) is the lower rung; the compile-
-;; time gate (2c) catches it before execution.
+;; After 2d, the compile-time purity wall is at wire-peer PRODUCERS (peer-pair',
+;; socket-pair', connect', accept', program-self-peer'). An impure type arg to a
+;; wire peer producer is a compile-time check error (§7 purity wall).
 ;;
-;; This file contains ONLY the compile-time-rejectable form. The controls
-;; (thread-exempt and record-portable cases) live in probe_arc293_W2c_controls.wat.
+;; This fixture creates peer-pair' with a struct type arg — struct is impure
+;; (Holder::Struct) — the purity check at the producer fires at CHECK TIME.
+;; The world FAILS TO LOAD (startup_beside returns Err) with a check error
+;; mentioning "pure", "struct", or "wire".
+;;
+;; This is the same invariant as 2c but enforced at the peer SHAPE level, not
+;; at the send' call site. The 2c send'-gate was deleted in arc 293.W.2d.
 
 (:wat::core::defstruct :w2c::S [val <- :wat::core::i64])
 
-;; Sends a bare struct (:w2c::S 99) to a PROCESS peer.
-;; The 2c gate rejects this at CHECK: send' payload must be portable over a
-;; wire peer; a struct is in-locus only (§7).
-(:wat::core::defn :w2c::probe-send-struct [] -> :wat::core::nil
+;; peer-pair' with a struct type arg is a CHECK ERROR (§7 purity wall).
+;; The wire peer producer checks that I,O are pure; a struct is impure.
+(:wat::core::defn :w2c::probe-impure-wire-peer [] -> :wat::core::nil
   (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
-    (:wat::kernel::send' p (:w2c::S 99))))
+    [_pair (:wat::kernel::peer-pair' :w2c::S :wat::core::i64)]
+    nil))

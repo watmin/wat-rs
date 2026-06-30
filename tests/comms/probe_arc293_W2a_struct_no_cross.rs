@@ -19,26 +19,39 @@
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
-/// RED at HEAD (struct crosses; this probe asserts an error → FAILS).
-/// GREEN after fix (decode refused; recv' raises → PASSES).
+/// Arc 293.W.2d: the §7 runtime decode backstop is RETIRED.
+///
+/// The compile-time purity wall at wire-peer PRODUCERS (peer-pair', etc.)
+/// makes the struct-on-wire case structurally unrepresentable. The runtime
+/// `decode_trusted_wire` StructOnWire guard was deleted by arc 293.W.2d.
+///
+/// The untyped `pprintln` path (used here) can still emit a struct's tagged EDN
+/// over stdout, and without the runtime guard the parent `recv'` succeeds. This
+/// is an out-of-scope trust-boundary concern (the compile-time wall is the
+/// primary defense; user validates inputs on the untyped path).
+///
+/// After 2d: the struct crosses, `recv'` returns `i64(99)` (field access succeeds).
 #[test]
 fn struct_rejected_at_wire_decode() {
     let world = startup_beside(file!())
         .expect("startup_beside: fixture load must succeed");
     let ast = wat::parse_one!("(:w2a::probe-struct)")
         .expect("parse (:w2a::probe-struct)");
-    let got = eval_in_frozen(&ast, &world, &Environment::new());
+    let got = eval_in_frozen(&ast, &world, &Environment::new())
+        .map(|tv| tv.value_owned());
+    // Arc 293.W.2d: the runtime decode backstop was deleted; struct arrives cleanly.
+    // The pprintln untyped path still emits the struct; the parent field-access
+    // returns i64(99).  The compile-time wall at peer producers is the real guard.
     assert!(
-        got.is_err(),
-        "recv' of a bare Holder::Struct MUST fail — a struct is in-locus only (§7); \
-         if this assertion fails, the wire backstop is missing and the breach is open. \
+        got.is_ok(),
+        "arc 293.W.2d: the runtime decode backstop is retired; a struct emitted via \
+         pprintln (untyped path) now arrives at the parent without error. \
          got: {:?}",
         got
     );
-    let err_str = format!("{}", got.unwrap_err());
     assert!(
-        err_str.to_lowercase().contains("struct"),
-        "error message must mention 'struct' (§7 rejection); got: {err_str}"
+        matches!(got.unwrap(), Value::i64(99)),
+        "expected i64(99) from probe-struct field access after struct arrival"
     );
 }
 
@@ -64,31 +77,27 @@ fn record_still_round_trips_after_backstop() {
 
 // ── OUTBOUND: the send' wire-wall ─────────────────────────────────
 
-/// OUTBOUND. A parent `send'`ing a bare struct to a PROCESS child must fail.
+/// OUTBOUND. A wire peer (`peer-pair'`) with a struct type arg must fail at CHECK.
 ///
-/// Arc 293.W.2c supersedes the runtime guard: the typed struct→process send is
-/// now rejected at CHECK time (`infer_send_prime` portability gate). The world
-/// fails to load before it can run — `startup_from_file` returns `Err`.
-///
-/// The test loads `probe_arc293_W2c_compile_time_send.wat` (the 2c fixture that
-/// contains the struct→process send in isolation) and asserts the check error.
-/// The outbound probe was removed from this file's .wat to prevent the check
-/// error from contaminating the inbound / record / thread-control tests above.
+/// Arc 293.W.2d: the purity wall is now at wire-peer PRODUCERS (peer-pair', etc.),
+/// not at `send'` time. The test loads `probe_arc293_W2c_compile_time_send.wat`
+/// which uses `peer-pair'<Struct,i64>` and asserts the compile-time check error.
+/// (The 2c send'-gate was deleted in 2d; this test now exercises the 2d wall.)
 #[test]
 #[allow(non_snake_case)]
 fn struct_rejected_at_wire_SEND() {
     let result = startup_from_file("tests/comms/probe_arc293_W2c_compile_time_send.wat");
     assert!(
         result.is_err(),
-        "send' of a bare struct to a Process' peer MUST fail at CHECK (arc 293.W.2c — \
-         a struct is in-locus only, §7; infer_send_prime portability gate must reject \
-         this world). If this assertion fails, the compile-time gate is missing. got Ok"
+        "peer-pair' with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
+         a struct is impure §7; the wire-peer producer's purity gate must reject \
+         this world). got Ok"
     );
     let err_str = format!("{}", result.unwrap_err());
     let lower = err_str.to_lowercase();
     assert!(
-        lower.contains("portable") || lower.contains("struct") || lower.contains("wire"),
-        "check error must mention portability, struct, or wire (§7); got: {err_str}"
+        lower.contains("pure") || lower.contains("portable") || lower.contains("struct") || lower.contains("wire"),
+        "check error must mention pure/portability/struct/wire (§7); got: {err_str}"
     );
 }
 

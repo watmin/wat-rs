@@ -8,7 +8,7 @@
              (:wat::spawn::thread/post-spawn
                (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil
                  (:wat::core::let [_ (:wat::kernel::send' tx 777)] nil)))
-             (:wat::core::fn [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                nil))
      sentinel (:wat::kernel::recv' rx)]
     sentinel))
