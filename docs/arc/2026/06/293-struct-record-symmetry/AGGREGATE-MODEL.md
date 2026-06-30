@@ -87,3 +87,92 @@ roots `:wat::core::Struct` / `:wat::core::Record` (renamed from `:wat::Record`).
   `runtime.rs:6705`, `observe.rs:326` — two emit the stale `wat::Record`) → the **enum owns it**:
   `Holder::root_keyword()` + `Holder::from_root_keyword()`, every site calls these, the 5 hand-matches die, and the
   `:wat::Record` → `:wat::core::Record` rename falls out of the same change.
+
+---
+
+# THE COMPLETE KIT — surfaces, projection, extension (2026-06-29 co-design)
+
+> **The landmark UX forms. Settled in one long four-questions co-design (2026-06-29). Thesis the builder named at
+> close: *"we burned inheritance to the ground and lost nothing."* Inheritance · `defprotocol` · the extend-type
+> confusion all collapse into FOUR tools, no loss. These forms are the canonical exemplars — when in doubt, match them.**
+
+## A surface is a PURE CONSTRAINT — two feature kinds, either set may be empty
+The surface declares constraints; **users satisfy them**. It carries **no impls**. The `:features` syntax itself
+separates the two axes:
+- **`name <- :Type`** — an **ATTRIBUTE** (data; a `<Keyword, EdnRepr>` cell). The record/data contract. *This* is
+  what a record holds.
+- **`(name [self …args] -> ret)`** — a **METHOD** (behavior; a function over the aggregate — the aggregate in
+  position 0 plus other typed args, computing a typed value). The protocol contract. **This is `defprotocol`,
+  subsumed.** Multi-arg, full-arity, single-dispatch on `self`.
+
+attributes-only surface = a data contract · methods-only = the old `defprotocol` · both = a rich contract.
+**A record can NEVER hold a function** (least of all a 2-arg one) — so behavior is never data, never frozen.
+
+## The capability lattice — FOUR edges between holders, now COMPLETE
+| edge | mechanism | how |
+|---|---|---|
+| **DOWN** the ladder (holon→core→struct) | assignability | **implicit, free** (a holon has everything a core has) |
+| **UP** the ladder (struct→core→holon) | **`to-record`** | **explicit** — the ladder forbids implicit up; you BUILD a new value at the higher tier |
+| **FOREIGN → surface** | **`extend-type`** | **explicit** adapter — teach a type you don't own |
+| **OPAQUE carry** | **`Value`** | move-only — receive anything, use nothing, only move |
+
+## `to-record` — the data projection (the only honest up-cast)
+`(:wat::core::to-record x :S)` → a **core**-record · `(:wat::holon::to-record x :S)` → a **holon**-record (hologram
+derived from the projected attributes). It is **the DATA face**: it carries the surface's ATTRIBUTES only; methods
+are behavior, never carried. *"i get back an aggregate with an attribute set populated and whatever limits imposed
+on the kind of aggregate."*
+- **Return type = the surface's macro-emitted backing record `:S$record`** — a real, registered, instantiable
+  `AggregateDef` (fields = S's attributes; holder = the target tier). **NOT a second authored copy** — the macro
+  derives it from the ONE `:features` spec, exactly as `defrecord` derives its `:T/field` accessors; it cannot drift
+  because there is no second hand. (The apparatus was corrected on this — derivation ≠ duplication.)
+- Precondition: `x` must satisfy S's attributes (checked → `(to-record x :S)` type-checks iff x has S's data).
+- **Lossy by exactly the surface** (it names what survives). Output tier **≥ S's `:holder` floor** (so the result
+  satisfies S). You never project UP to a struct (there is no `wat.struct/to-record`).
+- Use: get a STRUCT's data across the wire (struct never crosses → project to a portable record); or LIFT any
+  aggregate into VSA (the surface chooses which fields form the holographic structure).
+
+## `extend-type` (the REAL form) + `extend-surface` (the macro)
+- **`(extend-type T S (m [self :- T  x :- …] -> … body) …)`** — bind a type T's method impls for surface S. **The
+  ONE canonical `ArgSpec`.** Same `:…/method` registration key as ambient `(defn :T/method …)` — extend-type and a
+  plain defn are two front-doors to one mechanism. **Un-demoted** from "foreign-only adapter" to the **general
+  per-type satisfaction door** (your own types OR foreign). The impl is *a function that exists and is called* —
+  never frozen into data.
+- **`(extend-surface S (m [self x] body) …)`** — a wat **`defmacro`** (purely macro territory; no new core form, no
+  new Rust `ArgSpec`). It expands to `(extend-type S$record S …)`, **filling the method types from S's declaration**
+  → the user writes **body only**. Default impls over the surface's OWN attributes (read via the surface accessor
+  `(:S/attr self)`, never a spelled `$record`). **NOT a second argspec** — the typeless `[self x]` is macro INPUT
+  that elaborates into the one canonical `ArgSpec`; nothing new is stored, so the 7-times-ArgSpec-heresy cannot recur.
+- A `to-record`'d `$record` is a satisfier of S → it **inherits the `extend-surface` default for free** (data from
+  `to-record`, behavior from `extend-surface`, each written once).
+
+## The landmark forms (canonical — match these)
+```clojure
+;; (1) a surface = pure constraint: an ATTRIBUTE (data) + a METHOD (behavior). no impls.
+(:wat::core::defsurface :acc::Adder :holder :wat::core::Record
+  :features [n <- :wat::core::i64                                      ; attribute — data
+             (add [self x <- :wat::core::i64] -> :wat::core::i64)])     ; method — behavior (signature only)
+
+;; (2) project the DATA up a tier — returns the macro-emitted backing record :acc::Adder$record
+(:wat::core::to-record some-thing :acc::Adder)     ; -> :acc::Adder$record {n …}   (attributes only)
+
+;; (3) default impl — write the BODY once; types come from the surface; WHERE ARE THE TYPES? in the contract.
+(:wat::core::extend-surface :acc::Adder
+  (add [self x] (:wat::core::i64::+ (:acc::Adder/n self) x)))
+;;   ── expands to the REAL form (fully typed; the one ArgSpec) ──
+;; (:wat::core::extend-type :acc::Adder$record :acc::Adder
+;;   (add [self :- :acc::Adder$record  x :- :wat::core::i64] -> :wat::core::i64
+;;     (:wat::core::i64::+ (:acc::Adder/n self) x)))
+
+;; (4) per-type / foreign impl — the same real form, named target (un-demoted from foreign-only):
+(:wat::core::extend-type :wat::holon::Vector :acc::Adder
+  (add [self x] …))                                  ; foreign Vector taught to satisfy; holder derived + checked
+```
+**The four-tool kit:** `defsurface` (constraint) · `to-record` (data) · `extend-type` (impls — real) ·
+`extend-surface` (impls — sugar). The full holder demo (3 holders, ambient satisfaction, the ladder, the foreign
+adapter, Value) lives runnable at **`wat-scripts/demos/aggregates/showcase.wat.disabled`** (RED until built; rename
+to `.wat` when green and the wat-scripts load gate owns it).
+
+## One substrate dependency the kit needs
+`extend-surface`'s macro (and `to-record`'s type-fill) need **expand/check-time access to a surface's method
+signatures + its `$record` name** — a *read* reflection seam on the surface, not a new shape. That is the only
+substrate touch the sugar requires; everything else is the existing `extend-type` / `aggregate-new` machinery.

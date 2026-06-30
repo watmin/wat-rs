@@ -79,11 +79,20 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `85a
 >     assignment top). Value = an ESCAPE HATCH for guts (rete-like: user-forms express facts/records, `PersistentMap`
 >     accepts the raw value; the next rete-thing has it) — NEVER advertised, hard to use intentionally; a param TYPE
 >     `[x <- :wat::core::Value]`, never a surface `:holder`. (So my earlier "4th holder = Value" table was WRONG framing.)
->   - **OPEN sub-question (resolve with the holder-mandatory strike):** mandatory holder makes surfaces AGGREGATE-ONLY
->     (the three holders) → FOREIGN-type satisfaction (293.4 R1 monkeypatch — the foreign holon-`Vector` taught to be
->     `:geo::Shape`, `probe_arc293_acceptance_demo`; `check.rs:14725` *"foreign types cannot satisfy a holder-bound
->     surface"*) is KILLED, or the foreign case must be rethought (it cannot route through `:holder` since Value isn't
->     a holder). Decide: kill foreign-as-surface, or a separate non-`:holder` mechanism. **GROUND before deciding.**
+>   - ✅ **OPEN foreign-type question RESOLVED → (b′) (2026-06-29 co-design):** every value HAS a holder — aggregates
+>     DECLARE it, FOREIGN types DERIVE it from `is_portable`/`is_holon` — so a foreign type may satisfy a holder-bound
+>     surface via `extend-type` (holder CHECKED, never exempt). ONE satisfaction rule (aggregate + foreign); R1
+>     monkeypatch stays PROBATUM. Killed: (a) kill-foreign and (b) holder-exempt — (b) failed Honest (the `:holder` IS
+>     the receiver's transmission promise; exempting it lets the surface lie).
+>   - ⊹⊹ **THE SURFACE KIT SETTLED — four tools, builder: *"we burned inheritance to the ground and lost nothing."***
+>     `defsurface` (pure constraint: attributes `name <- :T` + methods `(name [self …] -> ret)`) · `to-record` (DATA
+>     projection UP the ladder → the macro-emitted `:S$record`) · `extend-type` (impls, the REAL form, un-demoted to
+>     general per-type) · `extend-surface` (impls, a MACRO → extend-type, types filled from the surface — "WHERE ARE
+>     THE TYPES" = the contract; NOT a 2nd argspec). **Canonical forms + build order K0–K5 = `293/AGGREGATE-MODEL.md`
+>     § THE COMPLETE KIT + `294/CLOSE-SEQUENCE-293-294.md` § THE SURFACE KIT.** Landmark runnable:
+>     `wat-scripts/demos/aggregates/showcase.wat.disabled` (RED; done-detector `cargo wat <it>`).
+>     ⚠ `~/.cargo/bin/wat` is STALE (Jun 26, pre-`:features`) → `cargo install --path crates/wat-cli --force` (or
+>     `cargo run -q --bin wat --`) before trusting a `cargo wat` run, or it reports pre-`:features` parser errors.
 >   - **SETTLED (design):** rete facts = a `:wat::rete::Fact` SURFACE (`:holder :wat::core::Record :features []`), NOT
 >     `:wat::core::Value` — facts must be EDN-serializable (builder corrected model §7's "rete uses Value"). So item-2
 >     has **NO `Value` migration**: every "must be a record" slot is a `:holder :wat::core::Record` surface. §7 needs the fix.

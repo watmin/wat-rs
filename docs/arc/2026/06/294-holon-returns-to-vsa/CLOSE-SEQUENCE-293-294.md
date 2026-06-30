@@ -70,6 +70,27 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 10. ▷ **THE AGGREGATE AUDIT (systematic verify)** *(293 CLOSURE GATE)* — classify the ~99 holder-branches; unify every
     **spurious** split (keep only comms / EDN-repr / assignability). Proves PHASE 1 complete — nothing else hides.
 
+### ⊹ THE SURFACE KIT (2026-06-29 co-design — the landmark UX; `293/AGGREGATE-MODEL.md` § THE COMPLETE KIT)
+> Additive to PHASE 1's parity work — the surface's projection + extension story. Settled by a long four-questions
+> co-design; builder at close: *"we burned inheritance to the ground and lost nothing."* Four tools, no loss
+> (inheritance · `defprotocol` · the extend-type confusion all collapse in). Build order, each RED-probe gated:
+- ▷ **K0 — `:holder` MANDATORY** (corrects the `:features` strike `85aa2d83`): the no-holder surface form RETIRES;
+  `parse_defsurface` arity-5 only; migrate the ~17 holder-less surfaces. (= the breadcrumb's "FIRST resume item".)
+- ▷ **K1 — foreign-holder DERIVED + checked** (the (b′)-Arm-1 decision): a foreign type sources its holder from
+  `is_portable`/`is_holon`, so it may satisfy a HOLDER-BOUND surface via `extend-type` (today `check.rs:14725`
+  rejects). ONE satisfaction rule for aggregate AND foreign. Resolves the OPEN foreign-type question — **(b′)**, not (a)/(b).
+- ▷ **K2 — `$record` backing-type emission** — `defsurface` emits its backing `AggregateDef` (`:S$record`) from the
+  ONE `:features` **attribute** set (methods excluded — a record holds no functions). Derived, never a second copy.
+- ▷ **K3 — `to-record`** — `:wat::core::to-record` + `:wat::holon::to-record`: project a satisfier's attributes into
+  `:S$record` at the target tier (≥ S's `:holder` floor). The honest up-the-ladder move (the only legal promotion).
+- ▷ **K4 — `extend-type` UN-DEMOTE** — from foreign-only adapter to the general per-type impl door (any type); the
+  ONE canonical `ArgSpec`; same `:…/method` key as ambient `defn :T/method`.
+- ▷ **K5 — `extend-surface` macro** — a wat `defmacro` → `(extend-type S$record S …)`, method types filled from S
+  (the user writes body only). Needs the surface method-sig reflection seam (expand/check-time read). `$record`
+  inherits the default for free.
+- Landmark showcase: `wat-scripts/demos/aggregates/showcase.wat.disabled` (done-detector `cargo wat <it>`; rename
+  `.wat.disabled`→`.wat` when green → the wat-scripts load gate owns it).
+
 **PHASE 1 done = the AGGREGATE-MODEL holds: holder enum is the sole specialness, every op uniform, no inheritance,
 surfaces-only params, one holder vocabulary. (The 3 legitimate holder differences — comms/EDN-repr/assignability — stay.)**
 
