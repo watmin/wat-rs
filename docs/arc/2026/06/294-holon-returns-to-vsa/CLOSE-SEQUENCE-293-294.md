@@ -83,14 +83,14 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
   stack-overflows today (done-detector caught it cleanly, exit 139, 2026-06-29) — the special-`[self]` handling was
   silently avoiding the cycle. K0 adds the guard (mark the surface in-progress during satisfaction; a re-encounter is
   the already-known receiver, don't re-descend), so explicit-self ships clean. RED-probe it first.
-- ▷ **K1 — THE HOLDER LADDER (contravariant satisfaction)** — the showcase **pinned it to one line**: `check.rs:14698`
-  does `agg_holder == req` (EXACT match) → must be `agg_holder.rank() >= req.rank()` (Struct −1 < Record 0 <
-  HolonRecord +1; struct-floor accepts all, record-floor accepts record+holon, holon-floor accepts holon). Its twin
-  `check.rs:14726` (foreign `holder.is_none()`) → derive the foreign's holder from `is_portable`/`is_holon`, **same**
-  `rank() >=`. **BIGGER than the old "foreign-derivation" framing: the AGGREGATE ladder itself was never built (a
-  record can't satisfy a struct-floor surface today) — the 293.4 demo missed it (holder-LESS surfaces).** Needs a
-  `Holder::rank()`. ~2 lines + the rank. Resolves the foreign-type question — **(b′)**. (Probe:
-  `wat-scripts/demos/aggregates/showcase.wat.disabled`, clean-RED on exactly these 3.)
+- **K1 — THE HOLDER LADDER (contravariant satisfaction)** — the showcase pinned it to one line.
+  - ✅ **K1a — the AGGREGATE ladder LANDED (`a952c908`)** — `Holder::rank()` (the trit, Struct −1 < Record 0 <
+    HolonRecord +1) + `check.rs:14698` `agg_holder == req` → `agg_holder.rank() >= req.rank()`. Struct-floor accepts
+    struct+record+holon, record-floor accepts record+holon, holon-floor accepts holon only. The aggregate ladder was
+    never built (the 293.4 demo used holder-LESS surfaces); RED probe `probe_arc293_holder_ladder` RED→GREEN; weighed
+    forced-clean (4118 run, the lone in-band fail `sigterm_…polling` passes isolated 2/2 = the arc-170 flake).
+  - ▷ **K1b — the FOREIGN twin (next)** — `check.rs:14726` (`holder.is_none()`) → derive a foreign type's holder from
+    `is_portable`/`is_holon`, then the **same** `rank() >=`. Resolves the foreign-type question — **(b′)**.
 - ▷ **K2 — `$record` backing-type emission** — `defsurface` emits its backing `AggregateDef` (`:S$record`) from the
   ONE `:features` **attribute** set (methods excluded — a record holds no functions). Derived, never a second copy.
 - ▷ **K3 — `to-record`** — `:wat::core::to-record` + `:wat::holon::to-record`: project a satisfier's attributes into
