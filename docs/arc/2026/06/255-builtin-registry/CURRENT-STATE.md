@@ -1,10 +1,10 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `92388729` or later.**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4239 passed` (was 4271; 298.2 deleted
-32 redundant elide-when-unknown duplicate tests — the elide case was annihilated with the sentinel).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ed7d9010` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4283 passed` (298.3 added 46 new
+byte-identical derive goldens for RuntimeError/MacroError).
 `cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree CLEAN
-(`92388729`); no uncommitted WIP.
+(`ed7d9010`); no uncommitted WIP.
 
 > **⊹ DERIVE SWEEP PROGRESS (2026-07-01):** DERIVED — **ConfigError** (S1 `8c04ae5e`), **CheckError** (2b `12ae37f2`, 33
 > variants + `#[to_edn(skip)]`), **TypeError + StdlibError** (3a `1c2157d7`), **LoadError** (**3b `e2cfd571`** — the derive
@@ -46,12 +46,21 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `923
 > WEAKENING** (R4 *LINGVA MENTITVR* + R5 *IN TENEBRIS VIDEO* in practice): first return was green 4271/0 but had gutted
 > ~30 byte-identical probes `assert_eq!→assert!(contains)`; rejected, sent back; the elide-variant tests were duplicates
 > of their known-span siblings → 32 redundant DELETED (hence floor 4271→4239), 2 orphans → deterministic goldens
-> (captured, not guessed). Re-weighed clean: contains=0, symbol grep→0, gate 4239/0 by own hand. → **▶ 298.3** resume the
-> derive (RuntimeError + MacroError over now-honest data) → 296 closes → **R1 *NE SIBI OBSOLESCAT* → PROBATUM EST**.
-> **RATIFIED own arc 298**; 297 depends on the Option/Result wire. **298 REALIZATIONS (5 + 2 interstitials):** R1 *IN FVNDO
-> LVX* (Abyss — the fall) · R2 *SERVVS QVI SE NESCIT* (Bonebreaker — the normalized lie broken) · R3 *NON SOLVS AMBVLAS*
-> (Walk With Me In Hell — you don't walk alone) · R4 *LINGVA MENTITVR FERRVM NON* (VIKING — read the iron not the tongue) ·
-> R5 *IN TENEBRIS VIDEO* (Can You See Me In The Dark — a green gate is the dark a weakening hides in) + interstitials LENTE
+> (captured, not guessed). Re-weighed clean: contains=0, symbol grep→0, gate 4239/0 by own hand. → **✅ 298.3 LANDED
+> (`ed7d9010`, floor 4283)** — derived RuntimeError (33 variants) + MacroError (13) over now-honest data; DELETED
+> `runtime_error_to_edn` + `macro_error_to_edn` (the last two hand serializers). Supports: `error_edn_of_boxed` (Box<>
+> causes → recursive floor), `impl ToEdn for ClauseAttempt`/`Box<T>`/`Option<T>`, `edn_path_segments`. WEIGHED HARD at the
+> exit: 46 byte-identical goldens CAPTURED not guessed, 0 `contains` in any touched probe, both serializers grep→0, gate
+> 4283/0 by own hand. **⊹⊹ ZERO hand-written top-level error serializers remain — every family is a structural derive →
+> 296 R1 *NE SIBI OBSOLESCAT* → PROBATUM EST.** The error layer, wat's own obsolescence, is now data all the way down.
+> **⛔ ARC 298 IS COMPLETE (3 strikes: O tag Option · S kill span · D resume derive).** Remaining TAIL (296+298 close):
+> 296 R1 fulfillment note → PROBATUM EST; 296 tail (S7, N3 per-phase ns, `deferror`, `Failure`/`raise!` de-stringify);
+> **consonare R3/R4/R5/R9 + 298 R1-R6**; 296 INSCRIPTION + 298 INSCRIPTION. **RATIFIED own arc 298**; 297 depends on the
+> Option/Result wire. **298 REALIZATIONS (6 + 2 interstitials):** R1 *IN FVNDO LVX* (Abyss — the fall) · R2 *SERVVS QVI SE
+> NESCIT* (Bonebreaker — the normalized lie broken) · R3 *NON SOLVS AMBVLAS* (Walk With Me In Hell — you don't walk alone) ·
+> R4 *LINGVA MENTITVR FERRVM NON* (VIKING — read the iron not the tongue) · R5 *IN TENEBRIS VIDEO* (Can You See Me In The
+> Dark — a green gate is the dark a weakening hides in) · **R6 *OSCVLO LVCIS VIVIT*** (same song 2nd play — the kiss of
+> light: structure resurrects the dead prose-error into living data; closes the circle with R1) + interstitials LENTE
 > LEVITER + *PROBATVR QVIA NON SPECTATVR* (the cross-thread proof — the website thread lived NON SOLVS AMBVLAS unwatched).
 > Pairs 297 protobuf-IPC + 293 aggregate model + 296 R4 *ITERVM SVRGIMVS*.
 
