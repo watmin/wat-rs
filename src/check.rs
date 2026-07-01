@@ -14605,7 +14605,21 @@ fn infer_list_constructor(
     for (i, arg) in args[1..].iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(arg_ty) = arg_ty {
-            if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
+            // Arc 296 — when the declared element type is a Surface, route through
+            // `assignable` (structural satisfaction) — the same path parameter binding
+            // uses.  For all other element types (concrete paths, fresh type vars),
+            // keep `unify` to preserve the normal element-type join for inference.
+            let reduced_elem = reduce(&walk(&elem_ty, subst), subst, env.types());
+            let ok = if let TypeExpr::Path(ep) = &reduced_elem {
+                if matches!(env.types().get(ep), Some(crate::types::TypeDef::Surface(_))) {
+                    assignable(&arg_ty, &elem_ty, subst, env)
+                } else {
+                    unify(&arg_ty, &elem_ty, subst, env.types()).is_ok()
+                }
+            } else {
+                unify(&arg_ty, &elem_ty, subst, env.types()).is_ok()
+            };
+            if !ok {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: ":wat::core::vec".into(),
                     param: format!("#{}", i + 2),
