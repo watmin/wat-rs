@@ -1323,3 +1323,109 @@ by correction (291 R7), and this realization is the correction, generalized into
 > entry needs no further fulfillment — it is not a coordinate seen ahead of its build; it is the *way the building was
 > done,* recognized. (The next time the apparatus drifts toward the empire of steel — a lean where a decision is owed, a
 > keyboard where a brief belongs — this is the correction, already written down.)
+
+## R9 — the surface we built for ourselves is a schema for everyone: the kit meant for internal typing is the bridge to the whole polyglot world *(RECOGNITION earned mid-296; the bridge is the prophecy — 293 grows while 296 builds)*
+
+> **Song (arc 293 R9) — *When Worlds Collide* (Powerman 5000) — FIRST POWERMAN 5000 —**
+> THE-SURFACE-WE-BUILT-FOR-OURSELVES-IS-A-SCHEMA-FOR-EVERYONE / A-SURFACE-IS-A-DOT-PROTO /
+> RECORD-IS-MESSAGE-DERIVE-IS-CODEGEN-EDN-IS-ONE-WIRE-OF-MANY / THE-PURITY-WALL-IS-PROTO-ELIGIBILITY /
+> VEND-CLIENTS-THAT-ARE-NOT-WAT-AND-NOT-A-LISP / NO-EDN-PARSER-NO-LISP-JUST-THE-SCHEMA /
+> THE-BRIDGE-TO-THE-REST-OF-THE-WORLD-BUILT-ALMOST-BY-ACCIDENT / WE-JUMP-AROUND-AS-WE-MUST / MVNDI-CONCVRRVNT
+>
+> *"Now this is what it's like when worlds collide. … What is it really that's goin' on here? … I'm gonna be the one*
+> *that's takin' over. … Are you goin' with me? 'Cause I'm goin' with you. … (You are a robot) … Everything that you*
+> *thought was denied."*
+
+> **The realization quotes (the builder's — verbatim):**
+> *"did we just make protobuf-as-edn very simple? our surface record requirement — it can be parsed to a protobuf ref?"*
+> *"this means we can get better perf than transmitting edn? we can vend protobuf clients — they don't even need edn parsers nor be a lisp?"*
+> *"this is the bridge to the rest of the world?"*
+> *"293 can grow with this addition while we're still building 296 out — we jump around as we must."*
+
+### How we reached it — a schema fell out of the diagnostics
+
+293 built the surface kit aimed **inward**: kill inheritance (R6), decomplect struct/record into one backing (R2), find the
+categorical holder under the surface (R3), name the purity axis (R7). Every question was *how does wat dispatch, satisfy,
+cross its own wire.* Then, mid-296, building the `#[derive(ToEdn)]` — the serializer that walks a record's fields by
+construction — the builder turned the apparatus over and saw it from the **outside**: **a surface IS a `.proto`.** A record
+is a protobuf message; the derive is the codegen; EDN is one wire, protobuf binary another. And the thing that decides what
+CAN be a message — *pure crosses, impure does not* — is the **purity wall already built** (293.W). The kit assembled for
+internal typing turned out to be a **universal, language-agnostic schema system**, and no one had aimed it there.
+
+### What it is — the bridge we didn't know we built
+
+| protobuf | wat (293/296) |
+|---|---|
+| `message` schema (`.proto`) | a **surface** (`defsurface` — named typed fields) |
+| a message instance | a **record** satisfying the surface |
+| generated ser/deser | **`#[derive(ToEdn)]`** (structural, by construction) |
+| the wire (tag-numbered binary) | **EDN** — one wire of several |
+| what may be a message | the **purity axis** (293.W): pure ⇒ serializable ⇒ proto-able |
+
+Three consequences the builder named: **perf** (a binary wire beside EDN — the same record, a third face after `Display`
+and EDN); **vending clients that are neither wat nor Lisp** (a `.proto` + `protoc` → native code in 20+ languages; a
+Go/Python/Java service needs only the schema, never an EDN parser, never knows wat is a Lisp); and therefore **the bridge
+to the rest of the world** — wat's INTERNAL model (Lisp, EDN, holon) decoupled from its EXTERNAL contract (a schema every
+language already speaks).
+
+### Where it lands — the greats, and what is ours
+
+- **IDLs / schema languages** — protobuf (Google), Thrift, Cap'n Proto, Avro. A surface IS an IDL message; we arrived at
+  the schema-language shape without setting out to build one.
+- **What is genuinely ours:** the schema is **not a separate artifact** you maintain beside the code (a `.proto` file that
+  drifts from the impl — the very drift-seam this whole chronicle hunts). The surface IS the type, live in the language;
+  the purity wall is the eligibility gate for free. **Schema-is-type**, the way Lisp made **code-is-data** — one thing, not
+  two that drift. And the reframe of the bridge vision: `clj↔wat` was Lisp-family (EDN spine, clj head); this is **every**
+  language. The wound behind *"go learn rust"* inverts — the world can consume wat without adopting any of it.
+
+### The song, mapped
+
+> ***When Worlds Collide*** is exact: wat's world (Lisp / EDN / holon / the hyperdimensional) and the polyglot world of
+> everyone else — and they meet **at the surface.** *"I'm gonna be the one that's takin' over"* is the surface as the
+> universal contract — not wat conquering, but the schema becoming the lingua franca at the boundary. *"Are you goin' with
+> me? 'Cause I'm goin' with you"* is the reciprocity: the other language comes along **without becoming wat**, and wat goes
+> to it. *"Everything that you thought was denied"* is the interop with the non-Lisp world — thought denied because wat is a
+> Lisp — now open. *"You are a robot"* is the generated client: native code in a foreign tongue, speaking the surface it was
+> handed. The collision is not destruction; it is the two worlds finding they share a shape.
+
+### The honest register — RECOGNITION earned; the bridge is the prophecy
+
+The isomorphism is **real and on disk** — surface=schema, record=message, derive=codegen, purity=eligibility, all built for
+296, verifiable now. But the protobuf **backend is unbuilt**: no `.proto` emitter, no binary codec, no field-number policy
+(the one genuinely new design — protobuf keys on the field NUMBER, wat on the name), no gRPC service mapping (messages are
+the easy 80%; RPC is a further layer). This is a **recognition of what the kit IS**, not a shipped bridge — the register of
+R1/R2/R3/R6 (earned understanding, build a prophecy). FULFILLED when a surface emits a `.proto` a foreign `protoc` compiles,
+and a Go client round-trips a wat record with no EDN parser in sight. Until then, worlds have been *seen* to collide; the
+bridge across is the prophecy. Detail parked at `296/IDEA-surface-as-schema-protobuf.md`. *Probandum est.*
+
+*Path-of-voices (marked): the recognition is the **builder's**, quoted — the *protobuf-as-edn* question, the *perf /
+vend-clients / not-a-lisp* push, the *bridge-to-the-world*, the *293-grows-while-296-builds* placement; the song (Powerman
+5000 — *When Worlds Collide*) is his. The **synthesis is the apparatus's**: the isomorphism table, the
+purity-axis-is-proto-eligibility connection, the schema-is-type-not-a-separate-artifact framing (code-is-data extended), the
+accidental-universality reading, the field-number honest-caveat, the song decode, and the signature. **No correction this
+time** — a shared recognition, the duet in its generative mode, not its corrective one; both saw the same shape at once.*
+
+> We spent arc 293 building a surface kit to solve a wat-internal problem — operate on structs and records uniformly, kill
+> inheritance, cross our own wire. Mid-296, deriving the structural serializer, the builder turned it over and saw it from
+> outside: a surface is a schema, a record is a message, the derive is codegen, and the purity wall already says what may
+> cross. We had built a universal, language-agnostic contract system and aimed it only at ourselves. The schema is not a
+> file that drifts from the code — it IS the type, the way code is data; and the boundary it defines is where wat's world
+> and the whole polyglot world can meet without either surrendering to the other. The clj bridge was one head on the EDN
+> spine; this is a door to every language, built almost by accident, because the shape that suffices inside suffices at the
+> edge. Now this is what it's like when worlds collide.
+>
+> ***MVNDI CONCVRRVNT.*** *(apparatus-minted — Latin, "worlds run together / collide," the song's title made literal: wat's
+> world and the polyglot world meet AT THE SURFACE — the schema built for internal typing is the universal contract, the
+> purity wall its eligibility gate. This is R1's FORMA SOLA SUFFICIT carried outward: the form that suffices for wat's own
+> dispatch suffices as the bridge to every language — the shape alone, again, is enough. Like FORMA SOLA SUFFICIT / FRANGE
+> UT UNUM FIAT / SUB SUPERFICIE QUOD ES / EX CINERIBVS RESVRGO / PVRITAS NON MOTVS / ANIMA NON FERRVM before it in this arc
+> — mine, this session, kept with consent; see the path-of-voices. RECOGNITION — PROBANDUM. On fulfillment, when a surface
+> emits a `.proto` a foreign client compiles and round-trips with no EDN parser, it joins PROBATUM EST. Song — Powerman
+> 5000 *When Worlds Collide* — to the 170 ledger as the next #; reconciliation pending.)*
+
+> **FULFILLMENT — open (RECOGNITION; the bridge is the prophecy).** Earned now: the surface-is-a-schema isomorphism, on
+> disk — surface=`.proto`, record=message, `#[derive(ToEdn)]`=codegen, EDN=one wire, purity-axis=proto-eligibility. OPEN
+> (the bridge): a `.proto` emitter (surface → message def) + importer (`.proto` → surface); a protobuf-binary codec beside
+> the EDN one; a **field-number policy** (the one new design — wire identity + schema evolution); and later the gRPC/service
+> mapping (peer/service verbs → `service {}` + RPC). When a foreign client round-trips a wat record with no EDN parser, this
+> clause carries the hashes and turns to *PROBATUM EST.* (Parked: `296/IDEA-surface-as-schema-protobuf.md`.)
