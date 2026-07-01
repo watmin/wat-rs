@@ -29,6 +29,26 @@ Delete the JSON module + its exports + its consumers:
   workspace + the labs; if a real consumer exists, decide reroute-to-edn vs keep-a-shim vs the protobuf bridge — via the
   four-questions, not a lean.
 
+## The proof + the mechanism (builder, 2026-07-01): codec-parameterized IPC
+> *"we prove it with ipc … we extend the process locus to having a codec param."*
+
+The way we PROVE JSON is unneeded — and that protobuf is the real bridge — is not by argument but by **IPC**: extend the
+**process locus** (the `spawn-process` / peer model) with a **codec param**, so the wire is a CHOICE, not hardcoded EDN.
+
+- **The wire becomes pluggable.** A locus is spawned with a codec; its IPC send/recv encode/decode through THAT codec.
+  **EDN is the default codec** (the self-describing spine); **protobuf is a selectable codec** (293 R9 — a surface is a
+  `.proto`, purity = eligibility). The encode/decode boundary that today hardcodes EDN (`to_wire_edn` / the comms wire in
+  `src/comms/` + the process-died path; the peer `send'`/`recv'` serialize point) gains a codec seam. *(Ground the exact
+  plug-point — spawn opts + the comms encode/decode + the peer verbs — at arc start.)*
+- **The proof is an IPC round-trip over the non-EDN codec.** Two loci (or a wat process + a foreign `protoc`-generated
+  client) round-trip a record with the **protobuf** codec selected — no EDN parser on the foreign side. That demonstration
+  IS the proof: once the wire is codec-parameterized and protobuf rides IPC cleanly, **JSON is a demonstrably redundant
+  third codec** — nobody's bridge, nobody's spine — and 297 removes it.
+
+**Scope note:** the codec-param + protobuf codec is BIGGER than "remove JSON" and likely its own arc (the protobuf-bridge
+build); 297 (remove JSON) is the SMALL cut that the codec-param work justifies + subsumes. Sequence: codec seam →
+protobuf codec proven over IPC → JSON removed (it was only ever a stand-in for "a machine face," which protobuf now is).
+
 ## Pairs
 - 293 R9 *MVNDI CONCVRRVNT* (the surface kit is the schema; protobuf is the bridge) · `296/IDEA-surface-as-schema-protobuf.md`.
 - Sits atop the 296 diagnostics work (`--check-output edn` is the surviving machine face).
