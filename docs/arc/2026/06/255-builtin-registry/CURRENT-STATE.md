@@ -25,7 +25,7 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e2c
 > turns PROBATUM EST when the last hand-body falls. + two `---` interstitials (PROBATIO FLEXA; OPVS SVA LINGVA — we now
 > speak the design IN wat).
 
-> **⊹⊹ FLOOR EXPANDED (2026-07-01) — HONEST OPTIONALITY doctrine (`296/DESIGN-honest-optionality.md`).** The RuntimeError
+> **⊹⊹ FLOOR EXPANDED (2026-07-01) — HONEST OPTIONALITY = ARC 298 (`arc/2026/07/298-honest-optionality/DESIGN.md`).** The RuntimeError
 > span fork (A elide / B sentinel) was a FALSE CHOICE — both make "we don't know" IMPLICIT (elide hides in an absent key;
 > the `{:file "<runtime>" :line 0 :col 0}` sentinel LIES). Builder cracked it open → a doctrine, co-designed + ratified:
 > **(1)** a record is TOTAL — every field always emitted, NEVER elide; **(2)** `None` is a SPOKEN TAGGED value
@@ -37,8 +37,8 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e2c
 > **Decomposition (3 strikes):** **O** tag Option (delete the special-case; ride the cascade — blast MEASURED ~4 codec
 > sites + a bounded test cascade, NOT wide; the 134 `core::Some/None` are construction = unaffected) → **S** kill the span
 > sentinel (triage ~107 `Span::unknown()` sites: knowable→fix, unknowable→residue) → **D** resume the derive (Runtime +
-> Macro) → 296 closes. **PLACEMENT UNDECIDED:** own arc (298) vs 296 expansion — builder rules. Pairs 297 protobuf-IPC
-> (needs the Option wire) + 293 aggregate model + R4 *ITERVM SVRGIMVS* (the quick fix was the true size, again).
+> Macro) → 296 closes. **RATIFIED own arc 298** (builder: *"new arc — sure"*); 297 depends on it too. Pairs 297
+> protobuf-IPC (needs the Option wire) + 293 aggregate model + R4 *ITERVM SVRGIMVS* (the quick fix was the true size, again).
 
 > **⊹ 296 — THE DERIVE TOP RUNG + THE STRUCTURE-AS-PROSE SWEEP (2026-07-01 END-STATE).** The walls are done (S6 `WatError`
 > floor `ed5721ea`; D1 embedded-types `74eb2ca6`). The `#[derive(ToEdn)]` TOP RUNG is being built + applied:

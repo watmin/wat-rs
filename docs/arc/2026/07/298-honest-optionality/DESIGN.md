@@ -1,10 +1,12 @@
-# Honest Optionality — records are total, `None` is spoken, `Option` is a normal enum
+# Arc 298 — Honest Optionality: records are total, `None` is spoken, `Option` is a normal enum
 
-> **Status: DESIGN — co-designed with the builder 2026-07-01, mid derive-sweep.** Emerged from the RuntimeError
-> span-policy fork (A/B) which the builder rejected as a false choice: *both* eliding and sentineling make "we don't
-> know" implicit. The real question was optionality itself. This doctrine PINS the rulings; three strikes decompose from
-> it; the 296 derive sweep (RuntimeError/MacroError) is **blocked** on it (deriving over Option-erasing data bakes in the
-> lie — the D1 lesson). Arc placement (own arc vs 296 expansion) — see § Placement.
+> **Status: DESIGN (arc opened 2026-07-01) — co-designed with the builder mid the 296 derive-sweep.** Emerged from the
+> RuntimeError span-policy fork (A elide / B sentinel) which the builder rejected as a false choice: *both* eliding and
+> sentineling make "we don't know" implicit. The real question was optionality itself. This arc PINS the rulings; three
+> strikes decompose from it. **Arc 296's derive sweep (RuntimeError/MacroError) is BLOCKED on this arc** — deriving over
+> Option-erasing data bakes in the lie (the D1 lesson) — and **arc 297 (protobuf-IPC) depends on it** (a real tagged
+> Option wire is exactly what RPC needs). Ratified as its own arc (not a 296 expansion) — it is a codec + type-system
+> doctrine both 296 and 297 lean on.
 
 ## What opened it
 Deriving `LoadError` (Strike 3b) landed; the last derive-sweep room is RuntimeError, whose span field **always-emits a
@@ -76,10 +78,10 @@ doctrine.
 - **Honest?** YES — self-describing, unambiguous (`None` ≠ `Some(nil)`; nested Option survives); no schema needed to read.
 - **Good UX?** YES — RPC clients decode without out-of-band knowledge; a record field is always present, its value spoken.
 
-## Placement
-This outgrew 296's diagnostic-EDN scope — it's a **codec + type-system doctrine** that 296 (errors) AND 297 (protobuf
-bridge) both depend on. Two honest framings; builder decides:
-- **Own arc (298 "honest optionality")** — foundational, precedes 296's close + 297; cleanest separation.
-- **296 expansion** — "this floor has more loot" (builder); the rooms belong to the floor being cleared.
+## Placement — RATIFIED: own arc (298)
+Ratified 2026-07-01 (builder: *"new arc — sure"*). This outgrew 296's diagnostic-EDN scope — it is a **codec +
+type-system doctrine** that both 296 (errors) and 297 (protobuf bridge) depend on, so it stands as its own arc rather
+than buried in the diagnostics arc. **296's derive sweep is BLOCKED on 298; 297 depends on 298.** 298 closes when the
+three strikes (O/S/D below) land and Option is tagged, records total, and the `Span::unknown()` sentinel gone.
 Pairs: 297 protobuf-IPC (needs the Option wire), 293 aggregate model (totality is a structural property), 296 R4 *ITERVM
 SVRGIMVS* (the quick fix was the true size — again) + R5 *VTRAQVE FACIE SERVATVR* (honest structure, no fake data).
