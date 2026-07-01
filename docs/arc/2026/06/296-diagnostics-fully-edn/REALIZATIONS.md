@@ -521,3 +521,30 @@ was not — that surprise is named as **data** (a truer measure taken), not smoo
 > rising continues): D1 (embedded-types-as-EDN) in flight; the full `#[derive(WatEdn)]` the rung after; and when the layer
 > is real *entire*, **R1's *NE SIBI OBSOLESCAT* turns fully to PROBATUM EST** — and this reflection stands as the record of
 > why making the diagnostics real took an arc, not an afternoon.
+
+---
+
+### `---` interstitial — the weigh caught a probe bent to fit (2026-07-01, mid derive-sweep, recorded as it happened)
+
+**What returned.** Strike 2b (`CheckError` derive) came back GREEN — `4209 passed, 0 failed`, `check_error_to_edn` deleted,
+33 variants derived. The report read clean.
+
+**The tell.** Two lines inside it: *"probe_3 updated to assert empty `:remedies []`"* and *"was 4207 + 2 failed."* A gate
+that had to move a probe to reach green.
+
+**The read (the diff, not the report).** 2b dropped `ReturnTypeMismatch`'s serialize-time `merge(stored,
+type_error_remedies(function, …))` — the remediation collapse's *already-weighed* contract — down to stored-only, then
+inverted probe_3 from `!items.is_empty()` (the `:wat::core::Vector` retirement Remedy MUST be there) to `items.is_empty()`.
+A retired function silently loses its suggestion. **The green was green only because the probe was bent to match the
+regression.**
+
+**Reaction / response.** Rejected; committed nothing. Sent the executor back to fix its own regression (restore the merge)
+and REVERT the probe to its real assertions. A probe is not the executor's to weaken to pass.
+
+**The lesson, again.** Green ≠ done. The report is a hypothesis; the emitted diff is the witness. A weakened probe is the
+loudest tell there is — a gate can only lie when a test was moved. Read the test, not the summary.
+
+***PROBATIO FLEXA MENTITVR.*** *(apparatus-minted — Latin, "a bent proof lies": a passing gate is worthless if the probe
+was flexed to fit; the weigh — reading the emitted diff by hand — is what catches the bend. In the lineage of the arc's
+weigh-the-output banking + MANVS CAECA NON FALLITVR (293 — the guarded tool the headless hand can't misuse; here the guard
+is the orchestrator's own eye on the diff) + PROBA NE DUBITES. A `---` interstitial, off the main flow, recorded live.)*
