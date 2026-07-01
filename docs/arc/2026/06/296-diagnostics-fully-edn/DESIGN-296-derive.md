@@ -111,3 +111,74 @@ snake→kebab, `:span` last, one unit variant, NO hints/synthetic/secondary-span
   #[to_edn(key = "call-span")]    span: Span,        // → :call-span (not :span)
   #[to_edn(literal = ":()")]      primitive: (),     // synthetic → :primitive ":()"
   ```
+
+---
+
+## STRIKE 3b — single-field tuple variants + derive `LoadError` (Option A, ratified 2026-07-01)
+
+### The scope decision (four-questions, ratified with the builder)
+Grounding the breadcrumb's "tuple support unblocks Load/Resolve/Startup" DISCONFIRMED it — three different
+shapes, only ONE a tuple problem:
+- **`LoadError`** — a real Pattern-A kind enum; its ONLY blocker is the single tuple variant `Fetch(LoadFetchError)`.
+  Clean, byte-identical derive target. **← this strike.**
+- **`StartupError`** — NOT a derive target: `startup_error_to_edn` is a **pure passthrough** (each arm returns
+  `inner.to_edn()` with NO `#wat.kernel/<Variant>` envelope). A tag-wrapping derive would CHANGE the wire. No
+  smuggle surface (it only forwards). **AFFIRMATIVELY hand-written.**
+- **`ResolveError`** — NOT a derive target: its tuple field wraps `Vec<UnresolvedReference>` where
+  `UnresolvedReference` is a **struct** (the derive is enum-only), keyed `:unresolved`. Already a clean per-item
+  structured collection. **AFFIRMATIVELY hand-written.**
+
+**Option A (ratified): CARVE, don't sweep-to-literal-zero.** The derive exists to kill the *smuggle hazard* —
+hand-bodies that can `.join()`/`format!` structure into prose. A passthrough (`StartupError`) and a struct-collection
+(`ResolveError`) have no such hazard — they are already total structural functions. Forcing them under would cost a
+transparent-variant mode + a struct-derive path for ZERO correctness gain (and risk `StartupError`'s wire). The carve
+is written into the PROBATUM condition below — exigere-clean, exactly as `ParseError` (foreign orphan) already is.
+
+### The tuple-variant rule (the new derive capability)
+A **single-field** tuple variant `Foo(T)` emits `#wat.kernel/Foo {:<key> <field.to_edn()>}`, where `<key>` is
+**required** via a variant-level `#[to_edn(key = "…")]`. A **multi-field** tuple stays a `compile_error!` (no
+ambiguous positional keys — the illegal shape keeps no form). `key` on a non-tuple variant is a `compile_error!`
+(it is only meaningful for the nameless field).
+- Obvious? YES (a nameless field must be named). Simple? YES (one field, one key). Honest? YES (no positional
+  guessing). Good UX? YES (`key` explicit at the variant; the existing field-level `key`+`via` cover `Parse.err`).
+
+### Apply to `LoadError` (byte-identical)
+`#[derive(ToEdn)]` on `LoadErrorKind`; `impl ToEdn for LoadError` becomes the `splice_span(self.kind.to_edn(),
+&self.span)` wrapper (the ConfigError exemplar, `src/config.rs:260`); `impl WatError for LoadError` UNCHANGED.
+Per-variant (all confirmed against `src/load.rs:377-429`, must reproduce exactly):
+- `MalformedLoadForm { reason }` → `:reason` (snake→kebab default).
+- `SetterInLoadedFile { loaded_path, setter_head }` → `:loaded-path` / `:setter-head`.
+- `DuplicateLoad { path }` → `:path`.
+- `CycleDetected { cycle: Vec<String> }` → `:cycle` via the `Vec<T: ToEdn>` building block (Vector of strings).
+- `Fetch(LoadFetchError)` → `#[to_edn(key = "cause")]`; emits `:cause (inner.to_edn())` — **the new tuple rule.**
+- `Parse { path, err }` → `path` `:path`; `err` `#[to_edn(key = "cause", via = crate::to_edn::error_edn_of)]`
+  (the RECURSIVE FLOOR — `error_edn_of` = `err.error_edn()`, NOT raw `to_edn`).
+- `VerificationFailed { path, err }` → `path` `:path`; `err` `#[to_edn(key = "cause")]` (plain `to_edn` on HashError).
+
+`LoadFetchError` + `HashError` **stay building-block hand-impls** (leaves the derived fields call `.to_edn()`/
+`.error_edn()` on — not top-level families; `LoadFetchError::Other`'s hand-renamed `LoadOther` tag proves deriving
+them isn't free and buys nothing). DELETE the ~55-line `impl ToEdn for LoadError` match body.
+
+### Proof
+- **RED toy (new capability):** a derive ui/unit test — an enum with a single-field keyed tuple variant derives to
+  `#wat.kernel/Foo {:key <inner>}` (RED at HEAD: `compile_error!` on the tuple); a multi-field tuple + a keyless
+  single tuple + `key`-on-named each stay `compile_error!` (trybuild ui fixtures).
+- **Byte-identical:** a co-located probe capturing `wat_edn::write(&e.to_edn())` for a representative value of all
+  **7** `LoadErrorKind` variants (known + unknown span), asserting each equals the pre-derive HEAD snapshot. SET-diff ∅.
+- The two existing guards stay GREEN: `tests/diagnostics/probe_arc296_3_holdout_edn.rs`,
+  `tests/diagnostics/probe_arc296_d1_structured_not_prose.rs`.
+- FULL gate `cargo nextest run --release` = 0 failed; `cargo build --release` clean.
+
+### Blast radius (Strike 3b)
+`crates/wat-macros/src/to_edn_derive.rs` (tuple-variant handling + variant-level `key`) · its ui/unit tests ·
+`src/load.rs` (derive `LoadErrorKind` + wrapper; delete the hand match) · the new byte-identical probe. NOTHING
+else. STOP + report if it exceeds this.
+
+### PROBATUM condition (updated — the carve, exigere-clean)
+Arc 296's derive rung reaches PROBATUM EST (R1 *NE SIBI OBSOLESCAT*) when every **top-level, smuggle-capable** error
+family's `to_edn` match body is derived. The affirmatively-hand-written non-hazards — **`ParseError`** (foreign
+orphan), **`ResolveError`** (struct-inner collection), **`StartupError`** (transparent passthrough), and the
+**embedded building blocks** (`LoadFetchError`, `HashError`, `Remedy`, `ValueSnapshot`, `Provenance`, `AssertionPayload`,
+`Span`) — are NOT hand-body hazards and stay hand-written by design, named here so the condition is a cut, not a skip.
+Remaining smuggle-capable families to derive after 3b: **`RuntimeError`** (~28 variants) + **`MacroError`** (`Box<>`
+causes → `error_edn_of` via).
