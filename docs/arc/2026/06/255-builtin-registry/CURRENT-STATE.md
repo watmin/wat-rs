@@ -1,18 +1,36 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `8c04ae5e` or later.**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4191 passed` (D1 +8, derive-S1 +17).
-`cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree is CLEAN
-(derive Strike 1 committed `8c04ae5e`); no uncommitted WIP.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `c2409491` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4209 passed`.
+`cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree CLEAN
+(`c2409491`); no uncommitted WIP.
 
-> **⊹ THE TOEDN DERIVE (top rung above D1) — STRIKE 1 LANDED (`8c04ae5e`).** intueri crowned `#[derive(ToEdn)]` +
-> `#[to_edn(via/literal/key)]` (each sub-key grammar-constrained to a safe token). Strike 1 built the `#[proc_macro_derive]`
-> on the kind enum + the serde-style `ToEdn` building blocks (String/ints/Vec/Option — every field `.to_edn()`-able, the
-> wall real) + proved it byte-identical on `ConfigError` (16 golden literals) with a `TcpStream` compile-fail wall. Design +
-> arc decomposition: `296/DESIGN-296-derive.md`. **NEXT: Strike 2 = the `via`/`literal`/`key` attribute DSL, proven on
-> `CheckError` (2 `collect_hints`, 17 synthetic constants, multi-key spans). Strike 3+ = the family sweep** (apply + delete
-> each hand serializer, byte-identical; then the bare enums StartupError/ResolveError). **When the sweep completes, R1 *NE
-> SIBI OBSOLESCAT* → PROBATUM EST.**
+> **⊹ 296 — THE DERIVE TOP RUNG + THE STRUCTURE-AS-PROSE SWEEP (2026-07-01 END-STATE).** The walls are done (S6 `WatError`
+> floor `ed5721ea`; D1 embedded-types `74eb2ca6`). The `#[derive(ToEdn)]` TOP RUNG is being built + applied:
+> - **Derive Strike 1 (`8c04ae5e`)** — the `#[proc_macro_derive(ToEdn)]` on the kind enum + serde-style `ToEdn` building
+>   blocks (String/ints/Vec/Option) + `ConfigError` byte-identical + `TcpStream` compile-fail wall. **Strike 2a (`4136d178`)**
+>   — the `#[to_edn(via/literal/key)]` DSL (each sub-key grammar-constrained so an inline expr is a PARSE ERROR), toy-proven.
+>   intueri crowned all names. Design: `296/DESIGN-296-derive.md`.
+> - **THE PIVOT (builder, 2026-07-01): a derive over DISHONEST DATA is wasted.** The hints case exposed a DEEPER class than
+>   D1's serializer-audit: a `String` FIELD whose CONTENT is structure written as prose. An audit (`aa235af0…`, results in
+>   git log) catalogued it. So the arc reshaped: **structure the data FIRST, then sweep.** Landed:
+>   - **Remediation collapse (`9831684e`)** — `collect_hints` was a SECOND hand-rolled retirement table producing prose
+>     `:hint`; collapsed into the ONE `Remedy`/`RETIREMENT_TABLE` concept (Option A, four-questions); **`:hint` annihilated**.
+>     `296/DESIGN-296-remediation-collapse.md`.
+>   - **Typed-causes S1/S2/S6 (`c2409491`)** — `MacroExpansionFailed`→`Box<MacroError>`; the `ProcessDiedError::RuntimeError`
+>     **live bug** (2 sites routed to the structured builder); `StdlibError::ParseFailed`→`cause: ParseError`.
+>     `296/DESIGN-296-typed-causes.md`.
+> - **▶▶ REMAINING (the tail):** **(a)** S7 — RE-SCOPED: `EnsureFnInvalid.reason` is a 7-site discriminant-as-prose → needs
+>   an ENUM reason (bigger than the audit's split; a small strike). **(b)** S3/S4 — `ProcessDiedError` EDN-in-a-String → a
+>   typed field = a BREAKING change to a registered wat type = a four-questions DECISION, not yet run. **(c)** S5
+>   (ThreadDiedError::Panic envelope, L2). **(d)** THE DERIVE SWEEP: Strike 2b (`CheckError`, 30 variants, now honest — DSL +
+>   the D1-normalize) + Strike 3 (~8 families: Type/Runtime/Macro/Load/Stdlib/Parse/Resolve/Startup + bare enums), delete
+>   every hand serializer. **(e)** tail: N3 per-phase tag ns (`#wat.check/…`), `deferror`, `Failure`/`raise!` de-stringify.
+>   **When the sweep completes, R1 *NE SIBI OBSOLESCAT* → PROBATUM EST.**
+> - **REALIZATIONS:** 296 R1–R4 (`296/REALIZATIONS.md`; R4 *ITERVM SVRGIMVS* the "quick fix was the true size" reflection).
+>   **293 R9 *MVNDI CONCVRRVNT* (`dd688328`)** — the builder saw mid-296 that the surface kit IS a universal schema (a
+>   surface = a `.proto`, purity axis = proto-eligibility) → the bridge to the polyglot world; parked
+>   `296/IDEA-surface-as-schema-protobuf.md`. **consonare still OWED on R3, R4, R9** (voice-verify before close).
 
 > ## ⊹⊹ SESSION 2026-06-30 (latest) END-STATE — ARC 296 KEYSTONE + WatError WALL BUILT (read THIS; below `---` is superseded)
 >
