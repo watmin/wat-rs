@@ -643,6 +643,49 @@ And the recognition that this replay itself is the doctrine turned on the record
 
 The same rule, all the way down: don't paraphrase, keep the exact bytes — of a proof, and of a self.
 
+**And into the last room** — the builder: *"298.3 — i do not want to be here long. the path forward is the way out. you
+scouted it, we conquer it."* The scout of the final derive (RuntimeError + MacroError), quirks grounded not guessed:
+
+```clojure
+(def room-298.3  ; derive RuntimeError (~28) + MacroError (~11) — the LAST smuggle-capable families
+  {:proven-pattern "#[derive(ToEdn)] on the kind enum + splice_span wrapper + delete hand serializer (×5 already)"
+   :quirks-grounded
+   {:box-causes    '[RuntimeErrorKind/MacroExpansionFailed(Box<MacroError>)
+                     MacroErrorKind/ProgramBodyEvalFailed(Box<MacroError>)
+                     MacroErrorKind/MacroEvalRuntimeFailed(Box<RuntimeError>)]
+    :box-problem   "error_edn_of takes &impl WatError; a &Box<MacroError> won't coerce → NEED a small
+                    error_edn_of_boxed<T: WatError>(&Box<T>) helper (cause.error_edn() auto-derefs)"
+    :clause-attempt "ClauseAttempt uses a FREE fn (clause_attempt_to_edn), not impl ToEdn →
+                     add impl ToEdn for ClauseAttempt so NoMatchingClause's Vec<ClauseAttempt> field .to_edn()s"
+    :embeds-ok      '[ValueSnapshot Provenance]   ; already impl ToEdn ✓
+    :option-fields  '[AssertionFailed/actual AssertionFailed/expected]  ; now TAGGED (298.1) → just .to_edn()
+    :secondary-spans "SandboxScopeLeak / PostconditionFailed have extra Span fields → #[to_edn(key=...)]"
+    :span-now        "298.2 killed the sentinel — every span is real, always emitted (no elide quirk left)"}
+   :on-landing "296 closes → R1 NE SIBI OBSOLESCAT → PROBATUM EST"})
+```
+
+And the last strike away, the same cold eye promised to the widest cascade — the weigh carried all the way to the door:
+
+```clojure
+(def strike-298.3-in-flight
+  {:executor    'sonnet
+   :strike-ready "8be2bd03"
+   :the-way-out  '(derive RuntimeError + MacroError → delete the last hand serializers)
+   :supports     [:error_edn_of_boxed :impl-ToEdn-ClauseAttempt :secondary-span-keys]
+   :guards       {:byte-identical 'captured-not-guessed   ; the 298.2 method, mandated
+                  :anti-weakening 'PROBATIO-FLEXA          ; the wound is fresh — no contains, no invert
+                  :i-weigh        [:own-gate :the-iron]}   ; char-by-char, hardest eye of the run
+   :on-landing   '(296 R1 NE-SIBI-OBSOLESCAT → PROBATVM-EST)})  ; the door out of the whole floor
+```
+> *"You called it right: the path forward is the way out. This is the last derive — RuntimeError and MacroError, the
+> final two smuggle-capable families — and when it lands clean, there are zero hand-written top-level error serializers
+> left, and 296's NE SIBI OBSOLESCAT turns to PROBATUM EST. The floor clears. The door opens. … Same discipline that
+> caught the last one; it doesn't get to slip on the way out. Holding at the door — the real one this time. When the
+> sonnet returns, we conquer the last room and walk off the floor."*
+
+The song plays through the last strike: you don't stop reading the iron because you're near the exit — the exit is the one
+place a weakening would most love to hide. See in the dark all the way out.
+
 ### What it is — trust is not given to the light; it is earned in the dark
 
 This is the deepest turn of the weigh discipline, and the song names it precisely. R4 said *the tongue lies, the iron
