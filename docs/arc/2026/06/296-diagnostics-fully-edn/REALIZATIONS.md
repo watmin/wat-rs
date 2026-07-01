@@ -280,7 +280,7 @@ visible, not smoothed — a kept record is kept true, not kept comfortable.*
 > retrofit. When a wat error record raises/catches/round-trips as data and `(raise! 42)` fails to compile, this clause
 > carries the commit hashes and the signature — with R1's — turns to *PROBATUM EST.*
 
-## R3 — the substrate turns its own law on itself: a wall that makes every floorless error self-identify as a heretic, so the maker is bound by the contract it enforces on everyone else *(IGNITION — written as the fires burn; the wall is drawn and firing, the inquisition is lit)*
+## R3 — the substrate turns its own law on itself: a wall that makes every floorless error self-identify as a heretic, so the maker is bound by the contract it enforces on everyone else *(PROBATUM EST — `ed5721ea`; the body below was written at IGNITION, as the fires burned; the wall has since landed + been weighed — see FULFILLMENT)*
 
 > **Song (arc 296 R3) — *A Devil In God's Country* (Lamb of God) — SECOND LAMB OF GOD (after 294 R5's *Vigil*, the *te respuo* band) —**
 > THE-SUBSTRATE-TURNS-ITS-OWN-LAW-ON-ITSELF / THE-COMPILER-IS-THE-INQUISITOR / MAKE-THEM-SCREAM-MAKE-THEM-SELF-IDENTIFY /
@@ -387,10 +387,15 @@ line, still burning.*
 > path-of-voices. IGNITION — PROBANDUM. On fulfillment, when the wall compiles and a floorless error will not, it joins
 > PROBATUM EST. Song — Lamb of God *A Devil In God's Country* — to the 170 ledger as the next #.)*
 
-> **FULFILLMENT — open (IGNITION; the wall drawn + firing, watched as the fires burn).** The keystone beneath it is
-> PROBATUM (S1–S5). OPEN — the S6 wall itself: `trait WatError` (the floor: message + location + causes, provided
-> serializer), `to_wire_edn` re-gated from `&impl ToEdn` to `&impl WatError`, the eleven top-level error families
-> (RuntimeError · StartupError · MacroError · CheckError · CheckErrors · TypeError · ParseError · ConfigError · LoadError ·
-> ResolveError · StdlibError) driven to conformance by their own compile-error screams, the eleven span-keys collapsed to
-> one `:location`, the wall probe proving a floorless error is uncompilable. When that lands green and is weighed by the
-> orchestrator's own hand, this clause carries the commit hash and the signature turns to *PROBATUM EST.*
+> **FULFILLMENT — `ed5721ea` (PROBATUM EST; the fire burned down, the wall stands).** The keystone beneath it was
+> PROBATUM (S1–S5). NOW LANDED + WEIGHED by the orchestrator's own hand — the S6 wall itself: `trait WatError` (the floor:
+> message + location + causes, provided serializer that always emits them), `to_wire_edn` re-gated from `&impl ToEdn` to
+> `&impl WatError`, the eleven top-level error families (RuntimeError · StartupError · MacroError · CheckError · CheckErrors ·
+> TypeError · ParseError · ConfigError · LoadError · ResolveError · StdlibError) each driven to conformance by their own
+> compile-error scream, the eleven span-keys collapsed to one `:location`. Weighed not by the green gate alone (`4166`
+> passed, 0 failed) but by the orchestrator's own capture of the emitted wire EDN: a nested-error probe
+> (`(:wat::core::+ 1 "not-a-number")`) emitted `2 :location, 2 :message, 0 :span` — the floor RECURSIVE, no `:span` at any
+> depth, one-line `:message`, FlatMessage closed. The wall probe (`compile_fail` doctest) proves a floorless error is
+> uncompilable. `LEX AVCTOREM NON EXCIPIT` — the law now binds its author. *PROBATUM EST.* (The `#[derive(WatErrorRecord)]`
+> that forces the whole error BODY structural — closing the prose-in-errors class `296/AUDIT-prose-in-errors.md` catalogs —
+> is the NEXT MOVE, tracked separately; the WALL that forces the floor PRESENT is done.)
