@@ -222,7 +222,7 @@ impl CheckErrorKind {
         let prefix = span.map(span_prefix).unwrap_or_default();
         // `shown` gates mid-prose span emission: unknown spans (Span::unknown())
         // are treated as absent so "at <runtime>:0:0" noise never appears.
-        // `collect_hints` and `prefix` are unaffected — each self-elides already.
+        // `prefix` is unaffected — it self-elides for unknown spans already.
         let shown: Option<&Span> = span.filter(|s| !s.is_unknown());
         match self {
             CheckErrorKind::ArityMismatch { callee, expected, got } => {
@@ -234,8 +234,12 @@ impl CheckErrorKind {
                     "{}{}: parameter {} expects {}; got {}",
                     prefix, callee, param, expected, got
                 )?;
-                if let Some(hint) = span.and_then(|_| super::collect_hints(callee, expected, got)) {
-                    write!(f, "\n  hint: {}", hint)?;
+                // Arc 296 remediation collapse: render structured remedies instead of prose hint.
+                let section = crate::remedy::render_remedies(
+                    &super::type_error_remedies(callee, expected, got),
+                );
+                if !section.is_empty() {
+                    write!(f, "\n{}", section)?;
                 }
                 Ok(())
             }
@@ -245,10 +249,13 @@ impl CheckErrorKind {
                     "{}{}: body produces {}; signature declares {}",
                     prefix, function, got, expected
                 )?;
-                if let Some(hint) = span.and_then(|_| super::collect_hints(function, expected, got)) {
-                    write!(f, "\n  hint: {}", hint)?;
-                }
-                let section = crate::remedy::render_remedies(remedies);
+                // Arc 296 remediation collapse: merge stored remedies with computed type_error_remedies,
+                // dedup by form, render once — no prose hint section.
+                let mut merged: Vec<crate::remedy::Remedy> = remedies.clone();
+                merged.extend(super::type_error_remedies(function, expected, got));
+                let mut seen = std::collections::HashSet::new();
+                merged.retain(|r| seen.insert(r.form.clone()));
+                let section = crate::remedy::render_remedies(&merged);
                 if !section.is_empty() {
                     write!(f, "\n{}", section)?;
                 }

@@ -104,6 +104,34 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // `$struct`   → no replacement — the type no longer exists; you do not need it.
     RetirementEntry { retired: ":wat::core::to-struct", replacement: ":wat::core::to-record",
         note: Some("projection is ONE-WAY UP (AGGREGATE-MODEL.md § to-record, 2026-06-29): choose :wat::core::to-record for portable EDN or :wat::holon::to-record for EDN + VSA hologram") },
+    // Arc 296 remediation collapse — arc 109 / arc 170 prose-hint fns absorbed into the table.
+    // Each entry was previously a prose `:hint` emitted by check.rs; now a structured Remedy.
+    // Arc 109 slice 1f — vec retired (verb-equals-type playbook).
+    RetirementEntry { retired: ":wat::core::vec", replacement: ":wat::core::Vector",
+        note: Some("rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value") },
+    // Arc 109 slice 1g — list retired (was a duplicate of vec; both produced Vec<T>).
+    RetirementEntry { retired: ":wat::core::list", replacement: ":wat::core::Vector",
+        note: Some("rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value") },
+    // Arc 109 slice 1g — tuple retired (verb-equals-type playbook).
+    RetirementEntry { retired: ":wat::core::tuple", replacement: ":wat::core::Tuple",
+        note: Some("rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); type spelling `:(T,U,V)` is unaffected") },
+    // Arc 109 slice 1h — bare `Some` retired (callable heads must be FQDN keywords).
+    RetirementEntry { retired: "Some", replacement: ":wat::core::Some",
+        note: Some("rename `(Some x)` → `(:wat::core::Some x)` at constructor sites; rename `((Some v) ...)` → `((:wat::core::Some v) ...)` at match-pattern sites (arc 109 slice 1h)") },
+    // Arc 109 slice 1h — bare `:None` retired (substrate-provided keywords live under `:wat::core::*`).
+    RetirementEntry { retired: ":None", replacement: ":wat::core::None",
+        note: Some("rename `:None` → `:wat::core::None` at value-position sites; rename `(:None ...)` → `(:wat::core::None ...)` at match-pattern sites (arc 109 slice 1h)") },
+    // Arc 109 slice 1i — bare `Ok` retired (callable heads must be FQDN keywords).
+    RetirementEntry { retired: "Ok", replacement: ":wat::core::Ok",
+        note: Some("rename `(Ok x)` → `(:wat::core::Ok x)` at constructor sites; rename `((Ok v) ...)` → `((:wat::core::Ok v) ...)` at match-pattern sites (arc 109 slice 1i)") },
+    // Arc 109 slice 1i — bare `Err` retired (callable heads must be FQDN keywords).
+    RetirementEntry { retired: "Err", replacement: ":wat::core::Err",
+        note: Some("rename `(Err e)` → `(:wat::core::Err e)` at constructor sites; rename `((Err _e) ...)` → `((:wat::core::Err _e) ...)` at match-pattern sites (arc 109 slice 1i)") },
+    // Arc 170 Stone C — Process typed-channel API retired; real stdio is canonical at OS boundary.
+    RetirementEntry { retired: ":wat::kernel::process-send", replacement: ":wat::kernel::Process/stdin",
+        note: Some("arc 170 Stone C: write inputs via `(:wat::kernel::Process/stdin proc)` → IOWriter; for typed semantics wrap with `(:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))`; child-side use `(:wat::kernel::println v)` to write outputs") },
+    RetirementEntry { retired: ":wat::kernel::process-recv", replacement: ":wat::kernel::Process/stdout",
+        note: Some("arc 170 Stone C: read outputs via `(:wat::kernel::Process/stdout proc)` → IOReader; for typed semantics wrap with `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))`; child-side use `(:wat::kernel::readln -> :T)` to read inputs") },
 ];
 
 /// Look up `needle` in the retirement table.

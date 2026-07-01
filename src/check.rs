@@ -90,72 +90,9 @@ pub struct TypeScheme {
 // CheckError, CheckErrorKind, CheckErrors — Pattern A (Stone 243.6a) — live in src/check/error.rs.
 // Re-exported above: `pub use error::{CheckError, CheckErrorKind, CheckErrors};`
 
-// Arc 111 / 112 / 113 migration-hint helpers retired 2026-04-30.
-// Each shipped with an `arc_N_migration_hint(callee, expected, got)
-// -> Option<String>` function that `collect_hints` invoked on every
-// `TypeMismatch` + `ReturnTypeMismatch`. Each hint self-identified
-// via its leading `"arc N — "` prefix and described the one-token
-// annotation fix the substrate-as-teacher pattern relied on for
-// sonnet fixture sweeps.
-//
-// Once each arc's consumer wave had been swept, the helper retired
-// — the hint had served its job.
-//
-// 2026-04-30 (later): arc 114 reintroduces the pattern for
-// `:wat::kernel::spawn` retirement. See `arc_114_migration_hint`
-// below.
-
-/// Arc 114 — fires on bare-spawn callees and on the
-/// `:ProgramHandle<R>` ↔ `:Thread<I,O>` shape pair. Tells the reader
-/// the migration path to `:wat::kernel::spawn-thread` +
-/// `:wat::kernel::Thread<I,O>` + `:wat::kernel::Thread/join-result`.
-///
-/// The hint frames mini-TCP (`docs/ZERO-MUTEX.md` § "Mini-TCP via
-/// paired channels") as the primary worker shape — most existing
-/// `:wat::kernel::spawn` callers close over caller-allocated
-/// `make-channel` pairs and don't need substrate-allocated
-/// channels. Workers that don't fit that mold get a manual flag
-/// (`;; ARC 114 MANUAL`) — substrate-author judgment calls don't
-/// auto-sweep.
-fn arc_114_migration_hint(callee: &str, expected: &str, got: &str) -> Option<String> {
-    let bare_spawn_callee = matches!(
-        callee,
-        ":wat::kernel::spawn"
-            | ":wat::kernel::join"
-            | ":wat::kernel::join-result"
-    );
-    // Annotation-leftover smell: a binding declared :ProgramHandle<R>
-    // but the value is :Thread<I,O>, or vice versa. Detects partial
-    // sweeps where sonnet flipped the verb but left the binding type.
-    let proghandle = "wat::kernel::ProgramHandle<";
-    let thread = "wat::kernel::Thread<";
-    let shape_pair_mismatch = (expected.contains(proghandle) && got.contains(thread))
-        || (got.contains(proghandle) && expected.contains(thread));
-    if !bare_spawn_callee && !shape_pair_mismatch {
-        return None;
-    }
-    Some(
-        "arc 114 — :wat::kernel::spawn / :wat::kernel::join / \
-         :wat::kernel::join-result retire. Programs deliver values only \
-         via their output channel; R-via-join is gone. \
-         Migrate: (:wat::kernel::spawn :worker args...) → \
-         (:wat::kernel::spawn-thread (:wat::core::fn \
-         ((_in :rust::crossbeam_channel::Receiver<()>) \
-         (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) \
-         returning :wat::kernel::Thread<(),()>. \
-         Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) \
-         with (:wat::kernel::Thread/join-result thr) returning \
-         :wat::core::Result<:(),:wat::core::Vector<wat::kernel::ThreadDiedError>>; match arms \
-         ((Ok _) ...) ((Err chain) ...). \
-         Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held \
-         channels; substrate-allocated `_in` / `_out` stay unused. \
-         Workers not fitting :Fn(:Receiver<I>, :Sender<O>) -> :() — \
-         non-channel sig, non-unit return, R-via-join ferrying — get a \
-         `;; ARC 114 MANUAL — needs type-design review` comment and skip; \
-         judgment calls don't auto-sweep."
-            .into(),
-    )
-}
+// Arc 111 / 112 / 113 / 109 / 114 / 170 migration-hint helpers absorbed into
+// RETIREMENT_TABLE (arc 109 / arc 170 callee-based) and shape_remedies (arc 114;
+// arc 170 got-based) via arc 296 remediation collapse. Prose `:hint` annihilated.
 
 // CheckErrors — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
 
@@ -423,215 +360,96 @@ impl<T> CheckResult<T> {
 
 // CheckError::diagnostic() — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
 
-/// Collect all migration hints that fire for this (callee, expected,
-/// got) triple into a single string. Each hint already self-identifies
-/// via its leading `"arc N — "` prefix; we just concatenate.
+/// Shape-triggered remediation: fires when `expected` or `got` signal a migration
+/// scenario that the name-only retirement table cannot express.
 ///
-/// Returns `None` when no hint applies — currently the steady state
-/// (arcs 111 / 112 / 113 retired their helpers 2026-04-30 once the
-/// respective consumer waves swept clean). The function stays as
-/// Migration-hint extensibility point: to add a hint for a new migration
-/// scenario, add a `<scenario>_migration_hint(callee, expected, got)` entry
-/// to the array below. The check pass invokes each entry; the first that
-/// returns Some wins.
-// CONVENTION: migration-hint functions take (callee, expected, got);
-// hints that only need `callee` underscore-prefix the others. `collect_hints`
-// dispatches uniformly so the trait surface stays consistent across the family.
-/// Arc 109 slice 1f — fires when the dispatcher has poisoned the
-/// retired `:wat::core::vec` head. The hint names the canonical
-/// replacement (`:wat::core::Vector`, verb-equals-type per
-/// INVENTORY § D) and the literal swap.
-fn arc_109_vec_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != ":wat::core::vec" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1f — `:wat::core::vec` is retired. Canonical \
-         constructor is `:wat::core::Vector` (verb-equals-type per \
-         INVENTORY § D — `(:wat::core::Vector :T x y z)` reads as \
-         `construct a Vector of T from these elements`). Rename \
-         `:wat::core::vec` → `:wat::core::Vector` at the offending \
-         site. The substrate produces the same `Vec<T>` value; only \
-         the spelling changes."
-            .into(),
-    )
-}
+/// Arc 296 remediation collapse: the former prose `:hint` mechanism is annihilated.
+/// Arc 114 (bare-spawn callees + ProgramHandle↔Thread shape pair) and the arc 170
+/// `got`-based path are expressed here as structured `Remedy` values.
+/// Name-only callee matches (arc 109, arc 170 callee path) live in `RETIREMENT_TABLE`.
+pub(crate) fn shape_remedies(callee: &str, expected: &str, got: &str) -> Vec<crate::remedy::Remedy> {
+    use crate::remedy::{Remedy, RemedyKind};
+    let mut rs = Vec::new();
 
-/// Arc 109 slice 1g — fires when the dispatcher has poisoned the
-/// retired `:wat::core::list` head. `list` was always a duplicate
-/// of `vec` (both produced `Vec<T>`); post-slice-1f the canonical
-/// constructor is `:wat::core::Vector`. The redundancy retires
-/// in this slice.
-fn arc_109_list_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != ":wat::core::list" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1g — `:wat::core::list` is retired. It was \
-         always a duplicate of `:wat::core::vec` (now \
-         `:wat::core::Vector` post-slice-1f); both produced \
-         `Vec<T>`. The redundancy goes; rename `:wat::core::list` \
-         → `:wat::core::Vector` at the offending site. The \
-         substrate produces the same `Vec<T>` value; only the \
-         spelling changes."
-            .into(),
-    )
-}
-
-/// Arc 109 slice 1g — fires when the dispatcher has poisoned the
-/// retired `:wat::core::tuple` head. The canonical constructor is
-/// `:wat::core::Tuple` (verb-equals-type per slice 1f's
-/// vec→Vector playbook). Post-arc-165: storage now also PascalCase;
-/// the hint shape is unchanged (callee match key remains lowercase).
-fn arc_109_tuple_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != ":wat::core::tuple" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1g — `:wat::core::tuple` is retired. \
-         Canonical constructor is `:wat::core::Tuple` \
-         (verb-equals-type per slice 1f's vec→Vector playbook — \
-         `(:wat::core::Tuple x y z)` reads as `construct a Tuple \
-         of these elements`). Rename `:wat::core::tuple` → \
-         `:wat::core::Tuple` at the offending site. The substrate \
-         produces the same tuple value; only the spelling changes. \
-         The TYPE spelling `:(T,U,V)` is parsed separately and is \
-         unaffected."
-            .into(),
-    )
-}
-
-/// Arc 109 slice 1h — fires when the dispatcher has poisoned the
-/// bare-Symbol `Some` head (a retired grammar exception). The
-/// canonical FQDN form is `:wat::core::Some`.
-fn arc_109_some_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != "Some" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1h — bare `Some` is a retiring grammar \
-         exception (wat's general rule: callable heads must be \
-         FQDN keywords). Canonical form is `:wat::core::Some`. \
-         Rename `(Some x)` → `(:wat::core::Some x)` at \
-         constructor sites; rename `((Some v) ...)` → \
-         `((:wat::core::Some v) ...)` at match-pattern sites. \
-         The substrate produces the same `Option<T>` value; only \
-         the spelling changes."
-            .into(),
-    )
-}
-
-/// Arc 109 slice 1h — fires when the dispatcher has poisoned the
-/// bare keyword `:None` (a retired grammar exception). The
-/// canonical FQDN form is `:wat::core::None`.
-fn arc_109_none_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != ":None" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1h — bare `:None` is a retiring grammar \
-         exception (substrate-provided keywords live under \
-         `:wat::core::*`). Canonical form is `:wat::core::None`. \
-         Rename `:None` → `:wat::core::None` at value-position \
-         sites; rename `(:None ...)` → `(:wat::core::None ...)` \
-         at match-pattern sites. The substrate produces the same \
-         `Option<T>` (None) value; only the spelling changes."
-            .into(),
-    )
-}
-
-/// Arc 109 slice 1i — fires when the dispatcher has poisoned the
-/// bare-Symbol `Ok` head. Mirrors slice 1h's Some hint.
-fn arc_109_ok_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != "Ok" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1i — bare `Ok` is a retiring grammar \
-         exception (wat's general rule: callable heads must be \
-         FQDN keywords). Canonical form is `:wat::core::Ok`. \
-         Rename `(Ok x)` → `(:wat::core::Ok x)` at constructor \
-         sites; rename `((Ok v) ...)` → `((:wat::core::Ok v) ...)` \
-         at match-pattern sites. The substrate produces the same \
-         `Result<T,E>` value; only the spelling changes."
-            .into(),
-    )
-}
-
-/// Arc 109 slice 1i — fires when the dispatcher has poisoned the
-/// bare-Symbol `Err` head. Mirrors slice 1h's Some hint.
-fn arc_109_err_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    if callee != "Err" {
-        return None;
-    }
-    Some(
-        "arc 109 slice 1i — bare `Err` is a retiring grammar \
-         exception (wat's general rule: callable heads must be \
-         FQDN keywords). Canonical form is `:wat::core::Err`. \
-         Rename `(Err e)` → `(:wat::core::Err e)` at constructor \
-         sites; rename `((Err _e) ...)` → `((:wat::core::Err _e) ...)` \
-         at match-pattern sites. The substrate produces the same \
-         `Result<T,E>` value; only the spelling changes."
-            .into(),
-    )
-}
-
-// Stone 241.15 — arc_109_try_verb_migration_hint, arc_109_option_expect_migration_hint,
-// and arc_109_result_expect_migration_hint DELETED. Soft-deprecation hints superseded
-// by HARD-CUT-rejection arms (MalformedForm). collect_hints callers removed below.
-
-fn arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(
-    callee: &str,
-    _expected: &str,
-    got: &str,
-) -> Option<String> {
-    let is_retired_verb = matches!(
+    // Arc 114 — bare-spawn callees and the ProgramHandle↔Thread annotation shape pair.
+    let bare_spawn_callee = matches!(
         callee,
-        ":wat::kernel::process-send" | ":wat::kernel::process-recv"
+        ":wat::kernel::spawn" | ":wat::kernel::join" | ":wat::kernel::join-result"
     );
-    let is_retired_got = got.contains("retired verb — arc 170 Stone C");
-    if !is_retired_verb && !is_retired_got {
-        return None;
+    let proghandle = "wat::kernel::ProgramHandle<";
+    let thread = "wat::kernel::Thread<";
+    let shape_pair_mismatch = (expected.contains(proghandle) && got.contains(thread))
+        || (got.contains(proghandle) && expected.contains(thread));
+    if bare_spawn_callee || shape_pair_mismatch {
+        rs.push(Remedy {
+            form: ":wat::kernel::spawn-thread".into(),
+            kind: RemedyKind::Retirement,
+            note: Some(
+                "arc 114 — :wat::kernel::spawn / :wat::kernel::join / \
+                 :wat::kernel::join-result retire. Programs deliver values only \
+                 via their output channel; R-via-join is gone. \
+                 Migrate: (:wat::kernel::spawn :worker args...) → \
+                 (:wat::kernel::spawn-thread (:wat::core::fn \
+                 ((_in :rust::crossbeam_channel::Receiver<()>) \
+                 (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) \
+                 returning :wat::kernel::Thread<(),()>. \
+                 Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) \
+                 with (:wat::kernel::Thread/join-result thr) returning \
+                 :wat::core::Result<:(),:wat::core::Vector<wat::kernel::ThreadDiedError>>; match arms \
+                 ((Ok _) ...) ((Err chain) ...). \
+                 Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held \
+                 channels; substrate-allocated `_in` / `_out` stay unused. \
+                 Workers not fitting :Fn(:Receiver<I>, :Sender<O>) -> :() — \
+                 non-channel sig, non-unit return, R-via-join ferrying — get a \
+                 `;; ARC 114 MANUAL — needs type-design review` comment and skip; \
+                 judgment calls don't auto-sweep."
+                    .into(),
+            ),
+        });
     }
-    Some(
-        "arc 170 Stone C — `:wat::kernel::Process` typed-channel API retired. \
-         Real stdio is canonical at OS boundary. \
-         PARENT-SIDE: read outputs via `(:wat::kernel::Process/stdout proc)` → IOReader; \
-         write inputs via `(:wat::kernel::Process/stdin proc)` → IOWriter. \
-         For typed semantics wrap with \
-         `(:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))` \
-         or `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))`. \
-         CHILD-SIDE: `:user::process` contract is `[] -> :wat::core::nil`; \
-         use `(:wat::kernel::println v)` to write outputs and \
-         `(:wat::kernel::readln -> :T)` to read inputs (routes through \
-         per-thread services installed by bootstrap — no rx/tx params)."
-            .into(),
-    )
+
+    // Arc 170 Stone C — got-based path: fires when the `got` type expression carries
+    // the "retired verb" marker (e.g. a RuntimeError snapshot) for a callee that is NOT
+    // process-send / process-recv (those are in RETIREMENT_TABLE; this arm handles the
+    // shape-based path where the retired type appears as a `got` type expression).
+    if got.contains("retired verb — arc 170 Stone C") {
+        rs.push(Remedy {
+            form: ":wat::kernel::Process/stdout".into(),
+            kind: RemedyKind::Retirement,
+            note: Some(
+                "arc 170 Stone C: `:wat::kernel::Process` typed-channel API retired. \
+                 PARENT-SIDE: read outputs via `(:wat::kernel::Process/stdout proc)` → IOReader; \
+                 write inputs via `(:wat::kernel::Process/stdin proc)` → IOWriter. \
+                 For typed semantics wrap with \
+                 `(:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))` \
+                 or `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))`. \
+                 CHILD-SIDE: `:user::process` contract is `[] -> :wat::core::nil`; \
+                 use `(:wat::kernel::println v)` to write outputs and \
+                 `(:wat::kernel::readln -> :T)` to read inputs."
+                    .into(),
+            ),
+        });
+    }
+
+    rs
 }
 
-pub(crate) fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
-    // Stone 241.15 — arc_109_try_verb_migration_hint, arc_109_option_expect_migration_hint,
-    // arc_109_result_expect_migration_hint removed; those three zombies are now HARD CUT
-    // (MalformedForm rejection arms), not soft-deprecation TypeMismatch hints.
-    let hints: Vec<String> = [
-        arc_114_migration_hint(callee, expected, got),
-        arc_109_vec_verb_migration_hint(callee, expected, got),
-        arc_109_list_verb_migration_hint(callee, expected, got),
-        arc_109_tuple_verb_migration_hint(callee, expected, got),
-        arc_109_some_variant_migration_hint(callee, expected, got),
-        arc_109_none_variant_migration_hint(callee, expected, got),
-        arc_109_ok_variant_migration_hint(callee, expected, got),
-        arc_109_err_variant_migration_hint(callee, expected, got),
-        arc_170_stone_c_typed_channel_at_process_boundary_retire_hint(callee, expected, got),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    if hints.is_empty() {
-        None
-    } else {
-        Some(hints.join("\n\n"))
-    }
+/// ONE canonical remediation path for `TypeMismatch` / `ReturnTypeMismatch` errors.
+///
+/// Merges retirement-table lookup (via `remedies_for`) with shape-triggered
+/// remediation (via `shape_remedies`), deduplicated by `form` (first occurrence wins;
+/// retirement-table hits lead). BOTH the serializer and the Display call this fn —
+/// one path, no replicate.
+///
+/// Arc 296 remediation collapse: eliminates the prose `:hint` mechanism in favour
+/// of the structured `Remedy` path.
+pub(crate) fn type_error_remedies(callee: &str, expected: &str, got: &str) -> Vec<crate::remedy::Remedy> {
+    let mut rs = crate::remedy::remedies_for(callee, std::iter::empty());
+    rs.extend(shape_remedies(callee, expected, got));
+    // Dedup by `form`; first occurrence (retirement-table hits, if any) wins.
+    let mut seen = std::collections::HashSet::new();
+    rs.retain(|r| seen.insert(r.form.clone()));
+    rs
 }
 
 // CheckErrors::diagnostics() — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
@@ -1457,7 +1275,7 @@ fn check_calls_for_sandbox_leak(
 /// fn args/return as `Fn` field children. No textual scanning.
 ///
 /// Pattern 3 from `docs/SUBSTRATE-AS-TEACHER.md` — dedicated
-/// CheckError variant + walker, no `collect_hints` involvement.
+/// CheckError variant + walker (no callee-hint involvement).
 /// Mirrors arc 110 (`CommCallOutOfPosition`), arc 115
 /// (`InnerColonInCompoundArg`), arc 117 (`ScopeDeadlock`).
 ///
@@ -1879,8 +1697,8 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
 /// `:wat::std::stream::` prefix. Stream stdlib graduated to
 /// `:wat::stream::*` per § G's three-tier substrate organization.
 ///
-/// Pattern 3 (dedicated CheckError variant + walker; no
-/// `collect_hints` involvement). Same shape as slices 1c/1d/1e but
+/// Pattern 3 (dedicated CheckError variant + walker; no callee-hint
+/// involvement). Same shape as slices 1c/1d/1e but
 /// at the keyword-prefix level rather than the parsed-TypeExpr
 /// level — this is a pure namespace-prefix retirement, no shape
 /// shift involved.

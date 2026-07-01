@@ -4897,8 +4897,8 @@ fn dispatch_keyword_head_value(
         // at the OS boundary. Use Process/stdin (IOWriter) + Process/stdout
         // (IOReader) directly, or wrap with Sender/from-pipe /
         // Receiver/from-pipe for typed semantics.
-        // Infer-time: arc_170_stone_c_typed_channel_at_process_boundary_retire_hint
-        // emits the migration hint through collect_hints.
+        // Infer-time: these callees are in RETIREMENT_TABLE (arc 296); TypeMismatch
+        // errors surface structured :remedies via type_error_remedies.
         ":wat::kernel::process-send" => {
             Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::kernel::process-send".into(),

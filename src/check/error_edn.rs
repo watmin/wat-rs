@@ -60,9 +60,10 @@ pub fn check_error_to_edn(err: &CheckError) -> OwnedValue {
                 (kw("expected"), str_val(expected)),
                 (kw("got"), str_val(got)),
             ];
-            if let Some(hint) = super::collect_hints(callee, expected, got) {
-                fields.push((kw("hint"), str_val(&hint)));
-            }
+            // Arc 296 remediation collapse: structured :remedies field; prose hint annihilated.
+            fields.push((kw("remedies"), crate::remedy::remedies_to_edn(
+                &super::type_error_remedies(callee, expected, got),
+            )));
             push_span(&mut fields, "span", span);
             tagged("TypeMismatch", OwnedValue::Map(fields))
         }
@@ -73,11 +74,13 @@ pub fn check_error_to_edn(err: &CheckError) -> OwnedValue {
                 (kw("expected"), str_val(expected)),
                 (kw("got"), str_val(got)),
             ];
-            if let Some(hint) = super::collect_hints(function, expected, got) {
-                fields.push((kw("hint"), str_val(&hint)));
-            }
-            // Arc 296 D1: remedies travel as a structured Vector, never a prose blob.
-            fields.push((kw("remedies"), crate::remedy::remedies_to_edn(remedies)));
+            // Arc 296 remediation collapse: merge stored remedies with computed type_error_remedies,
+            // dedup by form (stored leads — retirement-table hits first), prose hint annihilated.
+            let mut merged: Vec<crate::remedy::Remedy> = remedies.clone();
+            merged.extend(super::type_error_remedies(function, expected, got));
+            let mut seen = std::collections::HashSet::new();
+            merged.retain(|r| seen.insert(r.form.clone()));
+            fields.push((kw("remedies"), crate::remedy::remedies_to_edn(&merged)));
             push_span(&mut fields, "span", span);
             tagged("ReturnTypeMismatch", OwnedValue::Map(fields))
         }
