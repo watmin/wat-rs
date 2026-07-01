@@ -1,9 +1,18 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `74eb2ca6` or later.**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4174 passed` (was 4166; D1 added 8).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `8c04ae5e` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4191 passed` (D1 +8, derive-S1 +17).
 `cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree is CLEAN
-(D1 committed `74eb2ca6`); no uncommitted WIP.
+(derive Strike 1 committed `8c04ae5e`); no uncommitted WIP.
+
+> **⊹ THE TOEDN DERIVE (top rung above D1) — STRIKE 1 LANDED (`8c04ae5e`).** intueri crowned `#[derive(ToEdn)]` +
+> `#[to_edn(via/literal/key)]` (each sub-key grammar-constrained to a safe token). Strike 1 built the `#[proc_macro_derive]`
+> on the kind enum + the serde-style `ToEdn` building blocks (String/ints/Vec/Option — every field `.to_edn()`-able, the
+> wall real) + proved it byte-identical on `ConfigError` (16 golden literals) with a `TcpStream` compile-fail wall. Design +
+> arc decomposition: `296/DESIGN-296-derive.md`. **NEXT: Strike 2 = the `via`/`literal`/`key` attribute DSL, proven on
+> `CheckError` (2 `collect_hints`, 17 synthetic constants, multi-key spans). Strike 3+ = the family sweep** (apply + delete
+> each hand serializer, byte-identical; then the bare enums StartupError/ResolveError). **When the sweep completes, R1 *NE
+> SIBI OBSOLESCAT* → PROBATUM EST.**
 
 > ## ⊹⊹ SESSION 2026-06-30 (latest) END-STATE — ARC 296 KEYSTONE + WatError WALL BUILT (read THIS; below `---` is superseded)
 >
