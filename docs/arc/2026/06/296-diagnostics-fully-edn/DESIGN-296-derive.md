@@ -25,10 +25,26 @@ Two families are **bare enums** (StartupError, ResolveError — no outer span); 
 ## Decomposition (each strike byte-identical SET-diff ∅, weighed forced-clean)
 - **STRIKE 1 (this doc) — the derive infra + the `ToEdn` building blocks, proven on the cleanest family.** De-risks the
   whole arc: proves the generated EDN is byte-identical to the hand-written serializer.
-- **STRIKE 2 — the attribute DSL** (`computed` helper · synthetic-`const` field · secondary-span key), proven on `CheckError`
-  (the quirkiest: 2 `collect_hints`, 17 synthetic constants, multi-key spans).
-- **STRIKE 3+ — the sweep:** apply the derive family-by-family, DELETE each hand-written serializer, byte-identical each;
-  then the bare enums (StartupError/ResolveError). Arc closes when zero hand-written error `to_edn` match bodies remain.
+- **STRIKE 2 — the attribute DSL** (`via` · `literal` · `key`), split for verification (FM-2-bis: CheckError exercises all
+  five mechanisms at once):
+  - **2a — build + toy-test the DSL mechanics** in the derive (`key` field-level EDN-key rename; `literal(k="v",…)`
+    variant-level synthetic constants; `via` computed field — field-level transform `#[to_edn(via = fn)]` AND variant-level
+    `#[to_edn(via(key="…", fn=…, args(…)))]`, elide-when-`None`). Proven on toy enums (the derive's own ui/unit tests).
+  - **2b — apply to `CheckError`** (30 variants): normalize the primary span key to `:span` (D1 ratified — uniform wrapper,
+    kills the last eleven-key heresy on the raw `--check-output` wire; secondary spans keep domain keys via `key`); hints via
+    `via` (D2 ratified — `collect_hints` refactored `Option<String>`→`Option<Vec<String>>`, emits structured `:hints` Vector,
+    no `\n\n` join-blob); synthetic constants via `literal`; `attempted_clauses` via a field-level `via` transform. DELETE
+    `check_error_to_edn`; update the CLI `--check-output` tests (the `:location`→`:span` + `:hint`→`:hints` changes). **Proof
+    bar = key-value SET-equality** (EDN maps are unordered; the derive may group synthetics) — a deliberate relaxation from
+    byte-identical, noted.
+- **STRIKE 3+ — the sweep:** apply the derive family-by-family, DELETE each hand-written serializer, byte-identical (or
+  set-equal where a family normalizes); then the bare enums (StartupError/ResolveError). Arc closes when zero hand-written
+  error `to_edn` match bodies remain — then **R1 *NE SIBI OBSOLESCAT* → PROBATUM EST**.
+
+## Ratified decisions (four-questions, `strike 2`)
+- **D1 = normalize the primary span key → `:span`** (A beat B: B fails Obvious+Honest and ships a known seam = a deferral).
+- **D2 = `via` → structured `:hints` Vector** ((a′) beat (a)/(b)/(c): (a) keeps a `\n\n` join-blob = a deferral; (b) loses a
+  non-recomputable field; (c) re-opens the hand-written-body hole). `collect_hints` → `Option<Vec<String>>`.
 
 ---
 
