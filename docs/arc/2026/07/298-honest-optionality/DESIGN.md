@@ -62,10 +62,11 @@ doctrine.
   pattern already exists; the sentinel lives only in the raw `:span` variant form.
 
 ## Decomposition (three strikes, in order)
-- **Strike O — tag Option** (the keystone). Delete the transparent special-case; `Option` serializes like every enum:
-  `None → #wat.core.Option/None nil`, `Some v → #wat.core.Option/Some …`. **Pin the single-field body form** (bare
-  `#…/Some "x"` per the builder vs the general `#…/Some ["x"]` vector body — decide at strike start). Ride the test
-  cascade to zero. Round-trip (edn→value) must lift the tagged form back. RPC/protobuf (297) now has a real Option wire.
+- **Strike 298.1 — tag Option + normalize Result** (the keystone; STRIKE-READY, `DESIGN-298.1-tag-option.md`). Both
+  built-in discriminated types land on the uniform **`#wat.core.<Type>/<Variant>`** form: Option gains the tag (was
+  transparent) → `#wat.core.Option/Some|None`; Result migrates `#wat-edn.result/ok|err` → `#wat.core.Result/Ok|Err`
+  (type namespace + capitalized variant). Bare body (mirroring Result's `ok inner`). Ride the cascade to zero; both
+  round-trips hold. RPC/protobuf (297) now has real Option + Result wires.
 - **Strike S — kill the span sentinel.** Triage the ~107 `Span::unknown()` sites (knowable → fix to carry a real span;
   unknowable → the residue). Decide mandatory-Location (annihilate the symbol) vs `Option<Location>` (explicit None).
   The `{:file "<runtime>" :line 0 :col 0}` sentinel ceases to exist.
