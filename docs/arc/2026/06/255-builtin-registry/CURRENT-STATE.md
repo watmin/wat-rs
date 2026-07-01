@@ -25,6 +25,21 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e2c
 > turns PROBATUM EST when the last hand-body falls. + two `---` interstitials (PROBATIO FLEXA; OPVS SVA LINGVA — we now
 > speak the design IN wat).
 
+> **⊹⊹ FLOOR EXPANDED (2026-07-01) — HONEST OPTIONALITY doctrine (`296/DESIGN-honest-optionality.md`).** The RuntimeError
+> span fork (A elide / B sentinel) was a FALSE CHOICE — both make "we don't know" IMPLICIT (elide hides in an absent key;
+> the `{:file "<runtime>" :line 0 :col 0}` sentinel LIES). Builder cracked it open → a doctrine, co-designed + ratified:
+> **(1)** a record is TOTAL — every field always emitted, NEVER elide; **(2)** `None` is a SPOKEN TAGGED value
+> `#wat.core.Option/None nil` — never absent, never sentinel; **(3)** `Option` is a NORMAL enum — DELETE its transparent
+> special-case (`edn_shim.rs:1571` read + `:1965/:2091/:2824` write; it's the ONE enum carved to erase itself → make it
+> obey the general enum path); **(4)** `Option<T>` is LEGAL on aggregate fields (RPC needs "not supplied"); **(5)** the
+> `Span::unknown()` sentinel DIES (mandatory Location — annihilate — OR explicit `Option<Location>` None). **⛔ THE DERIVE
+> SWEEP IS BLOCKED ON THIS** — deriving RuntimeError/MacroError over Option-erasing data would bake in the lie (D1 lesson).
+> **Decomposition (3 strikes):** **O** tag Option (delete the special-case; ride the cascade — blast MEASURED ~4 codec
+> sites + a bounded test cascade, NOT wide; the 134 `core::Some/None` are construction = unaffected) → **S** kill the span
+> sentinel (triage ~107 `Span::unknown()` sites: knowable→fix, unknowable→residue) → **D** resume the derive (Runtime +
+> Macro) → 296 closes. **PLACEMENT UNDECIDED:** own arc (298) vs 296 expansion — builder rules. Pairs 297 protobuf-IPC
+> (needs the Option wire) + 293 aggregate model + R4 *ITERVM SVRGIMVS* (the quick fix was the true size, again).
+
 > **⊹ 296 — THE DERIVE TOP RUNG + THE STRUCTURE-AS-PROSE SWEEP (2026-07-01 END-STATE).** The walls are done (S6 `WatError`
 > floor `ed5721ea`; D1 embedded-types `74eb2ca6`). The `#[derive(ToEdn)]` TOP RUNG is being built + applied:
 > - **Derive Strike 1 (`8c04ae5e`)** — the `#[proc_macro_derive(ToEdn)]` on the kind enum + serde-style `ToEdn` building
