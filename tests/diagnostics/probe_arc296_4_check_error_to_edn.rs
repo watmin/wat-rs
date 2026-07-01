@@ -1,159 +1,97 @@
-//! Arc 296 slice 4 probe — CheckError implements `ToEdn`, emitting
-//! `#wat.kernel/<VariantName>` tagged EDN (NOT the old `#wat.diag/<kind>` flat shape).
+//! Arc 296 — `CheckError` implements `ToEdn`, emitting byte-identical
+//! `#wat.check/<VariantName>` tagged EDN (per-phase namespace, N3).
 //!
-//! ## What 296.4 changes
-//!
-//! Before: `CheckError::diagnostic()` returns a `Diagnostic` (a half-typed
-//! intermediate); `emit_check_failure` calls `render_edn(&diag)` which produces
-//! `#wat.diag/TypeMismatch {:callee "..." :expected "..." ...}`.
-//!
-//! After: `CheckError` implements `ToEdn`; `emit_check_failure` calls
-//! `to_edn()` which produces `#wat.kernel/TypeMismatch {:callee "..." :expected "..." ...}`.
-//!
-//! Key invariants this probe verifies:
-//! 1. `CheckError.to_edn()` compiles (trait exists, impl present).
-//! 2. Tag is in `wat.kernel` namespace (NOT `wat.diag`).
-//! 3. The error kind's discriminator is the tag name (e.g. `TypeMismatch`).
-//! 4. Structured fields are present as EDN keywords.
-//! 5. The output is valid EDN (round-trips through parse+write).
-//!
-//! RED before 296.4: `wat::to_edn::ToEdn` not implemented for `CheckError`.
-//! GREEN after 296.4: all impls present, `diagnostic.rs` retired.
+//! Originally the 296.4 probe (CheckError → ToEdn, retiring the `#wat.diag/`
+//! `Diagnostic` shape). Tightened to BYTE-IDENTICAL goldens (the derive-probe
+//! discipline: a `contains`-check passes on reordered fields / appended garbage;
+//! an `assert_eq!` on the exact wire does not). Captured, not guessed.
 
 use std::sync::Arc;
 use wat::check::error::{CheckError, CheckErrorKind};
 use wat::span::Span;
 use wat::to_edn::ToEdn;
 
-// ─── Probe 1 — TypeMismatch uses wat.kernel namespace ────────────────────────
+fn write_edn(kind: CheckErrorKind, file: &str, line: i64, col: i64) -> String {
+    let err = CheckError {
+        span: Span::new(Arc::new(file.to_string()), line, col),
+        kind,
+    };
+    wat_edn::write(&err.to_edn())
+}
+
+// ─── TypeMismatch — full field set + :remedies [] + :span ────────────────────
 
 #[test]
-fn probe_1_type_mismatch_to_edn_is_wat_kernel_tagged() {
-    let span = Span::new(Arc::new("test.wat".to_string()), 10, 5);
-    let err = CheckError {
-        span,
-        kind: CheckErrorKind::TypeMismatch {
+fn type_mismatch_to_edn_is_byte_identical() {
+    let s = write_edn(
+        CheckErrorKind::TypeMismatch {
             callee: ":user::greet".into(),
             param: "name".into(),
             expected: ":wat::core::String".into(),
             got: ":wat::core::i64".into(),
         },
-    };
-
-    let edn = err.to_edn();
-    let s = wat_edn::write(&edn);
-
-    eprintln!("=== probe_1: {}", s);
-
-    // Must be tagged EDN (starts with #).
-    assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
-
-    // Must use wat.check namespace (NOT wat.diag).
-    assert!(
-        s.contains("wat.check"),
-        "must use wat.check namespace; got: {}",
-        s
+        "test.wat",
+        10,
+        5,
     );
-    assert!(
-        !s.contains("wat.diag"),
-        "must NOT use old wat.diag namespace; got: {}",
-        s
+    assert_eq!(
+        s,
+        r#"#wat.check/TypeMismatch {:callee ":user::greet" :param "name" :expected ":wat::core::String" :got ":wat::core::i64" :remedies [] :span {:file "test.wat" :line 10 :col 5}}"#,
     );
-
-    // Must carry structured callee field.
-    assert!(
-        s.contains(":user::greet") || s.contains("user::greet"),
-        "must contain callee; got: {}",
-        s
-    );
-
-    // Must be valid EDN (parseable).
-    wat_edn::parse_owned(&s).expect("must be valid EDN");
 }
 
-// ─── Probe 2 — ArityMismatch carries expected/got integers ───────────────────
+// ─── ArityMismatch — carries expected/got integers ───────────────────────────
 
 #[test]
-fn probe_2_arity_mismatch_to_edn_carries_counts() {
-    let span = Span::new(Arc::new("src/main.wat".to_string()), 5, 1);
-    let err = CheckError {
-        span,
-        kind: CheckErrorKind::ArityMismatch {
+fn arity_mismatch_to_edn_is_byte_identical() {
+    let s = write_edn(
+        CheckErrorKind::ArityMismatch {
             callee: ":user::add".into(),
             expected: 2,
             got: 3,
         },
-    };
-
-    let edn = err.to_edn();
-    let s = wat_edn::write(&edn);
-
-    eprintln!("=== probe_2: {}", s);
-
-    assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
-    assert!(s.contains("wat.check"), "must use wat.check namespace; got: {}", s);
-    // Expected and got counts must appear.
-    assert!(s.contains('2'), "must contain expected count 2; got: {}", s);
-    assert!(s.contains('3'), "must contain got count 3; got: {}", s);
-    wat_edn::parse_owned(&s).expect("must be valid EDN");
+        "src/main.wat",
+        5,
+        1,
+    );
+    assert_eq!(
+        s,
+        r#"#wat.check/ArityMismatch {:callee ":user::add" :expected 2 :got 3 :span {:file "src/main.wat" :line 5 :col 1}}"#,
+    );
 }
 
-// ─── Probe 3 — UnknownCallee carries callee field ────────────────────────────
+// ─── UnknownCallee — carries callee field ────────────────────────────────────
 
 #[test]
-fn probe_3_unknown_callee_to_edn_carries_callee() {
-    let span = Span::new(Arc::new("lib.wat".to_string()), 3, 7);
-    let err = CheckError {
-        span,
-        kind: CheckErrorKind::UnknownCallee {
+fn unknown_callee_to_edn_is_byte_identical() {
+    let s = write_edn(
+        CheckErrorKind::UnknownCallee {
             callee: ":user::do-thing".into(),
         },
-    };
-
-    let edn = err.to_edn();
-    let s = wat_edn::write(&edn);
-
-    eprintln!("=== probe_3: {}", s);
-
-    assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
-    assert!(s.contains("wat.check"), "must use wat.check namespace; got: {}", s);
-    assert!(
-        s.contains("do-thing") || s.contains(":user::do-thing"),
-        "must contain callee; got: {}",
-        s
+        "lib.wat",
+        3,
+        7,
     );
-    wat_edn::parse_owned(&s).expect("must be valid EDN");
+    assert_eq!(
+        s,
+        r#"#wat.check/UnknownCallee {:callee ":user::do-thing" :span {:file "lib.wat" :line 3 :col 7}}"#,
+    );
 }
 
-// ─── Probe 4 — CommCallOutOfPosition (the CLI test case) ─────────────────────
+// ─── CommCallOutOfPosition — the CLI test case ───────────────────────────────
 
 #[test]
-fn probe_4_comm_call_out_of_position_to_edn() {
-    let span = Span::new(Arc::new("user.wat".to_string()), 8, 3);
-    let err = CheckError {
-        span,
-        kind: CheckErrorKind::CommCallOutOfPosition {
+fn comm_call_out_of_position_to_edn_is_byte_identical() {
+    let s = write_edn(
+        CheckErrorKind::CommCallOutOfPosition {
             callee: ":wat::kernel::send".into(),
         },
-    };
-
-    let edn = err.to_edn();
-    let s = wat_edn::write(&edn);
-
-    eprintln!("=== probe_4: {}", s);
-
-    // Must produce #wat.check/CommCallOutOfPosition (NOT #wat.diag/).
-    assert!(
-        s.starts_with("#wat.check/CommCallOutOfPosition"),
-        "must start with #wat.check/CommCallOutOfPosition; got: {}",
-        s
+        "user.wat",
+        8,
+        3,
     );
-    // Must carry :callee field.
-    assert!(s.contains(":callee"), "must contain :callee keyword; got: {}", s);
-    assert!(
-        s.contains(":wat::kernel::send"),
-        "must contain callee value; got: {}",
-        s
+    assert_eq!(
+        s,
+        r#"#wat.check/CommCallOutOfPosition {:callee ":wat::kernel::send" :span {:file "user.wat" :line 8 :col 3}}"#,
     );
-    wat_edn::parse_owned(&s).expect("must be valid EDN");
 }
