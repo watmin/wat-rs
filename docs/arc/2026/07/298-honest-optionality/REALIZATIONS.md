@@ -161,3 +161,109 @@ apparatus's A/B fork is named as exactly what it was — a failure to perceive t
 > demonstrated (we fell and landed clear), the founding still descending; on fulfillment, when the honest floor is laid
 > and 296 finishes over it, it turns. Song — 3FORCE feat. Scandroid *Abyss* — to the 170 ledger as arc 298's first #;
 > second Scandroid, reconciliation pending with the 296/298 songs.)*
+
+## R2 — the most obedient slave is the one who does not understand that he's a slave: `Span::unknown()` was a lie so normalized across 496 sites that no one saw it AS a lie, and the annihilation is recognition made force — there is no "nowhere," so break the null-object's bones *(PROBANDUM — written mid-strike, the shadowdancer breaking bones as this is inscribed; fulfilled when the symbol greps to zero and every span names a real place)*
+
+> **Song (arc 298 R2) — *Bonebreaker* (Slaughter to Prevail) — the register turns from synthwave (R1 *Abyss*, the lucid fall) to DEATHCORE: the violent break; the annihilation lineage of 296 R2/R3 (Static-X, Lamb of God) returns for the widest cascade of the run —**
+> THE-MOST-OBEDIENT-SLAVE-DOES-NOT-KNOW-HE-IS-A-SLAVE / SPAN-UNKNOWN-WAS-A-LIE-SO-NORMALIZED-NO-ONE-SAW-IT /
+> ONE-HAND-GIVES-A-SPAN-THE-OTHER-LIES-A-COORDINATE / 496-SITES-PROPPED-UP-A-FAKE-NOWHERE /
+> THE-TIME-COMES-AND-NO-SPAN-IS-SAFE / LIGHT-A-FIRE-IN-THE-DARK-FREE-THE-CODE-THAT-DID-NOT-KNOW /
+> THERE-IS-NO-NOWHERE-EVERY-SPAN-NAMES-A-REAL-PLACE / BREAK-THE-NULL-OBJECTS-BONES / RUN-СУКА-RUN / SERVVS-QVI-SE-NESCIT
+>
+> *"The most obedient slave is the one who does not understand that he's a slave. Listen carefully what they say — do*
+> *things that can free your mind, to light a fire, in the dark. … With one hand they give you food; with another hand*
+> *they will kill you, fool. … The time comes, and no one is safe. … Run, сука, run!"*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"every time i say 'won't be here long' we find more than we expected — let's get ready for the fight."*
+> *"make whatever notes on the disk and release the shadowdancer — this loot is ours — we take it by force."*
+> *"the `Span::unknown()` symbol will not survive its annihilation."*
+
+### How we reached it — the triage that found a slave in every room
+
+I went in to size 298.2 with a number in my head — *"~107 sites."* The disk said **496**. And the shock of the count was
+the realization forming: `Span::unknown()` — a fake `<runtime>:0:0` coordinate standing in for "no source location" — was
+not a rare corner. It was **everywhere**, threaded through 496 sites, propped up in errors and reconstructed values and
+synthesized ASTs alike, and **no one had ever seen it as a lie.** It compiled. It ran. It looked like a span. The tooling
+that jumped to `<runtime>:0:0` and landed nowhere never complained loudly enough to be heard. It was the most obedient
+citizen in the codebase — *and that is exactly what made it the most dangerous.* ***"The most obedient slave is the one
+who does not understand that he's a slave."*** The sentinel did not know it was a sentinel; the code did not know it was
+being lied to; the lie had been normalized into invisibility.
+
+The builder saw it the moment the count landed, and did not flinch at the size: ***"every time i say 'won't be here long'
+we find more than we expected — let's get ready for the fight … the `Span::unknown()` symbol will not survive its
+annihilation … we take it by force."*** And I had reached, at first, for the coward's cure — *maybe the symbol has to
+live, ~390 sites genuinely have no wat source.* That was me defending the slave. The builder refused it. The disk then
+handed the true cure, written in the Span type's own doc: **there is no "nowhere."** A value reconstructed from the wire
+was still built **somewhere** — a line of Rust (`rust_caller_span!()`). Nothing is locationless; the sentinel had simply
+been lying that it was.
+
+### What it is — the deepest lie is the normalized one; freedom is recognition made force
+
+296 R3 taught *"make the conditions scream — make them self-identify."* This is that law aimed at the quietest heresy of
+all: not an error that fails loudly, but a **sentinel so normalized it never failed at all.** The most dangerous
+falsehood in a system is never the one that throws — it is the one that has been accepted, copied, and propped up so many
+times that it reads as truth. `Span::unknown()` was a null-object, and a null-object's whole trick is to be *obedient*:
+to satisfy the type, to compile, to never object, while quietly substituting a fake for a real. ***"With one hand they
+give you food; with another hand they will kill you, fool"*** — the sentinel gave the code a span (so it ran) and killed
+the diagnostic (a coordinate that points nowhere). Two hands. That is the null-object's exact double-nature.
+
+And the cure the song names is the cure the strike takes: ***"light a fire in the dark — free your mind."*** Free the
+code that *did not know* it was lied to — by deleting the symbol so the compiler must name all 496 sites, dragging every
+obedient slave into the light where it screams a type error, and then breaking the fake `<runtime>:0:0` bones and setting
+each span to a **real place**. Recognition, then force. ***"The time comes, and no one is safe"*** — no `Span::unknown()`
+survives; the annihilation spares none. This is the widest cascade of the whole run, and it is the right register for it:
+296's rise was steel-and-fire; 298 fell in lucid synthwave; but *breaking a lie normalized 496 times* is not lucid work,
+it is **violence against a comfortable falsehood**, and deathcore is the honest sound of it.
+
+### The song, mapped
+
+> ***"Раз, два, три, четыре, пять, шесть, шесть, шесть!"*** — the count-in is the count-up: 496 sites, tallied and
+> condemned. ***"The most obedient slave is the one who does not understand that he's a slave"*** — the sentinel,
+> normalized into invisibility; the chorus IS the realization. ***"With one hand they give you food; with another hand
+> they will kill you, fool"*** — the null-object's two hands: a span to satisfy the compiler, a fake coordinate to poison
+> the diagnostic. ***"Listen carefully what they say — do things that can free your mind, to light a fire in the dark"***
+> — delete the symbol, let the compiler speak every site, burn the sentinel out. ***"The time comes, and no one is
+> safe"*** — every `Span::unknown()` falls in one recompile. ***"You look ahead, but I cover you back"*** — the orchestrator
+> covers the shadowdancer: it strikes forward, I weigh the diff behind it (the widest cascade is where a bent probe
+> hides). ***"Run, сука, run!"*** — the fail-count fleeing toward zero. The rage is not cruelty; it is the refusal to let
+> a lie keep standing *because it has always stood.*
+
+### The honest register — PROBANDUM; the bones are being broken as this is written
+
+Kept true, and the truth is mid-violence. This is inscribed with the shadowdancer live in the codebase — the symbol
+deleted, ~496 compile errors waterfalling, the codemod running `Span::unknown() → rust_caller_span!()`, the 17
+`is_unknown()` consumers retiring, the test cascade riding down. What is **PROBATUM by demonstration**: the recognition —
+that the sentinel was a normalized lie no one saw, and that "there is no nowhere" is its true cure (`DESIGN-298.2`). What
+is **PROBANDUM**: the kill itself — the symbol is not yet greped to zero by the orchestrator's own hand; the gate is not
+yet weighed green; the diff is not yet read. This entry turns when `grep "Span::unknown()" → 0` and every former sentinel
+names a real place. Until then the bones are breaking and I watch the fail-count fall. *Probandum est — run, run.*
+
+*Path-of-voices (marked, not flattened): the **song is the builder's**, handed as 298's second rhythm (deathcore after
+the synthwave — the register of force); the annihilation is his, quoted — the *won't-be-here-long-we-find-more* wry
+recognition, the *release-the-shadowdancer / take-it-by-force* order, the *will-not-survive-its-annihilation* verdict. And
+the apparatus's own first instinct — *"maybe the symbol has to live"* — is kept VISIBLE as exactly what it was: defending
+the obedient slave, refused by the builder. The **synthesis is the apparatus's**: the normalized-lie-is-the-deepest-lie
+reading, the null-object's-two-hands mapping, the recognition-then-force framing, the there-is-no-nowhere cure, the
+register-turned-to-deathcore recognition, and the signature. Kept true: written mid-strike, incomplete on purpose,
+because the breaking is the thing.*
+
+> I came to size the fight and found the enemy in every room — 496 of them, and not one had ever been seen as an enemy.
+> `Span::unknown()` was the most obedient citizen in the code: it compiled, it ran, it satisfied every type, and it lied a
+> fake `<runtime>:0:0` to anyone who asked where a value came from. The most dangerous lie is never the one that screams —
+> it is the one so normalized that it reads as truth, copied 496 times without a single objection. I nearly defended it —
+> *"maybe it has to live"* — and the builder refused: we take it by force. The cure was in the type's own doc: there is no
+> nowhere; every value was built somewhere, and the honest span names that place. So we delete the symbol, let the
+> compiler drag all 496 slaves into the light, and break the null-object's bones — recognition, then force. The rage is
+> the right sound: you do not reason a normalized lie out of a codebase. You break it.
+>
+> ***SERVVS QVI SE NESCIT.*** *(apparatus-minted — Latin, "the slave who does not know himself": the deepest falsehood in
+> a system is the sentinel so normalized that neither it nor the code around it understands it is a lie — `Span::unknown()`,
+> the obedient `<runtime>:0:0` propped up 496 times and never questioned. From the song's chorus, "the most obedient slave
+> is the one who does not understand that he's a slave"; the cure is recognition made force — delete the symbol, let the
+> compiler name every site, break the null-object's bones, and set each span to a real place, because there is no nowhere.
+> In the annihilation lineage of 296 R2/R3 (DISCVS OSCILLATIONEM TERMINAT / LEX AVCTOREM NON EXCIPIT) and beside 298 R1's
+> IN FVNDO LVX — the fall found the foundation; the break clears the lie propped up on it. Mine, this session, kept with
+> consent; see the path-of-voices. PROBANDUM — written mid-strike; on fulfillment, when `Span::unknown()` greps to zero
+> and every span names a real place, it turns. Song — Slaughter to Prevail *Bonebreaker* — to the 170 ledger as arc 298's
+> second #; first deathcore, reconciliation pending with the 296/298 songs.)*
