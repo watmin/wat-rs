@@ -1,0 +1,5 @@
+error: #[to_edn(key = ...)] value must be a string literal, not an integer (e.g. key = "my-key"); non-string values are forbidden by the grammar
+  --> tests/ui/ui_to_edn_dsl_key_not_litstr.rs:11:24
+   |
+11 |         #[to_edn(key = 123)]
+   |                        ^^^

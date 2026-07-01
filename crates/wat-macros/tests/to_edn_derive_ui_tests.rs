@@ -1,8 +1,18 @@
-//! Trybuild UI tests for `#[derive(ToEdn)]` proc-macro (arc 296 Strike 1).
+//! Trybuild UI tests for `#[derive(ToEdn)]` proc-macro (arc 296 Strike 1 + 2a).
 //!
-//! Verifies compile-fail contracts for the `ToEdn` derive macro:
+//! ## Strike 1 (shape constraints)
+//!
 //! 1. `ui_to_edn_rejects_struct.rs` — struct input rejected at proc-macro level.
 //! 2. `ui_to_edn_rejects_tuple_variant.rs` — tuple variant rejected at proc-macro level.
+//!
+//! ## Strike 2a (attribute DSL grammar)
+//!
+//! 3. `ui_to_edn_dsl_via_inline_expr.rs` — `via = xs.join(", ")` (inline
+//!    expression where a bare path is required) → compile_error!.
+//! 4. `ui_to_edn_dsl_key_not_litstr.rs` — `key = 123` (non-LitStr value) →
+//!    compile_error!.
+//! 5. `ui_to_edn_dsl_bogus_key.rs` — `bogus = "x"` (unknown directive) →
+//!    compile_error! naming the allowed set.
 //!
 //! ## What is NOT tested here
 //!
@@ -17,9 +27,17 @@
 fn to_edn_derive_ui() {
     let t = trybuild::TestCases::new();
 
+    // ── Strike 1: shape constraints ──────────────────────────────────────────
     // compile-fail: struct input → "supports enums only"
     t.compile_fail("tests/ui/ui_to_edn_rejects_struct.rs");
-
     // compile-fail: tuple variant → "does not support tuple variants"
     t.compile_fail("tests/ui/ui_to_edn_rejects_tuple_variant.rs");
+
+    // ── Strike 2a: attribute DSL grammar ─────────────────────────────────────
+    // compile-fail: via = xs.join(", ") — inline expression forbidden
+    t.compile_fail("tests/ui/ui_to_edn_dsl_via_inline_expr.rs");
+    // compile-fail: key = 123 — non-LitStr value forbidden
+    t.compile_fail("tests/ui/ui_to_edn_dsl_key_not_litstr.rs");
+    // compile-fail: bogus = "x" — unknown directive
+    t.compile_fail("tests/ui/ui_to_edn_dsl_bogus_key.rs");
 }

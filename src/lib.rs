@@ -110,6 +110,8 @@ pub mod time;
 pub mod types;
 pub mod value;
 pub mod to_edn;
+#[cfg(test)]
+mod to_edn_derive_tests;
 pub mod vm_registry;
 pub mod wat_edn_bridge;
 pub(crate) mod intrinsic;
