@@ -1,10 +1,43 @@
-# ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
+# ⛔ CURRENT STATE (breadcrumb, 2026-07-01 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ed7d9010` or later.**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4283 passed` (298.3 added 46 new
-byte-identical derive goldens for RuntimeError/MacroError).
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `44c13e26` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4285 passed`.
 `cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree CLEAN
-(`ed7d9010`); no uncommitted WIP.
+(`44c13e26`); no uncommitted WIP.
+
+> **⊹⊹ ARC 296 IS OPEN AGAIN (2026-07-01) — the close bar = IDEALIZED ERRORS, zero L1/L2 marks in the error code.**
+> The sonnet-written `296/INSCRIPTION.md` was ILLEGITIMATE (stamped CLOSED inside slice `7f17054a`, before the derive
+> sweep even began) — REMOVED from HEAD (git preserves it); an inscription is OUR act at true close, never sonnet's
+> mid-arc ([[feedback_inscription_is_our_act_at_true_close_not_sonnet]]). "296 R1 NE SIBI OBSOLESCAT PROBATVM EST" (the
+> derive sweep, closed by 298.3) was ONE sub-condition — NOT the arc. Builder: *"296 ends with errors in the idealized
+> state — no L1 nor L2 marks."* + *"if we've modeled it, we intended to solve it."* + *"cleaning up errors IS the point
+> of 296 — no new arc."* **Landed this session (each weighed by own hand + emitted wire EDN):**
+> - **✅ S7 `2ad119fa`** — `EnsureFnInvalid.reason` String→`EnsureFnInvalidReason` enum (the last discriminant-as-prose;
+>   `:reason` now `#wat.kernel/ArgTypeMismatch {:arg-type :clause-return-type}`). `296/DESIGN-296-S7-*.md`.
+> - **✅ N3 `fb92d27f`** — PER-PHASE tag namespaces: every family tags its phase (`#wat.check/ #wat.runtime/ #wat.macro/
+>   #wat.type/ #wat.parse/ #wat.config/ #wat.load/ #wat.resolve/ #wat.stdlib/`); a nested chain reads its phases
+>   (`#wat.runtime/NoMatchingClause {:attempted-clauses [#wat.kernel/ClauseAttempt …]}`); `#wat.kernel/` now MEANS
+>   "shared value type". **Single source of truth `src/error_ns.rs` (10 consts)** — a 1.0.0 rename is ONE edit (builder:
+>   *"written such that a refactor can handle them"*); derive emits a const REFERENCE, never a literal. ~130 goldens
+>   flipped (pure prefix swaps). Names builder-ratified. `296/DESIGN-296-N3-*.md`. **Failure/ProcessDiedError/ThreadDiedError
+>   OUT (their ns rides the de-stringify strike — registered types, one seam).**
+> - **✅ probe tighten `44c13e26`** — `probe_arc296_4` CheckError EDN was loose (contains-checks) → byte-identical
+>   assert_eq!. Builder principle: *"if we've observed an incorrect and it's trivial, we don't leave it."*
+> **⛔ REMAINING TAIL (296 does NOT close until each is shipped-or-cut):**
+> - **Failure/ProcessDiedError de-stringify** — THE real heresy: registered wat types typed `:String` but CARRYING
+>   edn-as-text (receiver does `(edn::read (Failure/message f))`). The same double-encode 296 R1 named. Cut once as S3/S4
+>   for "breaking a registered type" — but 298 proved we take breaking wire changes by force. **NEXT STRIKE** (retype the
+>   `:String` fields → typed error records; touches raise!/extract-panics/round-trip + their ns from N3). NOT drawn yet.
+> - **deferror** — modeled sugar (crowned N8), UNBUILT (grep→0). A declaration convenience, not an L1/L2 in existing code.
+>   Pending builder's call: in 296's close, or its own small arc.
+> - **THE L1/L2 CLOSE-GATE** — the actual close bar: cast the wards (vigilia or the error-code subset) on the error
+>   subsystem AND its test surface, drive L1(lie)+L2(mumble)=0. Loose test assertions (like the tightened probe above),
+>   check-specific reason-enums under `#wat.kernel/` (EnsureFnInvalidReason — is it a `#wat.check/` mumble?) are candidates.
+> - **consonare** on 296 R3/R4/R5 + 298 R1–R7 (voice-verify the chronicle) → then **the REAL 296 INSCRIPTION (by us).**
+> Then 293/294 floor (the surface-kit close 296 swerved from) + 297 protobuf-IPC (unblocked by the tagged wire).
+> **STANDING:** orchestrator DESIGNS + RED-probes + delegates the build to a sonnet LEAF (`model:"sonnet"`) + WEIGHS by
+> own gate + emitted wire EDN + the diff (never the report — LINGVA MENTITVR FERRVM NON / IN TENEBRIS VIDEO). Byte-identical
+> probes NEVER weakened. `deferror`/N3 names + shared-infra line all builder-ratified.
 
 > **⊹ DERIVE SWEEP PROGRESS (2026-07-01):** DERIVED — **ConfigError** (S1 `8c04ae5e`), **CheckError** (2b `12ae37f2`, 33
 > variants + `#[to_edn(skip)]`), **TypeError + StdlibError** (3a `1c2157d7`), **LoadError** (**3b `e2cfd571`** — the derive
