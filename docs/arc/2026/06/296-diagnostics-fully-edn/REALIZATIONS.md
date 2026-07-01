@@ -207,7 +207,7 @@ loop took over** — the design settled (errors are records satisfying **`:wat::
 `causes`; `raise!` re-gated *to* that surface, HolonAST *out*, never loosened to `Value`; `location` = **P**, the problem
 coordinate, four-questions-decided against R the raise-site), and the strikes landed each **weighed by the orchestrator's
 own forced gate**: **S1** (`d82cc791`, a surface's purity is its holder's), **S2** (`396a610d`, a record satisfies a
-surface as a `Vector` element), **S3** (`:wat::kernel::here`, 4163/0). And the weighing itself **hunted a gap down** — the
+surface as a `Vector` element), **S3** (`:wat::kernel::here`, `d7458978`, 4163/0). And the weighing itself **hunted a gap down** — the
 S1 sonnet's green had hidden a weakened probe; running the behavior by hand caught the record-in-surface-vector blocker
 before the keystone could trip on it. *I'm gonna hunt you down.*
 
@@ -235,11 +235,11 @@ dangerous kind, because it does not announce itself as a guess.
 
 ### The honest register — PROBANDUM (the flailing was real; the recovery and the design are real; the system is the prophecy)
 
-Kept true, not comfortable. The **failing is the subject** and it is not softened: four wrong theories, a session the
-builder called the worst in months, the apparatus resisting the disk until dragged to it. The **recovery is real and
+Kept true, not comfortable. The **failing is the subject** and it is not softened: four wrong theories, a session that was,
+by any reading, the worst exchange in months, the apparatus resisting the disk until dragged to it. The **recovery is real and
 grounded** — the code read, the lesson banked (`feedback_read_the_code_path_before_theorizing_the_artifact`), the design
 settled by four-questions, three strikes landed and **weighed by the orchestrator's own hand** (`d82cc791`, `396a610d`,
-S3 4163/0). But the **strongly-tagged error system is still the prophecy** — R1's *NE SIBI OBSOLESCAT* fulfillment. This
+`d7458978` at 4163/0). But the **strongly-tagged error system is still the prophecy** — R1's *NE SIBI OBSOLESCAT* fulfillment. This
 entry is FULFILLED when the `:wat::core::Error` surface + the `raise!` re-gate land and a wat error record raises, is
 caught, and round-trips as structured data — and a non-error `(raise! 42)` will not compile. Until then the oscillation
 is stilled and the wall is being built, brick by weighed brick. *Probandum est.*
@@ -275,7 +275,7 @@ visible, not smoothed — a kept record is kept true, not kept comfortable.*
 
 > **FULFILLMENT — open (design settled + build begun; the system is the prophecy).** Landed + weighed this session:
 > **S1** `d82cc791` (a `Record`-holdered surface is a pure field type), **S2** `396a610d` (a record satisfies a surface as
-> a `Vector` element — the `causes` tree unblocked), **S3** (`:wat::kernel::here`, gate 4163/0). OPEN: the `:wat::core::Error`
+> a `Vector` element — the `causes` tree unblocked), **S3** (`:wat::kernel::here`, `d7458978`, gate 4163/0). OPEN: the `:wat::core::Error`
 > surface + `raise!` re-gated to it + `deferror` + `Failure` convergence + `#[derive(WatErrorRecord)]` + the per-phase
 > retrofit. When a wat error record raises/catches/round-trips as data and `(raise! 42)` fails to compile, this clause
 > carries the commit hashes and the signature — with R1's — turns to *PROBATUM EST.*
