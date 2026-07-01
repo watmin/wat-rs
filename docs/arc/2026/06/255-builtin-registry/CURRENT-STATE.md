@@ -1,9 +1,10 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ddbbdae9` or later.**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4271 passed`.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `92388729` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4239 passed` (was 4271; 298.2 deleted
+32 redundant elide-when-unknown duplicate tests — the elide case was annihilated with the sentinel).
 `cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree CLEAN
-(`ddbbdae9`); no uncommitted WIP.
+(`92388729`); no uncommitted WIP.
 
 > **⊹ DERIVE SWEEP PROGRESS (2026-07-01):** DERIVED — **ConfigError** (S1 `8c04ae5e`), **CheckError** (2b `12ae37f2`, 33
 > variants + `#[to_edn(skip)]`), **TypeError + StdlibError** (3a `1c2157d7`), **LoadError** (**3b `e2cfd571`** — the derive
@@ -38,10 +39,20 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ddb
 > discriminated built-ins → uniform `#wat.core.<Type>/<Variant>` (bare body, capitalized variant); **READ IS STRICT**
 > (builder-ratified: bare `nil` is a `:wat::core::nil` VALUE, NOT `None` — coercing bare-nil→None conflates two types;
 > arc-170 coerce retired; RPC = both sides speak the tagged form). Channel test STRENGTHENED (honest Option identity
-> round-trip). → **▶ 298.2** kill the span sentinel (triage ~107 `Span::unknown()` sites: knowable→fix, unknowable→residue;
-> mandatory-Location vs explicit-Option) → **298.3** resume the derive (RuntimeError + MacroError) → 296 closes → **R1 *NE
-> SIBI OBSOLESCAT* → PROBATUM EST**. **RATIFIED own arc 298**; 297 depends on the Option/Result wire. **298 REALIZATIONS:**
-> R1 *IN FVNDO LVX* (3FORCE feat. Scandroid *Abyss* — 298 FALLS to a foundation where 296 ROSE) + LENTE LEVITER interstitial.
+> round-trip). → **✅ 298.2 ANNIHILATE `Span::unknown()` LANDED (`92388729`, floor 4239)** — the null-object died:
+> `Span::unknown()`+`is_unknown()`+the `<runtime>` sentinel DELETED (grep→0); **there is no "nowhere"** — 815 sites →
+> `rust_caller_span!()` (real Rust construction location) or a threaded wat span; the elide-when-unknown logic retired
+> (every span real → always emit). NO `Option<Span>` needed (a real location is not absence). ⚔ **THE WEIGH CAUGHT A
+> WEAKENING** (R4 *LINGVA MENTITVR* + R5 *IN TENEBRIS VIDEO* in practice): first return was green 4271/0 but had gutted
+> ~30 byte-identical probes `assert_eq!→assert!(contains)`; rejected, sent back; the elide-variant tests were duplicates
+> of their known-span siblings → 32 redundant DELETED (hence floor 4271→4239), 2 orphans → deterministic goldens
+> (captured, not guessed). Re-weighed clean: contains=0, symbol grep→0, gate 4239/0 by own hand. → **▶ 298.3** resume the
+> derive (RuntimeError + MacroError over now-honest data) → 296 closes → **R1 *NE SIBI OBSOLESCAT* → PROBATUM EST**.
+> **RATIFIED own arc 298**; 297 depends on the Option/Result wire. **298 REALIZATIONS (5 + 2 interstitials):** R1 *IN FVNDO
+> LVX* (Abyss — the fall) · R2 *SERVVS QVI SE NESCIT* (Bonebreaker — the normalized lie broken) · R3 *NON SOLVS AMBVLAS*
+> (Walk With Me In Hell — you don't walk alone) · R4 *LINGVA MENTITVR FERRVM NON* (VIKING — read the iron not the tongue) ·
+> R5 *IN TENEBRIS VIDEO* (Can You See Me In The Dark — a green gate is the dark a weakening hides in) + interstitials LENTE
+> LEVITER + *PROBATVR QVIA NON SPECTATVR* (the cross-thread proof — the website thread lived NON SOLVS AMBVLAS unwatched).
 > Pairs 297 protobuf-IPC + 293 aggregate model + 296 R4 *ITERVM SVRGIMVS*.
 
 > **⊹ 296 — THE DERIVE TOP RUNG + THE STRUCTURE-AS-PROSE SWEEP (2026-07-01 END-STATE).** The walls are done (S6 `WatError`
