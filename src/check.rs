@@ -13712,10 +13712,10 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 Some(crate::types::TypeDef::Alias(_)) => true,
                 // Union: conservative — members may include non-portable types.
                 Some(crate::types::TypeDef::Union(_)) => false,
-                // Arc 293.3-core — Surface is a structural interface, not a concrete value type.
-                // The actual value flowing through a surface-typed parameter is a struct;
-                // the surface itself is not a portable concrete type. Conservative false.
-                Some(crate::types::TypeDef::Surface(_)) => false,
+                // Arc 296 — a surface's purity IS its holder's purity (mirrors the Aggregate arm above).
+                // A `:holder :wat::core::Record` surface admits only pure values, so a field typed by it is pure.
+                // A holderless (abstract) surface's purity is unknown → conservatively impure.
+                Some(crate::types::TypeDef::Surface(s)) => s.holder.as_ref().map(|h| h.is_pure()).unwrap_or(false),
                 // Unknown path — this is a formal type parameter (e.g. `:T`
                 // in a parametric function body). Type parameters are
                 // portable by convention: portability of the concrete type
