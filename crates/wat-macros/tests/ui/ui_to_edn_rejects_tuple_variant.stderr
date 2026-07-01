@@ -1,4 +1,4 @@
-error: ToEdn derive does not support tuple variants in Strike 1; report this to the arc 296 author for Strike 2
+error: single-field tuple variant requires `#[to_edn(key = "…")]` to name the EDN key (the field has no Rust ident; the key must be declared explicitly)
   --> tests/ui/ui_to_edn_rejects_tuple_variant.rs:11:5
    |
 11 |     Tuple(String),

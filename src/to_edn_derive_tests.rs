@@ -1,4 +1,4 @@
-//! Arc 296 Strike 2a — behavioral toy tests for `#[to_edn(...)]` attribute DSL.
+//! Arc 296 Strike 2a + 3b — behavioral toy tests for `#[to_edn(...)]` attribute DSL.
 //!
 //! This file is declared as `#[cfg(test)] mod to_edn_derive_tests;` in
 //! `src/lib.rs`, so it is only compiled during test builds. All toy enums are
@@ -27,6 +27,11 @@
 //! E. **Secondary Span field** — a primary `:span` + a secondary Span with
 //!    `#[to_edn(key = "outer-span")]` override (default would be
 //!    `"outer-define-span"`). Both elide independently when unknown.
+//!
+//! F. **Single-field tuple variant** (Strike 3b) — variant-level
+//!    `#[to_edn(key = "cause")]` on `Wrap(String)` emits
+//!    `#wat.kernel/Wrap {:cause "…"}`. Also tests field-level `via` on the
+//!    tuple field for a custom transform.
 
 use crate::to_edn::ToEdn;
 use crate::span::Span;
@@ -275,4 +280,62 @@ fn secondary_span_both_unknown_both_elide() {
     };
     let edn = wat_edn::write(&e.to_edn());
     assert_eq!(edn, r#"#wat.kernel/Def {:name "def"}"#);
+}
+
+// ── F. Single-field tuple variant (Strike 3b) ─────────────────────────────────
+
+/// F1. Plain tuple: `Wrap(String)` with `#[to_edn(key = "cause")]` on the
+/// variant derives to `#wat.kernel/Wrap {:cause "…"}`.
+///
+/// This is the minimal proof of the new tuple-variant capability: the variant
+/// tag is emitted as usual; the single field gets the EDN key declared by
+/// the variant-level annotation.
+#[derive(wat_macros::ToEdn)]
+enum TupleVariantTest {
+    /// Keyed single-field tuple: variant-level key names the field's EDN key.
+    #[to_edn(key = "cause")]
+    Wrap(String),
+    /// Mix in a struct variant to prove the two shapes coexist in one enum.
+    Named { count: usize },
+}
+
+/// Via helper for F2: returns the string length as an integer OwnedValue.
+fn toy_tuple_via(s: &String) -> OwnedValue {
+    OwnedValue::Integer(s.len() as i64)
+}
+
+/// F2. Tuple variant with field-level `via` — field-level `#[to_edn(via = ...)]`
+/// overrides how the single field's value is computed.
+#[derive(wat_macros::ToEdn)]
+enum TupleVariantViaTest {
+    #[to_edn(key = "len")]
+    WithVia(
+        #[to_edn(via = toy_tuple_via)]
+        String
+    ),
+}
+
+/// F1a. Keyed tuple: inner string is serialized via `.to_edn()` (plain String).
+#[test]
+fn tuple_variant_keyed_emits_correct_map() {
+    let e = TupleVariantTest::Wrap("hello".to_owned());
+    let edn = wat_edn::write(&e.to_edn());
+    assert_eq!(edn, r#"#wat.kernel/Wrap {:cause "hello"}"#);
+}
+
+/// F1b. Struct sibling variant still emits correctly in the same derive.
+#[test]
+fn tuple_variant_struct_sibling_unaffected() {
+    let e = TupleVariantTest::Named { count: 3 };
+    let edn = wat_edn::write(&e.to_edn());
+    assert_eq!(edn, r#"#wat.kernel/Named {:count 3}"#);
+}
+
+/// F2. Field-level `via` on the tuple field: `toy_tuple_via` is called instead
+/// of `.to_edn()`, returning the string length as an integer.
+#[test]
+fn tuple_variant_field_via_called() {
+    let e = TupleVariantViaTest::WithVia("hello".to_owned());
+    let edn = wat_edn::write(&e.to_edn());
+    assert_eq!(edn, r#"#wat.kernel/WithVia {:len 5}"#);
 }

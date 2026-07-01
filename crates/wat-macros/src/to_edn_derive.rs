@@ -13,8 +13,10 @@
 //!   is preserved.
 //! - **Unit variant** `Bar` →
 //!   `#wat.kernel/Bar {}` (empty map body).
-//! - **Tuple variants** — STOP: unsupported; the derive emits a
-//!   `compile_error!` if any tuple variant is encountered.
+//! - **Single-field tuple variant** `Fetch(T)` with `#[to_edn(key = "cause")]`
+//!   on the variant → `#wat.kernel/Fetch {:cause <__0.to_edn()>}`.
+//!   The `key` is REQUIRED (the field has no Rust ident).
+//!   Multi-field tuple variants and keyless single-field tuples are a `compile_error!`.
 //!
 //! ## The helper attribute `#[to_edn(...)]` (Strike 2a)
 //!
@@ -45,6 +47,9 @@
 //!   variant; the fn returns `Option<impl ToEdn>`; on `Some(v)` push
 //!   `(:k, v.to_edn())`; on `None` elide the key entirely. `key` is a
 //!   `LitStr`; `fn` is a bare path; `args` items are bare idents.
+//! - **`#[to_edn(key = "…")]`** — Name the EDN key for a single-field tuple
+//!   variant's nameless field (e.g. `#[to_edn(key = "cause")] Fetch(T)`).
+//!   REQUIRED on single-field tuple variants; illegal on Named/Unit variants.
 //!
 //! ### Grammar constraint (the top rung)
 //!
@@ -126,6 +131,10 @@ struct VariantAttr {
     literal_pairs: Vec<(String, String)>,
     /// `via(key="k", fn=path, args(a,b,c))`: computed field to APPEND.
     computed_via: Option<ComputedVia>,
+    /// `key = "…"`: the EDN key for a single-field tuple variant's nameless
+    /// field. Required when the variant is `Foo(T)` (single unnamed field).
+    /// Illegal on Named or Unit variants — use field-level `#[to_edn(key)]`.
+    key: Option<String>,
 }
 
 /// Parsed `#[to_edn(via(key = "k", fn = path, args(a, b, c)))]` on a variant.
@@ -339,6 +348,7 @@ fn parse_field_directive(
 fn parse_variant_attrs(variant: &syn::Variant) -> Result<VariantAttr, TokenStream2> {
     let mut literal_pairs: Vec<(String, String)> = Vec::new();
     let mut computed_via: Option<ComputedVia> = None;
+    let mut key: Option<String> = None;
 
     for attr in &variant.attrs {
         if !attr.path().is_ident("to_edn") {
@@ -363,12 +373,23 @@ fn parse_variant_attrs(variant: &syn::Variant) -> Result<VariantAttr, TokenStrea
                 }
                 computed_via = Some(cv);
             }
+            VariantDirective::Key(k) => {
+                if key.is_some() {
+                    return Err(syn::Error::new_spanned(
+                        attr,
+                        "duplicate `key` in #[to_edn(...)] on variant",
+                    )
+                    .to_compile_error());
+                }
+                key = Some(k);
+            }
         }
     }
 
     Ok(VariantAttr {
         literal_pairs,
         computed_via,
+        key,
     })
 }
 
@@ -376,6 +397,8 @@ fn parse_variant_attrs(variant: &syn::Variant) -> Result<VariantAttr, TokenStrea
 enum VariantDirective {
     Literal(Vec<(String, String)>),
     ComputedVia(ComputedVia),
+    /// `key = "…"`: EDN key for a single-field tuple variant's nameless field.
+    Key(String),
 }
 
 /// Parse the token stream inside a variant-level `#[to_edn(...)]`.
@@ -419,18 +442,36 @@ fn parse_variant_directive(
             Ok(VariantDirective::ComputedVia(cv))
         }
 
-        "key" => Err(syn::Error::new(
-            ident.span(),
-            "#[to_edn(key = ...)] is a field-level directive (overrides the EDN key); \
-             on a variant use #[to_edn(literal(k = \"v\", ...))] for synthetic constants; \
-             allowed variant-level directives: literal, via",
-        )),
+        "key" => {
+            // Variant-level `key = "…"`: names the single field of a tuple
+            // variant. Illegal on Named/Unit variants (checked in the codegen).
+            stream.parse::<syn::Token![=]>()?;
+            if stream.peek(syn::LitInt) {
+                let lit: syn::LitInt = stream.parse().unwrap();
+                return Err(syn::Error::new_spanned(
+                    lit,
+                    "#[to_edn(key = ...)] value must be a string literal, not an integer \
+                     (e.g. key = \"cause\"); \
+                     allowed variant-level directives: literal, via, key",
+                ));
+            }
+            let lit: syn::LitStr = stream.parse().map_err(|e| {
+                syn::Error::new(
+                    e.span(),
+                    "#[to_edn(key = ...)] value must be a string literal \
+                     (e.g. key = \"cause\"); \
+                     on a variant this names the single field of a tuple variant; \
+                     allowed variant-level directives: literal, via, key",
+                )
+            })?;
+            Ok(VariantDirective::Key(lit.value()))
+        }
 
         other => Err(syn::Error::new(
             ident.span(),
             format!(
                 "unknown #[to_edn(...)] directive `{}`; \
-                 allowed variant-level directives: literal, via",
+                 allowed variant-level directives: literal, via, key",
                 other
             ),
         )),
@@ -600,6 +641,20 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
         match &variant.fields {
             // ── Struct variant: { a_b: T, c: U } ─────────────────────────
             Fields::Named(named_fields) => {
+                // Guard: variant-level `key` is only for tuple variants.
+                if let Some(ref k) = variant_attr.key {
+                    return syn::Error::new_spanned(
+                        variant,
+                        format!(
+                            "`#[to_edn(key = {:?})]` on a struct variant is invalid; \
+                             use field-level `#[to_edn(key = \"…\")]` to rename a named field; \
+                             variant-level `key` is only valid on a single-field tuple variant",
+                            k
+                        ),
+                    )
+                    .to_compile_error();
+                }
+
                 // Collect all field idents and their types.
                 let fields_info: Vec<(&syn::Ident, &syn::Type)> = named_fields
                     .named
@@ -731,6 +786,20 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
 
             // ── Unit variant: Bar ─────────────────────────────────────────
             Fields::Unit => {
+                // Guard: variant-level `key` is only for tuple variants.
+                if let Some(ref k) = variant_attr.key {
+                    return syn::Error::new_spanned(
+                        variant,
+                        format!(
+                            "`#[to_edn(key = {:?})]` on a unit variant is invalid; \
+                             unit variants have no fields; \
+                             variant-level `key` is only valid on a single-field tuple variant",
+                            k
+                        ),
+                    )
+                    .to_compile_error();
+                }
+
                 // Literal pairs to prepend.
                 let literal_pushes: Vec<TokenStream2> = variant_attr
                     .literal_pairs
@@ -800,14 +869,89 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
                 }
             }
 
-            // ── Tuple variant: NOT supported ──────────────────────────────
-            Fields::Unnamed(_) => {
-                return syn::Error::new_spanned(
-                    variant,
-                    "ToEdn derive does not support tuple variants in Strike 1; \
-                     report this to the arc 296 author for Strike 2",
-                )
-                .to_compile_error();
+            // ── Tuple variant: Foo(T) — single-field only ─────────────────
+            Fields::Unnamed(f) => {
+                if f.unnamed.len() == 1 {
+                    // Single-field tuple variant. Requires a variant-level
+                    // `#[to_edn(key = "…")]` to name the EDN key.
+                    let edn_key = match variant_attr.key {
+                        Some(k) => k,
+                        None => {
+                            return syn::Error::new_spanned(
+                                variant,
+                                "single-field tuple variant requires \
+                                 `#[to_edn(key = \"…\")]` to name the EDN key \
+                                 (the field has no Rust ident; the key must be \
+                                 declared explicitly)",
+                            )
+                            .to_compile_error();
+                        }
+                    };
+
+                    // The single unnamed field may carry field-level attrs
+                    // (e.g. `via = path`) for a custom transform.
+                    let field = f.unnamed.iter().next().expect("len == 1");
+                    let field_attr = match parse_field_attrs(field) {
+                        Ok(a) => a,
+                        Err(e) => return e,
+                    };
+                    if field_attr.skip {
+                        return syn::Error::new_spanned(
+                            variant,
+                            "#[to_edn(skip)] is not valid on a tuple-variant field; \
+                             the field's key is named by the variant-level \
+                             `#[to_edn(key = \"…\")]`",
+                        )
+                        .to_compile_error();
+                    }
+                    // field_attr.key_override would conflict with the
+                    // variant-level key; disallow it.
+                    if field_attr.key_override.is_some() {
+                        return syn::Error::new_spanned(
+                            variant,
+                            "#[to_edn(key = ...)] on the tuple field conflicts with \
+                             the variant-level #[to_edn(key = ...)]; \
+                             put the key annotation on the variant, not the field",
+                        )
+                        .to_compile_error();
+                    }
+
+                    let value_expr: TokenStream2 = if let Some(via_path) = field_attr.via_fn {
+                        quote! { #via_path(__0) }
+                    } else {
+                        quote! { __0.to_edn() }
+                    };
+
+                    arms.push(quote! {
+                        Self::#variant_ident(__0) => {
+                            #[allow(unused_imports)]
+                            use crate::to_edn::ToEdn as _ToEdnTrait;
+                            ::wat_edn::OwnedValue::Tagged(
+                                ::wat_edn::Tag::ns("wat.kernel", #variant_name_str),
+                                ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(
+                                    ::std::vec![
+                                        (
+                                            ::wat_edn::OwnedValue::Keyword(
+                                                ::wat_edn::Keyword::new(#edn_key)
+                                            ),
+                                            #value_expr,
+                                        )
+                                    ]
+                                ))
+                            )
+                        }
+                    });
+                } else {
+                    // Multi-field tuple: no safe key assignment → compile_error.
+                    return syn::Error::new_spanned(
+                        variant,
+                        "ToEdn derive supports single-field tuple variants only; \
+                         multi-field tuple variants have no safe key assignment \
+                         (which positional field gets which EDN key?); \
+                         convert to a struct variant with named fields instead",
+                    )
+                    .to_compile_error();
+                }
             }
         }
     }
