@@ -1,4 +1,4 @@
-error: unknown #[to_edn(...)] directive `bogus`; allowed field-level directives: key, via
+error: unknown #[to_edn(...)] directive `bogus`; allowed field-level directives: key, via, skip
   --> tests/ui/ui_to_edn_dsl_bogus_key.rs:11:18
    |
 11 |         #[to_edn(bogus = "x")]

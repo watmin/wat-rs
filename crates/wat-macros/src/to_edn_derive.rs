@@ -109,6 +109,14 @@ struct FieldAttr {
     /// `via = path`: call `path(field)` (where `field: &FieldType`) instead of
     /// `field.to_edn()`. Returns `::wat_edn::OwnedValue`.
     via_fn: Option<syn::Path>,
+    /// `skip`: do NOT emit this field as a plain pair. The field ident is still
+    /// bound in the match arm (so it remains available as an argument to a
+    /// variant-level `via(args(...))`), but no `(:key value)` pair is pushed for
+    /// it. Used when a variant-level `via` OWNS the field's EDN key — e.g.
+    /// `ReturnTypeMismatch.remedies`, whose wire value is the MERGE of the stored
+    /// field with `type_error_remedies(...)`; the field must not also serialize
+    /// plainly (that would emit a duplicate, wrong `:remedies` key).
+    skip: bool,
 }
 
 /// Variant-level `#[to_edn(...)]` annotations, collected from all `#[to_edn]`
@@ -133,6 +141,7 @@ struct ComputedVia {
 fn parse_field_attrs(field: &syn::Field) -> Result<FieldAttr, TokenStream2> {
     let mut key_override: Option<String> = None;
     let mut via_fn: Option<syn::Path> = None;
+    let mut skip = false;
 
     for attr in &field.attrs {
         if !attr.path().is_ident("to_edn") {
@@ -163,12 +172,33 @@ fn parse_field_attrs(field: &syn::Field) -> Result<FieldAttr, TokenStream2> {
                 }
                 via_fn = Some(p);
             }
+            FieldDirective::Skip => {
+                if skip {
+                    return Err(syn::Error::new_spanned(
+                        attr,
+                        "duplicate `skip` in #[to_edn(...)]",
+                    )
+                    .to_compile_error());
+                }
+                skip = true;
+            }
         }
+    }
+
+    if skip && (key_override.is_some() || via_fn.is_some()) {
+        return Err(syn::Error::new_spanned(
+            field,
+            "#[to_edn(skip)] cannot combine with `key` or `via` on the same field \
+             (skip suppresses the field's plain pair entirely; a variant-level \
+             `via(...)` owns the key instead)",
+        )
+        .to_compile_error());
     }
 
     Ok(FieldAttr {
         key_override,
         via_fn,
+        skip,
     })
 }
 
@@ -176,6 +206,7 @@ fn parse_field_attrs(field: &syn::Field) -> Result<FieldAttr, TokenStream2> {
 enum FieldDirective {
     Key(String),
     Via(syn::Path),
+    Skip,
 }
 
 /// Parse the token stream inside a field-level `#[to_edn(...)]`.
@@ -192,11 +223,23 @@ fn parse_field_directive(
         syn::Error::new(
             e.span(),
             "#[to_edn(...)] expects a directive name; \
-             allowed field-level directives: key, via",
+             allowed field-level directives: key, via, skip",
         )
     })?;
 
     match ident.to_string().as_str() {
+        "skip" => {
+            // Bare word: `#[to_edn(skip)]`. No `=`, no args.
+            if !stream.is_empty() {
+                return Err(syn::Error::new(
+                    stream.span(),
+                    "#[to_edn(skip)] takes no value or arguments; \
+                     write it bare (e.g. #[to_edn(skip)])",
+                ));
+            }
+            Ok(FieldDirective::Skip)
+        }
+
         "key" => {
             stream.parse::<syn::Token![=]>()?;
             // Value MUST be a string literal.
@@ -236,7 +279,7 @@ fn parse_field_directive(
                     lit,
                     "#[to_edn(via = ...)] value must be a bare path \
                      (e.g. via = my_fn or via = module::helper), not a string literal; \
-                     allowed field-level directives: key, via",
+                     allowed field-level directives: key, via, skip",
                 ));
             }
             if stream.peek(syn::LitInt) {
@@ -245,7 +288,7 @@ fn parse_field_directive(
                     lit,
                     "#[to_edn(via = ...)] value must be a bare path \
                      (e.g. via = my_fn), not a literal; \
-                     allowed field-level directives: key, via",
+                     allowed field-level directives: key, via, skip",
                 ));
             }
             let path: syn::Path = stream.parse().map_err(|e| {
@@ -264,7 +307,7 @@ fn parse_field_directive(
                     "#[to_edn(via = ...)] expects a bare path only; \
                      a method call or field access (e.g. xs.join(\", \")) \
                      is an inline expression and is forbidden; \
-                     allowed field-level directives: key, via",
+                     allowed field-level directives: key, via, skip",
                 ));
             }
             Ok(FieldDirective::Via(path))
@@ -275,7 +318,7 @@ fn parse_field_directive(
                 ident.span(),
                 "#[to_edn(literal(...))] is a variant-level directive (prepends synthetic \
                  constant fields); it cannot appear on a field; \
-                 allowed field-level directives: key, via",
+                 allowed field-level directives: key, via, skip",
             ))
         }
 
@@ -283,7 +326,7 @@ fn parse_field_directive(
             ident.span(),
             format!(
                 "unknown #[to_edn(...)] directive `{}`; \
-                 allowed field-level directives: key, via",
+                 allowed field-level directives: key, via, skip",
                 other
             ),
         )),
@@ -592,7 +635,11 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
                         .key_override
                         .unwrap_or_else(|| snake_to_kebab(&field_ident.to_string()));
 
-                    if is_span_type(field_ty) {
+                    if field_attr.skip {
+                        // Skipped field: bound in the match arm (still available as
+                        // a variant-level `via` arg) but emits NO plain pair.
+                        // Continue without pushing.
+                    } else if is_span_type(field_ty) {
                         // Span field: use push_span_field (elide-when-unknown).
                         field_pushes.push(quote! {
                             crate::to_edn::push_span_field(

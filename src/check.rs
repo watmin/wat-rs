@@ -452,6 +452,82 @@ pub(crate) fn type_error_remedies(callee: &str, expected: &str, got: &str) -> Ve
     rs
 }
 
+// ─── Arc 296 Strike 2b — via helpers for CheckErrorKind derive ───────────────
+
+/// Variant-level `via` helper for `TypeMismatch :remedies`.
+///
+/// Wraps [`type_error_remedies`] to return `Option<OwnedValue>` (always `Some`),
+/// so the `#[to_edn(via(...))]` mechanism always emits `:remedies` even when the
+/// computed list is empty — matching the current `check_error_to_edn` always-emit
+/// behavior (`push`es `:remedies` unconditionally).
+///
+/// Arguments match the `TypeMismatch` variant's field idents (passed by the derive
+/// as `&String` references from the destructured pattern):
+/// `args(callee, expected, got)`.
+pub(crate) fn type_error_remedies_via(
+    callee: &String,
+    expected: &String,
+    got: &String,
+) -> Option<wat_edn::OwnedValue> {
+    Some(crate::remedy::remedies_to_edn(&type_error_remedies(callee, expected, got)))
+}
+
+/// Variant-level `via` helper for `ReturnTypeMismatch :remedies`.
+///
+/// Restores the golden `check_error_to_edn` semantics (per DESIGN-296-remediation-collapse
+/// line 32): the wire `:remedies` is the MERGE of the STORED `remedies` field (typo-based
+/// candidates from `variant_typo_remedies` at construction time) with the serialize-time
+/// `type_error_remedies(function, expected, got)` (retirement-table + shape candidates).
+/// Deduped by `.form`, first occurrence wins (stored typo candidates lead; retirement
+/// entries fold in). A `ReturnTypeMismatch` on a retired `function` with empty stored
+/// remedies therefore STILL surfaces its retirement suggestion — the behavior the
+/// remediation collapse established.
+///
+/// The `remedies` field is marked `#[to_edn(skip)]` so it does NOT also serialize
+/// plainly — this via OWNS the `:remedies` key (no duplicate-key emission).
+///
+/// Always `Some` (matches the golden always-emit `:remedies` behavior). Arguments are
+/// the `ReturnTypeMismatch` field idents in `args(remedies, function, expected, got)`
+/// order; the derive passes `&Vec<Remedy>` / `&String`, which deref-coerce to the
+/// `&[Remedy]` / `&str` params below.
+pub(crate) fn return_type_remedies_via(
+    remedies: &[crate::remedy::Remedy],
+    function: &str,
+    expected: &str,
+    got: &str,
+) -> Option<wat_edn::OwnedValue> {
+    let mut merged: Vec<crate::remedy::Remedy> = remedies.to_vec();
+    merged.extend(type_error_remedies(function, expected, got));
+    // Dedup by `form`; first occurrence (stored candidates, then retirement) wins.
+    let mut seen = std::collections::HashSet::new();
+    merged.retain(|r| seen.insert(r.form.clone()));
+    Some(crate::remedy::remedies_to_edn(&merged))
+}
+
+/// Field-level `via` helper for `NoMatchingClauseAtCallSite :attempted-clauses`.
+///
+/// Converts `Vec<(usize, Vec<String>)>` to an EDN `Vector` of
+/// `{:arity N :param-types ["T" ...]}` maps — the same shape the hand-written
+/// `check_error_to_edn` produced. Used as `#[to_edn(via = crate::check::clause_attempts_to_edn)]`
+/// on the `attempted_clauses` field (the type has no `ToEdn` impl; `via` lifts the
+/// constraint).
+pub(crate) fn clause_attempts_to_edn(v: &[(usize, Vec<String>)]) -> wat_edn::OwnedValue {
+    use crate::to_edn::{edn_kw, ToEdn};
+    wat_edn::OwnedValue::Vector(
+        v.iter()
+            .map(|(arity, param_types)| {
+                wat_edn::OwnedValue::Map(vec![
+                    (edn_kw("arity"), wat_edn::OwnedValue::Integer(*arity as i64)),
+                    (
+                        edn_kw("param-types"),
+                        wat_edn::OwnedValue::Vector(param_types.iter().map(|s| s.to_edn()).collect()),
+                    ),
+                ])
+            })
+            .collect(),
+    )
+}
+
 // CheckErrors::diagnostics() — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
 
 /// Cross-cutting context threaded through every `infer_*` helper.

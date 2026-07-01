@@ -169,7 +169,11 @@ fn probe_2_type_mismatch_arc114_shape_emits_spawn_thread_remedy_not_hint() {
 #[test]
 fn probe_3_return_type_mismatch_retired_callee_emits_remedies_not_hint() {
     // ReturnTypeMismatch with no stored remedies; the retirement lookup fires
-    // on the function name ":wat::core::vec" (retired).
+    // on the function name ":wat::core::list" (retired). Per
+    // DESIGN-296-remediation-collapse line 32, the serializer MERGES the stored
+    // `remedies` field with `type_error_remedies(function, expected, got)` — so
+    // an empty stored field still surfaces the retirement suggestion. The arc 296
+    // derive preserves this via `return_type_remedies_via` (variant-level `via`).
     let err = CheckError {
         span: make_span(),
         kind: CheckErrorKind::ReturnTypeMismatch {

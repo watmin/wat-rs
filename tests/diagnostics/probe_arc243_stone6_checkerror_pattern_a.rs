@@ -246,9 +246,12 @@ fn edn_elides_unknown_span() {
         },
     };
     let edn_str_known = wat_edn::write(&err_known.to_edn());
+    // D1 (arc 296 Strike 2b): primary span key is now uniformly `:span`
+    // across ALL CheckErrorKind variants. The outer CheckError::to_edn()
+    // calls splice_span(kind.to_edn(), &self.span) which always appends `:span`.
     assert!(
-        edn_str_known.contains(":location"),
-        "known span must produce a :location key in EDN output; got: {edn_str_known:?}"
+        edn_str_known.contains(":span"),
+        "known span must produce a :span key in EDN output (D1: primary span normalized); got: {edn_str_known:?}"
     );
     assert!(
         edn_str_known.contains("src/baz.wat"),

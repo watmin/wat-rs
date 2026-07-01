@@ -1,4 +1,4 @@
-error: #[to_edn(via = ...)] expects a bare path only; a method call or field access (e.g. xs.join(", ")) is an inline expression and is forbidden; allowed field-level directives: key, via
+error: #[to_edn(via = ...)] expects a bare path only; a method call or field access (e.g. xs.join(", ")) is an inline expression and is forbidden; allowed field-level directives: key, via, skip
   --> tests/ui/ui_to_edn_dsl_via_inline_expr.rs:13:26
    |
 13 |         #[to_edn(via = xs.join(", "))]

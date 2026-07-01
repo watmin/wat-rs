@@ -32,7 +32,26 @@ pub struct CheckError {
 /// **Multi-span variants** keep their SECONDARY spans as domain-named kind
 /// fields per CONFORMARE.md § Multi-span. The outer `span` is the
 /// most-actionable location (the site the user edits to fix).
-#[derive(Debug, Clone)]
+///
+/// Arc 296 Strike 2b: `#[derive(ToEdn)]` generates the `impl ToEdn for CheckErrorKind`
+/// body structurally from the Rust type. The outer `CheckError` wrapper calls
+/// `splice_span(self.kind.to_edn(), &self.span)` to append `:span` uniformly
+/// (D1: primary span key normalized to `:span` across all variants).
+///
+/// ## Attribute DSL used here
+///
+/// - `#[to_edn(via(key="remedies", fn=..., args(...)))]` on a variant: computed
+///   field appended after field pairs (elide-on-None; always-Some → always-emit).
+/// - `#[to_edn(literal(k="v",...))]` on a variant: synthetic constant fields prepended.
+/// - `#[to_edn(key="edn-key")]` on a field: override the default snake→kebab EDN key.
+/// - `#[to_edn(via = path)]` on a field: call `path(field)` instead of `field.to_edn()`.
+///   Required for fields whose type has no `ToEdn` impl (`Vec<(usize, Vec<String>)>`).
+///
+/// Secondary `Span`-typed fields use `#[to_edn(key="domain-key")]` to preserve
+/// their domain names (e.g. `"output-location"`, `"bind-location"`). Primary spans
+/// are never in the kind enum — they live on the outer `CheckError.span` field and
+/// are spliced in uniformly by `impl ToEdn for CheckError`.
+#[derive(Debug, Clone, wat_macros::ToEdn)]
 pub enum CheckErrorKind {
     /// Arc 138 slice 1 — arity mismatch at a call site.
     ArityMismatch {
@@ -41,6 +60,11 @@ pub enum CheckErrorKind {
         got: usize,
     },
     /// Arc 138 slice 1 — type mismatch at a call-site parameter.
+    ///
+    /// `:remedies` is computed at serialization time via `type_error_remedies`
+    /// (retirement-table + shape-specific candidates). Always emitted, even when
+    /// the list is empty (matches the golden `check_error_to_edn` always-push behavior).
+    #[to_edn(via(key = "remedies", fn = crate::check::type_error_remedies_via, args(callee, expected, got)))]
     TypeMismatch {
         callee: String,
         param: String,
@@ -48,6 +72,16 @@ pub enum CheckErrorKind {
         got: String,
     },
     /// Arc 138 slice 1 — function body type does not match declared return type.
+    ///
+    /// `remedies` stores the typo-based candidates from `variant_typo_remedies`
+    /// at construction time. The golden `check_error_to_edn` merged these with
+    /// `type_error_remedies(function, expected, got)` at serialization time
+    /// (DESIGN-296-remediation-collapse line 32). The derive preserves that
+    /// merge via a variant-level `via`: `return_type_remedies_via` folds the
+    /// stored field into the computed retirement/shape candidates (dedup by
+    /// `.form`). The `remedies` field is `#[to_edn(skip)]` so it does NOT also
+    /// serialize plainly — the `via` OWNS the `:remedies` key (no duplicate).
+    #[to_edn(via(key = "remedies", fn = crate::check::return_type_remedies_via, args(remedies, function, expected, got)))]
     ReturnTypeMismatch {
         function: String,
         expected: String,
@@ -55,6 +89,12 @@ pub enum CheckErrorKind {
         /// Stone 241.10 — ranked structured remediation candidates.
         /// Empty vec = no remedy. Per `feedback_no_semantic_abuse_of_option`:
         /// `Vec<Remedy>` not `Option<Vec<Remedy>>`.
+        ///
+        /// Skipped from plain serialization: the variant-level `via` above
+        /// merges this stored field with `type_error_remedies(...)` and emits
+        /// the union under `:remedies`. Emitting it plainly too would produce a
+        /// duplicate, wrong `:remedies` key.
+        #[to_edn(skip)]
         remedies: Vec<crate::remedy::Remedy>,
     },
     /// Arc 138 slice 1 — unknown callee at a call site.
@@ -83,6 +123,9 @@ pub enum CheckErrorKind {
     CommCallOutOfPosition { callee: String },
     /// Arc 117 — scope-deadlock: a Thread/Process binding joined while
     /// a sibling Sender-bearing binding is still alive.
+    ///
+    /// D1: primary span was `:location` in the golden spec; normalized to `:span`
+    /// by the outer `splice_span` wrapper.
     ScopeDeadlock {
         thread_binding: String,
         offending_binding: String,
@@ -91,21 +134,29 @@ pub enum CheckErrorKind {
     /// Arc 170 — Process-output-channel join-before-drain rule.
     /// Outer span = join-result call site (most-actionable).
     /// Secondary: `output_accessor_span` = conflicting output accessor call.
+    ///
+    /// D1: primary span was `:join-location`; normalized to `:span`.
     ProcessJoinBeforeOutputDrain {
         process_identifier: String,
         output_accessor: String,
         /// Source location of the conflicting output accessor call.
+        #[to_edn(key = "output-location")]
         output_accessor_span: Span,
     },
     /// Arc 202 — Process input-channel held-at-join rule.
     /// Outer span = join-result call site (most-actionable).
     /// Secondary: `stdin_sender_span` = where the process identifier was bound.
+    ///
+    /// D1: primary span was `:join-location`; normalized to `:span`.
     ProcessJoinHoldsStdinSender {
         process_identifier: String,
         /// Source location where `<process_identifier>` was bound.
+        #[to_edn(key = "bind-location")]
         stdin_sender_span: Span,
     },
     /// Arc 126 — channel-pair deadlock at a function call site.
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
     ChannelPairDeadlock {
         callee: String,
         sender_arg: String,
@@ -113,16 +164,27 @@ pub enum CheckErrorKind {
         pair_anchor: String,
     },
     /// Arc 109 slice 1c — bare primitive type in user code.
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
     BareLegacyPrimitive { primitive: String, fqdn: String },
     /// Arc 109 slice 1d — bare unit type annotation in user code.
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
+    /// Synthetic constant fields `:primitive` and `:fqdn` replace the
+    /// struct-less unit variant's hand-written pair list.
+    #[to_edn(literal(primitive = ":()", fqdn = ":wat::core::nil"))]
     BareLegacyUnitType,
     /// Arc 153 — `:wat::core::unit` retired in favor of `:wat::core::nil`.
+    #[to_edn(literal(retired = ":wat::core::unit", fqdn = ":wat::core::nil"))]
     BareLegacyUnitName,
     /// Arc 154 — `:wat::core::let*` retired.
+    #[to_edn(literal(retired = ":wat::core::let*", fqdn = ":wat::core::let"))]
     BareLegacyLetStar,
     /// Arc 155 — `:wat::core::lambda` retired.
+    #[to_edn(literal(retired = ":wat::core::lambda", fqdn = ":wat::core::fn"))]
     BareLegacyLambda,
     /// Arc 155 — bare `:fn(...)` type-position spelling retired.
+    #[to_edn(literal(retired = ":fn(...)->ret", fqdn = ":wat::core::Fn(...)->ret"))]
     BareLegacyLowercaseFn,
     /// Arc 109 slice 1e — bare substrate-named parametric type head.
     BareLegacyContainerHead { head: String, fqdn: String },
@@ -137,48 +199,101 @@ pub enum CheckErrorKind {
     /// Arc 140 — sandbox scope leak.
     /// Outer span = the offending invocation inside the sandbox (most-actionable).
     /// Secondary: `outer_define_span` = source location of the outer-scope define.
+    ///
+    /// D1: primary span was `:call-span`; normalized to `:span`.
     SandboxScopeLeak {
         offending_name: String,
         /// Source location of the outer-scope define. May be `Span::unknown()`.
+        /// Key `:outer-define-span` matches the snake→kebab default (explicit for clarity).
+        #[to_edn(key = "outer-define-span")]
         outer_define_span: Span,
     },
     /// Arc 157 — `:wat::core::def` redef forbidden.
     /// Outer span = the new (colliding) binding site (most-actionable).
     /// Secondary: `original_def_span` = source location of the prior binding.
+    ///
+    /// D1: primary span was `:current-loc`; normalized to `:span`.
     DefRedefForbidden {
         name: String,
-        /// Source location of the prior (first) binding.
+        /// Source location of the prior (first) binding. Key `:prior-loc`.
+        #[to_edn(key = "prior-loc")]
         original_def_span: Span,
     },
     /// Arc 157 slice 1a-ii — `:wat::core::def` redef changes type.
     /// Outer span = the new (colliding) binding site (most-actionable).
     /// Secondary: `original_def_span` = source location of the prior binding.
+    ///
+    /// D1: primary span was `:current-loc`; normalized to `:span`.
     DefRedefTypeChange {
         name: String,
         prior_type: String,
         new_type: String,
-        /// Source location of the prior (first) binding.
+        /// Source location of the prior (first) binding. Key `:prior-loc`.
+        #[to_edn(key = "prior-loc")]
         original_def_span: Span,
     },
     /// Arc 170 slice 1e — `:user::main` with non-canonical signature.
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
+    #[to_edn(literal(
+        canonical_signature = "[] -> :wat::core::nil",
+        rationale = "arc 170 slice 1e (REALIZATIONS pass 7 + pass 10): argv ambient via (:wat::runtime::argv); stdio via three substrate services (slice 1f); nil IS the success exit code"
+    ))]
     BareLegacyMainSignature,
     /// Arc 170 slice 2 — legacy `:wat::kernel::fork-program{,_ast}`.
-    BareLegacyForkProgram { verb: String },
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
+    /// `verb` field emitted as `:retired`; `:canonical` is a synthetic literal.
+    #[to_edn(literal(canonical = ":wat::kernel::spawn-process"))]
+    BareLegacyForkProgram {
+        #[to_edn(key = "retired")]
+        verb: String,
+    },
     /// Arc 170 slice 2 — legacy `:wat::kernel::spawn-program{,_ast}`.
-    BareLegacySpawnProgram { verb: String },
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
+    /// `verb` field emitted as `:retired`; two `:canonical-*` synthetic literals.
+    #[to_edn(literal(
+        canonical_fork_semantics = ":wat::kernel::spawn-process",
+        canonical_thread_semantics = ":wat::kernel::spawn-thread"
+    ))]
+    BareLegacySpawnProgram {
+        #[to_edn(key = "retired")]
+        verb: String,
+    },
     /// Arc 109 § kill-std — retired `:wat::console::*` namespace.
-    BareLegacyConsolePath { path: String },
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
+    /// `path` field emitted as `:offending-token`; remaining keys are synthetic literals.
+    #[to_edn(literal(
+        retired_namespace = ":wat::console::*",
+        canonical_stdout = ":wat::kernel::println",
+        canonical_stderr = ":wat::kernel::eprintln",
+        canonical_stdin = ":wat::kernel::readln"
+    ))]
+    BareLegacyConsolePath {
+        #[to_edn(key = "offending-token")]
+        path: String,
+    },
     /// Stone 241.14 — restricted-caller whitelist violation.
+    ///
+    /// D1: primary span was `:location`; normalized to `:span`.
+    /// `prefixes: Vec<String>` serializes via `Vec<String>.to_edn()` = EDN Vector.
     DefRestrictedCallerNotAllowed {
         callee: String,
         enclosing_fn: String,
         prefixes: Vec<String>,
     },
     /// Stone 237.2 — no clause of a defclause matches at call site.
+    ///
+    /// `attempted_clauses: Vec<(usize, Vec<String>)>` has no `ToEdn` impl;
+    /// `#[to_edn(via = clause_attempts_to_edn)]` routes it through a named helper
+    /// that produces `[{:arity N :param-types [...]} ...]`.
     NoMatchingClauseAtCallSite {
         name: String,
         called_arity: usize,
         called_arg_types: Vec<String>,
+        #[to_edn(via = crate::check::clause_attempts_to_edn)]
         attempted_clauses: Vec<(usize, Vec<String>)>,
     },
     /// Stone 237.3 — `:guard` expression not boolean in defclause.
