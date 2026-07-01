@@ -37,6 +37,25 @@ falls out.
 5. **(later) gRPC / services.** Map wat's peer/service verbs (`spawn-program'`, the service verbs) to protobuf `service {}`
    + RPC methods. Messages are the easy 80%; RPC is a further layer.
 
+## The CLI is an IPC channel too — `curl | wat --codec protobuf` falls out for free (builder, 2026-07-01)
+> *"curl https://some-protobuf | wat --codec protobuf file.wat … if we do it with ipc, curl into stdin is a thing we've
+> just proven via ipc?"*
+
+Yes — **stdin/stdout are fds = wires = IPC channels.** The recovery doc's `(stdout, stderr, exit-code)` triangle already
+treats them as the process IPC boundary; **stdin is its inbound sibling.** So the codec param needs NO new mechanism for the
+CLI — it is the SAME wire and the SAME codec seam as spawn-IPC. **Proving codec-IPC (objective 3) proves the CLI case for
+free:**
+
+```
+curl https://some.endpoint/thing.pb | wat --codec protobuf file.wat
+```
+→ `wat` decodes stdin through the protobuf codec; the program receives a **structured record** (satisfying its surface), not
+bytes. Encoded output goes back out stdout in the same codec. **wat becomes a protobuf-aware unix filter** — consume a
+protobuf HTTP body as a typed record with zero glue, emit one back — the polyglot bridge (293 R9) at the shell.
+
+This makes objective 3's proof concrete + cheap: the IPC round-trip and the `curl | wat --codec protobuf` demo are the same
+seam exercised two ways. `--codec` (default `edn`) is the CLI surface of the process-locus codec param.
+
 ## Decisions to run at start (four-questions, not leans)
 - **Any load-bearing `--check-output json` / `from_json` consumer?** Grep the workspace + the labs; if a real consumer
   exists, decide reroute-to-edn vs keep-a-shim vs the protobuf bridge.
