@@ -49,7 +49,7 @@
 pub mod env;
 pub use env::CheckEnv;
 pub mod error;
-pub use error::{CheckError, CheckErrorKind, CheckErrors};
+pub use error::{CheckError, CheckErrorKind, CheckErrors, EnsureFnInvalidReason};
 pub mod error_edn;
 
 use crate::ast::WatAST;
@@ -88,7 +88,7 @@ pub struct TypeScheme {
 }
 
 // CheckError, CheckErrorKind, CheckErrors — Pattern A (Stone 243.6a) — live in src/check/error.rs.
-// Re-exported above: `pub use error::{CheckError, CheckErrorKind, CheckErrors};`
+// Re-exported above: `pub use error::{CheckError, CheckErrorKind, CheckErrors, EnsureFnInvalidReason};`
 
 // Arc 111 / 112 / 113 / 109 / 114 / 170 migration-hint helpers absorbed into
 // RETIREMENT_TABLE (arc 109 / arc 170 callee-based) and shape_remedies (arc 114;
@@ -8531,7 +8531,7 @@ fn infer_defclause(
                             local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
                                 clause_index: clause_idx,
-                                reason: "must be :wat::core::fn form".into()
+                                reason: EnsureFnInvalidReason::NotFnForm
                             } });
                             // Skip further ensure validation for this clause.
                             // Still do body type-check below.
@@ -8565,7 +8565,7 @@ fn infer_defclause(
                     local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
-                        reason: "must be :wat::core::fn form".into()
+                        reason: EnsureFnInvalidReason::NotFnForm
                     } });
                     // Still do body type-check.
                     fresh.push_enclosing_ret(clause.return_type.clone());
@@ -8607,10 +8607,7 @@ fn infer_defclause(
                             local_errors.push(CheckError { span: ensure_span.clone(), kind: CheckErrorKind::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
                                 clause_index: clause_idx,
-                                reason: format!(
-                                    "arity must be 1 (one parameter for the result); got {}",
-                                    param_names.len()
-                                )
+                                reason: EnsureFnInvalidReason::ArityNotOne { got: param_names.len() }
                             } });
                         } else {
                             // Rule 2: arg type must match clause return type.
@@ -8622,11 +8619,10 @@ fn infer_defclause(
                                 local_errors.push(CheckError { span: ensure_span.clone(), kind: CheckErrorKind::EnsureFnInvalid {
                                     defclause_name: cs.name.clone(),
                                     clause_index: clause_idx,
-                                    reason: format!(
-                                        "arg type must match clause return type: :ensure :fn takes `{}` but clause returns `{}`",
-                                        format_type(arg_ty),
-                                        format_type(&clause_ret),
-                                    )
+                                    reason: EnsureFnInvalidReason::ArgTypeMismatch {
+                                        arg_type: format_type(arg_ty),
+                                        clause_return_type: format_type(&clause_ret),
+                                    }
                                 } });
                             }
                         }
@@ -8638,10 +8634,9 @@ fn infer_defclause(
                             local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                                 defclause_name: cs.name.clone(),
                                 clause_index: clause_idx,
-                                reason: format!(
-                                    "return type must be :bool; got `{}`",
-                                    format_type(&ret_type),
-                                )
+                                reason: EnsureFnInvalidReason::ReturnTypeNotBool {
+                                    got: format_type(&ret_type),
+                                }
                             } });
                         }
                     }
@@ -8650,7 +8645,7 @@ fn infer_defclause(
                         local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                             defclause_name: cs.name.clone(),
                             clause_index: clause_idx,
-                            reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into()
+                            reason: EnsureFnInvalidReason::MalformedSignature
                         } });
                     }
                 },
@@ -8660,7 +8655,7 @@ fn infer_defclause(
                     local_errors.push(CheckError { span: ensure_span, kind: CheckErrorKind::EnsureFnInvalid {
                         defclause_name: cs.name.clone(),
                         clause_index: clause_idx,
-                        reason: "malformed :fn signature — expected (:wat::core::fn [param <- :T] -> :bool body)".into()
+                        reason: EnsureFnInvalidReason::MalformedSignature
                     } });
                 }
             }

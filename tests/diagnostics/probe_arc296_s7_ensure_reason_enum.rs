@@ -38,7 +38,6 @@ fn field<'a>(v: &'a OwnedValue, key: &str) -> Option<&'a OwnedValue> {
 }
 
 #[test]
-#[ignore = "296 S7 RED — reason is prose String at HEAD; un-ignore when the enum lands"]
 fn ensure_fn_invalid_reason_is_structural_not_prose() {
     let err = startup_from_file("tests/diagnostics/probe_arc296_s7_ensure_reason_enum.wat")
         .expect_err("a defclause with a mismatched :ensure :fn arg type must fail startup");

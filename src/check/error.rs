@@ -306,7 +306,7 @@ pub enum CheckErrorKind {
     EnsureFnInvalid {
         defclause_name: String,
         clause_index: usize,
-        reason: String,
+        reason: EnsureFnInvalidReason,
     },
     /// Arc 291 — hygiene-scope divergence: a reference is unbound, but a
     /// binder of the SAME NAME exists under a DIFFERENT hygiene scope.
@@ -317,6 +317,58 @@ pub enum CheckErrorKind {
         ref_key: String,
         binder_key: String,
     },
+}
+
+/// Arc 296 S7 — the 5 structural failure modes for `:ensure :fn` validation.
+///
+/// Replaces the discriminant-as-prose `reason: String` in
+/// `CheckErrorKind::EnsureFnInvalid`. The derive emits each variant as a
+/// `#wat.kernel/<Tag>` tagged value with its fields as a map — structure
+/// preserved by construction. `Display` reproduces the original prose
+/// byte-for-byte so the human-visible sentence is unchanged.
+#[derive(Debug, Clone, wat_macros::ToEdn)]
+pub enum EnsureFnInvalidReason {
+    /// The `:ensure` form is not a `:wat::core::fn` list.
+    NotFnForm,
+    /// The `:ensure :fn` has the wrong number of parameters (must be 1).
+    ArityNotOne { got: usize },
+    /// The `:ensure :fn` arg type does not match the clause return type.
+    ArgTypeMismatch {
+        arg_type: String,
+        clause_return_type: String,
+    },
+    /// The `:ensure :fn` return type is not `:bool`.
+    ReturnTypeNotBool { got: String },
+    /// The `:ensure :fn` signature is structurally malformed.
+    MalformedSignature,
+}
+
+impl fmt::Display for EnsureFnInvalidReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EnsureFnInvalidReason::NotFnForm => {
+                write!(f, "must be :wat::core::fn form")
+            }
+            EnsureFnInvalidReason::ArityNotOne { got } => {
+                write!(f, "arity must be 1 (one parameter for the result); got {got}")
+            }
+            EnsureFnInvalidReason::ArgTypeMismatch { arg_type, clause_return_type } => {
+                write!(
+                    f,
+                    "arg type must match clause return type: :ensure :fn takes `{arg_type}` but clause returns `{clause_return_type}`"
+                )
+            }
+            EnsureFnInvalidReason::ReturnTypeNotBool { got } => {
+                write!(f, "return type must be :bool; got `{got}`")
+            }
+            EnsureFnInvalidReason::MalformedSignature => {
+                write!(
+                    f,
+                    "malformed :fn signature \u{2014} expected (:wat::core::fn [param <- :T] -> :bool body)"
+                )
+            }
+        }
+    }
 }
 
 impl CheckErrorKind {
