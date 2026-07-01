@@ -1,9 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e2cfd571` or later.**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4263 passed`.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `ddbbdae9` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4271 passed`.
 `cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree CLEAN
-(`e2cfd571`); no uncommitted WIP.
+(`ddbbdae9`); no uncommitted WIP.
 
 > **⊹ DERIVE SWEEP PROGRESS (2026-07-01):** DERIVED — **ConfigError** (S1 `8c04ae5e`), **CheckError** (2b `12ae37f2`, 33
 > variants + `#[to_edn(skip)]`), **TypeError + StdlibError** (3a `1c2157d7`), **LoadError** (**3b `e2cfd571`** — the derive
@@ -34,11 +34,15 @@ Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e2c
 > obey the general enum path); **(4)** `Option<T>` is LEGAL on aggregate fields (RPC needs "not supplied"); **(5)** the
 > `Span::unknown()` sentinel DIES (mandatory Location — annihilate — OR explicit `Option<Location>` None). **⛔ THE DERIVE
 > SWEEP IS BLOCKED ON THIS** — deriving RuntimeError/MacroError over Option-erasing data would bake in the lie (D1 lesson).
-> **Decomposition (3 strikes):** **O** tag Option (delete the special-case; ride the cascade — blast MEASURED ~4 codec
-> sites + a bounded test cascade, NOT wide; the 134 `core::Some/None` are construction = unaffected) → **S** kill the span
-> sentinel (triage ~107 `Span::unknown()` sites: knowable→fix, unknowable→residue) → **D** resume the derive (Runtime +
-> Macro) → 296 closes. **RATIFIED own arc 298** (builder: *"new arc — sure"*); 297 depends on it too. Pairs 297
-> protobuf-IPC (needs the Option wire) + 293 aggregate model + R4 *ITERVM SVRGIMVS* (the quick fix was the true size, again).
+> **Decomposition (3 strikes):** **✅ 298.1 tag Option + normalize Result LANDED (`ddbbdae9`, floor 4271)** — both
+> discriminated built-ins → uniform `#wat.core.<Type>/<Variant>` (bare body, capitalized variant); **READ IS STRICT**
+> (builder-ratified: bare `nil` is a `:wat::core::nil` VALUE, NOT `None` — coercing bare-nil→None conflates two types;
+> arc-170 coerce retired; RPC = both sides speak the tagged form). Channel test STRENGTHENED (honest Option identity
+> round-trip). → **▶ 298.2** kill the span sentinel (triage ~107 `Span::unknown()` sites: knowable→fix, unknowable→residue;
+> mandatory-Location vs explicit-Option) → **298.3** resume the derive (RuntimeError + MacroError) → 296 closes → **R1 *NE
+> SIBI OBSOLESCAT* → PROBATUM EST**. **RATIFIED own arc 298**; 297 depends on the Option/Result wire. **298 REALIZATIONS:**
+> R1 *IN FVNDO LVX* (3FORCE feat. Scandroid *Abyss* — 298 FALLS to a foundation where 296 ROSE) + LENTE LEVITER interstitial.
+> Pairs 297 protobuf-IPC + 293 aggregate model + 296 R4 *ITERVM SVRGIMVS*.
 
 > **⊹ 296 — THE DERIVE TOP RUNG + THE STRUCTURE-AS-PROSE SWEEP (2026-07-01 END-STATE).** The walls are done (S6 `WatError`
 > floor `ed5721ea`; D1 embedded-types `74eb2ca6`). The `#[derive(ToEdn)]` TOP RUNG is being built + applied:
