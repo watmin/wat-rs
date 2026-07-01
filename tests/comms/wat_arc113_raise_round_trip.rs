@@ -2,17 +2,14 @@
 //! through the panic boundary.
 //!
 //! **Arc 296 re-gate update:** `raise!` now requires `:wat::core::Error`
-//! (previously `:wat::holon::HolonAST`). The fixture raises
-//! `(:wat::core::Fault/of "arc113-raise-data")` and recovers the
-//! `Failure/message` EDN string — proving data flows through the panic
-//! boundary as serialized structured content.
-//!
-//! The Fault's EDN (`#wat.core/Fault {:message ...}`) is stored in
-//! `Failure/message`; when read back via `(:wat::edn::read ...)` it
-//! returns a `Value::Aggregate` (the Fault record), not a `HolonAST`.
-//! This test therefore returns the raw message String and asserts it
-//! contains "arc113-raise-data", proving the payload traverses the
-//! panic boundary intact.
+//! (previously `:wat::holon::HolonAST`), and the round-trip is now proven
+//! STRUCTURAL, not stringly. The fixture raises
+//! `(:wat::core::Fault/of "arc113-raise-data")`; `Failure/message` carries the
+//! Fault's EDN (`#wat.core/Fault {:message …}`); `(:wat::edn::read …)` lifts it
+//! back to a `:wat::core::Fault` RECORD via `reconstruct_record`;
+//! `Fault/message` reads the field off the reconstructed record. This test
+//! asserts that field equals "arc113-raise-data" EXACTLY — the error survived
+//! the panic boundary as a record, not a stringified blob.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
@@ -44,15 +41,18 @@ fn raise_data_round_trips_through_failure_message() {
         },
         other => panic!("expected Option, got {:?}", other),
     };
-    // The recovered value is the Failure/message String containing the
-    // Fault's EDN representation. Prove it contains the raise message.
+    // The recovered value is the message field read off the RECONSTRUCTED Fault
+    // record: edn::read lifted `#wat.core/Fault {…}` back to a record via
+    // reconstruct_record, and Fault/message read the field off it. So it must
+    // equal the raised message EXACTLY — proving the error survived the panic
+    // boundary as structured data (a record), not a stringified blob.
     let msg = match &inner {
         Value::String(s) => s.clone(),
-        other => panic!("recovered value should be a String; got {:?}", other),
+        other => panic!("reconstructed Fault/message should be a String; got {:?}", other),
     };
-    assert!(
-        msg.contains("arc113-raise-data"),
-        "Failure/message should contain 'arc113-raise-data'; got: {}",
-        msg
+    assert_eq!(
+        msg.as_str(),
+        "arc113-raise-data",
+        "the reconstructed Fault's message field must equal the raised message exactly"
     );
 }
