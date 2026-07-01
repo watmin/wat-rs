@@ -15854,26 +15854,28 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // :wat::kernel::raise! — arc 113 closure. Panics with a
-    // structured HolonAST payload riding the AssertionPayload's
-    // `data` field. Catches in run-sandboxed populate
-    // `Failure/data` with the original HolonAST — the receiver
-    // gets the data Value back, not a stringified rendering.
+    // :wat::kernel::raise! — arc 296 re-gate. Panics with the
+    // caller's :wat::core::Error value serialized to EDN and
+    // carried in AssertionPayload.message. The checker requires
+    // a :wat::core::Error (not the legacy :wat::holon::HolonAST
+    // crutch); the runtime serializes any Value via
+    // value_to_edn_with, so the structural guarantee from the
+    // checker is the wall — no runtime HolonAST-only gate.
     //
     // Sibling of `assertion-failed!`: same panic_any mechanism,
     // same catch path, same polymorphic return (`∀T. -> :T` —
     // never returns; T unifies with caller context). The
     // difference is what's emitted: `assertion-failed!` carries
     // (message, actual, expected) for assert-* failures;
-    // `raise!` carries an arbitrary HolonAST under `data` for
-    // user-defined structured errors. Once the chain is in EDN,
-    // panic messages stop being strings — they become Values
-    // with addressable fields.
+    // `raise!` carries a :wat::core::Error (typically a
+    // :wat::core::Fault) rendered as an EDN string in message.
+    // Receivers recover the error via `(:wat::edn::read
+    // (:wat::kernel::Failure/message f))`.
     env.register(
         ":wat::kernel::raise!".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
-            params: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+            params: vec![TypeExpr::Path(":wat::core::Error".into())],
             ret: TypeExpr::Path(":T".into()),
             rest_param_type: None,
         },

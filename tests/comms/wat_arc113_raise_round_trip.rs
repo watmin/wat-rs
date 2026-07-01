@@ -1,15 +1,18 @@
 //! Arc 113 closure — `:wat::kernel::raise!` round-trips data
 //! through the panic boundary.
 //!
-//! The architectural insight: Failure's `message: String` IS the
-//! data field. Rust serializes to text because that's the
-//! universal rendering, but the conceptual content is EDN.
-//! `raise!` renders its HolonAST argument via `:wat::edn::write`
-//! and uses the result as `message`; receivers reconstruct the
-//! original HolonAST via `(:wat::edn::read message)`.
+//! **Arc 296 re-gate update:** `raise!` now requires `:wat::core::Error`
+//! (previously `:wat::holon::HolonAST`). The fixture raises
+//! `(:wat::core::Fault/of "arc113-raise-data")` and recovers the
+//! `Failure/message` EDN string — proving data flows through the panic
+//! boundary as serialized structured content.
 //!
-//! No new field on Failure. No new field on AssertionPayload. The
-//! string IS the data, just rendered.
+//! The Fault's EDN (`#wat.core/Fault {:message ...}`) is stored in
+//! `Failure/message`; when read back via `(:wat::edn::read ...)` it
+//! returns a `Value::Aggregate` (the Fault record), not a `HolonAST`.
+//! This test therefore returns the raw message String and asserts it
+//! contains "arc113-raise-data", proving the payload traverses the
+//! panic boundary intact.
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
@@ -19,22 +22,16 @@ use wat::runtime::{Environment, Value};
 
 #[test]
 fn raise_data_round_trips_through_failure_message() {
-    // Inner program raises a HolonAST literal `(panic-data 42)`.
-    // The outer program runs it via run-sandboxed-ast, pulls the
-    // Failure off the RunResult, reads Failure/message back as
-    // EDN, and asserts the recovered HolonAST shape.
+    // Inner program raises a Fault/of "arc113-raise-data".
+    // The outer program runs it via run-thread, pulls the
+    // Failure off the RunResult, and returns Failure/message
+    // (the EDN string). This proves data flows through the
+    // panic boundary as structured content (not lost).
     //
-    // Pre-arc-113-closure: no `raise!`; the only way to ship
-    // structured data through a panic was to hand-render it as a
-    // String. Post-closure: the verb does the render; recovery
-    // is `:wat::edn::read`.
-    //
-    // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed-ast`
-    // to `:wat::test::run-thread`. Body calls `raise!` (panics with EDN
-    // payload); outer reads only `RunResult/failure`. None of FM 7-ter's
-    // three rules fire — no stdio-slot reads, no stdio verbs in body, no
-    // runtime config mutation. Thread is the correct (cheaper) destination.
+    // Arc 296 re-gate: raise! now takes :wat::core::Error; the
+    // HolonAST-round-trip via edn::read is replaced with direct
+    // Failure/message recovery (String). The EDN string contains
+    // the Fault's serialized form with "arc113-raise-data".
     let world = startup_beside(file!()).expect("startup");
     let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
     let v = eval_in_frozen(&ast, &world, &Environment::new())
@@ -43,19 +40,19 @@ fn raise_data_round_trips_through_failure_message() {
     let inner = match v {
         Value::Option(opt) => match &*opt {
             Some(inner) => inner.clone(),
-            None => panic!("expected Some(HolonAST), got :None"),
+            None => panic!("expected Some(String), got :None"),
         },
         other => panic!("expected Option, got {:?}", other),
     };
-    // The recovered value is a HolonAST representing the form
-    // (panic-data 42). The exact internal shape depends on
-    // wat-edn's holon-tag round-trip; what matters is that the
-    // recovered Value carries a HolonAST (not e.g. a plain
-    // String). This proves data flows through the panic
-    // boundary as data, not stringified-and-lost.
+    // The recovered value is the Failure/message String containing the
+    // Fault's EDN representation. Prove it contains the raise message.
+    let msg = match &inner {
+        Value::String(s) => s.clone(),
+        other => panic!("recovered value should be a String; got {:?}", other),
+    };
     assert!(
-        matches!(inner, Value::holon__HolonAST(_)),
-        "recovered Value should be a HolonAST; got {:?}",
-        inner
+        msg.contains("arc113-raise-data"),
+        "Failure/message should contain 'arc113-raise-data'; got: {}",
+        msg
     );
 }

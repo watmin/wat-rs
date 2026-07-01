@@ -1091,3 +1091,24 @@
   :features [message  <- :wat::core::String
              location <- :wat::kernel::Location
              causes   <- :wat::core::Vector<wat::core::Error>])
+
+;; ─── Arc 296 S3: :wat::core::Fault — canonical minimal error record ──────────
+;;
+;; The simplest concrete error: a human-readable message string, the call-site
+;; location, and an empty causes chain. Structurally satisfies :wat::core::Error
+;; (all three floor fields — message, location, causes are present and typed
+;; identically) so it may be passed to any [e <- :wat::core::Error] param.
+;;
+;; Smart constructor: :wat::core::Fault/of captures the CALL SITE location via
+;; (:wat::kernel::here) spliced into the expansion — it is a MACRO (not a fn)
+;; precisely so the (here) form fires at the caller's source coordinate, not at
+;; the constructor's own location.
+(:wat::core::defrecord :wat::core::Fault
+  [message  <- :wat::core::String
+   location <- :wat::kernel::Location
+   causes   <- :wat::core::Vector<wat::core::Error>])
+
+(:wat::core::defmacro :wat::core::Fault/of
+  [msg <- :wat::WatAST]
+  -> :wat::WatAST
+  `(:wat::core::Fault ~msg (:wat::kernel::here) (:wat::core::Vector :wat::core::Error)))

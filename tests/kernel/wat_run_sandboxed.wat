@@ -18,17 +18,17 @@
 
 (:wat::core::defn :my::compute-parse-error [] -> :wat::kernel::RunResult
   (:wat::test::run-hermetic
-    (:wat::kernel::raise! (:wat::holon::leaf "inner-failure"))))
+    (:wat::kernel::raise! (:wat::core::Fault/of "inner-failure"))))
 
 (:wat::core::defn :my::compute-missing-main [] -> :wat::kernel::RunResult
   (:wat::test::run-hermetic
-    (:wat::kernel::raise! (:wat::holon::leaf "needs-main-sentinel"))))
+    (:wat::kernel::raise! (:wat::core::Fault/of "needs-main-sentinel"))))
 
 (:wat::core::defn :my::compute-panic-partial [] -> :wat::kernel::RunResult
   (:wat::test::run-hermetic
     (:wat::core::let
       [_ (:wat::kernel::println "before panic")
-       _ (:wat::kernel::raise! (:wat::holon::leaf "boom"))]
+       _ (:wat::kernel::raise! (:wat::core::Fault/of "boom"))]
       nil)))
 
 ;; Scope tests: under hermetic the child's InMemoryLoader has no entries,

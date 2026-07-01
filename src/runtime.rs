@@ -11852,24 +11852,23 @@ fn expect_panic(
     std::panic::panic_any(payload);
 }
 
-/// `(:wat::kernel::raise! data) -> :T` — arc 113 closure. The
-/// data-as-payload sibling of `assertion-failed!`.
+/// `(:wat::kernel::raise! data) -> :T` — arc 296 re-gate.
+/// The structured-error sibling of `assertion-failed!`.
 ///
 /// **The `message` field IS the data field.** Failure's
-/// `message: String` is just the EDN-rendered form of whatever
-/// the panic carried; serialization to text is what Rust forces,
-/// but the conceptual content is data. `raise!` renders its
-/// HolonAST argument via `:wat::edn::write` and uses that
-/// string as the message — receivers recover the original
-/// HolonAST via `(:wat::edn::read (Failure/message f))`.
+/// `message: String` is the EDN-rendered form of the caller's
+/// `:wat::core::Error` value. The checker enforces the
+/// `:wat::core::Error` constraint at compile time (re-gate in
+/// check.rs); this function accepts any `Value` and serializes
+/// it — the structural guarantee is the wall, not a runtime gate.
 ///
-/// Once panics ride as Values through fork+thread boundaries
-/// (slices 1-3), the same wire lets ANY wat data ride — and
-/// since the chain's panic message is itself EDN, the data
-/// round-trips naturally without any new fields on Failure.
+/// Receiving side: `(:wat::edn::read (:wat::kernel::Failure/message f))`
+/// reconstructs the original error record (e.g. a `:wat::core::Fault`,
+/// a `Value::Aggregate`) — a registered `#wat.core/…` tag round-trips
+/// via `reconstruct_record`, not a `HolonAST`.
 ///
-/// Argument: `:wat::holon::HolonAST`. Return type: polymorphic
-/// `:T` (never returns; same convention as assertion-failed!).
+/// Argument: `:wat::core::Error`. Return type: polymorphic `:T`
+/// (never returns; same convention as assertion-failed!).
 fn eval_kernel_raise(
     args: &[WatAST],
     list_span: &Span,
@@ -11887,19 +11886,9 @@ fn eval_kernel_raise(
         } }.into());
     }
     let data = eval_inner(&args[0], env, sym)?.value_owned();
-    match &data {
-        Value::holon__HolonAST(_) => {}
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::holon::HolonAST",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    // Render data → EDN string. The HolonAST flows through the
-    // wat-edn writer's holon-tagged path; reading it back via
-    // `:wat::edn::read` reconstructs the original HolonAST shape.
+    // Render data → EDN string. The value (a :wat::core::Error record)
+    // is serialized via value_to_edn_with; receivers recover it via
+    // `(:wat::edn::read (:wat::kernel::Failure/message f))`.
     let edn = crate::edn_shim::value_to_edn_with(&data, sym.types().map(|a| a.as_ref()));
     let message = wat_edn::write(&edn);
     let frames = snapshot_call_stack();
