@@ -52,8 +52,8 @@ fn probe_1_parse_startup_error_to_edn_is_structured_not_detail() {
     // Must be a tagged form in the wat.kernel namespace (delegates to
     // ParseError::to_edn → #wat.kernel/<ParseErrorVariant>).
     assert!(
-        edn_str.starts_with("#wat.kernel/"),
-        "Parse startup error must produce #wat.kernel/<Variant> tagged EDN; got: {}",
+        edn_str.starts_with("#wat.parse/"),
+        "Parse startup error must produce #wat.parse/<Variant> tagged EDN; got: {}",
         edn_str
     );
 
@@ -91,8 +91,8 @@ fn probe_2_sigmafn_startup_error_keeps_honest_detail() {
     eprintln!("=== probe_2 edn:     {}", edn_str);
 
     assert!(
-        edn_str.starts_with("#wat.kernel/SigmaFnError"),
-        "SigmaFn must produce #wat.kernel/SigmaFnError tagged EDN; got: {}",
+        edn_str.starts_with("#wat.macro/SigmaFnError"),
+        "SigmaFn must produce #wat.macro/SigmaFnError tagged EDN; got: {}",
         edn_str
     );
     // SigmaFn's :detail is the honest, deliberate exception (bare message).
@@ -154,8 +154,8 @@ fn probe_4_check_startup_error_emits_structured_vector_not_detail() {
 
     // Must be the structured collection envelope.
     assert!(
-        edn_str.starts_with("#wat.kernel/CheckErrors"),
-        "Check startup error must produce #wat.kernel/CheckErrors; got: {}",
+        edn_str.starts_with("#wat.check/CheckErrors"),
+        "Check startup error must produce #wat.check/CheckErrors; got: {}",
         edn_str
     );
     // Must carry an :errors vector.
@@ -167,13 +167,13 @@ fn probe_4_check_startup_error_emits_structured_vector_not_detail() {
     // Each inner CheckError must be its own navigable tagged value — NOT a
     // line in a prose blob.
     assert!(
-        edn_str.contains("#wat.kernel/UnknownCallee"),
-        "inner CheckError must be a navigable #wat.kernel/UnknownCallee; got: {}",
+        edn_str.contains("#wat.check/UnknownCallee"),
+        "inner CheckError must be a navigable #wat.check/UnknownCallee; got: {}",
         edn_str
     );
     assert!(
-        edn_str.contains("#wat.kernel/CommCallOutOfPosition"),
-        "inner CheckError must be a navigable #wat.kernel/CommCallOutOfPosition; got: {}",
+        edn_str.contains("#wat.check/CommCallOutOfPosition"),
+        "inner CheckError must be a navigable #wat.check/CommCallOutOfPosition; got: {}",
         edn_str
     );
     assert!(

@@ -207,7 +207,7 @@ fn span_val(span: &Span) -> OwnedValue {
 }
 
 fn tagged(variant: &'static str, body: OwnedValue) -> OwnedValue {
-    OwnedValue::Tagged(Tag::ns("wat.kernel", variant), Box::new(body))
+    OwnedValue::Tagged(Tag::ns(crate::error_ns::KERNEL, variant), Box::new(body))
 }
 
 fn map1(k1: OwnedValue, v1: OwnedValue) -> OwnedValue {

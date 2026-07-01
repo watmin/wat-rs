@@ -287,7 +287,7 @@ use wat_edn::{Keyword, Tag};
 
 /// `#wat.kernel/<variant> <body>` — the kernel-namespaced tagged envelope.
 pub(crate) fn edn_tag(variant: &str, body: OwnedValue) -> OwnedValue {
-    OwnedValue::Tagged(Tag::ns("wat.kernel", variant), Box::new(body))
+    OwnedValue::Tagged(Tag::ns(crate::error_ns::KERNEL, variant), Box::new(body))
 }
 
 /// A keyword EDN value (`:name`). Accepts a dynamic string.

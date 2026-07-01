@@ -20,7 +20,7 @@
 //!
 //! ## What this proves
 //!
-//! - The derive generates the same variant tag (`#wat.kernel/<Name>`).
+//! - The derive generates the same variant tag (`#wat.type/<Name>`).
 //! - Snake→kebab key conversion (`enum_name` → `:enum-name`, `field_ty` → `:field-ty`).
 //! - `:span` is appended LAST by `splice_span` when known.
 //! - `:span` is ALWAYS emitted (arc 298.2 retired the elide-when-unknown branch).
@@ -57,7 +57,7 @@ fn probe_duplicate_type_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/DuplicateType {:name ":user::Foo" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/DuplicateType {:name ":user::Foo" :span {:file "test.wat" :line 1 :col 0}}"#,
         "DuplicateType with known span"
     );
 }
@@ -72,7 +72,7 @@ fn probe_reserved_prefix_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ReservedPrefix {:name ":wat::reserved" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/ReservedPrefix {:name ":wat::reserved" :span {:file "test.wat" :line 1 :col 0}}"#,
         "ReservedPrefix with known span"
     );
 }
@@ -90,7 +90,7 @@ fn probe_malformed_decl_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedDecl {:head "struct" :reason "bad form" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/MalformedDecl {:head "struct" :reason "bad form" :span {:file "test.wat" :line 1 :col 0}}"#,
         "MalformedDecl with known span"
     );
 }
@@ -108,7 +108,7 @@ fn probe_malformed_name_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedName {:raw "bad-name" :reason "missing prefix" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/MalformedName {:raw "bad-name" :reason "missing prefix" :span {:file "test.wat" :line 1 :col 0}}"#,
         "MalformedName with known span"
     );
 }
@@ -123,7 +123,7 @@ fn probe_malformed_field_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedField {:reason "bad field" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/MalformedField {:reason "bad field" :span {:file "test.wat" :line 1 :col 0}}"#,
         "MalformedField with known span"
     );
 }
@@ -147,7 +147,7 @@ fn probe_malformed_variant_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedVariant {:enum-name "MyEnum" :offending "BadVariant" :reason "not a keyword" :remedies [] :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/MalformedVariant {:enum-name "MyEnum" :offending "BadVariant" :reason "not a keyword" :remedies [] :span {:file "test.wat" :line 1 :col 0}}"#,
         "MalformedVariant with known span"
     );
 }
@@ -165,7 +165,7 @@ fn probe_malformed_type_expr_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedTypeExpr {:raw ":bad" :reason "unknown type" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/MalformedTypeExpr {:raw ":bad" :reason "unknown type" :span {:file "test.wat" :line 1 :col 0}}"#,
         "MalformedTypeExpr with known span"
     );
 }
@@ -180,7 +180,7 @@ fn probe_any_banned_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/AnyBanned {:raw ":Any" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/AnyBanned {:raw ":Any" :span {:file "test.wat" :line 1 :col 0}}"#,
         "AnyBanned with known span"
     );
 }
@@ -195,7 +195,7 @@ fn probe_cyclic_alias_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/CyclicAlias {:name ":A" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/CyclicAlias {:name ":A" :span {:file "test.wat" :line 1 :col 0}}"#,
         "CyclicAlias with known span"
     );
 }
@@ -217,7 +217,7 @@ fn probe_alias_arity_mismatch_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/AliasArityMismatch {:name ":Pair" :expected 2 :got 1 :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/AliasArityMismatch {:name ":Pair" :expected 2 :got 1 :span {:file "test.wat" :line 1 :col 0}}"#,
         "AliasArityMismatch with known span"
     );
 }
@@ -235,7 +235,7 @@ fn probe_inner_colon_in_compound_arg_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/InnerColonInCompoundArg {:raw ":Vec<:String>" :offending ":String" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/InnerColonInCompoundArg {:raw ":Vec<:String>" :offending ":String" :span {:file "test.wat" :line 1 :col 0}}"#,
         "InnerColonInCompoundArg with known span"
     );
 }
@@ -250,7 +250,7 @@ fn probe_cyclic_union_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/CyclicUnion {:name ":MyUnion" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/CyclicUnion {:name ":MyUnion" :span {:file "test.wat" :line 1 :col 0}}"#,
         "CyclicUnion with known span"
     );
 }
@@ -265,7 +265,7 @@ fn probe_empty_union_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/EmptyUnion {:name ":Empty" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/EmptyUnion {:name ":Empty" :span {:file "test.wat" :line 1 :col 0}}"#,
         "EmptyUnion with known span"
     );
 }
@@ -280,7 +280,7 @@ fn probe_single_member_union_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/SingleMemberUnion {:name ":Single" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/SingleMemberUnion {:name ":Single" :span {:file "test.wat" :line 1 :col 0}}"#,
         "SingleMemberUnion with known span"
     );
 }
@@ -299,7 +299,7 @@ fn probe_invalid_union_member_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/InvalidUnionMember {:union-name ":MyUnion" :member-form "fn" :reason "fn not allowed" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/InvalidUnionMember {:union-name ":MyUnion" :member-form "fn" :reason "fn not allowed" :span {:file "test.wat" :line 1 :col 0}}"#,
         "InvalidUnionMember with known span"
     );
 }
@@ -317,7 +317,7 @@ fn probe_cyclic_subtype_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/CyclicSubtype {:child ":A" :parent ":B" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/CyclicSubtype {:child ":A" :parent ":B" :span {:file "test.wat" :line 1 :col 0}}"#,
         "CyclicSubtype with known span"
     );
 }
@@ -336,7 +336,7 @@ fn probe_impure_field_in_pure_aggregate_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ImpureFieldInPureAggregate {:aggregate ":user::MyRecord" :field "handle" :field-ty ":user::HandleStruct" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/ImpureFieldInPureAggregate {:aggregate ":user::MyRecord" :field "handle" :field-ty ":user::HandleStruct" :span {:file "test.wat" :line 1 :col 0}}"#,
         "ImpureFieldInPureAggregate with known span"
     );
 }
@@ -356,7 +356,7 @@ fn probe_impure_variant_field_in_pure_enum_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ImpureVariantFieldInPureEnum {:enum-name ":user::MyEnum" :variant "WithHandle" :field "handle" :field-ty ":user::HandleStruct" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.type/ImpureVariantFieldInPureEnum {:enum-name ":user::MyEnum" :variant "WithHandle" :field "handle" :field-ty ":user::HandleStruct" :span {:file "test.wat" :line 1 :col 0}}"#,
         "ImpureVariantFieldInPureEnum with known span"
     );
 }

@@ -52,6 +52,7 @@ pub struct CheckError {
 /// are never in the kind enum — they live on the outer `CheckError.span` field and
 /// are spliced in uniformly by `impl ToEdn for CheckError`.
 #[derive(Debug, Clone, wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::CHECK)]
 pub enum CheckErrorKind {
     /// Arc 138 slice 1 — arity mismatch at a call site.
     ArityMismatch {

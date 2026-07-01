@@ -20,6 +20,7 @@ pub struct MacroError {
 /// hand-written `macro_error_to_edn` match in `macros/error_edn.rs`.
 // MacroErrorKind is pub because it's the type of MacroError's pub `kind` field (no private-in-public).
 #[derive(Debug, wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::MACRO)]
 pub enum MacroErrorKind {
     /// Two `(:wat::core::defmacro ...)` forms registered the same name.
     #[to_edn(key = "name")]

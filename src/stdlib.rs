@@ -391,6 +391,7 @@ pub struct StdlibError {
 /// which called `cause.error_edn()`. The `path` field (`&'static str`) serializes
 /// via the blanket `impl<T: ToEdn+?Sized> ToEdn for &T` + `impl ToEdn for str`.
 #[derive(Debug, wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::STDLIB)]
 pub enum StdlibErrorKind {
     ParseFailed {
         path: &'static str,
@@ -504,10 +505,10 @@ mod tests {
             s
         );
 
-        // :cause must embed a nested #wat.kernel/… tagged form.
+        // :cause must embed a nested #wat.parse/… tagged form.
         assert!(
-            s.contains("#wat.kernel/"),
-            "ParseFailed :cause must be a nested #wat.kernel/... tagged EDN; got: {}",
+            s.contains("#wat.parse/"),
+            "ParseFailed :cause must be a nested #wat.parse/... tagged EDN; got: {}",
             s
         );
 
@@ -551,8 +552,8 @@ mod tests {
 
         // Must be the correct tagged form.
         assert!(
-            s.starts_with("#wat.kernel/ParseFailed"),
-            "must be #wat.kernel/ParseFailed; got: {}",
+            s.starts_with("#wat.stdlib/ParseFailed"),
+            "must be #wat.stdlib/ParseFailed; got: {}",
             s
         );
         // Must carry :path.
@@ -570,7 +571,7 @@ mod tests {
         // Must NOT carry :source (old prose field).
         assert!(!s.contains(":source"), "must NOT carry old :source; got: {}", s);
         // :cause must be a floor-form tagged value.
-        assert!(s.contains("#wat.kernel/"), ":cause must embed #wat.kernel/...; got: {}", s);
+        assert!(s.contains("#wat.parse/"), ":cause must embed #wat.parse/...; got: {}", s);
         // Must be valid EDN.
         wat_edn::parse_owned(&s).expect("must be valid EDN");
     }
@@ -601,8 +602,8 @@ mod tests {
 
         // Must be the correct tagged form.
         assert!(
-            s.starts_with("#wat.kernel/ParseFailed"),
-            "must be #wat.kernel/ParseFailed; got: {}",
+            s.starts_with("#wat.stdlib/ParseFailed"),
+            "must be #wat.stdlib/ParseFailed; got: {}",
             s
         );
         // Must carry :path.
@@ -618,7 +619,7 @@ mod tests {
             s
         );
         // :cause must be a floor-form tagged value.
-        assert!(s.contains("#wat.kernel/"), ":cause must embed #wat.kernel/...; got: {}", s);
+        assert!(s.contains("#wat.parse/"), ":cause must embed #wat.parse/...; got: {}", s);
         // Must be valid EDN.
         wat_edn::parse_owned(&s).expect("must be valid EDN");
     }

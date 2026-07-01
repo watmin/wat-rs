@@ -266,6 +266,7 @@ pub struct LoadError {
 /// keys. The outer `LoadError::to_edn()` splices `:span` last via
 /// `splice_span` (Strike 3b; replaces the deleted hand-written match body).
 #[derive(Debug, wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::LOAD)]
 pub enum LoadErrorKind {
     /// The load form was malformed — wrong arity, wrong interface
     /// keyword, wrong value type, unknown verification algorithm, etc.

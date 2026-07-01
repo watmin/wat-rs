@@ -102,7 +102,7 @@ impl crate::to_edn::WatError for CheckErrors {
 // ─── Low-level builders (mirrors runtime_error_edn.rs) ───────────────────────
 
 fn tagged(variant: &str, body: OwnedValue) -> OwnedValue {
-    OwnedValue::Tagged(Tag::ns("wat.kernel", variant), Box::new(body))
+    OwnedValue::Tagged(Tag::ns(crate::error_ns::CHECK, variant), Box::new(body))
 }
 
 fn kw(name: &str) -> OwnedValue {

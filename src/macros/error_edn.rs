@@ -192,7 +192,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
 // ─── Low-level builders ──────────────────────────────────────────────────────
 
 fn tagged(variant: &'static str, body: OwnedValue) -> OwnedValue {
-    OwnedValue::Tagged(Tag::ns("wat.kernel", variant), Box::new(body))
+    OwnedValue::Tagged(Tag::ns(crate::error_ns::MACRO, variant), Box::new(body))
 }
 
 fn kw(name: &'static str) -> OwnedValue {

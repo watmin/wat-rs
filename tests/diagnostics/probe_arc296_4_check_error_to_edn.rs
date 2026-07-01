@@ -48,10 +48,10 @@ fn probe_1_type_mismatch_to_edn_is_wat_kernel_tagged() {
     // Must be tagged EDN (starts with #).
     assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
 
-    // Must use wat.kernel namespace (NOT wat.diag).
+    // Must use wat.check namespace (NOT wat.diag).
     assert!(
-        s.contains("wat.kernel"),
-        "must use wat.kernel namespace; got: {}",
+        s.contains("wat.check"),
+        "must use wat.check namespace; got: {}",
         s
     );
     assert!(
@@ -91,7 +91,7 @@ fn probe_2_arity_mismatch_to_edn_carries_counts() {
     eprintln!("=== probe_2: {}", s);
 
     assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
-    assert!(s.contains("wat.kernel"), "must use wat.kernel namespace; got: {}", s);
+    assert!(s.contains("wat.check"), "must use wat.check namespace; got: {}", s);
     // Expected and got counts must appear.
     assert!(s.contains('2'), "must contain expected count 2; got: {}", s);
     assert!(s.contains('3'), "must contain got count 3; got: {}", s);
@@ -116,7 +116,7 @@ fn probe_3_unknown_callee_to_edn_carries_callee() {
     eprintln!("=== probe_3: {}", s);
 
     assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
-    assert!(s.contains("wat.kernel"), "must use wat.kernel namespace; got: {}", s);
+    assert!(s.contains("wat.check"), "must use wat.check namespace; got: {}", s);
     assert!(
         s.contains("do-thing") || s.contains(":user::do-thing"),
         "must contain callee; got: {}",
@@ -142,10 +142,10 @@ fn probe_4_comm_call_out_of_position_to_edn() {
 
     eprintln!("=== probe_4: {}", s);
 
-    // Must produce #wat.kernel/CommCallOutOfPosition (NOT #wat.diag/).
+    // Must produce #wat.check/CommCallOutOfPosition (NOT #wat.diag/).
     assert!(
-        s.starts_with("#wat.kernel/CommCallOutOfPosition"),
-        "must start with #wat.kernel/CommCallOutOfPosition; got: {}",
+        s.starts_with("#wat.check/CommCallOutOfPosition"),
+        "must start with #wat.check/CommCallOutOfPosition; got: {}",
         s
     );
     // Must carry :callee field.

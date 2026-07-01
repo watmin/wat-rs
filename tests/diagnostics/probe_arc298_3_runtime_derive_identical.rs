@@ -4,7 +4,7 @@
 //! ## What this proves
 //!
 //! For every `RuntimeErrorKind` variant (31 probe functions):
-//! - The derive generates the same `#wat.kernel/<Name>` tag.
+//! - The derive generates the same `#wat.runtime/<Name>` tag.
 //! - Field keys are snake→kebab in declaration order.
 //! - `:span` is appended LAST by `splice_span` (from the outer `RuntimeError.span`).
 //! - `Box<T>: ToEdn` delegates through the Box.
@@ -50,7 +50,7 @@ fn probe_unbound_symbol() {
     let err = make(RuntimeErrorKind::UnboundSymbol("my-var".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/UnboundSymbol {:name "my-var" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/UnboundSymbol {:name "my-var" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -61,7 +61,7 @@ fn probe_unknown_function() {
     let err = make(RuntimeErrorKind::UnknownFunction(":user::greet".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/UnknownFunction {:path ":user::greet" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/UnknownFunction {:path ":user::greet" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -73,7 +73,7 @@ fn probe_not_callable() {
     let err = make(RuntimeErrorKind::NotCallable { got: Box::new(snap) });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/NotCallable {:got {:type "wat::core::String" :rendered "\"hello\"" :provenance nil} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/NotCallable {:got {:type "wat::core::String" :rendered "\"hello\"" :provenance nil} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -89,7 +89,7 @@ fn probe_type_mismatch() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/TypeMismatch {:op ":wat::core::+" :expected "i64" :got {:type "wat::core::i64" :rendered "42" :provenance nil} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/TypeMismatch {:op ":wat::core::+" :expected "i64" :got {:type "wat::core::i64" :rendered "42" :provenance nil} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -104,7 +104,7 @@ fn probe_arity_mismatch() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ArityMismatch {:op ":my::func" :expected 2 :got 3 :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/ArityMismatch {:op ":my::func" :expected 2 :got 3 :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -116,7 +116,7 @@ fn probe_bad_condition() {
     let err = make(RuntimeErrorKind::BadCondition { got: Box::new(snap) });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/BadCondition {:got {:type "wat::core::i64" :rendered "0" :provenance nil} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/BadCondition {:got {:type "wat::core::i64" :rendered "0" :provenance nil} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -130,7 +130,7 @@ fn probe_malformed_form() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedForm {:head ":wat::core::fn" :reason "param list must be a vector" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/MalformedForm {:head ":wat::core::fn" :reason "param list must be a vector" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -141,7 +141,7 @@ fn probe_param_shadows_builtin() {
     let err = make(RuntimeErrorKind::ParamShadowsBuiltin("map".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ParamShadowsBuiltin {:name "map" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/ParamShadowsBuiltin {:name "map" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -152,7 +152,7 @@ fn probe_division_by_zero() {
     let err = make(RuntimeErrorKind::DivisionByZero);
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/DivisionByZero {:span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/DivisionByZero {:span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -163,7 +163,7 @@ fn probe_duplicate_define() {
     let err = make(RuntimeErrorKind::DuplicateDefine(":user::counter".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/DuplicateDefine {:name ":user::counter" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/DuplicateDefine {:name ":user::counter" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -174,7 +174,7 @@ fn probe_reserved_prefix() {
     let err = make(RuntimeErrorKind::ReservedPrefix(":wat::my-thing".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ReservedPrefix {:prefix ":wat::my-thing" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/ReservedPrefix {:prefix ":wat::my-thing" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -185,7 +185,7 @@ fn probe_declaration_in_expression_position() {
     let err = make(RuntimeErrorKind::DeclarationInExpressionPosition(":wat::core::define".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/DeclarationInExpressionPosition {:head ":wat::core::define" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/DeclarationInExpressionPosition {:head ":wat::core::define" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -196,7 +196,7 @@ fn probe_eval_forbids_mutation_form() {
     let err = make(RuntimeErrorKind::EvalForbidsMutationForm { head: ":wat::core::define".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/EvalForbidsMutationForm {:head ":wat::core::define" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/EvalForbidsMutationForm {:head ":wat::core::define" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -207,7 +207,7 @@ fn probe_user_main_missing() {
     let err = make(RuntimeErrorKind::UserMainMissing);
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/UserMainMissing {:span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/UserMainMissing {:span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -220,7 +220,7 @@ fn probe_eval_verification_failed() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/EvalVerificationFailed {:error #wat.kernel/UnsupportedAlgorithm {:algo "SHA1"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/EvalVerificationFailed {:error #wat.kernel/UnsupportedAlgorithm {:algo "SHA1"} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -231,7 +231,7 @@ fn probe_channel_disconnected() {
     let err = make(RuntimeErrorKind::ChannelDisconnected { op: ":wat::kernel::send".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ChannelDisconnected {:op ":wat::kernel::send" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/ChannelDisconnected {:op ":wat::kernel::send" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -242,7 +242,7 @@ fn probe_no_encoding_ctx() {
     let err = make(RuntimeErrorKind::NoEncodingCtx { op: ":wat::holon::cosine".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/NoEncodingCtx {:op ":wat::holon::cosine" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/NoEncodingCtx {:op ":wat::holon::cosine" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -253,7 +253,7 @@ fn probe_no_source_loader() {
     let err = make(RuntimeErrorKind::NoSourceLoader { op: ":wat::eval-file!".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/NoSourceLoader {:op ":wat::eval-file!" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/NoSourceLoader {:op ":wat::eval-file!" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -264,7 +264,7 @@ fn probe_no_macro_registry() {
     let err = make(RuntimeErrorKind::NoMacroRegistry { op: ":wat::core::macroexpand".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/NoMacroRegistry {:op ":wat::core::macroexpand" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/NoMacroRegistry {:op ":wat::core::macroexpand" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -283,7 +283,7 @@ fn probe_macro_expansion_failed() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MacroExpansionFailed {:op ":user::expand" :cause #wat.kernel/DuplicateMacro {:message "duplicate macro registration: my-macro" :location {:file "macro.wat" :line 5 :col 2} :causes [] :name "my-macro"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/MacroExpansionFailed {:op ":user::expand" :cause #wat.macro/DuplicateMacro {:message "duplicate macro registration: my-macro" :location {:file "macro.wat" :line 5 :col 2} :causes [] :name "my-macro"} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -294,7 +294,7 @@ fn probe_pattern_match_failed() {
     let err = make(RuntimeErrorKind::PatternMatchFailed { value_type: "i64" });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/PatternMatchFailed {:value-type "i64" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/PatternMatchFailed {:value-type "i64" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -305,7 +305,7 @@ fn probe_effectful_in_step() {
     let err = make(RuntimeErrorKind::EffectfulInStep { op: ":wat::kernel::println".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/EffectfulInStep {:op ":wat::kernel::println" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/EffectfulInStep {:op ":wat::kernel::println" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -316,7 +316,7 @@ fn probe_no_step_rule() {
     let err = make(RuntimeErrorKind::NoStepRule { op: ":user::custom-op".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/NoStepRule {:op ":user::custom-op" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/NoStepRule {:op ":user::custom-op" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -335,7 +335,7 @@ fn probe_assertion_failed_both_some() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/AssertionFailed {:message "values differ" :actual #wat.core.Option/Some "42" :expected #wat.core.Option/Some "99" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/AssertionFailed {:message "values differ" :actual #wat.core.Option/Some "42" :expected #wat.core.Option/Some "99" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -352,7 +352,7 @@ fn probe_assertion_failed_expected_none() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/AssertionFailed {:message "fired" :actual #wat.core.Option/Some "x" :expected #wat.core.Option/None nil :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/AssertionFailed {:message "fired" :actual #wat.core.Option/Some "x" :expected #wat.core.Option/None nil :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -374,7 +374,7 @@ fn probe_sandbox_scope_leak() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/SandboxScopeLeak {:offending-name ":user::my-helper" :outer-define-span {:file "outer.wat" :line 10 :col 4} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/SandboxScopeLeak {:offending-name ":user::my-helper" :outer-define-span {:file "outer.wat" :line 10 :col 4} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -385,7 +385,7 @@ fn probe_service_not_running() {
     let err = make(RuntimeErrorKind::ServiceNotRunning { op: ":wat::kernel::println".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ServiceNotRunning {:op ":wat::kernel::println" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/ServiceNotRunning {:op ":wat::kernel::println" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -403,7 +403,7 @@ fn probe_edn_coerce_mismatch() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/EdnCoerceMismatch {:op ":wat::kernel::readln" :expected ":user::Point" :got "Map" :path ["x" "y"] :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/EdnCoerceMismatch {:op ":wat::kernel::readln" :expected ":user::Point" :got "Map" :path ["x" "y"] :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -419,7 +419,7 @@ fn probe_edn_coerce_mismatch_empty_path() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/EdnCoerceMismatch {:op ":wat::kernel::readln" :expected ":user::Point" :got "Integer" :path [] :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/EdnCoerceMismatch {:op ":wat::kernel::readln" :expected ":user::Point" :got "Integer" :path [] :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -434,7 +434,7 @@ fn probe_unknown_field() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/UnknownField {:record-class "user::Point" :field "z" :available ["x" "y"] :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/UnknownField {:record-class "user::Point" :field "z" :available ["x" "y"] :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -467,7 +467,7 @@ fn probe_no_matching_clause() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/NoMatchingClause {:name ":user::process" :called-arity 1 :called-args [{:type "wat::core::i64" :rendered "42" :provenance nil}] :attempted-clauses [#wat.kernel/ClauseAttempt {:clause-index 0 :declared-arity 2 :declared-arg-types ["i64" "i64"] :failure-reason #wat.kernel/ArityMismatch {:expected 2 :got 1}} #wat.kernel/ClauseAttempt {:clause-index 1 :declared-arity 1 :declared-arg-types ["String"] :failure-reason #wat.kernel/ArgTypeMismatch {:position 0 :expected "String" :got "i64"}}] :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/NoMatchingClause {:name ":user::process" :called-arity 1 :called-args [{:type "wat::core::i64" :rendered "42" :provenance nil}] :attempted-clauses [#wat.kernel/ClauseAttempt {:clause-index 0 :declared-arity 2 :declared-arg-types ["i64" "i64"] :failure-reason #wat.kernel/ArityMismatch {:expected 2 :got 1}} #wat.kernel/ClauseAttempt {:clause-index 1 :declared-arity 1 :declared-arg-types ["String"] :failure-reason #wat.kernel/ArgTypeMismatch {:position 0 :expected "String" :got "i64"}}] :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -491,7 +491,7 @@ fn probe_postcondition_failed() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/PostconditionFailed {:defclause-name ":user::positive" :clause-index 0 :ensure-expr-snapshot "(> result 0)" :returned-value {:type "wat::core::i64" :rendered "-5" :provenance nil} :ensure-span {:file "defs.wat" :line 20 :col 8} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/PostconditionFailed {:defclause-name ":user::positive" :clause-index 0 :ensure-expr-snapshot "(> result 0)" :returned-value {:type "wat::core::i64" :rendered "-5" :provenance nil} :ensure-span {:file "defs.wat" :line 20 :col 8} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -502,7 +502,7 @@ fn probe_macro_abort() {
     let err = make(RuntimeErrorKind::MacroAbort { message: "bad template".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MacroAbort {:message "bad template" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.runtime/MacroAbort {:message "bad template" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 

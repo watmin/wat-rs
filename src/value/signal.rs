@@ -122,6 +122,7 @@ pub struct RuntimeError {
 /// `splice_span(self.kind.to_edn(), &self.span)`. Replaces the deleted
 /// hand-written `runtime_error_to_edn` match in `runtime_error_edn.rs`.
 #[derive(Debug, wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::RUNTIME)]
 pub enum RuntimeErrorKind {
     #[to_edn(key = "name")]
     UnboundSymbol(String),

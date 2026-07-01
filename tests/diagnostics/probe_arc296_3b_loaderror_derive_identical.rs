@@ -63,7 +63,7 @@ fn probe_malformed_load_form_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedLoadForm {:reason "bad form" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.load/MalformedLoadForm {:reason "bad form" :span {:file "test.wat" :line 1 :col 0}}"#,
         "MalformedLoadForm with known span"
     );
 }
@@ -81,7 +81,7 @@ fn probe_setter_in_loaded_file_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/SetterInLoadedFile {:loaded-path "foo.wat" :setter-head "set-dims!" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.load/SetterInLoadedFile {:loaded-path "foo.wat" :setter-head "set-dims!" :span {:file "test.wat" :line 1 :col 0}}"#,
         "SetterInLoadedFile with known span"
     );
 }
@@ -96,7 +96,7 @@ fn probe_duplicate_load_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/DuplicateLoad {:path "foo.wat" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.load/DuplicateLoad {:path "foo.wat" :span {:file "test.wat" :line 1 :col 0}}"#,
         "DuplicateLoad with known span"
     );
 }
@@ -113,7 +113,7 @@ fn probe_cycle_detected_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/CycleDetected {:cycle ["a.wat" "b.wat"] :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.load/CycleDetected {:cycle ["a.wat" "b.wat"] :span {:file "test.wat" :line 1 :col 0}}"#,
         "CycleDetected with known span"
     );
 }
@@ -128,7 +128,7 @@ fn probe_fetch_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/Fetch {:cause #wat.kernel/NotFound {:path "missing.wat"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.load/Fetch {:cause #wat.kernel/NotFound {:path "missing.wat"} :span {:file "test.wat" :line 1 :col 0}}"#,
         "Fetch with known span"
     );
 }
@@ -151,7 +151,7 @@ fn probe_parse_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/Parse {:path "foo.wat" :cause #wat.kernel/UnexpectedRParen {:message "unexpected ')'" :location {:file "inner.wat" :line 7 :col 3} :causes []} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.load/Parse {:path "foo.wat" :cause #wat.parse/UnexpectedRParen {:message "unexpected ')'" :location {:file "inner.wat" :line 7 :col 3} :causes []} :span {:file "test.wat" :line 1 :col 0}}"#,
         "Parse with known outer + inner span"
     );
 }
@@ -169,7 +169,7 @@ fn probe_verification_failed_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/VerificationFailed {:path "foo.wat" :cause #wat.kernel/UnsupportedAlgorithm {:algo "SHA1"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.load/VerificationFailed {:path "foo.wat" :cause #wat.kernel/UnsupportedAlgorithm {:algo "SHA1"} :span {:file "test.wat" :line 1 :col 0}}"#,
         "VerificationFailed with known span"
     );
 }

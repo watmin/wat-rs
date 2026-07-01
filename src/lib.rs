@@ -69,6 +69,7 @@ pub mod kernel;
 pub mod compose;
 pub mod config;
 pub mod edn_shim;
+pub mod error_ns;
 pub mod sigma;
 pub mod process;
 pub mod form_match;

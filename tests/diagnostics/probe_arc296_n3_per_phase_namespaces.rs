@@ -26,7 +26,6 @@ fn make_span() -> Span {
 }
 
 #[test]
-#[ignore = "296 N3 RED — every family tags #wat.kernel/ at HEAD; un-ignore when the phase namespaces land"]
 fn error_families_tag_under_their_phase_namespace() {
     // CheckError → #wat.check/
     let check = CheckError {

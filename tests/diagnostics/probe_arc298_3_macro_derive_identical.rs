@@ -4,7 +4,7 @@
 //! ## What this proves
 //!
 //! For every `MacroErrorKind` variant (13 probe functions):
-//! - The derive generates the same `#wat.kernel/<Name>` tag.
+//! - The derive generates the same `#wat.macro/<Name>` tag.
 //! - Field keys are snake→kebab in declaration order.
 //! - `:span` is appended LAST by `splice_span` (from the outer `MacroError.span`).
 //! - `ProgramBodyEvalFailed.cause` and `MacroEvalRuntimeFailed.cause` use
@@ -48,7 +48,7 @@ fn probe_duplicate_macro() {
     let err = make(MacroErrorKind::DuplicateMacro("my-macro".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/DuplicateMacro {:name "my-macro" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/DuplicateMacro {:name "my-macro" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -59,7 +59,7 @@ fn probe_reserved_prefix() {
     let err = make(MacroErrorKind::ReservedPrefix(":wat::my-thing".into()));
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ReservedPrefix {:name ":wat::my-thing" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/ReservedPrefix {:name ":wat::my-thing" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -70,7 +70,7 @@ fn probe_malformed_defmacro() {
     let err = make(MacroErrorKind::MalformedDefmacro { reason: "missing name".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedDefmacro {:reason "missing name" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/MalformedDefmacro {:reason "missing name" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -85,7 +85,7 @@ fn probe_arity_mismatch() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ArityMismatch {:name "my-macro" :expected 2 :got 3 :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/ArityMismatch {:name "my-macro" :expected 2 :got 3 :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -100,7 +100,7 @@ fn probe_arity_too_few() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ArityTooFew {:name "my-macro" :minimum 1 :got 0 :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/ArityTooFew {:name "my-macro" :minimum 1 :got 0 :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -111,7 +111,7 @@ fn probe_unbound_macro_param() {
     let err = make(MacroErrorKind::UnboundMacroParam { name: "x".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/UnboundMacroParam {:name "x" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/UnboundMacroParam {:name "x" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -125,7 +125,7 @@ fn probe_splice_not_sequence() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/SpliceNotSequence {:name "items" :got "String" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/SpliceNotSequence {:name "items" :got "String" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -136,7 +136,7 @@ fn probe_expansion_depth_exceeded() {
     let err = make(MacroErrorKind::ExpansionDepthExceeded { limit: 64 });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ExpansionDepthExceeded {:limit 64 :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/ExpansionDepthExceeded {:limit 64 :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -147,7 +147,7 @@ fn probe_malformed_template() {
     let err = make(MacroErrorKind::MalformedTemplate { reason: "unexpected form".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedTemplate {:reason "unexpected form" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/MalformedTemplate {:reason "unexpected form" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -158,7 +158,7 @@ fn probe_refused_in_macro() {
     let err = make(MacroErrorKind::RefusedInMacro { head: ":wat::kernel::println".into() });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/RefusedInMacro {:head ":wat::kernel::println" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/RefusedInMacro {:head ":wat::kernel::println" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -172,7 +172,7 @@ fn probe_program_body_introduces_name() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ProgramBodyIntroducesName {:macro-name "my-loop" :binder "i" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/ProgramBodyIntroducesName {:macro-name "my-loop" :binder "i" :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -195,7 +195,7 @@ fn probe_program_body_eval_failed() {
     });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/ProgramBodyEvalFailed {:macro-name "my-macro" :cause #wat.kernel/MalformedTemplate {:message "malformed template: bad form" :location {:file "inner.wat" :line 3 :col 1} :causes [] :reason "bad form"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/ProgramBodyEvalFailed {:macro-name "my-macro" :cause #wat.macro/MalformedTemplate {:message "malformed template: bad form" :location {:file "inner.wat" :line 3 :col 1} :causes [] :reason "bad form"} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }
 
@@ -214,6 +214,6 @@ fn probe_macro_eval_runtime_failed() {
     let err = make(MacroErrorKind::MacroEvalRuntimeFailed { cause });
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MacroEvalRuntimeFailed {:cause #wat.kernel/UnboundSymbol {:message "unbound symbol: foo" :location {:file "rt.wat" :line 7 :col 3} :causes [] :name "foo"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.macro/MacroEvalRuntimeFailed {:cause #wat.runtime/UnboundSymbol {:message "unbound symbol: foo" :location {:file "rt.wat" :line 7 :col 3} :causes [] :name "foo"} :span {:file "test.wat" :line 1 :col 0}}"#,
     );
 }

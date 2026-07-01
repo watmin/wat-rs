@@ -624,14 +624,14 @@ fn check_output_edn_emits_record_per_diagnostic() {
         lines.len(),
         stdout
     );
-    // Arc 296: namespace changed from wat.diag to wat.kernel.
+    // Arc 296: namespace changed from wat.diag to wat.check.
     assert!(
-        lines[0].starts_with("#wat.kernel/CommCallOutOfPosition"),
+        lines[0].starts_with("#wat.check/CommCallOutOfPosition"),
         "first line should be CommCallOutOfPosition tag; got: {}",
         lines[0]
     );
     assert!(
-        lines[1].starts_with("#wat.kernel/ReturnTypeMismatch"),
+        lines[1].starts_with("#wat.check/ReturnTypeMismatch"),
         "second line should be ReturnTypeMismatch tag; got: {}",
         lines[1]
     );
@@ -664,13 +664,13 @@ fn check_output_json_emits_record_per_diagnostic() {
     );
     // Arc 296: JSON shape uses #tag sentinel; field keys carry EDN colon prefix.
     assert!(
-        lines[0].contains("\"#tag\":\"wat.kernel/CommCallOutOfPosition\""),
-        "first line should have #tag=wat.kernel/CommCallOutOfPosition; got: {}",
+        lines[0].contains("\"#tag\":\"wat.check/CommCallOutOfPosition\""),
+        "first line should have #tag=wat.check/CommCallOutOfPosition; got: {}",
         lines[0]
     );
     assert!(
-        lines[1].contains("\"#tag\":\"wat.kernel/ReturnTypeMismatch\""),
-        "second line should have #tag=wat.kernel/ReturnTypeMismatch; got: {}",
+        lines[1].contains("\"#tag\":\"wat.check/ReturnTypeMismatch\""),
+        "second line should have #tag=wat.check/ReturnTypeMismatch; got: {}",
         lines[1]
     );
     // Keyword field keys carry leading colon in JSON (EDN keyword serialization).

@@ -53,10 +53,10 @@ fn s1_macro_expansion_failed_carries_typed_cause_not_reason_string() {
     // Must be a tagged form.
     assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
 
-    // Must be in the wat.kernel namespace.
+    // Must be in the wat.runtime namespace.
     assert!(
-        s.contains("wat.kernel"),
-        "must use wat.kernel namespace; got: {}",
+        s.contains("wat.runtime"),
+        "must use wat.runtime namespace; got: {}",
         s
     );
 
@@ -72,10 +72,10 @@ fn s1_macro_expansion_failed_carries_typed_cause_not_reason_string() {
         s
     );
 
-    // The :cause must be a nested tagged MacroError (contains a #wat.kernel/ tag).
+    // The :cause must be a nested tagged MacroError (contains a #wat.macro/ tag).
     assert!(
-        s.contains("#wat.kernel/"),
-        "MacroExpansionFailed :cause must be a nested #wat.kernel/... tagged EDN; got: {}",
+        s.contains("#wat.macro/"),
+        "MacroExpansionFailed :cause must be a nested #wat.macro/... tagged EDN; got: {}",
         s
     );
 

@@ -20,7 +20,7 @@
 //!
 //! ## What this proves
 //!
-//! - The derive generates the same variant tag (`#wat.kernel/<Name>`).
+//! - The derive generates the same variant tag (`#wat.config/<Name>`).
 //! - Field keys are snake→kebab converted in declaration order.
 //! - `:span` is appended LAST by `splice_span` when the span is known.
 //! - `:span` is ALWAYS emitted (arc 298.2 retired the elide-when-unknown branch).
@@ -58,7 +58,7 @@ fn probe_setter_after_non_setter_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/SetterAfterNonSetter {:setter-head "set-dims!" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/SetterAfterNonSetter {:setter-head "set-dims!" :span {:file "test.wat" :line 1 :col 0}}"#,
         "SetterAfterNonSetter with known span"
     );
 }
@@ -75,7 +75,7 @@ fn probe_duplicate_field_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/DuplicateField {:field "dims" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/DuplicateField {:field "dims" :span {:file "test.wat" :line 1 :col 0}}"#,
         "DuplicateField with known span"
     );
 }
@@ -92,7 +92,7 @@ fn probe_required_field_missing_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/RequiredFieldMissing {:field "dims" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/RequiredFieldMissing {:field "dims" :span {:file "test.wat" :line 1 :col 0}}"#,
         "RequiredFieldMissing with known span"
     );
 }
@@ -109,7 +109,7 @@ fn probe_unknown_setter_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/UnknownSetter {:head ":wat::config::set-foo!" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/UnknownSetter {:head ":wat::config::set-foo!" :span {:file "test.wat" :line 1 :col 0}}"#,
         "UnknownSetter with known span"
     );
 }
@@ -128,7 +128,7 @@ fn probe_bad_arity_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/BadArity {:head ":wat::config::set-dims!" :expected 1 :got 2 :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/BadArity {:head ":wat::config::set-dims!" :expected 1 :got 2 :span {:file "test.wat" :line 1 :col 0}}"#,
         "BadArity with known span"
     );
 }
@@ -147,7 +147,7 @@ fn probe_bad_type_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/BadType {:field "dims" :expected "integer" :got "string" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/BadType {:field "dims" :expected "integer" :got "string" :span {:file "test.wat" :line 1 :col 0}}"#,
         "BadType with known span"
     );
 }
@@ -165,7 +165,7 @@ fn probe_bad_value_known_span() {
     );
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/BadValue {:field "dims" :reason "must be positive" :span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/BadValue {:field "dims" :reason "must be positive" :span {:file "test.wat" :line 1 :col 0}}"#,
         "BadValue with known span"
     );
 }
@@ -177,7 +177,7 @@ fn probe_malformed_setter_known_span() {
     let err = make(known_span(), ConfigErrorKind::MalformedSetter);
     assert_eq!(
         write(&err),
-        r#"#wat.kernel/MalformedSetter {:span {:file "test.wat" :line 1 :col 0}}"#,
+        r#"#wat.config/MalformedSetter {:span {:file "test.wat" :line 1 :col 0}}"#,
         "MalformedSetter with known span"
     );
 }

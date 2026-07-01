@@ -106,6 +106,15 @@ fn is_span_type(ty: &syn::Type) -> bool {
 
 // ── Attribute data structures ─────────────────────────────────────────────────
 
+/// Enum-level `#[to_edn(...)]` annotations (applied to the enum itself, not a
+/// variant or field).
+struct EnumAttr {
+    /// `namespace = <path>`: the Rust path (e.g. `crate::error_ns::CHECK`) that
+    /// resolves to the namespace string used for every variant's EDN tag.
+    /// Absent → defaults to the back-compat `"wat.kernel"` literal.
+    namespace: Option<syn::Path>,
+}
+
 /// Field-level `#[to_edn(...)]` annotations, collected from all `#[to_edn]`
 /// attrs on a single field.
 struct FieldAttr {
@@ -142,6 +151,86 @@ struct ComputedVia {
     key: String,
     fn_path: syn::Path,
     args: Vec<syn::Ident>,
+}
+
+// ── Enum attribute parser ─────────────────────────────────────────────────────
+
+/// Parse all `#[to_edn(...)]` attributes on the ENUM itself into an `EnumAttr`.
+///
+/// Allowed form:
+/// - `namespace = <path>` → the Rust path to the namespace const (e.g. `crate::error_ns::CHECK`).
+///   Value MUST be a bare path (ident or `a::b::c`); a string literal is rejected.
+fn parse_enum_attrs(input: &DeriveInput) -> Result<EnumAttr, TokenStream2> {
+    let mut namespace: Option<syn::Path> = None;
+
+    for attr in &input.attrs {
+        if !attr.path().is_ident("to_edn") {
+            continue;
+        }
+        // parse_args_with parses the tokens inside `#[to_edn(...)]`.
+        struct NamespaceParse(syn::Path);
+        impl syn::parse::Parse for NamespaceParse {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                let ident: syn::Ident = input.parse().map_err(|e| {
+                    syn::Error::new(
+                        e.span(),
+                        "#[to_edn(...)] on an enum: expected a directive name; \
+                         allowed enum-level directive: namespace",
+                    )
+                })?;
+                if ident != "namespace" {
+                    return Err(syn::Error::new(
+                        ident.span(),
+                        format!(
+                            "unknown #[to_edn(...)] directive `{}` on enum; \
+                             allowed enum-level directive: namespace",
+                            ident
+                        ),
+                    ));
+                }
+                input.parse::<syn::Token![=]>()?;
+                // Value MUST be a bare path — reject string literal explicitly.
+                if input.peek(syn::LitStr) {
+                    let lit: syn::LitStr = input.parse().unwrap();
+                    return Err(syn::Error::new_spanned(
+                        lit,
+                        "#[to_edn(namespace = ...)] value must be a bare path \
+                         (e.g. crate::error_ns::CHECK), not a string literal; \
+                         inline string literals are forbidden to close the smuggle hole",
+                    ));
+                }
+                let path: syn::Path = input.parse().map_err(|e| {
+                    syn::Error::new(
+                        e.span(),
+                        "#[to_edn(namespace = ...)] value must be a bare path \
+                         (e.g. crate::error_ns::CHECK)",
+                    )
+                })?;
+                if !input.is_empty() {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "#[to_edn(namespace = ...)] expects a bare path only; \
+                         trailing tokens are forbidden",
+                    ));
+                }
+                Ok(NamespaceParse(path))
+            }
+        }
+
+        let parsed = attr
+            .parse_args::<NamespaceParse>()
+            .map_err(|e| e.to_compile_error())?;
+        if namespace.is_some() {
+            return Err(syn::Error::new_spanned(
+                attr,
+                "duplicate `namespace` in #[to_edn(...)] on enum",
+            )
+            .to_compile_error());
+        }
+        namespace = Some(parsed.0);
+    }
+
+    Ok(EnumAttr { namespace })
 }
 
 // ── Field attribute parser ────────────────────────────────────────────────────
@@ -613,6 +702,21 @@ fn parse_computed_via(content: syn::parse::ParseStream) -> syn::Result<ComputedV
 pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
     let name = &input.ident;
 
+    // ── Parse enum-level #[to_edn(...)] attrs ───────────────────────────────
+    let enum_attr = match parse_enum_attrs(&input) {
+        Ok(a) => a,
+        Err(e) => return e,
+    };
+    // `namespace_tokens` is the token tree emitted as the first arg of
+    // `::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str)`.
+    // If `#[to_edn(namespace = <path>)]` is present, the path is emitted as-is
+    // (a reference to a `&str` const, never a baked literal).
+    // If absent: back-compat default — the literal `"wat.kernel"`.
+    let namespace_tokens: TokenStream2 = match enum_attr.namespace {
+        Some(path) => quote! { #path },
+        None => quote! { "wat.kernel" },
+    };
+
     // ── Only enums are supported ─────────────────────────────────────────────
     let data_enum = match &input.data {
         Data::Enum(e) => e,
@@ -766,6 +870,8 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
 
                 arms.push(quote! {
                     Self::#variant_ident { #(#field_idents,)* } => {
+                        #[allow(unused_imports)]
+                        use crate::to_edn::ToEdn as _ToEdnTrait;
                         let mut __fields: ::std::vec::Vec<(
                             ::wat_edn::OwnedValue,
                             ::wat_edn::OwnedValue,
@@ -777,7 +883,7 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
                         // 3. Append computed via field (elide on None).
                         #computed_via_push
                         ::wat_edn::OwnedValue::Tagged(
-                            ::wat_edn::Tag::ns("wat.kernel", #variant_name_str),
+                            ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
                             ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(__fields))
                         )
                     }
@@ -844,7 +950,7 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
                     arms.push(quote! {
                         Self::#variant_ident => {
                             ::wat_edn::OwnedValue::Tagged(
-                                ::wat_edn::Tag::ns("wat.kernel", #variant_name_str),
+                                ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
                                 ::std::boxed::Box::new(
                                     ::wat_edn::OwnedValue::Map(::std::vec::Vec::new())
                                 )
@@ -861,7 +967,7 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
                             #(#literal_pushes)*
                             #computed_via_push
                             ::wat_edn::OwnedValue::Tagged(
-                                ::wat_edn::Tag::ns("wat.kernel", #variant_name_str),
+                                ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
                                 ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(__fields))
                             )
                         }
@@ -927,7 +1033,7 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
                             #[allow(unused_imports)]
                             use crate::to_edn::ToEdn as _ToEdnTrait;
                             ::wat_edn::OwnedValue::Tagged(
-                                ::wat_edn::Tag::ns("wat.kernel", #variant_name_str),
+                                ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
                                 ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(
                                     ::std::vec![
                                         (

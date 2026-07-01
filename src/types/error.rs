@@ -26,6 +26,7 @@ pub struct TypeError {
 /// nested error causes — `remedies: Vec<Remedy>` serializes via the blanket
 /// `impl<T: ToEdn> ToEdn for Vec<T>`, identical to the deleted `remedies_to_edn`.
 #[derive(Debug, wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::TYPE)]
 pub enum TypeErrorKind {
     /// Arc 138 slice 2 — names the OFFENDING decl's name keyword
     /// (the second declaration that collides). The first registration

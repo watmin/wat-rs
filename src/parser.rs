@@ -36,8 +36,8 @@ impl crate::to_edn::ToEdn for ParseError {
     /// `LexError` message as `:cause` (a foreign leaf error carrying only a
     /// human message); every other variant is fully structured.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_kw, edn_str, edn_tag, push_span_field};
-        use wat_edn::OwnedValue;
+        use crate::to_edn::{edn_kw, edn_str, push_span_field};
+        use wat_edn::{OwnedValue, Tag};
 
         let span = &self.span;
         let (variant, mut fields): (&str, Vec<(OwnedValue, OwnedValue)>) = match &self.kind {
@@ -58,7 +58,7 @@ impl crate::to_edn::ToEdn for ParseError {
             ParseErrorKind::Empty => ("Empty", vec![]),
         };
         push_span_field(&mut fields, "span", span);
-        edn_tag(variant, OwnedValue::Map(fields))
+        OwnedValue::Tagged(Tag::ns(crate::error_ns::PARSE, variant), Box::new(OwnedValue::Map(fields)))
     }
 }
 

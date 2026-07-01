@@ -85,8 +85,8 @@ impl crate::to_edn::ToEdn for ResolveError {
     /// — each failed reference is a navigable tagged value (path, context,
     /// span), not a line in a prose blob.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_kw, edn_str, edn_tag, push_span_field};
-        use wat_edn::OwnedValue;
+        use crate::to_edn::{edn_kw, edn_str, push_span_field};
+        use wat_edn::{OwnedValue, Tag};
 
         match self {
             ResolveError::UnresolvedReferences(list) => {
@@ -98,12 +98,12 @@ impl crate::to_edn::ToEdn for ResolveError {
                             (edn_kw("context"), edn_str(r.context)),
                         ];
                         push_span_field(&mut fields, "span", &r.span);
-                        edn_tag("UnresolvedReference", OwnedValue::Map(fields))
+                        OwnedValue::Tagged(Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReference"), Box::new(OwnedValue::Map(fields)))
                     })
                     .collect();
-                edn_tag(
-                    "UnresolvedReferences",
-                    OwnedValue::Map(vec![(edn_kw("unresolved"), OwnedValue::Vector(refs))]),
+                OwnedValue::Tagged(
+                    Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReferences"),
+                    Box::new(OwnedValue::Map(vec![(edn_kw("unresolved"), OwnedValue::Vector(refs))])),
                 )
             }
         }
