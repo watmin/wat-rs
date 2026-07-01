@@ -305,6 +305,8 @@ pub(crate) fn child_post_fork_init_preserving(lifeline_r_raw: i32, extra_preserv
         let err = std::io::Error::last_os_error();
         emit_structured_exit(
             None,
+            // Arc 296 strike 2: OS-level startup failure has no structured
+            // error type; FlatMessage carries it through the WatError floor.
             crate::runtime::process_died_error_startup_value(&crate::to_edn::FlatMessage {
                 tag: "StartupError",
                 key: "message",

@@ -22088,10 +22088,12 @@ fn process_died_error_runtime(message: String) -> Value {
 /// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs
 /// (arc 170 slice 1i — structured runtime-error exit path).
 ///
-/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]: the payload is produced
-/// from the error's `ToEdn` impl via [`crate::to_edn::to_wire_edn`], so a
-/// non-`ToEdn` type cannot reach this wire boundary (it is a compile error).
-pub(crate) fn process_died_error_runtime_value(e: &impl crate::to_edn::ToEdn) -> Value {
+/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]: the payload
+/// is produced from the error's `WatError::error_edn()` via
+/// [`crate::to_edn::to_wire_edn`], so a non-`WatError` type cannot reach this
+/// wire boundary (it is a compile error). The floor (:message :location :causes)
+/// is always present in the wire payload.
+pub(crate) fn process_died_error_runtime_value(e: &impl crate::to_edn::WatError) -> Value {
     process_died_error_runtime(crate::to_edn::to_wire_edn(e))
 }
 
@@ -22118,11 +22120,12 @@ fn process_died_error_startup(message: String) -> Value {
 
 /// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs.
 ///
-/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]: the payload comes from
-/// the error's `ToEdn` impl (via [`crate::to_edn::to_wire_edn`]), so a raw
-/// `String` (or a non-`ToEdn` type) has no path to this boundary. Genuinely
-/// flat messages travel as a [`crate::to_edn::FlatMessage`] `ToEdn` value.
-pub(crate) fn process_died_error_startup_value(e: &impl crate::to_edn::ToEdn) -> Value {
+/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]: the payload
+/// comes from the error's `WatError::error_edn()` (via
+/// [`crate::to_edn::to_wire_edn`]), enforcing the floor. Flat OS-level
+/// startup failures cross via a [`crate::to_edn::FlatMessage`], which is
+/// itself a `WatError` (the floor still applies).
+pub(crate) fn process_died_error_startup_value(e: &impl crate::to_edn::WatError) -> Value {
     process_died_error_startup(crate::to_edn::to_wire_edn(e))
 }
 
@@ -22140,10 +22143,11 @@ fn process_died_error_main_signature(message: String) -> Value {
 
 /// Cross-module pub(crate) accessor.
 ///
-/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]. The signature-validation
-/// message is a genuinely flat message, passed as a
-/// [`crate::to_edn::FlatMessage`] so even it travels as a `ToEdn` value.
-pub(crate) fn process_died_error_main_signature_value(e: &impl crate::to_edn::ToEdn) -> Value {
+/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]. The
+/// main-signature validation message is a flat message carried via a
+/// [`crate::to_edn::FlatMessage`] (itself a `WatError`), so it too crosses
+/// through the floor.
+pub(crate) fn process_died_error_main_signature_value(e: &impl crate::to_edn::WatError) -> Value {
     process_died_error_main_signature(crate::to_edn::to_wire_edn(e))
 }
 
@@ -22160,9 +22164,10 @@ fn process_died_error_bad_return(message: String) -> Value {
 
 /// Cross-module pub(crate) accessor.
 ///
-/// Arc 296.5 — generic over [`crate::to_edn::ToEdn`]. The bad-return type name
-/// is a genuinely flat message, passed as a [`crate::to_edn::FlatMessage`].
-pub(crate) fn process_died_error_bad_return_value(e: &impl crate::to_edn::ToEdn) -> Value {
+/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]. The bad-return
+/// type name is a flat message carried via a [`crate::to_edn::FlatMessage`]
+/// (itself a `WatError`), so it too crosses through the floor.
+pub(crate) fn process_died_error_bad_return_value(e: &impl crate::to_edn::WatError) -> Value {
     process_died_error_bad_return(crate::to_edn::to_wire_edn(e))
 }
 

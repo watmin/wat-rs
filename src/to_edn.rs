@@ -53,6 +53,111 @@ pub trait ToEdn {
     fn to_edn(&self) -> OwnedValue;
 }
 
+// ─── The floor trait (arc 296 strike 2) ──────────────────────────────────────
+
+/// A top-level substrate error that can reach the wire boundary.
+///
+/// `WatError` enforces the `:wat::core::Error` floor:
+/// every error that crosses the wire MUST carry `:message`, `:location`,
+/// and `:causes` — the three fields that tooling and the runtime always
+/// expect to navigate, regardless of the specific error family.
+///
+/// ## Required methods
+///
+/// - `message()` — the human-readable error message; typically
+///   `self.to_string()` via the type's `Display` impl.
+/// - `location()` — the primary source location as a
+///   `#wat.kernel/Location {:file :line :col}` map, or `nil` when the
+///   error has no recoverable span (elide-when-unknown discipline, same as
+///   `push_span_field`).
+/// - `causes()` — the nested error chain as an EDN vector; `[]` for leaf
+///   errors that carry no structured sub-errors.
+/// - `variant()` — the variant-specific fields as a tagged map, identical
+///   to the error's EXISTING `ToEdn::to_edn()` output with the raw
+///   `:span` key stripped (the floor now owns `:location`; the variant
+///   must not double-emit the span under a different key).
+///
+/// ## Provided method
+///
+/// `error_edn()` composes the floor. It takes `variant()` (a tagged map)
+/// and inserts `:message`, `:location`, `:causes` at the front of the body
+/// map, in that order. Implementors MUST NOT override this method.
+///
+/// ## What does NOT implement `WatError`
+///
+/// Sub-values embedded inside a variant's EDN — [`crate::runtime::ValueSnapshot`],
+/// [`crate::value::Provenance`], [`crate::span::Span`],
+/// [`crate::assertion::AssertionPayload`], [`OwnedValue`], [`FlatMessage`] —
+/// are passed to `to_edn()`, never to `to_wire_edn`. They stay [`ToEdn`].
+pub trait WatError {
+    /// The human-readable error message. Typically `self.to_string()`.
+    fn message(&self) -> String;
+
+    /// The primary source location, or `nil` when no span is available.
+    ///
+    /// Build with [`location_from_span`] for Pattern-A errors (span on the
+    /// outer struct); return [`OwnedValue::Nil`] for collection / wrapper
+    /// errors that have no single primary span.
+    fn location(&self) -> OwnedValue;
+
+    /// The nested error chain. Return `OwnedValue::Vector(vec![])` for leaf
+    /// errors; include the inner error's [`ToEdn::to_edn`] output for
+    /// errors that wrap a typed cause.
+    fn causes(&self) -> OwnedValue;
+
+    /// The variant-specific fields as a tagged map.
+    ///
+    /// Return the existing [`ToEdn::to_edn`] output, stripped of the raw
+    /// `:span` key (use [`strip_span_from_tagged`]). The floor owns
+    /// `:location`; the variant MUST NOT duplicate the span under any key.
+    fn variant(&self) -> OwnedValue;
+
+    /// Compose the floor. **Do not override.**
+    ///
+    /// Takes `variant()` (a tagged map) and inserts `:message`,
+    /// `:location`, `:causes` at the front of its body map. This is the
+    /// canonical wire representation: every wire-crossing error carries
+    /// exactly these three floor keys, in this order, before any
+    /// variant-specific fields.
+    fn error_edn(&self) -> OwnedValue {
+        let variant_val = self.variant();
+        match variant_val {
+            OwnedValue::Tagged(tag, body) => {
+                let mut fields = match *body {
+                    OwnedValue::Map(f) => f,
+                    other => vec![(edn_kw("body"), other)],
+                };
+                // Dedup: a variant map must not carry its own :message /
+                // :location / :causes — the floor owns those keys. Strip any
+                // pre-existing floor keys before inserting (e.g. a `FlatMessage`
+                // whose `key` is literally "message" would otherwise emit a
+                // duplicate-key map).
+                let msg_kw = edn_kw("message");
+                let loc_kw = edn_kw("location");
+                let cause_kw = edn_kw("causes");
+                fields.retain(|(k, _)| k != &msg_kw && k != &loc_kw && k != &cause_kw);
+                // Insert floor keys at the front, in reverse order so
+                // the final order is :message :location :causes <variant…>.
+                fields.insert(0, (cause_kw, self.causes()));
+                fields.insert(0, (loc_kw, self.location()));
+                fields.insert(0, (msg_kw, edn_str(&self.message())));
+                OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
+            }
+            other => {
+                // Fallback: variant() returned a non-tagged value.
+                // Wrap everything in an untagged floor map so the
+                // wire payload is at least navigable.
+                OwnedValue::Map(vec![
+                    (edn_kw("message"), edn_str(&self.message())),
+                    (edn_kw("location"), self.location()),
+                    (edn_kw("causes"), self.causes()),
+                    (edn_kw("variant"), other),
+                ])
+            }
+        }
+    }
+}
+
 /// Identity implementation: an already-serialized [`OwnedValue`] is itself
 /// the EDN form.
 ///
@@ -115,46 +220,135 @@ pub(crate) fn push_span_field(
     }
 }
 
+/// The first line of a (possibly multi-line) message, trimmed of trailing
+/// whitespace.
+///
+/// The floor `:message` MUST be a single clean line: the multi-line detail
+/// (hints, actual/expected, remedy sections, migration blocks) lives in the
+/// structured variant fields, never re-rendered as text in `:message`. Each
+/// error family's `WatError::message()` passes its **span-free** kind Display
+/// through this helper so `:message` is a concise headline with no embedded
+/// `\n` and no `file:line` prefix (the location lives in `:location`).
+pub(crate) fn first_line(s: String) -> String {
+    match s.find('\n') {
+        Some(i) => s[..i].trim_end().to_string(),
+        None => s,
+    }
+}
+
+/// Build the `:location` value for a [`WatError`] impl.
+///
+/// Returns the span as `{:file "…" :line N :col N}` when it is known,
+/// or `nil` when the span is `Span::unknown()` (elide-when-unknown discipline,
+/// mirroring `push_span_field`). Call this in each `WatError::location()`
+/// impl for Pattern-A errors (span on the outer struct).
+pub(crate) fn location_from_span(span: &crate::span::Span) -> OwnedValue {
+    if span.is_unknown() {
+        OwnedValue::Nil
+    } else {
+        edn_span(span)
+    }
+}
+
+/// Strip the raw `:span` key from a tagged map's body.
+///
+/// Used by [`WatError::variant()`] impls: the floor owns `:location`; the
+/// variant must not also emit a raw `:span` key or the span appears under two
+/// keys on the wire. Call this on the result of the existing
+/// [`ToEdn::to_edn()`] impl:
+///
+/// ```text
+/// fn variant(&self) -> OwnedValue {
+///     crate::to_edn::strip_span_from_tagged(self.to_edn())
+/// }
+/// ```
+///
+/// If the value is not a `Tagged` or its body is not a `Map`, it is
+/// returned unchanged (no-op: nothing to strip).
+pub(crate) fn strip_span_from_tagged(val: OwnedValue) -> OwnedValue {
+    let span_kw = edn_kw("span");
+    match val {
+        OwnedValue::Tagged(tag, body) => {
+            let new_body = match *body {
+                OwnedValue::Map(fields) => {
+                    OwnedValue::Map(
+                        fields.into_iter().filter(|(k, _)| k != &span_kw).collect()
+                    )
+                }
+                other => other,
+            };
+            OwnedValue::Tagged(tag, Box::new(new_body))
+        }
+        other => other,
+    }
+}
+
 // ─── The wire boundary (the structural wall) ─────────────────────────────────
 
-/// Convert any error to its wire EDN text **through its [`ToEdn`] impl**.
+/// Convert any substrate error to its wire EDN text **through its [`WatError`]
+/// impl**, enforcing the `:wat::core::Error` floor.
 ///
 /// This is the single, named, generic conversion from an error to the text
-/// that crosses the process boundary (the `ProcessDiedError` payload) or the
-/// `--check-output` / structured-test stream. It is **generic over `ToEdn`**:
-/// a type that does not implement the trait is a COMPILE error here, so it has
-/// no path to the wire. This is the structural wall arc 296 promises —
-/// "serialize a non-EDN-able error" has no representable form, it is not merely
-/// "we currently happen to convert them all."
+/// that crosses the process boundary (the `ProcessDiedError` payload). It is
+/// **generic over [`WatError`]**: a type that does not implement the trait is a
+/// COMPILE error here, so it has no path to the wire. This is the structural
+/// wall arc 296 strike 2 promises — "serialize a floor-less error" has no
+/// representable form.
 ///
-/// A type with NO `ToEdn` impl cannot reach the boundary:
+/// Calling `e.error_edn()` (rather than `e.to_edn()`) ensures every wire
+/// payload carries `:message`, `:location`, and `:causes`, regardless of the
+/// specific error variant. The 11-key span heresy (`:span` appearing under
+/// different keys across families) is dead: the floor emits ONE `:location`
+/// and the variant() strips the raw `:span`.
+///
+/// ## The wall: only `WatError` reaches the boundary
+///
+/// A type implementing only [`ToEdn`] (NOT `WatError`) is a compile error:
+///
+/// ```compile_fail
+/// // ToEdn alone is insufficient — the floor requires WatError.
+/// struct FloorlessError;
+/// impl wat::to_edn::ToEdn for FloorlessError {
+///     fn to_edn(&self) -> wat_edn::OwnedValue { wat_edn::OwnedValue::Nil }
+/// }
+/// // ERROR[E0277]: the trait bound `FloorlessError: WatError` is not satisfied.
+/// let _: String = wat::to_edn::to_wire_edn(&FloorlessError);
+/// ```
+///
+/// A type implementing neither `ToEdn` nor `WatError` also fails:
 ///
 /// ```compile_fail
 /// struct NotSerializable;
-/// // ERROR[E0277]: `NotSerializable: ToEdn` is not satisfied.
+/// // ERROR[E0277]: `NotSerializable: WatError` is not satisfied.
 /// let _: String = wat::to_edn::to_wire_edn(&NotSerializable);
 /// ```
 ///
-/// A type that implements `ToEdn` passes:
+/// A real substrate error (implementing `WatError`) reaches the boundary:
 ///
 /// ```
-/// // `Span` implements `ToEdn`, so it reaches the boundary.
-/// let span = wat::span::Span::unknown();
-/// let _text: String = wat::to_edn::to_wire_edn(&span);
+/// use wat::value::{RuntimeError, RuntimeErrorKind};
+/// let err = RuntimeError {
+///     span: wat::span::Span::unknown(),
+///     kind: RuntimeErrorKind::UserMainMissing,
+/// };
+/// let _text: String = wat::to_edn::to_wire_edn(&err);
 /// ```
-pub fn to_wire_edn(e: &impl ToEdn) -> String {
-    wat_edn::write(&e.to_edn())
+pub fn to_wire_edn(e: &impl WatError) -> String {
+    wat_edn::write(&e.error_edn())
 }
 
-/// The honest [`ToEdn`] form for a genuinely message-only failure — a syscall
+/// The honest form for a genuinely message-only failure — a syscall
 /// error string, a `:user::main` return-type name. The string IS the datum
 /// (there is no span, no kind, no structured sub-fields to lose); this is NOT
 /// a stringified structured error.
 ///
-/// Serializes to `#wat.kernel/<tag> {:<key> "<message>"}`. Using this type
-/// (rather than passing a raw `String`) keeps the wire boundary generic over
-/// `ToEdn` — even flat messages travel as a `ToEdn` value, so the boundary
-/// never has to accept a bare `String`.
+/// Serializes to `#wat.kernel/<tag> {:message "…" :location nil :causes []
+/// :<key> "<message>"}`. `FlatMessage` implements [`WatError`] so it too
+/// crosses the wire boundary through the floor — even a flat OS-level failure
+/// carries `:message`/`:location`/`:causes`. It is NOT excluded from
+/// `WatError` (unlike the embedded sub-values `ValueSnapshot`, `Provenance`,
+/// `Span`, …): a `FlatMessage` IS a top-level error at the wire, not a
+/// sub-value inside another error's EDN.
 pub(crate) struct FlatMessage<'a> {
     pub tag: &'a str,
     pub key: &'a str,
@@ -169,3 +363,24 @@ impl ToEdn for FlatMessage<'_> {
         )
     }
 }
+
+impl WatError for FlatMessage<'_> {
+    fn message(&self) -> String {
+        first_line(self.message.to_owned())
+    }
+    /// A flat message has no recoverable source location.
+    fn location(&self) -> OwnedValue {
+        OwnedValue::Nil
+    }
+    fn causes(&self) -> OwnedValue {
+        OwnedValue::Vector(vec![])
+    }
+    /// The variant carries the raw `#wat.kernel/<tag> {:<key> "…"}` envelope.
+    /// When `key == "message"` the floor's own `:message` would collide;
+    /// `error_edn()` dedups the floor keys, so the single floor `:message`
+    /// wins and the wire map stays well-formed.
+    fn variant(&self) -> OwnedValue {
+        self.to_edn()
+    }
+}
+

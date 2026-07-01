@@ -359,11 +359,29 @@ fn variant_name(err: &RuntimeError) -> &'static str {
     }
 }
 
-// ─── ToEdn impls ─────────────────────────────────────────────────────────────
+// ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
 impl crate::to_edn::ToEdn for RuntimeError {
     fn to_edn(&self) -> OwnedValue {
         runtime_error_to_edn(self)
+    }
+}
+
+impl crate::to_edn::WatError for RuntimeError {
+    /// Concise single-line headline: the span-free kind Display's first line
+    /// (no `file:line` prefix — that lives in `:location`; no multi-line
+    /// actual/expected detail — that lives in the structured variant fields).
+    fn message(&self) -> String {
+        crate::to_edn::first_line(self.kind.to_string())
+    }
+    fn location(&self) -> OwnedValue {
+        crate::to_edn::location_from_span(&self.span)
+    }
+    fn causes(&self) -> OwnedValue {
+        OwnedValue::Vector(vec![])
+    }
+    fn variant(&self) -> OwnedValue {
+        crate::to_edn::strip_span_from_tagged(runtime_error_to_edn(self))
     }
 }
 

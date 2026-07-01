@@ -413,6 +413,24 @@ impl std::error::Error for StdlibError {}
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
+impl crate::to_edn::WatError for StdlibError {
+    /// Concise single-line headline: the span-free kind Display's first line
+    /// (the baked stdlib has no wat-source span, so `:location` is nil).
+    fn message(&self) -> String {
+        crate::to_edn::first_line(self.kind.to_string())
+    }
+    fn location(&self) -> wat_edn::OwnedValue {
+        crate::to_edn::location_from_span(&self.span)
+    }
+    fn causes(&self) -> wat_edn::OwnedValue {
+        wat_edn::OwnedValue::Vector(vec![])
+    }
+    fn variant(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::ToEdn;
+        crate::to_edn::strip_span_from_tagged(self.to_edn())
+    }
+}
+
 impl crate::to_edn::ToEdn for StdlibError {
     /// `#wat.kernel/ParseFailed {:path "…" :source "…" :span {…}}`.
     /// The `source` field carries the underlying parse-failure message: the

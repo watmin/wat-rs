@@ -302,6 +302,35 @@ impl std::error::Error for LoadError {}
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
+impl crate::to_edn::WatError for LoadError {
+    /// Concise single-line headline. The `Parse` / `VerificationFailed`
+    /// variants drop the embedded nested-error text (the nested `ParseError`
+    /// is now carried structurally under `:cause` in floor form; the
+    /// verification `HashError` is a foreign leaf message under `:cause`).
+    /// Every other variant uses the span-free kind Display's first line.
+    fn message(&self) -> String {
+        match &self.kind {
+            LoadErrorKind::Parse { path, .. } => {
+                format!("parse error in loaded file {}", path)
+            }
+            LoadErrorKind::VerificationFailed { path, .. } => {
+                format!("verification failed for {}", path)
+            }
+            _ => crate::to_edn::first_line(self.kind.to_string()),
+        }
+    }
+    fn location(&self) -> wat_edn::OwnedValue {
+        crate::to_edn::location_from_span(&self.span)
+    }
+    fn causes(&self) -> wat_edn::OwnedValue {
+        wat_edn::OwnedValue::Vector(vec![])
+    }
+    fn variant(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::ToEdn;
+        crate::to_edn::strip_span_from_tagged(self.to_edn())
+    }
+}
+
 impl crate::to_edn::ToEdn for LoadError {
     /// `#wat.kernel/<VariantName> {:span {…} <variant fields>}` — Pattern A:
     /// span at the outer struct; the nested `Parse` variant carries the
@@ -339,13 +368,20 @@ impl crate::to_edn::ToEdn for LoadError {
             LoadErrorKind::Fetch(e) => {
                 ("Fetch", vec![(edn_kw("cause"), edn_str(&e.to_string()))])
             }
-            LoadErrorKind::Parse { path, err } => (
-                "Parse",
-                vec![
-                    (edn_kw("path"), edn_str(path)),
-                    (edn_kw("cause"), err.to_edn()),
-                ],
-            ),
+            LoadErrorKind::Parse { path, err } => {
+                // Arc 296 strike 2 — RECURSIVE floor: the nested ParseError is
+                // embedded via its `WatError::error_edn()` (floor form:
+                // :message / :location / :causes, `:location` never `:span`),
+                // NOT its raw `to_edn()`.
+                use crate::to_edn::WatError;
+                (
+                    "Parse",
+                    vec![
+                        (edn_kw("path"), edn_str(path)),
+                        (edn_kw("cause"), err.error_edn()),
+                    ],
+                )
+            }
             LoadErrorKind::VerificationFailed { path, err } => (
                 "VerificationFailed",
                 vec![

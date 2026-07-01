@@ -306,6 +306,25 @@ impl fmt::Display for TypeError {
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
+impl crate::to_edn::WatError for TypeError {
+    /// Concise single-line headline: the span-free kind Display's first line
+    /// (no `file:line` prefix, no multi-line remedy sections — those live in
+    /// `:location` and the structured variant fields).
+    fn message(&self) -> String {
+        crate::to_edn::first_line(self.kind.to_string())
+    }
+    fn location(&self) -> wat_edn::OwnedValue {
+        crate::to_edn::location_from_span(&self.span)
+    }
+    fn causes(&self) -> wat_edn::OwnedValue {
+        wat_edn::OwnedValue::Vector(vec![])
+    }
+    fn variant(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::ToEdn;
+        crate::to_edn::strip_span_from_tagged(self.to_edn())
+    }
+}
+
 impl crate::to_edn::ToEdn for TypeError {
     /// `#wat.kernel/<VariantName> {:span {…} <variant fields>}` — Pattern A:
     /// the outer struct span is emitted as `:span` (elided when unknown);

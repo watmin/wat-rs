@@ -374,11 +374,29 @@ pub fn check_error_to_edn(err: &CheckError) -> OwnedValue {
     }
 }
 
-// ─── ToEdn impls ─────────────────────────────────────────────────────────────
+// ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
 impl crate::to_edn::ToEdn for CheckError {
     fn to_edn(&self) -> OwnedValue {
         check_error_to_edn(self)
+    }
+}
+
+impl crate::to_edn::WatError for CheckError {
+    /// Concise single-line headline: the span-free kind Display's first line
+    /// (no `file:line` prefix, no multi-line hint/remedy sections — those live
+    /// in `:location` and the structured variant fields).
+    fn message(&self) -> String {
+        crate::to_edn::first_line(self.kind.to_string())
+    }
+    fn location(&self) -> OwnedValue {
+        crate::to_edn::location_from_span(&self.span)
+    }
+    fn causes(&self) -> OwnedValue {
+        OwnedValue::Vector(vec![])
+    }
+    fn variant(&self) -> OwnedValue {
+        crate::to_edn::strip_span_from_tagged(check_error_to_edn(self))
     }
 }
 
@@ -389,6 +407,36 @@ impl crate::to_edn::ToEdn for super::error::CheckErrors {
     /// process-boundary IPC path and `--check-output` consumers read.
     fn to_edn(&self) -> OwnedValue {
         let items: Vec<OwnedValue> = self.0.iter().map(check_error_to_edn).collect();
+        tagged(
+            "CheckErrors",
+            OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]),
+        )
+    }
+}
+
+impl crate::to_edn::WatError for super::error::CheckErrors {
+    /// Concise COLLECTION summary — a count, NOT the concatenated multi-line
+    /// render of every item. Each item carries its own single-line `:message`
+    /// inside the recursively-floored `:errors` array, so re-rendering them
+    /// here would double-encode the exact content the floor already holds.
+    fn message(&self) -> String {
+        let n = self.0.len();
+        format!("{} type-check error{}", n, if n == 1 { "" } else { "s" })
+    }
+    /// `CheckErrors` is a collection; no single primary span exists at this
+    /// level. Individual `CheckError` items carry their own `:location`.
+    fn location(&self) -> OwnedValue {
+        OwnedValue::Nil
+    }
+    fn causes(&self) -> OwnedValue {
+        OwnedValue::Vector(vec![])
+    }
+    /// Arc 296 strike 2 — RECURSIVE floor: each `CheckError` in `:errors` is
+    /// embedded via its `WatError::error_edn()` (floor form: single-line
+    /// `:message`, `:location` never `:span`), NOT its raw `to_edn()`. The
+    /// collection envelope itself carries no top-level `:span`.
+    fn variant(&self) -> OwnedValue {
+        let items: Vec<OwnedValue> = self.0.iter().map(|e| e.error_edn()).collect();
         tagged(
             "CheckErrors",
             OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]),

@@ -45,16 +45,24 @@ pub fn macro_error_to_edn(err: &MacroError) -> OwnedValue {
             ))
         }
         MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause } => {
+            // Arc 296 strike 2 — RECURSIVE floor: the nested MacroError is
+            // embedded via its `WatError::error_edn()` (floor form: :message /
+            // :location / :causes, `:location` never `:span`), NOT its raw
+            // `to_edn()`. Every error at every depth carries the floor.
+            use crate::to_edn::WatError;
             tagged("ProgramBodyEvalFailed", OwnedValue::Map(vec![
                 (kw("macro-name"), str_val(macro_name)),
                 (kw("span"), span_val(span)),
-                (kw("cause"), macro_error_to_edn(cause)),
+                (kw("cause"), cause.error_edn()),
             ]))
         }
         MacroErrorKind::MacroEvalRuntimeFailed { cause } => {
+            // Arc 296 strike 2 — RECURSIVE floor: the nested RuntimeError is
+            // embedded via its `WatError::error_edn()`, not raw `to_edn()`.
+            use crate::to_edn::WatError;
             tagged("MacroEvalRuntimeFailed", map2(
                 kw("span"), span_val(span),
-                kw("cause"), crate::runtime_error_edn::runtime_error_to_edn(cause),
+                kw("cause"), cause.error_edn(),
             ))
         }
         MacroErrorKind::DuplicateMacro(name) => {
@@ -170,7 +178,7 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
     }
 }
 
-// ─── ToEdn impls ─────────────────────────────────────────────────────────────
+// ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
 impl crate::to_edn::ToEdn for MacroError {
     fn to_edn(&self) -> OwnedValue {
@@ -178,9 +186,113 @@ impl crate::to_edn::ToEdn for MacroError {
     }
 }
 
+impl crate::to_edn::WatError for MacroError {
+    /// Concise single-line headline. The two nested-cause variants drop the
+    /// embedded cause text (the cause is now carried structurally under
+    /// `:cause` in floor form); every other variant uses the span-free kind
+    /// Display's first line.
+    fn message(&self) -> String {
+        match &self.kind {
+            MacroErrorKind::ProgramBodyEvalFailed { macro_name, .. } => {
+                format!("macro {} — program body eval failed", macro_name)
+            }
+            MacroErrorKind::MacroEvalRuntimeFailed { .. } => {
+                "macro_eval: runtime::eval failed".to_string()
+            }
+            _ => crate::to_edn::first_line(self.kind.to_string()),
+        }
+    }
+    fn location(&self) -> OwnedValue {
+        crate::to_edn::location_from_span(&self.span)
+    }
+    fn causes(&self) -> OwnedValue {
+        OwnedValue::Vector(vec![])
+    }
+    fn variant(&self) -> OwnedValue {
+        crate::to_edn::strip_span_from_tagged(macro_error_to_edn(self))
+    }
+}
+
 impl crate::to_edn::ToEdn for crate::freeze::StartupError {
     fn to_edn(&self) -> OwnedValue {
         startup_error_to_edn(self)
+    }
+}
+
+impl crate::to_edn::WatError for crate::freeze::StartupError {
+    /// `StartupError` is a TRANSPARENT wrapper: its `WatError` methods delegate
+    /// to the inner error so `error_edn()` reconstructs the inner error's floor
+    /// form EXACTLY (inner tag, inner `:message`, inner `:location`, inner
+    /// `:causes`). The phase already lives in the inner error's tag
+    /// (`#wat.kernel/MacroError`, `#wat.kernel/CheckErrors`, …), so no outer
+    /// phase floor is layered on top (which would overwrite the inner
+    /// `:location` with `nil`). The only genuinely flat arm is `SigmaFn`.
+    fn message(&self) -> String {
+        use crate::freeze::StartupError as SE;
+        match self {
+            SE::Macro(e) => e.message(),
+            SE::Runtime(e) => e.message(),
+            SE::Parse(e) => e.message(),
+            SE::Config(e) => e.message(),
+            SE::Load(e) => e.message(),
+            SE::Type(e) => e.message(),
+            SE::Resolve(e) => e.message(),
+            SE::Check(e) => e.message(),
+            SE::Stdlib(e) => e.message(),
+            SE::SigmaFn(msg) => crate::to_edn::first_line(msg.clone()),
+        }
+    }
+    fn location(&self) -> OwnedValue {
+        use crate::freeze::StartupError as SE;
+        match self {
+            SE::Macro(e) => e.location(),
+            SE::Runtime(e) => e.location(),
+            SE::Parse(e) => e.location(),
+            SE::Config(e) => e.location(),
+            SE::Load(e) => e.location(),
+            SE::Type(e) => e.location(),
+            SE::Resolve(e) => e.location(),
+            SE::Check(e) => e.location(),
+            SE::Stdlib(e) => e.location(),
+            SE::SigmaFn(_) => OwnedValue::Nil,
+        }
+    }
+    fn causes(&self) -> OwnedValue {
+        use crate::freeze::StartupError as SE;
+        match self {
+            SE::Macro(e) => e.causes(),
+            SE::Runtime(e) => e.causes(),
+            SE::Parse(e) => e.causes(),
+            SE::Config(e) => e.causes(),
+            SE::Load(e) => e.causes(),
+            SE::Type(e) => e.causes(),
+            SE::Resolve(e) => e.causes(),
+            SE::Check(e) => e.causes(),
+            SE::Stdlib(e) => e.causes(),
+            SE::SigmaFn(_) => OwnedValue::Vector(vec![]),
+        }
+    }
+    /// Delegates to the inner error's `variant()` (its own tagged, span-stripped
+    /// map). `error_edn()` then composes the inner floor from the delegated
+    /// `message`/`location`/`causes`, so the result IS the inner error's
+    /// `error_edn()`. The `SigmaFn` arm carries a bare diagnostic string.
+    fn variant(&self) -> OwnedValue {
+        use crate::freeze::StartupError as SE;
+        match self {
+            SE::Macro(e) => e.variant(),
+            SE::Runtime(e) => e.variant(),
+            SE::Parse(e) => e.variant(),
+            SE::Config(e) => e.variant(),
+            SE::Load(e) => e.variant(),
+            SE::Type(e) => e.variant(),
+            SE::Resolve(e) => e.variant(),
+            SE::Check(e) => e.variant(),
+            SE::Stdlib(e) => e.variant(),
+            SE::SigmaFn(msg) => tagged(
+                "SigmaFnError",
+                OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
+            ),
+        }
     }
 }
 
