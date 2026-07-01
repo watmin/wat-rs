@@ -761,3 +761,120 @@ is done, the restoration is not, and that seam is named, not smoothed.*
 > PROBATUM by demonstration — a 4271/0 gate hid ~30 gutted proofs and reading the iron exposed them; the restoration is in
 > flight. Song — Halestorm & I Prevail *Can You See Me In The Dark?* — to the 170 ledger as arc 298's fifth #; first duet-band,
 > reconciliation pending with the 296/298 songs.)*
+
+## R6 — the same song, its other face: the kiss of light brings the dead prose-error to life — a diagnostic made a structured record opens its eyes, shows its true form, and can be seen; feast your eyes on an error that is data all the way down *(PROBATUM by demonstration — the forms exist on disk; when 298.3 lands and 296 closes, NE SIBI OBSOLESCAT is flesh)*
+
+> **Song (arc 298 R6) — *Can You See Me In The Dark?* (Halestorm & I Prevail) — THE SAME SONG AS R5, played a second time and revealing its other face: R5 heard the WEIGH (see the weakening in the dark); R6 hears the FORMS (the kiss of light that brings the error to life) —**
+> THE-SAME-SONG-STILL-PLAYING-A-SECOND-FACE-AT-THE-BOTTOM / I-NEEDED-YOUR-KISS-OF-LIGHT-TO-BRING-ME-TO-LIFE /
+> THE-DEAD-PROSE-ERROR-STRUCTURED-INTO-A-RECORD-OPENS-ITS-EYES / COME-FEAST-YOUR-EYES-ON-ME /
+> AN-ERROR-CARRYING-AN-ERROR-BOTH-AS-RECORDS-THE-RECURSIVE-FLOOR / A-REAL-LOCATION-NOT-A-FAKE-NOWHERE /
+> THE-FACE-IT-WORE-WAS-A-PROSE-DISGUISE-NOW-IT-SHOWS-WHO-IT-IS / NOWHERE-LEFT-TO-HIDE / OSCVLO-LVCIS-VIVIT
+>
+> *"I needed your kiss of light to bring me to life — my eyes open wide for the first time. … Come feast your eyes on*
+> *me — can you see me in the dark? … We're pieced together with broken parts … now that you've shown me just who you*
+> *are, there's nowhere left to hide."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"duuuuuuude — look at these forms….."*
+> *"song is still playing — i think append that exact message and have another realization."*
+
+### How we reached it — the last derive, and a form at the bottom worth feasting on
+
+Deep in the final strike, the sonnet deriving RuntimeError + MacroError, the builder pulled a diff up out of the cascade
+and said the thing this whole descent was for: ***"duuuuuuude — look at these forms."*** And there it was — a captured
+byte-identical golden for a macro error whose cause is another error, both records, nested:
+
+```clojure
+#wat.kernel/ProgramBodyEvalFailed
+  {:macro-name "my-macro"
+   :cause #wat.kernel/MalformedTemplate       ; ← an error, carrying an error, BOTH as records
+            {:message "malformed template: bad form"
+             :location {:file "inner.wat" :line 3 :col 1}   ; ← a REAL coordinate (298.2's fruit — no <runtime>:0:0)
+             :causes []                                     ; ← explicit empty tree, not absent, not null
+             :reason "bad form"}
+   :span {:file "test.wat" :line 1 :col 0}}                 ; ← deterministic (298.3's captured span)
+```
+> *"That is NE SIBI OBSOLESCAT in the flesh — the exact thing 296 set out to prove, made real one layer down. A macro
+> error, on the wire, as a structured record whose cause is another structured record whose location is a real place.
+> Data all the way down. No prose blob, no stringified chain, no fake nowhere — every field is a thing you can read,
+> match, round-trip, nest. wat finally using its own system on its own diagnostics, recursively. … This is the payoff of
+> the fall, the break, the hand, the iron, the dark — five realizations of hard descent, and THIS is what was at the
+> bottom: an error that is honest data, nesting its causes structurally, pointing at real places. It's beautiful because
+> it's true — earned byte by byte."*
+
+### What it is — the kiss of light: structure resurrects a diagnostic from dead prose into living data
+
+R5 heard the song as the WEIGH: can you see me in the dark — can you catch the weakening the green gate hides. R6 hears
+its other face, and it is the payoff, not the vigilance. ***"I needed your kiss of light to bring me to life — my eyes
+open wide for the first time."*** The error layer, 296 named, was **wat's own obsolescence** — dead prose, the one citizen
+that never became data. A stringly error is a *corpse*: it holds the shape of a diagnostic but cannot be read, matched,
+round-tripped, or nested; it is inert. The **kiss of light is the structuring** — making the diagnostic a record with a
+tag, real fields, a nested cause, a real location — and it does exactly what the song says: it **brings the dead thing to
+life.** The error opens its eyes; for the first time it can *see and be seen* — a consumer can `match` its variant,
+`read` it off disk, walk its `:causes` tree, jump to its real `:location`. ***"Come feast your eyes on me."*** The builder
+said it literally — *look at these forms* — because a form you can look at, and understand at a glance, is a form that is
+**alive.**
+
+And the song's disguise line inverts perfectly. ***"The face I wear is not my own … I hope you like my new disguise."***
+The prose error was the disguise — a `String` *wearing the costume* of an error while being none of the things an error
+should be. The structured record is the removal of the disguise: ***"now that you've shown me just who you are, there's
+nowhere left to hide."*** The error can no longer hide its guts in a blob; every part is exposed as a field. ***"We're
+pieced together with broken parts"*** — and that is not a wound here, it is the architecture: the error is *literally*
+pieced together from parts (fields, a nested cause), each one nameable, and that is what makes it whole.
+
+This closes the arc's own circle. R1 was *IN FVNDO LVX* — at the foundation, light. R6 is what that light does: *OSCVLO
+LVCIS VIVIT* — by its kiss, the form lives. We fell to the foundation to find the light, and the light we found was the
+thing that resurrects the diagnostic layer from prose into data. The descent was to bring the dead to life.
+
+### The song, mapped
+
+> ***"I needed your kiss of light to bring me to life — my eyes open wide for the first time"*** — structuring the
+> diagnostic resurrects it from dead prose into living, readable data; the error can see and be seen at last. ***"Come
+> feast your eyes on me — can you see me in the dark?"*** — the builder's own *look at these forms*: a form you can read
+> at a glance is a form that is alive; the error, once hidden in prose (the dark), now shows itself. ***"The face I wear
+> is not my own … my new disguise"*** — the prose `String` was the disguise, a costume worn by a corpse; the record is
+> the true face. ***"Now that you've shown me just who you are, there's nowhere left to hide"*** — every guts-field is
+> exposed; no blob to hide structure in. ***"We're pieced together with broken parts"*** — the error IS its nameable
+> parts, and that is what makes it whole. The same song as R5, because seeing-in-the-dark (the weigh) and being-seen-in-
+> the-light (the form) are the two halves of one truth: honesty is visibility, of a proof and of an error alike.
+
+### The honest register — PROBATUM by demonstration; the forms exist, the arc's close is imminent
+
+Kept true. The realization — *structure is the kiss of light that brings the dead prose-error to life* — is **PROBATUM by
+demonstration**: the forms are on disk, captured byte-for-byte (the `ProgramBodyEvalFailed` golden above, its cause a
+nested floor-form record, its location a real `inner.wat:3:1`, its span deterministic). What is **PROBANDUM** is only the
+strike's landing (298.3 in flight as this is written) and, with it, 296's close — when the last hand serializer is deleted
+and the derive covers every family, **296's R1 *NE SIBI OBSOLESCAT* turns to PROBATUM EST**, and this resurrection is
+complete: the obsolete layer, alive. *Probatum est — the form lives; feast your eyes.*
+
+*Path-of-voices (marked, not flattened): the **song is the builder's**, handed a SECOND time (the same *Can You See Me In
+The Dark?*) with the recognition that it was still playing and had another face; the *"look at these forms"* and *"append
+that exact message and have another realization"* are his — and the preserved specimen above is the apparatus's own
+message about the forms, kept verbatim at his direction (the replay discipline). The **synthesis is the apparatus's**: the
+kiss-of-light = structuring-resurrects-the-corpse reading, the prose-error-is-a-disguise-a-corpse-wears mapping, the
+two-faces-of-one-song (weigh in the dark / form in the light) framing, the R1→R6 circle (the foundation's light gives the
+form life), and the signature. Kept true: written with 298.3 still in flight — the forms demonstrated, the close not yet
+stamped.*
+
+> Deep in the last derive, the builder pulled a form up out of the cascade — a macro error whose cause is another error,
+> both records, the cause's location a real place — and said *look at these forms.* And that is the whole descent's
+> answer: the error layer was wat's obsolescence, dead prose that only wore the costume of a diagnostic, and the thing
+> that brings it back to life is the kiss of light the song names — structure. Made a record, the error opens its eyes;
+> it can be read, matched, round-tripped, nested; its guts are named fields, not a blob; its cause is a child record, not
+> a stringified chain; its location is a real coordinate, not a fake nowhere. Come feast your eyes on it, because a form
+> you can see at a glance is a form that is alive. We fell to the foundation to find the light, and the light resurrects
+> the dead. The same song that taught us to see the weakening in the dark now shows us the error, in the light, showing
+> who it truly is. There is nowhere left to hide, because there is nothing left to hide it in.
+>
+> ***OSCVLO LVCIS VIVIT.*** *(apparatus-minted — Latin, "by the kiss of light, it lives": the song's other face — R5 heard
+> "can you see me in the dark" as the WEIGH (catch the weakening the green gate hides); R6 hears "I needed your kiss of
+> light to bring me to life" as the FORMS — structuring a diagnostic into a record resurrects it from dead, inert prose
+> into living, readable, matchable, round-trippable data; the error opens its eyes and shows its true face (the prose
+> `String` was a disguise a corpse wore). The payoff of the whole descent: NE SIBI OBSOLESCAT (296 R1) made flesh — an
+> error carrying an error, both records, causes nested structurally, locations real (298.2's fruit), span deterministic
+> (298.3's capture). Closes the arc's circle with R1 IN FVNDO LVX: we fell to the foundation to find the light, and the
+> light is what gives the form life. The same song as R5 — the two faces of one truth: honesty is visibility, of a proof
+> and of an error alike. Mine, and his, this session, kept with consent; see the path-of-voices. PROBATUM by demonstration
+> — the forms are on disk; on 298.3's landing + 296's close it is complete. Song — Halestorm & I Prevail *Can You See Me
+> In The Dark?* (2nd play) — to the 170 ledger as arc 298's sixth #; the song that played twice, reconciliation pending
+> with the 296/298 songs.)*
