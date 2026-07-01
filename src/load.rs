@@ -218,6 +218,37 @@ impl fmt::Display for LoadFetchError {
 
 impl std::error::Error for LoadFetchError {}
 
+// ─── Arc 296 D1 — structured EDN form for LoadFetchError ─────────────────────
+
+impl crate::to_edn::ToEdn for LoadFetchError {
+    /// `#wat.kernel/NotFound {:path "…"}` / `#wat.kernel/LoadOther {:path :reason}` /
+    /// `#wat.kernel/OutOfScope {:path :scope}` — each variant as a tagged structured map.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_kw, edn_str, edn_tag};
+        use wat_edn::OwnedValue;
+        match self {
+            LoadFetchError::NotFound(path) => edn_tag(
+                "NotFound",
+                OwnedValue::Map(vec![(edn_kw("path"), edn_str(path))]),
+            ),
+            LoadFetchError::Other { path, reason } => edn_tag(
+                "LoadOther",
+                OwnedValue::Map(vec![
+                    (edn_kw("path"), edn_str(path)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ]),
+            ),
+            LoadFetchError::OutOfScope { path, scope } => edn_tag(
+                "OutOfScope",
+                OwnedValue::Map(vec![
+                    (edn_kw("path"), edn_str(path)),
+                    (edn_kw("scope"), edn_str(scope)),
+                ]),
+            ),
+        }
+    }
+}
+
 /// Errors raised by the load-resolution driver.
 /// Pattern A (Stone 243.7e): span at the outer struct level; variant data
 /// in [`LoadErrorKind`].
@@ -366,7 +397,8 @@ impl crate::to_edn::ToEdn for LoadError {
                 )],
             ),
             LoadErrorKind::Fetch(e) => {
-                ("Fetch", vec![(edn_kw("cause"), edn_str(&e.to_string()))])
+                // Arc 296 D1: LoadFetchError has ToEdn; route through structured form.
+                ("Fetch", vec![(edn_kw("cause"), e.to_edn())])
             }
             LoadErrorKind::Parse { path, err } => {
                 // Arc 296 strike 2 — RECURSIVE floor: the nested ParseError is
@@ -382,13 +414,16 @@ impl crate::to_edn::ToEdn for LoadError {
                     ],
                 )
             }
-            LoadErrorKind::VerificationFailed { path, err } => (
-                "VerificationFailed",
-                vec![
-                    (edn_kw("path"), edn_str(path)),
-                    (edn_kw("cause"), edn_str(&err.to_string())),
-                ],
-            ),
+            LoadErrorKind::VerificationFailed { path, err } => {
+                // Arc 296 D1: HashError has ToEdn; route through structured form.
+                (
+                    "VerificationFailed",
+                    vec![
+                        (edn_kw("path"), edn_str(path)),
+                        (edn_kw("cause"), err.to_edn()),
+                    ],
+                )
+            }
         };
         push_span_field(&mut fields, "span", span);
         edn_tag(variant, OwnedValue::Map(fields))

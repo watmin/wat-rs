@@ -520,6 +520,71 @@ impl fmt::Display for HashError {
 
 impl std::error::Error for HashError {}
 
+// ─── Arc 296 D1 — structured EDN form for HashError ──────────────────────────
+
+impl crate::to_edn::ToEdn for HashError {
+    /// `#wat.kernel/<Variant> {…}` per variant.
+    ///
+    /// String fields → `str_val`; `usize` fields → `int_val` (cast to i64).
+    /// `&'static str` fields (`field` on `InvalidBase64`) → `str_val` identically.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_int, edn_kw, edn_str, edn_tag};
+        use wat_edn::OwnedValue;
+        match self {
+            HashError::UnsupportedAlgorithm { algo } => edn_tag(
+                "UnsupportedAlgorithm",
+                OwnedValue::Map(vec![(edn_kw("algo"), edn_str(algo))]),
+            ),
+            HashError::Mismatch { algo, expected, actual } => edn_tag(
+                "Mismatch",
+                OwnedValue::Map(vec![
+                    (edn_kw("algo"), edn_str(algo)),
+                    (edn_kw("expected"), edn_str(expected)),
+                    (edn_kw("actual"), edn_str(actual)),
+                ]),
+            ),
+            HashError::UnsupportedSignatureAlgorithm { algo } => edn_tag(
+                "UnsupportedSignatureAlgorithm",
+                OwnedValue::Map(vec![(edn_kw("algo"), edn_str(algo))]),
+            ),
+            HashError::InvalidBase64 { field, reason } => edn_tag(
+                "InvalidBase64",
+                OwnedValue::Map(vec![
+                    (edn_kw("field"), edn_str(field)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ]),
+            ),
+            HashError::InvalidSignatureLength { algo, expected, got } => edn_tag(
+                "InvalidSignatureLength",
+                OwnedValue::Map(vec![
+                    (edn_kw("algo"), edn_str(algo)),
+                    (edn_kw("expected"), edn_int(*expected as i64)),
+                    (edn_kw("got"), edn_int(*got as i64)),
+                ]),
+            ),
+            HashError::InvalidPubKeyLength { algo, expected, got } => edn_tag(
+                "InvalidPubKeyLength",
+                OwnedValue::Map(vec![
+                    (edn_kw("algo"), edn_str(algo)),
+                    (edn_kw("expected"), edn_int(*expected as i64)),
+                    (edn_kw("got"), edn_int(*got as i64)),
+                ]),
+            ),
+            HashError::InvalidPubKey { algo, reason } => edn_tag(
+                "InvalidPubKey",
+                OwnedValue::Map(vec![
+                    (edn_kw("algo"), edn_str(algo)),
+                    (edn_kw("reason"), edn_str(reason)),
+                ]),
+            ),
+            HashError::SignatureMismatch { algo } => edn_tag(
+                "SignatureMismatch",
+                OwnedValue::Map(vec![(edn_kw("algo"), edn_str(algo))]),
+            ),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

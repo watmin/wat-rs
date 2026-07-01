@@ -365,17 +365,13 @@ impl crate::to_edn::ToEdn for TypeError {
                 reason,
                 remedies,
             } => {
-                let mut f = vec![
+                // Arc 296 D1: remedies travel as a structured Vector, never a prose blob.
+                let f = vec![
                     (edn_kw("enum-name"), edn_str(enum_name)),
                     (edn_kw("offending"), edn_str(offending)),
                     (edn_kw("reason"), edn_str(reason)),
+                    (edn_kw("remedies"), crate::remedy::remedies_to_edn(remedies)),
                 ];
-                if !remedies.is_empty() {
-                    f.push((
-                        edn_kw("remedies"),
-                        edn_str(&crate::remedy::render_remedies(remedies)),
-                    ));
-                }
                 ("MalformedVariant", f)
             }
             TypeErrorKind::MalformedTypeExpr { raw, reason } => (

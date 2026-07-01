@@ -76,10 +76,8 @@ pub fn check_error_to_edn(err: &CheckError) -> OwnedValue {
             if let Some(hint) = super::collect_hints(function, expected, got) {
                 fields.push((kw("hint"), str_val(&hint)));
             }
-            let remedy_text = crate::remedy::render_remedies(remedies);
-            if !remedy_text.is_empty() {
-                fields.push((kw("remedies"), str_val(&remedy_text)));
-            }
+            // Arc 296 D1: remedies travel as a structured Vector, never a prose blob.
+            fields.push((kw("remedies"), crate::remedy::remedies_to_edn(remedies)));
             push_span(&mut fields, "span", span);
             tagged("ReturnTypeMismatch", OwnedValue::Map(fields))
         }
@@ -95,10 +93,8 @@ pub fn check_error_to_edn(err: &CheckError) -> OwnedValue {
                 (kw("head"), str_val(head)),
                 (kw("reason"), str_val(reason)),
             ];
-            let remedy_text = crate::remedy::render_remedies(remedies);
-            if !remedy_text.is_empty() {
-                fields.push((kw("remedies"), str_val(&remedy_text)));
-            }
+            // Arc 296 D1: remedies travel as a structured Vector, never a prose blob.
+            fields.push((kw("remedies"), crate::remedy::remedies_to_edn(remedies)));
             push_span(&mut fields, "span", span);
             tagged("MalformedForm", OwnedValue::Map(fields))
         }
@@ -318,10 +314,12 @@ pub fn check_error_to_edn(err: &CheckError) -> OwnedValue {
         }
 
         CheckErrorKind::DefRestrictedCallerNotAllowed { callee, enclosing_fn, prefixes } => {
+            // Arc 296 D1: prefixes travel as a Vector, never a space-joined prose blob.
+            let prefixes_edn = OwnedValue::Vector(prefixes.iter().map(|s| str_val(s)).collect());
             let mut fields = vec![
                 (kw("callee"), str_val(callee)),
                 (kw("enclosing-fn"), str_val(enclosing_fn)),
-                (kw("prefixes"), str_val(&prefixes.join(" "))),
+                (kw("prefixes"), prefixes_edn),
             ];
             push_span(&mut fields, "location", span);
             tagged("DefRestrictedCallerNotAllowed", OwnedValue::Map(fields))
@@ -331,12 +329,29 @@ pub fn check_error_to_edn(err: &CheckError) -> OwnedValue {
             name,
             called_arity,
             called_arg_types,
-            attempted_clauses: _,
+            attempted_clauses,
         } => {
+            // Arc 296 D1: called-arg-types → Vector; attempted-clauses no longer dropped.
+            let called_arg_types_edn = OwnedValue::Vector(
+                called_arg_types.iter().map(|s| str_val(s)).collect(),
+            );
+            // Each element is (arity: usize, param_types: Vec<String>).
+            // Mirrors runtime's clause_attempt_to_edn shape: {:arity N :param-types [str …]}.
+            let attempted_clauses_edn = OwnedValue::Vector(
+                attempted_clauses.iter().map(|(arity, param_types)| {
+                    OwnedValue::Map(vec![
+                        (kw("arity"), OwnedValue::Integer(*arity as i64)),
+                        (kw("param-types"), OwnedValue::Vector(
+                            param_types.iter().map(|s| str_val(s)).collect(),
+                        )),
+                    ])
+                }).collect(),
+            );
             let mut fields = vec![
                 (kw("name"), str_val(name)),
                 (kw("called-arity"), int_val(*called_arity)),
-                (kw("called-arg-types"), str_val(&called_arg_types.join(", "))),
+                (kw("called-arg-types"), called_arg_types_edn),
+                (kw("attempted-clauses"), attempted_clauses_edn),
             ];
             push_span(&mut fields, "span", span);
             tagged("NoMatchingClauseAtCallSite", OwnedValue::Map(fields))

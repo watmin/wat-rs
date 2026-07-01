@@ -133,9 +133,10 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
         }
         RuntimeErrorKind::EvalVerificationFailed { err } => {
             // Freeze pair: span is Span::unknown(); elide from EDN.
-            // Lazy fallback: HashError rendered as Display string.
+            // Arc 296 D1: HashError has ToEdn; route through structured form.
+            use crate::to_edn::ToEdn;
             tagged("EvalVerificationFailed", map1(
-                kw("error"), str_val(&format!("{}", err)),
+                kw("error"), err.to_edn(),
             ))
         }
         RuntimeErrorKind::ChannelDisconnected { op } => {
@@ -212,11 +213,15 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
             ))
         }
         RuntimeErrorKind::EdnCoerceMismatch { op, expected, got, path } => {
+            // Arc 296 D1 (L2): path is dot-notation; split into Vector of segments.
+            let path_edn = OwnedValue::Vector(
+                path.split('.').filter(|s| !s.is_empty()).map(|s| str_val(s)).collect(),
+            );
             tagged("EdnCoerceMismatch", OwnedValue::Map(vec![
                 (kw("op"), str_val(op)),
                 (kw("expected"), str_val(expected)),
                 (kw("got"), str_val(got)),
-                (kw("path"), str_val(path)),
+                (kw("path"), path_edn),
                 (kw("span"), span_val(span)),
             ]))
         }

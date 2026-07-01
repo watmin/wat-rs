@@ -132,6 +132,47 @@ impl Ord for Remedy {
     }
 }
 
+// ─── Arc 296 D1 — structured EDN form ────────────────────────────────────────
+//
+// `Remedy` gets a `ToEdn` impl so error serializers can embed remedies as a
+// structured `Vector` of tagged maps rather than a `render_remedies()` prose blob.
+
+impl crate::to_edn::ToEdn for Remedy {
+    /// `#wat.kernel/Remedy {:form "…" :kind :typo|:retirement :score N :note "…"|nil}`
+    ///
+    /// `:kind` is a keyword (`:typo` or `:retirement`) derived from `RemedyKind`.
+    /// `:score` is the integer Levenshtein distance (0 for retirement hits).
+    /// `:note` is the migration caveat string, or `nil` when `None`.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::to_edn::{edn_int, edn_kw, edn_str, edn_tag};
+        use wat_edn::OwnedValue;
+        let kind_kw = match self.kind {
+            RemedyKind::Typo(_) => edn_kw("typo"),
+            RemedyKind::Retirement => edn_kw("retirement"),
+        };
+        let note_val = match &self.note {
+            Some(n) => edn_str(n),
+            None => OwnedValue::Nil,
+        };
+        edn_tag("Remedy", OwnedValue::Map(vec![
+            (edn_kw("form"), edn_str(&self.form)),
+            (edn_kw("kind"), kind_kw),
+            (edn_kw("score"), edn_int(self.score() as i64)),
+            (edn_kw("note"), note_val),
+        ]))
+    }
+}
+
+/// Serialize a slice of remedies as a `Vector` of `#wat.kernel/Remedy` tagged maps.
+///
+/// Returns an empty `Vector` (`[]`) for an empty slice so the EDN field is always
+/// structurally consistent — never a String, never absent. Used by the serializers
+/// for `ReturnTypeMismatch`, `MalformedForm`, and `MalformedVariant`.
+pub(crate) fn remedies_to_edn(remedies: &[Remedy]) -> wat_edn::OwnedValue {
+    use crate::to_edn::ToEdn;
+    wat_edn::OwnedValue::Vector(remedies.iter().map(|r| r.to_edn()).collect())
+}
+
 // ─── Display ─────────────────────────────────────────────────────────────────
 //
 // The Display impl renders a list of remedies as the "did you mean" section
@@ -457,6 +498,131 @@ mod tests {
             rendered.contains(" — migrate the ctor restriction"),
             "multi-remedy render must include note suffix on the noted entry; got: {rendered:?}"
         );
+    }
+
+    // ─── Arc 296 D1 — ToEdn impl + remedies_to_edn ──────────────────────
+
+    #[test]
+    fn remedy_to_edn_typo_is_wat_kernel_remedy_tagged() {
+        use crate::to_edn::ToEdn;
+        let r = Remedy {
+            form: ":my::Status::Ok".into(),
+            kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()),
+            note: None,
+        };
+        let edn = r.to_edn();
+        let s = wat_edn::write(&edn);
+        eprintln!("=== remedy_to_edn_typo: {}", s);
+        assert!(
+            s.starts_with("#wat.kernel/Remedy"),
+            "Remedy.to_edn() must produce #wat.kernel/Remedy; got: {}",
+            s
+        );
+        assert!(s.contains(":form"), "must contain :form; got: {}", s);
+        assert!(s.contains(":kind"), "must contain :kind; got: {}", s);
+        assert!(s.contains(":score"), "must contain :score; got: {}", s);
+        assert!(s.contains(":note"), "must contain :note; got: {}", s);
+        // :kind must be the keyword :typo (not a String).
+        assert!(
+            s.contains(":kind :typo"),
+            "typo remedy must have :kind :typo; got: {}",
+            s
+        );
+        // :score must be 1 for distance-1 typo.
+        assert!(s.contains(":score 1"), "typo distance-1 remedy must have :score 1; got: {}", s);
+        // :note must be nil when None.
+        assert!(s.contains(":note nil"), ":note must be nil when None; got: {}", s);
+        // Must be valid EDN.
+        wat_edn::parse_owned(&s).expect("must be valid EDN");
+    }
+
+    #[test]
+    fn remedy_to_edn_retirement_kind_is_keyword() {
+        use crate::to_edn::ToEdn;
+        let r = Remedy {
+            form: ":wat::core::defstruct".into(),
+            kind: RemedyKind::Retirement,
+            note: None,
+        };
+        let edn = r.to_edn();
+        let s = wat_edn::write(&edn);
+        eprintln!("=== remedy_to_edn_retirement: {}", s);
+        assert!(
+            s.contains(":kind :retirement"),
+            "retirement remedy must have :kind :retirement; got: {}",
+            s
+        );
+        // Score must be 0 for retirement (exact table hit).
+        assert!(s.contains(":score 0"), "retirement remedy must have :score 0; got: {}", s);
+    }
+
+    #[test]
+    fn remedy_to_edn_note_some_is_string() {
+        use crate::to_edn::ToEdn;
+        let r = Remedy {
+            form: ":wat::core::defstruct".into(),
+            kind: RemedyKind::Retirement,
+            note: Some("update ctor restrictions".into()),
+        };
+        let edn = r.to_edn();
+        let s = wat_edn::write(&edn);
+        eprintln!("=== remedy_to_edn_note_some: {}", s);
+        // :note must be a String containing the note text.
+        assert!(
+            s.contains("update ctor restrictions"),
+            ":note must include the note text; got: {}",
+            s
+        );
+        // Must NOT be nil when Some.
+        assert!(!s.contains(":note nil"), ":note must not be nil when Some; got: {}", s);
+    }
+
+    #[test]
+    fn remedies_to_edn_empty_slice_is_empty_vector() {
+        let edn = remedies_to_edn(&[]);
+        assert!(
+            matches!(edn, wat_edn::OwnedValue::Vector(ref v) if v.is_empty()),
+            "remedies_to_edn([]) must be an empty Vector; got: {:?}",
+            edn
+        );
+    }
+
+    #[test]
+    fn remedies_to_edn_nonempty_produces_tagged_remedy_items() {
+        let remedies = vec![
+            Remedy {
+                form: ":my::Status::Ok".into(),
+                kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()),
+                note: None,
+            },
+            Remedy {
+                form: ":my::Status::Okay".into(),
+                kind: RemedyKind::Typo(std::num::NonZeroU32::new(2).unwrap()),
+                note: None,
+            },
+        ];
+        let edn = remedies_to_edn(&remedies);
+        let s = wat_edn::write(&edn);
+        eprintln!("=== remedies_to_edn_nonempty: {}", s);
+        // Must be a Vector.
+        assert!(
+            matches!(edn, wat_edn::OwnedValue::Vector(ref v) if v.len() == 2),
+            "remedies_to_edn must be a Vector with 2 items; got: {:?}",
+            edn
+        );
+        // Each item must be tagged #wat.kernel/Remedy.
+        assert!(
+            s.contains("#wat.kernel/Remedy"),
+            "each item must be tagged #wat.kernel/Remedy; got: {}",
+            s
+        );
+        // Must NOT contain prose "did you mean" from render_remedies.
+        assert!(
+            !s.contains("did you mean"),
+            "remedies_to_edn must NOT produce prose; got: {}",
+            s
+        );
+        wat_edn::parse_owned(&s).expect("must be valid EDN");
     }
 
 }
