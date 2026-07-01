@@ -15879,6 +15879,19 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::kernel::here — arc 296. Returns the source coordinate of the
+    // `(here)` form itself as a `:wat::kernel::Location` record
+    // `{file, line, col}`. Nullary: [] -> :wat::kernel::Location.
+    env.register(
+        ":wat::kernel::here".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::kernel::Location".into()),
+            rest_param_type: None,
+        },
+    );
+
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64` namespace. Stone 237.8b — drop '2 suffix;
     // per-Type binary primitives are strictly 2-ary Rust intrinsics;

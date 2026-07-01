@@ -4930,6 +4930,8 @@ fn dispatch_keyword_head_value(
             crate::assertion::eval_kernel_assertion_failed(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::kernel::raise!" => eval_kernel_raise(args, list_span, env, sym),
+        // Arc 296 — returns the source coordinate of the `(here)` form itself.
+        ":wat::kernel::here" => eval_kernel_here(args, list_span),
         ":wat::kernel::make-channel" => eval_make_channel(args, list_span),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args, list_span).map_err(Into::into),
         ":wat::kernel::spawn-process" => {
@@ -11913,6 +11915,27 @@ fn eval_kernel_raise(
         thread_name: std::thread::current().name().map(String::from),
     };
     std::panic::panic_any(payload);
+}
+
+/// `(:wat::kernel::here) -> :wat::kernel::Location` — arc 296.
+///
+/// Returns the source coordinate of the `(here)` form itself —
+/// the `list_span` of the call site — as a `:wat::kernel::Location`
+/// record `{file, line, col}`. Arity 0; any arguments are an error.
+fn eval_kernel_here(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::here";
+    if !args.is_empty() {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 0,
+                got: args.len(),
+            },
+        }
+        .into());
+    }
+    Ok(value_from_span(list_span.clone()))
 }
 
 /// `(:wat::core::struct-new <type-name-keyword> <v1> <v2> ...)` — the
