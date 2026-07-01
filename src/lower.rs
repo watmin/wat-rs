@@ -174,7 +174,7 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
 /// keyword.
 fn lower_call(items: &[WatAST]) -> Result<HolonAST, LowerError> {
     // arc 138: no span — empty list has no head element; no AST node to read span from
-    let head = items.first().ok_or(LowerError { span: Span::unknown(), kind: LowerErrorKind::MalformedCall })?;
+    let head = items.first().ok_or(LowerError { span: crate::rust_caller_span!(), kind: LowerErrorKind::MalformedCall })?;
     let head_name = match head {
         // Pattern D — head keyword span
         WatAST::Keyword(k, head_span) => {

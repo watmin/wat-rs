@@ -86,7 +86,7 @@ impl std::error::Error for WatEdnBridgeError {}
 ///   programs shipped over the wire (freeze re-derives scopes from source
 ///   position, not from the AST's scope sets).
 /// - `Span` is not preserved (EDN carries no source location). On decode,
-///   `Span::unknown()` is used throughout; `startup_from_forms` / `freeze`
+///   `crate::rust_caller_span!()` is used throughout; `startup_from_forms` / `freeze`
 ///   re-derives what it needs from the semantic structure, not the span.
 pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
     match a {
@@ -127,23 +127,23 @@ pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
 /// no WatAST counterpart: `Tagged`, `Inst`, `Uuid`, `Char`, `BigInt`,
 /// `BigDec`, or a namespaced `Symbol`.
 ///
-/// Span is not preserved — all reconstructed nodes carry `Span::unknown()`.
+/// Span is not preserved — all reconstructed nodes carry `crate::rust_caller_span!()`.
 /// `startup_from_forms` and the freeze pipeline work correctly with unknown
 /// spans; type-check and resolution operate on the semantic structure.
 pub fn edn_to_watast(v: &OwnedValue) -> Result<WatAST, WatEdnBridgeError> {
     use wat_edn::Value as Edn;
     match v {
-        Edn::Nil => Ok(WatAST::NilLit(Span::unknown())),
-        Edn::Bool(b) => Ok(WatAST::BoolLit(*b, Span::unknown())),
-        Edn::Integer(n) => Ok(WatAST::IntLit(*n, Span::unknown())),
-        Edn::Float(x) => Ok(WatAST::FloatLit(*x, Span::unknown())),
-        Edn::String(s) => Ok(WatAST::StringLit(s.as_ref().to_owned(), Span::unknown())),
+        Edn::Nil => Ok(WatAST::NilLit(crate::rust_caller_span!())),
+        Edn::Bool(b) => Ok(WatAST::BoolLit(*b, crate::rust_caller_span!())),
+        Edn::Integer(n) => Ok(WatAST::IntLit(*n, crate::rust_caller_span!())),
+        Edn::Float(x) => Ok(WatAST::FloatLit(*x, crate::rust_caller_span!())),
+        Edn::String(s) => Ok(WatAST::StringLit(s.as_ref().to_owned(), crate::rust_caller_span!())),
         Edn::Keyword(kw) => {
             let path = match kw.namespace() {
                 Some(ns) => ns_to_wat_path(ns, kw.name()),
                 None => format!(":{}", kw.name()),
             };
-            Ok(WatAST::Keyword(path, Span::unknown()))
+            Ok(WatAST::Keyword(path, crate::rust_caller_span!()))
         }
         Edn::Symbol(sym) => {
             if sym.namespace().is_some() {
@@ -155,27 +155,27 @@ pub fn edn_to_watast(v: &OwnedValue) -> Result<WatAST, WatEdnBridgeError> {
             }
             Ok(WatAST::Symbol(
                 Identifier::bare(sym.name()),
-                Span::unknown(),
+                crate::rust_caller_span!(),
             ))
         }
         Edn::List(items) => {
             let nodes: Result<Vec<WatAST>, _> = items.iter().map(edn_to_watast).collect();
-            Ok(WatAST::List(nodes?, Span::unknown()))
+            Ok(WatAST::List(nodes?, crate::rust_caller_span!()))
         }
         Edn::Vector(items) => {
             let nodes: Result<Vec<WatAST>, _> = items.iter().map(edn_to_watast).collect();
-            Ok(WatAST::Vector(nodes?, Span::unknown()))
+            Ok(WatAST::Vector(nodes?, crate::rust_caller_span!()))
         }
         Edn::Map(pairs) => {
             let mut out: Vec<(WatAST, WatAST)> = Vec::with_capacity(pairs.len());
             for (k, val) in pairs {
                 out.push((edn_to_watast(k)?, edn_to_watast(val)?));
             }
-            Ok(WatAST::Map(out, Span::unknown()))
+            Ok(WatAST::Map(out, crate::rust_caller_span!()))
         }
         Edn::Set(items) => {
             let nodes: Result<Vec<WatAST>, _> = items.iter().map(edn_to_watast).collect();
-            Ok(WatAST::Set(nodes?, Span::unknown()))
+            Ok(WatAST::Set(nodes?, crate::rust_caller_span!()))
         }
         // EDN forms with no WatAST counterpart — STOP trigger: if a real
         // program AST actually contains these, the mapping is incomplete.

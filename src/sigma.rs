@@ -78,7 +78,7 @@ impl fmt::Debug for WatFnSigmaFn {
 impl SigmaFn for WatFnSigmaFn {
     fn sigma_at(&self, d: usize, sym: &SymbolTable) -> i64 {
         let arg = Value::i64(d as i64);
-        let call_span = Span::unknown();
+        let call_span = crate::rust_caller_span!();
         let result = apply_function(Arc::clone(&self.func), vec![arg], sym, call_span);
         match result {
             Ok(Value::i64(n)) if n >= 1 => n,

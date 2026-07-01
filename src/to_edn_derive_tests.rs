@@ -68,7 +68,7 @@ fn toy_hints(a: &String, b: &String) -> Option<Vec<String>> {
 /// A. `key` rename on a Span field.
 ///
 /// The `span` field's default key would be `:span`; the annotation overrides
-/// it to `:call-span`. Span elide-when-unknown discipline still applies.
+/// it to `:call-span`. Arc 298.2: always emitted (no sentinel elision).
 #[derive(wat_macros::ToEdn)]
 enum KeyRenameTest {
     WithCallSpan {
@@ -117,12 +117,12 @@ enum ViaVariantTest {
     Pair { a: String, b: String },
 }
 
-/// E. Primary + secondary Span fields with independent elide.
+/// E. Primary + secondary Span fields — always emitted (arc 298.2).
 ///
 /// `span` uses the default key `:span`. `outer_define_span` has a key override
 /// `#[to_edn(key = "outer-span")]` so the EDN key is `:outer-span` instead of
-/// the snake→kebab default `:outer-define-span`. Both fields obey the
-/// elide-when-unknown discipline independently.
+/// the snake→kebab default `:outer-define-span`. Both fields are always emitted
+/// since `rust_caller_span!()` is a real Rust location (sentinel retired).
 #[derive(wat_macros::ToEdn)]
 enum MultiSpanTest {
     Def {
@@ -155,15 +155,21 @@ fn key_rename_span_known_emits_renamed_key() {
     );
 }
 
-/// Unknown span is elided entirely (`:call-span` key does not appear).
+/// Arc 298.2: `rust_caller_span!()` IS emitted under the renamed `:call-span` key.
+/// The sentinel-elide-when-unknown discipline is retired; every span is real.
 #[test]
-fn key_rename_span_unknown_elides() {
+fn key_rename_span_rust_caller_emits_renamed_key() {
     let e = KeyRenameTest::WithCallSpan {
-        span: Span::unknown(),
+        span: crate::rust_caller_span!(),
         name: "foo".to_owned(),
     };
     let edn = wat_edn::write(&e.to_edn());
-    assert_eq!(edn, r#"#wat.kernel/WithCallSpan {:name "foo"}"#);
+    // Renamed key must appear.
+    assert!(edn.contains(":call-span"), ":call-span must be emitted; got: {}", edn);
+    // File must be a real Rust source path.
+    assert!(edn.contains("\"wat-rs/src/"), ":call-span file must be real Rust path; got: {}", edn);
+    // The non-span field must still appear.
+    assert!(edn.contains(r#":name "foo""#), ":name must be present; got: {}", edn);
 }
 
 // ── B. Field-level `via` ──────────────────────────────────────────────────────
@@ -255,31 +261,41 @@ fn secondary_span_both_known_key_override_applied() {
     );
 }
 
-/// Primary span unknown: `:span` elided; secondary `:outer-span` still emits.
+/// Arc 298.2: both spans always emitted. Primary is `rust_caller_span!()` (real
+/// Rust location); secondary is a known wat span. Both keys appear.
 #[test]
-fn secondary_span_primary_unknown_secondary_known() {
+fn secondary_span_primary_rust_caller_secondary_known() {
     let e = MultiSpanTest::Def {
-        span: Span::unknown(),
+        span: crate::rust_caller_span!(),
         outer_define_span: known_span("b.wat", 2, 3),
         name: "def".to_owned(),
     };
     let edn = wat_edn::write(&e.to_edn());
-    assert_eq!(
-        edn,
-        r#"#wat.kernel/Def {:outer-span {:file "b.wat" :line 2 :col 3} :name "def"}"#,
-    );
+    // Primary span must appear with a real Rust path.
+    assert!(edn.contains(":span"), "primary :span must be emitted; got: {}", edn);
+    assert!(edn.contains("\"wat-rs/src/"), "primary :span must be real Rust path; got: {}", edn);
+    // Secondary span must appear with the known wat location.
+    assert!(edn.contains(r#":outer-span {:file "b.wat" :line 2 :col 3}"#), ":outer-span must emit known span; got: {}", edn);
+    // Non-span field must appear.
+    assert!(edn.contains(r#":name "def""#), ":name must be present; got: {}", edn);
 }
 
-/// Both spans unknown: both keys elided; only `:name` remains.
+/// Arc 298.2: both `rust_caller_span!()` values are real Rust locations —
+/// both `:span` and `:outer-span` ARE emitted (sentinel-elide retired).
 #[test]
-fn secondary_span_both_unknown_both_elide() {
+fn secondary_span_both_rust_caller_both_emit() {
     let e = MultiSpanTest::Def {
-        span: Span::unknown(),
-        outer_define_span: Span::unknown(),
+        span: crate::rust_caller_span!(),
+        outer_define_span: crate::rust_caller_span!(),
         name: "def".to_owned(),
     };
     let edn = wat_edn::write(&e.to_edn());
-    assert_eq!(edn, r#"#wat.kernel/Def {:name "def"}"#);
+    // Both span keys must appear with real Rust file paths.
+    assert!(edn.contains(":span"), "primary :span must be emitted; got: {}", edn);
+    assert!(edn.contains(":outer-span"), ":outer-span must be emitted; got: {}", edn);
+    assert!(edn.matches("\"wat-rs/src/").count() >= 2, "both spans must have real Rust paths; got: {}", edn);
+    // Non-span field must appear.
+    assert!(edn.contains(r#":name "def""#), ":name must be present; got: {}", edn);
 }
 
 // ── F. Single-field tuple variant (Strike 3b) ─────────────────────────────────

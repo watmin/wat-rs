@@ -98,13 +98,13 @@ fn pipe_channel_round_trips_i64() {
         unwrap_sender_inner(&tx),
         Value::i64(42),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
 
     let got = assert_recv_value(typed_recv(
         unwrap_receiver_inner(&rx),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     match got {
         Value::i64(n) => assert_eq!(n, 42),
@@ -122,12 +122,12 @@ fn pipe_channel_round_trips_f64() {
         unwrap_sender_inner(&tx),
         Value::f64(3.14159),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     let got = assert_recv_value(typed_recv(
         unwrap_receiver_inner(&rx),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     match got {
         Value::f64(x) => assert!((x - 3.14159).abs() < 1e-9),
@@ -151,10 +151,10 @@ fn pipe_channel_round_trips_bool_string_keyword_unit() {
         Value::Unit,
     ];
     for v in &inputs {
-        assert_sent(typed_send(sender, v.clone(), types, Span::unknown()));
+        assert_sent(typed_send(sender, v.clone(), types, wat::rust_caller_span!()));
     }
     for expected in &inputs {
-        let got = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+        let got = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
         // Compare via Display — Value has no Eq for some arms.
         match (expected, &got) {
             (Value::bool(a), Value::bool(b)) => assert_eq!(a, b),
@@ -187,11 +187,11 @@ fn pipe_channel_streams_multiple_values_in_order() {
             sender,
             Value::i64(i),
             types,
-            Span::unknown(),
+            wat::rust_caller_span!(),
         ));
     }
     for i in 0..n {
-        let got = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+        let got = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
         match got {
             Value::i64(k) => assert_eq!(k, i, "stream ordering broken at index {}", i),
             other => panic!("expected i64({}), got {:?}", i, other),
@@ -214,8 +214,8 @@ fn pipe_channel_round_trips_vector_of_i64() {
         Value::i64(2),
         Value::i64(3),
     ]));
-    assert_sent(typed_send(sender, v, types, Span::unknown()));
-    let got = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    assert_sent(typed_send(sender, v, types, wat::rust_caller_span!()));
+    let got = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
     match got {
         Value::Vec(items) => {
             assert_eq!(items.len(), 3);
@@ -250,8 +250,8 @@ fn pipe_channel_round_trips_tuple_as_vector() {
         Value::String(Arc::new("seven".into())),
         Value::bool(true),
     ]));
-    assert_sent(typed_send(unwrap_sender_inner(&tx), v, types, Span::unknown()));
-    let got = assert_recv_value(typed_recv(unwrap_receiver_inner(&rx), types, Span::unknown()));
+    assert_sent(typed_send(unwrap_sender_inner(&tx), v, types, wat::rust_caller_span!()));
+    let got = assert_recv_value(typed_recv(unwrap_receiver_inner(&rx), types, wat::rust_caller_span!()));
     // wat-edn renders Tuple → Vec on the wire; the receiver gets a
     // homogeneous-vector reconstruction with the same elements in
     // order. This is the substrate-level fidelity slice-1c provides.
@@ -296,16 +296,16 @@ fn pipe_channel_round_trips_option_honest_tagged_form() {
         sender,
         Value::Option(Arc::new(Some(Value::i64(99)))),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     assert_sent(typed_send(
         sender,
         Value::Option(Arc::new(None)),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
 
-    let some_received = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    let some_received = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
     match some_received {
         // Arc 298.1: tagged wire round-trips preserving the Option wrapper.
         Value::Option(opt) => match opt.as_ref() {
@@ -315,7 +315,7 @@ fn pipe_channel_round_trips_option_honest_tagged_form() {
         other => panic!("expected Value::Option(Some(99)), got {:?}", other),
     }
 
-    let none_received = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    let none_received = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
     match none_received {
         // Arc 298.1: None round-trips as Option(None), not as Unit (Nil).
         Value::Option(opt) => match opt.as_ref() {
@@ -338,16 +338,16 @@ fn pipe_channel_round_trips_result_ok_and_err() {
         sender,
         Value::Result(Arc::new(Ok(Value::i64(42)))),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     assert_sent(typed_send(
         sender,
         Value::Result(Arc::new(Err(Value::String(Arc::new("oops".into()))))),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
 
-    let ok = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    let ok = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
     match ok {
         Value::Result(res) => match res.as_ref() {
             Ok(Value::i64(42)) => {}
@@ -356,7 +356,7 @@ fn pipe_channel_round_trips_result_ok_and_err() {
         other => panic!("expected Result, got {:?}", other),
     }
 
-    let err = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    let err = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
     match err {
         Value::Result(res) => match res.as_ref() {
             Err(Value::String(s)) => assert_eq!(s.as_str(), "oops"),
@@ -391,12 +391,12 @@ fn pipe_channel_round_trips_nested_vector_in_tuple() {
         unwrap_sender_inner(&tx),
         nested,
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     let got = assert_recv_value(typed_recv(
         unwrap_receiver_inner(&rx),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     match got {
         Value::Vec(items) | Value::Tuple(items) => {
@@ -436,7 +436,7 @@ fn pipe_channel_writer_drop_surfaces_as_disconnected_on_recv() {
     let outcome = typed_recv(
         unwrap_receiver_inner(&rx),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert_recv_disconnected(outcome);
 }
@@ -455,16 +455,16 @@ fn pipe_channel_writer_drop_with_buffered_value_drains_then_disconnects() {
         sender,
         Value::i64(123),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     ));
     drop(tx);
 
-    let got = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    let got = assert_recv_value(typed_recv(receiver, types, wat::rust_caller_span!()));
     match got {
         Value::i64(123) => {}
         other => panic!("expected i64(123), got {:?}", other),
     }
-    assert_recv_disconnected(typed_recv(receiver, types, Span::unknown()));
+    assert_recv_disconnected(typed_recv(receiver, types, wat::rust_caller_span!()));
 }
 
 // ─── error propagation — reader-side close → Disconnected on send ───────
@@ -497,7 +497,7 @@ fn pipe_channel_reader_drop_surfaces_as_disconnected_on_send() {
         unwrap_sender_inner(&tx),
         Value::i64(999),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     match outcome {
         SendOutcome::Disconnected => {}
@@ -518,7 +518,7 @@ fn pipe_channel_invalid_edn_surfaces_as_decode_error() {
     match unwrap_sender_inner(&tx) {
         SenderInner::PipeFd { writer, .. } => {
             writer
-                .write_all(b"this is not edn(((\n", Span::unknown())
+                .write_all(b"this is not edn(((\n", wat::rust_caller_span!())
                 .expect("raw write should succeed");
         }
         _ => panic!("expected PipeFd transport"),
@@ -527,7 +527,7 @@ fn pipe_channel_invalid_edn_surfaces_as_decode_error() {
     let outcome = typed_recv(
         unwrap_receiver_inner(&rx),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     match outcome {
         RecvOutcome::DecodeError(msg) => {
@@ -649,8 +649,8 @@ fn wat_kernel_send_recv_dispatches_through_pipefd_transport() {
 
     let env = Environment::new()
         .child()
-        .bind("tx", Span::unknown(), tx.into())
-        .bind("rx", Span::unknown(), rx.into())
+        .bind("tx", wat::rust_caller_span!(), tx.into())
+        .bind("rx", wat::rust_caller_span!(), rx.into())
         .build();
 
     let send_ast = wat::parse_one!("(:wat::kernel::send tx 7)").expect("parse send");
@@ -687,7 +687,7 @@ fn wat_kernel_recv_pipefd_returns_none_on_writer_close() {
     let (tx, rx) = make_pipe_channel_pair(":test").unwrap();
     drop(tx); // peer disconnect
 
-    let env = Environment::new().child().bind("rx", Span::unknown(), rx.into()).build();
+    let env = Environment::new().child().bind("rx", wat::rust_caller_span!(), rx.into()).build();
     let recv_ast = wat::parse_one!("(:wat::kernel::recv rx)").expect("parse");
     let recv_result =
         eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed").value_owned();
@@ -713,7 +713,7 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
     let (_tx, rx) = make_pipe_channel_pair(":test").unwrap();
     let rxs = Value::Vec(Arc::new(vec![rx]));
 
-    let env = Environment::new().child().bind("rxs", Span::unknown(), rxs.into()).build();
+    let env = Environment::new().child().bind("rxs", wat::rust_caller_span!(), rxs.into()).build();
     let select_ast = wat::parse_one!("(:wat::kernel::select rxs)").expect("parse");
     let outcome = eval(&select_ast, &env, world.symbols());
     match outcome {
@@ -740,14 +740,14 @@ fn sender_close_memory_close_then_send_returns_disconnected() {
     let inner = unwrap_sender_inner(&sender_val);
 
     // Initial send succeeds.
-    let first = typed_send(inner, Value::i64(1), None, Span::unknown());
+    let first = typed_send(inner, Value::i64(1), None, wat::rust_caller_span!());
     assert!(matches!(first, SendOutcome::Ok), "pre-close send should succeed");
 
     // Close the sender.
-    sender_close(inner, Span::unknown()).expect("close should succeed");
+    sender_close(inner, wat::rust_caller_span!()).expect("close should succeed");
 
     // Send-after-close returns Disconnected.
-    let after = typed_send(inner, Value::i64(2), None, Span::unknown());
+    let after = typed_send(inner, Value::i64(2), None, wat::rust_caller_span!());
     assert!(
         matches!(after, SendOutcome::Disconnected),
         "post-close send should return Disconnected"
@@ -762,11 +762,11 @@ fn sender_close_memory_idempotent() {
     let sender_val = sender_from_comms(tx);
     let inner = unwrap_sender_inner(&sender_val);
 
-    sender_close(inner, Span::unknown()).expect("first close should succeed");
-    sender_close(inner, Span::unknown()).expect("second close (idempotent) should succeed");
+    sender_close(inner, wat::rust_caller_span!()).expect("first close should succeed");
+    sender_close(inner, wat::rust_caller_span!()).expect("second close (idempotent) should succeed");
 
     // Still Disconnected after double close.
-    let after = typed_send(inner, Value::i64(3), None, Span::unknown());
+    let after = typed_send(inner, Value::i64(3), None, wat::rust_caller_span!());
     assert!(matches!(after, SendOutcome::Disconnected));
 }
 
@@ -781,14 +781,14 @@ fn sender_close_pipefd_close_then_send_returns_disconnected() {
     let inner = unwrap_sender_inner(&tx);
 
     // Pre-close send succeeds.
-    let first = typed_send(inner, Value::i64(10), types, Span::unknown());
+    let first = typed_send(inner, Value::i64(10), types, wat::rust_caller_span!());
     assert!(matches!(first, SendOutcome::Ok), "pre-close send should succeed");
 
     // Close.
-    sender_close(inner, Span::unknown()).expect("close should succeed");
+    sender_close(inner, wat::rust_caller_span!()).expect("close should succeed");
 
     // Post-close send returns Disconnected (flag check fires before fd write).
-    let after = typed_send(inner, Value::i64(11), types, Span::unknown());
+    let after = typed_send(inner, Value::i64(11), types, wat::rust_caller_span!());
     assert!(
         matches!(after, SendOutcome::Disconnected),
         "post-close send should return Disconnected"
@@ -801,8 +801,8 @@ fn sender_close_pipefd_idempotent() {
     let (tx, _rx) = make_pipe_channel_pair(":test").unwrap();
     let inner = unwrap_sender_inner(&tx);
 
-    sender_close(inner, Span::unknown()).expect("first close should succeed");
-    sender_close(inner, Span::unknown()).expect("second close (idempotent) should succeed");
+    sender_close(inner, wat::rust_caller_span!()).expect("first close should succeed");
+    sender_close(inner, wat::rust_caller_span!()).expect("second close (idempotent) should succeed");
 }
 
 #[test]
@@ -817,17 +817,17 @@ fn sender_close_pipefd_triggers_reader_eof() {
 
     // Send one value; recv it; then close the sender.
     assert!(matches!(
-        typed_send(sender_inner, Value::i64(42), types, Span::unknown()),
+        typed_send(sender_inner, Value::i64(42), types, wat::rust_caller_span!()),
         SendOutcome::Ok
     ));
-    let got = assert_recv_value(typed_recv(receiver_inner, types, Span::unknown()));
+    let got = assert_recv_value(typed_recv(receiver_inner, types, wat::rust_caller_span!()));
     assert!(matches!(got, Value::i64(42)));
 
     // Now close the sender.
-    sender_close(sender_inner, Span::unknown()).expect("close should succeed");
+    sender_close(sender_inner, wat::rust_caller_span!()).expect("close should succeed");
 
     // Receiver sees EOF (Disconnected = clean shutdown).
-    assert_recv_disconnected(typed_recv(receiver_inner, types, Span::unknown()));
+    assert_recv_disconnected(typed_recv(receiver_inner, types, wat::rust_caller_span!()));
 }
 
 #[test]
@@ -843,7 +843,7 @@ fn wat_kernel_sender_close_dispatch_via_eval() {
 
     let env = Environment::new()
         .child()
-        .bind("tx", Span::unknown(), sender_val.into())
+        .bind("tx", wat::rust_caller_span!(), sender_val.into())
         .build();
 
     // (:wat::kernel::Sender/close tx) → nil

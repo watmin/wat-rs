@@ -204,11 +204,11 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     for entry in inventory::iter::<crate::restriction_entry::RestrictionEntry> {
         let name = entry.wat_name.to_string();
         let mut prefix_items =
-            vec![WatAST::Keyword(":wat::core::Vector".into(), Span::unknown())];
+            vec![WatAST::Keyword(":wat::core::Vector".into(), crate::rust_caller_span!())];
         for p in entry.prefixes {
-            prefix_items.push(WatAST::Keyword(p.to_string(), Span::unknown()));
+            prefix_items.push(WatAST::Keyword(p.to_string(), crate::rust_caller_span!()));
         }
-        let restricted_to_ast = WatAST::List(prefix_items, Span::unknown());
+        let restricted_to_ast = WatAST::List(prefix_items, crate::rust_caller_span!());
         let mut meta: HashMap<String, WatAST> = HashMap::new();
         meta.insert(":restricted-to".to_string(), restricted_to_ast);
         symbols

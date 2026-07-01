@@ -88,7 +88,7 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
                     Value::i64(n) => *n,
                     other => {
                         return Err(RuntimeError {
-                            span: Span::unknown(),
+                            span: crate::rust_caller_span!(),
                             kind: RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
                                 expected: "node-id key :wat::core::i64",
@@ -104,7 +104,7 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
                     }
                     other => {
                         return Err(RuntimeError {
-                            span: Span::unknown(),
+                            span: crate::rust_caller_span!(),
                             kind: RuntimeErrorKind::TypeMismatch {
                                 op: op.into(),
                                 expected: "memory value :wat::core::PersistentVector",
@@ -119,7 +119,7 @@ fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Value>
             Ok(out)
         }
         other => Err(RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::PersistentMap (a session memory)",
@@ -156,7 +156,7 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
     let struct_form = match tok {
         Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice(),
         other => return Err(RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::rete::Token (a wat::core::Record)",
@@ -175,7 +175,7 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
                         let alpha_id = match &es[1] {
                             Value::i64(n) => *n,
                             other => return Err(RuntimeError {
-                                span: Span::unknown(),
+                                span: crate::rust_caller_span!(),
                                 kind: RuntimeErrorKind::TypeMismatch {
                                     op: OP.into(),
                                     expected: "match alpha-id :wat::core::i64",
@@ -186,7 +186,7 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
                         out.push((es[0].clone(), alpha_id));
                     }
                     other => return Err(RuntimeError {
-                        span: Span::unknown(),
+                        span: crate::rust_caller_span!(),
                         kind: RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "match entry :wat::core::Tuple",
@@ -198,7 +198,7 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
             out
         }
         other => return Err(RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "token matches :wat::core::PersistentVector",
@@ -210,7 +210,7 @@ fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
     let bindings = match &struct_form[1] {
         Value::wat__core__PersistentMap(m) => m.clone(),
         other => return Err(RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "token bindings :wat::core::PersistentMap",
@@ -250,7 +250,7 @@ fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, 
                 let node_id = match k {
                     Value::i64(n) => *n,
                     other => return Err(RuntimeError {
-                        span: Span::unknown(),
+                        span: crate::rust_caller_span!(),
                         kind: RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "node-id key :wat::core::i64",
@@ -267,7 +267,7 @@ fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, 
                         ts
                     }
                     other => return Err(RuntimeError {
-                        span: Span::unknown(),
+                        span: crate::rust_caller_span!(),
                         kind: RuntimeErrorKind::TypeMismatch {
                             op: op.into(),
                             expected: "beta-memory value :wat::core::PersistentVector",
@@ -280,7 +280,7 @@ fn pm_to_beta(op: &'static str, pm: &Value) -> Result<HashMap<i64, Vec<Token>>, 
             Ok(out)
         }
         other => Err(RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::PersistentMap (beta-memory)",
@@ -323,7 +323,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         Value::Aggregate(a) if a.holder != Holder::Struct => a,
         other => {
             return Err(RuntimeError {
-                span: Span::unknown(),
+                span: crate::rust_caller_span!(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::rete::Session (a wat::core::Record)",
@@ -335,7 +335,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
     };
     if agg.class.as_str() != "wat::rete::Session" {
         return Err(RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::rete::Session",
@@ -357,7 +357,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         Value::i64(n) => *n,
         other => {
             return Err(RuntimeError {
-                span: Span::unknown(),
+                span: crate::rust_caller_span!(),
                 kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "next-id :wat::core::i64",
@@ -1333,7 +1333,7 @@ fn accumulate_value(acc_form: &WatAST, gathered: &[&Value], sym: &SymbolTable) -
             // Build the call AST `(user-fn __acc__)` once, head spelled exactly as it appeared.
             let span = match acc_form {
                 WatAST::List(_, s) => s.clone(),
-                _ => Span::unknown(),
+                _ => crate::rust_caller_span!(),
             };
             let head_ast = match items.first() {
                 Some(WatAST::Keyword(k, s)) => WatAST::Keyword(k.clone(), s.clone()),

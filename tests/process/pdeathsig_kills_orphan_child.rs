@@ -160,15 +160,15 @@ fn probe_pdeathsig_kills_orphan_child() {
         let child_forms = wat::parser::parse_all_with_file(CHILD_PROGRAM_SRC, "<probe>")
             .expect("child program parse");
         let mut forms_items =
-            vec![WatAST::Keyword(":wat::core::forms".into(), Span::unknown())];
+            vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
         forms_items.extend(child_forms);
-        let forms_call = WatAST::List(forms_items, Span::unknown());
+        let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
         let call = WatAST::List(
             vec![
-                WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
+                WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
                 forms_call,
             ],
-            Span::unknown(),
+            wat::rust_caller_span!(),
         );
         let env = Environment::new();
         let process = match eval(&call, &env, world.symbols()) {

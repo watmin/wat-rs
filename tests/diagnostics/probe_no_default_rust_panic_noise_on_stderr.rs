@@ -60,7 +60,7 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("driver should not panic — RunResult carries the failure");
 

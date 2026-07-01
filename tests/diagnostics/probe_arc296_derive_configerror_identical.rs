@@ -2,22 +2,28 @@
 //! byte-identical to the deleted hand-written serializer.
 //!
 //! Asserts that `wat_edn::write(&err.to_edn())` equals the pre-derive
-//! golden EDN string for every `ConfigErrorKind` variant (8 variants ×
-//! 2 span states = 16 assertions). SET-diff ∅.
+//! golden EDN string for every `ConfigErrorKind` variant (8 variants,
+//! one deterministic-span assertion each). SET-diff ∅.
+//!
+//! Arc 298.2 note: the former per-variant `*_unknown_span` tests proved the
+//! elide-when-span-unknown branch of the hand-written serializer. That branch
+//! was annihilated with `Span::unknown()` — there is now exactly one code path
+//! (always emit `:span`), so a second span state would be a byte-for-byte
+//! duplicate of the `*_known_span` golden. The redundant tests were deleted.
 //!
 //! ## How the golden strings were derived
 //!
 //! The old hand-written `impl ToEdn for ConfigError` (deleted in Strike 1)
 //! produced `edn_tag(variant, Map(fields_in_declaration_order ++ span_if_known))`.
 //! Each golden string was constructed by tracing that exact code path for the
-//! chosen field values and the two span states.
+//! chosen field values and a fixed `test.wat` span.
 //!
 //! ## What this proves
 //!
 //! - The derive generates the same variant tag (`#wat.kernel/<Name>`).
 //! - Field keys are snake→kebab converted in declaration order.
 //! - `:span` is appended LAST by `splice_span` when the span is known.
-//! - Unknown spans produce no `:span` key (elide-when-unknown discipline).
+//! - `:span` is ALWAYS emitted (arc 298.2 retired the elide-when-unknown branch).
 //! - Field values are byte-identical to `edn_str` / `edn_int` (String → `"…"`,
 //!   usize/&'static str → integer / quoted string).
 
@@ -30,10 +36,6 @@ use wat::to_edn::ToEdn;
 
 fn known_span() -> Span {
     Span::new(Arc::new("test.wat".to_string()), 1, 0)
-}
-
-fn unknown_span() -> Span {
-    Span::unknown()
 }
 
 fn write(err: &ConfigError) -> String {
@@ -61,21 +63,6 @@ fn probe_setter_after_non_setter_known_span() {
     );
 }
 
-#[test]
-fn probe_setter_after_non_setter_unknown_span() {
-    let err = make(
-        unknown_span(),
-        ConfigErrorKind::SetterAfterNonSetter {
-            setter_head: "set-dims!".to_string(),
-        },
-    );
-    assert_eq!(
-        write(&err),
-        r#"#wat.kernel/SetterAfterNonSetter {:setter-head "set-dims!"}"#,
-        "SetterAfterNonSetter with unknown span"
-    );
-}
-
 // ─── 2. DuplicateField ───────────────────────────────────────────────────────
 
 #[test]
@@ -90,21 +77,6 @@ fn probe_duplicate_field_known_span() {
         write(&err),
         r#"#wat.kernel/DuplicateField {:field "dims" :span {:file "test.wat" :line 1 :col 0}}"#,
         "DuplicateField with known span"
-    );
-}
-
-#[test]
-fn probe_duplicate_field_unknown_span() {
-    let err = make(
-        unknown_span(),
-        ConfigErrorKind::DuplicateField {
-            field: "dims".to_string(),
-        },
-    );
-    assert_eq!(
-        write(&err),
-        r#"#wat.kernel/DuplicateField {:field "dims"}"#,
-        "DuplicateField with unknown span"
     );
 }
 
@@ -125,21 +97,6 @@ fn probe_required_field_missing_known_span() {
     );
 }
 
-#[test]
-fn probe_required_field_missing_unknown_span() {
-    let err = make(
-        unknown_span(),
-        ConfigErrorKind::RequiredFieldMissing {
-            field: "dims".to_string(),
-        },
-    );
-    assert_eq!(
-        write(&err),
-        r#"#wat.kernel/RequiredFieldMissing {:field "dims"}"#,
-        "RequiredFieldMissing with unknown span"
-    );
-}
-
 // ─── 4. UnknownSetter ────────────────────────────────────────────────────────
 
 #[test]
@@ -154,21 +111,6 @@ fn probe_unknown_setter_known_span() {
         write(&err),
         r#"#wat.kernel/UnknownSetter {:head ":wat::config::set-foo!" :span {:file "test.wat" :line 1 :col 0}}"#,
         "UnknownSetter with known span"
-    );
-}
-
-#[test]
-fn probe_unknown_setter_unknown_span() {
-    let err = make(
-        unknown_span(),
-        ConfigErrorKind::UnknownSetter {
-            head: ":wat::config::set-foo!".to_string(),
-        },
-    );
-    assert_eq!(
-        write(&err),
-        r#"#wat.kernel/UnknownSetter {:head ":wat::config::set-foo!"}"#,
-        "UnknownSetter with unknown span"
     );
 }
 
@@ -191,23 +133,6 @@ fn probe_bad_arity_known_span() {
     );
 }
 
-#[test]
-fn probe_bad_arity_unknown_span() {
-    let err = make(
-        unknown_span(),
-        ConfigErrorKind::BadArity {
-            head: ":wat::config::set-dims!".to_string(),
-            expected: 1,
-            got: 2,
-        },
-    );
-    assert_eq!(
-        write(&err),
-        r#"#wat.kernel/BadArity {:head ":wat::config::set-dims!" :expected 1 :got 2}"#,
-        "BadArity with unknown span"
-    );
-}
-
 // ─── 6. BadType ──────────────────────────────────────────────────────────────
 
 #[test]
@@ -224,23 +149,6 @@ fn probe_bad_type_known_span() {
         write(&err),
         r#"#wat.kernel/BadType {:field "dims" :expected "integer" :got "string" :span {:file "test.wat" :line 1 :col 0}}"#,
         "BadType with known span"
-    );
-}
-
-#[test]
-fn probe_bad_type_unknown_span() {
-    let err = make(
-        unknown_span(),
-        ConfigErrorKind::BadType {
-            field: "dims".to_string(),
-            expected: "integer",
-            got: "string",
-        },
-    );
-    assert_eq!(
-        write(&err),
-        r#"#wat.kernel/BadType {:field "dims" :expected "integer" :got "string"}"#,
-        "BadType with unknown span"
     );
 }
 
@@ -262,22 +170,6 @@ fn probe_bad_value_known_span() {
     );
 }
 
-#[test]
-fn probe_bad_value_unknown_span() {
-    let err = make(
-        unknown_span(),
-        ConfigErrorKind::BadValue {
-            field: "dims".to_string(),
-            reason: "must be positive".to_string(),
-        },
-    );
-    assert_eq!(
-        write(&err),
-        r#"#wat.kernel/BadValue {:field "dims" :reason "must be positive"}"#,
-        "BadValue with unknown span"
-    );
-}
-
 // ─── 8. MalformedSetter ──────────────────────────────────────────────────────
 
 #[test]
@@ -290,12 +182,3 @@ fn probe_malformed_setter_known_span() {
     );
 }
 
-#[test]
-fn probe_malformed_setter_unknown_span() {
-    let err = make(unknown_span(), ConfigErrorKind::MalformedSetter);
-    assert_eq!(
-        write(&err),
-        "#wat.kernel/MalformedSetter {}",
-        "MalformedSetter with unknown span"
-    );
-}

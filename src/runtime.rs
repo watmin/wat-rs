@@ -683,7 +683,7 @@ pub fn register_stdlib_runtime_defs(
                         let method_key = format!("{}/{}", ed.type_name, method_name);
                         if sym.functions.contains_key(&method_key) {
                             return Err(RuntimeError {
-                                span: Span::unknown(),
+                                span: crate::rust_caller_span!(),
                                 kind: RuntimeErrorKind::DuplicateDefine(method_key),
                             }.into());
                         }
@@ -914,11 +914,11 @@ fn parametric_decl_type(name: &str, type_params: &[String]) -> crate::types::Typ
 /// `WatAST::Vector`). `extract_prefix_list_from_metadata` in `check.rs`
 /// handles both encodings.
 fn restrictions_to_binding_metadata_ast(prefixes: &[String]) -> WatAST {
-    let mut items = vec![WatAST::Keyword(":wat::core::Vector".into(), Span::unknown())];
+    let mut items = vec![WatAST::Keyword(":wat::core::Vector".into(), crate::rust_caller_span!())];
     for p in prefixes {
-        items.push(WatAST::Keyword(p.clone(), Span::unknown()));
+        items.push(WatAST::Keyword(p.clone(), crate::rust_caller_span!()));
     }
-    WatAST::List(items, Span::unknown())
+    WatAST::List(items, crate::rust_caller_span!())
 }
 
 pub fn register_struct_methods(
@@ -961,10 +961,10 @@ pub fn register_struct_methods(
         // Arc 294.c.2a — emit aggregate-new (the ONE holder-dispatched ctor)
         // instead of struct-new. struct-new stays registered for 294.c.2b.
         let mut new_body_items = Vec::with_capacity(2 + struct_def.fields.len());
-        new_body_items.push(WatAST::Keyword(":wat::core::aggregate-new".into(), Span::unknown()));
-        new_body_items.push(WatAST::Keyword(struct_def.name.clone(), Span::unknown()));
+        new_body_items.push(WatAST::Keyword(":wat::core::aggregate-new".into(), crate::rust_caller_span!()));
+        new_body_items.push(WatAST::Keyword(struct_def.name.clone(), crate::rust_caller_span!()));
         for param_name in &param_names {
-            new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), Span::unknown()));
+            new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), crate::rust_caller_span!()));
         }
         let new_func = Function {
             name: Some(constructor_path.clone()),
@@ -974,13 +974,13 @@ pub fn register_struct_methods(
             ret_type: struct_type.clone(),
             rest_param: None,
             rest_param_type: None,
-            body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, Span::unknown()))),
+            body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, crate::rust_caller_span!()))),
             closed_env: None,
         };
         if sym.functions.contains_key(&constructor_path) {
             // arc 138: no span — synthesized struct constructor; collision
             // surfaces at type-registry walk time, no source form available.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
         }
         sym.functions.insert(constructor_path, Arc::new(new_func));
 
@@ -1092,22 +1092,22 @@ pub fn register_aggregate_methods(
                 agg.fields.iter().map(|(_, t)| t.clone()).collect();
             let field_asts: Vec<WatAST> = all_param_names
                 .iter()
-                .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), Span::unknown()))
+                .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), crate::rust_caller_span!()))
                 .collect();
             let kw_from_str_call = WatAST::List(
                 vec![
-                    WatAST::Keyword(":wat::core::keyword/from-string".into(), Span::unknown()),
-                    WatAST::StringLit(name_str, Span::unknown()),
+                    WatAST::Keyword(":wat::core::keyword/from-string".into(), crate::rust_caller_span!()),
+                    WatAST::StringLit(name_str, crate::rust_caller_span!()),
                 ],
-                Span::unknown(),
+                crate::rust_caller_span!(),
             );
             let ctor_body = WatAST::List(
                 vec![
-                    WatAST::Keyword(":wat::core::Record::of".into(), Span::unknown()),
+                    WatAST::Keyword(":wat::core::Record::of".into(), crate::rust_caller_span!()),
                     kw_from_str_call,
-                    WatAST::Vector(field_asts, Span::unknown()),
+                    WatAST::Vector(field_asts, crate::rust_caller_span!()),
                 ],
-                Span::unknown(),
+                crate::rust_caller_span!(),
             );
             let ctor_func = Function {
                 name: Some(agg.name.clone()),
@@ -1163,52 +1163,52 @@ pub fn register_aggregate_methods(
                     agg.name, field_name, agg.name
                 );
                 WatAST::List(vec![
-                    WatAST::Keyword(":wat::core::Record/field-at".into(), Span::unknown()),
+                    WatAST::Keyword(":wat::core::Record/field-at".into(), crate::rust_caller_span!()),
                     WatAST::List(vec![
-                        WatAST::Keyword(":wat::core::Option/expect".into(), Span::unknown()),
+                        WatAST::Keyword(":wat::core::Option/expect".into(), crate::rust_caller_span!()),
                         // if-form: (if cond -> :Type then else)
                         WatAST::List(vec![
-                            WatAST::Keyword(":wat::core::if".into(), Span::unknown()),
+                            WatAST::Keyword(":wat::core::if".into(), crate::rust_caller_span!()),
                             // condition: (= (type self) "class-no-colon")
                             WatAST::List(vec![
-                                WatAST::Keyword(":wat::core::=".into(), Span::unknown()),
+                                WatAST::Keyword(":wat::core::=".into(), crate::rust_caller_span!()),
                                 WatAST::List(vec![
-                                    WatAST::Keyword(":wat::core::type".into(), Span::unknown()),
-                                    WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
-                                ], Span::unknown()),
-                                WatAST::StringLit(class_no_colon, Span::unknown()),
-                            ], Span::unknown()),
+                                    WatAST::Keyword(":wat::core::type".into(), crate::rust_caller_span!()),
+                                    WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                                ], crate::rust_caller_span!()),
+                                WatAST::StringLit(class_no_colon, crate::rust_caller_span!()),
+                            ], crate::rust_caller_span!()),
                             // ->
-                            WatAST::Symbol(Identifier::bare("->"), Span::unknown()),
+                            WatAST::Symbol(Identifier::bare("->"), crate::rust_caller_span!()),
                             // :wat::core::Option<wat::core::Record>  (type annotation for the checker)
-                            WatAST::Keyword(":wat::core::Option<wat::core::Record>".into(), Span::unknown()),
+                            WatAST::Keyword(":wat::core::Option<wat::core::Record>".into(), crate::rust_caller_span!()),
                             // then: (Some self)
                             WatAST::List(vec![
-                                WatAST::Keyword(":wat::core::Some".into(), Span::unknown()),
-                                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
-                            ], Span::unknown()),
+                                WatAST::Keyword(":wat::core::Some".into(), crate::rust_caller_span!()),
+                                WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                            ], crate::rust_caller_span!()),
                             // else: :wat::core::None
-                            WatAST::Keyword(":wat::core::None".into(), Span::unknown()),
-                        ], Span::unknown()),
+                            WatAST::Keyword(":wat::core::None".into(), crate::rust_caller_span!()),
+                        ], crate::rust_caller_span!()),
                         // message: (string::concat msg_prefix (type self))
                         WatAST::List(vec![
-                            WatAST::Keyword(":wat::core::string::concat".into(), Span::unknown()),
-                            WatAST::StringLit(msg_prefix, Span::unknown()),
+                            WatAST::Keyword(":wat::core::string::concat".into(), crate::rust_caller_span!()),
+                            WatAST::StringLit(msg_prefix, crate::rust_caller_span!()),
                             WatAST::List(vec![
-                                WatAST::Keyword(":wat::core::type".into(), Span::unknown()),
-                                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
-                            ], Span::unknown()),
-                        ], Span::unknown()),
-                    ], Span::unknown()),
-                    WatAST::IntLit(own_idx as i64, Span::unknown()),
-                ], Span::unknown())
+                                WatAST::Keyword(":wat::core::type".into(), crate::rust_caller_span!()),
+                                WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                            ], crate::rust_caller_span!()),
+                        ], crate::rust_caller_span!()),
+                    ], crate::rust_caller_span!()),
+                    WatAST::IntLit(own_idx as i64, crate::rust_caller_span!()),
+                ], crate::rust_caller_span!())
             } else {
                 // Struct or generic Record/HolonRecord: bare struct-field (type system enforces).
                 WatAST::List(vec![
-                    WatAST::Keyword(":wat::core::struct-field".into(), Span::unknown()),
-                    WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
-                    WatAST::IntLit(own_idx as i64, Span::unknown()),
-                ], Span::unknown())
+                    WatAST::Keyword(":wat::core::struct-field".into(), crate::rust_caller_span!()),
+                    WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                    WatAST::IntLit(own_idx as i64, crate::rust_caller_span!()),
+                ], crate::rust_caller_span!())
             };
             let accessor_func = Function {
                 name: Some(accessor_path.clone()),
@@ -1223,7 +1223,7 @@ pub fn register_aggregate_methods(
             };
             if sym.functions.contains_key(&accessor_path) {
                 return Err(RuntimeError {
-                    span: Span::unknown(),
+                    span: crate::rust_caller_span!(),
                     kind: RuntimeErrorKind::DuplicateDefine(accessor_path),
                 }.into());
             }
@@ -1287,11 +1287,11 @@ pub fn register_enum_methods(
                     let key = format!("{}::{}", enum_def.name, variant_name);
                     if sym.unit_variants.contains_key(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
-                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
+                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
                     }
                     if sym.functions.contains_key(&key) {
                         // arc 138: no span — synthesized enum unit-variant.
-                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
+                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(key) }.into());
                     }
                     sym.unit_variants.insert(
                         key,
@@ -1316,17 +1316,17 @@ pub fn register_enum_methods(
                     let mut body_items = Vec::with_capacity(2 + fields.len());
                     body_items.push(WatAST::Keyword(
                         ":wat::core::variant".into(),
-                        Span::unknown(),
+                        crate::rust_caller_span!(),
                     ));
-                    body_items.push(WatAST::Keyword(enum_def.name.clone(), Span::unknown()));
+                    body_items.push(WatAST::Keyword(enum_def.name.clone(), crate::rust_caller_span!()));
                     body_items.push(WatAST::Keyword(
                         format!(":{}", variant_name),
-                        Span::unknown(),
+                        crate::rust_caller_span!(),
                     ));
                     for param_name in &param_names {
                         body_items.push(WatAST::Symbol(
                             Identifier::bare(param_name.clone()),
-                            Span::unknown(),
+                            crate::rust_caller_span!(),
                         ));
                     }
 
@@ -1338,14 +1338,14 @@ pub fn register_enum_methods(
                         ret_type: enum_type.clone(),
                         rest_param: None,
                         rest_param_type: None,
-                        body: FunctionBody::Wat(Arc::new(WatAST::List(body_items, Span::unknown()))),
+                        body: FunctionBody::Wat(Arc::new(WatAST::List(body_items, crate::rust_caller_span!()))),
                         closed_env: None,
                     };
                     if sym.functions.contains_key(&constructor_path)
                         || sym.unit_variants.contains_key(&constructor_path)
                     {
                         // arc 138: no span — synthesized enum tagged-variant.
-                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
+                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
                     }
                     sym.functions
                         .insert(constructor_path, Arc::new(func));
@@ -1399,11 +1399,11 @@ pub fn register_newtype_methods(
         let constructor_path = nt_def.name.clone();
         let new_body = WatAST::List(
             vec![
-                WatAST::Keyword(":wat::core::struct-new".into(), Span::unknown()),
-                WatAST::Keyword(nt_def.name.clone(), Span::unknown()),
-                WatAST::Symbol(Identifier::bare("value"), Span::unknown()),
+                WatAST::Keyword(":wat::core::struct-new".into(), crate::rust_caller_span!()),
+                WatAST::Keyword(nt_def.name.clone(), crate::rust_caller_span!()),
+                WatAST::Symbol(Identifier::bare("value"), crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         );
         let new_func = Function {
             name: Some(constructor_path.clone()),
@@ -1418,7 +1418,7 @@ pub fn register_newtype_methods(
         };
         if sym.functions.contains_key(&constructor_path) {
             // arc 138: no span — synthesized newtype constructor.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
         }
         sym.functions.insert(constructor_path, Arc::new(new_func));
 
@@ -1428,11 +1428,11 @@ pub fn register_newtype_methods(
         let accessor_path = format!("{}/0", nt_def.name);
         let accessor_body = WatAST::List(
             vec![
-                WatAST::Keyword(":wat::core::struct-field".into(), Span::unknown()),
-                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
-                WatAST::IntLit(0, Span::unknown()),
+                WatAST::Keyword(":wat::core::struct-field".into(), crate::rust_caller_span!()),
+                WatAST::Symbol(Identifier::bare("self"), crate::rust_caller_span!()),
+                WatAST::IntLit(0, crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         );
         let accessor_func = Function {
             name: Some(accessor_path.clone()),
@@ -1447,7 +1447,7 @@ pub fn register_newtype_methods(
         };
         if sym.functions.contains_key(&accessor_path) {
             // arc 138: no span — synthesized newtype accessor.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(accessor_path) }.into());
         }
         sym.functions.insert(accessor_path, Arc::new(accessor_func));
     }
@@ -1527,11 +1527,11 @@ pub fn register_type_predicates(
         // Body: (:wat::core::conforms? v :<FQDN>)
         let body = WatAST::List(
             vec![
-                WatAST::Keyword(":wat::core::conforms?".into(), Span::unknown()),
-                WatAST::Symbol(Identifier::bare("v"), Span::unknown()),
-                WatAST::Keyword(fqdn_kw, Span::unknown()),
+                WatAST::Keyword(":wat::core::conforms?".into(), crate::rust_caller_span!()),
+                WatAST::Symbol(Identifier::bare("v"), crate::rust_caller_span!()),
+                WatAST::Keyword(fqdn_kw, crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         );
 
         let pred_func = Function {
@@ -1550,7 +1550,7 @@ pub fn register_type_predicates(
 
         if sym.functions.contains_key(&predicate_name) {
             // Collision: a user-defined function already occupies this name.
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DuplicateDefine(predicate_name) }.into());
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(predicate_name) }.into());
         }
         sym.functions.insert(predicate_name, Arc::new(pred_func));
     }
@@ -2209,7 +2209,7 @@ fn preregister_struct_accessors_from_form(
     // Stub Function — zero params, unit return type, unit body.
     // The resolver only checks presence in `sym.functions`; the body/types
     // are irrelevant at pre-registration time.
-    let stub_body = Arc::new(WatAST::List(vec![], Span::unknown()));
+    let stub_body = Arc::new(WatAST::List(vec![], crate::rust_caller_span!()));
     let unit_type = crate::types::TypeExpr::Path(":()".into());
 
     // Constructor: bare `{type}` (arc 293.R2.3 — parity with records; `/new` annihilated)
@@ -2349,7 +2349,7 @@ fn preregister_enum_constructors_from_form(
         2 // no metadata-map; variants start at items[2]
     };
 
-    let stub_body = Arc::new(WatAST::List(vec![], Span::unknown()));
+    let stub_body = Arc::new(WatAST::List(vec![], crate::rust_caller_span!()));
     let unit_type = crate::types::TypeExpr::Path(":()".into());
 
     let variant_items = items.get(variant_start..).unwrap_or(&[]);
@@ -2972,7 +2972,7 @@ pub(crate) fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, Run
     // arc 138: no span — kw is a `&str` lifted from the keyword's payload;
     // the keyword's own span isn't carried through the parse helper.
     // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
-    crate::types::parse_type_expr(kw).map_err(|e| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    crate::types::parse_type_expr(kw).map_err(|e| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: ":wat::core::defn".into(),
         reason: e.to_string()
     } })
@@ -3135,7 +3135,7 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBre
     if !kw.ends_with('>') {
         // arc 138: no span — kw is a `&str` lifted from the keyword payload.
         // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::defn".into(),
             reason: format!("name keyword {:?} opens '<' but does not close '>'", kw)
         } }.into());
@@ -5425,10 +5425,10 @@ fn dispatch_keyword_head_value(
                     // UnknownFunction.
                     if let Some(outer) = sym.outer_symbols.as_ref() {
                         if let Some(outer_func) = outer.get(canonical) {
-                            // Stone 255.1a — Native builtins carry no span; use Span::unknown().
+                            // Stone 255.1a — Native builtins carry no span; use crate::rust_caller_span!().
                             let outer_define_span = match &outer_func.body {
                                 FunctionBody::Wat(ast) => ast.span().clone(),
-                                FunctionBody::Native => Span::unknown(),
+                                FunctionBody::Native => crate::rust_caller_span!(),
                             };
                             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::SandboxScopeLeak {
                                 offending_name: other.to_string(),
@@ -5609,9 +5609,9 @@ pub(crate) fn synthesize_fn_body(forms: &[WatAST]) -> WatAST {
         return forms[0].clone();
     }
     let mut do_items: Vec<WatAST> = Vec::with_capacity(forms.len() + 1);
-    do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
+    do_items.push(WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()));
     do_items.extend(forms.iter().cloned());
-    WatAST::List(do_items, Span::unknown())
+    WatAST::List(do_items, crate::rust_caller_span!())
 }
 
 // Stone 241.18a — DELETED: parse_fn_signature DELETED.
@@ -7022,7 +7022,7 @@ fn destructure_tuple(
                 // arc 138: no span — destructure_tuple is called from let
                 // binding evaluators with no per-binding span context;
                 // the enclosing let form's span is one frame up.
-                Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+                Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "destructure arity mismatch: binder has {} names, tuple has {} elements",
@@ -7035,7 +7035,7 @@ fn destructure_tuple(
             }
         }
         // arc 138: no span — same rationale as above.
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::core::Tuple",
             got: Box::new(ValueSnapshot::of(&other))
@@ -8573,7 +8573,7 @@ fn eval_tuple_ctor(
 ) -> Result<Value, EvalBreak> {
     if args.is_empty() {
         // arc 138: no span — leaf helper.
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::Tuple".into(),
             reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into()
         } }.into());
@@ -8593,7 +8593,7 @@ pub(crate) fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>,
         // arc 138: no span — require_vec is a value-level helper without
         // AST context; the caller's arg span isn't threaded through every
         // call site (would expand the helper signature across ~30 callers).
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::core::Vector",
             got: Box::new(ValueSnapshot::of(&other))
@@ -8607,7 +8607,7 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
     match v {
         Value::i64(n) => Ok(n),
         // arc 138: no span — same rationale as `require_vec` above.
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "i64",
             got: Box::new(ValueSnapshot::of(&other))
@@ -8785,9 +8785,9 @@ where
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => match op(*x, *y) {
             Ok(r) => Ok(Value::i64(r)),
-            Err(()) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DivisionByZero }.into()),
+            Err(()) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DivisionByZero }.into()),
         },
-        _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(i64, i64)",
             got: Box::new(ValueSnapshot::of(&a))
@@ -8808,9 +8808,9 @@ where
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => match op(*x, *y) {
             Ok(r) => Ok(Value::f64(r)),
-            Err(()) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::DivisionByZero }.into()),
+            Err(()) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DivisionByZero }.into()),
         },
-        _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(f64, f64)",
             got: Box::new(ValueSnapshot::of(&a))
@@ -9431,7 +9431,7 @@ fn eval_struct_to_form(
     };
     // Build constructor keyword: `:class::Foo` from class `class::Foo` (colon-free, no /new — arc 293.R2.3).
     let constructor = format!(":{}", s.class);
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     let mut items = Vec::with_capacity(s.fields.len() + 1);
     items.push(WatAST::Keyword(constructor, span.clone()));
     for f in s.fields.iter() {
@@ -9485,7 +9485,7 @@ fn eval_struct_to_form(
 /// SIGNATURE emission paths (the helpers below + `dispatch_to_signature_ast`'s
 /// ret-type slot) get the structured form.
 fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     match ty {
         crate::types::TypeExpr::Path(p) => WatAST::Keyword(p.clone(), span),
         crate::types::TypeExpr::Parametric { head, args } => {
@@ -9531,7 +9531,7 @@ fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
 /// (e.g., `:my::fn<T,U>`). Each parameter pair is a two-element list
 /// `(param-name :Type)`. The `->` arrow and return type come last.
 fn function_to_signature_ast(f: &Function) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     // Head keyword: name + optional type-param suffix.
     let head_kw = match &f.name {
         Some(n) if f.type_params.is_empty() => n.clone(),
@@ -9597,11 +9597,11 @@ fn function_to_define_ast(f: &Function) -> WatAST {
     };
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::core::defn".into(), Span::unknown()),
+            WatAST::Keyword(":wat::core::defn".into(), crate::rust_caller_span!()),
             head,
             body,
         ],
-        Span::unknown(),
+        crate::rust_caller_span!(),
     )
 }
 
@@ -9611,7 +9611,7 @@ fn function_to_define_ast(f: &Function) -> WatAST {
 ///
 /// Shape: `(<name><type_params> (_a0 :Type0) ... -> :Ret)`
 fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     let head_kw = if scheme.type_params.is_empty() {
         name.to_string()
     } else {
@@ -9647,7 +9647,7 @@ fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -
 /// sentinel; it is exposed only through `lookup-define`.
 /// Stone 241.16 — head keyword updated from `:wat::core::define` to `:wat::core::defn`.
 fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     let head = type_scheme_to_signature_ast(name, scheme);
     let sentinel = WatAST::List(
         vec![
@@ -9697,7 +9697,7 @@ fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> Wat
 /// for a registered defmacro. Stone 241.17 — mirrors the canonical argspec
 /// form that `parse_argspec_triples` parses.
 fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     let ast_kw = WatAST::Keyword(":AST<wat::WatAST>".into(), span.clone());
     let mut items: Vec<WatAST> = Vec::new();
     for p in def.params.iter() {
@@ -9734,7 +9734,7 @@ fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST {
 /// The template is the stored `def.body` WatAST verbatim (the same value
 /// the expander uses).
 fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     let argvec = macrodef_to_signature_ast(def);
     let body = def.body.clone();
     WatAST::List(
@@ -9757,7 +9757,7 @@ fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
 /// List keeps the surface uniform with the function/macro helpers
 /// (always a List around a head Keyword + zero-or-more sub-forms).
 fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     let (base, type_params) = match def {
         // Arc 293.2b — Aggregate: record kind has no type params (emit name only);
         // struct kind may have type params (fall through to normal path).
@@ -9800,7 +9800,7 @@ fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
 /// source." Real field emission is deferred to a future arc; honest
 /// sentinel beats a half-rendered struct.
 fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     let head_kw = match def {
         // Arc 293.2b — Aggregate branches on kind for the correct declaration head.
         crate::types::TypeDef::Aggregate(a) => {
@@ -10087,7 +10087,7 @@ fn eval_lookup_define(
             // Slice 2 populates the SpecialForm registry; until then
             // this arm is unreachable. Sentinel emission keeps the
             // dispatch structurally complete.
-            let span = Span::unknown();
+            let span = crate::rust_caller_span!();
             let sentinel = WatAST::List(
                 vec![
                     WatAST::Keyword(":wat::core::__internal/special-form".into(), span.clone()),
@@ -15540,7 +15540,7 @@ fn require_hologram(
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<crate::hologram::Hologram>>, EvalBreak> {
     match v {
         Value::Hologram(h) => Ok(h),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Hologram",
             got: Box::new(ValueSnapshot::of(&other)),
@@ -15552,7 +15552,7 @@ fn require_hologram(
 fn require_fn(op: &str, v: Value) -> Result<Arc<Function>, EvalBreak> {
     match v {
         Value::wat__core__fn(f) => Ok(f),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "fn(f64)->bool",
             got: Box::new(ValueSnapshot::of(&other)),
@@ -15883,82 +15883,82 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
     if let Some(s) = h.as_symbol() {
         // Arc 244 — nil is a Symbol composition; round-trip as NilLit (not the type keyword).
         if s == "nil" {
-            return WatAST::NilLit(Span::unknown());
+            return WatAST::NilLit(crate::rust_caller_span!());
         }
         // Colon-prefixed → keyword; bare → symbol identifier.
         if s.starts_with(':') {
-            return WatAST::Keyword(s.to_string(), Span::unknown());
+            return WatAST::Keyword(s.to_string(), crate::rust_caller_span!());
         } else {
-            return WatAST::Symbol(crate::scope::Identifier::bare(s.to_string()), Span::unknown());
+            return WatAST::Symbol(crate::scope::Identifier::bare(s.to_string()), crate::rust_caller_span!());
         }
     }
     // Keyword composition: restore leading colon for round-trip.
     if let Some(s) = h.as_keyword() {
-        return WatAST::Keyword(format!(":{}", s), Span::unknown());
+        return WatAST::Keyword(format!(":{}", s), crate::rust_caller_span!());
     }
     // Tag composition: non-round-trip debug render (no :wat::holon::Tag constructor).
     if let Some(s) = h.as_tag() {
         return WatAST::List(
             vec![
-                WatAST::Keyword(":wat::holon::Tag".into(), Span::unknown()),
-                WatAST::StringLit(s.to_string(), Span::unknown()),
+                WatAST::Keyword(":wat::holon::Tag".into(), crate::rust_caller_span!()),
+                WatAST::StringLit(s.to_string(), crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         );
     }
     match h {
-        HolonAST::I64(n) => WatAST::IntLit(*n, Span::unknown()),
-        HolonAST::F64(x) => WatAST::FloatLit(*x, Span::unknown()),
-        HolonAST::Bool(b) => WatAST::BoolLit(*b, Span::unknown()),
-        HolonAST::String(s) => WatAST::StringLit(s.to_string(), Span::unknown()),
+        HolonAST::I64(n) => WatAST::IntLit(*n, crate::rust_caller_span!()),
+        HolonAST::F64(x) => WatAST::FloatLit(*x, crate::rust_caller_span!()),
+        HolonAST::Bool(b) => WatAST::BoolLit(*b, crate::rust_caller_span!()),
+        HolonAST::String(s) => WatAST::StringLit(s.to_string(), crate::rust_caller_span!()),
         HolonAST::Bundle(items) => WatAST::List(
             items.iter().map(holon_to_watast).collect(),
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
         HolonAST::Atom(inner) => WatAST::List(
             vec![
                 // Arc 225 Stone 225.1 — `:wat::holon::Atom` is now the narrow constructor
                 // (HolonAST → HolonAST::Atom). `to-wat` emits it here because the round-trip
                 // `(to-wat h → eval-ast!)` must reconstruct the same HolonAST shape.
-                WatAST::Keyword(":wat::holon::Atom".into(), Span::unknown()),
+                WatAST::Keyword(":wat::holon::Atom".into(), crate::rust_caller_span!()),
                 holon_to_watast(inner),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
         HolonAST::Bind(a, b) => WatAST::List(
             vec![
-                WatAST::Keyword(":wat::holon::Bind".into(), Span::unknown()),
+                WatAST::Keyword(":wat::holon::Bind".into(), crate::rust_caller_span!()),
                 holon_to_watast(a),
                 holon_to_watast(b),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
         HolonAST::Permute(child, k) => WatAST::List(
             vec![
-                WatAST::Keyword(":wat::holon::Permute".into(), Span::unknown()),
+                WatAST::Keyword(":wat::holon::Permute".into(), crate::rust_caller_span!()),
                 holon_to_watast(child),
-                WatAST::IntLit(*k as i64, Span::unknown()),
+                WatAST::IntLit(*k as i64, crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
         HolonAST::Thermometer { value, min, max } => WatAST::List(
             vec![
-                WatAST::Keyword(":wat::holon::Thermometer".into(), Span::unknown()),
-                WatAST::FloatLit(*value, Span::unknown()),
-                WatAST::FloatLit(*min, Span::unknown()),
-                WatAST::FloatLit(*max, Span::unknown()),
+                WatAST::Keyword(":wat::holon::Thermometer".into(), crate::rust_caller_span!()),
+                WatAST::FloatLit(*value, crate::rust_caller_span!()),
+                WatAST::FloatLit(*min, crate::rust_caller_span!()),
+                WatAST::FloatLit(*max, crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
         HolonAST::Blend(a, b, w1, w2) => WatAST::List(
             vec![
-                WatAST::Keyword(":wat::holon::Blend".into(), Span::unknown()),
+                WatAST::Keyword(":wat::holon::Blend".into(), crate::rust_caller_span!()),
                 holon_to_watast(a),
                 holon_to_watast(b),
-                WatAST::FloatLit(*w1, Span::unknown()),
-                WatAST::FloatLit(*w2, Span::unknown()),
+                WatAST::FloatLit(*w1, crate::rust_caller_span!()),
+                WatAST::FloatLit(*w2, crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
         // Arc 221 Stone 221.2 — Char primitive leaf. WatAST has no CharLit
         // variant; render as (:wat::core::char/of "c") so that
@@ -15967,19 +15967,19 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
         // (scalar types lowercase per Doctrine 2).
         HolonAST::Char(c) => WatAST::List(
             vec![
-                WatAST::Keyword(":wat::core::char/of".into(), Span::unknown()),
-                WatAST::StringLit(c.to_string(), Span::unknown()),
+                WatAST::Keyword(":wat::core::char/of".into(), crate::rust_caller_span!()),
+                WatAST::StringLit(c.to_string(), crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
         // SlotMarker (arc 073) is a substrate-internal sentinel. Non-round-trippable.
         HolonAST::SlotMarker { min, max } => WatAST::List(
             vec![
-                WatAST::Keyword(":wat::holon::SlotMarker".into(), Span::unknown()),
-                WatAST::FloatLit(*min, Span::unknown()),
-                WatAST::FloatLit(*max, Span::unknown()),
+                WatAST::Keyword(":wat::holon::SlotMarker".into(), crate::rust_caller_span!()),
+                WatAST::FloatLit(*min, crate::rust_caller_span!()),
+                WatAST::FloatLit(*max, crate::rust_caller_span!()),
             ],
-            Span::unknown(),
+            crate::rust_caller_span!(),
         ),
     }
 }
@@ -16090,11 +16090,11 @@ fn eval_algebra_bundle(
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for each child.
     // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
     // Records auto-extract their hologram at the coerce boundary.
-    // Span::unknown() per arc 138 discipline (we have Value, not WatAST).
+    // crate::rust_caller_span!() per arc 138 discipline (we have Value, not WatAST).
     let children: Vec<HolonAST> = list
         .iter()
         .map(|v| {
-            coerce_to_holon_ast(":wat::holon::Bundle list element", v.clone(), &Span::unknown())
+            coerce_to_holon_ast(":wat::holon::Bundle list element", v.clone(), &crate::rust_caller_span!())
         })
         .collect::<Result<Vec<HolonAST>, _>>()?;
 
@@ -16459,7 +16459,7 @@ fn eval_algebra_tuple(
 fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, EvalBreak> {
     match v {
         Value::holon__HolonAST(h) => Ok(h),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "Holon",
             got: Box::new(ValueSnapshot::of(&other)),
@@ -16853,7 +16853,7 @@ fn pair_values_to_vectors(
     match (a, b) {
         (Value::Vector(va), Value::Vector(vb)) => {
             if va.dimensions() != vb.dimensions() {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "Vector pair with matching dimensions",
                     got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
@@ -16881,7 +16881,7 @@ fn pair_values_to_vectors(
             let vb = encode(&b, &enc.vm, &enc.scalar);
             Ok((va, vb))
         }
-        (a, _) => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        (a, _) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::HolonAST, wat::core::Record, or wat::holon::Vector",
             got: Box::new(ValueSnapshot::of(&a)),
@@ -17165,7 +17165,7 @@ fn coincident_of_two_values(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     // arc 138: no span — values produced by evaluation; no AST args in scope
-    let unknown = Span::unknown();
+    let unknown = crate::rust_caller_span!();
     let atom_a = to_holon_inner(value_a, &unknown)?;
     let atom_b = to_holon_inner(value_b, &unknown)?;
     let holon_a = require_holon(op, atom_a)?;
@@ -17267,7 +17267,7 @@ fn eval_form_digest_coincident_shared(
         let algo_a = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(src_a.as_bytes(), &algo_a, hex_a.trim())
-            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_a = parse_and_run(&src_a, env, sym)?;
 
         // Side B — 4-arg block [4..8).
@@ -17279,7 +17279,7 @@ fn eval_form_digest_coincident_shared(
         let algo_b = parse_verify_algo_keyword(&args[5], "digest-", op)?;
         let hex_b = resolve_verify_payload(&args[6], &args[7], env, sym)?;
         crate::hash::verify_source_hash(src_b.as_bytes(), &algo_b, hex_b.trim())
-            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_b = parse_and_run(&src_b, env, sym)?;
 
         coincident_of_two_values(value_a, value_b, sym, op, list_span)
@@ -17352,7 +17352,7 @@ fn eval_form_signed_coincident_shared(
         let pk_a = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast_a = parse_program(&src_a, op)?;
         crate::hash::verify_program_signature(&ast_a, &algo_a, sig_a.trim(), pk_a.trim())
-            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_a = run_program(&ast_a, env, sym)?;
 
         // Side B — 6-arg block [6..12).
@@ -17366,7 +17366,7 @@ fn eval_form_signed_coincident_shared(
         let pk_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
         let ast_b = parse_program(&src_b, op)?;
         crate::hash::verify_program_signature(&ast_b, &algo_b, sig_b.trim(), pk_b.trim())
-            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         let value_b = run_program(&ast_b, env, sym)?;
 
         coincident_of_two_values(value_a, value_b, sym, op, list_span)
@@ -17597,7 +17597,7 @@ fn eval_holon_vector_bytes(
     }
     let v = require_vector(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
     let dim = v.dimensions();
-    let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+    let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
         op: OP.into(),
         expected: "Vector with dim representable as u32",
         got: Box::new(ValueSnapshot::unavailable("oversized Vector dim")),
@@ -17618,7 +17618,7 @@ fn eval_holon_vector_bytes(
                 1 => 0b01,
                 -1 => 0b10,
                 other => {
-                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                    return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "Vector cell in {-1, 0, +1}",
                         got: Box::new(ValueSnapshot::described(
@@ -17680,7 +17680,7 @@ fn eval_holon_bytes_vector(
         match v {
             Value::u8(b) => bytes.push(*b),
             other => {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<u8>",
                     got: Box::new(ValueSnapshot::of(&other)),
@@ -17839,7 +17839,7 @@ fn eval_str(
 fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, EvalBreak> {
     match v {
         Value::Vector(vec) => Ok(vec),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: op.into(),
             expected: "wat::holon::Vector",
             got: Box::new(ValueSnapshot::of(&other)),
@@ -17870,7 +17870,7 @@ fn eval_holon_vector_bind(
     let va = require_vector(":wat::holon::vector-bind", eval_inner(&args[0], env, sym)?.value_owned())?;
     let vb = require_vector(":wat::holon::vector-bind", eval_inner(&args[1], env, sym)?.value_owned())?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::vector-bind".into(),
             expected: "Vector pair with matching dimensions",
             got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
@@ -17929,7 +17929,7 @@ fn eval_holon_vector_bundle(
     let d = owned[0].dimensions();
     for v in &owned[1..] {
         if v.dimensions() != d {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of Vectors with matching dimensions",
                 got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector in Vec")),
@@ -17965,7 +17965,7 @@ fn eval_holon_vector_blend(
     let w1 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[2], env, sym)?.value_owned(), list_span)?;
     let w2 = require_numeric(":wat::holon::vector-blend", eval_inner(&args[3], env, sym)?.value_owned(), list_span)?;
     if va.dimensions() != vb.dimensions() {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::holon::vector-blend".into(),
             expected: "Vector pair with matching dimensions",
             got: Box::new(ValueSnapshot::unavailable("mismatched-dim Vector pair")),
@@ -18899,7 +18899,7 @@ fn apply_tracked_callee(
     let func = match callee_tv.value() {
         Value::wat__core__fn(f) => f.clone(),
         _ => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::NotCallable {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::NotCallable {
                 got: Box::new(ValueSnapshot::of_tracked(&callee_tv))
             } }.into())
         }
@@ -18923,7 +18923,7 @@ fn apply_value(
         Value::wat__core__fn(f) => f.clone(),
         other => {
             // arc 138: no span — apply_value receives a Value not a WatAST; callee span not in scope
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::NotCallable {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::NotCallable {
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into())
         }
@@ -22654,7 +22654,7 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, EvalBreak> {
         // would force callers to unwrap a depth they didn't ask for.
         Value::holon__HolonAST(h) => return Ok(Value::holon__HolonAST(h)),
         other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "form whose terminal value has a HolonAST \
                            representation (primitive or HolonAST)",
@@ -23510,7 +23510,7 @@ fn step_if(
             _ => {
                 let new_cond = step_to_watast(cond, env, sym)?;
                 let new_items = vec![
-                    WatAST::Keyword(":wat::core::if".into(), Span::unknown()),
+                    WatAST::Keyword(":wat::core::if".into(), crate::rust_caller_span!()),
                     new_cond,
                     args[1].clone(),
                     args[2].clone(),
@@ -23535,7 +23535,7 @@ fn step_if(
         _ => {
             let new_cond = step_to_watast(cond, env, sym)?;
             let new_items = vec![
-                WatAST::Keyword(":wat::core::if".into(), Span::unknown()),
+                WatAST::Keyword(":wat::core::if".into(), crate::rust_caller_span!()),
                 new_cond,
                 args[1].clone(),
                 args[2].clone(),
@@ -23637,7 +23637,7 @@ fn step_let(
         let new_rhs = step_to_watast(rhs, env, sym)?;
         let new_args = rebuild_let_with_first_rhs(&args[0], &pairs, &new_rhs)?;
         let mut new_items: Vec<WatAST> = vec![
-            WatAST::Keyword(":wat::core::let".into(), Span::unknown()),
+            WatAST::Keyword(":wat::core::let".into(), crate::rust_caller_span!()),
             new_args,
         ];
         new_items.extend(body_forms.iter().cloned());
@@ -23670,7 +23670,7 @@ fn step_let(
     }
     let rebuilt_bindings = WatAST::Vector(flat, bindings_form_span.clone());
     let mut new_items: Vec<WatAST> = vec![
-        WatAST::Keyword(":wat::core::let".into(), Span::unknown()),
+        WatAST::Keyword(":wat::core::let".into(), crate::rust_caller_span!()),
         rebuilt_bindings,
     ];
     new_items.extend(new_body_forms.into_iter());
@@ -23694,7 +23694,7 @@ fn synthesize_let_body(forms: &[WatAST], outer_span: &Span) -> WatAST {
         return forms[0].clone();
     }
     let mut do_items: Vec<WatAST> = Vec::with_capacity(forms.len() + 1);
-    do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
+    do_items.push(WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()));
     do_items.extend(forms.iter().cloned());
     WatAST::List(do_items, outer_span.clone())
 }
@@ -23757,7 +23757,7 @@ fn step_do(
     if !is_step_canonical(head) {
         let new_head = step_to_watast(head, env, sym)?;
         let mut new_items: Vec<WatAST> = vec![
-            WatAST::Keyword(":wat::core::do".into(), Span::unknown()),
+            WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()),
             new_head,
         ];
         new_items.extend(args[1..].iter().cloned());
@@ -23765,7 +23765,7 @@ fn step_do(
     }
     // Head canonical — discard it; rebuild do form starting at args[1].
     let mut new_items: Vec<WatAST> = vec![
-        WatAST::Keyword(":wat::core::do".into(), Span::unknown()),
+        WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()),
     ];
     new_items.extend(args[1..].iter().cloned());
     Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
@@ -23795,7 +23795,7 @@ fn step_match(
     if !is_match_canonical(scrut) {
         let new_scrut = step_to_watast(scrut, env, sym)?;
         let mut new_items: Vec<WatAST> = vec![
-            WatAST::Keyword(":wat::core::match".into(), Span::unknown()),
+            WatAST::Keyword(":wat::core::match".into(), crate::rust_caller_span!()),
             new_scrut,
         ];
         new_items.extend(args[1..].iter().cloned());
@@ -24189,7 +24189,7 @@ fn eval_form_digest_shared(
         let algo = parse_verify_algo_keyword(&args[1], "digest-", op)?;
         let hex = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim())
-            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         parse_and_run(&source, env, sym)
     })())
 }
@@ -24257,7 +24257,7 @@ fn eval_form_signed_shared(
         let pk_b64 = resolve_verify_payload(&args[4], &args[5], env, sym)?;
         let ast = parse_program(&source, op)?;
         crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim())
-            .map_err(|err| RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
+            .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::EvalVerificationFailed { err } })?;
         run_program(&ast, env, sym)
     })())
 }
@@ -24428,7 +24428,7 @@ fn parse_verify_algo_keyword(
 
 /// Parse a source string into one or more top-level forms.
 fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, EvalBreak> {
-    crate::parser::parse_all_with_file(source, "<runtime-eval>").map_err(|e| EvalBreak::from(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    crate::parser::parse_all_with_file(source, "<runtime-eval>").map_err(|e| EvalBreak::from(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: form.into(),
         reason: format!("parse error: {}", e),
         // arc 138: no — parsing a raw string; no WatAST call-site in scope
@@ -30268,7 +30268,7 @@ mod tests {
         // the generic guard itself.
         use crate::rust_deps::ThreadOwnedCell;
         let cell: Arc<ThreadOwnedCell<i64>> = Arc::new(ThreadOwnedCell::new(1));
-        cell.with_mut(":test::put", crate::span::Span::unknown(), |n| {
+        cell.with_mut(":test::put", crate::rust_caller_span!(), |n| {
             *n = 42;
         })
         .unwrap();
@@ -30277,7 +30277,7 @@ mod tests {
         let handle = std::thread::Builder::new()
             .name("wat-thread::thread_owned_cell_crossing_thread_boundary_errors".to_string())
             .spawn(move || {
-                cell_clone.with_mut(":test::get", crate::span::Span::unknown(), |n| *n)
+                cell_clone.with_mut(":test::get", crate::rust_caller_span!(), |n| *n)
             })
             .expect("Thread::Builder::spawn failed");
         let child_result = handle.join().unwrap();
@@ -30286,7 +30286,7 @@ mod tests {
             "expected cross-thread access to error, got {:?}",
             child_result
         );
-        let parent_result = cell.with_mut(":test::get", crate::span::Span::unknown(), |n| *n).unwrap();
+        let parent_result = cell.with_mut(":test::get", crate::rust_caller_span!(), |n| *n).unwrap();
         assert_eq!(parent_result, 42);
     }
 
@@ -32367,7 +32367,7 @@ mod tests {
         use std::sync::Arc;
         let h = HolonAST::symbol(":foo");
         let v = Value::holon__HolonAST(Arc::new(h));
-        let result = value_to_watast("test_op", v, Span::unknown());
+        let result = value_to_watast("test_op", v, crate::rust_caller_span!());
         match result {
             Ok(WatAST::Keyword(k, _)) => assert_eq!(k, ":foo"),
             other => panic!("expected Ok(WatAST::Keyword(\":foo\", _)), got {:?}", other),
@@ -32618,7 +32618,7 @@ mod tests {
             "my::Pt".to_string(),
             Arc::new(vec![Value::f64(1.0), Value::f64(2.0)]),
         )));
-        let span = Span::unknown();
+        let span = crate::rust_caller_span!();
         let result = to_holon_inner(base, &span);
         assert!(
             result.is_err(),
@@ -32689,9 +32689,9 @@ mod tests {
     fn values_equal_wat_ast_same() {
         use std::sync::Arc;
         // Two structurally-identical WatAST nodes (IntLit, span-agnostic PartialEq).
-        // Span::unknown() is the synthetic sentinel — Span::eq is always true regardless.
-        let ast_a = crate::ast::WatAST::IntLit(42, crate::span::Span::unknown());
-        let ast_b = crate::ast::WatAST::IntLit(42, crate::span::Span::unknown());
+        // crate::rust_caller_span!() is the synthetic sentinel — Span::eq is always true regardless.
+        let ast_a = crate::ast::WatAST::IntLit(42, crate::rust_caller_span!());
+        let ast_b = crate::ast::WatAST::IntLit(42, crate::rust_caller_span!());
         let a = Value::wat__WatAST(Arc::new(ast_a));
         let b = Value::wat__WatAST(Arc::new(ast_b));
         assert_eq!(values_equal(&a, &b), Some(true));
@@ -32700,8 +32700,8 @@ mod tests {
     #[test]
     fn values_equal_wat_ast_different() {
         use std::sync::Arc;
-        let ast_a = crate::ast::WatAST::IntLit(42, crate::span::Span::unknown());
-        let ast_b = crate::ast::WatAST::IntLit(99, crate::span::Span::unknown());
+        let ast_a = crate::ast::WatAST::IntLit(42, crate::rust_caller_span!());
+        let ast_b = crate::ast::WatAST::IntLit(99, crate::rust_caller_span!());
         let a = Value::wat__WatAST(Arc::new(ast_a));
         let b = Value::wat__WatAST(Arc::new(ast_b));
         assert_eq!(values_equal(&a, &b), Some(false));

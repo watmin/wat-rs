@@ -52,14 +52,14 @@ fn multiline_edn_value_frames_as_one_over_pipe() {
     // physical lines.
     let pretty = "{\n  :a 1\n  :b 2\n}\n";
     writer
-        .write_all(pretty.as_bytes(), Span::unknown())
+        .write_all(pretty.as_bytes(), wat::rust_caller_span!())
         .expect("write the multi-line frame");
     // Close the write end so the reader sees EOF after the frame (no hang).
     drop(writer);
 
     // RED at HEAD: one read_line gets "{" → read_edn fails → DecodeError.
     // GREEN: the reader accumulates until the map parses → a single map Value.
-    match typed_recv(recv_inner, None, Span::unknown()) {
+    match typed_recv(recv_inner, None, wat::rust_caller_span!()) {
         RecvOutcome::Value(v) => {
             // The whole multi-line frame decoded to ONE complete value.
             // (The build's own tests assert the map's field values; here we
@@ -102,12 +102,12 @@ fn pprintln_multiline_map_roundtrips_over_pipe() {
     frame.push('\n');
 
     writer
-        .write_all(frame.as_bytes(), Span::unknown())
+        .write_all(frame.as_bytes(), wat::rust_caller_span!())
         .expect("write pprintln-style frame");
     drop(writer);
 
     // Recv the framed value back.
-    match typed_recv(recv_inner, None, Span::unknown()) {
+    match typed_recv(recv_inner, None, wat::rust_caller_span!()) {
         RecvOutcome::Value(recv_val) => {
             // Re-decode the compact form and compare via Value::PartialEq
             // (HashMap equality is key-order-independent — correct for EDN maps).
@@ -172,7 +172,7 @@ fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
     let mut iter = lines.iter();
     let result = read_framed_edn(
         |_span| Ok(iter.next().map(|s| s.to_string())),
-        Span::unknown(),
+        wat::rust_caller_span!(),
         64, // tiny cap — 64 bytes
     )
     .expect("read_framed_edn must not return Err (no RuntimeError path here)");
@@ -203,7 +203,7 @@ fn read_framed_edn_tiny_cap_passes_small_value() {
     let mut iter = lines.iter();
     let result = read_framed_edn(
         |_span| Ok(iter.next().map(|s| s.to_string())),
-        Span::unknown(),
+        wat::rust_caller_span!(),
         64, // tiny cap — still fits
     )
     .expect("no RuntimeError");
@@ -237,11 +237,11 @@ fn anti_smuggling_two_values_in_one_frame_is_rejected() {
     // The framing code must NOT return the first value and silently drop the second.
     let smuggle = "{:a 1} {:b 2}\n";
     writer
-        .write_all(smuggle.as_bytes(), Span::unknown())
+        .write_all(smuggle.as_bytes(), wat::rust_caller_span!())
         .expect("write smuggled frame");
     drop(writer);
 
-    match typed_recv(recv_inner, None, Span::unknown()) {
+    match typed_recv(recv_inner, None, wat::rust_caller_span!()) {
         RecvOutcome::DecodeError(msg) => {
             // Correct: the trailing `{:b 2}` triggered a Malformed/parse error.
             // Message content is not prescribed; just verify it's an error.

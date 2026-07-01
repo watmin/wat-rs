@@ -127,7 +127,7 @@ fn scheme_auto_prep(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr
             args.len(),
             args.first()
                 .map(|a| a.span().clone())
-                .unwrap_or_else(wat::span::Span::unknown),
+                .unwrap_or_else(|| wat::rust_caller_span!()),
         );
         return Some(TypeExpr::Tuple(vec![]));
     }
@@ -154,7 +154,7 @@ fn dispatch_auto_prep(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":rust::sqlite::auto-prep";
     if args.len() != 1 {
-        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
@@ -162,7 +162,7 @@ fn dispatch_auto_prep(
         } });
     }
     let enum_name = eval_keyword(OP, &args[0], env, sym)?;
-    let types = sym.types().ok_or_else(|| RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    let types = sym.types().ok_or_else(|| RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: "no type registry attached to SymbolTable; arc 085 capability missing".into(),
         // arc 138: no — sym.types() absence; no WatAST span in context
@@ -170,21 +170,21 @@ fn dispatch_auto_prep(
     let enum_def = match types.get(&enum_name) {
         Some(TypeDef::Enum(e)) => e.clone(),
         Some(other) => {
-            return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("{enum_name} is registered as {:?}, not an enum", other.name()),
                 // arc 138: no — type registry lookup; enum_name is plain String, no WatAST trace
             } });
         }
         None => {
-            return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("no enum declared at {enum_name}"),
                 // arc 138: no — type registry lookup; enum_name is plain String, no WatAST trace
             } });
         }
     };
-    let schema = derive_schema(&enum_def, types).map_err(|reason| RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    let schema = derive_schema(&enum_def, types).map_err(|reason| RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason,
         // arc 138: no — derive_schema error on TypeDef, no WatAST trace available
@@ -208,7 +208,7 @@ fn scheme_auto_install(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeE
             args.len(),
             args.first()
                 .map(|a| a.span().clone())
-                .unwrap_or_else(wat::span::Span::unknown),
+                .unwrap_or_else(|| wat::rust_caller_span!()),
         );
         return Some(TypeExpr::Tuple(vec![]));
     }
@@ -249,7 +249,7 @@ fn dispatch_auto_install(
     const OP: &str = ":rust::sqlite::auto-install-schemas";
     const TYPE_PATH: &str = ":rust::sqlite::Db";
     if args.len() != 2 {
-        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
@@ -281,7 +281,7 @@ fn scheme_auto_dispatch(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<Type
             args.len(),
             args.first()
                 .map(|a| a.span().clone())
-                .unwrap_or_else(wat::span::Span::unknown),
+                .unwrap_or_else(|| wat::rust_caller_span!()),
         );
         return Some(TypeExpr::Tuple(vec![]));
     }
@@ -324,7 +324,7 @@ fn dispatch_auto_dispatch(
     const OP: &str = ":rust::sqlite::auto-dispatch";
     const TYPE_PATH: &str = ":rust::sqlite::Db";
     if args.len() != 3 {
-        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 3,
             got: args.len(),
@@ -338,7 +338,7 @@ fn dispatch_auto_dispatch(
     let ev = match &entry {
         Value::Enum(ev) => ev.clone(),
         _ => {
-            return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!(
                     "expected an enum value for entry; got {}",
@@ -349,7 +349,7 @@ fn dispatch_auto_dispatch(
         }
     };
     if ev.type_path != enum_name {
-        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "entry type {} doesn't match auto-prep'd enum {enum_name}",
@@ -359,7 +359,7 @@ fn dispatch_auto_dispatch(
         } });
     }
     let av = schema.by_variant.get(&ev.variant_name).ok_or_else(|| {
-        RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "no auto-spawn binding for {enum_name}::{} (unit variants are not yet supported)",
@@ -369,7 +369,7 @@ fn dispatch_auto_dispatch(
         } }
     })?;
     if ev.fields.len() != av.field_types.len() {
-        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
                 "variant {}::{} expected {} fields, entry has {}",
@@ -540,7 +540,7 @@ fn value_to_tosql(
     if let TypeExpr::Parametric { head, .. } = t {
         if head == "wat::core::HashMap" {
             if !matches!(v, Value::wat__std__HashMap(_)) {
-                return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "{enum_name}::{variant_name}#{idx}: HashMap field expected \
@@ -557,7 +557,7 @@ fn value_to_tosql(
     let path = match t {
         TypeExpr::Path(p) => p.as_str(),
         _ => {
-            return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "{enum_name}::{variant_name}#{idx}: non-scalar field type — \
@@ -599,7 +599,7 @@ fn value_to_tosql(
             Ok(Box::new(wat_edn::write(&edn)))
         }
 
-        _ => Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        _ => Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "{enum_name}::{variant_name}#{idx}: field type {path} doesn't match value {}",
@@ -621,7 +621,7 @@ fn extract_holon_field(
     variant_name: &str,
     idx: usize,
 ) -> Result<Arc<holon::HolonAST>, RuntimeError> {
-    let f0 = s.fields.first().ok_or_else(|| RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    let f0 = s.fields.first().ok_or_else(|| RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: op.into(),
         reason: format!(
             "{enum_name}::{variant_name}#{idx}: {} value has no inner field",
@@ -631,7 +631,7 @@ fn extract_holon_field(
     } })?;
     match f0 {
         Value::holon__HolonAST(h) => Ok(h.clone()),
-        other => Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        other => Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "{enum_name}::{variant_name}#{idx}: {}'s inner must be HolonAST, got {}",
@@ -649,7 +649,7 @@ fn lookup_schema(op: &str, enum_name: &str) -> Result<Arc<AutoSchema>, RuntimeEr
         .unwrap()
         .get(enum_name)
         .cloned()
-        .ok_or_else(|| RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        .ok_or_else(|| RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!(
                 "no auto-spawn schemas cached for {enum_name}; was :rust::sqlite::auto-prep called?"

@@ -214,7 +214,7 @@ mod tests {
         let (types, mut fresh, mut subst) = make_env_fresh_subst();
         let check_env = crate::check::CheckEnv::with_builtins_and_types(&types);
         let locals: HashMap<String, TypeExpr> = HashMap::new();
-        let span = Span::unknown();
+        let span = crate::rust_caller_span!();
         // sig[0] is a Keyword, not a Vector → ArgsVecNotVector → SilentReject.
         let args = &[
             WatAST::Keyword(":not-a-vec".into(), span.clone()),

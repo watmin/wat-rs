@@ -31,8 +31,8 @@
 //!   (ident or `a::b::c`); an inline expression (method call, field access) is
 //!   a parse error.
 //! - **Span fields** — A field whose type's last path segment is `Span` is
-//!   emitted via `crate::to_edn::push_span_field`, eliding the key entirely
-//!   when `span.is_unknown()`. Do NOT call `.to_edn()` on a Span field.
+//!   emitted via `crate::to_edn::push_span_field` (always emitted; arc 298.2:
+//!   every span is a real location). Do NOT call `.to_edn()` on a Span field.
 //!   The key is the snake→kebab default or the `#[to_edn(key="…")]` override.
 //!
 //! ### Variant-level directives

@@ -197,7 +197,7 @@ impl<T: Send> Receiver<T> {
                 };
                 fired?;
                 // Timer fired; take the msg (one-shot, atomic-gated — zero mutex).
-                msg.take(":wat::kernel::after", crate::span::Span::unknown())
+                msg.take(":wat::kernel::after", crate::rust_caller_span!())
                     .map_err(|_| RecvError::Disconnected)
             }
         }
@@ -389,7 +389,7 @@ impl<'a, T: Send + 'static> Select<'a, T> {
                 let _ = selected_op.recv(instant_rx);
                 // Take the stored msg (one-shot, atomic-gated — zero mutex).
                 let result = msg
-                    .take(":wat::kernel::after", crate::span::Span::unknown())
+                    .take(":wat::kernel::after", crate::rust_caller_span!())
                     .map_err(|_| RecvError::Disconnected);
                 SelectOutcome::Recv {
                     index: ReceiverIndex(user_pos),

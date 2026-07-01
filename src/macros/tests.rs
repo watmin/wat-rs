@@ -237,7 +237,7 @@ fn drill_let_binder_ident(form: &WatAST) -> &Identifier {
 #[test]
 fn drill_let_binder_ident_on_minimal_form() {
     // Prove the helper on a hand-built (:let ((tmp 1)) tmp) form.
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     let tmp_ident = Identifier::bare("tmp");
     let pair = WatAST::List(
         vec![
@@ -414,7 +414,7 @@ fn extract_typed_binding_sym(form: &WatAST) -> Identifier {
 fn extract_typed_binding_sym_on_minimal_form() {
     // Build a minimal (:let (((t :i64) 1)) …) form by hand and assert the helper
     // returns the `t` Identifier — proving the helper on data we fully control.
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     let t_ident = Identifier::bare("t");
     let typed_name = WatAST::List(
         vec![
@@ -620,7 +620,7 @@ fn find_defmacro_body(form: &WatAST) -> &WatAST {
 fn find_defmacro_body_returns_quasiquote_inner() {
     // Build a minimal (:wat::core::defmacro :name [x <- :AST] -> :AST `body-sentinel)
     // by hand; assert find_defmacro_body returns the quasiquote inner (the body-sentinel).
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     let sentinel = WatAST::IntLit(999, span.clone());
     let quasi = WatAST::List(
         vec![
@@ -740,7 +740,7 @@ fn unquote_of_literal_returns_literal() {
     let env = crate::runtime::Environment::default();
     let sym = crate::runtime::SymbolTable::default();
     // A literal int — not a symbol, no binding needed.
-    let lit = WatAST::IntLit(99, crate::span::Span::unknown());
+    let lit = WatAST::IntLit(99, crate::rust_caller_span!());
     let out = expand::unquote_argument(&lit, &bindings, &env, &sym).unwrap();
     match out {
         WatAST::IntLit(n, _) => assert_eq!(n, 99),
@@ -749,8 +749,8 @@ fn unquote_of_literal_returns_literal() {
     // A list whose head is NOT a keyword — treated as already-substituted
     // literal (backward-compat heuristic: head must be Keyword to eval).
     let list = WatAST::List(
-        vec![WatAST::IntLit(1, crate::span::Span::unknown()), WatAST::IntLit(2, crate::span::Span::unknown())],
-        crate::span::Span::unknown(),
+        vec![WatAST::IntLit(1, crate::rust_caller_span!()), WatAST::IntLit(2, crate::rust_caller_span!())],
+        crate::rust_caller_span!(),
     );
     let out = expand::unquote_argument(&list, &bindings, &env, &sym).unwrap();
     assert!(matches!(out, WatAST::List(_, _)));
@@ -903,7 +903,7 @@ fn arc138_macro_error_message_carries_span() {
 #[test]
 fn substitute_bindings_bound_symbol_is_replaced() {
     let mut bindings = std::collections::HashMap::new();
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     bindings.insert("x".into(), WatAST::IntLit(42, span.clone()));
     let sym = WatAST::Symbol(Identifier::bare("x"), span.clone());
     let out = expand::substitute_bindings(&sym, &bindings);
@@ -915,7 +915,7 @@ fn substitute_bindings_bound_symbol_is_replaced() {
 #[test]
 fn substitute_bindings_unbound_symbol_passes_through() {
     let bindings = std::collections::HashMap::new();
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     let sym = WatAST::Symbol(Identifier::bare("y"), span.clone());
     let out = expand::substitute_bindings(&sym, &bindings);
     assert!(matches!(out, WatAST::Symbol(_, _)));
@@ -926,7 +926,7 @@ fn substitute_bindings_unbound_symbol_passes_through() {
 #[test]
 fn substitute_bindings_recurses_into_list() {
     let mut bindings = std::collections::HashMap::new();
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     bindings.insert("x".into(), WatAST::IntLit(42, span.clone()));
     let sym = WatAST::Symbol(Identifier::bare("x"), span.clone());
     let list = WatAST::List(
@@ -954,7 +954,7 @@ fn computed_unquote_non_keyword_head_list_is_literal() {
     let bindings = std::collections::HashMap::new();
     let env = crate::runtime::Environment::default();
     let sym = crate::runtime::SymbolTable::default();
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     // Head is an IntLit, not a Keyword — must return as-is.
     let list = WatAST::List(
         vec![
@@ -1160,7 +1160,7 @@ fn impure_computed_unquote_refused_with_refused_in_macro() {
     let bindings = std::collections::HashMap::new();
     let env = crate::runtime::Environment::default();
     let sym = crate::runtime::SymbolTable::default();
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     // (:wat::kernel::send ...) — effectful head; NOT on the pure-total allow-list.
     // unquote_argument routes through macro_eval for any list with a Keyword head.
     let impure_form = WatAST::List(
@@ -1334,7 +1334,7 @@ fn macroexpand_in_computed_unquote_refused_with_refused_in_macro() {
     let bindings = std::collections::HashMap::new();
     let env = crate::runtime::Environment::default();
     let sym = crate::runtime::SymbolTable::default();
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     // (:wat::core::macroexpand-1 ...) — deliberately excluded from the
     // is_pure_total allow-list (macro-time evaluation must not invoke the
     // macroexpand runtime primitive; see eval.rs is_pure_total deny-list comment).
@@ -1366,7 +1366,7 @@ fn impure_fn_body_passed_to_hof_refused_with_refused_in_macro() {
     // fn body is expand-time impurity. A blanket "fn forms are opaque" rule
     // in validate_pure_total would wave this through — this test exists so
     // that hole can never silently reopen.
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     let impure_fn = WatAST::List(
         vec![
             WatAST::Keyword(":wat::core::fn".into(), span.clone()),
@@ -1401,7 +1401,7 @@ fn signature_of_fn_literal_fn_arg_is_signature_only() {
     // closure and reads its SIGNATURE — the body never executes, so user-fn
     // heads inside it (runtime code destined for the expansion's output) are
     // permitted. A NON-fn argument to the same verb is still validated.
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     // (:wat::runtime::signature-of-fn (fn (:my::user-fn 1))) — OK.
     let fn_with_user_head = WatAST::List(
         vec![
@@ -1457,7 +1457,7 @@ fn signature_of_fn_impure_body_is_inert() {
     // executing it, and function_to_signature_ast never reads f.body. If a
     // future code path ever executes the body on the signature-of-fn route,
     // this witness turns red.
-    let span = crate::span::Span::unknown();
+    let span = crate::rust_caller_span!();
     let fn_with_kernel_send = WatAST::List(
         vec![
             WatAST::Keyword(":wat::core::fn".into(), span.clone()),

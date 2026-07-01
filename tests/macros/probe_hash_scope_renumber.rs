@@ -28,13 +28,13 @@ use wat::scope::{fresh_scope, Identifier, ScopeId};
 use wat::span::Span;
 
 fn sym(name: &str, scope: ScopeId) -> WatAST {
-    WatAST::Symbol(Identifier::bare(name).add_scope(scope), Span::unknown())
+    WatAST::Symbol(Identifier::bare(name).add_scope(scope), wat::rust_caller_span!())
 }
 
 // `(tmp tmp)` — both occurrences sharing ONE scope `s` (a binder + its reference, as
 // `walk_template` tags them in a single expansion step).
 fn shared_scope_program(s: ScopeId) -> Vec<WatAST> {
-    vec![WatAST::List(vec![sym("tmp", s), sym("tmp", s)], Span::unknown())]
+    vec![WatAST::List(vec![sym("tmp", s), sym("tmp", s)], wat::rust_caller_span!())]
 }
 
 /// THE BUG — two programs identical up to per-process scope RENAMING must hash EQUAL.
@@ -64,7 +64,7 @@ fn distinct_scope_structure_hashes_differently() {
     let s1 = fresh_scope();
     let s2 = fresh_scope();
     let shared = shared_scope_program(s1); // (tmp{s1} tmp{s1}) — one scope
-    let distinct = vec![WatAST::List(vec![sym("tmp", s1), sym("tmp", s2)], Span::unknown())]; // two scopes
+    let distinct = vec![WatAST::List(vec![sym("tmp", s1), sym("tmp", s2)], wat::rust_caller_span!())]; // two scopes
     assert_ne!(
         hash_canonical_program(&shared),
         hash_canonical_program(&distinct),

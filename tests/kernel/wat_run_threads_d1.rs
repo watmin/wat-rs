@@ -81,7 +81,7 @@ fn run_threads_d1_single_factory_round_trips_string() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-threads bracket should return the coordinator fn value");
     match outcome {

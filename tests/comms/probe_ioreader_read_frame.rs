@@ -46,9 +46,9 @@ fn read_frame_multiline_edn_map() {
         .build();
 
     // Build a synthetic Symbol AST node pointing at "__reader__" in the env.
-    let arg_ast = WatAST::Symbol(Identifier::bare("__reader__"), Span::unknown());
+    let arg_ast = WatAST::Symbol(Identifier::bare("__reader__"), wat::rust_caller_span!());
 
-    let result = eval_ioreader_read_frame(&[arg_ast], &env, sym, &Span::unknown());
+    let result = eval_ioreader_read_frame(&[arg_ast], &env, sym, &wat::rust_caller_span!());
     match result {
         Ok(Value::Option(opt)) => match opt.as_ref() {
             Some(Value::String(s)) => {
@@ -83,9 +83,9 @@ fn read_frame_eof_returns_none() {
         .bind_unknown_span("__reader__", tv)
         .build();
 
-    let arg_ast = WatAST::Symbol(Identifier::bare("__reader__"), Span::unknown());
+    let arg_ast = WatAST::Symbol(Identifier::bare("__reader__"), wat::rust_caller_span!());
 
-    let result = eval_ioreader_read_frame(&[arg_ast], &env, sym, &Span::unknown());
+    let result = eval_ioreader_read_frame(&[arg_ast], &env, sym, &wat::rust_caller_span!());
     match result {
         Ok(Value::Option(opt)) => match opt.as_ref() {
             None => {} // correct: EOF → None

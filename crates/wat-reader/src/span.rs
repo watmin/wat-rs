@@ -36,7 +36,8 @@
 //! - Test/eval parses that don't have a path use `<test>`, `<eval>`,
 //!   `<repl>`, or a caller-supplied label.
 //! - Synthetic forms (macro-expanded, runtime-constructed) use
-//!   [`Span::unknown`] which labels as `<synthetic>`.
+//!   [`crate::rust_caller_span!()`] which carries the real Rust
+//!   `file!():line!():col!()` of the constructing code.
 //!
 //! Stored as `Arc<String>` so spans clone cheaply — every AST node
 //! share-clones the same string rather than allocating per-node.
@@ -61,23 +62,6 @@ pub struct Span {
 }
 
 impl Span {
-    /// Sentinel span for internally-constructed forms that have no
-    /// source location (test helpers, runtime-built AST nodes). The
-    /// file label `<runtime>` surfaces in backtraces only when an
-    /// internal AST node reaches a call site — rare in practice,
-    /// since real runtime-initiated invocations use
-    /// [`crate::rust_caller_span`] which carries the Rust
-    /// `file!()`:`line!()`:`column!()` instead.
-    pub fn unknown() -> Self {
-        Span {
-            file: Arc::new("<runtime>".to_string()),
-            line: 0,
-            col: 0,
-            end_line: 0,
-            end_col: 0,
-        }
-    }
-
     /// Build a span with the given file label and 1-indexed position.
     /// `end_line` and `end_col` default to `line`/`col` (degenerate end==start).
     /// All existing call sites keep compiling unchanged.
@@ -92,11 +76,6 @@ impl Span {
         Span { file, line, col, end_line, end_col }
     }
 
-    /// `true` iff this is the synthetic sentinel — useful for error
-    /// messages that want to skip "at <synthetic>:0:0" noise.
-    pub fn is_unknown(&self) -> bool {
-        self.line == 0 && self.col == 0
-    }
 }
 
 impl std::fmt::Display for Span {
@@ -146,16 +125,12 @@ impl std::hash::Hash for Span {
     fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
 }
 
-/// Arc 138 — render the file:line:col prefix for an error, or empty when
-/// the span is unknown (synthetic check rule with no originating node).
+/// Arc 138 — render the file:line:col prefix for an error.
 /// The prefix shape is `<file>:<line>:<col>: `.
 ///
 /// Shared by `src/check.rs` (CheckError Display) and `src/types.rs`
 /// (TypeError Display) — both were carrying identical private copies.
+/// Arc 298.2: every span is now a real location; no sentinel elision.
 pub fn span_prefix(span: &Span) -> String {
-    if span.is_unknown() {
-        String::new()
-    } else {
-        format!("{}: ", span)
-    }
+    format!("{}: ", span)
 }

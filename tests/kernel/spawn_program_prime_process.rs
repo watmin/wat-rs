@@ -45,7 +45,7 @@ use wat::span::Span;
 /// the fd, it never reaps).
 fn reap_child_on_wire(cell: &ProcessPeerCell) {
     let selectable = cell
-        .with_mut("test:reap", Span::unknown(), |opt| opt.take())
+        .with_mut("test:reap", wat::rust_caller_span!(), |opt| opt.take())
         .expect("with_mut(reap) must not cross thread boundary")
         .expect("bundle must still be present at reap time");
     match selectable {
@@ -160,7 +160,7 @@ const DIVISION_CRASH_SERVER: &str = r#"
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_echo_round_trip() {
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
-    let dummy_span = Span::unknown();
+    let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 
@@ -212,7 +212,7 @@ fn spawn_program_prime_process_echo_round_trip() {
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
-    let dummy_span = Span::unknown();
+    let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 
@@ -269,7 +269,7 @@ fn spawn_program_prime_process_helper_round_trip() {
     // the forms-server IS self-contained — startup_from_forms handles all
     // symbol registration. Prove the server executes correctly end-to-end.
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
-    let dummy_span = Span::unknown();
+    let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 
@@ -326,7 +326,7 @@ fn spawn_program_prime_process_helper_round_trip() {
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_error_emits_diagnostic() {
     let forms = forms_from_src(ECHO_PLUS_1_SERVER);
-    let dummy_span = Span::unknown();
+    let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 
@@ -402,7 +402,7 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
 fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
     // Division server: reads i64, writes (100 / n). n=0 → DivisionByZero.
     let forms = forms_from_src(DIVISION_CRASH_SERVER);
-    let dummy_span = Span::unknown();
+    let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 

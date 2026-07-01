@@ -567,7 +567,7 @@ pub fn fork_program_from_source(
             lifeline_r,
         );
     })
-    .map_err(|err| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    .map_err(|err| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: OP.into(),
         reason: format!("spawn_lifelined_any: {}", err)
     } })?;

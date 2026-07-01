@@ -58,19 +58,19 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
     let child_forms =
         wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
             .expect("child program parse");
-    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), Span::unknown())];
+    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
     forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, Span::unknown());
+    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::spawn-program'".into(), Span::unknown()),
+            WatAST::Keyword(":wat::kernel::spawn-program'".into(), wat::rust_caller_span!()),
             WatAST::List(
-                vec![WatAST::Keyword(":wat::spawn::process".into(), Span::unknown())],
-                Span::unknown(),
+                vec![WatAST::Keyword(":wat::spawn::process".into(), wat::rust_caller_span!())],
+                wat::rust_caller_span!(),
             ),
             forms_call,
         ],
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
 }
 
@@ -115,7 +115,7 @@ fn select_prime_flood_no_deadlock() {
     // Bind child into the env.
     let env = Environment::new()
         .child()
-        .bind("child", Span::unknown(), child.into())
+        .bind("child", wat::rust_caller_span!(), child.into())
         .build();
 
     // Eval: (select' (Vector :wat::kernel::Process'<:wat::core::nil,:wat::core::nil> child))

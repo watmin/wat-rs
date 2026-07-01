@@ -75,12 +75,12 @@ fn encode_in(caps: &[CapCodec], inner: &RustOpaqueInner, types: &TypeEnv) -> Opt
 /// Construct a capability-decode error. Decode reconstructs off the trusted peer wire from an
 /// `OwnedValue` body, which carries no source position — so the span is legitimately unknown,
 /// attested here ONCE rather than filled by silent convention at each call site (a bare
-/// `Span::unknown()` reads identically to a discarded-span bug; this names why it is not one).
+/// `crate::rust_caller_span!()` reads identically to a discarded-span bug; this names why it is not one).
 // rune:conformare(spanless-by-domain) — capability decode reconstructs off the trusted wire from an
 // OwnedValue body that carries no source location; consumers of EdnReadError from decode_capability
 // do not expect a span.
 fn cap_decode_error(reason: impl Into<String>) -> EdnReadError {
-    EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnsupportedTag(reason.into()) }
+    EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(reason.into()) }
 }
 
 /// The decode dispatch over an EXPLICIT codec set — a linear find by tag `name`.

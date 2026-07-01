@@ -402,20 +402,20 @@ mod tests {
     #[test]
     fn i64_roundtrip() {
         let v = 42i64.to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         assert_eq!(i64::from_wat(&v, "test", &s).unwrap(), 42);
     }
 
     #[test]
     fn f64_roundtrip() {
         let v = 2.5f64.to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         assert_eq!(f64::from_wat(&v, "test", &s).unwrap(), 2.5);
     }
 
     #[test]
     fn bool_roundtrip() {
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         assert!(bool::from_wat(&true.to_wat(), "t", &s).unwrap());
         assert!(!bool::from_wat(&false.to_wat(), "t", &s).unwrap());
     }
@@ -423,21 +423,21 @@ mod tests {
     #[test]
     fn string_roundtrip() {
         let v = "hello".to_string().to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         assert_eq!(String::from_wat(&v, "test", &s).unwrap(), "hello");
     }
 
     #[test]
     fn unit_roundtrip() {
         let v = ().to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         assert!(matches!(<()>::from_wat(&v, "test", &s), Ok(())));
     }
 
     #[test]
     fn option_some_roundtrip() {
         let v: Value = Some(7i64).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: Option<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Some(7));
     }
@@ -445,7 +445,7 @@ mod tests {
     #[test]
     fn option_none_roundtrip() {
         let v: Value = Option::<i64>::None.to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: Option<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, None);
     }
@@ -453,7 +453,7 @@ mod tests {
     #[test]
     fn vec_of_i64_roundtrip() {
         let v: Value = vec![1i64, 2, 3].to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: Vec<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, vec![1, 2, 3]);
     }
@@ -461,7 +461,7 @@ mod tests {
     #[test]
     fn vec_of_strings_roundtrip() {
         let v: Value = vec!["a".to_string(), "b".to_string()].to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: Vec<String> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, vec!["a".to_string(), "b".to_string()]);
     }
@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn empty_vec_roundtrip() {
         let v: Value = Vec::<i64>::new().to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: Vec<i64> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert!(back.is_empty());
     }
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn vec_of_options_roundtrip() {
         let v: Value = vec![Some(1i64), None, Some(3)].to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: Vec<Option<i64>> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, vec![Some(1), None, Some(3)]);
     }
@@ -485,7 +485,7 @@ mod tests {
     #[test]
     fn vec_from_wrong_value_type_fails() {
         let v = Value::i64(5);
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let err = <Vec<i64> as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
     }
@@ -493,7 +493,7 @@ mod tests {
     #[test]
     fn tuple_2_roundtrip() {
         let v: Value = (42i64, "hello".to_string()).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: (i64, String) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (42, "hello".to_string()));
     }
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn tuple_3_roundtrip() {
         let v: Value = (1i64, true, 2.5f64).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: (i64, bool, f64) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (1, true, 2.5));
     }
@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn tuple_4_roundtrip() {
         let v: Value = (1i64, 2i64, 3i64, 4i64).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: (i64, i64, i64, i64) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (1, 2, 3, 4));
     }
@@ -517,7 +517,7 @@ mod tests {
     #[test]
     fn tuple_nested_with_option_vec() {
         let v: Value = (Some(7i64), vec![1i64, 2, 3]).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: (Option<i64>, Vec<i64>) = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, (Some(7), vec![1, 2, 3]));
     }
@@ -525,7 +525,7 @@ mod tests {
     #[test]
     fn tuple_arity_mismatch_rejected() {
         let v: Value = (1i64, 2i64, 3i64).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let err = <(i64, i64) as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         match err {
             RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. } => {
@@ -539,7 +539,7 @@ mod tests {
     #[test]
     fn tuple_from_non_tuple_value_fails() {
         let v = Value::i64(1);
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let err = <(i64, i64) as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
     }
@@ -547,7 +547,7 @@ mod tests {
     #[test]
     fn result_ok_roundtrip() {
         let v: Value = std::result::Result::<i64, String>::Ok(7).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Ok(7));
     }
@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn result_err_roundtrip() {
         let v: Value = std::result::Result::<i64, String>::Err("boom".into()).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Err("boom".to_string()));
     }
@@ -564,7 +564,7 @@ mod tests {
     fn result_nested_option_and_vec() {
         let v: Value =
             std::result::Result::<Option<i64>, Vec<String>>::Ok(Some(5)).to_wat();
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back: std::result::Result<Option<i64>, Vec<String>> =
             FromWat::from_wat(&v, "test", &s).unwrap();
         assert_eq!(back, Ok(Some(5)));
@@ -573,7 +573,7 @@ mod tests {
     #[test]
     fn result_from_non_result_fails() {
         let v = Value::i64(1);
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let err =
             <std::result::Result<i64, String> as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn value_passthrough() {
         let v = Value::i64(99);
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let back = Value::from_wat(&v, "test", &s).unwrap();
         assert!(matches!(back, Value::i64(99)));
     }
@@ -590,7 +590,7 @@ mod tests {
     #[test]
     fn type_mismatch_surfaces_op_name() {
         let v = Value::String(Arc::new("not an i64".into()));
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let err = i64::from_wat(&v, ":rust::test::method", &s).unwrap_err();
         match err {
             RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, got, .. }, .. } => {
@@ -607,7 +607,7 @@ mod tests {
         struct Widget {
             tag: i64,
         }
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let v = make_rust_opaque(":rust::test::Widget", Widget { tag: 7 });
         let inner = rust_opaque_arc(&v, ":rust::test::Widget", ":test", s.clone()).unwrap();
         let w: &Widget = downcast_ref_opaque(&inner, ":rust::test::Widget", ":test", s).unwrap();
@@ -617,7 +617,7 @@ mod tests {
     #[test]
     fn opaque_wrong_type_path_rejected() {
         struct A;
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let v = make_rust_opaque(":rust::test::A", A);
         let err = rust_opaque_arc(&v, ":rust::test::B", ":test", s).unwrap_err();
         assert!(matches!(err, RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. }));
@@ -630,7 +630,7 @@ mod tests {
         }
         #[derive(Debug)]
         struct ExpectedWrong;
-        let s = crate::span::Span::unknown();
+        let s = crate::rust_caller_span!();
         let v = make_rust_opaque(":rust::test::Mixed", Actual { _t: 1 });
         let inner = rust_opaque_arc(&v, ":rust::test::Mixed", ":test", s.clone()).unwrap();
         let result = downcast_ref_opaque::<ExpectedWrong>(&inner, ":rust::test::Mixed", ":test", s);

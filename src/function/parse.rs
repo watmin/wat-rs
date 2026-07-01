@@ -295,7 +295,7 @@ mod tests {
     use crate::span::Span;
 
     fn span() -> Span {
-        Span::unknown()
+        crate::rust_caller_span!()
     }
 
     fn arrow() -> WatAST {

@@ -30,7 +30,7 @@ fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
 
 fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
     let bytes = reader
-        .read_all(wat::span::Span::unknown())
+        .read_all(wat::rust_caller_span!())
         .expect("read-all");
     let s = String::from_utf8(bytes).expect("utf8");
     if s.is_empty() {

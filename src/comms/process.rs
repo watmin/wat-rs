@@ -619,7 +619,7 @@ impl<T: EdnRepresentable> Receiver<T> {
                 }
                 // Timer fired; take the msg ONCE (atomic-gated, zero-mutex — mirrors
                 // thread.rs:200). If already taken (spurious poll), silently skip.
-                if let Ok(frame) = msg.take(":wat::kernel::after", crate::span::Span::unknown()) {
+                if let Ok(frame) = msg.take(":wat::kernel::after", crate::rust_caller_span!()) {
                     // frame already ends in '\n' (pre-encoded by the timer() caller).
                     self.accumulator.borrow_mut().extend_from_slice(&frame);
                 }

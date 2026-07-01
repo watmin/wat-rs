@@ -31,7 +31,7 @@ use wat_edn;
 #[test]
 fn checkerror_outer_span_field_required() {
     let err = CheckError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: CheckErrorKind::ArityMismatch {
             callee: "f".to_string(),
             expected: 2,
@@ -66,7 +66,7 @@ fn checkerrorkind_variants_have_no_span_field() {
     };
 
     let err = CheckError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind,
     };
 
@@ -87,21 +87,21 @@ fn checkerror_span_access_is_single_path() {
     let variants_under_test: Vec<(CheckError, Span)> = vec![
         (
             CheckError {
-                span: Span::unknown(),
+                span: wat::rust_caller_span!(),
                 kind: CheckErrorKind::ArityMismatch {
                     callee: "a".into(),
                     expected: 1,
                     got: 0,
                 },
             },
-            Span::unknown(),
+            wat::rust_caller_span!(),
         ),
         (
             CheckError {
-                span: Span::unknown(),
+                span: wat::rust_caller_span!(),
                 kind: CheckErrorKind::UnknownCallee { callee: "b".into() },
             },
-            Span::unknown(),
+            wat::rust_caller_span!(),
         ),
     ];
 
@@ -129,7 +129,7 @@ fn checkerror_display_elides_unknown_secondary_span() {
         span: known_outer.clone(),
         kind: CheckErrorKind::ProcessJoinHoldsStdinSender {
             process_identifier: "worker".to_string(),
-            stdin_sender_span: Span::unknown(),
+            stdin_sender_span: wat::rust_caller_span!(),
         },
     };
     let rendered = err_unknown_secondary.to_string();
@@ -157,7 +157,7 @@ fn checkerror_display_elides_unknown_secondary_span() {
 /// Contract 4: Display elides unknown spans — the doc claim is true in code.
 ///
 /// Two sub-cases:
-/// (a) UNKNOWN span (`Span::unknown()`) — mid-prose " at <runtime>:0:0" must
+/// (a) UNKNOWN span (`wat::rust_caller_span!()`) — mid-prose " at <runtime>:0:0" must
 ///     NOT appear in the rendered string.  Only the `span_prefix` and
 ///     `diagnostic()` paths gated this; `fmt_with_span`'s mid-prose branches
 ///     previously checked `Some`-ness only and would emit the synthetic noise.
@@ -172,7 +172,7 @@ fn checkerror_display_elides_unknown_secondary_span() {
 fn checkerror_display_elides_unknown_span() {
     // --- (a) UNKNOWN span: mid-prose location must be suppressed ---
     let err_unknown = CheckError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: CheckErrorKind::ScopeDeadlock {
             thread_binding: "t".to_string(),
             offending_binding: "tx".to_string(),
@@ -222,7 +222,7 @@ fn edn_elides_unknown_span() {
 
     // --- (a) UNKNOWN span: serialized EDN must not mention "<runtime>" ---
     let err_unknown = CheckError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: CheckErrorKind::ScopeDeadlock {
             thread_binding: "t".to_string(),
             offending_binding: "tx".to_string(),

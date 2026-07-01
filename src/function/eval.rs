@@ -81,7 +81,7 @@ mod tests {
     /// constructed AST can carry fewer — the guard is the production safety net.
     #[test]
     fn eval_fn_fewer_than_3_args_returns_malformed_form() {
-        let span = Span::unknown();
+        let span = crate::rust_caller_span!();
         let env = Environment::new();
         // Only 1 arg after the fn head has been stripped by the caller — too few.
         let args = &[WatAST::Vector(vec![], span.clone())];

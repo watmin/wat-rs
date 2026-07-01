@@ -24,7 +24,7 @@ use wat::types::{TypeError, TypeErrorKind};
 #[test]
 fn typeerror_outer_span_field_required() {
     let err = TypeError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: TypeErrorKind::CyclicSubtype {
             child: "x".to_string(),
             parent: "y".to_string(),
@@ -37,7 +37,7 @@ fn typeerror_outer_span_field_required() {
 
     // The kind enum holds variant-specific data only — no span field per
     // variant. CyclicSubtype's domain-spanless status is captured via the
-    // outer struct's Span::unknown() + rune annotation.
+    // outer struct's wat::rust_caller_span!() + rune annotation.
     let kind_is_cyclic = matches!(err.kind, TypeErrorKind::CyclicSubtype { .. });
     assert!(kind_is_cyclic);
 }
@@ -61,7 +61,7 @@ fn typeerrorkind_variants_have_no_span_field() {
     };
 
     let err = TypeError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind,
     };
 
@@ -83,22 +83,22 @@ fn typeerror_span_access_is_single_path() {
     let variants_under_test: Vec<(TypeError, Span)> = vec![
         (
             TypeError {
-                span: Span::unknown(),
+                span: wat::rust_caller_span!(),
                 kind: TypeErrorKind::CyclicSubtype {
                     child: "a".into(),
                     parent: "b".into(),
                 },
             },
-            Span::unknown(),
+            wat::rust_caller_span!(),
         ),
         (
             TypeError {
-                span: Span::unknown(),
+                span: wat::rust_caller_span!(),
                 kind: TypeErrorKind::ReservedPrefix {
                     name: "wat::x".into(),
                 },
             },
-            Span::unknown(),
+            wat::rust_caller_span!(),
         ),
     ];
 

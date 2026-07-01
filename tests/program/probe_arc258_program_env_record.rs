@@ -25,7 +25,7 @@ fn call_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<i64, Stri
         .symbols()
         .get(fn_name)
         .ok_or_else(|| format!("{fn_name} not found in world"))?;
-    match apply_function(func.clone(), Vec::new(), world.symbols(), Span::unknown())
+    match apply_function(func.clone(), Vec::new(), world.symbols(), wat::rust_caller_span!())
         .map_err(|e| format!("startup/check: {e:?}"))?
     {
         Value::i64(n) => Ok(n),

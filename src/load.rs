@@ -394,7 +394,7 @@ impl crate::to_edn::ToEdn for LoadError {
 
 impl From<LoadFetchError> for LoadError {
     fn from(e: LoadFetchError) -> Self {
-        LoadError { span: Span::unknown(), kind: LoadErrorKind::Fetch(e) }
+        LoadError { span: crate::rust_caller_span!(), kind: LoadErrorKind::Fetch(e) }
     }
 }
 
@@ -481,7 +481,7 @@ fn process_single_load(
     stack.push(fetched.canonical_path.clone());
 
     let loaded_forms = parse_all_with_file(&fetched.source, &fetched.canonical_path).map_err(|err| LoadError {
-        span: Span::unknown(),
+        span: crate::rust_caller_span!(),
         kind: LoadErrorKind::Parse {
             path: fetched.canonical_path.clone(),
             err,
@@ -566,7 +566,7 @@ fn verify_pre_parse(
             let hex_trimmed = hex.trim();
             crate::hash::verify_source_hash(fetched.source.as_bytes(), algo, hex_trimmed).map_err(
                 |err| LoadError {
-                    span: Span::unknown(),
+                    span: crate::rust_caller_span!(),
                     kind: LoadErrorKind::VerificationFailed {
                         path: fetched.canonical_path.clone(),
                         err,
@@ -597,7 +597,7 @@ fn verify_post_parse(
                 pk_b64.trim(),
             )
             .map_err(|err| LoadError {
-                span: Span::unknown(),
+                span: crate::rust_caller_span!(),
                 kind: LoadErrorKind::VerificationFailed {
                     path: canonical_path.to_string(),
                     err,

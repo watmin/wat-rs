@@ -24,7 +24,7 @@ use wat::span::Span;
 
 fn dummy_error() -> CheckError {
     CheckError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: CheckErrorKind::UnknownCallee {
             callee: ":dummy".to_string(),
         },
@@ -33,7 +33,7 @@ fn dummy_error() -> CheckError {
 
 fn dummy_error_2() -> CheckError {
     CheckError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: CheckErrorKind::UnknownCallee {
             callee: ":dummy2".to_string(),
         },

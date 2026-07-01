@@ -3,7 +3,7 @@
 //! [`CheckError`] carries the source span at the outer struct; variant data
 //! lives in [`CheckErrorKind`]. The `span` field is mandatory at construction —
 //! Rust's struct-literal rule makes a span-less `CheckError` uncompilable.
-//! `Span::unknown()` is the explicit sentinel for the rare site with no
+//! `crate::rust_caller_span!()` is the explicit sentinel for the rare site with no
 //! recoverable source location; `Display`/`diagnostic()` elide unknown spans.
 //!
 //! vigilatum: 2026-06-01T19:18:06Z — vigilia 7-spell L1+L2=0
@@ -15,7 +15,7 @@ use std::fmt;
 /// level; variant data in `CheckErrorKind`.
 ///
 /// The `span` field is mandatory at construction — Rust's struct-literal rule
-/// makes a span-less `CheckError` uncompilable. `Span::unknown()` is the
+/// makes a span-less `CheckError` uncompilable. `crate::rust_caller_span!()` is the
 /// explicit sentinel for the rare site with no recoverable source location;
 /// `Display`/`diagnostic()` elide unknown spans.
 ///
@@ -203,7 +203,7 @@ pub enum CheckErrorKind {
     /// D1: primary span was `:call-span`; normalized to `:span`.
     SandboxScopeLeak {
         offending_name: String,
-        /// Source location of the outer-scope define. May be `Span::unknown()`.
+        /// Source location of the outer-scope define. May be `crate::rust_caller_span!()`.
         /// Key `:outer-define-span` matches the snake→kebab default (explicit for clarity).
         #[to_edn(key = "outer-define-span")]
         outer_define_span: Span,
@@ -332,13 +332,11 @@ impl CheckErrorKind {
         span: Option<&Span>,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        // `prefix` is the leading `"file:line:col: "` string when span is
-        // known; empty string otherwise (including the span-free None path).
+        // Arc 298.2: every span is real; always emit. `prefix` is `"file:line:col: "`
+        // when span is Some, empty when None (the outer struct may omit the span
+        // in kind-only Display). `shown` = span (always real when present).
         let prefix = span.map(span_prefix).unwrap_or_default();
-        // `shown` gates mid-prose span emission: unknown spans (Span::unknown())
-        // are treated as absent so "at <runtime>:0:0" noise never appears.
-        // `prefix` is unaffected — it self-elides for unknown spans already.
-        let shown: Option<&Span> = span.filter(|s| !s.is_unknown());
+        let shown: Option<&Span> = span;
         match self {
             CheckErrorKind::ArityMismatch { callee, expected, got } => {
                 write!(f, "{}{}: expected {} argument(s); got {}", prefix, callee, expected, got)
@@ -414,11 +412,8 @@ impl CheckErrorKind {
                 if let Some(s) = shown {
                     write!(f, "process-join-before-output-drain at {s}: ")?;
                 }
-                let out_loc_clause = if output_accessor_span.is_unknown() {
-                    "the output accessor call".to_string()
-                } else {
-                    format!("the output accessor call is at {}", output_accessor_span)
-                };
+                // Arc 298.2: span is always real; always emit the location.
+                let out_loc_clause = format!("the output accessor call is at {}", output_accessor_span);
                 write!(
                     f,
                     "`:wat::kernel::Process/join-result {p}` and `{acc} {p}` appear in the same `let` form (sibling bindings or body). `Process/join-result` BLOCKS until the forked child exits. The substrate's internal drain threads consume the child's OS stdout/stderr pipes and push lines into the wat-level Receivers obtained via `{acc}`. If those Receivers are bounded and the parent has not yet drained them, the substrate's drain threads block on send when full; the child's stdout writes fill the OS pipe and block; the child CANNOT EXIT; `Process/join-result` BLOCKS FOREVER. ILLEGAL STATEMENT ORIENTATION: {out_loc_clause}. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: outer scope holds the Process; INNER scope owns every output-channel Receiver derived from it and drains them; outer scope's `Process/join-result` runs only AFTER the inner has consumed-and-disconnected (Receivers dropped at inner-scope exit). DO NOT add a wall-clock timeout to mask this — restructure the let.",
@@ -433,11 +428,8 @@ impl CheckErrorKind {
                 if let Some(s) = shown {
                     write!(f, "process-join-holds-stdin-sender at {s}: ")?;
                 }
-                let bind_clause = if stdin_sender_span.is_unknown() {
-                    "the Process handle".to_string()
-                } else {
-                    format!("the Process handle bound at {}", stdin_sender_span)
-                };
+                // Arc 298.2: span is always real; always emit the location.
+                let bind_clause = format!("the Process handle bound at {}", stdin_sender_span);
                 write!(
                     f,
                     "`:wat::kernel::Process/join-result {p}` blocks until the forked child exits, but `:wat::kernel::Process/stdin {p}` was never extracted from the Process handle anywhere in this `let` scope. The substrate's child has a structural StdInService (arc 170 slice 1f) blocked on `read(fd 0)` waiting for EOF. The parent holds the write-end of the child's stdin pipe via {bind_clause}. Without EOF on that pipe, the child cannot exit; parent's join blocks forever — a true deadlock. ILLEGAL STATEMENT ORIENTATION. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: extract `:wat::kernel::Process/stdin {p}` in an INNER `let` (nested inside an outer binding before the join binding) so the Sender drops at inner-let exit before the outer join runs. The inner let should also contain the output Receivers and drain them before returning. DO NOT add a wall-clock timeout to mask this — restructure the let.",
@@ -576,11 +568,8 @@ impl CheckErrorKind {
                 )
             }
             CheckErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => {
-                let define_loc = if outer_define_span.is_unknown() {
-                    "an outer scope".to_string()
-                } else {
-                    format!("{}", outer_define_span)
-                };
+                // Arc 298.2: span is always real; always emit the location.
+                let define_loc = format!("{}", outer_define_span);
                 write!(
                     f,
                     "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. The sandbox isolation is intentional — see wat/test.wat's deftest macro.",
@@ -588,11 +577,8 @@ impl CheckErrorKind {
                 )
             }
             CheckErrorKind::DefRedefForbidden { name, original_def_span } => {
-                let prior_loc = if original_def_span.is_unknown() {
-                    "an earlier binding".to_string()
-                } else {
-                    format!("{}", original_def_span)
-                };
+                // Arc 298.2: span is always real; always emit the location.
+                let prior_loc = format!("{}", original_def_span);
                 write!(
                     f,
                     "{}`:wat::core::def` redef of `{}`: name already bound at {}. Redef is forbidden by default; opt in via `(:wat::config::set-redef! true)` before this form. Use a different name, or enable redef explicitly.",
@@ -600,11 +586,8 @@ impl CheckErrorKind {
                 )
             }
             CheckErrorKind::DefRedefTypeChange { name, prior_type, new_type, original_def_span } => {
-                let prior_loc = if original_def_span.is_unknown() {
-                    "an earlier binding".to_string()
-                } else {
-                    format!("{}", original_def_span)
-                };
+                // Arc 298.2: span is always real; always emit the location.
+                let prior_loc = format!("{}", original_def_span);
                 write!(
                     f,
                     "{}`:wat::core::def` redef of `{}` changes type from `{}` to `{}` (prior binding at {}). Type-stability is mandatory on redef — the signature downstream callers depend on must stay intact. Only the expression's value may change; the type must not.",

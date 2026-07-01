@@ -62,7 +62,7 @@ fn probe_run_hermetic_clean_exit_no_deadlock() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-hermetic driver should not itself panic");
 
@@ -111,7 +111,7 @@ fn probe_run_hermetic_panic_body_no_deadlock() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-hermetic driver should not itself panic (failure captured as RunResult)");
 

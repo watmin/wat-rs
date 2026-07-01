@@ -1277,10 +1277,10 @@ fn check_calls_for_sandbox_leak(
             let reserved = canonical.starts_with(":wat::") || canonical.starts_with(":rust::");
             if !reserved && !inner_names.contains(canonical) {
                 if let Some(outer_func) = sym.get(canonical) {
-                    // Stone 255.1a — Native builtins carry no span; use Span::unknown().
+                    // Stone 255.1a — Native builtins carry no span; use crate::rust_caller_span!().
                     let outer_define_span = match &outer_func.body {
                         FunctionBody::Wat(ast) => ast.span().clone(),
-                        FunctionBody::Native => crate::span::Span::unknown(),
+                        FunctionBody::Native => crate::rust_caller_span!(),
                     };
                     errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::SandboxScopeLeak {
                         offending_name: head_str.to_string(),
@@ -2676,7 +2676,7 @@ fn walk_for_pair_deadlock(
                         .map(|chunk| {
                             WatAST::List(
                                 vec![chunk[0].clone(), chunk[1].clone()],
-                                Span::unknown(),
+                                crate::rust_caller_span!(),
                             )
                         })
                         .collect()
@@ -8142,7 +8142,7 @@ fn infer_let(
                 .map(|chunk| {
                     WatAST::List(
                         vec![chunk[0].clone(), chunk[1].clone()],
-                        Span::unknown(),
+                        crate::rust_caller_span!(),
                     )
                 })
                 .collect()
@@ -8184,9 +8184,9 @@ fn infer_let(
         body_forms[0].clone()
     } else {
         let mut do_items: Vec<WatAST> = Vec::with_capacity(body_forms.len() + 1);
-        do_items.push(WatAST::Keyword(":wat::core::do".into(), Span::unknown()));
+        do_items.push(WatAST::Keyword(":wat::core::do".into(), crate::rust_caller_span!()));
         do_items.extend(body_forms.iter().cloned());
-        WatAST::List(do_items, Span::unknown())
+        WatAST::List(do_items, crate::rust_caller_span!())
     };
 
     // Arc 133 — post-inference scope-deadlock check. Fires for BOTH
@@ -8211,7 +8211,7 @@ fn infer_let(
     // See ProcessJoinBeforeOutputDrain Display for the rule rationale.
     {
         let mut let_scope_items: Vec<WatAST> = Vec::with_capacity(bindings_pairs.len() + 1);
-        let_scope_items.push(WatAST::Keyword(":wat::core::let".into(), Span::unknown()));
+        let_scope_items.push(WatAST::Keyword(":wat::core::let".into(), crate::rust_caller_span!()));
         for pair in &bindings_pairs {
             // pair is (name expr); we need to scan the expr (RHS).
             if let WatAST::List(items, _) = pair {
@@ -8221,7 +8221,7 @@ fn infer_let(
             }
         }
         let_scope_items.push(body_ast.clone());
-        let let_scope = WatAST::List(let_scope_items, Span::unknown());
+        let let_scope = WatAST::List(let_scope_items, crate::rust_caller_span!());
         if let Some((proc_id, accessor, join_span, output_span)) =
             find_process_join_before_drain(&let_scope)
         {
@@ -9764,7 +9764,7 @@ fn infer_apply(
 
 /// Arc 133 — find the source span of the binding that introduces
 /// `name` in a let binding list. Returns the span of the full
-/// `((name ...) rhs)` form on match, or `Span::unknown()` when the
+/// `((name ...) rhs)` form on match, or `crate::rust_caller_span!()` when the
 /// name isn't found (shouldn't happen in practice — the name comes
 /// from the same binding list).
 ///
@@ -9792,7 +9792,7 @@ fn find_binding_span(name: &str, bindings: &[WatAST]) -> Span {
             return span.clone();
         }
     }
-    Span::unknown()
+    crate::rust_caller_span!()
 }
 
 /// Arc 133 — post-inference scope-deadlock check. Replaces the
@@ -13647,7 +13647,7 @@ pub(crate) fn validate_aggregate_containment(
                 for (fname, fty) in &a.fields {
                     if !is_pure_type(fty, env) {
                         return Err(TypeError {
-                            span: crate::span::Span::unknown(),
+                            span: crate::rust_caller_span!(),
                             kind: TypeErrorKind::ImpureFieldInPureAggregate {
                                 aggregate: name.clone(),
                                 field: fname.clone(),
@@ -13665,7 +13665,7 @@ pub(crate) fn validate_aggregate_containment(
                         for (fname, fty) in fields {
                             if !is_pure_type(fty, env) {
                                 return Err(TypeError {
-                                    span: crate::span::Span::unknown(),
+                                    span: crate::rust_caller_span!(),
                                     kind: TypeErrorKind::ImpureVariantFieldInPureEnum {
                                         enum_name: name.clone(),
                                         variant: vname.clone(),

@@ -288,17 +288,14 @@ pub(crate) fn edn_span(span: &crate::span::Span) -> OwnedValue {
     crate::panic_hook::span_to_edn(span)
 }
 
-/// Append a `:key {span}` entry to `fields`, but ONLY when the span is known.
-/// Unknown spans are elided (the same discipline as `push_span` in the
-/// check serializer).
+/// Append a `:key {span}` entry to `fields`. Arc 298.2: every span is a
+/// real location (wat source or Rust caller), so always appended.
 pub(crate) fn push_span_field(
     fields: &mut Vec<(OwnedValue, OwnedValue)>,
     key: &str,
     span: &crate::span::Span,
 ) {
-    if !span.is_unknown() {
-        fields.push((edn_kw(key), edn_span(span)));
-    }
+    fields.push((edn_kw(key), edn_span(span)));
 }
 
 /// Splice a `:span` field into the body map of a derive-generated tagged value.
@@ -308,8 +305,7 @@ pub(crate) fn push_span_field(
 /// span) calls this helper to append `:span {…}` LAST, matching the old
 /// hand-written serializers exactly.
 ///
-/// - If the span is `Span::unknown()`, nothing is appended (elide-when-unknown
-///   discipline).
+/// - Arc 298.2: every span is real; `:span` is always appended.
 /// - If `val` is not a `Tagged(_, Map(_))`, the span is still appended to
 ///   whatever map can be extracted; a `body` key wraps non-map bodies as a
 ///   fallback (defensive — should never happen for well-formed derive output).
@@ -348,16 +344,12 @@ pub(crate) fn first_line(s: String) -> String {
 
 /// Build the `:location` value for a [`WatError`] impl.
 ///
-/// Returns the span as `{:file "…" :line N :col N}` when it is known,
-/// or `nil` when the span is `Span::unknown()` (elide-when-unknown discipline,
-/// mirroring `push_span_field`). Call this in each `WatError::location()`
-/// impl for Pattern-A errors (span on the outer struct).
+/// Returns the span as `{:file "…" :line N :col N}`. Arc 298.2: every span
+/// is a real location (wat source or `rust_caller_span!()`), so always
+/// emitted. Call this in each `WatError::location()` impl for Pattern-A
+/// errors (span on the outer struct).
 pub(crate) fn location_from_span(span: &crate::span::Span) -> OwnedValue {
-    if span.is_unknown() {
-        OwnedValue::Nil
-    } else {
-        edn_span(span)
-    }
+    edn_span(span)
 }
 
 /// Strip the raw `:span` key from a tagged map's body.
@@ -451,7 +443,7 @@ pub(crate) fn error_edn_of(e: &impl WatError) -> OwnedValue {
 /// ```
 /// use wat::value::{RuntimeError, RuntimeErrorKind};
 /// let err = RuntimeError {
-///     span: wat::span::Span::unknown(),
+///     span: wat::rust_caller_span!(),
 ///     kind: RuntimeErrorKind::UserMainMissing,
 /// };
 /// let _text: String = wat::to_edn::to_wire_edn(&err);

@@ -74,7 +74,7 @@ fn diag_make_deftest_with_prelude_expansion() {
         func,
         Vec::new(),
         world.symbols(),
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("probe call ok");
 
@@ -129,7 +129,7 @@ fn macroexpand_self_recursive_macro_fails_with_macro_expansion_failed() {
         func,
         Vec::new(),
         world.symbols(),
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
 
     // The call must FAIL with MacroExpansionFailed — the fixpoint loop

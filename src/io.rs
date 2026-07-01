@@ -1121,7 +1121,7 @@ fn snapshot_writer(
     // that defaults to returning NotSupported. StringIoWriter
     // overrides.
     // arc 138: no span — helper receives evaluated Arc<dyn WatWriter>, no WatAST; Value-only context
-    writer.snapshot().ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    writer.snapshot().ok_or_else(|| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: op.into(),
         reason: "writer does not support snapshot (only StringIoWriter does)"
             .into()
@@ -1303,7 +1303,7 @@ pub fn eval_kernel_pipe(args: &[WatAST], list_span: &Span) -> Result<Value, Runt
     if ret != 0 {
         let err = std::io::Error::last_os_error();
         // arc 138: no span — OS syscall error; no AST context available at the point of failure
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("pipe2(2) syscall failed: {}", err)
         } });
@@ -1361,7 +1361,7 @@ impl WatTempFile {
         match NamedTempFile::new() {
             Ok(f) => Ok(Self { inner: Some(f) }),
             // arc 138: no span — OS error from tempfile creation; no WatAST at this call depth
-            Err(e) => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempFile/new".into(),
                 reason: format!("create temp file: {e}")
             } }),
@@ -1372,7 +1372,7 @@ impl WatTempFile {
         match &self.inner {
             Some(f) => Ok(f.path().display().to_string()),
             // arc 138: no span — runtime invariant; no WatAST at this call depth
-            None => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            None => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempFile/path".into(),
                 reason: "TempFile already dropped".into()
             } }),
@@ -1391,7 +1391,7 @@ impl WatTempDir {
         match TempDir::new() {
             Ok(d) => Ok(Self { inner: Some(d) }),
             // arc 138: no span — OS error from tempdir creation; no WatAST at this call depth
-            Err(e) => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            Err(e) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempDir/new".into(),
                 reason: format!("create temp dir: {e}")
             } }),
@@ -1402,7 +1402,7 @@ impl WatTempDir {
         match &self.inner {
             Some(d) => Ok(d.path().display().to_string()),
             // arc 138: no span — runtime invariant; no WatAST at this call depth
-            None => Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            None => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempDir/path".into(),
                 reason: "TempDir already dropped".into()
             } }),
@@ -1498,7 +1498,7 @@ pub fn eval_io_read_file(
     arity(op, args, 1, list_span)?;
     let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     // arc 138: no span — host configuration error; no WatAST context at loader-lookup depth
-    let loader = sym.source_loader().ok_or_else(|| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+    let loader = sym.source_loader().ok_or_else(|| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
         head: op.into(),
         reason: "no SourceLoader attached to SymbolTable; \
                  the host must provide one (FsLoader / ScopedLoader / InMemoryLoader)"
@@ -1506,7 +1506,7 @@ pub fn eval_io_read_file(
     } })?;
     let loaded = loader.fetch_source_file(&path, None).map_err(|e| {
         // arc 138: no span — OS/path error from loader; path is a plain String after eval
-        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("loader fetch_source_file({path:?}): {e}")
         } }
@@ -1531,7 +1531,7 @@ pub fn eval_io_list_dir(
     arity(op, args, 1, list_span)?;
     let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let read_dir_iter = std::fs::read_dir(path.as_str()).map_err(|e| {
-        RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("read_dir({path:?}): {e}")
         } }
@@ -1539,7 +1539,7 @@ pub fn eval_io_list_dir(
     let mut entries: Vec<Value> = Vec::new();
     for entry_result in read_dir_iter {
         let entry = entry_result.map_err(|e| {
-            RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("read_dir entry error: {e}")
             } }
@@ -1605,7 +1605,7 @@ mod pipe_tests {
     #[test]
     fn round_trip_bytes() {
         let (w, r) = make_pipe();
-        let s = Span::unknown();
+        let s = crate::rust_caller_span!();
         w.write_all(b"hello", s.clone()).expect("write");
         drop(w); // close writer so read_all sees EOF
         let got = r.read_all(s).expect("read_all");
@@ -1615,7 +1615,7 @@ mod pipe_tests {
     #[test]
     fn read_returns_partial() {
         let (w, r) = make_pipe();
-        let s = Span::unknown();
+        let s = crate::rust_caller_span!();
         w.write_all(b"abcdef", s.clone()).expect("write");
         // Ask for 3 of 6 available bytes — read(n) returns what's ready.
         let got = r.read(3, s.clone()).expect("read").expect("not EOF");
@@ -1627,7 +1627,7 @@ mod pipe_tests {
     #[test]
     fn read_all_eof_when_writer_dropped() {
         let (w, r) = make_pipe();
-        let s = Span::unknown();
+        let s = crate::rust_caller_span!();
         w.write_all(b"once", s.clone()).expect("write");
         drop(w);
         let got = r.read_all(s.clone()).expect("read_all");
@@ -1641,14 +1641,14 @@ mod pipe_tests {
     fn read_returns_none_on_eof() {
         let (w, r) = make_pipe();
         drop(w);
-        let got = r.read(16, Span::unknown()).expect("read");
+        let got = r.read(16, crate::rust_caller_span!()).expect("read");
         assert!(got.is_none(), "expected None on EOF; got {:?}", got);
     }
 
     #[test]
     fn read_line_lf() {
         let (w, r) = make_pipe();
-        let s = Span::unknown();
+        let s = crate::rust_caller_span!();
         w.write_all(b"first\nsecond\n", s.clone()).expect("write");
         drop(w);
         assert_eq!(r.read_line(s.clone()).expect("line1"), Some("first".to_string()));
@@ -1659,7 +1659,7 @@ mod pipe_tests {
     #[test]
     fn read_line_crlf_stripped() {
         let (w, r) = make_pipe();
-        let s = Span::unknown();
+        let s = crate::rust_caller_span!();
         w.write_all(b"win\r\nline\r\n", s.clone()).expect("write");
         drop(w);
         assert_eq!(r.read_line(s.clone()).expect("line1"), Some("win".to_string()));
@@ -1670,7 +1670,7 @@ mod pipe_tests {
     #[test]
     fn read_line_no_trailing_newline() {
         let (w, r) = make_pipe();
-        let s = Span::unknown();
+        let s = crate::rust_caller_span!();
         w.write_all(b"bare", s.clone()).expect("write");
         drop(w);
         assert_eq!(r.read_line(s.clone()).expect("bare"), Some("bare".to_string()));
@@ -1680,7 +1680,7 @@ mod pipe_tests {
     #[test]
     fn rewind_is_error() {
         let (_w, r) = make_pipe();
-        let err = r.rewind(Span::unknown()).expect_err("pipe rewind must error");
+        let err = r.rewind(crate::rust_caller_span!()).expect_err("pipe rewind must error");
         match err {
             RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, .. }, .. } => {
                 assert_eq!(head, ":wat::io::rewind");
@@ -1692,7 +1692,7 @@ mod pipe_tests {
     #[test]
     fn write_returns_count() {
         let (w, r) = make_pipe();
-        let s = Span::unknown();
+        let s = crate::rust_caller_span!();
         let n = w.write(b"abc", s.clone()).expect("write");
         assert_eq!(n, 3);
         drop(w);
@@ -1702,7 +1702,7 @@ mod pipe_tests {
     #[test]
     fn flush_is_ok() {
         let (w, _r) = make_pipe();
-        w.flush(Span::unknown()).expect("flush");
+        w.flush(crate::rust_caller_span!()).expect("flush");
     }
 
     #[test]

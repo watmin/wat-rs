@@ -158,50 +158,51 @@ impl WatAST {
         }
     }
 
-    /// Convenience constructors with [`Span::unknown`] — for
+    /// Convenience constructors using `rust_caller_span!()` — for
     /// synthetic forms / tests / runtime-constructed ASTs.
+    /// Arc 298.2: every span is a real Rust caller location.
     pub fn int(n: i64) -> Self {
-        WatAST::IntLit(n, Span::unknown())
+        WatAST::IntLit(n, crate::rust_caller_span!())
     }
     pub fn float(x: f64) -> Self {
-        WatAST::FloatLit(x, Span::unknown())
+        WatAST::FloatLit(x, crate::rust_caller_span!())
     }
     pub fn bool(b: bool) -> Self {
-        WatAST::BoolLit(b, Span::unknown())
+        WatAST::BoolLit(b, crate::rust_caller_span!())
     }
     pub fn string(s: impl Into<String>) -> Self {
-        WatAST::StringLit(s.into(), Span::unknown())
+        WatAST::StringLit(s.into(), crate::rust_caller_span!())
     }
-    /// Synthetic nil literal with [`Span::unknown`] — the canonical
+    /// Synthetic nil literal with `rust_caller_span!()` — the canonical
     /// constructor for synthesized nil values. Arc 244: nil joins the
     /// int/float/bool/string value-constructor family; use this (not
     /// `Keyword` with the nil type path) in all synthesis paths.
     pub fn nil() -> Self {
-        WatAST::NilLit(Span::unknown())
+        WatAST::NilLit(crate::rust_caller_span!())
     }
     pub fn keyword(k: impl Into<String>) -> Self {
-        WatAST::Keyword(k.into(), Span::unknown())
+        WatAST::Keyword(k.into(), crate::rust_caller_span!())
     }
     pub fn symbol(ident: Identifier) -> Self {
-        WatAST::Symbol(ident, Span::unknown())
+        WatAST::Symbol(ident, crate::rust_caller_span!())
     }
     pub fn list(items: Vec<WatAST>) -> Self {
-        WatAST::List(items, Span::unknown())
+        WatAST::List(items, crate::rust_caller_span!())
     }
-    /// Synthetic Vector with [`Span::unknown`] — for tests and
+    /// Synthetic Vector with `rust_caller_span!()` — for tests and
     /// runtime-constructed bracketed forms.
     pub fn vector(items: Vec<WatAST>) -> Self {
-        WatAST::Vector(items, Span::unknown())
+        WatAST::Vector(items, crate::rust_caller_span!())
     }
-    /// Synthetic Map literal with [`Span::unknown`] — for tests
+    /// Synthetic Map literal with `rust_caller_span!()` — for tests
     /// and runtime-constructed map forms. Arc 257 slice 1.
     pub fn map(pairs: Vec<(WatAST, WatAST)>) -> Self {
-        WatAST::Map(pairs, Span::unknown())
+        WatAST::Map(pairs, crate::rust_caller_span!())
     }
-    /// Synthetic Set literal with [`Span::unknown`] — for tests
+    /// Synthetic Set literal with `rust_caller_span!()` — for tests
     /// and runtime-constructed set forms. Arc 257 slice 1.
     pub fn set(items: Vec<WatAST>) -> Self {
-        WatAST::Set(items, Span::unknown())
+        WatAST::Set(items, crate::rust_caller_span!())
     }
 
     /// Returns true if this is a bare `Symbol` whose name equals `name`.

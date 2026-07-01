@@ -69,15 +69,15 @@ fn probe_spawn_process_stdin() {
     let child_forms = wat::parser::parse_all_with_file(child_program_src, "<probe>")
         .expect("child program parse");
     // Wrap them in (:wat::core::forms <form>...) for the spawn-process call.
-    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), Span::unknown())];
+    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
     forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, Span::unknown());
+    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
     let call = WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
+            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
             forms_call,
         ],
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -94,7 +94,7 @@ fn probe_spawn_process_stdin() {
         sender_inner,
         Value::i64(41),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(
         matches!(send_outcome, wat::channel::SendOutcome::Ok),
@@ -114,7 +114,7 @@ fn probe_spawn_process_stdin() {
     let recv_outcome = wat::channel::typed_recv(
         receiver_inner,
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let val = match recv_outcome {
         wat::channel::RecvOutcome::Value(v) => v,
@@ -123,7 +123,7 @@ fn probe_spawn_process_stdin() {
                 Value::Aggregate(s) => match &s.fields[2] {
                     Value::io__IOReader(rdr) => {
                         let mut all = String::new();
-                        while let Ok(Some(line)) = rdr.read_line(Span::unknown()) {
+                        while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
                             all.push_str(&line);
                             all.push('\n');
                         }

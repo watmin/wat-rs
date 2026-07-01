@@ -333,7 +333,7 @@ pub fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     if ret != 0 {
         let err = std::io::Error::last_os_error();
         // arc 138: no span — make_pipe OS error; no WatAST context available
-        return Err(RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("pipe2(2): {}", err)
         } });

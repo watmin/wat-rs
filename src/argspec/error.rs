@@ -119,7 +119,7 @@ mod tests {
 
     fn make_name_not_symbol_error() -> ArgSpecError {
         ArgSpecError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             head: ":my::form".into(),
             kind: ArgSpecErrorKind::NameNotSymbol,
         }

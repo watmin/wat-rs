@@ -86,7 +86,7 @@ impl<T: Send> ThreadOwnedCell<T> {
         op: &'static str,
         f: impl FnOnce(&T) -> R,
     ) -> Result<R, RuntimeError> {
-        self.ensure_owner(op, crate::span::Span::unknown())?;
+        self.ensure_owner(op, crate::rust_caller_span!())?;
         // Safety: thread-owner invariant checked above.
         Ok(unsafe { f(&*self.cell.get()) })
     }

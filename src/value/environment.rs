@@ -190,7 +190,7 @@ impl EnvBuilder {
     /// (e.g., function argument binding, matches? pattern binding).
     /// These sites get Provenance::Unknown when the value is looked up.
     pub fn bind_unknown_span(mut self, name: impl Into<String>, tv: TrackedValue) -> Self {
-        self.bindings.insert(name.into(), BoundEntry { value: tv, binding_span: Span::unknown() });
+        self.bindings.insert(name.into(), BoundEntry { value: tv, binding_span: crate::rust_caller_span!() });
         self
     }
 

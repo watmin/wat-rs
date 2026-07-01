@@ -109,7 +109,7 @@ impl std::error::Error for ParseError {}
 
 impl From<LexError> for ParseError {
     fn from(e: LexError) -> Self {
-        ParseError { span: Span::unknown(), kind: ParseErrorKind::Lex(e) }
+        ParseError { span: crate::rust_caller_span!(), kind: ParseErrorKind::Lex(e) }
     }
 }
 
@@ -152,7 +152,7 @@ pub fn parse_one_with_file(src: &str, file: &str) -> Result<WatAST, ParseError> 
     let mut cursor = Cursor::new(&tokens);
     let node = match cursor.parse_form()? {
         Some(node) => node,
-        None => return Err(ParseError { span: Span::unknown(), kind: ParseErrorKind::Empty }),
+        None => return Err(ParseError { span: crate::rust_caller_span!(), kind: ParseErrorKind::Empty }),
     };
     if let Some(tok) = cursor.peek() {
         return Err(ParseError { span: tok.span.clone(), kind: ParseErrorKind::TrailingContent });
@@ -297,7 +297,7 @@ impl<'a> Cursor<'a> {
         head_keyword: &str,
         span: Span,
     ) -> Result<Option<WatAST>, ParseError> {
-        let inner = self.parse_form()?.ok_or(ParseError { span: Span::unknown(), kind: ParseErrorKind::Empty })?;
+        let inner = self.parse_form()?.ok_or(ParseError { span: crate::rust_caller_span!(), kind: ParseErrorKind::Empty })?;
         Ok(Some(WatAST::List(
             vec![WatAST::Keyword(head_keyword.to_string(), span.clone()), inner],
             span,
@@ -518,7 +518,7 @@ mod tests {
     fn atom_literals() {
         // Tests rely on WatAST's structural PartialEq, which uses
         // Span::eq (always-true). Constructing expected with
-        // Span::unknown() still matches the parser's real spans.
+        // crate::rust_caller_span!() still matches the parser's real spans.
         assert_eq!(crate::parse_one!("42").unwrap(), WatAST::int(42));
         assert_eq!(crate::parse_one!("-1").unwrap(), WatAST::int(-1));
         assert_eq!(crate::parse_one!("2.5").unwrap(), WatAST::float(2.5));
@@ -580,9 +580,9 @@ mod tests {
             crate::parse_one!("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap(),
             list(vec![
                 kw(":wat::holon::Thermometer"),
-                WatAST::FloatLit(0.5, Span::unknown()),
-                WatAST::FloatLit(0.0, Span::unknown()),
-                WatAST::FloatLit(1.0, Span::unknown()),
+                WatAST::FloatLit(0.5, crate::rust_caller_span!()),
+                WatAST::FloatLit(0.0, crate::rust_caller_span!()),
+                WatAST::FloatLit(1.0, crate::rust_caller_span!()),
             ])
         );
     }
@@ -595,8 +595,8 @@ mod tests {
                 kw(":wat::holon::Blend"),
                 sym("a"),
                 sym("b"),
-                WatAST::IntLit(1, Span::unknown()),
-                WatAST::IntLit(-1, Span::unknown()),
+                WatAST::IntLit(1, crate::rust_caller_span!()),
+                WatAST::IntLit(-1, crate::rust_caller_span!()),
             ])
         );
     }
@@ -639,7 +639,7 @@ mod tests {
             "#
         )
         .unwrap();
-        assert_eq!(forms, vec![WatAST::IntLit(42, Span::unknown()), str_lit("hello")]);
+        assert_eq!(forms, vec![WatAST::IntLit(42, crate::rust_caller_span!()), str_lit("hello")]);
     }
 
     #[test]

@@ -95,7 +95,7 @@ impl fmt::Display for EvalBreak {
 /// variant data in [`RuntimeErrorKind`].
 ///
 /// The `span` field is mandatory at construction — Rust's struct-literal rule
-/// makes a span-less `RuntimeError` uncompilable. `Span::unknown()` is the
+/// makes a span-less `RuntimeError` uncompilable. `crate::rust_caller_span!()` is the
 /// explicit sentinel for the rare site with no recoverable source location
 /// (freeze-pair variants `UserMainMissing` / `EvalVerificationFailed`);
 /// `Display` / EDN elide unknown spans.
@@ -115,7 +115,7 @@ pub struct RuntimeError {
 /// - `PostconditionFailed`: outer = `body_span`, secondary = `ensure_span`
 ///
 /// **Freeze pair** (`UserMainMissing`, `EvalVerificationFailed`): no span on
-/// the kind; construct with outer `Span::unknown()`, honestly elided by Display.
+/// the kind; construct with outer `crate::rust_caller_span!()`, honestly elided by Display.
 #[derive(Debug)]
 pub enum RuntimeErrorKind {
     UnboundSymbol(String),
@@ -156,13 +156,13 @@ pub enum RuntimeErrorKind {
     EvalForbidsMutationForm { head: String },
     /// `:user::main` was not registered at startup. FOUNDATION requires
     /// exactly one `:user::main` declaration; zero halts.
-    /// Freeze pair — no span; construct with outer `Span::unknown()`.
+    /// Freeze pair — no span; construct with outer `crate::rust_caller_span!()`.
     UserMainMissing,
     /// Verification failed for a `:wat::eval-digest!` /
     /// `:wat::eval-signed!` call. The wrapped [`HashError`]
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
-    /// Freeze pair — no span; construct with outer `Span::unknown()`.
+    /// Freeze pair — no span; construct with outer `crate::rust_caller_span!()`.
     EvalVerificationFailed { err: crate::hash::HashError },
     /// Raised when `:wat::kernel::join` reaps a spawned program
     /// whose thread panicked before yielding a result — the internal
@@ -254,7 +254,7 @@ pub enum RuntimeErrorKind {
     /// Secondary: `outer_define_span` (the outer-scope define).
     SandboxScopeLeak {
         offending_name: String,
-        /// Source location of the outer-scope define. May be `Span::unknown()`.
+        /// Source location of the outer-scope define. May be `crate::rust_caller_span!()`.
         outer_define_span: crate::span::Span,
     },
     /// Arc 170 slice 1f-α — a thread-aware stdio helper
@@ -354,16 +354,10 @@ pub enum RuntimeErrorKind {
     MacroAbort { message: String },
 }
 
-/// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError,
-/// or empty when the span is unknown (synthetic site with no originating
-/// source node). Mirrors `src/check.rs::span_prefix` /
-/// `src/types.rs::span_prefix` exactly.
+/// Arc 138 slice 3a — render the file:line:col prefix for a RuntimeError.
+/// Arc 298.2: every span is real; always emit. Mirrors `src/check.rs::span_prefix`.
 fn span_prefix(span: &Span) -> String {
-    if span.is_unknown() {
-        String::new()
-    } else {
-        format!("{}: ", span)
-    }
+    format!("{}: ", span)
 }
 
 impl RuntimeErrorKind {
@@ -379,9 +373,8 @@ impl RuntimeErrorKind {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         let prefix = span.map(span_prefix).unwrap_or_default();
-        // `prose_span` gates mid-prose span emission: unknown spans are treated as
-        // absent so "at <runtime>:0:0" noise never appears.
-        let prose_span: Option<&Span> = span.filter(|s| !s.is_unknown());
+        // Arc 298.2: every span is real; always emit in prose where needed.
+        let prose_span: Option<&Span> = span;
         match self {
             RuntimeErrorKind::UnboundSymbol(s) => {
                 write!(f, "{}unbound symbol: {}", prefix, s)
@@ -492,11 +485,8 @@ impl RuntimeErrorKind {
             }
             RuntimeErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => {
                 // outer span (call_span) is in prefix; secondary span here.
-                let define_loc = if outer_define_span.is_unknown() {
-                    "the outer scope".to_string()
-                } else {
-                    format!("{}", outer_define_span)
-                };
+                // Arc 298.2: span is always real; always emit the location.
+                let define_loc = format!("{}", outer_define_span);
                 write!(
                     f,
                     "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. Sandbox isolation is intentional — see wat/test.wat's deftest macro.",

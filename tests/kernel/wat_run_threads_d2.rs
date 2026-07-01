@@ -56,7 +56,7 @@ fn run_threads_d2_three_factories_heterogeneous() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-threads bracket should return the coordinator fn value");
 

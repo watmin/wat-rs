@@ -55,7 +55,7 @@ fn probe_runtime_error_produces_structured_edn() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("driver should not panic — RunResult carries the failure");
 

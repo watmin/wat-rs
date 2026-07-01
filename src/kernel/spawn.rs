@@ -961,7 +961,7 @@ mod tests {
             .clone();
 
         // Spawn a thread peer.
-        let dummy_span = Span::unknown();
+        let dummy_span = crate::rust_caller_span!();
         let peer_val = spawn_thread_peer(echo_arc, default_init_fn, noop_post_spawn_fn, &world.symbols, &dummy_span)
             .expect("spawn_thread_peer must succeed");
 
@@ -1010,7 +1010,7 @@ mod tests {
         // Take the Thread out of the Option (drain_and_join → drain input_tx so
         // the worker sees disconnect, then join the JoinHandle).
         let mut peer = cell
-            .with_mut("test:close", Span::unknown(), |opt_peer| opt_peer.take())
+            .with_mut("test:close", crate::rust_caller_span!(), |opt_peer| opt_peer.take())
             .expect("with_mut must not cross thread boundary")
             .expect("peer must not already be closed");
         peer.drain_and_join().expect("drain_and_join must return Some").expect("thread join must succeed");
@@ -1071,7 +1071,7 @@ mod tests {
             .clone();
 
         let baseline = Arc::strong_count(&prog);
-        let peer_val = spawn_thread_peer(prog.clone(), default_init_fn, noop_post_spawn_fn, &world.symbols, &Span::unknown())
+        let peer_val = spawn_thread_peer(prog.clone(), default_init_fn, noop_post_spawn_fn, &world.symbols, &crate::rust_caller_span!())
             .expect("spawn_thread_peer must succeed");
 
         // The worker is now blocked on `recv'`. Drop the peer WITHOUT close'.

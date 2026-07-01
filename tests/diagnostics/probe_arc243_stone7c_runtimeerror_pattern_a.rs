@@ -15,7 +15,7 @@
 //!   the variants live on `RuntimeErrorKind` with no per-variant `span`
 //!   (multi-span variants keep only their SECONDARY spans as domain-named kind
 //!   fields per CONFORMARE.md § Multi-span; the freeze pair has no span and
-//!   constructs with outer `Span::unknown()`, honestly elided).
+//!   constructs with outer `wat::rust_caller_span!()`, honestly elided).
 //!
 //! Mirrors `tests/probe_arc243_stone6_checkerror_pattern_a.rs` (the CheckError
 //! Pattern A, shipped 243.6a). The signal split (243.7b) already removed the
@@ -29,7 +29,7 @@ use wat::span::Span;
 #[test]
 fn runtimeerror_outer_span_field_required() {
     let err = RuntimeError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: RuntimeErrorKind::DivisionByZero,
     };
     // Universal span access — no exhaustive match across ~30 variants.
@@ -44,7 +44,7 @@ fn runtimeerror_outer_span_field_required() {
 fn runtimeerrorkind_variants_have_no_span_field() {
     let kind = RuntimeErrorKind::UnboundSymbol("x".to_string());
     let err = RuntimeError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind,
     };
     let _span: &Span = &err.span;
@@ -57,11 +57,11 @@ fn runtimeerrorkind_variants_have_no_span_field() {
 fn runtimeerror_span_access_is_single_path() {
     let errs: Vec<RuntimeError> = vec![
         RuntimeError {
-            span: Span::unknown(),
+            span: wat::rust_caller_span!(),
             kind: RuntimeErrorKind::DivisionByZero,
         },
         RuntimeError {
-            span: Span::unknown(),
+            span: wat::rust_caller_span!(),
             kind: RuntimeErrorKind::UnboundSymbol("y".into()),
         },
     ];
@@ -71,11 +71,11 @@ fn runtimeerror_span_access_is_single_path() {
 }
 
 /// Contract 4: the freeze pair (no source span) elides an unknown outer span —
-/// `UserMainMissing` carries `Span::unknown()` and must not emit "<runtime>".
+/// `UserMainMissing` carries `wat::rust_caller_span!()` and must not emit "<runtime>".
 #[test]
 fn runtimeerror_freeze_pair_elides_unknown_span() {
     let err = RuntimeError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: RuntimeErrorKind::UserMainMissing,
     };
     let rendered = err.to_string();

@@ -352,7 +352,7 @@ pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
     let mut all = Vec::new();
     for file in stdlib_files() {
         let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: StdlibErrorKind::ParseFailed {
                 path: file.path,
                 cause: e,
@@ -362,7 +362,7 @@ pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
     }
     for file in installed_dep_sources().iter().flat_map(|slice| slice.iter()) {
         let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: StdlibErrorKind::ParseFailed {
                 path: file.path,
                 cause: e,
@@ -411,7 +411,7 @@ impl std::fmt::Display for StdlibErrorKind {
 
 impl std::fmt::Display for StdlibError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Span::unknown() - baked stdlib has no wat-source span; elide.
+        // crate::rust_caller_span!() - baked stdlib has no wat-source span; elide.
         write!(f, "{}", self.kind)
     }
 }
@@ -475,7 +475,7 @@ mod tests {
             .expect_err("probe source must fail to parse");
 
         let stdlib_err = StdlibError {
-            span: crate::span::Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: StdlibErrorKind::ParseFailed {
                 path: "stdlib-probe.wat",
                 cause: parse_err,
@@ -526,9 +526,10 @@ mod tests {
     // Instead we assert: tagged, correct variant name, correct key set, correct
     // span behaviour (present / elided), and valid EDN.
 
-    /// S3a — `ParseFailed` with `Span::unknown()` must NOT carry `:span`.
+    /// S3a — `ParseFailed` with `rust_caller_span!()` MUST carry `:span` (arc 298.2:
+    /// every span is a real location; the elide-when-unknown discipline is retired).
     #[test]
-    fn s3a_parse_failed_edn_unknown_span_no_span_key() {
+    fn s3a_parse_failed_edn_rust_caller_span_carries_span_key() {
         use crate::to_edn::ToEdn;
 
         let bad_source = "(unclosed";
@@ -536,7 +537,7 @@ mod tests {
             .expect_err("probe source must fail to parse");
 
         let stdlib_err = StdlibError {
-            span: crate::span::Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: StdlibErrorKind::ParseFailed {
                 path: "s3a-probe.wat",
                 cause: parse_err,
@@ -546,7 +547,7 @@ mod tests {
         let edn = stdlib_err.to_edn();
         let s = wat_edn::write(&edn);
 
-        eprintln!("=== s3a unknown-span StdlibError::ParseFailed edn: {}", s);
+        eprintln!("=== s3a rust_caller_span StdlibError::ParseFailed edn: {}", s);
 
         // Must be the correct tagged form.
         assert!(
@@ -558,8 +559,14 @@ mod tests {
         assert!(s.contains(":path"), "must carry :path; got: {}", s);
         // Must carry :cause (floor form from error_edn_of).
         assert!(s.contains(":cause"), "must carry :cause; got: {}", s);
-        // Must NOT carry :span (unknown → elide-when-unknown discipline).
-        assert!(!s.contains(":span"), "unknown span must NOT emit :span; got: {}", s);
+        // Arc 298.2: rust_caller_span!() IS a real location — :span MUST be emitted.
+        assert!(s.contains(":span"), "rust_caller_span!() must emit :span; got: {}", s);
+        // :span must reference a real Rust file (wat-rs/src/…), not <runtime>.
+        assert!(
+            s.contains("\"wat-rs/src/"),
+            ":span file must be a real Rust path; got: {}",
+            s
+        );
         // Must NOT carry :source (old prose field).
         assert!(!s.contains(":source"), "must NOT carry old :source; got: {}", s);
         // :cause must be a floor-form tagged value.

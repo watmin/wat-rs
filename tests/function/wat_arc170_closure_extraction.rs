@@ -90,7 +90,7 @@ fn invoke_via_entry_form(
         Value::wat__core__fn(f) => f,
         other => panic!("entry_form did not evaluate to a fn Value; got {:?}", other),
     };
-    apply_function(func, args, fresh.symbols(), Span::unknown())
+    apply_function(func, args, fresh.symbols(), wat::rust_caller_span!())
         .expect("apply_function should succeed")
 }
 
@@ -103,7 +103,7 @@ fn invoke_in_parent(
         Value::wat__core__fn(f) => f.clone(),
         other => panic!("expected fn value, got {:?}", other),
     };
-    apply_function(func, args, world.symbols(), Span::unknown())
+    apply_function(func, args, world.symbols(), wat::rust_caller_span!())
         .expect("apply_function should succeed")
 }
 
@@ -130,7 +130,7 @@ fn synth_lambda(world: &wat::freeze::FrozenWorld, factory_path: &str) -> Value {
         .get(factory_path)
         .unwrap_or_else(|| panic!("factory {} not registered", factory_path))
         .clone();
-    apply_function(factory, Vec::new(), world.symbols(), Span::unknown())
+    apply_function(factory, Vec::new(), world.symbols(), wat::rust_caller_span!())
         .expect("factory call ok")
 }
 
@@ -329,7 +329,7 @@ fn t3_toplevel_defn_uses_user_types() {
         new_func,
         vec![Value::i64(3), Value::i64(4)],
         fresh.symbols(),
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("Point/new ok");
     let result = invoke_via_entry_form(&fresh, &package.entry_form, vec![point]);
@@ -544,7 +544,7 @@ fn t11_captures_with_recursive_struct() {
         new_func,
         vec![Value::i64(99), empty_children],
         fresh.symbols(),
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("Tree/new ok");
     let result = invoke_via_entry_form(&fresh, &package.entry_form, vec![tree]);
@@ -833,7 +833,7 @@ fn t20_match_user_enum_variant_records_type_dep() {
         rect_ctor.clone(),
         vec![Value::i64(3), Value::i64(4)],
         parent.symbols(),
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("Rect/new");
     let res = invoke_via_entry_form(&fresh, &package.entry_form, vec![rect]);

@@ -143,7 +143,7 @@ fn emit_dispatch_fn(
     // Arity guard.
     let arity_guard = quote! {
         if args.len() != #arity {
-            return Err(::wat::runtime::RuntimeError { span: ::wat::span::Span::unknown(), kind: ::wat::runtime::RuntimeErrorKind::ArityMismatch {
+            return Err(::wat::runtime::RuntimeError { span: ::wat::rust_caller_span!(), kind: ::wat::runtime::RuntimeErrorKind::ArityMismatch {
                 op: #wat_path.into(),
                 expected: #arity,
                 got: args.len(),
@@ -491,14 +491,15 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
             ctx: &mut dyn ::wat::rust_deps::SchemeCtx,
         ) -> ::std::option::Option<::wat::types::TypeExpr> {
             if args.len() != #arity {
-                // Pattern B: arity mismatch — use first arg span if any, else unknown
+                // Pattern B: arity mismatch — use first arg span if any, else caller span.
+                // Arc 298.2: rust_caller_span!() is the honest fallback (no sentinel).
                 ctx.push_arity_mismatch(
                     #wat_path,
                     #arity,
                     args.len(),
                     args.first()
                         .map(|a| a.span().clone())
-                        .unwrap_or_else(::wat::span::Span::unknown),
+                        .unwrap_or_else(|| ::wat::rust_caller_span!()),
                 );
                 return Some(#fallback_ty);
             }

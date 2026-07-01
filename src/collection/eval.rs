@@ -21,13 +21,13 @@ use std::sync::Arc;
 
 // rune:conformare(spanless-by-domain) — the _inner helpers operate on pre-evaluated &Value with
 // no originating AST in scope on any call path (eval wrappers and dispatch_substrate_impl both
-// arrive value-level); Span::unknown() in this family is the API contract, not a discipline gap.
+// arrive value-level); crate::rust_caller_span!() in this family is the API contract, not a discipline gap.
 
 /// Returns the length of a `Value::Vec` as `Value::i64`; pre-evaluated value path.
 pub(crate) fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/length".into(),
             expected: "Vec<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -39,7 +39,7 @@ pub(crate) fn vector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__List(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/length".into(),
             expected: "List<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -51,7 +51,7 @@ pub(crate) fn list_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/length".into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -63,7 +63,7 @@ pub(crate) fn hashmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/length".into(),
             expected: "HashSet<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -127,7 +127,7 @@ pub(crate) fn eval_hashset_length(
 pub(crate) fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/empty?".into(),
             expected: "Vec<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -138,7 +138,7 @@ pub(crate) fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/empty?".into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -149,7 +149,7 @@ pub(crate) fn hashmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/empty?".into(),
             expected: "HashSet<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -161,7 +161,7 @@ pub(crate) fn hashset_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__List(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/empty?".into(),
             expected: "List<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -231,7 +231,7 @@ pub(crate) fn vector_contains_q_inner(container: &Value, item: &Value) -> Result
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/contains?".into(),
             expected: "Vec<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -247,7 +247,7 @@ pub(crate) fn list_contains_q_inner(container: &Value, item: &Value) -> Result<V
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/contains?".into(),
             expected: "List<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -266,7 +266,7 @@ pub(crate) fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Re
             }
             Ok(Value::bool(m.contains_key(key)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/contains-key?".into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -286,7 +286,7 @@ pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Resul
             }
             Ok(Value::bool(s.contains(item)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/contains?".into(),
             expected: "HashSet<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -356,7 +356,7 @@ pub(crate) fn vector_get_inner(container: &Value, index: &Value) -> Result<Value
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                    return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::Vector/get".into(),
                         expected: "i64 index",
                         got: Box::new(ValueSnapshot::of(other))
@@ -369,7 +369,7 @@ pub(crate) fn vector_get_inner(container: &Value, index: &Value) -> Result<Value
                 Ok(Value::Option(Arc::new(Some(xs[i as usize].clone()))))
             }
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/get".into(),
             expected: "Vec<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -385,7 +385,7 @@ pub(crate) fn list_get_inner(container: &Value, index: &Value) -> Result<Value, 
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                    return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::List/get".into(),
                         expected: "i64 index",
                         got: Box::new(ValueSnapshot::of(other))
@@ -400,7 +400,7 @@ pub(crate) fn list_get_inner(container: &Value, index: &Value) -> Result<Value, 
                 )))
             }
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/get".into(),
             expected: "List<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -421,7 +421,7 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashMap/get".into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -546,7 +546,7 @@ pub(crate) fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value
             out.push(item.clone());
             Ok(Value::Vec(Arc::new(out)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Vector/conj".into(),
             expected: "Vec<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -564,7 +564,7 @@ pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, 
             out.push_front(item.clone());
             Ok(Value::wat__core__List(Arc::new(out)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::List/conj".into(),
             expected: "List<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -604,7 +604,7 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
             // hashmap_key canonical-key crutch removed.
             // Guard: reject opaque-handle variants before they reach Hash.
             if !value_is_set_hashable(item) {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: ":wat::core::HashSet/conj".into(),
                     expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
                     got: Box::new(ValueSnapshot::of(item))
@@ -614,7 +614,7 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
             out.insert(item.clone());
             Ok(Value::wat__std__HashSet(Arc::new(out)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/conj".into(),
             expected: "HashSet<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -674,7 +674,7 @@ pub(crate) fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Re
             // Arc strategy: clone-then-new-Arc (functional; no aliased mutation; mirrors 216.5b).
             // Guard: reject opaque-handle keys before they reach Hash::hash.
             if !value_is_key_hashable(k) {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
                     got: Box::new(ValueSnapshot::of(k))
@@ -684,7 +684,7 @@ pub(crate) fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Re
             new_map.insert(k.clone(), v.clone());
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -710,7 +710,7 @@ pub(crate) fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value
             new_map.remove(k);
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -729,7 +729,7 @@ pub(crate) fn hashmap_keys_inner(container: &Value) -> Result<Value, EvalBreak> 
             let ks: Vec<Value> = m.keys().cloned().collect();
             Ok(Value::Vec(Arc::new(ks)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -745,7 +745,7 @@ pub(crate) fn hashmap_values_inner(container: &Value) -> Result<Value, EvalBreak
             let vs: Vec<Value> = m.values().cloned().collect();
             Ok(Value::Vec(Arc::new(vs)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -805,7 +805,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                     }
                 }
                 // Right side is a different (or non-ordered) container kind.
-                _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "Vec<T>, PersistentVector<T>, or List<T> (same kind as left)",
                     got: Box::new(ValueSnapshot::of(right))
@@ -813,7 +813,7 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
             }
         }
         // Left side is not an ordered container.
-        _ => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vec<T>, PersistentVector<T>, or List<T>",
             got: Box::new(ValueSnapshot::of(left))
@@ -902,7 +902,7 @@ pub(crate) fn eval_hashmap_values(
 pub(crate) fn persistentmap_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentMap(m) => Ok(Value::i64(m.size() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentMap/length".into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -930,7 +930,7 @@ pub(crate) fn eval_persistentmap_length(
 pub(crate) fn persistentmap_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentMap(m) => Ok(Value::bool(m.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentMap/empty?".into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -963,7 +963,7 @@ pub(crate) fn persistentmap_contains_key_q_inner(container: &Value, key: &Value)
             }
             Ok(Value::bool(m.contains_key(key)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentMap/contains-key?".into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1000,7 +1000,7 @@ pub(crate) fn persistentmap_get_inner(container: &Value, key: &Value) -> Result<
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentMap/get".into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1034,7 +1034,7 @@ pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value)
     match container {
         Value::wat__core__PersistentMap(m) => {
             if !value_is_key_hashable(k) {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
                     got: Box::new(ValueSnapshot::of(k))
@@ -1043,7 +1043,7 @@ pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value)
             // rpds .insert returns a NEW map — no clone of contents. This is the whole point.
             Ok(Value::wat__core__PersistentMap(m.insert(k.clone(), v.clone())))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1082,7 +1082,7 @@ pub(crate) fn persistentmap_dissoc_inner(container: &Value, k: &Value) -> Result
             }
             Ok(Value::wat__core__PersistentMap(m.remove(k)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1115,7 +1115,7 @@ pub(crate) fn persistentmap_keys_inner(container: &Value) -> Result<Value, EvalB
             let ks: Vec<Value> = m.keys().cloned().collect();
             Ok(Value::Vec(Arc::new(ks)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1147,7 +1147,7 @@ pub(crate) fn persistentmap_values_inner(container: &Value) -> Result<Value, Eva
             let vs: Vec<Value> = m.values().cloned().collect();
             Ok(Value::Vec(Arc::new(vs)))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "PersistentMap<K,V>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1316,7 +1316,7 @@ pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/length";
     match record {
         Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::i64(a.fields.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record instance",
             got: Box::new(ValueSnapshot::of(other))
@@ -1332,7 +1332,7 @@ pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/empty?";
     match record {
         Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::bool(a.fields.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record instance",
             got: Box::new(ValueSnapshot::of(other))
@@ -1350,7 +1350,7 @@ pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn persistentvector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentVector(pv) => Ok(Value::i64(pv.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentVector/length".into(),
             expected: "PersistentVector<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1378,7 +1378,7 @@ pub(crate) fn eval_persistentvector_length(
 pub(crate) fn persistentvector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentVector(pv) => Ok(Value::bool(pv.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentVector/empty?".into(),
             expected: "PersistentVector<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1409,7 +1409,7 @@ pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value)
             let found = pv.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentVector/contains?".into(),
             expected: "PersistentVector<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1445,7 +1445,7 @@ pub(crate) fn persistentvector_get_inner(container: &Value, index: &Value) -> Re
             let i = match index {
                 Value::i64(n) => *n,
                 other => {
-                    return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                    return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::PersistentVector/get".into(),
                         expected: "i64 index",
                         got: Box::new(ValueSnapshot::of(other))
@@ -1458,7 +1458,7 @@ pub(crate) fn persistentvector_get_inner(container: &Value, index: &Value) -> Re
                 Ok(Value::Option(Arc::new(Some(pv.get(i as usize).cloned().unwrap()))))
             }
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentVector/get".into(),
             expected: "PersistentVector<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1492,7 +1492,7 @@ pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Re
         Value::wat__core__PersistentVector(pv) => {
             Ok(Value::wat__core__PersistentVector(pv.push_back(item.clone())))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::PersistentVector/conj".into(),
             expected: "PersistentVector<T>",
             got: Box::new(ValueSnapshot::of(other))
@@ -1836,7 +1836,7 @@ pub(crate) fn eval_hashset_ctor(
 pub(crate) fn tuple_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Tuple(xs) => Ok(Value::i64(xs.len() as i64)),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Tuple/length".into(),
             expected: "Tuple",
             got: Box::new(ValueSnapshot::of(other))
@@ -1848,7 +1848,7 @@ pub(crate) fn tuple_length_inner(v: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn tuple_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::Tuple(xs) => Ok(Value::bool(xs.is_empty())),
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Tuple/empty?".into(),
             expected: "Tuple",
             got: Box::new(ValueSnapshot::of(other))
@@ -1861,13 +1861,13 @@ pub(crate) fn watastlist_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::List(children, _) => Ok(Value::i64(children.len() as i64)),
-            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::WatAST::List/length".into(),
                 expected: "WatAST::List",
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
             } }.into()),
         },
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::WatAST::List/length".into(),
             expected: "WatAST",
             got: Box::new(ValueSnapshot::of(other))
@@ -1880,13 +1880,13 @@ pub(crate) fn watastlist_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::List(children, _) => Ok(Value::bool(children.is_empty())),
-            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::WatAST::List/empty?".into(),
                 expected: "WatAST::List",
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
             } }.into()),
         },
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::WatAST::List/empty?".into(),
             expected: "WatAST",
             got: Box::new(ValueSnapshot::of(other))
@@ -1902,7 +1902,7 @@ pub(crate) fn tuple_contains_q_inner(container: &Value, item: &Value) -> Result<
             let found = xs.iter().any(|x| x == item);
             Ok(Value::bool(found))
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::Tuple/contains?".into(),
             expected: "Tuple",
             got: Box::new(ValueSnapshot::of(other))
@@ -1921,13 +1921,13 @@ pub(crate) fn watastlist_contains_q_inner(container: &Value, item: &Value) -> Re
                 });
                 Ok(Value::bool(found))
             }
-            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::WatAST::List/contains?".into(),
                 expected: "WatAST::List",
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
             } }.into()),
         },
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::WatAST::List/contains?".into(),
             expected: "WatAST",
             got: Box::new(ValueSnapshot::of(other))
@@ -1944,7 +1944,7 @@ pub(crate) fn watastlist_get_inner(container: &Value, index: &Value) -> Result<V
                 let i = match index {
                     Value::i64(n) => *n,
                     other => {
-                        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                             op: ":wat::WatAST::List/get".into(),
                             expected: "i64 index",
                             got: Box::new(ValueSnapshot::of(other))
@@ -1959,13 +1959,13 @@ pub(crate) fn watastlist_get_inner(container: &Value, index: &Value) -> Result<V
                     ))))
                 }
             }
-            other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::WatAST::List/get".into(),
                 expected: "WatAST::List",
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(other.clone()))))
             } }.into()),
         },
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::WatAST::List/get".into(),
             expected: "WatAST",
             got: Box::new(ValueSnapshot::of(other))
@@ -1987,7 +1987,7 @@ pub(crate) fn hashset_get_inner(container: &Value, item: &Value) -> Result<Value
                 Ok(Value::Option(Arc::new(None)))
             }
         }
-        other => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+        other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: ":wat::core::HashSet/get".into(),
             expected: "HashSet<T>",
             got: Box::new(ValueSnapshot::of(other))

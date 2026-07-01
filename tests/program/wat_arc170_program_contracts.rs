@@ -61,15 +61,15 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
         wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
             .expect("child program parse");
     let mut forms_items =
-        vec![WatAST::Keyword(":wat::core::forms".into(), wat::span::Span::unknown())];
+        vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
     forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, wat::span::Span::unknown());
+    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::span::Span::unknown()),
+            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
             forms_call,
         ],
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
 }
 
@@ -157,7 +157,7 @@ fn drive_typed_recv(
     receiver_inner: &wat::channel::ReceiverInner,
     types: Option<&wat::types::TypeEnv>,
 ) -> Value {
-    match wat::channel::typed_recv(receiver_inner, types, wat::span::Span::unknown()) {
+    match wat::channel::typed_recv(receiver_inner, types, wat::rust_caller_span!()) {
         wat::channel::RecvOutcome::Value(v) => v,
         wat::channel::RecvOutcome::Disconnected => {
             panic!("recv: clean shutdown before value flowed")
@@ -255,7 +255,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
         sender_inner,
         Value::i64(41),
         types,
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(
         matches!(outcome, wat::channel::SendOutcome::Ok),
@@ -272,7 +272,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     let recv_outcome = wat::channel::typed_recv(
         receiver_inner,
         types,
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let response = match recv_outcome {
         wat::channel::RecvOutcome::Value(v) => v,
@@ -285,7 +285,7 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
             let stderr_text = match stderr_field {
                 Value::io__IOReader(rdr) => {
                     let mut all = String::new();
-                    while let Ok(Some(line)) = rdr.read_line(wat::span::Span::unknown()) {
+                    while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
                         all.push_str(&line);
                     }
                     all
@@ -326,7 +326,7 @@ fn t5_spawn_process_inline_lambda_round_trips() {
         launcher.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect(":my::launch runs");
     let types = world.symbols().types().map(|a| a.as_ref());
@@ -338,7 +338,7 @@ fn t5_spawn_process_inline_lambda_round_trips() {
         sender_inner,
         Value::i64(21),
         types,
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
     drop(sender_val);
@@ -386,7 +386,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
         launcher.clone(),
         vec![Value::i64(100)],
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect(":my::launch runs");
     let types = world.symbols().types().map(|a| a.as_ref());
@@ -398,7 +398,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
         sender_inner,
         Value::i64(7),
         types,
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
     drop(sender_val);
@@ -407,7 +407,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
     let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
     let receiver_inner = unwrap_receiver_inner(&receiver_val);
     let recv_outcome =
-        wat::channel::typed_recv(receiver_inner, types, wat::span::Span::unknown());
+        wat::channel::typed_recv(receiver_inner, types, wat::rust_caller_span!());
     let response = match recv_outcome {
         wat::channel::RecvOutcome::Value(v) => v,
         other => {
@@ -416,7 +416,7 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
                 Value::Aggregate(s) => match &s.fields[2] {
                     Value::io__IOReader(rdr) => {
                         let mut all = String::new();
-                        while let Ok(Some(line)) = rdr.read_line(wat::span::Span::unknown()) {
+                        while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
                             all.push_str(&line);
                         }
                         all
@@ -457,7 +457,7 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
                 launcher.clone(),
                 Vec::new(),
                 world.symbols(),
-                wat::span::Span::unknown(),
+                wat::rust_caller_span!(),
             );
             match result {
                 Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. }) => {
@@ -552,10 +552,10 @@ fn t10_spawn_thread_unchanged_positive_control() {
     // Build (:wat::kernel::spawn-thread :my::echo-thread).
     let call = WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::spawn-thread".into(), wat::span::Span::unknown()),
-            WatAST::Keyword(":my::echo-thread".into(), wat::span::Span::unknown()),
+            WatAST::Keyword(":wat::kernel::spawn-thread".into(), wat::rust_caller_span!()),
+            WatAST::Keyword(":my::echo-thread".into(), wat::rust_caller_span!()),
         ],
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let env = Environment::new();
     let thread = eval(&call, &env, world.symbols()).expect("spawn-thread succeeds").value_owned();
@@ -569,13 +569,13 @@ fn t10_spawn_thread_unchanged_positive_control() {
         unwrap_sender_inner(input),
         Value::i64(21),
         types,
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
     let response = match wat::channel::typed_recv(
         unwrap_receiver_inner(output),
         types,
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     ) {
         wat::channel::RecvOutcome::Value(v) => v,
         other => panic!("expected Value; got {:?}", other),
@@ -719,7 +719,7 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     let recv_outcome = wat::channel::typed_recv(
         receiver_inner,
         types,
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(
         matches!(recv_outcome, wat::channel::RecvOutcome::Disconnected),
@@ -766,7 +766,7 @@ fn t17_run_hermetic_layer1_passing_assertion() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-hermetic should succeed");
     // result is a :wat::kernel::RunResult { stdout stderr failure }
@@ -812,7 +812,7 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-hermetic driver should not itself panic");
     let sv = match &result {
@@ -892,7 +892,7 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-hermetic-with-io should succeed");
 
@@ -959,7 +959,7 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
         func.clone(),
         Vec::new(),
         world.symbols(),
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     )
     .expect("run-hermetic-with-io driver should not itself panic");
 

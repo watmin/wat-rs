@@ -69,7 +69,7 @@ pub(crate) fn eval_bytes_to_hex(
             Value::u8(b) => *b,
             other => {
                 return Err(RuntimeError {
-                    span: Span::unknown(),
+                    span: crate::rust_caller_span!(),
                     kind: RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
                         expected: "wat::core::Bytes (Vec<u8>)",

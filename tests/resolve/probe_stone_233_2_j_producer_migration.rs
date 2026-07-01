@@ -131,7 +131,7 @@ fn probe_4_value_snapshot_of_tracked_exists_and_reads_provenance() {
         Value::i64(42),
         Provenance::RuntimeBuilt {
             producer: ":probe::test/of-tracked",
-            call_span: wat::span::Span::unknown(),
+            call_span: wat::rust_caller_span!(),
         },
     );
 

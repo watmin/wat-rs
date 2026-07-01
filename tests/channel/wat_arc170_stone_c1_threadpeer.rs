@@ -65,7 +65,7 @@ fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
     // peer A writes 42i64.
     let env_w = Environment::new()
         .child()
-        .bind("peer_a", Span::unknown(), peer_a.into())
+        .bind("peer_a", wat::rust_caller_span!(), peer_a.into())
         .build();
     let write_call = wat::parse_one!("(:wat::kernel::Thread/println peer_a 42)")
         .expect("println AST parses");
@@ -80,7 +80,7 @@ fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
     // peer B reads — value must come back as i64(42).
     let env_r = Environment::new()
         .child()
-        .bind("peer_b", Span::unknown(), peer_b.into())
+        .bind("peer_b", wat::rust_caller_span!(), peer_b.into())
         .build();
     let read_call = wat::parse_one!("(:wat::kernel::Thread/readln peer_b)")
         .expect("readln AST parses");
@@ -108,7 +108,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     // ── Direction 1: peer A writes i64 7 → peer B reads i64 7.
     let env_aw = Environment::new()
         .child()
-        .bind("peer_a", Span::unknown(), peer_a.clone().into())
+        .bind("peer_a", wat::rust_caller_span!(), peer_a.clone().into())
         .build();
     let write_i64 = wat::parse_one!("(:wat::kernel::Thread/println peer_a 7)")
         .expect("println AST parses");
@@ -118,7 +118,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
 
     let env_br = Environment::new()
         .child()
-        .bind("peer_b", Span::unknown(), peer_b.clone().into())
+        .bind("peer_b", wat::rust_caller_span!(), peer_b.clone().into())
         .build();
     let read_i64 = wat::parse_one!("(:wat::kernel::Thread/readln peer_b)")
         .expect("readln AST parses");
@@ -132,7 +132,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     // ── Direction 2: peer B writes String "pong" → peer A reads String "pong".
     let env_bw = Environment::new()
         .child()
-        .bind("peer_b", Span::unknown(), peer_b.into())
+        .bind("peer_b", wat::rust_caller_span!(), peer_b.into())
         .build();
     let write_str = wat::parse_one!(r#"(:wat::kernel::Thread/println peer_b "pong")"#)
         .expect("println string AST parses");
@@ -142,7 +142,7 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
 
     let env_ar = Environment::new()
         .child()
-        .bind("peer_a", Span::unknown(), peer_a.into())
+        .bind("peer_a", wat::rust_caller_span!(), peer_a.into())
         .build();
     let read_str = wat::parse_one!("(:wat::kernel::Thread/readln peer_a)")
         .expect("readln AST parses");

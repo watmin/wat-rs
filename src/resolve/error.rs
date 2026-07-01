@@ -16,7 +16,7 @@ pub struct UnresolvedReference {
     /// Human-friendly context: a short phrase like "call head" or
     /// "macro call (not expanded)".
     pub context: &'static str,
-    /// Source location of the offending keyword reference. `Span::unknown()`
+    /// Source location of the offending keyword reference. `crate::rust_caller_span!()`
     /// when the site genuinely has no recoverable location.
     pub span: Span,
 }
@@ -35,11 +35,8 @@ impl fmt::Display for ResolveError {
             ResolveError::UnresolvedReferences(list) => {
                 writeln!(f, "{} unresolved reference(s):", list.len())?;
                 for r in list {
-                    if r.span.is_unknown() {
-                        writeln!(f, "  - {} ({})", r.path, r.context)?;
-                    } else {
-                        writeln!(f, "  - {} at {} ({})", r.path, r.span, r.context)?;
-                    }
+                    // Arc 298.2: every span is real; always emit location.
+                    writeln!(f, "  - {} at {} ({})", r.path, r.span, r.context)?;
                 }
                 Ok(())
             }

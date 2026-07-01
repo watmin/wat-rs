@@ -446,7 +446,7 @@ impl TypeEnv {
         // (lib re-export, test helpers) bind a TypeDef without a source
         // form. Spanned routing uses `register_with_span` from
         // `register_types`, which threads the form's decl span.
-        self.register_with_span(def, Span::unknown())
+        self.register_with_span(def, crate::rust_caller_span!())
     }
 
     /// Arc 138 slice 2 — span-carrying variant. The decl's name keyword
@@ -472,7 +472,7 @@ impl TypeEnv {
         // arc 138: no span — public surface preserved; matches the
         // user-facing `register()` shape. Real source forms route via
         // `register_stdlib_with_span` from `register_stdlib_types`.
-        self.register_stdlib_with_span(def, Span::unknown())
+        self.register_stdlib_with_span(def, crate::rust_caller_span!())
     }
 
     /// Arc 138 slice 2 — span-carrying variant of [`Self::register_stdlib`].
@@ -562,7 +562,7 @@ impl TypeEnv {
             let child = name.clone();
             self.types.insert(name, def);
             if child != root {
-                self.register_subtype(&child, root, Span::unknown())
+                self.register_subtype(&child, root, crate::rust_caller_span!())
                     .expect("builtin aggregate subtype edge must not cycle");
             }
             return;
@@ -1558,7 +1558,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Seed the built-in typesub root: `:wat::holon::Record` is-a `:wat::core::Record`.
     // Cannot cycle (fresh registry with no edges yet); `expect` is correct here.
     // built-in root hierarchy seed — no source form exists; unreachable cycle path (two distinct roots).
-    env.register_subtype(":wat::holon::Record", ":wat::core::Record", Span::unknown())
+    env.register_subtype(":wat::holon::Record", ":wat::core::Record", crate::rust_caller_span!())
         .expect("built-in typesub root cannot cycle");
 }
 
@@ -2287,7 +2287,7 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
         new_args.push(name_kw);
     }
     // Inject :wat::core::Struct as the parent at [1].
-    new_args.push(WatAST::Keyword(":wat::core::Struct".to_string(), Span::unknown()));
+    new_args.push(WatAST::Keyword(":wat::core::Struct".to_string(), crate::rust_caller_span!()));
     // Remaining args (optional metadata + fields).
     new_args.extend(iter);
     parse_aggregate(new_args, decl_span, "structtype")
@@ -2488,11 +2488,11 @@ fn parse_declared_name(
 /// values, parametric `T`/`K`/`V` for generics, a named enum for
 /// closed heterogeneous sets).
 // rune:struere(host-constraint) — public surface preserved for callers
-// without a keyword span in scope (arc 138 lineage); Span::unknown() is
+// without a keyword span in scope (arc 138 lineage); crate::rust_caller_span!() is
 // the honest placeholder when no source position is available. Span-aware
 // callers use parse_type_expr_with_span directly.
 pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
-    parse_type_expr_with_span(kw, &Span::unknown())
+    parse_type_expr_with_span(kw, &crate::rust_caller_span!())
 }
 
 /// Arc 138 slice 2 — span-carrying variant. Consumers with a real
@@ -2718,7 +2718,7 @@ pub fn parse_type_expr_audit(kw: &str) -> Option<TypeExpr> {
     let stripped = kw.strip_prefix(':')?;
     // arc 138: no span — audit path returns Option, never surfaces a
     // TypeError to a consumer; the synthetic span never escapes.
-    parse_type_inner(stripped, kw, false, &Span::unknown()).ok()
+    parse_type_inner(stripped, kw, false, &crate::rust_caller_span!()).ok()
 }
 
 /// Walk a parsed [`TypeExpr`] and raise [`TypeError::AnyBanned`] if

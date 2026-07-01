@@ -95,7 +95,7 @@ fn probe_shutdown_cascade_wakes_crossbeam_recv() {
                 let outcome = wat::channel::typed_recv(
                     rx_inner_clone.as_ref(),
                     None,
-                    Span::unknown(),
+                    wat::rust_caller_span!(),
                 );
                 outcome
             })

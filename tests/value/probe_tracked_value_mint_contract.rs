@@ -38,7 +38,7 @@ fn probe_1_new_and_value_borrow_accessor() {
 fn probe_2_provenance_borrow_accessor() {
     let prov = Provenance::RuntimeBuilt {
         producer: ":wat::test::probe",
-        call_span: Span::unknown(),
+        call_span: wat::rust_caller_span!(),
     };
     let tv = TrackedValue::new(Value::i64(7), prov);
 
@@ -87,7 +87,7 @@ fn probe_4_from_value_yields_unknown_provenance() {
 fn probe_5_clone_preserves_value_and_provenance() {
     let prov = Provenance::RuntimeBuilt {
         producer: ":wat::test::clone",
-        call_span: Span::unknown(),
+        call_span: wat::rust_caller_span!(),
     };
     let tv = TrackedValue::new(Value::i64(13), prov);
     let cloned = tv.clone();

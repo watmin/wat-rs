@@ -58,15 +58,15 @@ use wat::span::Span;
 fn build_spawn_process_call(child_program_src: &str) -> WatAST {
     let child_forms = wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
         .expect("child program parse");
-    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), Span::unknown())];
+    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
     forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, Span::unknown());
+    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
     WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), Span::unknown()),
+            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
             forms_call,
         ],
-        Span::unknown(),
+        wat::rust_caller_span!(),
     )
 }
 
@@ -78,7 +78,7 @@ fn drain_server_stderr(server: &Value) -> String {
         Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[2] {
             Value::io__IOReader(rdr) => {
                 let mut all = String::new();
-                while let Ok(Some(line)) = rdr.read_line(Span::unknown()) {
+                while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
                     all.push_str(&line);
                 }
                 all
@@ -153,7 +153,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     // point.
     let env = Environment::new()
         .child()
-        .bind("server", Span::unknown(), server.clone().into())
+        .bind("server", wat::rust_caller_span!(), server.clone().into())
         .build();
     // Arc 208 slice 2 — Process/println + Process/readln are matched honestly.
     // reply is unwrapped :String (from the Ok arm) so the Rust-side

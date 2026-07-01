@@ -55,7 +55,7 @@ fn drain_stderr(process: &wat::runtime::Value) -> String {
             match &s.fields[2] {
                 wat::runtime::Value::io__IOReader(rdr) => {
                     let mut all = String::new();
-                    while let Ok(Some(line)) = rdr.read_line(wat::span::Span::unknown()) {
+                    while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
                         all.push_str(&line);
                     }
                     all
@@ -73,9 +73,9 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
     let call = WatAST::List(
         vec![WatAST::Keyword(
             ":my::launch".into(),
-            wat::span::Span::unknown(),
+            wat::rust_caller_span!(),
         )],
-        wat::span::Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("launch should evaluate").value_owned();

@@ -42,7 +42,7 @@ pub(crate) fn resolve_sandbox_loader(
     match scope_opt {
         Some(path) => {
             // arc 138: no span — resolve_sandbox_loader receives path+op+sym, no WatAST; span only at wat call site
-            let scoped = ScopedLoader::new(&path).map_err(|e| RuntimeError { span: crate::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            let scoped = ScopedLoader::new(&path).map_err(|e| RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!("scope path {:?}: {}", path, e)
             } })?;

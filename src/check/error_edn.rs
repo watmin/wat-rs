@@ -10,7 +10,7 @@
 //!
 //! `#wat.kernel/<VariantName>` — the variant name from `CheckErrorKind` is
 //! the tag discriminator. The outer struct's span is included as `:span` when
-//! it is not `Span::unknown()`.
+//! it is not `crate::rust_caller_span!()`.
 //!
 //! ## Field naming
 //!

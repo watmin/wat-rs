@@ -388,7 +388,7 @@ pub(crate) fn build_insert_fact(
     let insert_items = match insert_form {
         WatAST::List(items, _) if !items.is_empty() => items,
         _ => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "List (:wat::rete::insert <fact-form>)",
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(insert_form.clone())))),
@@ -399,7 +399,7 @@ pub(crate) fn build_insert_fact(
     let insert_head = match &insert_items[0] {
         WatAST::Keyword(k, _) if k.as_str() == ":wat::rete::insert" => k.as_str(),
         other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword :wat::rete::insert as form head",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
@@ -409,7 +409,7 @@ pub(crate) fn build_insert_fact(
     let _ = insert_head; // validated; not used further
     // Exactly 2 children: the :wat::rete::insert keyword + <fact-form>.
     if insert_items.len() != 2 {
-        return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: insert_items.len(),
@@ -421,7 +421,7 @@ pub(crate) fn build_insert_fact(
     let fact_items = match fact_form_ast {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
         _ => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "fact-form List (:RecordType arg…)",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{fact_form_ast:?}"))))),
@@ -432,7 +432,7 @@ pub(crate) fn build_insert_fact(
     let type_keyword = match &fact_items[0] {
         WatAST::Keyword(k, _) => k.as_str(),
         other => {
-            return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword (record type) as fact-form head",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
@@ -450,7 +450,7 @@ pub(crate) fn build_insert_fact(
         match resolve_operand(arg, &[], &[], bindings) {
             Some(v) => fields.push(v),
             None => {
-                return Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var or literal) in RHS fact-form",
                     got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
@@ -570,12 +570,12 @@ fn compare_values(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
 /// well-formed rete condition's operand position).
 fn value_to_ast_literal(v: Value) -> Option<WatAST> {
     match v {
-        Value::i64(n) => Some(WatAST::IntLit(n, Span::unknown())),
-        Value::f64(x) => Some(WatAST::FloatLit(x, Span::unknown())),
-        Value::bool(b) => Some(WatAST::BoolLit(b, Span::unknown())),
-        Value::String(s) => Some(WatAST::StringLit((*s).clone(), Span::unknown())),
-        Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), Span::unknown())),
-        Value::Unit => Some(WatAST::NilLit(Span::unknown())),
+        Value::i64(n) => Some(WatAST::IntLit(n, crate::rust_caller_span!())),
+        Value::f64(x) => Some(WatAST::FloatLit(x, crate::rust_caller_span!())),
+        Value::bool(b) => Some(WatAST::BoolLit(b, crate::rust_caller_span!())),
+        Value::String(s) => Some(WatAST::StringLit((*s).clone(), crate::rust_caller_span!())),
+        Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), crate::rust_caller_span!())),
+        Value::Unit => Some(WatAST::NilLit(crate::rust_caller_span!())),
         _ => None,
     }
 }
@@ -797,11 +797,11 @@ pub(crate) fn eval_step_payload(
                 // Rebuild (:op a' b') as a WatAST — the substituted constraint form.
                 let substituted = WatAST::List(
                     vec![
-                        WatAST::Keyword(op_str.to_string(), Span::unknown()),
+                        WatAST::Keyword(op_str.to_string(), crate::rust_caller_span!()),
                         a_ast,
                         b_ast,
                     ],
-                    Span::unknown(),
+                    crate::rust_caller_span!(),
                 );
                 constraints_pv = constraints_pv.push_back(Value::wat__WatAST(Arc::new(substituted)));
             }

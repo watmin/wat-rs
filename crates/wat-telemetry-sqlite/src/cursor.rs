@@ -108,7 +108,7 @@ fn parse_time_constraints(
     let xs = match constraints {
         Value::Vec(xs) => xs.clone(),
         other => {
-            return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::Vector<wat::telemetry::TimeConstraint>",
                 got: Box::new(ValueSnapshot::of(other)),
@@ -122,7 +122,7 @@ fn parse_time_constraints(
         let ev = match v {
             Value::Enum(e) if e.type_path == TIME_CONSTRAINT_TYPE_PATH => e.clone(),
             other => {
-                return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: ":wat::telemetry::TimeConstraint",
                     got: Box::new(ValueSnapshot::of(other)),
@@ -133,7 +133,7 @@ fn parse_time_constraints(
         let instant = match ev.fields.first() {
             Some(Value::Instant(i)) => *i,
             _ => {
-                return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "TimeConstraint::{} at index {idx} missing Instant field",
@@ -144,7 +144,7 @@ fn parse_time_constraints(
             }
         };
         let nanos = instant.timestamp_nanos_opt().ok_or_else(|| {
-            RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+            RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: format!(
                     "TimeConstraint::{} at index {idx}: Instant out of i64-nanos range",
@@ -158,7 +158,7 @@ fn parse_time_constraints(
             "Since" => clauses.push(format!("{time_col} >= ?{placeholder_idx}")),
             "Until" => clauses.push(format!("{time_col} <= ?{placeholder_idx}")),
             other => {
-                return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::MalformedForm {
+                return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
                         "TimeConstraint variant {other}: only Since / Until are recognized"
@@ -613,7 +613,7 @@ fn scheme_cursor_new_inner(
             args.len(),
             args.first()
                 .map(|a| a.span().clone())
-                .unwrap_or_else(wat::span::Span::unknown),
+                .unwrap_or_else(|| wat::rust_caller_span!()),
         );
         return Some(TypeExpr::Path(cursor_path.into()));
     }
@@ -660,7 +660,7 @@ fn scheme_cursor_step(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeEx
             args.len(),
             args.first()
                 .map(|a| a.span().clone())
-                .unwrap_or_else(wat::span::Span::unknown),
+                .unwrap_or_else(|| wat::rust_caller_span!()),
         );
     }
     // Return :Option<:wat::telemetry::Event>. Both Log and
@@ -715,7 +715,7 @@ fn eval_handle_and_constraints(
     time_col: &'static str,
 ) -> Result<(ReadHandle, WhereClause), RuntimeError> {
     if args.len() != 2 {
-        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len(),
@@ -774,7 +774,7 @@ fn with_cursor_step<C: Send + Sync + 'static>(
     step: impl FnOnce(&C) -> Option<Value>,
 ) -> Result<Option<Value>, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError { span: wat::span::Span::unknown(), kind: RuntimeErrorKind::ArityMismatch {
+        return Err(RuntimeError { span: wat::rust_caller_span!(), kind: RuntimeErrorKind::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),

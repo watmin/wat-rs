@@ -128,11 +128,11 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
             ))
         }
         RuntimeErrorKind::UserMainMissing => {
-            // Freeze pair: span is Span::unknown(); elide from EDN.
+            // Freeze pair: span is crate::rust_caller_span!(); elide from EDN.
             tagged("UserMainMissing", OwnedValue::Map(vec![]))
         }
         RuntimeErrorKind::EvalVerificationFailed { err } => {
-            // Freeze pair: span is Span::unknown(); elide from EDN.
+            // Freeze pair: span is crate::rust_caller_span!(); elide from EDN.
             // Arc 296 D1: HashError has ToEdn; route through structured form.
             use crate::to_edn::ToEdn;
             tagged("EvalVerificationFailed", map1(

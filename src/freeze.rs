@@ -253,7 +253,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let stdin_handle_fn = pre_sym
         .get(":wat::kernel::services::StdInService/handle")
         .ok_or_else(|| RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::UnknownFunction(
                 ":wat::kernel::services::StdInService/handle".into(),
             ),
@@ -277,7 +277,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let stdout_handle_fn = pre_sym
         .get(":wat::kernel::services::StdOutService/handle")
         .ok_or_else(|| RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::UnknownFunction(
                 ":wat::kernel::services::StdOutService/handle".into(),
             ),
@@ -294,7 +294,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let stderr_handle_fn = pre_sym
         .get(":wat::kernel::services::StdErrService/handle")
         .ok_or_else(|| RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::UnknownFunction(
                 ":wat::kernel::services::StdErrService/handle".into(),
             ),
@@ -321,7 +321,7 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
     let main_thread_id = crate::services::next_thread_id();
     let main_io =
         // boot-time registration — no user form exists; genuinely spanless-by-domain.
-        crate::services::register_thread_with_services(main_thread_id, &services, &crate::span::Span::unknown())?;
+        crate::services::register_thread_with_services(main_thread_id, &services, &crate::rust_caller_span!())?;
     crate::services::install_thread_io(main_io);
 
     Ok(ProcessRuntime {
@@ -903,7 +903,7 @@ pub fn invoke_user_main_with_program(
 /// record type — exactly as it runs in the spawned universe.
 pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, RuntimeError> {
     let ast = crate::parse_one!(src).map_err(|e| RuntimeError {
-        span: Span::unknown(),
+        span: crate::rust_caller_span!(),
         kind: RuntimeErrorKind::MalformedForm {
             head: "env-fn".into(),
             reason: format!("arc 209 C0b.3b-e: env-fn parse error: {e:?}"),
@@ -912,11 +912,11 @@ pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, Runt
     let v = eval_in_frozen(&ast, world, &Environment::new())?.value_owned();
     match v {
         Value::wat__core__fn(f) => {
-            let r = apply_function(f, vec![], world.symbols(), Span::unknown())?;
+            let r = apply_function(f, vec![], world.symbols(), crate::rust_caller_span!())?;
             match r {
                 r @ Value::Aggregate(_) => Ok(r),
                 other => Err(RuntimeError {
-                    span: Span::unknown(),
+                    span: crate::rust_caller_span!(),
                     kind: RuntimeErrorKind::MalformedForm {
                         head: "env-fn".into(),
                         reason: format!(
@@ -930,7 +930,7 @@ pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, Runt
         }
         r @ Value::Aggregate(_) => Ok(r),
         other => Err(RuntimeError {
-            span: Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::MalformedForm {
                 head: "env-fn".into(),
                 reason: format!(
@@ -1014,7 +1014,7 @@ fn invoke_user_main_orchestrated(
             runtime.symbols(),
             crate::rust_caller_span!(),
         ),
-        None => Err(RuntimeError { span: Span::unknown(), kind: RuntimeErrorKind::UserMainMissing }),
+        None => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::UserMainMissing }),
     };
 
     // Steps 6–8: cleanup runs in ProcessRuntime::drop when `runtime`

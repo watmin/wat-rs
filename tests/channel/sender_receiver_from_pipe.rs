@@ -85,7 +85,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
         unwrap_sender_inner(&sender_val),
         Value::i64(99),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(
         matches!(send_outcome, SendOutcome::Ok),
@@ -97,7 +97,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
     let recv_outcome = wat::channel::typed_recv(
         unwrap_receiver_inner(&receiver_val),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let val = match recv_outcome {
         RecvOutcome::Value(v) => v,
@@ -113,7 +113,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
         unwrap_sender_inner(&sender_val),
         Value::String(Arc::new("hello-pipe".to_string())),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(
         matches!(send_outcome2, SendOutcome::Ok),
@@ -122,7 +122,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
     let recv_outcome2 = wat::channel::typed_recv(
         unwrap_receiver_inner(&receiver_val),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let val2 = match recv_outcome2 {
         RecvOutcome::Value(v) => v,
@@ -141,7 +141,7 @@ fn probe_sender_receiver_from_pipe_dispatch_arms() {
     let recv_outcome3 = wat::channel::typed_recv(
         unwrap_receiver_inner(&receiver_val),
         types,
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     assert!(
         matches!(recv_outcome3, RecvOutcome::Disconnected),
@@ -174,10 +174,10 @@ fn probe_sender_receiver_from_pipe_edn_dispatch_via_eval() {
     // nil is not an IOWriter → expect TypeMismatch (not UnknownFunction).
     let call = WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::Sender/from-pipe".into(), Span::unknown()),
-            WatAST::Keyword(":wat::core::nil".into(), Span::unknown()),
+            WatAST::Keyword(":wat::kernel::Sender/from-pipe".into(), wat::rust_caller_span!()),
+            WatAST::Keyword(":wat::core::nil".into(), wat::rust_caller_span!()),
         ],
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let result = eval(&call, &env, sym);
     match result {
@@ -200,10 +200,10 @@ fn probe_sender_receiver_from_pipe_edn_dispatch_via_eval() {
     // Same for Receiver/from-pipe.
     let call2 = WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::Receiver/from-pipe".into(), Span::unknown()),
-            WatAST::Keyword(":wat::core::nil".into(), Span::unknown()),
+            WatAST::Keyword(":wat::kernel::Receiver/from-pipe".into(), wat::rust_caller_span!()),
+            WatAST::Keyword(":wat::core::nil".into(), wat::rust_caller_span!()),
         ],
-        Span::unknown(),
+        wat::rust_caller_span!(),
     );
     let result2 = eval(&call2, &env, sym);
     match result2 {

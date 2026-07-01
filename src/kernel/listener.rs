@@ -491,7 +491,7 @@ mod tests {
         let mine = std::process::id() as i32;
         let sl = listener_with(&[]);
         assert!(!sl.authorizes(&PeerCred { pid: mine, uid: me, gid: 0 })); // empty set → no
-        sl.allow(mine, Span::unknown()).unwrap();
+        sl.allow(mine, crate::rust_caller_span!()).unwrap();
         assert!(sl.authorizes(&PeerCred { pid: mine, uid: me, gid: 0 })); // allowed → yes
         assert!(!sl.authorizes(&PeerCred { pid: mine + 999_999, uid: me, gid: 0 })); // wrong pid
         assert!(!sl.authorizes(&PeerCred { pid: mine, uid: me + 1, gid: 0 })); // wrong uid → no

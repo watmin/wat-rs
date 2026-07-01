@@ -195,7 +195,7 @@ impl MiniUniverse {
         use wat::io::WatWriter;
         let line = format!("{}\n", s);
         self.stdin_feed
-            .write_all(line.as_bytes(), Span::unknown())
+            .write_all(line.as_bytes(), wat::rust_caller_span!())
             .expect("feed_line: write");
     }
 
@@ -217,7 +217,7 @@ impl MiniUniverse {
             .value_owned();
         assert!(matches!(result, Value::Unit), "println returns nil; src={:?}", src);
         self.stdout_reader
-            .read_line(Span::unknown())
+            .read_line(wat::rust_caller_span!())
             .expect("read from the stdout service's pipe")
             .expect("a written line")
             .trim()
@@ -235,7 +235,7 @@ impl MiniUniverse {
             .value_owned();
         assert!(matches!(result, Value::Unit), "eprintln returns nil; src={:?}", src);
         self.stderr_reader
-            .read_line(Span::unknown())
+            .read_line(wat::rust_caller_span!())
             .expect("read from the stderr service's pipe")
             .expect("a written line")
             .trim()
@@ -547,8 +547,8 @@ fn row_k_stdin_reply_routing_two_tids_never_cross() {
     // ── Feed "1" then "2" into the pipe ──────────────────────────────
     {
         use wat::io::WatWriter;
-        stdin_feed.write_all(b"1\n", Span::unknown()).expect("feed 1");
-        stdin_feed.write_all(b"2\n", Span::unknown()).expect("feed 2");
+        stdin_feed.write_all(b"1\n", wat::rust_caller_span!()).expect("feed 1");
+        stdin_feed.write_all(b"2\n", wat::rust_caller_span!()).expect("feed 2");
     }
 
     // ── Send Req(tid_a) then Req(tid_b) ──────────────────────────────

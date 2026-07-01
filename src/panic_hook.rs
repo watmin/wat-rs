@@ -153,9 +153,10 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     let message_val = OwnedValue::String(Cow::Owned(payload.message.clone()));
 
     // ── :location ────────────────────────────────────────────────────
+    // Arc 298.2: every span is a real location; always emit.
     let location_val = match &payload.location {
-        Some(span) if !span.is_unknown() => span_to_map(span),
-        _ => OwnedValue::Nil,
+        Some(span) => span_to_map(span),
+        None => OwnedValue::Nil,
     };
 
     // ── :actual / :expected ──────────────────────────────────────────

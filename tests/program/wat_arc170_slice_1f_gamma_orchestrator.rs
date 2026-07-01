@@ -114,7 +114,7 @@ fn freeze(fixture: &str) -> wat::freeze::FrozenWorld {
 /// Drains until EOF.
 fn drain_to_string(reader: &Arc<dyn WatReader>) -> String {
     let bytes = reader
-        .read_all(wat::span::Span::unknown())
+        .read_all(wat::rust_caller_span!())
         .expect("read-all");
     String::from_utf8(bytes).expect("utf8")
 }
@@ -223,7 +223,7 @@ fn row_e_readln_roundtrip() {
     let bytes = b"\"echoed string\"\n";
     let stdin_inject = Arc::clone(&rig.stdin_inject);
     stdin_inject
-        .write_all(bytes, wat::span::Span::unknown())
+        .write_all(bytes, wat::rust_caller_span!())
         .expect("write to stdin pipe");
 
     let world = freeze("tests/program/wat_arc170_slice_1f_gamma_orchestrator_row_e.wat");

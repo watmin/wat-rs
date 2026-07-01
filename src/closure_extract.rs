@@ -86,7 +86,7 @@ pub enum ExtractionErrorKind {
     /// in a PROCESS-spawn closure. Process spawns cross address-space boundaries
     /// and cannot carry impure values (channels, handles, structs, etc.).
     /// Thread-spawn closures are in-locus and are NOT checked here.
-    /// No span — constructs with outer `Span::unknown()`.
+    /// No span — constructs with outer `crate::rust_caller_span!()`.
     ImpureCapture {
         /// The let-scope name of the offending capture.
         name: String,
@@ -101,7 +101,7 @@ pub enum ExtractionErrorKind {
     UnresolvedSymbol { name: String },
     /// An internal invariant was violated. Not user-actionable; surfaces
     /// programmer bugs (e.g., `Function` carries no body span when one
-    /// was expected). No span — constructs with outer `Span::unknown()`.
+    /// was expected). No span — constructs with outer `crate::rust_caller_span!()`.
     Internal(String),
 }
 
@@ -164,7 +164,7 @@ pub fn extract_closure(
         Value::wat__core__fn(f) => f.clone(),
         other => {
             return Err(ExtractionError {
-                span: crate::span::Span::unknown(),
+                span: crate::rust_caller_span!(),
                 kind: ExtractionErrorKind::Internal(format!(
                     "extract_closure expected Value::wat__core__fn, got {}",
                     other.type_name()
@@ -406,7 +406,7 @@ pub fn extract_closure(
             let entry_define =
                 function_to_define_form_with_body(&func, path, final_body);
             prologue.push(entry_define);
-            WatAST::Keyword(path.clone(), Span::unknown())
+            WatAST::Keyword(path.clone(), crate::rust_caller_span!())
         }
         None => {
             // Inline lambda: emit the fn-form AST. The fn-form
@@ -601,7 +601,7 @@ fn walk_free_symbols(
             // may be a user-typed keyword literal at value position.
             if state.parent_symbols.runtime_def_values.contains_key(k) {
                 return Err(ExtractionError {
-                    span: crate::span::Span::unknown(),
+                    span: crate::rust_caller_span!(),
                     kind: ExtractionErrorKind::Internal(format!(
                         "captured `def`-bound name {} not yet supported by closure extraction (slice 1)",
                         k
@@ -1263,7 +1263,7 @@ fn extract_user_deps_to_fixpoint(
                 .captured_deps
                 .get(&name)
                 .cloned()
-                .ok_or_else(|| ExtractionError { span: crate::span::Span::unknown(), kind: ExtractionErrorKind::Internal(format!("dep {} vanished", name)) })?;
+                .ok_or_else(|| ExtractionError { span: crate::rust_caller_span!(), kind: ExtractionErrorKind::Internal(format!("dep {} vanished", name)) })?;
             let mut dep_locals: BTreeSet<String> =
                 dep_func.params.iter().cloned().collect();
             if let Some(rest) = &dep_func.rest_param {
@@ -1332,7 +1332,7 @@ fn extract_user_types_to_fixpoint(
                 .captured_types
                 .get(&name)
                 .cloned()
-                .ok_or_else(|| ExtractionError { span: crate::span::Span::unknown(), kind: ExtractionErrorKind::Internal(format!("type {} vanished", name)) })?;
+                .ok_or_else(|| ExtractionError { span: crate::rust_caller_span!(), kind: ExtractionErrorKind::Internal(format!("type {} vanished", name)) })?;
             // Walk fields / variants / inner / alias-target for further
             // type refs. Each found type-ref becomes an edge from
             // `name` to that type.
@@ -1554,7 +1554,7 @@ fn encode_value_with_path(
     path: &mut Vec<String>,
     state: &mut ExtractState<'_>,
 ) -> Result<WatAST, ExtractionError> {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     match v {
         // ─── primitive arms ────────────────────────────────────────────
         Value::bool(b) => Ok(WatAST::BoolLit(*b, span)),
@@ -1851,7 +1851,7 @@ fn encode_value_with_path(
         | Value::Engram(_)
         | Value::EngramLibrary(_)
         | Value::Hologram(_) => Err(ExtractionError {
-            span: crate::span::Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: ExtractionErrorKind::ImpureCapture {
                 name: binding_name.to_string(),
                 type_name: v.type_name().to_string(),
@@ -1865,7 +1865,7 @@ fn encode_value_with_path(
         // exhaustiveness checker sees Value::Aggregate(_) as fully covered.
         Value::Aggregate(_) => {
             Err(ExtractionError {
-                span: crate::span::Span::unknown(),
+                span: crate::rust_caller_span!(),
                 kind: ExtractionErrorKind::Internal(format!(
                     "encoding for captured Value of kind {} not implemented (Stone 234.2+)",
                     v.type_name()
@@ -1877,7 +1877,7 @@ fn encode_value_with_path(
         // multi-arity dispatchers yet. Clause bodies are evaluated at dispatch
         // time; the dispatcher itself is a top-level registration (not a closure).
         Value::wat__core__clauses(_) => Err(ExtractionError {
-            span: crate::span::Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: ExtractionErrorKind::Internal(format!(
                 "encoding for captured Value of kind {} not implemented (Stone 237.2 — defclause is top-level)",
                 v.type_name()
@@ -1901,7 +1901,7 @@ fn encode_value_with_path(
         // Arc 232 Stone 232.1 — registry carriers are top-level registrations, not closure values.
         | Value::wat__core__protocol_def(_)
         | Value::wat__core__extend_def(_) => Err(ExtractionError {
-            span: crate::span::Span::unknown(),
+            span: crate::rust_caller_span!(),
             kind: ExtractionErrorKind::Internal(format!(
                 "encoding for captured Value of kind {} not implemented in slice 1",
                 v.type_name()
@@ -2349,7 +2349,7 @@ fn capture_define_form(cb: &CapturedBinding) -> WatAST {
     // Use `(:wat::core::def :__captured_X <encoded>)` to bind the
     // captured value at top level. Per arc 157, def-bound names
     // resolve at the keyword arm of `eval` after unit_variants.
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     WatAST::List(
         vec![
             WatAST::Keyword(":wat::core::def".into(), span.clone()),
@@ -2362,7 +2362,7 @@ fn capture_define_form(cb: &CapturedBinding) -> WatAST {
 
 fn type_def_to_ast(def: &TypeDef) -> WatAST {
     // Reconstruct the source-form for a TypeDef.
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     match def {
         // Arc 293.2b — Aggregate branches on holder to reconstruct the right source form.
         TypeDef::Aggregate(a) => match a.holder {
@@ -2552,7 +2552,7 @@ fn function_to_define_form_with_body(
     name: &str,
     body: WatAST,
 ) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     // defn uses a Keyword for the function name (with optional type params).
     let head_kw = if func.type_params.is_empty() {
         name.to_string()
@@ -2678,7 +2678,7 @@ fn format_type_for_emit_inner(t: &TypeExpr) -> String {
 ///   - FQDN keyword for the return type (via `check::format_type`)
 ///   - no whitespace inside `<>` / `:(...)` / `:[...]`
 fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
-    let span = Span::unknown();
+    let span = crate::rust_caller_span!();
     // Build flat-vector args: [name <- :T name <- :T ...].
     let mut args_items: Vec<WatAST> =
         Vec::with_capacity(func.params.len() * 3 + func.rest_param.iter().count() * 3);

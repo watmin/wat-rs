@@ -250,13 +250,13 @@ mod tests {
     use crate::span::Span;
 
     fn kw(s: &str) -> WatAST {
-        WatAST::Keyword(s.into(), Span::unknown())
+        WatAST::Keyword(s.into(), crate::rust_caller_span!())
     }
     fn sym(s: &str) -> WatAST {
-        WatAST::Symbol(Identifier::bare(s), Span::unknown())
+        WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!())
     }
     fn list(items: Vec<WatAST>) -> WatAST {
-        WatAST::List(items, Span::unknown())
+        WatAST::List(items, crate::rust_caller_span!())
     }
 
     #[test]
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn classifies_compare() {
-        let ast = list(vec![kw(":>"), sym("?x"), WatAST::FloatLit(5.0, Span::unknown())]);
+        let ast = list(vec![kw(":>"), sym("?x"), WatAST::FloatLit(5.0, crate::rust_caller_span!())]);
         match classify_clause(&ast).unwrap() {
             RawClause::Compare { op: CompareOp::Gt, .. } => {}
             _ => panic!("expected Gt"),
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn classifies_where() {
-        let ast = list(vec![kw(":where"), WatAST::BoolLit(true, Span::unknown())]);
+        let ast = list(vec![kw(":where"), WatAST::BoolLit(true, crate::rust_caller_span!())]);
         assert!(matches!(classify_clause(&ast), Ok(RawClause::Where(_))));
     }
 
@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn rejects_non_list() {
         assert!(matches!(
-            classify_clause(&WatAST::IntLit(5, Span::unknown())),
+            classify_clause(&WatAST::IntLit(5, crate::rust_caller_span!())),
             Err(ClauseGrammarError { kind: ClauseGrammarErrorKind::NotAList, .. })
         ));
     }

@@ -96,7 +96,7 @@ fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
     use wat::{LoadError, LoadErrorKind, LoadFetchError};
 
     let err = LoadError {
-        span: Span::unknown(),
+        span: wat::rust_caller_span!(),
         kind: LoadErrorKind::Fetch(LoadFetchError::NotFound("/no/such/file.wat".into())),
     };
 

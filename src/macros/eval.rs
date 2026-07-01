@@ -102,14 +102,10 @@ pub(super) fn macro_eval_pre_validated(
     sym: &SymbolTable,
 ) -> Result<crate::value::TrackedValue, MacroError> {
     // Delegate to the existing evaluator — no new interpreter.
-    // Thread `e.span` (the runtime's precise failing-site span) into MacroError;
-    // fall back to `form.span()` only when `e.span` is the unknown sentinel.
+    // Thread `e.span` (the runtime's precise failing-site span) into MacroError.
+    // Arc 298.2: every span is real; always use e.span directly.
     crate::runtime::eval(form, env, sym).map_err(|e| {
-        let span = if e.span.is_unknown() {
-            form.span().clone()
-        } else {
-            e.span.clone()
-        };
+        let span = e.span.clone();
         // Arc 258 Stone 258.2b: MacroAbort surfaces clean — user message only,
         // no "macro_eval: runtime::eval failed:" prefix noise.
         // Arc 296: non-MacroAbort failures carry the typed RuntimeError cause
