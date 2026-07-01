@@ -1,49 +1,44 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `dbd1bc42` or later (a re-ground commit follows it).**
-Tree CLEAN. **Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** **FLOOR IS 0** — `4160 passed /
-0 failed / 91 skipped`. **`cargo wat` is a STALENESS-GUARDED install** (screams `⚠ …STALE…` when older than source;
-reinstall `cargo install --path crates/wat-cli --force`); for behavior checks use `cargo run -q --release --bin wat --`.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `b801a821` or later (a curare commit follows).**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4166 passed`. `cargo wat` is a
+STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. **⚠ CHECK `git status`: a
+background agent (`a752…`) may be finishing the S6 WatError wall with UNCOMMITTED `src/` WIP — WEIGH the emitted wire EDN
++ commit it before moving.**
 
-> ## ⊹⊹ SESSION 2026-06-30 (later) END-STATE — ARC 296 SCOPE CORRECTED (read THIS; below the next `---` is superseded strata)
+> ## ⊹⊹ SESSION 2026-06-30 (latest) END-STATE — ARC 296 KEYSTONE + WatError WALL BUILT (read THIS; below `---` is superseded)
 >
-> **SURFACE KIT COMPLETE** (`defsurface`+`to-record`(pair)+`extend-type`+K5 `extend-surface`, `06ede1dd`); 293.W wall stands.
-> **296 slice-1 landed** (`7f17054a`): every error impl's `ToEdn`; boundary generic over it; interim `Diagnostic` deleted.
+> **296 IS A REACTIVE ARC** (a sonnet FUMBLED on stringly errors; the builder wants coherent errors so that stops). Scope =
+> coherent `:wat::core::Error` records. HolonAST's full death is ARC 294 (next), NOT 296. Prior: surface kit complete
+> (`06ede1dd`); 296 slice-1 (`7f17054a`, every error `ToEdn`).
 >
-> **⛔ ARC 296 — WHAT IT ACTUALLY IS (a reactive arc, NOT a HolonAST reckoning):** it exists because a sonnet FUMBLED on
-> incoherent/stringly errors and the builder wants coherent errors so that stops. **Scope = a minimal `:wat::core::Error`
-> record + the ONE decoupling that lets it be raised. HolonAST's full death is ARC 294 (the very next arc) — NOT 296.**
+> **THE KEYSTONE + THE WALL ARE BUILT — errors are records satisfying `:wat::core::Error`, and a non-conformant error cannot
+> compile.** Landed + weighed by the orchestrator's own gate AND its own capture of the emitted wire EDN (green ≠ clean):
+> - **S1 `d82cc791`** `is_pure_type`: a Record-holdered surface is a pure field type. **S2 `396a610d`** a record satisfies a
+>   surface as a `Vector` element (the recursive `causes` tree). **S3 `d7458978`** `(:wat::kernel::here)` (caller location).
+> - **S4 `febc5754`** the `:wat::core::Error` surface (`{message, location, causes}`) declared in `wat/core.wat`.
+> - **S5 `cf375f9a`/`0d858b49`** `raise!` re-gated to REQUIRE `:wat::core::Error` (`(raise! 42)` UNCOMPILABLE — the wall);
+>   `:wat::core::Fault` + `Fault/of` (message-first) minted; 26 HolonAST callers purged; arc113 round-trip STRUCTURAL.
+> - **S6 `ed5721ea`** THE `WatError` WALL — a floor-guaranteeing trait at the single wire choke point `to_wire_edn`; a
+>   floorless error is a COMPILE ERROR (`LEX AVCTOREM NON EXCIPIT` — the substrate forced to obey its own contract). **The
+>   11-key span heresy is DEAD** — the floor is RECURSIVE, ZERO `:span` at any depth (verified), one-line `:message`, FlatMessage closed.
 >
-> **THE `:wat::core::Error` SHAPE (co-designed this session, SUPERSEDES `296/ASSESSMENT.md`'s floor on two points):**
-> a `defsurface` `:wat::core::Error` (`:holder :wat::core::Record`) with **FOUR total fields — every error answers all four:**
-> - `message  <- :wat::core::String` — freeform instructions (the human text / what-to-do).
-> - `location <- :wat::kernel::Location` — **MANDATORY, not Option.** An error is always *somewhere* (a coordinate);
->   "optional location" = "the error is nowhere" = incoherent. This **annihilates `Span::unknown()`** — a locationless
->   error becomes a substrate bug to fix. Key is **`:location`** (the value IS a point — `types.rs:1006` docs it "a point
->   in a source file"; so `:location`, NOT `:span`; NO type rename). [4-questions-decided this session, all YES.]
-> - `frames <- Vector<:wat::kernel::Frame>` + `causes <- Vector<:wat::core::Error>` — on the BASE (4-questions: BASE beat
->   a split `Traced` surface YES/YES/YES/YES). Vectors are TOTAL: `[]` = leaf/root (honest, unlike Option). `causes` is
->   RECURSIVE → the whole causal tree is one EDN value. (`Frame` likely reshapes to `{name, location}` — wat call site,
->   not the Rust-backtrace Frame.)
-> **`:kind` is DROPPED** — the TAG is the kind (a `:kind` field would restate the tag = drift smell). **Per-phase tag
-> namespaces** (`#wat.check/…`, `#wat.runtime/…`, `#wat.type/…`, …; grounded: `ArityMismatch` is defined in Check+Runtime+Macro
-> — flat `wat.kernel` collides; `Failure`/`Location`/`Frame` STAY `:wat::kernel::`). Single-source **`#[derive(WatErrorRecord)]`**.
-> **No new verb** (`raise` is *constrained*, not renamed; error-ness = surface satisfaction). intueri crowned all six (N1–N6).
+> **▶▶ THE NEXT MOVE — `#[derive(WatErrorRecord)]`, the constraint that closes the prose-in-errors class.** Read
+> **`296/AUDIT-prose-in-errors.md`** (durable worklist). An audit found the fixed `:message`-blob was one of a CLASS: 10
+> findings (9 L1) where structured data is smuggled into prose (`:called-arg-types "i64, String"` joined; `attempted_clauses`
+> DROPPED; `Vec<Remedy>`→blob ×3; `LoadFetchError`/`HashError` stringified). **The builder's "what constraint is missing?"
+> has ONE answer: the error EDN is not a STRUCTURAL FUNCTION of the type** (hand-authored → structure `.join`/`format!`'d
+> away; no requirement embedded types be `ToEdn` → foreign types `.to_string()`'d; the check-serializer drifts from its
+> runtime twin). The cure = **`#[derive(WatErrorRecord)]`** (structure preserved by construction; an embedded non-`ToEdn`
+> type = compile error). **WatError (S6) forces the floor PRESENT; the derive forces the whole body STRUCTURAL.** Down-
+> payments the derive subsumes: `Remedy` gets a `ToEdn` (kills 4/5/6); check-layer matches its runtime twin (kills 2/3);
+> `LoadFetchError`/`HashError` get `ToEdn` (7/8/9). Then N3 (per-phase tag ns `#wat.check/…` — tags STILL `#wat.kernel/…`,
+> not done) + `deferror` (N8, sugar, unbuilt) + `Failure`/`raise!` de-stringify (the double-encode's last home).
 >
-> **▶▶ THE PREREQUISITE STRIKE (do FIRST, before Error) — kill the HolonAST-abuse in `raise!`:**
-> `eval_kernel_raise` (**runtime.rs:11871**) DEMANDS `Value::holon__HolonAST` (`:11893`, rejects all else) then STRINGIFIES
-> it via `value_to_edn_with`+`wat_edn::write` into `Failure.message: String` (`:11901`) — the HolonAST-as-EDN-bridge crutch
-> from before `EdnRepresentable` existed, PLUS the double-encode. **`EdnRepresentable`** (`comms/mod.rs:102`; **`Value` impls
-> it at `:794`**) is the proper base; **`HolonRepresentable: EdnRepresentable`** (`:134`) is now a SPECIALIZATION. The minimal
-> fix: **`raise!`/`Failure` accept any `EdnRepresentable` `Value` (the error record) — not require `HolonAST`; carry structured
-> EDN, no stringify.** (Confirm `assertion-failed!`'s signature too — its sibling.) This is enough to let a clean Error ride;
-> **the rest of HolonAST's ~1172 refs is 294, LEAVE THEM.** RED probe: a plain error record (NOT a HolonAST) is `raise!`d + round-trips.
->
-> **HOLON IS NOT A BUG HERE — DO NOT DELETE HOLON.** Declaring ANY surface auto-mints `$core-record`+`$holon-record`
-> (`types.rs:1638`) — WANTED, builder-designed capability. A `$holon-record` in a probe is THAT (the option), not error
-> tooling reaching for a hologram; a user OPTS IN to uplift. Errors never reach for a hologram. (SEPARATE small gap, not
-> the focus: `is_pure_type(Surface) => false` at `check.rs:13718` is a stale 293.3-core stub — a Record-holdered surface is
-> pure, so it wrongly rejects a surface-typed field; fix when a surface-typed field is actually needed.)
+> **CROWNED NAMES (intueri):** N1 `:wat::core::Error` · N2 floor `message`+`location`+`causes` (`:kind` DROPPED — tag IS the
+> kind) · N5 `#[derive(WatErrorRecord)]` · N7 `:wat::kernel::here` · N8 `:wat::core::deferror` (unbuilt) · N9 bare `Location`
+> ctor · N10 `:wat::core::Fault`. **DO NOT DELETE HOLON** — a surface's `$core-record`/`$holon-record` pair is a WANTED
+> capability; errors never reach for a hologram (a `$holon-record` in a probe is the opt-in, not a bug).
 >
 > **⚠ DISCIPLINE FAILURE THIS SESSION (the lesson to carry):** the orchestrator degraded HARD over a long session —
 > asserted conclusions the disk CONTRADICTED across many turns, called a real finding a "red herring," conflated the
