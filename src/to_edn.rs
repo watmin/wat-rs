@@ -393,6 +393,19 @@ pub(crate) fn strip_span_from_tagged(val: OwnedValue) -> OwnedValue {
     }
 }
 
+/// Call `e.error_edn()` on any [`WatError`] value, returning the floor form.
+///
+/// Used as a `#[to_edn(via = crate::to_edn::error_edn_of)]` target for fields
+/// that embed a nested substrate error that must be serialized via the floor
+/// (`:message` / `:location` / `:causes`) rather than raw `to_edn()`. The field
+/// type must implement [`WatError`]; the derive default (`.to_edn()`) applies to
+/// fields that implement only [`ToEdn`].
+///
+/// Signature matches the `via` contract: `fn(&FieldType) -> OwnedValue`.
+pub(crate) fn error_edn_of(e: &impl WatError) -> OwnedValue {
+    e.error_edn()
+}
+
 // ─── The wire boundary (the structural wall) ─────────────────────────────────
 
 /// Convert any substrate error to its wire EDN text **through its [`WatError`]
