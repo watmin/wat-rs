@@ -1,23 +1,29 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `1c2157d7` or later.**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4247 passed`.
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `e2cfd571` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4263 passed`.
 `cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree CLEAN
-(`1c2157d7`); no uncommitted WIP.
+(`e2cfd571`); no uncommitted WIP.
 
-> **⊹ DERIVE SWEEP PROGRESS (2026-07-01, end of this window):** DERIVED so far — **ConfigError** (S1 `8c04ae5e`),
-> **CheckError** (2b `12ae37f2`, 33 variants + the `#[to_edn(skip)]` DSL growth), **TypeError + StdlibError** (3a
-> `1c2157d7`). The derive/DSL (`via`/`literal`/`key`/`skip` + `error_edn_of` for nested causes) is proven. **⛔ REMAINING
-> SWEEP (next window) — R1 *NE SIBI OBSOLESCAT* → PROBATUM EST when done:** (1) **a tuple-variant derive extension**
-> (`crates/wat-macros/src/to_edn_derive.rs` currently `compile_error!`s tuple variants) — PREREQ for **LoadError**
-> (`Fetch(LoadFetchError)`), **ResolveError** + **StartupError** (bare/tuple-shaped); (2) **RuntimeError** (~28 variants,
-> ValueSnapshot/ClauseAttempt/Provenance embeds, dual/always-emit spans — the big careful one, like CheckError) +
-> **MacroError** (`Box<>` causes → `error_edn_of` via); (3) **ParseError** stays a hand-written ORPHAN (foreign wat-reader
-> type — can't derive; leave it). Then the tail: **S7** (EnsureFnInvalid enum-reason), **S3/S4/S5** (ProcessDiedError
-> EDN-in-String — a four-questions BREAKING decision), N3/`deferror`/`Failure`-de-stringify, **consonare R3/R4/R9**, INSCRIPTION.
-> **THE ANTI-WEAKENING RULE (learned this window, 296 `---` PROBATIO FLEXA MENTITVR):** a sonnet WEAKENED a probe to hide
-> a regression (2b, caught); every derive-sweep brief MUST forbid touching a probe to pass + the orchestrator weighs the
-> emitted diff, not the report.
+> **⊹ DERIVE SWEEP PROGRESS (2026-07-01):** DERIVED — **ConfigError** (S1 `8c04ae5e`), **CheckError** (2b `12ae37f2`, 33
+> variants + `#[to_edn(skip)]`), **TypeError + StdlibError** (3a `1c2157d7`), **LoadError** (**3b `e2cfd571`** — the derive
+> gained SINGLE-FIELD TUPLE-VARIANT support: variant-level `#[to_edn(key="…")]`, REQUIRED; multi-field + keyless stay
+> `compile_error!`; byte-identical, weighed by own gate + diff). The derive/DSL (`via`/`literal`/`key`/`skip` + the tuple
+> `key` + `error_edn_of` for nested causes) is proven. **⛔ REMAINING SWEEP — R1 *NE SIBI OBSOLESCAT* → PROBATUM EST when
+> done:** (1) **RuntimeError** (~28 variants, ValueSnapshot/ClauseAttempt/Provenance embeds, dual/always-emit spans — the
+> big careful one, like CheckError) + **MacroError** (`Box<>` causes → `error_edn_of` via) — THE LAST SMUGGLE-CAPABLE
+> FAMILIES. (2) **THE OPTION-A CARVE (ratified 2026-07-01, in `DESIGN-296-derive.md § STRIKE 3b`):** **ParseError**
+> (foreign orphan), **ResolveError** (struct-inner collection — the derive is enum-only), **StartupError** (transparent
+> passthrough — a tag-wrapping derive would change the wire) are **affirmatively hand-written NON-HAZARDS** (no smuggle
+> surface), + the embedded building blocks (`LoadFetchError`/`HashError`/`Remedy`/`ValueSnapshot`/…). NOT skips — cuts,
+> exigere-clean. Then the tail: **S7** (EnsureFnInvalid enum-reason), **S3/S4/S5** (ProcessDiedError EDN-in-String — a
+> four-questions BREAKING decision), N3/`deferror`/`Failure`-de-stringify, **consonare R3/R4/R5/R9**, INSCRIPTION.
+> **THE ANTI-WEAKENING RULE (296 `---` PROBATIO FLEXA MENTITVR):** a sonnet WEAKENED a probe to hide a regression (2b,
+> caught); every derive-sweep brief MUST forbid touching a probe to pass + the orchestrator weighs the emitted diff, not
+> the report. (3b's brief carried it; 3b's probe was clean — assert_eq! on real HEAD snapshots, verified by hand.)
+> **REALIZATIONS: R5 *VTRAQVE FACIE SERVATVR* (Scandroid — Salvation Code)** minted mid-build — the sweep is a NEARING;
+> turns PROBATUM EST when the last hand-body falls. + two `---` interstitials (PROBATIO FLEXA; OPVS SVA LINGVA — we now
+> speak the design IN wat).
 
 > **⊹ 296 — THE DERIVE TOP RUNG + THE STRUCTURE-AS-PROSE SWEEP (2026-07-01 END-STATE).** The walls are done (S6 `WatError`
 > floor `ed5721ea`; D1 embedded-types `74eb2ca6`). The `#[derive(ToEdn)]` TOP RUNG is being built + applied:
