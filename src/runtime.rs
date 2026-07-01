@@ -11279,7 +11279,7 @@ fn eval_macroexpand_1(
     let expanded = crate::macros::expand_once(ast, registry, env, sym)
         .map_err(|e| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MacroExpansionFailed {
             op: OP.into(),
-            reason: format!("{}", e)
+            cause: Box::new(e)
         } })?;
     Ok(Value::wat__WatAST(Arc::new(expanded)))
 }
@@ -11320,19 +11320,23 @@ fn eval_macroexpand(
         let next = crate::macros::expand_once(ast.clone(), registry, env, sym)
             .map_err(|e| RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MacroExpansionFailed {
                 op: OP.into(),
-                reason: format!("{}", e)
+                cause: Box::new(e)
             } })?;
         if next == ast {
             return Ok(Value::wat__WatAST(Arc::new(next)));
         }
         ast = next;
     }
+    // Fixpoint not reached — synthesise a typed ExpansionDepthExceeded cause so
+    // the MacroExpansionFailed envelope always carries a Box<MacroError>.
     Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MacroExpansionFailed {
         op: OP.into(),
-        reason: format!(
-            "expansion did not reach fixpoint within {} iterations",
-            crate::macros::EXPANSION_DEPTH_LIMIT
-        )
+        cause: Box::new(crate::macros::MacroError {
+            span: args[0].span().clone(),
+            kind: crate::macros::MacroErrorKind::ExpansionDepthExceeded {
+                limit: crate::macros::EXPANSION_DEPTH_LIMIT,
+            },
+        })
     } }.into())
 }
 
@@ -20873,7 +20877,9 @@ fn eval_kernel_process_join_result(
         ProgramHandleInner::InThread(rx) => match rx.recv() {
             Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
             Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_runtime(e.to_string()),
+                // Arc 296 S2: route through the structured builder (to_wire_edn),
+                // not the prose-collapsing e.to_string() bypass.
+                process_died_error_runtime_value(&e),
             )))),
             Ok(SpawnOutcome::Panic { message, assertion }) => {
                 // Arc 113 slice 2 — same chain accumulation as the bare
@@ -20960,7 +20966,9 @@ fn eval_kernel_process_drain_and_join(
         ProgramHandleInner::InThread(rx) => match rx.recv() {
             Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
             Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_runtime(e.to_string()),
+                // Arc 296 S2: route through the structured builder (to_wire_edn),
+                // not the prose-collapsing e.to_string() bypass.
+                process_died_error_runtime_value(&e),
             )))),
             Ok(SpawnOutcome::Panic { message, assertion }) => {
                 let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());

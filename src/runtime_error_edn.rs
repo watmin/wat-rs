@@ -163,11 +163,16 @@ pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
                 kw("span"), span_val(span),
             ))
         }
-        RuntimeErrorKind::MacroExpansionFailed { op, reason } => {
+        RuntimeErrorKind::MacroExpansionFailed { op, cause } => {
+            // Arc 296 typed causes — the nested MacroError is embedded via its
+            // `WatError::error_edn()` (floor form: :message / :location / :causes),
+            // NOT its raw `to_edn()`. Mirrors `ProgramBodyEvalFailed` arm in
+            // `macros/error_edn.rs`.
+            use crate::to_edn::WatError;
             tagged("MacroExpansionFailed", OwnedValue::Map(vec![
                 (kw("op"), str_val(op)),
-                (kw("reason"), str_val(reason)),
                 (kw("span"), span_val(span)),
+                (kw("cause"), cause.error_edn()),
             ]))
         }
         RuntimeErrorKind::PatternMatchFailed { value_type } => {

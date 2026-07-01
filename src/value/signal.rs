@@ -200,7 +200,7 @@ pub enum RuntimeErrorKind {
     /// expansion error (malformed template, arity mismatch in the
     /// expanded call, expansion-depth cycle, etc.). Carries the
     /// wrapped [`crate::macros::MacroError`] description. Arc 030.
-    MacroExpansionFailed { op: String, reason: String },
+    MacroExpansionFailed { op: String, cause: Box<crate::macros::MacroError> },
     /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
     /// pattern matches the scrutinee's shape. Exhaustiveness is the
     /// type checker's job; this variant fires only when the check was
@@ -460,10 +460,10 @@ impl RuntimeErrorKind {
                 "{}{}: no macro registry attached to SymbolTable; macroexpand / macroexpand-1 require one. Call via the freeze pipeline, or set_macro_registry on the test SymbolTable.",
                 prefix, op
             ),
-            RuntimeErrorKind::MacroExpansionFailed { op, reason } => write!(
+            RuntimeErrorKind::MacroExpansionFailed { op, cause } => write!(
                 f,
                 "{}{}: macro expansion failed: {}",
-                prefix, op, reason
+                prefix, op, cause
             ),
             RuntimeErrorKind::PatternMatchFailed { value_type } => write!(
                 f,

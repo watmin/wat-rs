@@ -16,7 +16,7 @@
 //! the stdlib — every deployment of `wat` carries the same stdlib bits.
 
 use crate::ast::WatAST;
-use crate::parser::parse_all_with_file;
+use crate::parser::{parse_all_with_file, ParseError};
 use crate::source::{installed_dep_sources, WatSource};
 use crate::span::Span;
 
@@ -355,7 +355,7 @@ pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
             span: Span::unknown(),
             kind: StdlibErrorKind::ParseFailed {
                 path: file.path,
-                source: format!("{}", e),
+                cause: e,
             },
         })?;
         all.extend(forms);
@@ -365,7 +365,7 @@ pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
             span: Span::unknown(),
             kind: StdlibErrorKind::ParseFailed {
                 path: file.path,
-                source: format!("{}", e),
+                cause: e,
             },
         })?;
         all.extend(forms);
@@ -388,15 +388,15 @@ pub struct StdlibError {
 pub enum StdlibErrorKind {
     ParseFailed {
         path: &'static str,
-        source: String,
+        cause: ParseError,
     },
 }
 
 impl std::fmt::Display for StdlibErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StdlibErrorKind::ParseFailed { path, source } => {
-                write!(f, "stdlib file {} failed to parse: {}", path, source)
+            StdlibErrorKind::ParseFailed { path, cause } => {
+                write!(f, "stdlib file {} failed to parse: {}", path, cause)
             }
         }
     }
@@ -432,22 +432,24 @@ impl crate::to_edn::WatError for StdlibError {
 }
 
 impl crate::to_edn::ToEdn for StdlibError {
-    /// `#wat.kernel/ParseFailed {:path "…" :source "…" :span {…}}`.
-    /// The `source` field carries the underlying parse-failure message: the
-    /// baked stdlib has no recoverable wat-source ParseError to nest (the
-    /// loader records the failure as a flat string at construction), so it is
-    /// a navigable named field, not a `:detail` blob.
+    /// `#wat.kernel/ParseFailed {:path "…" :cause <ParseError floor> :span {…}}`.
+    ///
+    /// Arc 296 S6: the nested `ParseError` is embedded via its
+    /// `WatError::error_edn()` (floor form: :message / :location / :causes),
+    /// NOT `to_edn()`. Mirrors `LoadErrorKind::Parse` in `src/load.rs`.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_kw, edn_str, edn_tag, push_span_field};
+        use crate::to_edn::{edn_kw, edn_str, edn_tag, push_span_field, WatError};
         use wat_edn::OwnedValue;
 
         let span = &self.span;
         let (variant, mut fields): (&str, Vec<(OwnedValue, OwnedValue)>) = match &self.kind {
-            StdlibErrorKind::ParseFailed { path, source } => (
+            StdlibErrorKind::ParseFailed { path, cause } => (
                 "ParseFailed",
                 vec![
                     (edn_kw("path"), edn_str(path)),
-                    (edn_kw("source"), edn_str(source)),
+                    // Arc 296 strike 2 — RECURSIVE floor: the nested ParseError
+                    // is embedded via WatError::error_edn(), NOT its raw to_edn().
+                    (edn_kw("cause"), cause.error_edn()),
                 ],
             ),
         };
@@ -464,5 +466,59 @@ mod tests {
     fn every_stdlib_file_parses() {
         let forms = stdlib_forms().expect("stdlib must parse");
         assert!(!forms.is_empty(), "stdlib should ship at least one form");
+    }
+
+    // ─── Arc 296 S6 probe — ParseFailed EDN carries :cause, not :source ──────
+    //
+    // StdlibError is pub(crate); this test lives in-crate where it's
+    // constructible. Mirrors the approach of probe_arc296_typed_causes.rs for
+    // S1/S2 (those are in the integration test since RuntimeError is pub).
+    #[test]
+    fn s6_parse_failed_edn_carries_typed_cause_not_source_string() {
+        use crate::to_edn::ToEdn;
+
+        let bad_source = "(unclosed";
+        let parse_err = crate::parser::parse_all_with_file(bad_source, "stdlib-probe.wat")
+            .expect_err("probe source must fail to parse");
+
+        let stdlib_err = StdlibError {
+            span: crate::span::Span::unknown(),
+            kind: StdlibErrorKind::ParseFailed {
+                path: "stdlib-probe.wat",
+                cause: parse_err,
+            },
+        };
+
+        let edn = stdlib_err.to_edn();
+        let s = wat_edn::write(&edn);
+
+        eprintln!("=== S6 StdlibError::ParseFailed edn: {}", s);
+
+        // Must be tagged.
+        assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
+
+        // Must carry :cause — the nested ParseError floor form.
+        assert!(
+            s.contains(":cause"),
+            "ParseFailed EDN must carry :cause (typed ParseError); got: {}",
+            s
+        );
+
+        // Must NOT carry :source — the old prose field.
+        assert!(
+            !s.contains(":source"),
+            "ParseFailed EDN must NOT carry old :source String; got: {}",
+            s
+        );
+
+        // :cause must embed a nested #wat.kernel/… tagged form.
+        assert!(
+            s.contains("#wat.kernel/"),
+            "ParseFailed :cause must be a nested #wat.kernel/... tagged EDN; got: {}",
+            s
+        );
+
+        // Must round-trip through EDN parse.
+        wat_edn::parse_owned(&s).expect("must be valid EDN");
     }
 }
