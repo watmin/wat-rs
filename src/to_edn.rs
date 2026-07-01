@@ -172,6 +172,87 @@ impl ToEdn for OwnedValue {
     }
 }
 
+// ─── Building blocks — primitive + container `ToEdn` impls ───────────────────
+//
+// These are the foundation for `#[derive(ToEdn)]`: every field in a kind-enum
+// calls `.to_edn()` on its value, so a field type without `ToEdn` is a compile
+// error. Each impl is byte-identical to the corresponding `edn_str` / `edn_int`
+// / etc. constructor above.
+
+impl ToEdn for String {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::String(std::borrow::Cow::Owned(self.clone()))
+    }
+}
+
+impl ToEdn for str {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::String(std::borrow::Cow::Owned(self.to_owned()))
+    }
+}
+
+impl ToEdn for i64 {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Integer(*self)
+    }
+}
+
+impl ToEdn for usize {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Integer(*self as i64)
+    }
+}
+
+impl ToEdn for u32 {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Integer(*self as i64)
+    }
+}
+
+impl ToEdn for bool {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Bool(*self)
+    }
+}
+
+impl<T: ToEdn> ToEdn for Vec<T> {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Vector(self.iter().map(|x| x.to_edn()).collect())
+    }
+}
+
+impl<T: ToEdn> ToEdn for Option<T> {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        match self {
+            None => OwnedValue::Nil,
+            Some(v) => v.to_edn(),
+        }
+    }
+}
+
+/// Blanket: a reference to any `ToEdn` type is itself `ToEdn` (by delegation).
+///
+/// This is the bridge that lets derive-generated code call `.to_edn()` on
+/// a field reference (`field: &String` → `<&String as ToEdn>::to_edn(field)`)
+/// without needing explicit auto-deref. It also handles the double-reference
+/// case (`expected: &&'static str` from a `&'static str` field after pattern
+/// matching on `&self`) correctly: each level delegates to the next until the
+/// base impl is reached.
+impl<T: ToEdn + ?Sized> ToEdn for &T {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        (**self).to_edn()
+    }
+}
+
 // ─── Shared low-level EDN builders ───────────────────────────────────────────
 //
 // One canonical home for the tag/keyword/string/int/span constructors so a
@@ -217,6 +298,35 @@ pub(crate) fn push_span_field(
 ) {
     if !span.is_unknown() {
         fields.push((edn_kw(key), edn_span(span)));
+    }
+}
+
+/// Splice a `:span` field into the body map of a derive-generated tagged value.
+///
+/// The `#[derive(ToEdn)]` macro generates `#wat.kernel/<Variant> {<fields>}`
+/// for each kind-enum variant. The outer Pattern-A struct (which carries the
+/// span) calls this helper to append `:span {…}` LAST, matching the old
+/// hand-written serializers exactly.
+///
+/// - If the span is `Span::unknown()`, nothing is appended (elide-when-unknown
+///   discipline).
+/// - If `val` is not a `Tagged(_, Map(_))`, the span is still appended to
+///   whatever map can be extracted; a `body` key wraps non-map bodies as a
+///   fallback (defensive — should never happen for well-formed derive output).
+///
+/// NO smuggle surface: this helper only appends `:span`; no arbitrary
+/// expression can be injected through it.
+pub(crate) fn splice_span(val: OwnedValue, span: &crate::span::Span) -> OwnedValue {
+    match val {
+        OwnedValue::Tagged(tag, body) => {
+            let mut fields = match *body {
+                OwnedValue::Map(f) => f,
+                other => vec![(edn_kw("body"), other)],
+            };
+            push_span_field(&mut fields, "span", span);
+            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
+        }
+        other => other,
     }
 }
 

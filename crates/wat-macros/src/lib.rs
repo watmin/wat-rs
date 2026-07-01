@@ -27,6 +27,7 @@ use syn::{parse_macro_input, Error, ItemImpl, LitStr};
 
 mod codegen;
 mod discover;
+mod to_edn_derive;
 mod wat_intrinsic;
 mod wat_special_form;
 mod wat_value;
@@ -60,6 +61,47 @@ mod wat_value;
 #[proc_macro_attribute]
 pub fn wat_value(args: TokenStream, input: TokenStream) -> TokenStream {
     wat_value::wat_value(args, input)
+}
+
+/// `#[derive(ToEdn)]` — structural EDN body generator for kind-enums.
+///
+/// Generates `impl crate::to_edn::ToEdn for <KindEnum>` from the Rust type
+/// so there is no hand-written `to_edn()` match body to smuggle prose into.
+/// An embedded field whose type does not implement `ToEdn` is a compile error
+/// (the structural wall arc 296 promises).
+///
+/// Apply to a `*Kind` enum (Pattern A — span on the outer struct, variant
+/// data in the kind enum):
+///
+/// ```rust,ignore
+/// #[derive(ToEdn)]
+/// pub enum ConfigErrorKind {
+///     SetterAfterNonSetter { setter_head: String },
+///     MalformedSetter,
+/// }
+/// ```
+///
+/// ## Helper attribute `#[to_edn(...)]`
+///
+/// Declared so the compiler does not reject `#[to_edn(...)]` on fields.
+/// Strike 1 **ignores** these annotations; Strike 2 wires them up:
+/// `via = <ident>` (computed helper), `literal = "..."` (synthetic constant
+/// field), `key = "..."` (secondary span rename).
+///
+/// ## Supported shapes (Strike 1)
+///
+/// - Struct variants: `Foo { a_b: T }` → `#wat.kernel/Foo {:a-b <val>}`
+/// - Unit variants: `Bar` → `#wat.kernel/Bar {}`
+/// - Tuple variants: NOT supported — emits `compile_error!`
+///
+/// ## The wall
+///
+/// Every field is serialized via `field.to_edn()`. A non-`ToEdn` field type
+/// is a compile error: `the trait bound '…: ToEdn' is not satisfied`.
+#[proc_macro_derive(ToEdn, attributes(to_edn))]
+pub fn derive_to_edn(input: TokenStream) -> TokenStream {
+    let parsed = syn::parse_macro_input!(input as syn::DeriveInput);
+    to_edn_derive::derive_to_edn(parsed).into()
 }
 
 /// The scope modes a shim can declare for its returned `Self` type.
