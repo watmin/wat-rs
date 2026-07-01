@@ -61,6 +61,17 @@ None                →  #wat.core.Option/None nil          ; a tag needs a body
 probe · the bounded cascade of tests asserting transparent Option OR `#wat-edn.result/ok|err`. NOTHING else — Option/Result
 CONSTRUCTION is untouched; only serialization + read change. STOP + report if it exceeds the codec + its tests.
 
+## RATIFIED: the read is STRICT — bare `nil` is NOT `None` (builder, 2026-07-01)
+The typed Option read accepts **only** `#wat.core.Option/None nil` / `#wat.core.Option/Some v`; a bare `nil` in an
+`Option<T>` slot is a **read error** (mismatch), NOT coerced to `None`. Rationale (builder): *"nil should be nil — its
+type is `:wat::core::nil`. None's nil is using nil as a placeholder for 'there is no meaningful value.'"* A bare `nil` is
+a **value of type `:wat::core::nil`**; `None` is an **Option variant** whose tag carries `nil` only as a required
+placeholder body. Coercing bare `nil → None` conflates two distinct types — that was the arc-170 behavior, and it was
+wrong; this strike retires it. RPC/external interop is served the SAME way: producers emit the **tagged** form (that is
+what "some+none tagged correctly" means); a bare `null` is `:nil`, not `None`. Do NOT add a lenient bare-`nil`→`None`
+fallback — it is a type confusion. (The arc-170 `coerce_option_nil_to_none` test's input moved to the tagged form
+accordingly; the lost "bare nil coerces" capability was a bug, not a capability.)
+
 ## Out of scope (affirmative cuts)
 - **Records-are-total / never-elide** (doctrine ruling 1) — a separate concern (record serialization); this strike is
   the Option + Result WIRE FORM only.

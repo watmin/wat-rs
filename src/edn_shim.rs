@@ -23,7 +23,7 @@
 //!
 //! | wat Value variant | wat-edn output |
 //! |---|---|
-//! | Unit / Option(None) | `nil` |
+//! | Unit | `nil` |
 //! | bool | `true` / `false` |
 //! | i64 / u8 | `Integer` |
 //! | f64 (incl. NaN/Inf) | `Float` (sentinel-tagged for non-finite) |
@@ -31,9 +31,10 @@
 //! | keyword | `Keyword` (namespace split at last `::`) |
 //! | Vec | `Vector` |
 //! | Tuple | `Vector` (no tuple distinction in EDN) |
-//! | Option(Some(v)) | `v` (transparent) |
-//! | Result(Ok(v)) | `Tagged #wat-edn.result/ok v` |
-//! | Result(Err(e)) | `Tagged #wat-edn.result/err e` |
+//! | Option(None) | `Tagged #wat.core.Option/None nil` (arc 298.1) |
+//! | Option(Some(v)) | `Tagged #wat.core.Option/Some v` (arc 298.1) |
+//! | Result(Ok(v)) | `Tagged #wat.core.Result/Ok v` (arc 298.1) |
+//! | Result(Err(e)) | `Tagged #wat.core.Result/Err e` (arc 298.1) |
 //! | HashMap | `Map` |
 //! | HashSet | `Set` |
 //! | Struct | `Tagged #ns/Type {:field-0 v0 :field-1 v1 ...}` |
@@ -1380,8 +1381,8 @@ fn mismatch(target: &crate::types::TypeExpr, edn: &wat_edn::OwnedValue) -> EdnCo
 /// | `:wat::core::keyword` | `Keyword` | `Value::wat__core__keyword(...)` |
 /// | `:(A,B,...)` (tuple) | `Vector` of len N | recurse per element |
 /// | `:wat::core::Vector<T>` | `Vector` | recurse on each element |
-/// | `:wat::core::Option<T>` | `Nil` → `None`; else recurse to `Some(T)` | enum variant |
-/// | `:wat::core::Result<T,E>` | `Tagged #wat-edn.result/{ok|err}` | recurse on payload |
+/// | `:wat::core::Option<T>` | `Tagged #wat.core.Option/{None,Some}` | arc 298.1 |
+/// | `:wat::core::Result<T,E>` | `Tagged #wat.core.Result/{Ok,Err}` | recurse on payload |
 /// | user `Struct` | `Tagged #ns/Name {map}` | recurse per field |
 /// | user `Enum` (Unit variant) | `Tagged #ns/Variant nil` | enum variant |
 /// | user `Enum` (Tagged variant) | `Tagged #ns/Variant [items]` | recurse per field |
@@ -1569,14 +1570,23 @@ fn edn_to_typed_value_inner(
                 }
             }
             "wat::core::Option" => {
+                // Arc 298.1 — Option wire form is now `#wat.core.Option/None nil`
+                // and `#wat.core.Option/Some <inner>`. The old transparent
+                // (Nil→None, other→Some) form is retired.
                 let inner_ty = args.first().ok_or_else(|| mismatch(target, edn))?;
                 match edn {
-                    Edn::Nil => Ok(Value::Option(Arc::new(None))),
-                    other => {
-                        let inner = edn_to_typed_value_inner(inner_ty, other, types)
-                            .map_err(|e| e.at(".some"))?;
-                        Ok(Value::Option(Arc::new(Some(inner))))
+                    Edn::Tagged(tag, body) if tag.namespace() == "wat.core.Option" => {
+                        match tag.name() {
+                            "None" => Ok(Value::Option(Arc::new(None))),
+                            "Some" => {
+                                let inner = edn_to_typed_value_inner(inner_ty, body, types)
+                                    .map_err(|e| e.at(".some"))?;
+                                Ok(Value::Option(Arc::new(Some(inner))))
+                            }
+                            _ => Err(mismatch(target, edn)),
+                        }
                     }
+                    other => Err(mismatch(target, other)),
                 }
             }
             "wat::core::Result" => {
@@ -1586,14 +1596,16 @@ fn edn_to_typed_value_inner(
                 let ok_ty = &args[0];
                 let err_ty = &args[1];
                 match edn {
-                    Edn::Tagged(tag, body) if tag.namespace() == "wat-edn.result" => {
+                    // Arc 298.1 — migrated from codec-internal `wat-edn.result/ok|err`
+                    // to `wat.core.Result/Ok|Err` (type namespace + capitalized variant).
+                    Edn::Tagged(tag, body) if tag.namespace() == "wat.core.Result" => {
                         match tag.name() {
-                            "ok" => {
+                            "Ok" => {
                                 let v = edn_to_typed_value_inner(ok_ty, body, types)
                                     .map_err(|e| e.at(".ok"))?;
                                 Ok(Value::Result(Arc::new(Ok(v))))
                             }
-                            "err" => {
+                            "Err" => {
                                 let v = edn_to_typed_value_inner(err_ty, body, types)
                                     .map_err(|e| e.at(".err"))?;
                                 Ok(Value::Result(Arc::new(Err(v))))
@@ -1962,19 +1974,26 @@ pub fn value_to_edn_notag(
                 })
                 .collect(),
         ),
+        // Arc 298.1 — Option is a discriminated type; tag it honestly.
+        // `None` and `Some` are distinct variants: `Some(nil)` ≠ `None`.
         Value::Option(opt) => match &**opt {
-            None => OwnedValue::Nil,
-            Some(inner) => value_to_edn_notag(inner, types),
+            None => OwnedValue::Tagged(
+                Tag::ns("wat.core.Option", "None"),
+                Box::new(OwnedValue::Nil),
+            ),
+            Some(inner) => OwnedValue::Tagged(
+                Tag::ns("wat.core.Option", "Some"),
+                Box::new(value_to_edn_notag(inner, types)),
+            ),
         },
         Value::Result(r) => match &**r {
-            // Result keeps its tag — it's a discriminated outcome,
-            // dropping that loses the ok/err signal.
+            // Arc 298.1 — normalize to type-namespaced capitalized-variant form.
             Ok(inner) => OwnedValue::Tagged(
-                Tag::ns("wat-edn.result", "ok"),
+                Tag::ns("wat.core.Result", "Ok"),
                 Box::new(value_to_edn_notag(inner, types)),
             ),
             Err(inner) => OwnedValue::Tagged(
-                Tag::ns("wat-edn.result", "err"),
+                Tag::ns("wat.core.Result", "Err"),
                 Box::new(value_to_edn_notag(inner, types)),
             ),
         },
@@ -2088,12 +2107,19 @@ pub fn value_to_json_natural(
                 })
                 .collect(),
         ),
+        // Arc 298.1 — Option gets the uniform `#wat.core.<Type>/<Variant>` tag in JSON too.
         Value::Option(opt) => match &**opt {
-            None => OwnedValue::Nil,
-            Some(inner) => value_to_json_natural(inner, types),
+            None => OwnedValue::Tagged(
+                Tag::ns("wat.core.Option", "None"),
+                Box::new(OwnedValue::Nil),
+            ),
+            Some(inner) => OwnedValue::Tagged(
+                Tag::ns("wat.core.Option", "Some"),
+                Box::new(value_to_json_natural(inner, types)),
+            ),
         },
-        // Fallback: use the tagged walker. Tagged Result variants
-        // round-trip via wat-edn's natural sentinel encoding.
+        // Fallback: use the tagged walker. Result now falls through to
+        // value_to_edn_with which emits #wat.core.Result/Ok|Err (arc 298.1).
         _ => value_to_edn_with(v, types),
     }
 }
@@ -2204,12 +2230,25 @@ fn tagged_to_value(
         let ast = edn_holon_tag_to_ast(name, body)?;
         return Ok(Value::holon__HolonAST(ast));
     }
-    if ns == "wat-edn.result" {
+    // Arc 298.1 — Option wire form is `#wat.core.Option/None nil` / `#wat.core.Option/Some v`.
+    if ns == "wat.core.Option" {
+        return Ok(Value::Option(Arc::new(match name {
+            "None" => None,
+            "Some" => {
+                let inner = edn_to_value(body, types)?;
+                Some(inner)
+            }
+            // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
+            _ => return Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnsupportedTag(format!("{ns}/{name}")) }),
+        })));
+    }
+    // Arc 298.1 — Result migrated from `wat-edn.result/ok|err` to `wat.core.Result/Ok|Err`.
+    if ns == "wat.core.Result" {
         // Tagged Result — body is the inner value.
         let inner = edn_to_value(body, types)?;
         return Ok(Value::Result(Arc::new(match name {
-            "ok" => Ok(inner),
-            "err" => Err(inner),
+            "Ok" => Ok(inner),
+            "Err" => Err(inner),
             // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
             _ => return Err(EdnReadError { span: Span::unknown(), kind: EdnReadErrorKind::UnsupportedTag(format!("{ns}/{name}")) }),
         })));
@@ -2821,17 +2860,28 @@ pub fn value_to_edn_with(
         Value::wat__core__keyword(k) => keyword_from_wat_path(k),
 
         // ── Option / Result ──────────────────────────────────────
+        // Arc 298.1 — uniform `#wat.core.<Type>/<Variant>` form for both
+        // discriminated built-in types. Option: remove the transparent special-case
+        // (Some(v)→v, None→nil) so `Some(nil) ≠ None` is preserved on the wire.
+        // Result: migrate from codec-internal `wat-edn.result/ok|err` (lowercase)
+        // to `wat.core.Result/Ok|Err` (type namespace + capitalized variant).
         Value::Option(opt) => match &**opt {
-            None => OwnedValue::Nil,
-            Some(inner) => value_to_edn_with(inner, types),
+            None => OwnedValue::Tagged(
+                Tag::ns("wat.core.Option", "None"),
+                Box::new(OwnedValue::Nil),
+            ),
+            Some(inner) => OwnedValue::Tagged(
+                Tag::ns("wat.core.Option", "Some"),
+                Box::new(value_to_edn_with(inner, types)),
+            ),
         },
         Value::Result(r) => match &**r {
             Ok(inner) => OwnedValue::Tagged(
-                Tag::ns("wat-edn.result", "ok"),
+                Tag::ns("wat.core.Result", "Ok"),
                 Box::new(value_to_edn_with(inner, types)),
             ),
             Err(inner) => OwnedValue::Tagged(
-                Tag::ns("wat-edn.result", "err"),
+                Tag::ns("wat.core.Result", "Err"),
                 Box::new(value_to_edn_with(inner, types)),
             ),
         },
@@ -3624,11 +3674,12 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_option_nil_to_none() {
+        // Arc 298.1 — Option wire form is `#wat.core.Option/None nil` (was: bare `nil`).
         let t = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
             args: vec![TypeExpr::Path(":wat::core::i64".into())],
         };
-        let v = coerce(&t, "nil").unwrap();
+        let v = coerce(&t, "#wat.core.Option/None nil").unwrap();
         match v {
             Value::Option(o) => assert!(o.is_none()),
             other => panic!("expected Value::Option(None); got {:?}", other),
@@ -3637,11 +3688,12 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_option_some() {
+        // Arc 298.1 — Option wire form is `#wat.core.Option/Some v` (was: bare inner value).
         let t = TypeExpr::Parametric {
             head: "wat::core::Option".into(),
             args: vec![TypeExpr::Path(":wat::core::i64".into())],
         };
-        let v = coerce(&t, "7").unwrap();
+        let v = coerce(&t, "#wat.core.Option/Some 7").unwrap();
         match v {
             Value::Option(o) => match &*o {
                 Some(Value::i64(7)) => {}
@@ -3712,6 +3764,7 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_result_ok() {
+        // Arc 298.1 — Result wire form is `#wat.core.Result/Ok v` (was: `#wat-edn.result/ok v`).
         let t = TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![
@@ -3719,7 +3772,7 @@ mod tests {
                 TypeExpr::Path(":wat::core::String".into()),
             ],
         };
-        let v = coerce(&t, "#wat-edn.result/ok 42").unwrap();
+        let v = coerce(&t, "#wat.core.Result/Ok 42").unwrap();
         match v {
             Value::Result(r) => match &*r {
                 Ok(Value::i64(42)) => {}
@@ -3731,6 +3784,7 @@ mod tests {
 
     #[test]
     fn arc170_1fi_coerce_result_err() {
+        // Arc 298.1 — Result wire form is `#wat.core.Result/Err e` (was: `#wat-edn.result/err e`).
         let t = TypeExpr::Parametric {
             head: "wat::core::Result".into(),
             args: vec![
@@ -3738,7 +3792,7 @@ mod tests {
                 TypeExpr::Path(":wat::core::String".into()),
             ],
         };
-        let v = coerce(&t, "#wat-edn.result/err \"boom\"").unwrap();
+        let v = coerce(&t, "#wat.core.Result/Err \"boom\"").unwrap();
         match v {
             Value::Result(r) => match &*r {
                 Err(Value::String(s)) => assert_eq!(&**s, "boom"),

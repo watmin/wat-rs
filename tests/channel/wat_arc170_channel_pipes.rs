@@ -276,18 +276,16 @@ fn pipe_channel_round_trips_tuple_as_vector() {
 }
 
 #[test]
-fn pipe_channel_round_trips_option_under_edn_unwrapping_semantics() {
-    // EDN-protocol round-trip semantics (per arc 092 + arc 113):
-    // wat-edn's writer UNWRAPS `Value::Option(Some(x))` → bare `x`
-    // on the wire (and `None` → Nil). The reader re-wraps when the
-    // declared field type is `Option<T>` (struct-field-typed reading
-    // path); a bare-wire bridge has nothing to re-wrap with, so
-    // the round-trip yields the inner Value directly. Same lossiness
-    // as the tuple test above — this is wat-edn's contract, not a
-    // slice-1c regression.
+fn pipe_channel_round_trips_option_honest_tagged_form() {
+    // Arc 298.1 — Option is now tagged on the wire (`#wat.core.Option/None nil`,
+    // `#wat.core.Option/Some v`). The old transparent special-case (Some(v)→v,
+    // None→nil) is retired. Round-tripping an Option over a PipeFd channel now
+    // yields `Value::Option` back (identity preserved, not unwrapped).
     //
-    // For a `(Some 99)` wire-trip, the receiver gets `i64(99)`.
-    // For a `:None` wire-trip, the receiver gets `Unit` (Nil).
+    // For `Value::Option(Some(i64(99)))`: wire = `#wat.core.Option/Some 99`
+    //   → decoded by `tagged_to_value` as `Value::Option(Some(i64(99)))`.
+    // For `Value::Option(None)`: wire = `#wat.core.Option/None nil`
+    //   → decoded by `tagged_to_value` as `Value::Option(None)`.
     let world = empty_world();
     let types = world.symbols().types().map(|a| a.as_ref());
     let (tx, rx) = make_pipe_channel_pair(":test").unwrap();
@@ -307,26 +305,24 @@ fn pipe_channel_round_trips_option_under_edn_unwrapping_semantics() {
         Span::unknown(),
     ));
 
-    let some_unwrapped = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
-    match some_unwrapped {
-        Value::i64(99) => {}
-        // Some bridges might preserve the Option<i64> wrapping if
-        // the type checker hooks fire; accept either shape.
+    let some_received = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    match some_received {
+        // Arc 298.1: tagged wire round-trips preserving the Option wrapper.
         Value::Option(opt) => match opt.as_ref() {
             Some(Value::i64(99)) => {}
-            other => panic!("expected Some(99), got {:?}", other),
+            other => panic!("expected Option(Some(99)), got {:?}", other),
         },
-        other => panic!("expected i64(99) or Some(99), got {:?}", other),
+        other => panic!("expected Value::Option(Some(99)), got {:?}", other),
     }
 
-    let none_unwrapped = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
-    match none_unwrapped {
-        Value::Unit => {}
+    let none_received = assert_recv_value(typed_recv(receiver, types, Span::unknown()));
+    match none_received {
+        // Arc 298.1: None round-trips as Option(None), not as Unit (Nil).
         Value::Option(opt) => match opt.as_ref() {
             None => {}
-            other => panic!("expected None, got {:?}", other),
+            other => panic!("expected Option(None), got {:?}", other),
         },
-        other => panic!("expected Unit or None, got {:?}", other),
+        other => panic!("expected Value::Option(None), got {:?}", other),
     }
 }
 
