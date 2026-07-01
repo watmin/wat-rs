@@ -229,12 +229,34 @@ impl<T: ToEdn> ToEdn for Vec<T> {
 }
 
 impl<T: ToEdn> ToEdn for Option<T> {
+    /// Arc 298.1 — Option is a discriminated type; serialize with its tag.
+    ///
+    /// `None` → `#wat.core.Option/None nil` (the tag needs a body; nil is
+    /// the honest placeholder for "there is no value").
+    /// `Some(v)` → `#wat.core.Option/Some <v.to_edn()>`.
+    ///
+    /// This mirrors 298.1's edn_shim update (Value::Option write arms).
+    /// A transparent `nil`/`<inner>` form erases the discriminant — bare nil
+    /// is `:wat::core::nil` (a nil value), NOT `None` (an absent option).
     #[inline]
     fn to_edn(&self) -> OwnedValue {
         match self {
-            None => OwnedValue::Nil,
-            Some(v) => v.to_edn(),
+            None => OwnedValue::Tagged(
+                wat_edn::Tag::ns("wat.core.Option", "None"),
+                Box::new(OwnedValue::Nil),
+            ),
+            Some(v) => OwnedValue::Tagged(
+                wat_edn::Tag::ns("wat.core.Option", "Some"),
+                Box::new(v.to_edn()),
+            ),
         }
+    }
+}
+
+impl<T: ToEdn> ToEdn for Box<T> {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        (**self).to_edn()
     }
 }
 
@@ -396,6 +418,18 @@ pub(crate) fn strip_span_from_tagged(val: OwnedValue) -> OwnedValue {
 /// Signature matches the `via` contract: `fn(&FieldType) -> OwnedValue`.
 pub(crate) fn error_edn_of(e: &impl WatError) -> OwnedValue {
     e.error_edn()
+}
+
+/// Call `cause.error_edn()` on a `Box<T: WatError>`, returning the floor form.
+///
+/// This is the `via` target for fields of type `Box<T>` where `T: WatError`
+/// (e.g. `Box<MacroError>`, `Box<RuntimeError>`). `error_edn_of` takes
+/// `&impl WatError`; a `&Box<MacroError>` does NOT coerce to that, but
+/// `cause.error_edn()` auto-derefs through the Box.
+///
+/// Signature matches the `via` contract: `fn(&Box<T>) -> OwnedValue`.
+pub(crate) fn error_edn_of_boxed<T: WatError>(cause: &Box<T>) -> OwnedValue {
+    cause.error_edn()
 }
 
 // ─── The wire boundary (the structural wall) ─────────────────────────────────

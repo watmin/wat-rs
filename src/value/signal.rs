@@ -116,9 +116,16 @@ pub struct RuntimeError {
 ///
 /// **Freeze pair** (`UserMainMissing`, `EvalVerificationFailed`): no span on
 /// the kind; construct with outer `crate::rust_caller_span!()`, honestly elided by Display.
-#[derive(Debug)]
+///
+/// Arc 298.3: `#[derive(wat_macros::ToEdn)]` generates the kind enum's
+/// `impl ToEdn`. The outer `RuntimeError::to_edn()` wraps it with
+/// `splice_span(self.kind.to_edn(), &self.span)`. Replaces the deleted
+/// hand-written `runtime_error_to_edn` match in `runtime_error_edn.rs`.
+#[derive(Debug, wat_macros::ToEdn)]
 pub enum RuntimeErrorKind {
+    #[to_edn(key = "name")]
     UnboundSymbol(String),
+    #[to_edn(key = "path")]
     UnknownFunction(String),
     NotCallable { got: Box<ValueSnapshot> },
     TypeMismatch {
@@ -133,9 +140,12 @@ pub enum RuntimeErrorKind {
     },
     BadCondition { got: Box<ValueSnapshot> },
     MalformedForm { head: String, reason: String },
+    #[to_edn(key = "name")]
     ParamShadowsBuiltin(String),
     DivisionByZero,
+    #[to_edn(key = "name")]
     DuplicateDefine(String),
+    #[to_edn(key = "prefix")]
     ReservedPrefix(String),
     /// A declaration form (`:wat::core::def`, `:wat::core::define`, etc.)
     /// found in expression position at runtime. Declaration forms are
@@ -146,6 +156,7 @@ pub enum RuntimeErrorKind {
     /// Arc 170 Gap I-B — minted to replace `DefineInExpressionPosition`,
     /// which only named `define`. Now covers all 8 declaration forms
     /// with a single symmetric variant carrying the offending `head`.
+    #[to_edn(key = "head")]
     DeclarationInExpressionPosition(String),
     /// A constrained `eval` (`eval_in_frozen`) found a mutation-inducing
     /// form inside the AST it was asked to evaluate. Per FOUNDATION
@@ -163,7 +174,10 @@ pub enum RuntimeErrorKind {
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
     /// Freeze pair — no span; construct with outer `crate::rust_caller_span!()`.
-    EvalVerificationFailed { err: crate::hash::HashError },
+    EvalVerificationFailed {
+        #[to_edn(key = "error")]
+        err: crate::hash::HashError,
+    },
     /// Raised when `:wat::kernel::join` reaps a spawned program
     /// whose thread panicked before yielding a result — the internal
     /// handle channel's Sender was dropped without sending, so the
@@ -200,7 +214,11 @@ pub enum RuntimeErrorKind {
     /// expansion error (malformed template, arity mismatch in the
     /// expanded call, expansion-depth cycle, etc.). Carries the
     /// wrapped [`crate::macros::MacroError`] description. Arc 030.
-    MacroExpansionFailed { op: String, cause: Box<crate::macros::MacroError> },
+    MacroExpansionFailed {
+        op: String,
+        #[to_edn(via = crate::to_edn::error_edn_of_boxed)]
+        cause: Box<crate::macros::MacroError>,
+    },
     /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
     /// pattern matches the scrutinee's shape. Exhaustiveness is the
     /// type checker's job; this variant fires only when the check was
@@ -291,6 +309,7 @@ pub enum RuntimeErrorKind {
         op: String,
         expected: String,
         got: String,
+        #[to_edn(via = crate::runtime_error_edn::edn_path_segments)]
         path: String,
     },
     /// Arc 234 Stone 234.3b.fix — `:wat::core::Record/assoc` was invoked with

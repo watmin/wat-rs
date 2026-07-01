@@ -1,42 +1,26 @@
 //! Arc 296 slice 2 probe — `ToEdn` trait unifies all error serializers.
 //!
-//! Asserts that every error type can call `.to_edn()` and produces the
-//! same result as the existing free function (behavior-preserving).
+//! Arc 298.3 update: probes 1 and 3 compared `.to_edn()` output against the
+//! now-deleted `runtime_error_to_edn` / `macro_error_to_edn` free functions.
+//! Those probes are deleted here as proven duplicates — the 298.3 golden probes
+//! (`probe_arc298_3_runtime_derive_identical.rs`,
+//! `probe_arc298_3_macro_derive_identical.rs`) cover the same variants with
+//! stronger `assert_eq!` byte-identical assertions.
+//!
+//! Remaining probes:
+//!   - Probe 2: `Span.to_edn()` produces structured `{:file :line :col}` map
+//!   - Probe 4: `StartupError.to_edn()` matches `startup_error_to_edn()` (kept)
 //!
 //! RED before 296.2: `wat::to_edn::ToEdn` does not exist; `.to_edn()`
 //! method is not callable — FAILS to compile.
 //!
-//! GREEN after 296.2: all impls present; behavior-preserving check passes.
+//! GREEN after 296.2 / 298.3: all impls present.
 
 use std::sync::Arc;
 use wat::macros::{MacroError, MacroErrorKind};
-use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::freeze::StartupError;
 use wat::span::Span;
 use wat::to_edn::ToEdn;
-
-// ─── Probe 1 — RuntimeError.to_edn() matches runtime_error_to_edn() ─────────
-
-#[test]
-fn probe_1_runtime_error_to_edn_behavior_preserving() {
-    let span = Span::new(Arc::new("test.wat".to_string()), 3, 5);
-    let err = RuntimeError {
-        span: span.clone(),
-        kind: RuntimeErrorKind::UnboundSymbol("foo".into()),
-    };
-
-    // Trait path and free-function path must produce identical output.
-    let via_trait = err.to_edn();
-    let via_fn = wat::runtime_error_edn::runtime_error_to_edn(&err);
-
-    let trait_str = wat_edn::write(&via_trait);
-    let fn_str = wat_edn::write(&via_fn);
-    assert_eq!(
-        trait_str, fn_str,
-        "RuntimeError.to_edn() must equal runtime_error_to_edn(); trait={} fn={}",
-        trait_str, fn_str
-    );
-}
 
 // ─── Probe 2 — Span.to_edn() produces structured {:file :line :col} map ──────
 
@@ -47,37 +31,16 @@ fn probe_2_span_to_edn_is_structured_map() {
     let edn = span.to_edn();
     let s = wat_edn::write(&edn);
 
-    // Must be a map, not a bare string.
+    // Arc 298.3: upgraded from contains-checks to byte-identical assert_eq!
+    assert_eq!(
+        s,
+        r#"{:file "src/lib.wat" :line 10 :col 3}"#,
+        "Span.to_edn() must produce exact structured map"
+    );
     assert!(
         matches!(&edn, wat_edn::OwnedValue::Map(_)),
-        "Span.to_edn() must produce a Map; got {:?}",
+        "Span.to_edn() must produce a Map OwnedValue; got {:?}",
         edn
-    );
-    // Must contain the expected fields.
-    assert!(s.contains("\"src/lib.wat\""), "span edn must contain file; got: {}", s);
-    assert!(s.contains(":line"), "span edn must contain :line; got: {}", s);
-    assert!(s.contains(":col"), "span edn must contain :col; got: {}", s);
-}
-
-// ─── Probe 3 — MacroError.to_edn() matches macro_error_to_edn() ─────────────
-
-#[test]
-fn probe_3_macro_error_to_edn_behavior_preserving() {
-    let span = Span::new(Arc::new("test.wat".to_string()), 5, 1);
-    let err = MacroError {
-        span: span.clone(),
-        kind: MacroErrorKind::DuplicateMacro("my-macro".into()),
-    };
-
-    let via_trait = err.to_edn();
-    let via_fn = wat::macros::error_edn::macro_error_to_edn(&err);
-
-    let trait_str = wat_edn::write(&via_trait);
-    let fn_str = wat_edn::write(&via_fn);
-    assert_eq!(
-        trait_str, fn_str,
-        "MacroError.to_edn() must equal macro_error_to_edn(); trait={} fn={}",
-        trait_str, fn_str
     );
 }
 

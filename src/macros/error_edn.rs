@@ -1,138 +1,25 @@
-//! Arc 296 — EDN serializers for `MacroError` and `StartupError`.
+//! Arc 296 / Arc 298.3 — EDN serializers for `MacroError` and `StartupError`.
 //!
-//! Extends arc 233's `runtime_error_to_edn` pattern upward through the
-//! startup pipeline. Each error type serializes as a tagged EDN envelope:
+//! Arc 298.3 deleted `macro_error_to_edn`; `MacroErrorKind` now carries
+//! `#[derive(wat_macros::ToEdn)]` and the `impl ToEdn for MacroError` wrapper
+//! delegates to `splice_span(self.kind.to_edn(), &self.span)`.
 //!
-//! ```text
-//! #wat.kernel/MacroError {:phase :macro :span {:file "…" :line N :col N}
-//!                         :kind  #wat.kernel/MacroEvalRuntimeFailed
-//!                                  {:cause #wat.kernel/UnboundSymbol {:name "str" :span …}}}
-//! #wat.kernel/StartupError/Macro {:cause #wat.kernel/MacroError {…}}
-//! ```
+//! `startup_error_to_edn` is KEPT (transparent passthrough, no smuggle hazard).
 //!
-//! ## Mirror of `runtime_error_edn.rs`
+//! ## What remains here
 //!
-//! Same builder helpers (`kw`, `str_val`, `tagged`, `span_val`); same
-//! `#wat.kernel/<VariantName>` tag convention; same goal — no prose
-//! strings carrying structured data at IPC boundaries.
+//! - `startup_error_to_edn`: public serializer for the startup pipeline
+//! - `impl ToEdn / WatError` for `MacroError` (Pattern A: kind derive + splice_span)
+//! - `impl ToEdn / WatError` for `StartupError` (transparent delegating wrapper)
+//! - Low-level EDN builders used by `startup_error_to_edn` and `StartupError` impls
 
 use std::borrow::Cow;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
-use crate::macros::error::{MacroError, MacroErrorKind};
+use crate::macros::error::MacroError;
 use crate::freeze::StartupError;
-use crate::span::Span;
 
 // ─── Public API ──────────────────────────────────────────────────────────────
-
-/// Serialize a [`MacroError`] to a tagged [`OwnedValue`].
-///
-/// Variant mapping:
-/// - `MalformedTemplate` → `#wat.kernel/MalformedTemplate {:reason "…" :span {…}}`
-/// - `ProgramBodyEvalFailed` → `#wat.kernel/ProgramBodyEvalFailed {:macro-name "…" :cause <MacroError>}`
-/// - `MacroEvalRuntimeFailed` → `#wat.kernel/MacroEvalRuntimeFailed {:cause <RuntimeError>}`
-/// - All other variants → `#wat.kernel/<VariantName> {:span {…} :detail "…"}`
-///
-/// The outer `MacroError` span lives at the struct level; each variant's
-/// map includes it under `:span`. This mirrors Pattern A from arc 243.
-pub fn macro_error_to_edn(err: &MacroError) -> OwnedValue {
-    let span = &err.span;
-    match &err.kind {
-        MacroErrorKind::MalformedTemplate { reason } => {
-            tagged("MalformedTemplate", map2(
-                kw("reason"), str_val(reason),
-                kw("span"), span_val(span),
-            ))
-        }
-        MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause } => {
-            // Arc 296 strike 2 — RECURSIVE floor: the nested MacroError is
-            // embedded via its `WatError::error_edn()` (floor form: :message /
-            // :location / :causes, `:location` never `:span`), NOT its raw
-            // `to_edn()`. Every error at every depth carries the floor.
-            use crate::to_edn::WatError;
-            tagged("ProgramBodyEvalFailed", OwnedValue::Map(vec![
-                (kw("macro-name"), str_val(macro_name)),
-                (kw("span"), span_val(span)),
-                (kw("cause"), cause.error_edn()),
-            ]))
-        }
-        MacroErrorKind::MacroEvalRuntimeFailed { cause } => {
-            // Arc 296 strike 2 — RECURSIVE floor: the nested RuntimeError is
-            // embedded via its `WatError::error_edn()`, not raw `to_edn()`.
-            use crate::to_edn::WatError;
-            tagged("MacroEvalRuntimeFailed", map2(
-                kw("span"), span_val(span),
-                kw("cause"), cause.error_edn(),
-            ))
-        }
-        MacroErrorKind::DuplicateMacro(name) => {
-            tagged("DuplicateMacro", map2(
-                kw("name"), str_val(name),
-                kw("span"), span_val(span),
-            ))
-        }
-        MacroErrorKind::ReservedPrefix(name) => {
-            tagged("ReservedPrefix", map2(
-                kw("name"), str_val(name),
-                kw("span"), span_val(span),
-            ))
-        }
-        MacroErrorKind::MalformedDefmacro { reason } => {
-            tagged("MalformedDefmacro", map2(
-                kw("reason"), str_val(reason),
-                kw("span"), span_val(span),
-            ))
-        }
-        MacroErrorKind::ArityMismatch { name, expected, got } => {
-            tagged("ArityMismatch", OwnedValue::Map(vec![
-                (kw("name"), str_val(name)),
-                (kw("expected"), OwnedValue::Integer(*expected as i64)),
-                (kw("got"), OwnedValue::Integer(*got as i64)),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        MacroErrorKind::ArityTooFew { name, minimum, got } => {
-            tagged("ArityTooFew", OwnedValue::Map(vec![
-                (kw("name"), str_val(name)),
-                (kw("minimum"), OwnedValue::Integer(*minimum as i64)),
-                (kw("got"), OwnedValue::Integer(*got as i64)),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        MacroErrorKind::UnboundMacroParam { name } => {
-            tagged("UnboundMacroParam", map2(
-                kw("name"), str_val(name),
-                kw("span"), span_val(span),
-            ))
-        }
-        MacroErrorKind::SpliceNotSequence { name, got } => {
-            tagged("SpliceNotSequence", OwnedValue::Map(vec![
-                (kw("name"), str_val(name)),
-                (kw("got"), str_val(got)),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        MacroErrorKind::ExpansionDepthExceeded { limit } => {
-            tagged("ExpansionDepthExceeded", map2(
-                kw("limit"), OwnedValue::Integer(*limit as i64),
-                kw("span"), span_val(span),
-            ))
-        }
-        MacroErrorKind::RefusedInMacro { head } => {
-            tagged("RefusedInMacro", map2(
-                kw("head"), str_val(head),
-                kw("span"), span_val(span),
-            ))
-        }
-        MacroErrorKind::ProgramBodyIntroducesName { macro_name, binder } => {
-            tagged("ProgramBodyIntroducesName", OwnedValue::Map(vec![
-                (kw("macro-name"), str_val(macro_name)),
-                (kw("binder"), str_val(binder)),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-    }
-}
 
 /// Serialize a [`StartupError`] to a tagged [`OwnedValue`].
 ///
@@ -141,7 +28,7 @@ pub fn macro_error_to_edn(err: &MacroError) -> OwnedValue {
 /// kind + fields) — no `:detail` prose blob smuggling structure in a string:
 ///
 /// - `Macro` → `MacroError::to_edn` (the full typed cause chain).
-/// - `Runtime` → `RuntimeError::to_edn` (arc 233's serializer).
+/// - `Runtime` → `RuntimeError::to_edn` (arc 298.3: derive-generated).
 /// - `Parse` → `ParseError::to_edn` (span + variant fields).
 /// - `Config` → `ConfigError::to_edn` (Pattern A, span + fields).
 /// - `Load` → `LoadError::to_edn` (Pattern A; nested `ParseError` structured).
@@ -160,7 +47,7 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
     use crate::to_edn::ToEdn;
     match err {
         StartupError::Macro(e) => e.to_edn(),
-        StartupError::Runtime(e) => crate::runtime_error_edn::runtime_error_to_edn(e),
+        StartupError::Runtime(e) => e.to_edn(),
         StartupError::Parse(e) => e.to_edn(),
         StartupError::Config(e) => e.to_edn(),
         StartupError::Load(e) => e.to_edn(),
@@ -181,8 +68,12 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
 // ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
 impl crate::to_edn::ToEdn for MacroError {
+    /// Arc 298.3 — Pattern A: derive on MacroErrorKind generates the
+    /// variant body; `splice_span` appends `:span` from the outer struct.
+    /// Replaces the deleted hand-written `macro_error_to_edn` match.
     fn to_edn(&self) -> OwnedValue {
-        macro_error_to_edn(self)
+        use crate::to_edn::splice_span;
+        splice_span(self.kind.to_edn(), &self.span)
     }
 }
 
@@ -192,6 +83,7 @@ impl crate::to_edn::WatError for MacroError {
     /// `:cause` in floor form); every other variant uses the span-free kind
     /// Display's first line.
     fn message(&self) -> String {
+        use crate::macros::error::MacroErrorKind;
         match &self.kind {
             MacroErrorKind::ProgramBodyEvalFailed { macro_name, .. } => {
                 format!("macro {} — program body eval failed", macro_name)
@@ -209,7 +101,8 @@ impl crate::to_edn::WatError for MacroError {
         OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> OwnedValue {
-        crate::to_edn::strip_span_from_tagged(macro_error_to_edn(self))
+        use crate::to_edn::ToEdn;
+        crate::to_edn::strip_span_from_tagged(self.to_edn())
     }
 }
 
@@ -296,7 +189,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
     }
 }
 
-// ─── Low-level builders (mirrors runtime_error_edn.rs) ───────────────────────
+// ─── Low-level builders ──────────────────────────────────────────────────────
 
 fn tagged(variant: &'static str, body: OwnedValue) -> OwnedValue {
     OwnedValue::Tagged(Tag::ns("wat.kernel", variant), Box::new(body))
@@ -310,10 +203,3 @@ fn str_val(s: &str) -> OwnedValue {
     OwnedValue::String(Cow::Owned(s.to_owned()))
 }
 
-fn span_val(span: &Span) -> OwnedValue {
-    crate::panic_hook::span_to_edn(span)
-}
-
-fn map2(k1: OwnedValue, v1: OwnedValue, k2: OwnedValue, v2: OwnedValue) -> OwnedValue {
-    OwnedValue::Map(vec![(k1, v1), (k2, v2)])
-}

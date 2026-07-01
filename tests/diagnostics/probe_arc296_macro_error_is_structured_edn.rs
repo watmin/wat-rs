@@ -19,6 +19,7 @@ use wat::macros::{MacroError, MacroErrorKind};
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::freeze::StartupError;
 use wat::span::Span;
+use wat::to_edn::ToEdn;
 use wat_edn::OwnedValue;
 
 // ─── Probe 1 — startup_error_to_edn produces Tagged OwnedValue ──────────────
@@ -116,8 +117,8 @@ fn probe_2_macro_error_to_edn_leaf_cause_is_not_string() {
         },
     };
 
-    // Pre-arc-296: this function does not exist — FAILS to compile.
-    let edn = wat::macros::error_edn::macro_error_to_edn(&outer);
+    // Arc 298.3: now calls the derive-generated ToEdn impl.
+    let edn = outer.to_edn();
     let serialized = wat_edn::write(&edn);
 
     eprintln!("=== probe_2 serialized: {}", serialized);

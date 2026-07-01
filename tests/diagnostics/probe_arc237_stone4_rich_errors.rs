@@ -42,6 +42,7 @@
 use std::sync::Arc;
 use wat::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use wat::span::Span;
+use wat::to_edn::ToEdn;
 
 fn test_span() -> Span {
     Span::new(Arc::new("test.wat".to_string()), 5, 3)
@@ -125,7 +126,7 @@ fn probe_03_no_matching_clause_edn_tag_clean() {
         called_args: vec![ValueSnapshot::of(&Value::i64(42))],
         attempted_clauses: vec![arity_attempt()]
     } };
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     assert!(
         serialized.contains("NoMatchingClause") && !serialized.contains("NoMatchingClauseRuntime"),
@@ -144,7 +145,7 @@ fn probe_04_postcondition_failed_edn_tag_clean() {
         returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         ensure_span: test_span(),
     } };
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     assert!(
         serialized.contains("PostconditionFailed")
@@ -198,7 +199,7 @@ fn probe_08_postcondition_edn_carries_ensure_and_returned() {
         returned_value: Box::new(ValueSnapshot::of(&Value::i64(-5))),
         ensure_span: test_span(),
     } };
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     assert!(
         serialized.contains("ENSURE_MARKER_TEXT"),
@@ -216,7 +217,7 @@ fn probe_09_no_matching_clause_edn_round_trips() {
         called_args: vec![ValueSnapshot::of(&Value::i64(42))],
         attempted_clauses: vec![arity_attempt(), type_attempt()]
     } };
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     let parsed = wat_edn::parse_owned(&serialized).expect("EDN round-trip parse");
     assert!(
@@ -239,7 +240,7 @@ fn probe_10_attempt_list_count_preserved_through_edn() {
         ],
         attempted_clauses: vec![arity_attempt(), type_attempt(), guard_attempt()]
     } };
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
     // All three clause indices should appear in the serialized attempt list.
     let parsed = wat_edn::parse_owned(&serialized).expect("EDN round-trip parse");

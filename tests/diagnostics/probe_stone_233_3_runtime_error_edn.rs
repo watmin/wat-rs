@@ -22,6 +22,7 @@ use std::sync::Arc;
 use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use wat::value::{Provenance, TrackedValue};
 use wat::span::Span;
+use wat::to_edn::ToEdn;
 
 // ─── Probe 1 — NotCallable serializes to #wat.kernel/NotCallable ────────────
 
@@ -33,8 +34,8 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
         got: Box::new(snap)
     } };
 
-    // Pre-stone: this function doesn't exist; FAILS to compile.
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    // Arc 298.3: now calls the derive-generated ToEdn impl.
+    let edn = err.to_edn();
 
     // Round-trip via wat-edn writer + parser.
     let serialized = wat_edn::write(&edn);
@@ -63,7 +64,7 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
         got: Box::new(snap)
     } };
 
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
 
     // Verify all 4 struct fields surface as map entries (op, expected, got, span).
@@ -98,7 +99,7 @@ fn probe_3_assertion_failed_with_optional_fields() {
         expected: None, // tests the Nil branch
     } };
 
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
 
     // The actual field has a value; should appear as the string.
@@ -124,7 +125,7 @@ fn probe_4_tuple_variant_serializes() {
     let span = Span::new(Arc::new("test.wat".to_string()), 9, 4);
     let err = RuntimeError { span: span, kind: RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()) };
 
-    let edn = wat::runtime_error_edn::runtime_error_to_edn(&err);
+    let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
 
     // Tuple-variant fields should map to some key naming (e.g., :name + :span,

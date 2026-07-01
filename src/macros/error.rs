@@ -13,12 +13,19 @@ pub struct MacroError {
 
 /// Variant data for [`MacroError`]. Spans live in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
+///
+/// Arc 298.3: `#[derive(wat_macros::ToEdn)]` generates the kind enum's
+/// `impl ToEdn`. The outer `MacroError::to_edn()` wraps it with
+/// `splice_span(self.kind.to_edn(), &self.span)`. Replaces the deleted
+/// hand-written `macro_error_to_edn` match in `macros/error_edn.rs`.
 // MacroErrorKind is pub because it's the type of MacroError's pub `kind` field (no private-in-public).
-#[derive(Debug)]
+#[derive(Debug, wat_macros::ToEdn)]
 pub enum MacroErrorKind {
     /// Two `(:wat::core::defmacro ...)` forms registered the same name.
+    #[to_edn(key = "name")]
     DuplicateMacro(String),
     /// A user macro declared under a reserved `:wat::...` prefix.
+    #[to_edn(key = "name")]
     ReservedPrefix(String),
     /// A `defmacro` form was malformed.
     MalformedDefmacro { reason: String },
@@ -75,7 +82,11 @@ pub enum MacroErrorKind {
     /// `MalformedTemplate { reason: "macro NAME — program body eval failed: …" }`.
     /// The cause carries the full typed chain; callers inspect `cause.kind`
     /// instead of parsing the reason string.
-    ProgramBodyEvalFailed { macro_name: String, cause: Box<MacroError> },
+    ProgramBodyEvalFailed {
+        macro_name: String,
+        #[to_edn(via = crate::to_edn::error_edn_of_boxed)]
+        cause: Box<MacroError>,
+    },
 
     /// Runtime `eval` in macro-eval context failed with a `RuntimeError`.
     ///
@@ -84,7 +95,10 @@ pub enum MacroErrorKind {
     /// arm retains `MalformedTemplate { reason: message }` (clean user
     /// message, no structural cause). All other runtime failures carry the
     /// typed `RuntimeError` here.
-    MacroEvalRuntimeFailed { cause: Box<RuntimeError> },
+    MacroEvalRuntimeFailed {
+        #[to_edn(via = crate::to_edn::error_edn_of_boxed)]
+        cause: Box<RuntimeError>,
+    },
 }
 
 impl fmt::Display for MacroErrorKind {

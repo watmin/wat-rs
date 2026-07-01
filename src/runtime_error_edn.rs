@@ -1,16 +1,18 @@
 //! Arc 233 Stone 233.3 — Errors-as-EDN extension.
 //!
-//! Generalizes arc 211b's `#wat.kernel/AssertionFailure` pattern across
-//! all 28 [`crate::runtime::RuntimeError`] variants. Each variant
-//! serializes as a tagged EDN envelope:
+//! Formerly contained a hand-written `runtime_error_to_edn` match over all 28
+//! [`crate::runtime::RuntimeError`] variants. Arc 298.3 deleted that serializer;
+//! `RuntimeErrorKind` now carries `#[derive(wat_macros::ToEdn)]` and the
+//! `impl ToEdn for RuntimeError` wrapper delegates to
+//! `splice_span(self.kind.to_edn(), &self.span)`.
 //!
-//! ```text
-//! #wat.kernel/<VariantName> {:field1 <edn-value> :field2 <edn-value> ...}
-//! ```
+//! ## What remains here
 //!
-//! Wire format: single line, newline-terminated, parallel to
-//! `#wat.kernel/AssertionFailure` (arc 211b) and
-//! `#wat.kernel/ProcessPanics` (arc 170 slice 1i).
+//! - `emit_runtime_error_envelope`: public IPC wire-format writer
+//! - `edn_path_segments`: via-helper for `EdnCoerceMismatch.path`
+//! - `impl ToEdn / WatError` for `RuntimeError`, `ValueSnapshot`, `Provenance`,
+//!   `ClauseAttempt` (the four building-block types that still need explicit impls)
+//! - Low-level EDN builders used by the building-block impls
 //!
 //! ## Naming parallel with arc 211b
 //!
@@ -26,256 +28,65 @@ use std::borrow::Cow;
 use std::io::Write;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
-use crate::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErrorKind, ValueSnapshot};
+use crate::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, ValueSnapshot};
 use crate::value::Provenance;
 use crate::span::Span;
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-/// Serialize a [`RuntimeError`] to a tagged [`OwnedValue`].
+/// Emit a `#wat.kernel/<VariantName> {<fields>}\n` envelope to `out`.
 ///
-/// Each variant maps to `#wat.kernel/<VariantName> {<fields>}`.
-/// Struct fields become EDN map keyword entries. Tuple-variant fields
-/// get descriptive key names, never positional `:0 :1`.
-pub fn runtime_error_to_edn(err: &RuntimeError) -> OwnedValue {
-    // Pattern A: span lives at the outer struct; kind carries variant data.
-    // Read self.span once; match self.kind for variant-specific fields.
-    let span = &err.span;
-    match &err.kind {
-        // ── Tuple variants (simple: String + Span or just Span) ──────────
-        RuntimeErrorKind::UnboundSymbol(name) => {
-            tagged("UnboundSymbol", map2(
-                kw("name"), str_val(name),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::UnknownFunction(path) => {
-            tagged("UnknownFunction", map2(
-                kw("path"), str_val(path),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::ParamShadowsBuiltin(name) => {
-            tagged("ParamShadowsBuiltin", map2(
-                kw("name"), str_val(name),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::DivisionByZero => {
-            tagged("DivisionByZero", map1(
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::DuplicateDefine(name) => {
-            tagged("DuplicateDefine", map2(
-                kw("name"), str_val(name),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::ReservedPrefix(prefix) => {
-            tagged("ReservedPrefix", map2(
-                kw("prefix"), str_val(prefix),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::DeclarationInExpressionPosition(head) => {
-            tagged("DeclarationInExpressionPosition", map2(
-                kw("head"), str_val(head),
-                kw("span"), span_val(span),
-            ))
-        }
+/// This is the HARD CUT wire format for RuntimeErrors crossing
+/// IPC boundaries — no Display-text fallback.
+///
+/// Arc 298.3: delegates to `err.to_edn()` (the derive-generated form)
+/// and writes the tagged EDN line. Replaces the deleted `runtime_error_to_edn`
+/// + `variant_name` pair.
+pub fn emit_runtime_error_envelope<W: Write>(out: &mut W, err: &RuntimeError) {
+    use crate::to_edn::ToEdn;
+    let line = format!("{}\n", wat_edn::write(&err.to_edn()));
+    let _ = out.write_all(line.as_bytes());
+}
 
-        // ── Struct variants ──────────────────────────────────────────────
-        RuntimeErrorKind::NotCallable { got } => {
-            tagged("NotCallable", map2(
-                kw("got"), snap_val(got),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::TypeMismatch { op, expected, got } => {
-            tagged("TypeMismatch", map4(
-                kw("op"), str_val(op),
-                kw("expected"), str_val(expected),
-                kw("got"), snap_val(got),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::ArityMismatch { op, expected, got } => {
-            tagged("ArityMismatch", map4(
-                kw("op"), str_val(op),
-                kw("expected"), OwnedValue::Integer(*expected as i64),
-                kw("got"), OwnedValue::Integer(*got as i64),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::BadCondition { got } => {
-            tagged("BadCondition", map2(
-                kw("got"), snap_val(got),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::MalformedForm { head, reason } => {
-            tagged("MalformedForm", OwnedValue::Map(vec![
-                (kw("head"), str_val(head)),
-                (kw("reason"), str_val(reason)),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        RuntimeErrorKind::EvalForbidsMutationForm { head } => {
-            tagged("EvalForbidsMutationForm", map2(
-                kw("head"), str_val(head),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::UserMainMissing => {
-            // Freeze pair: span is crate::rust_caller_span!(); elide from EDN.
-            tagged("UserMainMissing", OwnedValue::Map(vec![]))
-        }
-        RuntimeErrorKind::EvalVerificationFailed { err } => {
-            // Freeze pair: span is crate::rust_caller_span!(); elide from EDN.
-            // Arc 296 D1: HashError has ToEdn; route through structured form.
-            use crate::to_edn::ToEdn;
-            tagged("EvalVerificationFailed", map1(
-                kw("error"), err.to_edn(),
-            ))
-        }
-        RuntimeErrorKind::ChannelDisconnected { op } => {
-            tagged("ChannelDisconnected", map2(
-                kw("op"), str_val(op),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::NoEncodingCtx { op } => {
-            tagged("NoEncodingCtx", map2(
-                kw("op"), str_val(op),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::NoSourceLoader { op } => {
-            tagged("NoSourceLoader", map2(
-                kw("op"), str_val(op),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::NoMacroRegistry { op } => {
-            tagged("NoMacroRegistry", map2(
-                kw("op"), str_val(op),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::MacroExpansionFailed { op, cause } => {
-            // Arc 296 typed causes — the nested MacroError is embedded via its
-            // `WatError::error_edn()` (floor form: :message / :location / :causes),
-            // NOT its raw `to_edn()`. Mirrors `ProgramBodyEvalFailed` arm in
-            // `macros/error_edn.rs`.
-            use crate::to_edn::WatError;
-            tagged("MacroExpansionFailed", OwnedValue::Map(vec![
-                (kw("op"), str_val(op)),
-                (kw("span"), span_val(span)),
-                (kw("cause"), cause.error_edn()),
-            ]))
-        }
-        RuntimeErrorKind::PatternMatchFailed { value_type } => {
-            tagged("PatternMatchFailed", map2(
-                kw("value-type"), str_val(value_type),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::EffectfulInStep { op } => {
-            tagged("EffectfulInStep", map2(
-                kw("op"), str_val(op),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::NoStepRule { op } => {
-            tagged("NoStepRule", map2(
-                kw("op"), str_val(op),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::AssertionFailed { message, actual, expected } => {
-            // Mirrors #wat.kernel/AssertionFailure (arc 211b panic
-            // envelope) but as a RuntimeError variant — see module doc.
-            tagged("AssertionFailed", OwnedValue::Map(vec![
-                (kw("message"), str_val(message)),
-                (kw("actual"), opt_str_val(actual.as_deref())),
-                (kw("expected"), opt_str_val(expected.as_deref())),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        RuntimeErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => {
-            // Multi-span: outer span = call_span (in err.span); secondary = outer_define_span.
-            tagged("SandboxScopeLeak", OwnedValue::Map(vec![
-                (kw("offending-name"), str_val(offending_name)),
-                (kw("call-span"), span_val(span)),
-                (kw("outer-define-span"), span_val(outer_define_span)),
-            ]))
-        }
-        RuntimeErrorKind::ServiceNotRunning { op } => {
-            tagged("ServiceNotRunning", map2(
-                kw("op"), str_val(op),
-                kw("span"), span_val(span),
-            ))
-        }
-        RuntimeErrorKind::EdnCoerceMismatch { op, expected, got, path } => {
-            // Arc 296 D1 (L2): path is dot-notation; split into Vector of segments.
-            let path_edn = OwnedValue::Vector(
-                path.split('.').filter(|s| !s.is_empty()).map(|s| str_val(s)).collect(),
-            );
-            tagged("EdnCoerceMismatch", OwnedValue::Map(vec![
-                (kw("op"), str_val(op)),
-                (kw("expected"), str_val(expected)),
-                (kw("got"), str_val(got)),
-                (kw("path"), path_edn),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        RuntimeErrorKind::UnknownField { record_class, field, available } => {
-            let available_edn = OwnedValue::Vector(
-                available.iter().map(|s| str_val(s)).collect(),
-            );
-            tagged("UnknownField", OwnedValue::Map(vec![
-                (kw("record-class"), str_val(record_class)),
-                (kw("field"), str_val(field)),
-                (kw("available"), available_edn),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        // Stone 237.4 — rich NoMatchingClause with structured ClauseAttempt list.
-        RuntimeErrorKind::NoMatchingClause { name, called_arity, called_args, attempted_clauses } => {
-            let called_args_edn = OwnedValue::Vector(
-                called_args.iter().map(|s| snap_val(s)).collect(),
-            );
-            let attempted_edn = OwnedValue::Vector(
-                attempted_clauses.iter().map(|a| clause_attempt_to_edn(a)).collect(),
-            );
-            tagged("NoMatchingClause", OwnedValue::Map(vec![
-                (kw("name"), str_val(name)),
-                (kw("called-arity"), OwnedValue::Integer(*called_arity as i64)),
-                (kw("called-args"), called_args_edn),
-                (kw("attempted-clauses"), attempted_edn),
-                (kw("span"), span_val(span)),
-            ]))
-        }
-        // Stone 237.4 — rich PostconditionFailed with ensure snapshot + dual spans.
-        RuntimeErrorKind::PostconditionFailed { defclause_name, clause_index, ensure_expr_snapshot, returned_value, ensure_span } => {
-            // Multi-span: outer span = body_span (in err.span); secondary = ensure_span.
-            tagged("PostconditionFailed", OwnedValue::Map(vec![
-                (kw("defclause-name"), str_val(defclause_name)),
-                (kw("clause-index"), OwnedValue::Integer(*clause_index as i64)),
-                (kw("ensure-expr-snapshot"), str_val(ensure_expr_snapshot)),
-                (kw("returned-value"), snap_val(returned_value)),
-                (kw("body-span"), span_val(span)),
-                (kw("ensure-span"), span_val(ensure_span)),
-            ]))
-        }
-        // Arc 258 Stone 258.2b — macro-abort: just the message + call site span.
-        RuntimeErrorKind::MacroAbort { message } => {
-            tagged("MacroAbort", map2(
-                kw("message"), str_val(message),
-                kw("span"), span_val(span),
-            ))
-        }
+/// Arc 298.3 — serialize a dot-notation path string to a vector of segments.
+///
+/// Used as `#[to_edn(via = crate::runtime_error_edn::edn_path_segments)]`
+/// on `EdnCoerceMismatch.path` so the wire form stays `["seg1" "seg2"]`
+/// rather than `"seg1.seg2"` — matching the hand-written serializer.
+pub(crate) fn edn_path_segments(path: &String) -> OwnedValue {
+    OwnedValue::Vector(
+        path.split('.').filter(|s| !s.is_empty()).map(|s| str_val(s)).collect(),
+    )
+}
+
+// ─── ToEdn + WatError impls ──────────────────────────────────────────────────
+
+impl crate::to_edn::ToEdn for RuntimeError {
+    /// Arc 298.3 — Pattern A: derive on RuntimeErrorKind generates the
+    /// variant body; `splice_span` appends `:span` from the outer struct.
+    /// Replaces the deleted hand-written `runtime_error_to_edn` match.
+    fn to_edn(&self) -> OwnedValue {
+        use crate::to_edn::splice_span;
+        splice_span(self.kind.to_edn(), &self.span)
+    }
+}
+
+impl crate::to_edn::WatError for RuntimeError {
+    /// Concise single-line headline: the span-free kind Display's first line
+    /// (no `file:line` prefix — that lives in `:location`; no multi-line
+    /// actual/expected detail — that lives in the structured variant fields).
+    fn message(&self) -> String {
+        crate::to_edn::first_line(self.kind.to_string())
+    }
+    fn location(&self) -> OwnedValue {
+        crate::to_edn::location_from_span(&self.span)
+    }
+    fn causes(&self) -> OwnedValue {
+        OwnedValue::Vector(vec![])
+    }
+    fn variant(&self) -> OwnedValue {
+        use crate::to_edn::ToEdn;
+        crate::to_edn::strip_span_from_tagged(self.to_edn())
     }
 }
 
@@ -288,6 +99,12 @@ pub fn value_snapshot_to_edn(snap: &ValueSnapshot) -> OwnedValue {
         (kw("rendered"), str_val(&snap.rendered)),
         (kw("provenance"), provenance_to_edn(&snap.provenance)),
     ])
+}
+
+impl crate::to_edn::ToEdn for ValueSnapshot {
+    fn to_edn(&self) -> OwnedValue {
+        value_snapshot_to_edn(self)
+    }
 }
 
 /// Serialize a [`Provenance`] to tagged EDN.
@@ -317,119 +134,18 @@ pub fn provenance_to_edn(prov: &Provenance) -> OwnedValue {
     }
 }
 
-/// Emit a `#wat.kernel/<VariantName> {<fields>}\n` envelope to `out`.
-///
-/// This is the HARD CUT wire format for RuntimeErrors crossing
-/// IPC boundaries — no Display-text fallback.
-pub fn emit_runtime_error_envelope<W: Write>(out: &mut W, err: &RuntimeError) {
-    let edn_value = runtime_error_to_edn(err);
-    let variant_name = variant_name(err);
-    let line = format!("#wat.kernel/{} {}\n", variant_name, wat_edn::write(&edn_value));
-    let _ = out.write_all(line.as_bytes());
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/// Extract the variant name string from a RuntimeError (for the wire
-/// format prefix). Must stay in sync with the match arms in
-/// `runtime_error_to_edn`.
-fn variant_name(err: &RuntimeError) -> &'static str {
-    match &err.kind {
-        RuntimeErrorKind::UnboundSymbol(..) => "UnboundSymbol",
-        RuntimeErrorKind::UnknownFunction(..) => "UnknownFunction",
-        RuntimeErrorKind::NotCallable { .. } => "NotCallable",
-        RuntimeErrorKind::TypeMismatch { .. } => "TypeMismatch",
-        RuntimeErrorKind::ArityMismatch { .. } => "ArityMismatch",
-        RuntimeErrorKind::BadCondition { .. } => "BadCondition",
-        RuntimeErrorKind::MalformedForm { .. } => "MalformedForm",
-        RuntimeErrorKind::ParamShadowsBuiltin(..) => "ParamShadowsBuiltin",
-        RuntimeErrorKind::DivisionByZero => "DivisionByZero",
-        RuntimeErrorKind::DuplicateDefine(..) => "DuplicateDefine",
-        RuntimeErrorKind::ReservedPrefix(..) => "ReservedPrefix",
-        RuntimeErrorKind::DeclarationInExpressionPosition(..) => "DeclarationInExpressionPosition",
-        RuntimeErrorKind::EvalForbidsMutationForm { .. } => "EvalForbidsMutationForm",
-        RuntimeErrorKind::UserMainMissing => "UserMainMissing",
-        RuntimeErrorKind::EvalVerificationFailed { .. } => "EvalVerificationFailed",
-        RuntimeErrorKind::ChannelDisconnected { .. } => "ChannelDisconnected",
-        RuntimeErrorKind::NoEncodingCtx { .. } => "NoEncodingCtx",
-        RuntimeErrorKind::NoSourceLoader { .. } => "NoSourceLoader",
-        RuntimeErrorKind::NoMacroRegistry { .. } => "NoMacroRegistry",
-        RuntimeErrorKind::MacroExpansionFailed { .. } => "MacroExpansionFailed",
-        RuntimeErrorKind::PatternMatchFailed { .. } => "PatternMatchFailed",
-        RuntimeErrorKind::EffectfulInStep { .. } => "EffectfulInStep",
-        RuntimeErrorKind::NoStepRule { .. } => "NoStepRule",
-        RuntimeErrorKind::AssertionFailed { .. } => "AssertionFailed",
-        RuntimeErrorKind::SandboxScopeLeak { .. } => "SandboxScopeLeak",
-        RuntimeErrorKind::ServiceNotRunning { .. } => "ServiceNotRunning",
-        RuntimeErrorKind::EdnCoerceMismatch { .. } => "EdnCoerceMismatch",
-        RuntimeErrorKind::UnknownField { .. } => "UnknownField",
-        RuntimeErrorKind::NoMatchingClause { .. } => "NoMatchingClause",
-        RuntimeErrorKind::PostconditionFailed { .. } => "PostconditionFailed",
-        RuntimeErrorKind::MacroAbort { .. } => "MacroAbort",
-    }
-}
-
-// ─── ToEdn + WatError impls ──────────────────────────────────────────────────
-
-impl crate::to_edn::ToEdn for RuntimeError {
-    fn to_edn(&self) -> OwnedValue {
-        runtime_error_to_edn(self)
-    }
-}
-
-impl crate::to_edn::WatError for RuntimeError {
-    /// Concise single-line headline: the span-free kind Display's first line
-    /// (no `file:line` prefix — that lives in `:location`; no multi-line
-    /// actual/expected detail — that lives in the structured variant fields).
-    fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
-    }
-    fn location(&self) -> OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
-    }
-    fn causes(&self) -> OwnedValue {
-        OwnedValue::Vector(vec![])
-    }
-    fn variant(&self) -> OwnedValue {
-        crate::to_edn::strip_span_from_tagged(runtime_error_to_edn(self))
-    }
-}
-
-impl crate::to_edn::ToEdn for ValueSnapshot {
-    fn to_edn(&self) -> OwnedValue {
-        value_snapshot_to_edn(self)
-    }
-}
-
 impl crate::to_edn::ToEdn for Provenance {
     fn to_edn(&self) -> OwnedValue {
         provenance_to_edn(self)
     }
 }
 
-// ─── Low-level builders (eliminate boilerplate) ──────────────────────────────
-
-fn kw(name: &'static str) -> OwnedValue {
-    OwnedValue::Keyword(Keyword::new(name))
-}
-
-fn str_val(s: &str) -> OwnedValue {
-    OwnedValue::String(Cow::Owned(s.to_owned()))
-}
-
-fn opt_str_val(s: Option<&str>) -> OwnedValue {
-    match s {
-        Some(v) => OwnedValue::String(Cow::Owned(v.to_owned())),
-        None => OwnedValue::Nil,
+/// Arc 298.3 — `impl ToEdn for ClauseAttempt` wraps the free function so
+/// the derive's `Vec<ClauseAttempt>::to_edn()` serializes each element.
+impl crate::to_edn::ToEdn for ClauseAttempt {
+    fn to_edn(&self) -> OwnedValue {
+        clause_attempt_to_edn(self)
     }
-}
-
-fn span_val(span: &Span) -> OwnedValue {
-    crate::panic_hook::span_to_edn(span)
-}
-
-fn snap_val(snap: &ValueSnapshot) -> OwnedValue {
-    value_snapshot_to_edn(snap)
 }
 
 /// Stone 237.4 — serialize a [`ClauseAttempt`] to a tagged EDN map.
@@ -476,6 +192,20 @@ fn clause_failure_reason_to_edn(reason: &ClauseFailureReason) -> OwnedValue {
     }
 }
 
+// ─── Low-level builders ──────────────────────────────────────────────────────
+
+fn kw(name: &'static str) -> OwnedValue {
+    OwnedValue::Keyword(Keyword::new(name))
+}
+
+fn str_val(s: &str) -> OwnedValue {
+    OwnedValue::String(Cow::Owned(s.to_owned()))
+}
+
+fn span_val(span: &Span) -> OwnedValue {
+    crate::panic_hook::span_to_edn(span)
+}
+
 fn tagged(variant: &'static str, body: OwnedValue) -> OwnedValue {
     OwnedValue::Tagged(Tag::ns("wat.kernel", variant), Box::new(body))
 }
@@ -486,13 +216,4 @@ fn map1(k1: OwnedValue, v1: OwnedValue) -> OwnedValue {
 
 fn map2(k1: OwnedValue, v1: OwnedValue, k2: OwnedValue, v2: OwnedValue) -> OwnedValue {
     OwnedValue::Map(vec![(k1, v1), (k2, v2)])
-}
-
-fn map4(
-    k1: OwnedValue, v1: OwnedValue,
-    k2: OwnedValue, v2: OwnedValue,
-    k3: OwnedValue, v3: OwnedValue,
-    k4: OwnedValue, v4: OwnedValue,
-) -> OwnedValue {
-    OwnedValue::Map(vec![(k1, v1), (k2, v2), (k3, v3), (k4, v4)])
 }
