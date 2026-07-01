@@ -1,10 +1,9 @@
 # ⛔ CURRENT STATE (breadcrumb, 2026-06-30 — replace in place) — a MAP, read the docs it names
 
-Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `b801a821` or later (a curare commit follows).**
-**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4166 passed`. `cargo wat` is a
-STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. **⚠ CHECK `git status`: a
-background agent (`a752…`) may be finishing the S6 WatError wall with UNCOMMITTED `src/` WIP — WEIGH the emitted wire EDN
-+ commit it before moving.**
+Branch `arc-170-gap-j-v5-deadlock-state`. **Freshness probe: HEAD should be `74eb2ca6` or later.**
+**Gate: `cargo nextest run --release` (WHOLE workspace, NOT `-p wat`).** FLOOR 0 — `4174 passed` (was 4166; D1 added 8).
+`cargo wat` is a STALENESS-GUARDED install; for behavior checks use `cargo run -q --release --bin wat --`. Tree is CLEAN
+(D1 committed `74eb2ca6`); no uncommitted WIP.
 
 > ## ⊹⊹ SESSION 2026-06-30 (latest) END-STATE — ARC 296 KEYSTONE + WatError WALL BUILT (read THIS; below `---` is superseded)
 >
@@ -23,17 +22,26 @@ background agent (`a752…`) may be finishing the S6 WatError wall with UNCOMMIT
 >   floorless error is a COMPILE ERROR (`LEX AVCTOREM NON EXCIPIT` — the substrate forced to obey its own contract). **The
 >   11-key span heresy is DEAD** — the floor is RECURSIVE, ZERO `:span` at any depth (verified), one-line `:message`, FlatMessage closed.
 >
-> **▶▶ THE NEXT MOVE — `#[derive(WatErrorRecord)]`, the constraint that closes the prose-in-errors class.** Read
-> **`296/AUDIT-prose-in-errors.md`** (durable worklist). An audit found the fixed `:message`-blob was one of a CLASS: 10
-> findings (9 L1) where structured data is smuggled into prose (`:called-arg-types "i64, String"` joined; `attempted_clauses`
-> DROPPED; `Vec<Remedy>`→blob ×3; `LoadFetchError`/`HashError` stringified). **The builder's "what constraint is missing?"
-> has ONE answer: the error EDN is not a STRUCTURAL FUNCTION of the type** (hand-authored → structure `.join`/`format!`'d
-> away; no requirement embedded types be `ToEdn` → foreign types `.to_string()`'d; the check-serializer drifts from its
-> runtime twin). The cure = **`#[derive(WatErrorRecord)]`** (structure preserved by construction; an embedded non-`ToEdn`
-> type = compile error). **WatError (S6) forces the floor PRESENT; the derive forces the whole body STRUCTURAL.** Down-
-> payments the derive subsumes: `Remedy` gets a `ToEdn` (kills 4/5/6); check-layer matches its runtime twin (kills 2/3);
-> `LoadFetchError`/`HashError` get `ToEdn` (7/8/9). Then N3 (per-phase tag ns `#wat.check/…` — tags STILL `#wat.kernel/…`,
-> not done) + `deferror` (N8, sugar, unbuilt) + `Failure`/`raise!` de-stringify (the double-encode's last home).
+> **✅ D1 LANDED (`74eb2ca6`, weighed 4174/0) — the prose-in-errors class's 10 findings are STRUCTURALLY CLOSED.** The
+> down-payment one rung below the derive: `Remedy`/`LoadFetchError`/`HashError` each got a `ToEdn` form, and all 10
+> smuggling sites route through it (`attempted_clauses` reborn as `Vector<{:arity :param-types}>`, joins→Vectors,
+> `.to_string()`→`.to_edn()`, dot-path split). Weighed by the orchestrator's own hand: gate green, ZERO prose-smuggling
+> patterns survive in the serializers, `render_remedies` preserved in the 3 Display impls (human face intact — no regression).
+>
+> **▶▶ THE REMAINING TOP RUNG — `#[derive(WatEdn)]`** (removes the hand-written serializer so `.to_string()` has NO site;
+> a floorless BODY becomes uncompilable, as S6's `WatError` made a floorless FLOOR uncompilable). Needs its own attribute-
+> vocabulary design — `#[wat_edn(hint_fn=…)]` for the computed `:hint` fields, synthetic-constant-field attrs for unit
+> variants like `BareLegacyUnitType`'s `:primitive ":()"` — grounding in `296/DESIGN-296-D1-structured-not-prose.md §
+> The rung above`. `crates/wat-macros` has the proc-macro infra (syn/quote; attributes exist, no `#[derive]` yet). When
+> it lands, **R1 *NE SIBI OBSOLESCAT* turns fully to PROBATUM EST** (see `296/REALIZATIONS.md` R4 — *ITERVM SVRGIMVS*).
+>
+> **HISTORY — the audit that drove D1.** Read **`296/AUDIT-prose-in-errors.md`**. It found the fixed `:message`-blob was
+> one of a CLASS: 10 findings (9 L1) where structured data was smuggled into prose (`:called-arg-types "i64, String"`
+> joined; `attempted_clauses` DROPPED; `Vec<Remedy>`→blob ×3; `LoadFetchError`/`HashError` stringified). **The root: the
+> error EDN was not a STRUCTURAL FUNCTION of the type** (hand-authored → structure `.join`/`format!`'d away; embedded types
+> not required to be `ToEdn` → `.to_string()`'d; check-serializer drifted from its runtime twin). D1 closed the instances
+> by making the embedded types `ToEdn`; the derive closes the CLASS (no hand-written body to smuggle in). Then N3 (per-phase
+> tag ns `#wat.check/…` — tags STILL `#wat.kernel/…`, not done) + `deferror` (N8, sugar, unbuilt) + `Failure`/`raise!` de-stringify.
 >
 > **CROWNED NAMES (intueri):** N1 `:wat::core::Error` · N2 floor `message`+`location`+`causes` (`:kind` DROPPED — tag IS the
 > kind) · N5 `#[derive(WatErrorRecord)]` · N7 `:wat::kernel::here` · N8 `:wat::core::deferror` (unbuilt) · N9 bare `Location`
