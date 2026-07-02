@@ -29,7 +29,6 @@ pub(super) fn peel_metadata_preamble(args: &[WatAST]) -> &[WatAST] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::span::Span;
 
     /// Line 22: `peel_metadata_preamble` returns an empty slice unchanged when
     /// called with an empty slice. The early-return guard is the production safety

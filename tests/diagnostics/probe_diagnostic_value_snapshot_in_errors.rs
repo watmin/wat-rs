@@ -63,7 +63,7 @@ fn probe_1_not_callable_renders_offending_keyword() {
             println!("Probe 1 error: {}", e);
             assert_eq!(
                 e,
-                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":wat::core::i64::+\", provenance: SymbolBound { binding_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 3, col: 8, end_line: 3, end_col: 12 }, head_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 4, col: 8, end_line: 4, end_col: 12 } } } } }",
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":wat::core::i64::+\", provenance: SymbolBound { binding_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 3, col: 8, end_line: 3, end_col: 12 }, head_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 4, col: 8, end_line: 4, end_col: 12 } } } } }",
                 "Probe 1: NotCallable must surface type name + rendered keyword content"
             );
         }
@@ -87,7 +87,7 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
             println!("Probe 2 error: {}", e);
             assert_eq!(
                 e,
-                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
                 "Probe 2: NotCallable must surface type name + rendered runtime-built keyword"
             );
         }
@@ -166,7 +166,7 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
             println!("Probe 6 error: {}", e);
             assert_eq!(
                 e,
-                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
                 "Probe 6: must surface rendered keyword content + producer info (Stone 233.1+233.2.b)"
             );
         }
@@ -194,7 +194,7 @@ fn probe_7_from_holon_produces_tagged_value() {
             println!("Probe 7 error: {}", e);
             assert_eq!(
                 e,
-                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable-string\\\"\", provenance: RuntimeBuilt { producer: \":wat::holon::from-holon\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p7.wat\", line: 5, col: 12, end_line: 5, end_col: 47 } } } } }",
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable-string\\\"\", provenance: RuntimeBuilt { producer: \":wat::holon::from-holon\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p7.wat\", line: 5, col: 12, end_line: 5, end_col: 47 } } } } }",
                 "Probe 7: error must mention from-holon producer (Stone 233.2.c)"
             );
         }
@@ -221,7 +221,7 @@ fn probe_8_edn_read_produces_tagged_value() {
             println!("Probe 8 error: {}", e);
             assert_eq!(
                 e,
-                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable\\\"\", provenance: RuntimeBuilt { producer: \":wat::edn::read\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p8.wat\", line: 3, col: 10, end_line: 3, end_col: 48 } } } } }",
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18900, col: 45, end_line: 18900, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable\\\"\", provenance: RuntimeBuilt { producer: \":wat::edn::read\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p8.wat\", line: 3, col: 10, end_line: 3, end_col: 48 } } } } }",
                 "Probe 8: error must mention edn::read producer (Stone 233.2.c)"
             );
         }

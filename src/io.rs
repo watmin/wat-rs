@@ -1417,7 +1417,7 @@ impl WatTempDir {
 
 pub fn eval_io_temp_file_new(
     _args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1446,7 +1446,7 @@ pub fn eval_io_temp_file_path(
 
 pub fn eval_io_temp_dir_new(
     _args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

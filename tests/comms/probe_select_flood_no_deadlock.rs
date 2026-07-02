@@ -51,7 +51,6 @@ use std::time::Duration;
 use wat::ast::WatAST;
 use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
-use wat::span::Span;
 
 /// Build `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms <forms>...))`
 fn build_spawn_process_call(child_program_src: &str) -> WatAST {

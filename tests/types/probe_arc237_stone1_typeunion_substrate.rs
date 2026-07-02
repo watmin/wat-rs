@@ -37,7 +37,7 @@
 //! this file verbatim as "the working contract sonnet must satisfy."
 
 use wat::freeze::startup_from_file;
-use wat::types::{AliasDef, TypeDef, TypeEnv, TypeError, TypeErrorKind, TypeExpr, UnionDef};
+use wat::types::{TypeDef, TypeEnv, TypeError, TypeErrorKind, TypeExpr, UnionDef};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -47,14 +47,6 @@ fn path(p: &str) -> TypeExpr {
 
 fn fresh_env() -> TypeEnv {
     TypeEnv::new()
-}
-
-fn register_alias(env: &mut TypeEnv, name: &str, expr: TypeExpr) -> Result<(), TypeError> {
-    env.register(TypeDef::Alias(AliasDef {
-        name: name.to_string(),
-        type_params: vec![],
-        expr,
-    }))
 }
 
 fn register_union(env: &mut TypeEnv, name: &str, members: Vec<TypeExpr>) -> Result<(), TypeError> {

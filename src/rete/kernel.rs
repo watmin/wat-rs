@@ -2243,7 +2243,6 @@ mod tests {
     fn root_join_seeds_one_token_per_element() {
         use super::{
             alpha_pass, root_join_pass,
-            sorted_node_ids, get_node, kind_of,
         };
         use crate::freeze::{startup_from_source, eval_in_frozen};
         use crate::load::InMemoryLoader;

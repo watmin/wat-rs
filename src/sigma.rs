@@ -19,7 +19,6 @@
 //! per-d math knob, not a routing concept — survives.
 
 use crate::runtime::{apply_function, Function, SymbolTable, Value};
-use crate::span::Span;
 use std::fmt;
 use std::sync::Arc;
 

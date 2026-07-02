@@ -6098,21 +6098,17 @@ fn infer_list(
                     .collect();
                 let inst_ret = rename(clause_ret, &mapping);
                 let mut clause_subst = subst.clone();
-                let mut all_match = true;
                 for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(inst_arg_types.iter()) {
                     if let Some(arg_ty) = arg_ty_opt {
                         if !assignable(arg_ty, expected_ty, &mut clause_subst, env) {
-                            all_match = false;
                             continue 'outer;
                         }
                     }
                     // None means inference failed for that arg; be permissive.
                 }
-                if all_match {
-                    *subst = clause_subst;
-                    matched_ret = Some(apply_subst(&inst_ret, subst));
-                    break;
-                }
+                *subst = clause_subst;
+                matched_ret = Some(apply_subst(&inst_ret, subst));
+                break;
             }
             return match matched_ret {
                 Some(ret_ty) => {
@@ -11939,7 +11935,7 @@ fn infer_select_prime(
 ///   A = the self-peer's receive type (args[0]: Peer'<_,A>) — the admin channel receive type.
 fn infer_poll_prime(
     args: &[WatAST],
-    head_span: &Span,
+    _head_span: &Span,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -14533,7 +14529,7 @@ fn infer_list_constructor(
 /// Mirrors `infer_list_constructor` but for the `:wat::core::List` head.
 fn infer_linked_list_constructor(
     args: &[WatAST],
-    head_span: &Span,
+    _head_span: &Span,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,

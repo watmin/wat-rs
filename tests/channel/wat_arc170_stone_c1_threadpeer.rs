@@ -24,7 +24,6 @@
 
 use wat::freeze::{startup_bare, startup_beside};
 use wat::runtime::{eval, Environment, Value};
-use wat::span::Span;
 
 // ─── Stone C1 T1. type mint — both ThreadPeer<i64,String> and the
 //      mirror ThreadPeer<String,i64> type-check ────────────────────────

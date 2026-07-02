@@ -20,7 +20,6 @@
 //! Post-stone 236.3: 6/6 PASS (3-variant enum shape; ✅✅✅ structural impossibility).
 
 use wat::check::{CheckError, CheckErrorKind, CheckResult};
-use wat::span::Span;
 
 fn dummy_error() -> CheckError {
     CheckError {

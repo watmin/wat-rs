@@ -19,7 +19,6 @@
 use std::sync::Arc;
 use wat::runtime::Value;
 use wat::value::{Provenance, TrackedValue};
-use wat::span::Span;
 
 // ─── Probe 1 — Construction + value() borrow accessor ───────────────────────
 

@@ -19,7 +19,6 @@ use wat::ast::WatAST;
 use wat::freeze::startup_bare;
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::runtime::{eval, Environment, Value};
-use wat::span::Span;
 use wat::channel::{receiver_from_pipe, sender_from_pipe, RecvOutcome, SendOutcome};
 
 /// Allocate an OS pipe and wrap its ends as WatReader/WatWriter.

@@ -27,7 +27,7 @@ use std::sync::Arc;
 
 use holon::HolonAST;
 use wat::runtime::Value;
-use wat::{AggregateValue, Holder};
+use wat::AggregateValue;
 
 /// A base record `:my::Pt [x y]` with the given two f64 field values.
 fn base_pt(x: f64, y: f64) -> Value {

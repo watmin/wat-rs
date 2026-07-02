@@ -37,7 +37,6 @@
 
 use wat::freeze::{eval_in_frozen, startup_from_file};
 use wat::runtime::{Environment, Value};
-use wat::span::Span;
 use wat::types::{is_subtype, TypeEnv};
 
 // ─── Rust-API helpers (mirror probe_arc237_stone1_typeunion_substrate) ────────

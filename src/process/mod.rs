@@ -52,7 +52,7 @@ pub use clone::{
 };
 pub(crate) use clone::spawn_lifelined_any;
 pub use child::{install_substrate_signal_handlers, run_in_fork};
-pub(crate) use child::{child_post_fork_init, child_post_fork_init_preserving};
+pub(crate) use child::child_post_fork_init;
 pub use handle::{ChildHandle, ForkedProgramHandles};
 pub use verbs::{
     EXIT_SUCCESS, EXIT_RUNTIME_ERROR, EXIT_PANIC, EXIT_STARTUP_ERROR, EXIT_MAIN_SIGNATURE,
@@ -61,10 +61,6 @@ pub use verbs::{
     fork_program_from_source,
 };
 pub use stdio::{lend_ambient, emit_panic_envelope};
-// Stone 6.w circumspicere F3 — the :process peer child (kernel::spawn) emits the
-// same structured ProcessPanics envelope as the fork children. pub(crate): one
-// canonical emit, reachable from kernel/ without exposing it on the public surface.
-pub(crate) use verbs::emit_structured_exit;
 // Arc 214 β — post-dup2 server runtime for spawn-program' :process. Called by
 // kernel/spawn.rs after the child branch has dup2'd fd 0/1/2 and called
 // child_post_fork_init; runs the forms as a readln/println server (never returns).

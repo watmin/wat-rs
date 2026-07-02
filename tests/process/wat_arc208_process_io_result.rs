@@ -35,7 +35,6 @@ use wat::ast::WatAST;
 use wat::check::CheckEnv;
 use wat::freeze::{startup_bare, startup_from_file};
 use wat::runtime::{eval, Environment, Value};
-use wat::span::Span;
 
 // ─── helpers ───────────────────────────────────────────────────────────
 

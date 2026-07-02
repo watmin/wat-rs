@@ -47,7 +47,6 @@ use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use std::time::Instant;
 use wat::io::{PipeReader, WatReader};
-use wat::span::Span;
 use wat::channel::{ReceiverInner, RecvOutcome};
 
 /// Arc 170 Phase 2 — blocked PipeFd recv wakes on SIGTERM within 100ms.

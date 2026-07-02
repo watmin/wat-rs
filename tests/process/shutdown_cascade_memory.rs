@@ -45,7 +45,6 @@
 use std::sync::Arc;
 use std::time::Instant;
 use wat::runtime::Value;
-use wat::span::Span;
 use wat::channel::{ReceiverInner, RecvOutcome};
 
 /// Row I — blocked crossbeam recv wakes on SIGTERM within 100ms.

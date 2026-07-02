@@ -25,7 +25,6 @@ use wat::hash::hash_canonical_program;
 use wat::macros::{expand_all, register_defmacros, MacroRegistry};
 use wat::runtime::{Environment, SymbolTable};
 use wat::scope::{fresh_scope, Identifier, ScopeId};
-use wat::span::Span;
 
 fn sym(name: &str, scope: ScopeId) -> WatAST {
     WatAST::Symbol(Identifier::bare(name).add_scope(scope), wat::rust_caller_span!())

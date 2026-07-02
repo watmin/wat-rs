@@ -12,7 +12,6 @@ use std::sync::Arc;
 use wat::ast::WatAST;
 use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
-use wat::span::Span;
 
 fn process_stdout_reader(process: &Value) -> Arc<dyn wat::io::WatReader> {
     match process {

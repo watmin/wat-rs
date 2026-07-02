@@ -33,7 +33,6 @@ use wat::ast::WatAST;
 use wat::closure_extract::{extract_closure, ClosurePackage, ExtractionError, ExtractionErrorKind};
 use wat::freeze::{startup_from_file, startup_from_forms};
 use wat::runtime::{apply_function, eval, Environment, Value};
-use wat::span::Span;
 
 // ─── helpers ────────────────────────────────────────────────────────────
 

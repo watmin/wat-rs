@@ -18,7 +18,7 @@
 
 use crate::ast::WatAST;
 use crate::check::{
-    apply_subst, assignable, format_type, infer, unify, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
+    apply_subst, assignable, format_type, infer, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
 };
 use crate::function::metadata::peel_metadata_preamble;
 use crate::argspec::ParseOptions;
@@ -174,7 +174,6 @@ pub(crate) fn infer_fn(
 mod tests {
     use super::*;
     use crate::scope::Identifier;
-    use crate::span::Span;
     use crate::types::TypeEnv;
 
     fn make_env_fresh_subst() -> (TypeEnv, InferCtx, Subst) {

@@ -23,7 +23,6 @@ use std::sync::Arc;
 use wat::channel::{receiver_from_pipe, typed_recv, RecvOutcome};
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use wat::runtime::Value;
-use wat::span::Span;
 use wat_edn;
 
 fn os_pipe() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -149,7 +148,6 @@ fn pprintln_multiline_map_roundtrips_over_pipe() {
 #[test]
 fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
     use wat::edn_shim::{read_framed_edn, FramedRead};
-    use wat::span::Span;
 
     // Craft lines that keep the buffer growing past 64 bytes before completing.
     // Each line is appended with a '\n' inside read_framed_edn.  We feed:
@@ -196,7 +194,6 @@ fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
 #[test]
 fn read_framed_edn_tiny_cap_passes_small_value() {
     use wat::edn_shim::{read_framed_edn, FramedRead};
-    use wat::span::Span;
 
     // A compact map that fits in < 64 bytes including the trailing '\n'.
     let lines: Vec<&str> = vec!["{:a 1 :b 2}"];

@@ -36,7 +36,6 @@ use wat::freeze::startup_bare;
 use wat::io::{WatReader, WatWriter};
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::AggregateValue;
-use wat::span::Span;
 use wat::channel::{
     make_pipe_channel_pair, receiver_from_pipe, sender_close, sender_from_pipe, typed_recv,
     typed_send, ReceiverInner, RecvOutcome, SendOutcome, SenderInner,

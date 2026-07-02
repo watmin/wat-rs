@@ -31,7 +31,6 @@
 
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::value::{EvalBreak, EvalSignal};
-use wat::span::Span;
 
 /// Contract 1: `EvalSignal` holds exactly the three eval-loop control signals.
 /// Referenced via an exhaustive match so the compiler verifies all three

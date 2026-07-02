@@ -42,7 +42,6 @@
 
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::config::Config;
 use holon::{encode, HolonAST, Similarity};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -8452,7 +8451,6 @@ fn eval_f64_compare<F: Fn(f64, f64) -> bool>(
         } }.into());
     }
     let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
     match (a, b) {
@@ -8506,7 +8504,7 @@ fn eval_not(
 
 fn eval_and(
     args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -8530,7 +8528,7 @@ fn eval_and(
 
 fn eval_or(
     args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -8567,7 +8565,7 @@ fn eval_or(
 /// spelling per slice 1f's vec→Vector playbook completed.
 fn eval_tuple_ctor(
     args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -11235,7 +11233,7 @@ fn walk_match_clause(
 /// Like `quote`, this is a special form — arguments are NOT
 /// evaluated. The type checker returns `:wat::core::Vector<wat::WatAST>`
 /// unconditionally; see `check.rs::infer_list` for the handling.
-fn eval_forms(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+fn eval_forms(args: &[WatAST], _list_span: &Span) -> Result<Value, EvalBreak> {
     let items: Vec<Value> = args
         .iter()
         .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
@@ -13441,7 +13439,7 @@ fn is_builtin_primitive(name: &str) -> bool {
 fn eval_subtype(
     args: &[WatAST],
     list_span: &Span,
-    env: &Environment,
+    _env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::subtype?";
@@ -26504,6 +26502,7 @@ fn eval_poll_prime(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Config;
     use std::sync::OnceLock;
 
     /// The stdlib is the standard library — always available, without

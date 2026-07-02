@@ -18,7 +18,6 @@
 
 use wat::freeze::startup_beside;
 use wat::runtime::{apply_function, Value};
-use wat::span::Span;
 
 fn call_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<i64, String> {
     let func = world

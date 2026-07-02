@@ -93,7 +93,6 @@ use std::time::Instant;
 use wat::ast::WatAST;
 use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, ProgramHandleInner, Value};
-use wat::span::Span;
 
 /// Source for the grandchild's blocking wat program.
 ///

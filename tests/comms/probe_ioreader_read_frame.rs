@@ -19,7 +19,6 @@ use wat::freeze::{startup_bare, startup_beside};
 use wat::io::{StringIoReader, WatReader, eval_ioreader_read_frame};
 use wat::runtime::{Environment, Value};
 use wat::scope::Identifier;
-use wat::span::Span;
 use wat::value::TrackedValue;
 
 /// Gate 1 — multi-line EDN map frame reads back as Some(frame-string).

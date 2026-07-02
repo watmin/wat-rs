@@ -133,7 +133,7 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 fn programs_are_atoms_hello_world() {
     let path = write_temp(PROGRAMS_ARE_ATOMS_PROGRAM);
     let bin = env!("CARGO_BIN_EXE_wat");
-    let mut child = Command::new(bin)
+    let child = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -238,7 +238,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 fn presence_proof_hello_world() {
     let path = write_temp(PRESENCE_PROOF_PROGRAM);
     let bin = env!("CARGO_BIN_EXE_wat");
-    let mut child = Command::new(bin)
+    let child = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

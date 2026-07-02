@@ -27,7 +27,6 @@
 use crate::ast::WatAST;
 use crate::edn_shim::{keyword_from_wat_path, ns_to_wat_path};
 use crate::scope::Identifier;
-use crate::span::Span;
 use wat_edn::{OwnedValue, Symbol};
 
 // ─── Error type ─────────────────────────────────────────────────

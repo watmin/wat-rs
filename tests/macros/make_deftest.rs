@@ -27,7 +27,6 @@
 
 use wat::freeze::{startup_beside};
 use wat::runtime::Value;
-use wat::span::Span;
 
 #[test]
 fn diag_make_deftest_with_prelude_expansion() {

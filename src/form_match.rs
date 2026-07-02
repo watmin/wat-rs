@@ -247,7 +247,6 @@ pub fn keyword_payload(ast: &WatAST) -> Option<&str> {
 mod tests {
     use super::*;
     use crate::scope::Identifier;
-    use crate::span::Span;
 
     fn kw(s: &str) -> WatAST {
         WatAST::Keyword(s.into(), crate::rust_caller_span!())

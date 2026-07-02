@@ -48,7 +48,6 @@
 use wat::ast::WatAST;
 use wat::freeze::{startup_bare, startup_beside};
 use wat::runtime::{eval, Environment, Value};
-use wat::span::Span;
 
 /// Arc 170 slice 6 helper — wrap a child-program source string as a
 /// `(:wat::kernel::spawn-process (:wat::core::forms <forms>...))` call

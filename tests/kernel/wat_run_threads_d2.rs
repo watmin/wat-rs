@@ -30,7 +30,6 @@
 
 use wat::freeze::startup_beside;
 use wat::runtime::Value;
-use wat::span::Span;
 
 // ─── Stone D2 T1. three-factory heterogeneous-behavior coordinator ─────
 

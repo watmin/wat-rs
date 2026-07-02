@@ -64,7 +64,6 @@ use crate::runtime::{
     FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
 };
 use crate::value::EncodingCtx;
-use crate::span::Span;
 use crate::services::ThreadId;
 use crate::types::{TypeEnv, TypeError, TypeExpr};
 use std::fmt;

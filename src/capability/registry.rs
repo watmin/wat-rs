@@ -14,7 +14,6 @@
 use crate::edn_shim::{EdnReadError, EdnReadErrorKind};
 use crate::rust_deps::marshal::RustOpaqueInner;
 use crate::runtime::Value;
-use crate::span::Span;
 use crate::types::TypeEnv;
 use crate::value::value::AggregateValue;
 use std::sync::OnceLock;

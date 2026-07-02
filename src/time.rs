@@ -92,7 +92,7 @@ use crate::span::Span;
 // ─── Constructors ────────────────────────────────────────────────────
 
 /// `(:wat::time::now) -> :wat::time::Instant` — current wall-clock time.
-pub(crate) fn eval_time_now(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
+pub(crate) fn eval_time_now(args: &[WatAST], _list_span: &Span) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::now";
     if !args.is_empty() {
         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::ArityMismatch {

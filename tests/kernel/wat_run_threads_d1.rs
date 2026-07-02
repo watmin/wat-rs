@@ -34,7 +34,6 @@
 
 use wat::freeze::startup_beside;
 use wat::runtime::Value;
-use wat::span::Span;
 
 // ─── Stone D2 N=1. single-factory coordinator-fn round-trip ───────────
 

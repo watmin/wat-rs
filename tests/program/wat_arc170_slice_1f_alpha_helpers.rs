@@ -32,7 +32,6 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::io::{PipeReader, PipeWriter, WatReader};
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
 use wat::AggregateValue;
-use wat::span::Span;
 use wat::services::{
     install_thread_io, next_thread_id, spawn_service_peer, uninstall_thread_io,
     RuntimeServices, ServiceMsg, ThreadIO,

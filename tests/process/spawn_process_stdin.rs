@@ -13,7 +13,6 @@ use std::sync::Arc;
 use wat::ast::WatAST;
 use wat::freeze::startup_bare;
 use wat::runtime::{eval, Environment, Value};
-use wat::span::Span;
 
 fn process_stdin_writer(process: &Value) -> Arc<dyn wat::io::WatWriter> {
     match process {

@@ -803,7 +803,7 @@ fn is_canonical_uuid_string(s: &str) -> bool {
 /// `:wat::core::Uuid` value — NOT a string. Arc 207 slice 2.
 pub fn eval_uuid_typed_v4(
     args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -948,7 +948,7 @@ pub fn eval_uuid_typed_to_string(
 /// Returns the nil UUID (`00000000-0000-0000-0000-000000000000`). Arc 207 slice 2.
 pub fn eval_uuid_typed_nil(
     args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1053,7 +1053,7 @@ pub fn eval_char_of(
 /// is variadic rather than fixed-arity.
 pub fn eval_list_of(
     args: &[WatAST],
-    list_span: &Span,
+    _list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

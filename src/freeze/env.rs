@@ -28,7 +28,6 @@ use crate::runtime::{
     register_stdlib_defines, register_stdlib_runtime_defs, register_struct_methods,
     register_type_predicates, EvalBreak, Environment, SymbolTable,
 };
-use crate::span::Span;
 use crate::stdlib::stdlib_forms;
 use crate::types::{register_stdlib_types, register_types, TypeEnv};
 

@@ -15,7 +15,7 @@
 //!   3. Alias an unknown target — the native form registers a stub; the HARD CUT
 //!      for :wat::runtime::define-alias fires with a retirement remedy.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file, StartupError};
+use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
 
 fn run_expr(expr: &str) -> Value {
