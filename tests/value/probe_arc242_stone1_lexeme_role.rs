@@ -63,15 +63,10 @@ fn contract_03_legacy_char_hard_cut_with_remedy() {
         ":wat::core::Char must be rejected by the substrate (retirement hard-cut)"
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains("did you mean") && msg.contains(":wat::core::char"),
-        "retirement remedy must name :wat::core::char; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "retirement remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n2 type-check error(s):\n  - tests/value/probe_arc242_stone1_lexeme_role_bad.wat:8:43: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n  - tests/value/probe_arc242_stone1_lexeme_role_bad.wat:8:64: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n",
+        "retirement remedy must carry exact golden"
     );
 }
 

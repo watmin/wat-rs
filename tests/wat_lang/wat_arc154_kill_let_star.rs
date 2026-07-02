@@ -52,10 +52,10 @@ fn let_star_post_retirement_silently_aliases_to_let() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc154_kill_let_star_letstar_bad.wat",
     );
-    assert!(
-        err.contains("BareLegacyLetStar"),
-        "expected BareLegacyLetStar walker to fire on bare :wat::core::let*; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_letstar_bad.wat", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
+        "expected BareLegacyLetStar walker to fire on bare :wat::core::let*"
     );
 }
 
@@ -67,10 +67,10 @@ fn let_body_type_mismatch_surfaces() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch_bad.wat",
     );
-    assert!(
-        err.contains("ReturnTypeMismatch") || err.contains("TypeMismatch"),
-        "expected (Return)TypeMismatch on body type vs declared return; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch_bad.wat", line: 5, col: 3, end_line: 5, end_col: 28 }, kind: ReturnTypeMismatch { function: ":t::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#,
+        "expected ReturnTypeMismatch on body type vs declared return"
     );
 }
 
@@ -122,10 +122,10 @@ fn multiple_let_star_sites_post_retirement_silently_alias() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar_bad.wat",
     );
-    assert!(
-        err.contains("BareLegacyLetStar"),
-        "expected BareLegacyLetStar walker to fire on bare :wat::core::let*; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar_bad.wat", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }, CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar_bad.wat", line: 7, col: 4, end_line: 7, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
+        "expected two BareLegacyLetStar errors for two let* sites"
     );
 }
 

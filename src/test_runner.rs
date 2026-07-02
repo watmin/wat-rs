@@ -1072,7 +1072,11 @@ mod arc116_diagnostic_tests {
 
         // Must be tagged AssertionFailed in wat.kernel namespace.
         let s = wat_edn::write(&edn);
-        assert!(s.starts_with("#wat.kernel/AssertionFailed"), "got: {}", s);
+        assert_eq!(
+            s,
+            r#"#wat.kernel/AssertionFailed {:message "assert-eq failed" :location "test.wat:42:13" :actual "1" :expected "2"}"#,
+            "EDN output mismatch"
+        );
 
         // Extract map body.
         let map = match &edn {
@@ -1107,7 +1111,7 @@ mod arc116_diagnostic_tests {
         let rr = make_run_result(Some(failure));
         let edn = failure_to_edn(&rr).expect("edn produced");
         let s = wat_edn::write(&edn);
-        assert!(s.starts_with("#wat.kernel/Panic"), "got: {}", s);
+        assert_eq!(s, r#"#wat.kernel/Panic {:message "intentional panic"}"#, "EDN output mismatch");
         // No actual/expected fields.
         let actual_kw = OwnedValue::Keyword(Keyword::new("actual"));
         let expected_kw = OwnedValue::Keyword(Keyword::new("expected"));
@@ -1134,11 +1138,11 @@ mod arc116_diagnostic_tests {
         let edn = failure_to_edn(&rr).expect("edn produced");
         let s = wat_edn::write(&edn);
         // Arc 296: tag is now #wat.kernel/ (not #wat.diag/).
-        assert!(s.starts_with("#wat.kernel/AssertionFailed"), "got: {}", s);
-        assert!(s.contains(r#":message "assert-eq failed""#), "got: {}", s);
-        assert!(s.contains(r#":location "step-A.wat:42:13""#), "got: {}", s);
-        assert!(s.contains(r#":actual "1""#), "got: {}", s);
-        assert!(s.contains(r#":expected "2""#), "got: {}", s);
+        assert_eq!(
+            s,
+            r#"#wat.kernel/AssertionFailed {:message "assert-eq failed" :location "step-A.wat:42:13" :actual "1" :expected "2"}"#,
+            "EDN round-trip output mismatch"
+        );
     }
 
     #[test]
@@ -1147,12 +1151,13 @@ mod arc116_diagnostic_tests {
         let rr = make_run_result(Some(failure));
         let edn = failure_to_edn(&rr).expect("edn produced");
         let json = wat_edn::to_json_string(&edn);
-        // Arc 296: JSON shape uses sentinel #tag convention.
-        assert!(json.contains("\"#tag\":\"wat.kernel/AssertionFailed\""), "got: {}", json);
-        // Fields live under "body" key; keyword keys include colon prefix.
-        assert!(json.contains("\":message\":\"assert-eq failed\""), "got: {}", json);
-        assert!(json.contains("\":actual\":\"1\""), "got: {}", json);
-        assert!(json.contains("\":expected\":\"2\""), "got: {}", json);
+        // Arc 296: JSON shape uses sentinel #tag convention. Fields live under "body" key;
+        // keyword keys include colon prefix; body keys are sorted alphabetically.
+        assert_eq!(
+            json,
+            r##"{"#tag":"wat.kernel/AssertionFailed","body":{":actual":"1",":expected":"2",":message":"assert-eq failed"}}"##,
+            "JSON round-trip output mismatch"
+        );
     }
 
     #[test]
@@ -1169,9 +1174,10 @@ mod arc116_diagnostic_tests {
         let rr = make_run_result(Some(failure));
         let edn = failure_to_edn(&rr).expect("edn produced");
         let text = render_failure_text(&edn);
-        assert!(text.contains("failure: assert-eq failed"));
-        assert!(text.contains("at:       test.wat:42:13"));
-        assert!(text.contains("actual:   1"));
-        assert!(text.contains("expected: 2"));
+        assert_eq!(
+            text,
+            "  failure: assert-eq failed\n    at:       test.wat:42:13\n    actual:   1\n    expected: 2",
+            "text render output mismatch"
+        );
     }
 }

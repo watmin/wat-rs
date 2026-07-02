@@ -33,11 +33,10 @@ fn probe_1_make_channel_receiver_is_comms_backed() {
         panic!("tuple slot 1 must be the Receiver; got {:?}", xs[1]);
     };
     let dbg = format!("{:?}", inner);
-    assert!(
-        dbg.contains("Comms"),
-        "make-channel's Receiver must be comms::thread-backed post-flip; \
-         inner renders as: {}",
-        dbg
+    assert_eq!(
+        dbg,
+        "Comms(Receiver::Channel(Receiver { .. }))",
+        "make-channel's Receiver must be comms::thread-backed post-flip"
     );
 }
 
@@ -59,10 +58,9 @@ fn probe_2_make_channel_sender_is_comms_backed() {
         panic!("tuple slot 0 must be the Sender; got {:?}", xs[0]);
     };
     let dbg = format!("{:?}", inner);
-    assert!(
-        dbg.contains("Comms"),
-        "make-channel's Sender must be comms::thread-backed post-flip; \
-         inner renders as: {}",
-        dbg
+    assert_eq!(
+        dbg,
+        "Comms { sender: Sender { inner: Sender { .. } }, closed: false }",
+        "make-channel's Sender must be comms::thread-backed post-flip"
     );
 }

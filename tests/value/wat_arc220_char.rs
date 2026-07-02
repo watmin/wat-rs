@@ -88,9 +88,10 @@ fn char_literal_supplementary_plane_rejected() {
         "supplementary-plane char literal must fail at lex time"
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains("supplementary") || msg.contains("BMP") || msg.contains("U+1F600"),
-        "error must mention supplementary-plane: got {:?}", msg
+    assert_eq!(
+        msg,
+        "parse: wat-rs/crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 292: invalid character literal: \\😀: supplementary-plane codepoint U+1F600 not supported; wat char literals are BMP-only (U+0000–U+FFFF)",
+        "error must be exact lex rejection golden"
     );
 }
 
@@ -114,7 +115,7 @@ fn char_of_empty_string_rejected() {
     let world = startup_beside(file!()).expect("startup");
     let err = run_expecting_runtime_err(&world, "(:t::test6-char-of-empty)");
     assert!(
-        err.contains("length-1") || err.contains("empty"),
+        err.contains("length-1") || err.contains("empty"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "error must mention length-1 or empty: got {:?}", err
     );
 }
@@ -128,7 +129,7 @@ fn char_of_multi_char_rejected() {
     let world = startup_beside(file!()).expect("startup");
     let err = run_expecting_runtime_err(&world, "(:t::test7-char-of-multi)");
     assert!(
-        err.contains("length") || err.contains("got 2") || err.contains("length-2"),
+        err.contains("length") || err.contains("got 2") || err.contains("length-2"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "error must mention length: got {:?}", err
     );
 }
@@ -144,7 +145,7 @@ fn char_of_supplementary_plane_rejected() {
     let world = startup_beside(file!()).expect("startup");
     let err = run_expecting_runtime_err(&world, "(:t::test8-char-of-supplementary)");
     assert!(
-        err.contains("supplementary") || err.contains("BMP") || err.contains("1F600"),
+        err.contains("supplementary") || err.contains("BMP") || err.contains("1F600"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "error must mention supplementary-plane: got {:?}", err
     );
 }

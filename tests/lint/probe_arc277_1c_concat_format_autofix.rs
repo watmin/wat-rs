@@ -30,20 +30,28 @@ fn fix(call: &str) -> String {
 #[test]
 fn bare_symbol_concat_rewrites_to_format() {
     let fixed = fix("(:t::fix-bare)");
-    assert!(
-        fixed.contains("(:wat::core::format") && fixed.contains("{a}") && fixed.contains("{b}")
-            && fixed.contains(":a a") && fixed.contains(":b b"),
-        "bare-symbol concat must rewrite to (format \"x: {{a}} y: {{b}}\" :a a :b b); got: {fixed}"
+    assert_eq!(
+        fixed,
+        concat!(
+            "(:wat::core::defn :u::g [a <- :wat::core::String b <- :wat::core::String] ",
+            "-> :wat::core::String (:wat::core::format ",
+            "\"x: {a} y: {b}\" :a a :b b))"
+        ),
+        "bare-symbol concat must match format-rewrite golden"
     );
-    assert!(!fixed.contains("string::concat"), "the concat must be gone; got: {fixed}");
 }
 
 // COMPOUND slot → NO auto-fix (report-only; naming is a judgment deferred to the RETE map).
 #[test]
 fn compound_slot_concat_is_left_untouched() {
     let fixed = fix("(:t::fix-compound)");
-    assert!(
-        fixed.contains("string::concat") && !fixed.contains("(:wat::core::format"),
-        "a compound-value concat must stay report-only (no fix); got: {fixed}"
+    assert_eq!(
+        fixed,
+        concat!(
+            "(:wat::core::defn :u::h [n <- :wat::core::i64] -> :wat::core::String ",
+            "(:wat::core::string::concat ",
+            "\"n=\" (:wat::core::i64::to-string n)))"
+        ),
+        "compound-value concat must stay untouched (report-only) golden"
     );
 }

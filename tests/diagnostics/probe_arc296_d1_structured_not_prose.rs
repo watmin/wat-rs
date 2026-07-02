@@ -51,20 +51,12 @@ fn probe_1_return_type_mismatch_remedies_field_is_vector_not_prose() {
 
     let edn = err.to_edn();
     let s = wat_edn::write(&edn);
-    eprintln!("=== probe_1 ReturnTypeMismatch(empty remedies): {}", s);
 
-    // Must NOT contain a prose "did you mean" blob.
-    assert!(
-        !s.contains("did you mean"),
-        "`:remedies` must NOT contain prose 'did you mean'; got: {}",
-        s
-    );
-
-    // :remedies must be present (was conditionally absent before).
-    assert!(
-        s.contains(":remedies"),
-        "`:remedies` must always be present as a Vector field; got: {}",
-        s
+    // :remedies must be a Vector field (even when empty); no prose "did you mean" blob.
+    assert_eq!(
+        s,
+        r#"#wat.check/ReturnTypeMismatch {:function ":user::main" :expected ":wat::core::nil" :got ":wat::core::String" :remedies [] :span {:file "test.wat" :line 1 :col 1}}"#,
+        "ReturnTypeMismatch must always emit :remedies [] (never absent)"
     );
 
     // The :remedies value must be a Vector, not a String.
@@ -105,6 +97,7 @@ fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
     eprintln!("=== probe_2 LoadError::Fetch(NotFound): {}", s);
 
     // Must NOT contain the prose form of LoadFetchError::Display.
+    // rune:lint(loose-assert) — `s` is the EDN of a LoadError whose `:span` was set via `wat::rust_caller_span!()` at line 91 of this file; the span embeds the absolute host filesystem path to this test source file. The full EDN string varies by host. Targeted absence of the prose fallback form is the real contract.
     assert!(
         !s.contains("\"load:"),
         "`:cause` must NOT be a prose string 'load: file not found …'; got: {}",
@@ -112,6 +105,7 @@ fn probe_2_load_fetch_error_cause_is_tagged_not_string() {
     );
 
     // Must contain the structured tagged form.
+    // rune:lint(loose-assert) — same as above: `s` contains an absolute host path in the `:span` field from `rust_caller_span!()`; full string varies by host. Targeted presence of the structured tag is the real contract.
     assert!(
         s.contains("wat.kernel/NotFound"),
         "`:cause` must be `#wat.kernel/NotFound`; got: {}",
@@ -166,20 +160,12 @@ fn probe_3_no_matching_clause_at_call_site_is_structured() {
 
     let edn = err.to_edn();
     let s = wat_edn::write(&edn);
-    eprintln!("=== probe_3 NoMatchingClauseAtCallSite: {}", s);
 
-    // :called-arg-types must be present.
-    assert!(
-        s.contains(":called-arg-types"),
-        "must contain :called-arg-types; got: {}",
-        s
-    );
-
-    // :attempted-clauses must be present (was DROPPED before the fix).
-    assert!(
-        s.contains(":attempted-clauses"),
-        "`:attempted-clauses` must be present (was dropped before); got: {}",
-        s
+    // :called-arg-types must be a Vector; :attempted-clauses must be present (was DROPPED before fix).
+    assert_eq!(
+        s,
+        r#"#wat.check/NoMatchingClauseAtCallSite {:name ":user::greet" :called-arity 1 :called-arg-types [":wat::core::i64"] :attempted-clauses [{:arity 1 :param-types [":wat::core::String"]}] :span {:file "test.wat" :line 1 :col 1}}"#,
+        "NoMatchingClauseAtCallSite must emit structured :called-arg-types Vector + :attempted-clauses"
     );
 
     // Detailed structural checks on the OwnedValue.
@@ -213,15 +199,10 @@ fn probe_3_no_matching_clause_at_call_site_is_structured() {
             if let OwnedValue::Vector(clauses) = ac_val {
                 assert!(!clauses.is_empty(), "attempted-clauses must be non-empty");
                 let clause_str = wat_edn::write(&clauses[0]);
-                assert!(
-                    clause_str.contains(":arity"),
-                    "clause element must contain :arity; got: {}",
-                    clause_str
-                );
-                assert!(
-                    clause_str.contains(":param-types"),
-                    "clause element must contain :param-types; got: {}",
-                    clause_str
+                assert_eq!(
+                    clause_str,
+                    r#"{:arity 1 :param-types [":wat::core::String"]}"#,
+                    "clause element must have :arity and :param-types"
                 );
             }
         }

@@ -53,15 +53,10 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
     let line = unwrap_string(run_expr("(:t::test1-lookup-macro-render)"), "test1");
-    assert!(
-        line.contains("defmacro"),
-        "expected 'defmacro' head in rendered macro define-ast, got: {}",
-        line
-    );
-    assert!(
-        line.contains("my::ident"),
-        "expected macro name 'my::ident' in rendered AST, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defmacro #wat-edn.holon/Keyword :my::ident #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "<-" #wat-edn.holon/Keyword :AST<wat::WatAST>] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :AST<wat::WatAST> #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::quasiquote #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::unquote #wat-edn.holon/Symbol "x"]]]"#,
+        "rendered macro define-ast must carry defmacro head and my::ident name"
     );
 }
 
@@ -86,15 +81,10 @@ fn body_of_macro_returns_some_with_template() {
 #[test]
 fn lookup_define_struct_returns_some_and_emits_struct_head() {
     let line = unwrap_string(run_expr("(:t::test4-lookup-struct-render)"), "test4");
-    assert!(
-        line.contains("defstruct"),
-        "expected 'defstruct' head in rendered type define-ast, got: {}",
-        line
-    );
-    assert!(
-        line.contains("my::Bar"),
-        "expected type name 'my::Bar' in rendered AST, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defstruct #wat-edn.holon/Keyword :my::Bar #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/type-decl #wat-edn.holon/Keyword :my::Bar]]"#,
+        "rendered struct define-ast must carry defstruct head and my::Bar name"
     );
 }
 

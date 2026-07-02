@@ -43,10 +43,10 @@ fn epprintln_write_pretty_produces_multi_line_for_map() {
         pretty
     );
 
-    assert!(
-        pretty.contains(":a") && pretty.contains(":b"),
-        "write_pretty output must contain map keys :a and :b; got: {:?}",
-        pretty
+    assert_eq!(
+        pretty,
+        "{\n  :a 1\n  :b 2\n}",
+        "write_pretty output must be the exact multi-line form"
     );
 }
 

@@ -388,21 +388,21 @@ mod tests {
     fn render_single_remedy_has_did_you_mean_prefix() {
         let r = Remedy { form: ":wat::core::defstruct".into(), kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
+        assert_eq!(rendered, "  did you mean: :wat::core::defstruct [replaces a retired form]");
     }
 
     #[test]
     fn render_single_remedy_contains_form() {
         let r = Remedy { form: ":wat::core::defstruct".into(), kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains(":wat::core::defstruct"), "missing form in rendered output");
+        assert_eq!(rendered, "  did you mean: :wat::core::defstruct [replaces a retired form]");
     }
 
     #[test]
     fn render_single_retirement_annotation_is_canonical() {
         let r = Remedy { form: ":wat::core::defstruct".into(), kind: RemedyKind::Retirement, note: None };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains("[replaces a retired form]"), "missing retirement annotation");
+        assert_eq!(rendered, "  did you mean: :wat::core::defstruct [replaces a retired form]");
     }
 
     #[test]
@@ -418,21 +418,21 @@ mod tests {
     fn render_single_typo_has_did_you_mean_prefix() {
         let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains("did you mean:"), "missing 'did you mean:' prefix");
+        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 1]");
     }
 
     #[test]
     fn render_single_typo_contains_form() {
         let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains(":my::Status::Ok"), "missing form in rendered output");
+        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 1]");
     }
 
     #[test]
     fn render_single_typo_annotation_includes_distance() {
         let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert!(rendered.contains("[typo, distance 1]"), "missing typo annotation with distance");
+        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 1]");
     }
 
     #[test]
@@ -458,10 +458,7 @@ mod tests {
     fn render_remedies_typo_annotation_includes_exact_distance() {
         let r = Remedy { form: ":my::Status::Ok".into(), kind: RemedyKind::Typo(std::num::NonZeroU32::new(3).unwrap()), note: None };
         let rendered = render_remedies(&[r]);
-        assert!(
-            rendered.contains("[typo, distance 3]"),
-            "annotation should read '[typo, distance 3]'; got: {rendered:?}"
-        );
+        assert_eq!(rendered, "  did you mean: :my::Status::Ok [typo, distance 3]");
     }
 
     #[test]
@@ -472,10 +469,7 @@ mod tests {
             note: Some("X".into()),
         };
         let rendered = render_remedies(&[r]);
-        assert!(
-            rendered.contains(" — X"),
-            "rendered string must contain ' — X' when note is Some(\"X\"); got: {rendered:?}"
-        );
+        assert_eq!(rendered, "  did you mean: :wat::core::defstruct [replaces a retired form] — X");
     }
 
     #[test]
@@ -494,10 +488,7 @@ mod tests {
             },
         ];
         let rendered = render_remedies(&remedies);
-        assert!(
-            rendered.contains(" — migrate the ctor restriction"),
-            "multi-remedy render must include note suffix on the noted entry; got: {rendered:?}"
-        );
+        assert_eq!(rendered, "  did you mean:\n    :wat::core::defstruct  [replaces a retired form] — migrate the ctor restriction\n    :wat::core::defenum  [typo, distance 1]");
     }
 
     // ─── Arc 296 D1 — ToEdn impl + remedies_to_edn ──────────────────────
@@ -512,26 +503,7 @@ mod tests {
         };
         let edn = r.to_edn();
         let s = wat_edn::write(&edn);
-        eprintln!("=== remedy_to_edn_typo: {}", s);
-        assert!(
-            s.starts_with("#wat.kernel/Remedy"),
-            "Remedy.to_edn() must produce #wat.kernel/Remedy; got: {}",
-            s
-        );
-        assert!(s.contains(":form"), "must contain :form; got: {}", s);
-        assert!(s.contains(":kind"), "must contain :kind; got: {}", s);
-        assert!(s.contains(":score"), "must contain :score; got: {}", s);
-        assert!(s.contains(":note"), "must contain :note; got: {}", s);
-        // :kind must be the keyword :typo (not a String).
-        assert!(
-            s.contains(":kind :typo"),
-            "typo remedy must have :kind :typo; got: {}",
-            s
-        );
-        // :score must be 1 for distance-1 typo.
-        assert!(s.contains(":score 1"), "typo distance-1 remedy must have :score 1; got: {}", s);
-        // :note must be nil when None.
-        assert!(s.contains(":note nil"), ":note must be nil when None; got: {}", s);
+        assert_eq!(s, r#"#wat.kernel/Remedy {:form ":my::Status::Ok" :kind :typo :score 1 :note nil}"#);
         // Must be valid EDN.
         wat_edn::parse_owned(&s).expect("must be valid EDN");
     }
@@ -546,14 +518,7 @@ mod tests {
         };
         let edn = r.to_edn();
         let s = wat_edn::write(&edn);
-        eprintln!("=== remedy_to_edn_retirement: {}", s);
-        assert!(
-            s.contains(":kind :retirement"),
-            "retirement remedy must have :kind :retirement; got: {}",
-            s
-        );
-        // Score must be 0 for retirement (exact table hit).
-        assert!(s.contains(":score 0"), "retirement remedy must have :score 0; got: {}", s);
+        assert_eq!(s, r#"#wat.kernel/Remedy {:form ":wat::core::defstruct" :kind :retirement :score 0 :note nil}"#);
     }
 
     #[test]
@@ -566,15 +531,7 @@ mod tests {
         };
         let edn = r.to_edn();
         let s = wat_edn::write(&edn);
-        eprintln!("=== remedy_to_edn_note_some: {}", s);
-        // :note must be a String containing the note text.
-        assert!(
-            s.contains("update ctor restrictions"),
-            ":note must include the note text; got: {}",
-            s
-        );
-        // Must NOT be nil when Some.
-        assert!(!s.contains(":note nil"), ":note must not be nil when Some; got: {}", s);
+        assert_eq!(s, r#"#wat.kernel/Remedy {:form ":wat::core::defstruct" :kind :retirement :score 0 :note "update ctor restrictions"}"#);
     }
 
     #[test]
@@ -603,24 +560,12 @@ mod tests {
         ];
         let edn = remedies_to_edn(&remedies);
         let s = wat_edn::write(&edn);
-        eprintln!("=== remedies_to_edn_nonempty: {}", s);
+        assert_eq!(s, r#"[#wat.kernel/Remedy {:form ":my::Status::Ok" :kind :typo :score 1 :note nil} #wat.kernel/Remedy {:form ":my::Status::Okay" :kind :typo :score 2 :note nil}]"#);
         // Must be a Vector.
         assert!(
             matches!(edn, wat_edn::OwnedValue::Vector(ref v) if v.len() == 2),
             "remedies_to_edn must be a Vector with 2 items; got: {:?}",
             edn
-        );
-        // Each item must be tagged #wat.kernel/Remedy.
-        assert!(
-            s.contains("#wat.kernel/Remedy"),
-            "each item must be tagged #wat.kernel/Remedy; got: {}",
-            s
-        );
-        // Must NOT contain prose "did you mean" from render_remedies.
-        assert!(
-            !s.contains("did you mean"),
-            "remedies_to_edn must NOT produce prose; got: {}",
-            s
         );
         wat_edn::parse_owned(&s).expect("must be valid EDN");
     }

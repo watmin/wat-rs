@@ -492,6 +492,7 @@ mod tests {
         assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
 
         // Must carry :cause — the nested ParseError floor form.
+        // rune:lint(loose-assert) — output embeds dynamic ParseError location (file/line/col from parse call-site) making full assert_eq! infeasible; field presence is the contract
         assert!(
             s.contains(":cause"),
             "ParseFailed EDN must carry :cause (typed ParseError); got: {}",
@@ -499,6 +500,7 @@ mod tests {
         );
 
         // Must NOT carry :source — the old prose field.
+        // rune:lint(loose-assert) — targeted absence on variable output (nested ParseError embeds dynamic parse call-site location)
         assert!(
             !s.contains(":source"),
             "ParseFailed EDN must NOT carry old :source String; got: {}",
@@ -506,6 +508,7 @@ mod tests {
         );
 
         // :cause must embed a nested #wat.parse/… tagged form.
+        // rune:lint(loose-assert) — output embeds dynamic ParseError location (file/line/col from parse call-site) making full assert_eq! infeasible; tag prefix presence is the contract
         assert!(
             s.contains("#wat.parse/"),
             "ParseFailed :cause must be a nested #wat.parse/... tagged EDN; got: {}",
@@ -551,26 +554,33 @@ mod tests {
         eprintln!("=== s3a rust_caller_span StdlibError::ParseFailed edn: {}", s);
 
         // Must be the correct tagged form.
+        // rune:lint(loose-assert) — EDN embeds rust_caller_span!() (variable file/line/col) and nested ParseError location; full assert_eq! infeasible; tag prefix is the contract
         assert!(
             s.starts_with("#wat.stdlib/ParseFailed"),
             "must be #wat.stdlib/ParseFailed; got: {}",
             s
         );
         // Must carry :path.
+        // rune:lint(loose-assert) — output is variable (rust_caller_span!() + nested ParseError location); key presence is the contract
         assert!(s.contains(":path"), "must carry :path; got: {}", s);
         // Must carry :cause (floor form from error_edn_of).
+        // rune:lint(loose-assert) — output is variable (rust_caller_span!() + nested ParseError location); key presence is the contract
         assert!(s.contains(":cause"), "must carry :cause; got: {}", s);
         // Arc 298.2: rust_caller_span!() IS a real location — :span MUST be emitted.
+        // rune:lint(loose-assert) — output is variable (rust_caller_span!() + nested ParseError location); :span key presence is the contract
         assert!(s.contains(":span"), "rust_caller_span!() must emit :span; got: {}", s);
         // :span must reference a real Rust file (wat-rs/src/…), not <runtime>.
+        // rune:lint(loose-assert) — variable Rust source file path embedded in span (varies by build environment); path prefix presence is the contract
         assert!(
             s.contains("\"wat-rs/src/"),
             ":span file must be a real Rust path; got: {}",
             s
         );
         // Must NOT carry :source (old prose field).
+        // rune:lint(loose-assert) — targeted absence on variable output (rust_caller_span!() + nested ParseError location); absence of old field is the contract
         assert!(!s.contains(":source"), "must NOT carry old :source; got: {}", s);
         // :cause must be a floor-form tagged value.
+        // rune:lint(loose-assert) — output is variable (rust_caller_span!() + nested ParseError location); tag namespace prefix is the contract
         assert!(s.contains("#wat.parse/"), ":cause must embed #wat.parse/...; got: {}", s);
         // Must be valid EDN.
         wat_edn::parse_owned(&s).expect("must be valid EDN");
@@ -601,24 +611,27 @@ mod tests {
         eprintln!("=== s3a known-span StdlibError::ParseFailed edn: {}", s);
 
         // Must be the correct tagged form.
+        // rune:lint(loose-assert) — EDN embeds nested ParseError location (dynamic file/line/col); full assert_eq! infeasible; tag prefix is the contract
         assert!(
             s.starts_with("#wat.stdlib/ParseFailed"),
             "must be #wat.stdlib/ParseFailed; got: {}",
             s
         );
         // Must carry :path.
+        // rune:lint(loose-assert) — output is variable (nested ParseError location); key presence is the contract
         assert!(s.contains(":path"), "must carry :path; got: {}", s);
         // Must carry :cause.
+        // rune:lint(loose-assert) — output is variable (nested ParseError location); key presence is the contract
         assert!(s.contains(":cause"), "must carry :cause; got: {}", s);
-        // Must carry :span (known span → emit discipline).
-        assert!(s.contains(":span"), "known span MUST emit :span; got: {}", s);
-        // :span must reference the correct file.
+        // :span must reference the correct file with deterministic line=1 col=0.
+        // rune:lint(loose-assert) — output is variable (nested ParseError location); known span file is the deterministic contract proven here
         assert!(
-            s.contains("\"s3a-span-probe.wat\""),
-            ":span must embed the known file; got: {}",
+            s.contains(r#":span {:file "s3a-span-probe.wat" :line 1 :col 0}"#),
+            ":span must embed the known file with line 1 col 0; got: {}",
             s
         );
         // :cause must be a floor-form tagged value.
+        // rune:lint(loose-assert) — output is variable (nested ParseError location); tag namespace prefix is the contract
         assert!(s.contains("#wat.parse/"), ":cause must embed #wat.parse/...; got: {}", s);
         // Must be valid EDN.
         wat_edn::parse_owned(&s).expect("must be valid EDN");

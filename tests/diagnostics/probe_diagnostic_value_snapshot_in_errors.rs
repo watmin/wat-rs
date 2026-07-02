@@ -61,15 +61,10 @@ fn probe_1_not_callable_renders_offending_keyword() {
         Ok(v) => panic!("Probe 1: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 1 error: {}", e);
-            assert!(
-                e.contains("wat::core::keyword"),
-                "Probe 1: error should mention the type name; got: {}",
-                e
-            );
-            assert!(
-                e.contains(":wat::core::i64::+"),
-                "Probe 1: error should include the RENDERED keyword content; got: {}",
-                e
+            assert_eq!(
+                e,
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":wat::core::i64::+\", provenance: SymbolBound { binding_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 3, col: 8, end_line: 3, end_col: 12 }, head_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p1.wat\", line: 4, col: 8, end_line: 4, end_col: 12 } } } } }",
+                "Probe 1: NotCallable must surface type name + rendered keyword content"
             );
         }
     }
@@ -90,15 +85,10 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
         Ok(v) => panic!("Probe 2: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 2 error: {}", e);
-            assert!(
-                e.contains("wat::core::keyword"),
-                "Probe 2: error should mention the type name; got: {}",
-                e
-            );
-            assert!(
-                e.contains("ns::nonexistent-verb") || e.contains(":ns::nonexistent-verb"),
-                "Probe 2: error should include the RENDERED runtime-built keyword; got: {}",
-                e
+            assert_eq!(
+                e,
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
+                "Probe 2: NotCallable must surface type name + rendered runtime-built keyword"
             );
         }
     }
@@ -120,15 +110,10 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
         Ok(v) => panic!("Probe 3: expected TypeMismatch; got {:?}", v),
         Err(e) => {
             println!("Probe 3 error: {}", e);
-            assert!(
-                e.contains("TypeMismatch") || e.contains("keyword") || e.contains("apply"),
-                "Probe 3: error should mention type mismatch; got: {}",
-                e
-            );
-            assert!(
-                e.contains("not-a-keyword") || e.contains("String") || e.contains("wat::core::String"),
-                "Probe 3: error should include the RENDERED String content; got: {}",
-                e
+            assert_eq!(
+                e,
+                "eval: RuntimeError { span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p3.wat\", line: 1, col: 94, end_line: 1, end_col: 109 }, kind: TypeMismatch { op: \":wat::core::apply\", expected: \"wat::core::keyword\", got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-keyword\\\"\", provenance: Unknown } } }",
+                "Probe 3: TypeMismatch must surface rendered String content"
             );
         }
     }
@@ -148,15 +133,10 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
         Ok(v) => panic!("Probe 4: expected TypeMismatch; got {:?}", v),
         Err(e) => {
             println!("Probe 4 error: {}", e);
-            assert!(
-                e.contains("TypeMismatch") || e.contains("Vector") || e.contains("apply"),
-                "Probe 4: error should mention type mismatch; got: {}",
-                e
-            );
-            assert!(
-                e.contains("42") || e.contains("i64"),
-                "Probe 4: error should include the RENDERED i64 content; got: {}",
-                e
+            assert_eq!(
+                e,
+                "eval: RuntimeError { span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p4.wat\", line: 1, col: 148, end_line: 1, end_col: 150 }, kind: TypeMismatch { op: \":wat::core::apply\", expected: \"wat::core::Vector\", got: ValueSnapshot { type_name: \"wat::core::i64\", rendered: \"42\", provenance: Unknown } } }",
+                "Probe 4: TypeMismatch must surface rendered i64 content"
             );
         }
     }
@@ -184,17 +164,10 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
         Ok(v) => panic!("Probe 6: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 6 error: {}", e);
-            // Stone 233.1 floor: rendered keyword content
-            assert!(
-                e.contains("ns::nonexistent-verb"),
-                "Probe 6: error should include rendered keyword content (Stone 233.1 floor); got: {}",
-                e
-            );
-            // Stone 233.2.b add: producer info in the error
-            assert!(
-                e.contains("keyword/from-string"),
-                "Probe 6: error should mention the producer (Stone 233.2.b); got: {}",
-                e
+            assert_eq!(
+                e,
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::keyword\", rendered: \":ns::nonexistent-verb\", provenance: RuntimeBuilt { producer: \":wat::core::keyword/from-string\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat\", line: 3, col: 13, end_line: 3, end_col: 69 } } } } }",
+                "Probe 6: must surface rendered keyword content + producer info (Stone 233.1+233.2.b)"
             );
         }
     }
@@ -219,10 +192,10 @@ fn probe_7_from_holon_produces_tagged_value() {
         Ok(v) => panic!("Probe 7: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 7 error: {}", e);
-            assert!(
-                e.contains("from-holon"),
-                "Probe 7: error should mention the from-holon producer; got: {}",
-                e
+            assert_eq!(
+                e,
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable-string\\\"\", provenance: RuntimeBuilt { producer: \":wat::holon::from-holon\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p7.wat\", line: 5, col: 12, end_line: 5, end_col: 47 } } } } }",
+                "Probe 7: error must mention from-holon producer (Stone 233.2.c)"
             );
         }
     }
@@ -246,10 +219,10 @@ fn probe_8_edn_read_produces_tagged_value() {
         Ok(v) => panic!("Probe 8: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 8 error: {}", e);
-            assert!(
-                e.contains("edn::read") || e.contains("edn/read"),
-                "Probe 8: error should mention the edn::read producer; got: {}",
-                e
+            assert_eq!(
+                e,
+                "eval: RuntimeError { span: Span { file: \"wat-rs/src/runtime.rs\", line: 18902, col: 45, end_line: 18902, end_col: 45 }, kind: NotCallable { got: ValueSnapshot { type_name: \"wat::core::String\", rendered: \"\\\"not-a-callable\\\"\", provenance: RuntimeBuilt { producer: \":wat::edn::read\", call_span: Span { file: \"tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p8.wat\", line: 3, col: 10, end_line: 3, end_col: 48 } } } } }",
+                "Probe 8: error must mention edn::read producer (Stone 233.2.c)"
             );
         }
     }

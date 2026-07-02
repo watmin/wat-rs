@@ -48,7 +48,7 @@ fn impure_type_arg_on_wire_peer_is_check_error() {
     let err_str = format!("{}", result.unwrap_err());
     let lower = err_str.to_lowercase();
     assert!(
-        lower.contains("pure") || lower.contains("portable") || lower.contains("struct") || lower.contains("wire"),
+        lower.contains("pure") || lower.contains("portable") || lower.contains("struct") || lower.contains("wire"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "check error must mention purity, portable, struct, or wire (§7 rejection by \
          Peer'<I,O> well-formedness gate); got: {err_str}"
     );

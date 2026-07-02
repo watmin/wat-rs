@@ -38,11 +38,7 @@ fn newtype_construct_and_accessor_roundtrip() {
 #[test]
 fn newtype_rejects_inner_type_at_arg_position() {
     let err = run_expecting_check_error("tests/types/newtype_rejects_inner_type_bad.wat");
-    assert!(
-        err.contains("Price") || err.to_lowercase().contains("type"),
-        "expected type-mismatch diagnostic mentioning Price; got: {}",
-        err
-    );
+    assert_eq!(err, r##"Check(CheckErrors([CheckError { span: Span { file: "tests/types/newtype_rejects_inner_type_bad.wat", line: 4, col: 77, end_line: 4, end_col: 82 }, kind: TypeMismatch { callee: ":my::trading::pretty", param: "#1", expected: ":my::trading::Price", got: ":wat::core::f64" } }]))"##);
 }
 
 // ─── Inverse: newtype rejected where inner expected ───────────────────
@@ -50,13 +46,7 @@ fn newtype_rejects_inner_type_at_arg_position() {
 #[test]
 fn newtype_rejected_where_inner_expected() {
     let err = run_expecting_check_error("tests/types/newtype_rejected_where_inner_expected_bad.wat");
-    assert!(
-        err.contains("Price")
-            || err.contains("f64")
-            || err.to_lowercase().contains("type"),
-        "expected type-mismatch diagnostic for Price/f64 mix; got: {}",
-        err
-    );
+    assert_eq!(err, r##"Check(CheckErrors([CheckError { span: Span { file: "tests/types/newtype_rejected_where_inner_expected_bad.wat", line: 6, col: 32, end_line: 6, end_col: 33 }, kind: TypeMismatch { callee: ":wat::core::f64::+", param: "#1", expected: ":wat::core::f64", got: ":my::trading::Price" } }]))"##);
 }
 
 // ─── Newtype as struct field round-trip ────────────────────────────────
@@ -74,11 +64,5 @@ fn newtype_as_struct_field_roundtrip() {
 #[test]
 fn distinct_newtypes_over_same_inner_are_distinct_types() {
     let err = run_expecting_check_error("tests/types/newtype_distinct_newtypes_bad.wat");
-    assert!(
-        err.contains("Price")
-            || err.contains("Amount")
-            || err.to_lowercase().contains("type"),
-        "expected type-mismatch diagnostic Price vs Amount; got: {}",
-        err
-    );
+    assert_eq!(err, r##"Check(CheckErrors([CheckError { span: Span { file: "tests/types/newtype_distinct_newtypes_bad.wat", line: 8, col: 33, end_line: 8, end_col: 34 }, kind: TypeMismatch { callee: ":my::trading::price-pretty", param: "#1", expected: ":my::trading::Price", got: ":my::trading::Amount" } }]))"##);
 }

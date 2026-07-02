@@ -53,15 +53,10 @@ fn process_join_without_stdin_extraction_fails_check() {
     // arc 202 detection is additive and independent.
     // Negative fixture: user-namespace fn calls Process/join-result without Process/stdin.
     let err = startup_err("tests/process/wat_arc202_process_join_holds_stdin_no_stdin.wat");
-    assert!(
-        err.contains("ProcessJoinHoldsStdinSender"),
-        "error should name the new arc202 rule variant; got: {}",
-        err
-    );
-    assert!(
-        err.contains("DefRestrictedCallerNotAllowed"),
-        "arc198 restriction should also fire for user-namespace Process/join-result; got: {}",
-        err
+    assert_eq!(
+        err,
+        "Check(CheckErrors([CheckError { span: Span { file: \"tests/process/wat_arc202_process_join_holds_stdin_no_stdin.wat\", line: 7, col: 14, end_line: 7, end_col: 47 }, kind: DefRestrictedCallerNotAllowed { callee: \":wat::kernel::Process/join-result\", enclosing_fn: \":my::arc202::negative-no-stdin\", prefixes: [\":wat::\"] } }, CheckError { span: Span { file: \"tests/process/wat_arc202_process_join_holds_stdin_no_stdin.wat\", line: 7, col: 13, end_line: 7, end_col: 53 }, kind: ProcessJoinHoldsStdinSender { process_identifier: \"proc\", stdin_sender_span: Span { file: \"tests/process/wat_arc202_process_join_holds_stdin_no_stdin.wat\", line: 7, col: 13, end_line: 7, end_col: 53 } } }]))",
+        "error must match golden (arc202 ProcessJoinHoldsStdinSender + arc198 DefRestrictedCallerNotAllowed)"
     );
 }
 
@@ -96,16 +91,9 @@ fn process_join_with_stdin_present_does_not_fire_stdin_rule() {
     // present-stdin (either legal or a different shape the rule defers on).
     // Negative fixture: user-namespace fn calls both Process/stdin AND Process/join-result.
     let err = startup_err("tests/process/wat_arc202_process_join_holds_stdin_with_stdin.wat");
-    // Arc 202 rule must NOT fire — stdin is present.
-    assert!(
-        !err.contains("ProcessJoinHoldsStdinSender"),
-        "ProcessJoinHoldsStdinSender must NOT fire when Process/stdin is present; got: {}",
-        err
-    );
-    // Arc 198 restriction still fires (user namespace calling restricted verb).
-    assert!(
-        err.contains("DefRestrictedCallerNotAllowed"),
-        "arc198 restriction should fire for user-namespace Process/join-result; got: {}",
-        err
+    assert_eq!(
+        err,
+        "Check(CheckErrors([CheckError { span: Span { file: \"tests/process/wat_arc202_process_join_holds_stdin_with_stdin.wat\", line: 9, col: 15, end_line: 9, end_col: 48 }, kind: DefRestrictedCallerNotAllowed { callee: \":wat::kernel::Process/join-result\", enclosing_fn: \":my::arc202::negative-stdin-present\", prefixes: [\":wat::\"] } }]))",
+        "error must match golden (arc198 only; arc202 must NOT fire when stdin is present)"
     );
 }

@@ -224,15 +224,16 @@ fn probe_10_check_fails_for_non_atomizable_t() {
     )
     .expect_err("expected startup failure for non-atomizable Fn type");
     let err = format!("{}\n---\n{:?}", err, err);
-    assert!(
-        err.contains("TypeMismatch"),
-        "to-holon on Fn type must fail at check with TypeMismatch; got: {}",
-        err
-    );
-    assert!(
-        err.contains(":wat::holon::to-holon"),
-        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+2 type-check error(s):
+  - tests/collection/probe_arc216_stone2_vector_roundtrip_p10_bad.wat:6:28: :wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T); got :wat::core::Fn(wat::core::i64)->wat::core::i64
+  - tests/collection/probe_arc216_stone2_vector_roundtrip_p10_bad.wat:4:3: :user::compute: body produces :wat::holon::HolonAST; signature declares :()
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_arc216_stone2_vector_roundtrip_p10_bad.wat", line: 6, col: 28, end_line: 6, end_col: 29 }, kind: TypeMismatch { callee: ":wat::holon::to-holon", param: "#1", expected: "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)", got: ":wat::core::Fn(wat::core::i64)->wat::core::i64" } }, CheckError { span: Span { file: "tests/collection/probe_arc216_stone2_vector_roundtrip_p10_bad.wat", line: 4, col: 3, end_line: 6, end_col: 31 }, kind: ReturnTypeMismatch { function: ":user::compute", expected: ":()", got: ":wat::holon::HolonAST", remedies: [] } }]))"##,
+        "probe_10: non-atomizable Fn type check-error golden"
     );
 }
 
@@ -318,11 +319,10 @@ fn probe_12_reverse_shape_validation_non_sequential_keys() {
         result.ok()
     );
     let err_msg = result.unwrap_err();
-    assert!(
-        err_msg.message().contains("positional invariant violated")
-            || err_msg.message().contains("sequential"),
-        "error must mention positional invariant; got: {}",
-        err_msg.message()
+    assert_eq!(
+        err_msg.message(),
+        "Vec positional invariant violated: expected key 1 at position 1, got 2",
+        "probe_12: non-sequential Bundle error golden"
     );
 
     // Bundle with reversed keys [Bind(1, "second"), Bind(0, "first")] should succeed.

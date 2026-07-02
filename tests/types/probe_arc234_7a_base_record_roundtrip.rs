@@ -42,21 +42,7 @@ fn c1_named_keys_in_edn_string() {
         other => panic!("C1 FAIL: write-pt returned non-String: {:?}", other),
     };
     eprintln!("C1 written EDN: {}", s);
-    assert!(
-        s.contains(":x"),
-        "C1 FAIL: EDN string must contain ':x' (named field) — got: {}",
-        s
-    );
-    assert!(
-        s.contains(":y"),
-        "C1 FAIL: EDN string must contain ':y' (named field) — got: {}",
-        s
-    );
-    assert!(
-        !s.contains("field-0"),
-        "C1 FAIL: EDN string must NOT contain 'field-0' (positional placeholder) — got: {}",
-        s
-    );
+    assert_eq!(s, "#test.rd/Pt {:x 3 :y 4}");
 }
 
 /// C2 — round-trip: write → read → equal to original.

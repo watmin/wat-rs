@@ -48,42 +48,11 @@ fn s1_macro_expansion_failed_carries_typed_cause_not_reason_string() {
     let edn = runtime_err.to_edn();
     let s = wat_edn::write(&edn);
 
-    eprintln!("=== S1 MacroExpansionFailed edn: {}", s);
-
-    // Must be a tagged form.
-    assert!(s.starts_with('#'), "must be tagged EDN; got: {}", s);
-
-    // Must be in the wat.runtime namespace.
-    assert!(
-        s.contains("wat.runtime"),
-        "must use wat.runtime namespace; got: {}",
-        s
-    );
-
-    // Must carry :cause, NOT :reason (the old prose field).
-    assert!(
-        s.contains(":cause"),
-        "MacroExpansionFailed EDN must carry :cause (typed nested error); got: {}",
-        s
-    );
-    assert!(
-        !s.contains(":reason"),
-        "MacroExpansionFailed EDN must NOT carry old :reason String; got: {}",
-        s
-    );
-
-    // The :cause must be a nested tagged MacroError (contains a #wat.macro/ tag).
-    assert!(
-        s.contains("#wat.macro/"),
-        "MacroExpansionFailed :cause must be a nested #wat.macro/... tagged EDN; got: {}",
-        s
-    );
-
-    // The inner ArityMismatch variant must be identifiable.
-    assert!(
-        s.contains("ArityMismatch"),
-        ":cause must surface the inner ArityMismatch variant; got: {}",
-        s
+    // Must be exact tagged EDN in wat.runtime namespace with nested #wat.macro/ :cause.
+    assert_eq!(
+        s,
+        r#"#wat.runtime/MacroExpansionFailed {:op ":wat::core::macroexpand-1" :cause #wat.macro/ArityMismatch {:message "macro :user::my-macro expects 1 arguments; got 2" :location {:file "probe.wat" :line 1 :col 1} :causes [] :name ":user::my-macro" :expected 1 :got 2} :span {:file "probe.wat" :line 1 :col 1}}"#,
+        "MacroExpansionFailed must carry exact nested #wat.macro/ :cause (NOT old :reason String)"
     );
 
     // Must be valid EDN.
@@ -111,18 +80,10 @@ fn s1_macro_expansion_failed_fixpoint_site_carries_depth_exceeded_cause() {
     let edn = runtime_err.to_edn();
     let s = wat_edn::write(&edn);
 
-    eprintln!("=== S1 fixpoint MacroExpansionFailed edn: {}", s);
-
-    assert!(s.contains(":cause"), "must carry :cause; got: {}", s);
-    assert!(
-        !s.contains(":reason"),
-        "must NOT carry :reason; got: {}",
-        s
-    );
-    assert!(
-        s.contains("ExpansionDepthExceeded"),
-        ":cause must surface ExpansionDepthExceeded variant; got: {}",
-        s
+    assert_eq!(
+        s,
+        r#"#wat.runtime/MacroExpansionFailed {:op ":wat::core::macroexpand" :cause #wat.macro/ExpansionDepthExceeded {:message "macro expansion exceeded depth limit 512 — likely infinite recursion" :location {:file "probe.wat" :line 1 :col 1} :causes [] :limit 512} :span {:file "probe.wat" :line 1 :col 1}}"#,
+        "fixpoint MacroExpansionFailed must carry exact nested ExpansionDepthExceeded :cause"
     );
     wat_edn::parse_owned(&s).expect("must be valid EDN");
 }
@@ -145,20 +106,11 @@ fn s2_runtime_error_wire_edn_is_structured_not_prose() {
     // to_wire_edn is what process_died_error_runtime_value calls.
     let wire_edn = wat::to_edn::to_wire_edn(&runtime_err);
 
-    eprintln!("=== S2 wire_edn: {}", wire_edn);
-
-    // The wire form must be a tagged envelope (parsed EDN starts with #).
-    assert!(
-        wire_edn.starts_with('#'),
-        "process_died_error_runtime_value wire payload must be tagged EDN; got: {}",
-        wire_edn
-    );
-
-    // Must carry the floor fields (:message / :location / :causes).
-    assert!(
-        wire_edn.contains(":message"),
-        "wire payload must carry :message floor field; got: {}",
-        wire_edn
+    // Wire payload must be exact tagged EDN with floor fields (:message / :location / :causes).
+    assert_eq!(
+        wire_edn,
+        r#"#wat.runtime/UnboundSymbol {:message "unbound symbol: some-var" :location {:file "probe.wat" :line 1 :col 1} :causes [] :name "some-var"}"#,
+        "process_died_error_runtime_value wire payload must be exact structured EDN (NOT prose)"
     );
 
     // The parsed form must be Tagged, never a bare String.

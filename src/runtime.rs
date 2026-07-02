@@ -26950,7 +26950,10 @@ mod tests {
         match err {
             EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, reason, .. }, .. }) => {
                 assert_eq!(head, ":wat::core::f64::round");
-                assert!(reason.contains("non-negative"), "got: {}", reason);
+                assert_eq!(
+                    reason,
+                    "`digits` must be non-negative; got -1. Negative digits (round to nearest 10 / 100 / ...) has no load-bearing use case today"
+                );
             }
             other => panic!("expected MalformedForm, got {:?}", other),
         }
@@ -27047,7 +27050,7 @@ mod tests {
         match err {
             EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { head, reason, .. }, .. }) => {
                 assert_eq!(head, ":wat::core::f64::clamp");
-                assert!(reason.contains("lo must be"), "got: {}", reason);
+                assert_eq!(reason, "lo must be ≤ hi and neither may be NaN; got lo=1, hi=-1");
             }
             other => panic!("expected MalformedForm, got {:?}", other),
         }
@@ -27592,7 +27595,7 @@ mod tests {
         let result = eval_inner(&form, &Environment::new(), &SymbolTable::new()).unwrap().value_owned();
         let (kind, msg) = eval_err_kind_and_message(result);
         assert_eq!(kind, "type-mismatch");
-        assert!(msg.contains("eval-ast!"));
+        assert_eq!(msg, r#":wat::eval-ast!: expected Ast, got wat::core::String `"oops"`"#);
     }
 
     // ─── Programs-as-atoms roundtrip ────────────────────────────────────
@@ -28462,7 +28465,7 @@ mod tests {
         .unwrap();
         let (kind, msg) = eval_err_kind_and_message(result);
         assert_eq!(kind, "type-mismatch");
-        assert!(msg.contains("eval-coincident?"));
+        assert_eq!(msg, r#":wat::holon::eval-coincident?: expected Ast, got wat::core::String `"not-ast"`"#);
     }
 
     // --- eval-edn-coincident? — arc 026 slice 2 ---------------------------
@@ -30854,11 +30857,7 @@ mod tests {
             Value::String(s) => (*s).clone(),
             other => panic!("expected String, got {:?}", other),
         };
-        assert!(
-            s.starts_with("<Vector dim="),
-            "expected '<Vector dim=...>', got {:?}",
-            s
-        );
+        assert_eq!(s, "<Vector dim=1024>", "show must render a compact dim summary, not raw values");
     }
 
     #[test]
@@ -30955,10 +30954,9 @@ mod tests {
         match err {
             EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, .. }, .. }) => {
                 assert_eq!(op, ":wat::holon::leaf");
-                assert!(
-                    expected.contains(":wat::holon::Atom"),
-                    "expected hint to mention Atom, got: {}",
-                    expected
+                assert_eq!(
+                    expected,
+                    "primitive (i64/f64/bool/String/keyword/nil); use :wat::holon::Atom to wrap a HolonAST, :wat::holon::from-wat to lower a quoted form, :wat::holon::to-holon for other types"
                 );
             }
             other => panic!("expected TypeMismatch, got {:?}", other),
@@ -31034,10 +31032,9 @@ mod tests {
         match err {
             EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { op, expected, .. }, .. }) => {
                 assert_eq!(op, ":wat::holon::from-wat");
-                assert!(
-                    expected.contains(":wat::holon::leaf"),
-                    "expected hint to mention leaf, got: {}",
-                    expected
+                assert_eq!(
+                    expected,
+                    ":wat::WatAST (typically from :wat::core::quote); use :wat::holon::Atom for HolonAST inputs, :wat::holon::to-holon for other types, :wat::holon::leaf for primitives"
                 );
             }
             other => panic!("expected TypeMismatch, got {:?}", other),
@@ -31221,11 +31218,7 @@ mod tests {
         // AlreadyTerminal (no work happened). Pre-arc-070 returned
         // StepTerminal; arc 070 narrows that variant to "this step
         // reduced a redex" only.
-        assert!(
-            s.contains("AlreadyTerminal"),
-            "expected AlreadyTerminal in output, got: {}",
-            s
-        );
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
     }
 
     #[test]
@@ -31233,7 +31226,7 @@ mod tests {
         let s = step_to_show(
             "(:wat::eval-step! (:wat::core::quote true))",
         );
-        assert!(s.contains("AlreadyTerminal"), "got: {}", s);
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
     }
 
     #[test]
@@ -31241,7 +31234,7 @@ mod tests {
         let s = step_to_show(
             r#"(:wat::eval-step! (:wat::core::quote "hi"))"#,
         );
-        assert!(s.contains("AlreadyTerminal"), "got: {}", s);
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
     }
 
     #[test]
@@ -31249,7 +31242,7 @@ mod tests {
         let s = step_to_show(
             "(:wat::eval-step! (:wat::core::quote :outcome))",
         );
-        assert!(s.contains("AlreadyTerminal"), "got: {}", s);
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)");
     }
 
     // --- :wat::eval::walk — arc 070 phase 2 -------------------------------
@@ -31432,11 +31425,7 @@ mod tests {
                    ((:wat::holon::leaf "k")
                     (:wat::holon::leaf "v"))))"#,
         );
-        assert!(
-            s.contains("AlreadyTerminal"),
-            "expected AlreadyTerminal for bare-list Bundle lift, got: {}",
-            s
-        );
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)", "expected AlreadyTerminal for bare-list Bundle lift");
     }
 
     #[test]
@@ -31457,11 +31446,7 @@ mod tests {
             r#"(:wat::eval-step!
                  (:wat::core::quote (:wat::holon::leaf "k")))"#,
         );
-        assert!(
-            s.contains("AlreadyTerminal"),
-            "expected AlreadyTerminal for holon-ctor value-shape, got: {}",
-            s
-        );
+        assert_eq!(s, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)", "expected AlreadyTerminal for holon-ctor value-shape");
     }
 
     #[test]
@@ -31472,18 +31457,7 @@ mod tests {
         let s = step_to_show(
             "(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+ 2 2)))",
         );
-        assert!(
-            s.contains("StepTerminal"),
-            "expected StepTerminal for arithmetic fire, got: {}",
-            s
-        );
-        // Tighten — must NOT be AlreadyTerminal (would signal "no
-        // work happened" for a form that absolutely did work).
-        assert!(
-            !s.contains("AlreadyTerminal"),
-            "arithmetic fire should NOT be AlreadyTerminal, got: {}",
-            s
-        );
+        assert_eq!(s, "(:wat::eval::StepResult::StepTerminal <HolonAST>)", "arithmetic fire must return StepTerminal, not AlreadyTerminal");
     }
 
     #[test]
@@ -31499,10 +31473,9 @@ mod tests {
         let s = step_to_show(
             "(:wat::eval-step! (:wat::core::quote (:wat::holon::from-wat x)))",
         );
-        assert!(
-            s.contains("no-step-rule"),
-            "expected no-step-rule kind tag, got: {}",
-            s
+        assert_eq!(
+            s,
+            r#":wat::core::EvalError{#0: "no-step-rule", #1: "eval-step! has no rule for op: :wat::holon::from-wat"}"#
         );
     }
 
@@ -31519,10 +31492,9 @@ mod tests {
         // Arg evaluates to an i64, not a WatAST — caught inside the
         // wrap_as_eval_result block, surfaces as EvalError(type-mismatch).
         let s = step_to_show("(:wat::eval-step! 42)");
-        assert!(
-            s.contains("type-mismatch"),
-            "expected type-mismatch kind tag, got: {}",
-            s
+        assert_eq!(
+            s,
+            r#":wat::core::EvalError{#0: "type-mismatch", #1: ":wat::eval-step!: expected wat::WatAST, got wat::core::i64 `42`"}"#
         );
     }
 
@@ -31618,7 +31590,7 @@ mod tests {
     fn step_arith_single_redex() {
         // `(+ 2 2)` — args canonical, fire on first step.
         let s = step_to_show("(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+ 2 2)))");
-        assert!(s.contains("StepTerminal"), "got: {}", s);
+        assert_eq!(s, "(:wat::eval::StepResult::StepTerminal <HolonAST>)");
         // Drive to terminal: same form, full chain → HolonAST::I64(4).
         let h = step_drive_to_terminal("(:wat::core::i64::+ 2 2)");
         assert_eq!(h.as_i64(), Some(4));
@@ -31731,10 +31703,9 @@ mod tests {
                  (:wat::core::quote
                    (:wat::kernel::assertion-failed! "x" :wat::core::None :wat::core::None)))"#,
         );
-        assert!(
-            s.contains("effectful-in-step"),
-            "expected effectful-in-step kind tag, got: {}",
-            s
+        assert_eq!(
+            s,
+            r#":wat::core::EvalError{#0: "effectful-in-step", #1: "eval-step! refuses effectful op: :wat::kernel::assertion-failed!"}"#
         );
     }
 
@@ -32146,6 +32117,9 @@ mod tests {
         "#;
         let err = eval_expr(src).unwrap_err();
         let msg = format!("{}", err);
+        // rune:lint(loose-assert) — Display embeds a Rust source file path/line/col prefix
+        // (e.g. "src/runtime.rs:N:col:end_col:"); the line number shifts when lines are added
+        // above the eval_expr call site, making full assert_eq! infeasible
         assert!(
             msg.contains("named-pool"),
             "error should name the pool; got: {}",
@@ -32349,6 +32323,7 @@ mod tests {
     fn arc138_runtime_error_message_carries_span() {
         let err = eval_expr("nonexistent-bare-symbol").unwrap_err();
         let rendered = format!("{}", err);
+        // rune:lint(loose-assert) — variable Rust source file path / eval-synthetic label embedded in error Display output (varies by build environment)
         assert!(
             rendered.contains("<eval>:") || rendered.contains("src/") || rendered.contains(".rs:"),
             "RuntimeError Display must include source coordinates; rendered:\n{}",
@@ -32600,6 +32575,9 @@ mod tests {
     fn keyword_from_string_rejects_colon_prefix() {
         let err = eval_expr(r#"(:wat::core::keyword/from-string ":foo")"#).unwrap_err();
         let msg = format!("{}", err);
+        // rune:lint(loose-assert) — Display embeds a Rust source file path/line/col prefix
+        // (e.g. "src/runtime.rs:N:col:end_col:"); the line number shifts when lines are added
+        // above the eval_expr call site, making full assert_eq! infeasible
         assert!(
             msg.contains("starts with ':'"),
             "expected 'starts with \":\"' in error; got: {}",
@@ -32626,23 +32604,15 @@ mod tests {
         );
         let err_msg = format!("{}", result.unwrap_err());
         assert!(
-            err_msg.contains("base record"),
-            "error must contain 'base record'; got: {}",
-            err_msg
-        );
-        assert!(
-            err_msg.contains("my::Pt"),
-            "error must contain the class name 'my::Pt'; got: {}",
-            err_msg
-        );
-        assert!(
-            err_msg.contains("has no holon flavor"),
-            "error must contain 'has no holon flavor'; got: {}",
-            err_msg
-        );
-        assert!(
-            err_msg.contains(":wat::holon::defrecord"),
-            "error must contain ':wat::holon::defrecord'; got: {}",
+            // rune:lint(loose-assert) — Display embeds a rust_caller_span!() from the test code
+            // (e.g. "wat-rs/src/runtime.rs:N:col:"); line shifts when lines are added above the
+            // rust_caller_span!() call, making full assert_eq! infeasible; these N checks test
+            // the stable message body only (class name + teaching text)
+            err_msg.contains("base record")
+                && err_msg.contains("my::Pt")
+                && err_msg.contains("has no holon flavor")
+                && err_msg.contains(":wat::holon::defrecord"),
+            "error must contain key teaching-message parts (base record, class name, defrecord hint); got: {}",
             err_msg
         );
     }
@@ -32763,9 +32733,9 @@ mod tests {
         let call_ast = crate::parse_one!(call_src).expect("parse direct swim call");
         match crate::freeze::eval_in_frozen(&call_ast, &world, &Environment::new()) {
             Err(RuntimeError { kind: RuntimeErrorKind::UnknownFunction(msg), .. }) => {
-                assert!(
-                    msg.contains(":t::Rock") && msg.contains(":t::Swimmer"),
-                    "error message must name the missing type and protocol; got: {:?}", msg
+                assert_eq!(
+                    msg,
+                    "type `:t::Rock` does not extend protocol `:t::Swimmer`"
                 );
             }
             Ok(v) => panic!("expected UnknownFunction error for Rock with no impl; got value {:?}", v),

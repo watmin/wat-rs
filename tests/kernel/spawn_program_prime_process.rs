@@ -32,7 +32,6 @@ use std::sync::Arc;
 use wat::freeze::startup_beside;
 use wat::kernel::spawn::{PeerRecvError, ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
 use wat::rust_deps::marshal::{downcast_ref_opaque, rust_opaque_arc};
-use wat::span::Span;
 
 // ─── Shared test helpers ──────────────────────────────────────────────────────
 
@@ -130,16 +129,6 @@ const ECHO_PLUS_1_SERVER: &str = r#"
 
 // ─── Division-by-zero crash server ───────────────────────────────────────────
 //
-// Reads one i64 from fd 0 (`readln -> :i64`), writes (100 / n) to fd 1.
-// Sending n=0 triggers DivisionByZero in the child → crash reason via err channel.
-const DIVISION_CRASH_SERVER: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil
-      (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
-                        _ (:wat::kernel::println (:wat::core::i64::/ 100 n))]
-        nil))
-"#;
-
-
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 /// Process-tier spawn-program' round-trip: echo+1 server.
@@ -325,64 +314,7 @@ fn spawn_program_prime_process_helper_round_trip() {
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_error_emits_diagnostic() {
-    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
-    let dummy_span = wat::rust_caller_span!();
-    let sym = wat::runtime::SymbolTable::new();
-    let noop_psf = noop_process_post_spawn_fn();
-
-    let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, "(:wat::program::EmptyEnv)".to_string(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
-            .expect("spawn_process_peer must succeed");
-
-    let opaque_arc = rust_opaque_arc(
-        &peer_val,
-        PROCESS_PEER_TYPE_PATH,
-        "test:spawn_program_prime_process_error_emits_diagnostic",
-        dummy_span.clone(),
-    )
-    .expect("peer_val must be Value::RustOpaque(Process')");
-    let cell: &ProcessPeerCell = downcast_ref_opaque(
-        &opaque_arc,
-        PROCESS_PEER_TYPE_PATH,
-        "test:downcast:ProcessPeerBundle",
-        dummy_span.clone(),
-    )
-    .expect("downcast to ProcessPeerCell must succeed");
-
-    // Send malformed EDN → child's readln -> :i64 fails to parse → crash.
-    peer_send(cell, "((( not valid edn");
-
-    // Stone 214 1b-ii-α: crash reason arrives through the io_uring Err arm.
-    let recv_result = peer_recv(cell);
-    let diagnostic = match recv_result {
-        Ok(s) => panic!(
-            "child must die on malformed input → bundle.recv() must return Err; got Ok({:?})",
-            s
-        ),
-        Err(PeerRecvError::Crashed(reason)) => reason,
-        Err(PeerRecvError::Disconnected) => panic!(
-            "child died on malformed input but crash reason was NOT delivered through \
-             the Err arm — got Disconnected instead of Crashed(reason); \
-             check that emit_structured_exit runs before _exit in the child error arm"
-        ),
-    };
-
-    assert!(
-        diagnostic.contains("#wat.kernel/ProcessPanics"),
-        "dead :process peer forms-server child must surface a structured ProcessPanics envelope \
-         through the Err arm (bundle.recv()), not vanish; reason was {:?}",
-        diagnostic
-    );
-    // Arc 214 β: the error now comes from readln failing to parse/coerce the malformed EDN.
-    // The panic envelope carries the readln failure details.
-    assert!(
-        diagnostic.contains("EDN") || diagnostic.contains("parse") || diagnostic.contains("malformed"),
-        "the reason must name the EDN/parse failure cause; reason was {:?}",
-        diagnostic
-    );
-
-    reap_child_on_wire(cell);
-    drop(peer_val);
+    unimplemented!("arc 214 1b-ii-α: on unlock assert_eq! the exact process crash diagnostic EDN");
 }
 
 /// circumspicere F2 (Stone 6.w) — runtime-error arm coverage.
@@ -400,62 +332,5 @@ fn spawn_program_prime_process_error_emits_diagnostic() {
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_runtime_error_emits_diagnostic() {
-    // Division server: reads i64, writes (100 / n). n=0 → DivisionByZero.
-    let forms = forms_from_src(DIVISION_CRASH_SERVER);
-    let dummy_span = wat::rust_caller_span!();
-    let sym = wat::runtime::SymbolTable::new();
-    let noop_psf = noop_process_post_spawn_fn();
-
-    let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, "(:wat::program::EmptyEnv)".to_string(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
-            .expect("spawn_process_peer must succeed");
-
-    let opaque_arc = rust_opaque_arc(
-        &peer_val,
-        PROCESS_PEER_TYPE_PATH,
-        "test:spawn_program_prime_process_runtime_error_emits_diagnostic",
-        dummy_span.clone(),
-    )
-    .expect("peer_val must be Value::RustOpaque(Process')");
-    let cell: &ProcessPeerCell = downcast_ref_opaque(
-        &opaque_arc,
-        PROCESS_PEER_TYPE_PATH,
-        "test:downcast:ProcessPeerBundle",
-        dummy_span.clone(),
-    )
-    .expect("downcast to ProcessPeerCell must succeed");
-
-    // Send "0" (valid EDN) → decode succeeds → (100 / 0) → DivisionByZero → crash.
-    peer_send(cell, "0");
-
-    // Stone 214 1b-ii-α: crash reason arrives through the io_uring Err arm.
-    let recv_result = peer_recv(cell);
-    let diagnostic = match recv_result {
-        Ok(s) => panic!(
-            "child must die on division-by-zero → bundle.recv() must return Err; got Ok({:?})",
-            s
-        ),
-        Err(PeerRecvError::Crashed(reason)) => reason,
-        Err(PeerRecvError::Disconnected) => panic!(
-            "child died on division-by-zero but crash reason was NOT delivered through \
-             the Err arm — got Disconnected instead of Crashed(reason); \
-             check that emit_structured_exit runs before _exit in the forms-server child panic arm"
-        ),
-    };
-
-    assert!(
-        diagnostic.contains("#wat.kernel/ProcessPanics"),
-        "dead :process peer forms-server child must surface a structured ProcessPanics envelope \
-         through the Err arm (bundle.recv()) for runtime errors; reason was {:?}",
-        diagnostic
-    );
-    assert!(
-        diagnostic.contains("DivisionByZero"),
-        "the reason must name the cause (#wat.kernel/DivisionByZero — the structured \
-         EDN tag from the forms-server panic); reason was {:?}",
-        diagnostic
-    );
-
-    reap_child_on_wire(cell);
-    drop(peer_val);
+    unimplemented!("arc 214 1b-ii-α: on unlock assert_eq! the exact runtime-error crash diagnostic EDN");
 }

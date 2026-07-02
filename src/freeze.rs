@@ -1401,6 +1401,7 @@ mod tests {
             (:wat::core::defstruct :my::Candle [open <- :wat::core::f64 close <- :wat::core::f64])
         "#;
         let world = startup(src).expect("startup");
+        // rune:lint(loose-assert) — property over variable set; type registry holds many built-in types; only user-type membership is the contract
         assert!(world.types().contains(":my::Candle"));
     }
 
@@ -1414,6 +1415,7 @@ mod tests {
               `(:wat::holon::Blend ,x ,x 1 1))
         "#;
         let world = startup(src).expect("startup");
+        // rune:lint(loose-assert) — property over variable set; macro registry holds built-ins; only user-macro membership is the contract
         assert!(world.macros().contains(":my::vocab::Double"));
     }
 

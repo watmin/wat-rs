@@ -20225,6 +20225,7 @@ mod tests {
     fn type_mismatch_message_carries_span() {
         let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
         let rendered = format!("{}", err);
+        // rune:lint(loose-assert) — variable Rust source file path embedded in error Display output (varies by build environment)
         assert!(
             rendered.contains("src/") || rendered.contains(".rs:"),
             "TypeMismatch Display must include real source coordinates; rendered:\n{}",
@@ -20255,26 +20256,7 @@ mod tests {
     #[test]
     #[ignore = "arc 170 slice 3 — sandbox-scope-leak walker no longer fires on deftest (run-hermetic captures outer-scope helpers via closure extraction); test retired with the walker in slice 4"]
     fn sandbox_scope_leak_fires_with_diagnostic() {
-        // Test body left as-is for historical record. The original
-        // assertion (SandboxScopeLeak fires) no longer holds under
-        // the new deftest expansion; the test will fail if un-ignored.
-        let src = r#"
-            (:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
-
-            (:wat::test::deftest :test::leaky
-              ()
-              (:wat::test::assert-eq (:my::helper 21) 42))
-        "#;
-        let err = check(src).unwrap_err();
-        let rendered = format!("{}", err);
-        assert!(
-            err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::SandboxScopeLeak { .. }, .. })),
-            "expected SandboxScopeLeak; rendered:\n{}", rendered
-        );
-        assert!(rendered.contains("sandbox-scope leak"));
-        assert!(rendered.contains(":my::helper"));
-        assert!(rendered.contains("src/") || rendered.contains(".rs:"));
-        assert!(rendered.contains("prelude"));
+        unimplemented!("arc 170 slice 3: sandbox-scope-leak walker RETIRED (slice 4) — behavior no longer exists; test kept as a monument, no live assertion");
     }
 
     /// Arc 140 slice 2 — confirm the leak rule does NOT misfire when
@@ -20960,6 +20942,9 @@ mod tests {
             .find(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
             .expect("ChannelPairDeadlock variant present");
         let display = format!("{}", pair_err);
+        // rune:lint(loose-assert) — Display embeds a Rust source file path/line/col from the
+        // check() call-site span (e.g. "src/check.rs:N:col:end_col"); the line number shifts
+        // whenever lines are added above the call site in check.rs, making full assert_eq! infeasible
         assert!(
             display.contains("channel-pair-deadlock"),
             "Display impl missing load-bearing 'channel-pair-deadlock' substring; got: {}",

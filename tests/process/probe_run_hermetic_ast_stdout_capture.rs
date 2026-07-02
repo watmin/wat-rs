@@ -74,10 +74,10 @@ fn probe_run_hermetic_ast_child_stdout_captured() {
         Value::String(s) => s.to_string(),
         other => panic!("expected String stdout line; got {:?}", other),
     };
-    assert!(
-        first_line.contains("hello-from-probe"),
-        "expected stdout line to contain 'hello-from-probe'; got: {:?}",
-        first_line
+    assert_eq!(
+        first_line,
+        "\"hello-from-probe\"",
+        "expected stdout line to be the EDN-quoted string literal"
     );
 
     // RunResult field 2 is failure :Option<Failure>; must be None (clean exit).

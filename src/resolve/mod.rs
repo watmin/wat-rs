@@ -288,27 +288,18 @@ mod tests {
     fn rust_call_without_use_declaration_fails() {
         let err = resolve(r#"(:rust::lru::LruCache::new 16)"#).unwrap_err();
         let ResolveError::UnresolvedReferences(list) = err;
-        assert!(
-            list.iter()
-                .any(|u| u.path == ":rust::lru::LruCache::new"
-                    && u.context
-                        .contains("not covered by any (:wat::core::use! ...)")),
-            "expected use!-not-covered diagnostic; got {:?}",
-            list
-        );
+        assert_eq!(list.len(), 1, "expected exactly one unresolved ref; got {:?}", list);
+        assert_eq!(list[0].path, ":rust::lru::LruCache::new");
+        assert_eq!(list[0].context, ":rust::* reference not covered by any (:wat::core::use! ...) declaration");
     }
 
     #[test]
     fn use_of_unknown_rust_symbol_fails() {
         let err = resolve(r#"(:wat::core::use! :rust::imaginary::Thing)"#).unwrap_err();
         let ResolveError::UnresolvedReferences(list) = err;
-        assert!(
-            list.iter()
-                .any(|u| u.path == ":rust::imaginary::Thing"
-                    && u.context.contains("not available in wat")),
-            "expected not-available diagnostic; got {:?}",
-            list
-        );
+        assert_eq!(list.len(), 1, "expected exactly one unresolved ref; got {:?}", list);
+        assert_eq!(list[0].path, ":rust::imaginary::Thing");
+        assert_eq!(list[0].context, "rust symbol not available in wat; declare it via its shim");
     }
 
     // use!-success paths previously checked against :rust::lru::LruCache
@@ -341,23 +332,8 @@ mod tests {
         match err {
             ResolveError::UnresolvedReferences(refs) => {
                 assert_eq!(refs.len(), 1, "expected exactly one unresolved ref");
-                // The path should be the primary FQDN candidate (`:foo::bar::baz`),
-                // not the raw symbol name.
-                assert!(
-                    refs[0].path.starts_with(':'),
-                    "located error path must be a keyword FQDN; got {:?}",
-                    refs[0].path
-                );
-                assert!(
-                    refs[0].path.contains("foo") && refs[0].path.contains("bar") && refs[0].path.contains("baz"),
-                    "located error path must contain the namespace segments; got {:?}",
-                    refs[0].path
-                );
-                assert!(
-                    refs[0].context.contains("arc 251"),
-                    "error context should name arc 251; got {:?}",
-                    refs[0].context
-                );
+                assert_eq!(refs[0].path, ":foo::bar::baz", "located error path must be the keyword FQDN");
+                assert_eq!(refs[0].context, "namespaced symbol ref — not a builtin, not a registered function (arc 251)");
             }
         }
     }

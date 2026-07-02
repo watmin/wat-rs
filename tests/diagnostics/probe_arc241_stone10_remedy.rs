@@ -59,20 +59,10 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     // Uses :test::pick (non-main) — main signature retirement doesn't apply.
     // Fixture: probe_arc241_stone10_remedy_c01_bad.wat
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c01_bad.wat");
-    assert!(
-        msg.contains("did you mean"),
-        "variant-typo case should produce 'did you mean' prefix; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains(":my::Status::Ok"),
-        "variant-typo case should name ':my::Status::Ok' as candidate; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[typo, distance"),
-        "typo remedy should carry '[typo, distance N]' kind annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c01_bad.wat:2:49: :test::pick: body produces :wat::core::keyword; signature declares :my::Status\n  did you mean:\n    :my::Status::Ok  [typo, distance 1]\n    :my::Status::Error  [typo, distance 5]\n",
+        "variant-typo case: 'did you mean' with distance annotation"
     );
 }
 
@@ -85,20 +75,10 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
     // is the 241.10 shape.
     // Fixture: probe_arc241_stone10_remedy_c02_bad.wat
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat");
-    assert!(
-        msg.contains("did you mean"),
-        "retirement case should produce 'did you mean' prefix; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains(":wat::core::defstruct"),
-        "retirement case should name ':wat::core::defstruct' as candidate; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "retirement remedy should carry '[replaces a retired form]' kind annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat:1:2: malformed :wat::core::struct form: ':wat::core::struct' is retired (Stone 241.8)\n  did you mean: :wat::core::defstruct [replaces a retired form]\n",
+        "retirement case: 'did you mean: :wat::core::defstruct [replaces a retired form]'"
     );
 }
 
@@ -124,10 +104,10 @@ fn contract_04_no_remedy_for_distant_unknown() {
     // Post-stone: error message renders without "did you mean" section.
     // Fixture: probe_arc241_stone10_remedy_c04_bad.wat
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04_bad.wat");
-    assert!(
-        !msg.contains("did you mean"),
-        "distant-unknown case should NOT produce 'did you mean'; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "<startup succeeded — no error to display>",
+        "distant-unknown case should NOT produce 'did you mean'"
     );
 }
 
@@ -142,15 +122,10 @@ fn contract_05_single_remedy_single_line_format() {
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat");
     let line = msg.lines().find(|l| l.contains("did you mean"))
         .unwrap_or_else(|| panic!("expected 'did you mean' line; got:\n{}", msg));
-    assert!(
-        line.contains(":wat::core::defstruct"),
-        "single-remedy line should contain ':wat::core::defstruct'; got line: {}\nfull:\n{}",
-        line, msg
-    );
-    assert!(
-        line.contains("[replaces a retired form]"),
-        "single-remedy line should contain '[replaces a retired form]' annotation; got line: {}\nfull:\n{}",
-        line, msg
+    assert_eq!(
+        line,
+        "  did you mean: :wat::core::defstruct [replaces a retired form]",
+        "single-remedy line: exact format with form and annotation"
     );
 }
 
@@ -177,10 +152,10 @@ fn contract_07_retirement_kind_annotation_canonical() {
     // No abbreviations; no variants. Exact phrase per D7.
     // Fixture: probe_arc241_stone10_remedy_c07_bad.wat
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c07_bad.wat");
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "retirement annotation must be exact '[replaces a retired form]'; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c07_bad.wat:1:2: malformed :wat::core::struct-restricted form: ':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n  did you mean: :wat::core::defstruct [replaces a retired form] — re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n",
+        "retirement annotation must be exact '[replaces a retired form]'"
     );
 }
 
@@ -192,9 +167,9 @@ fn contract_08_threshold_filters_far_typos() {
     // Post-stone: no remedy offered (threshold filter).
     // Fixture: probe_arc241_stone10_remedy_c08_bad.wat
     let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08_bad.wat");
-    assert!(
-        !msg.contains("did you mean"),
-        "distant-typo above threshold should not produce remedy; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "<startup succeeded — no error to display>",
+        "distant-typo above threshold should not produce remedy"
     );
 }

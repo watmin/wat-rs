@@ -75,6 +75,7 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
 
     // Row F — assert NONE of the stderr lines contain Rust default handler text.
     for line in &lines {
+        // rune:lint(loose-assert) — `line` is subprocess stderr; may contain absolute host path to .wat fixture in the #wat.kernel/ProcessPanics EDN. Content varies by host. Targeted absence of Rust default panic handler strings is the real contract.
         assert!(
             !line.contains("thread '"),
             "Rust default panic handler output found in stderr: {:?}\n\
@@ -83,6 +84,7 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
             line,
             lines
         );
+        // rune:lint(loose-assert) — same as above: `line` is subprocess stderr varying by host. Targeted absence of RUST_BACKTRACE hint is the real contract.
         assert!(
             !line.contains("note: run with RUST_BACKTRACE"),
             "Rust default panic handler 'RUST_BACKTRACE' hint found in stderr: {:?}\n\
@@ -91,6 +93,7 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
             line,
             lines
         );
+        // rune:lint(loose-assert) — same as above: `line` is subprocess stderr varying by host. Targeted absence of backtick RUST_BACKTRACE hint is the real contract.
         assert!(
             !line.contains("note: run with `RUST_BACKTRACE"),
             "Rust default panic handler backtrace hint found in stderr: {:?}",

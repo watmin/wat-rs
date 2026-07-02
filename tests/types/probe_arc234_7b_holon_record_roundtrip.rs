@@ -47,16 +47,7 @@ fn c3_holon_tag_in_edn_string() {
         other => panic!("C3 FAIL: write-hpt returned non-String: {:?}", other),
     };
     eprintln!("C3 written EDN: {}", s);
-    assert!(
-        s.contains("#wat-edn.holon"),
-        "C3 FAIL: EDN string must contain '#wat-edn.holon' (holon_form on wire) — got: {}",
-        s
-    );
-    assert!(
-        !s.contains("field-0"),
-        "C3 FAIL: EDN string must NOT contain 'field-0' (old positional map) — got: {}",
-        s
-    );
+    assert_eq!(s, r#"#test.rd/HPt #wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "test::rd::HPt" #wat-edn.holon/Bundle [#wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "x" #wat-edn.holon/Atom #wat-edn.holon/I64 7] #wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "y" #wat-edn.holon/Atom #wat-edn.holon/I64 8]]]"#);
 }
 
 /// C1 — round-trip: write → read → equal to original (proves holon_form round-tripped).

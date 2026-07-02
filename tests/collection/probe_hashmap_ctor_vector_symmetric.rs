@@ -96,10 +96,10 @@ fn probe_p6_wrong_value_type_rejected_at_type_check() {
     )
     .expect_err("expected startup failure for wrong value type");
     let err = format!("{:?}", err);
-    assert!(
-        err.to_lowercase().contains("mismatch") || err.to_lowercase().contains("type"),
-        "wrong-value type must produce a type-check error; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p6_bad.wat", line: 6, col: 16, end_line: 6, end_col: 28 }, kind: TypeMismatch { callee: ":wat::core::HashMap", param: "value #1", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"##,
+        "probe_p6: wrong-value type check-error golden"
     );
 }
 
@@ -112,10 +112,10 @@ fn probe_p7_odd_pair_count_rejected() {
     )
     .expect_err("expected startup failure for odd pair count");
     let err = format!("{:?}", err);
-    assert!(
-        err.contains("even") || err.contains("MalformedForm"),
-        "odd pair count must produce the 'even' arity error; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p7_bad.wat", line: 5, col: 9, end_line: 5, end_col: 28 }, kind: MalformedForm { head: ":wat::core::HashMap", reason: "arity after :K :V type args must be even (alternating key/value pairs); got 1", remedies: [] } }]))"##,
+        "probe_p7: odd pair count check-error golden"
     );
 }
 
@@ -128,10 +128,10 @@ fn probe_p8_missing_both_type_args_rejected() {
     )
     .expect_err("expected startup failure for missing type args");
     let err = format!("{:?}", err);
-    assert!(
-        err.contains("ArityMismatch") || err.contains("arity") || err.contains("2"),
-        "missing type args must produce an arity error; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p8_bad.wat", line: 5, col: 9, end_line: 5, end_col: 28 }, kind: ArityMismatch { callee: ":wat::core::HashMap", expected: 2, got: 0 } }]))"##,
+        "probe_p8: missing both type args arity-error golden"
     );
 }
 
@@ -144,9 +144,9 @@ fn probe_p9_missing_v_type_arg_rejected() {
     )
     .expect_err("expected startup failure for missing V type arg");
     let err = format!("{:?}", err);
-    assert!(
-        err.contains("ArityMismatch") || err.contains("arity") || err.contains("2"),
-        "missing V type arg must produce an arity error; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p9_bad.wat", line: 5, col: 9, end_line: 5, end_col: 28 }, kind: ArityMismatch { callee: ":wat::core::HashMap", expected: 2, got: 1 } }]))"##,
+        "probe_p9: missing V type arg arity-error golden"
     );
 }

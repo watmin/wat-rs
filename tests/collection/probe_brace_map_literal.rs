@@ -129,6 +129,7 @@ fn probe_7_odd_count_rejected_at_parse() {
         result
     );
     let err = format!("{}", result.unwrap_err());
+    // rune:lint(loose-assert) — parse_one! embeds the absolute Rust source path (file!():line!():col!()) which is machine-specific
     assert!(
         err.contains("alternate") || err.contains("pairs") || err.contains("1"),
         "error must name alternation requirement + count; got: {}",
@@ -145,12 +146,15 @@ fn probe_8_old_struct_pattern_now_errors() {
     )
     .expect_err("arc 257.2: old bare-symbol brace-form must now be rejected");
     let err = format!("{}\n---\n{:?}", err, err);
-    assert!(
-        err.to_lowercase().contains("malformed")
-            || err.to_lowercase().contains("binder")
-            || err.to_lowercase().contains("keys"),
-        "error must explain the rejection; migrate to {{:keys [outcome grace-residue]}}; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+1 type-check error(s):
+  - tests/collection/probe_brace_map_literal_p8_bad.wat:10:6: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_brace_map_literal_p8_bad.wat", line: 10, col: 6, end_line: 10, end_col: 29 }, kind: MalformedForm { head: ":wat::core::let", reason: "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position", remedies: [] } }]))"##,
+        "probe_8: old struct-pattern form rejected golden"
     );
 }
 
@@ -163,11 +167,14 @@ fn probe_9_keyword_in_binding_position_rejected() {
     )
     .expect_err("keyword in binding position must be rejected");
     let err = format!("{}\n---\n{:?}", err, err);
-    assert!(
-        err.to_lowercase().contains("malformed")
-            || err.to_lowercase().contains("binder")
-            || err.to_lowercase().contains("list"),
-        "keyword-in-binding-position must produce a MalformedForm at check time; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+1 type-check error(s):
+  - tests/collection/probe_brace_map_literal_p9_bad.wat:5:6: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_brace_map_literal_p9_bad.wat", line: 5, col: 6, end_line: 5, end_col: 16 }, kind: MalformedForm { head: ":wat::core::let", reason: "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position", remedies: [] } }]))"##,
+        "probe_9: keyword-in-binding-position rejected golden"
     );
 }

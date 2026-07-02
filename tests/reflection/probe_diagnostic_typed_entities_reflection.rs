@@ -79,11 +79,7 @@ fn probe_1_extract_classifier_on_defrecord_instance() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 1 result: {}", s);
-            assert!(
-                s.contains("myapp::Voltage") || s.contains("Voltage"),
-                "Probe 1: extract-classifier on Voltage instance produced unexpected: {}",
-                s
-            );
+            assert_eq!(s, "String(\"myapp::Voltage\")", "Probe 1: extract-classifier on Voltage instance produced unexpected");
         }
         Err(e) => panic!("Probe 1 FAILED: {}", e),
     }
@@ -101,11 +97,7 @@ fn probe_2_extract_classifier_on_bare_atom() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 2 result: {}", s);
-            assert!(
-                s.contains("None"),
-                "Probe 2: expected None for bare Atom; got: {}",
-                s
-            );
+            assert_eq!(s, "Option(None)", "Probe 2: expected None for bare Atom");
         }
         Err(e) => panic!("Probe 2 FAILED: {}", e),
     }
@@ -124,11 +116,7 @@ fn probe_3_bind_right_on_defrecord_instance() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 3 result: {}", s);
-            assert!(
-                s.contains("Some") || s.contains("Bundle"),
-                "Probe 3: expected Some(Bundle...); got: {}",
-                s
-            );
+            assert_eq!(s, "Option(Some(holon__HolonAST(Bundle([Bind(Atom(String(\"magnitude\")), Atom(F64(5.0)))]))))", "Probe 3: unexpected Bind/right result");
         }
         Err(e) => panic!("Probe 3 FAILED: {}", e),
     }
@@ -146,11 +134,7 @@ fn probe_4_bind_right_on_non_bind() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 4 result: {}", s);
-            assert!(
-                s.contains("None"),
-                "Probe 4: expected None for non-Bind; got: {}",
-                s
-            );
+            assert_eq!(s, "Option(None)", "Probe 4: expected None for non-Bind");
         }
         Err(e) => panic!("Probe 4 FAILED: {}", e),
     }
@@ -173,11 +157,7 @@ fn probe_5_composed_walk_to_field_binds() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 5 result: {}", s);
-            assert!(
-                s.contains("2"),
-                "Probe 5: expected 2 field-Binds in right Bundle; got: {}",
-                s
-            );
+            assert_eq!(s, "i64(2)", "Probe 5: expected 2 field-Binds in right Bundle");
         }
         Err(e) => panic!("Probe 5 FAILED: {}", e),
     }
@@ -195,16 +175,7 @@ fn probe_6_bind_left_on_defrecord_instance() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 6 result: {}", s);
-            assert!(
-                s.contains("Some") || s.contains("Atom"),
-                "Probe 6: expected Some(Atom...) for left of defrecord instance; got: {}",
-                s
-            );
-            assert!(
-                s.contains("Voltage") || s.contains("myapp"),
-                "Probe 6: expected classifier string ('Voltage' or 'myapp') in left; got: {}",
-                s
-            );
+            assert_eq!(s, "Option(Some(holon__HolonAST(Atom(String(\"myapp::Voltage\")))))", "Probe 6: unexpected Bind/left result");
         }
         Err(e) => panic!("Probe 6 FAILED: {}", e),
     }
@@ -222,11 +193,7 @@ fn probe_7_bind_left_on_non_bind() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 7 result: {}", s);
-            assert!(
-                s.contains("None"),
-                "Probe 7: expected None for non-Bind; got: {}",
-                s
-            );
+            assert_eq!(s, "Option(None)", "Probe 7: expected None for non-Bind");
         }
         Err(e) => panic!("Probe 7 FAILED: {}", e),
     }

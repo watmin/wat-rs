@@ -950,12 +950,11 @@ mod tests {
         let env = render_malformed_edn(&m, "service-stop-resp.wat");
         // Self-contained, flush-left EDN form (no leading indentation) — a CI
         // parser anchors on the `#wat.test/DiscoveryFailed` tag and `read`s it.
-        assert!(env.starts_with("#wat.test/DiscoveryFailed {"), "tag head, flush-left");
-        assert!(env.contains(r#":file "service-stop-resp.wat""#), "file field");
-        assert!(env.contains(r#":path "/abs/path/service-stop-resp.wat""#), "path field");
-        assert!(env.contains(":line 47"), "line field");
-        assert!(env.contains(":col 1"), "col field");
-        assert!(env.contains(r#":error "unclosed '('""#), "error field");
+        assert_eq!(
+            env,
+            r#"#wat.test/DiscoveryFailed {:file "service-stop-resp.wat" :path "/abs/path/service-stop-resp.wat" :line 47 :col 1 :error "unclosed '('"}"#,
+            "full EDN form must match exactly"
+        );
         assert!(env.ends_with('}'), "closes the map, nothing trailing");
     }
 
@@ -992,10 +991,10 @@ mod tests {
             error: "unclosed '('".to_string(),
         });
         let s = e.to_string();
-        assert!(s.contains("#wat.test/DiscoveryFailed {"), "EDN tagged literal");
-        assert!(s.contains(r#":file "service-stop-resp.wat""#), "names the file");
-        assert!(s.contains(":line 47"), "names the line");
-        assert!(s.contains(":col 1"), "names the col");
-        assert!(s.contains(r#":error "unclosed '('""#), "names the parse error");
+        assert_eq!(
+            s,
+            r#"#wat.test/DiscoveryFailed {:file "service-stop-resp.wat" :path "/abs/path/service-stop-resp.wat" :line 47 :col 1 :error "unclosed '('"}"#,
+            "Display is the full EDN form"
+        );
     }
 }

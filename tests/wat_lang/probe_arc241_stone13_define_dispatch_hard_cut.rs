@@ -38,14 +38,9 @@ fn contract_02_rejection_remedy_names_defclause() {
         "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut_bad.wat",
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains(":wat::core::defclause"),
-        "retirement remedy must name :wat::core::defclause; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "retirement remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut_bad.wat:6:2: malformed :wat::core::define-dispatch form: ':wat::core::define-dispatch' is retired (Stone 241.13); use ':wat::core::defclause' instead\n  did you mean: :wat::core::defclause [replaces a retired form]\n",
+        "retirement remedy must name :wat::core::defclause with [replaces a retired form]"
     );
 }

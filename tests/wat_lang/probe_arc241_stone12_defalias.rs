@@ -58,14 +58,9 @@ fn contract_04_runtime_define_alias_hard_cut_rejected() {
 fn contract_05_rejection_remedy_names_defalias() {
     let result = startup_from_file("tests/wat_lang/probe_arc241_stone12_defalias_bad.wat");
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains(":wat::core::defalias"),
-        "retirement remedy must name :wat::core::defalias; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "retirement remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone12_defalias_bad.wat:5:2: malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead\n  did you mean: :wat::core::defalias [replaces a retired form]\n",
+        "retirement remedy must name :wat::core::defalias with [replaces a retired form]"
     );
 }

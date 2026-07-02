@@ -65,15 +65,10 @@ fn source_rejects_underscore_inside_brackets() {
     // a keyword body is reserved as the wire-escape for `,`.
     let err = parse(":Vec<a_b>").expect_err("expected InvalidKeyword");
     let msg = format!("{}", err);
-    assert!(
-        msg.contains("underscore"),
-        "diagnostic must name the rule (mention 'underscore'): got {:?}",
-        msg
-    );
-    assert!(
-        msg.contains("wire-escape") || msg.contains("comma") || msg.contains("type-arg"),
-        "diagnostic must teach the rule (wire-escape / comma / type-arg): got {:?}",
-        msg
+    assert_eq!(
+        msg,
+        "EDN parse error at byte 6: invalid keyword: underscore in keyword body inside `<...>` is reserved for wire-escape of comma; use `,` as the type-arg separator in source (arc 170 slice 1f-W)",
+        "diagnostic must name the rule and teach the wire-escape"
     );
 }
 
@@ -100,7 +95,10 @@ fn source_rejects_underscore_inside_nested_brackets() {
     // catches both inner and outer).
     let err = parse(":Vec<Map<K_V>>").expect_err("expected InvalidKeyword");
     let msg = format!("{}", err);
-    assert!(msg.contains("underscore"));
+    assert_eq!(
+        msg,
+        "EDN parse error at byte 10: invalid keyword: underscore in keyword body inside `<...>` is reserved for wire-escape of comma; use `,` as the type-arg separator in source (arc 170 slice 1f-W)",
+    );
 }
 
 // ─── Row B — Lexer accepts `_` outside `<>` (Rust-mirror) ───────

@@ -44,7 +44,7 @@ fn main() {
                 .map(|_| v)
         })
         .unwrap();
-    assert!(reason.as_str().unwrap().contains("drawdown"));
+    assert_eq!(reason.as_str().unwrap(), "drawdown breach — increase size");
 
     println!();
     println!("─── parsed by wat-edn ───");

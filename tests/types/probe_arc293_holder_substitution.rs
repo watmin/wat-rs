@@ -51,11 +51,7 @@ fn core_record_rejected_where_holon_wanted() {
     // The rejection must be the HOLDER mismatch — not an incidental error. The fields are
     // identical to a holon's, so the only thing that can fail is `:geo::Pt` ↛ `:wat::holon::Record`.
     let err = format!("{:?}", world.err());
-    assert!(
-        err.contains("holon::Record") && (err.contains("geo::Pt") || err.contains("Mismatch")),
-        "a core record must NOT narrow to :wat::holon::Record (fields match but holon-ness is \
-         categorical); and the rejection must CITE the holder, not be incidental. got: {err}"
-    );
+    assert_eq!(err, r##"Some(Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc293_holder_substitution_c4_bad.wat", line: 6, col: 20, end_line: 6, end_col: 34 }, kind: TypeMismatch { callee: ":u::wants-holon", param: "#1", expected: ":wat::holon::Record", got: ":geo::Pt" } }])))"##);
 }
 
 /// Case 5 — a STRUCT is not a record (separate branch): passing `:geo::SPt` where

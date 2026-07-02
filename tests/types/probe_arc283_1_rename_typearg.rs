@@ -26,13 +26,5 @@ fn rename_reaches_type_arguments() {
         Value::String(ref s) => s.to_string(),
         other => panic!("expected migrated source String; got {other:?}"),
     };
-    // THE GAP: the type-arg must be renamed.
-    assert!(s.contains("Vector<t::New>"), "type-arg must rename to Vector<t::New>; got: {s}");
-    // Regression: start-anchored cases still rename (return type + accessor).
-    assert!(s.contains(" -> :t::New "), "return type must rename to :t::New; got: {s}");
-    assert!(s.contains(":t::New/make"), "accessor must rename to :t::New/make; got: {s}");
-    // BAR-RAISE: the boundary decoy must survive untouched (no SourceFileExtra-style corruption).
-    assert!(s.contains(":t::OldExtra"), ":t::OldExtra must NOT be renamed (boundary guard); got: {s}");
-    // And the old type-arg name must be gone entirely.
-    assert!(!s.contains("Vector<t::Old>"), "no Vector<t::Old> may survive; got: {s}");
+    assert_eq!(s, "(:wat::core::defn :u::f [xs <- :wat::core::Vector<t::New> y <- :t::OldExtra] -> :t::New (:t::New/make xs))");
 }

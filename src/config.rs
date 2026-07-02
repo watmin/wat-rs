@@ -731,7 +731,7 @@ mod tests {
         match err {
             ConfigError { kind: ConfigErrorKind::BadValue { field, reason, .. }, .. } => {
                 assert_eq!(field, "capacity-mode");
-                assert!(reason.contains(":silent"), "reason: {}", reason);
+                assert_eq!(reason, "unknown variant :silent; expected :error / :panic (arc 037 retired :silent and :warn; arc 045 renamed :abort → :panic)");
             }
             other => panic!("expected BadValue, got {:?}", other),
         }
@@ -743,7 +743,7 @@ mod tests {
         match err {
             ConfigError { kind: ConfigErrorKind::BadValue { field, reason, .. }, .. } => {
                 assert_eq!(field, "capacity-mode");
-                assert!(reason.contains(":warn"), "reason: {}", reason);
+                assert_eq!(reason, "unknown variant :warn; expected :error / :panic (arc 037 retired :silent and :warn; arc 045 renamed :abort → :panic)");
             }
             other => panic!("expected BadValue, got {:?}", other),
         }
@@ -959,6 +959,7 @@ mod tests {
             err
         );
         let msg = err.to_string();
+        // rune:lint(loose-assert) — variable Rust source file path embedded in error Display output (varies by build environment)
         assert!(
             msg.contains("src/") || msg.contains(".rs:"),
             "expected real source coordinates in Display (file:line:col), got: {}",

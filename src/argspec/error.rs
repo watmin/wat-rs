@@ -135,10 +135,7 @@ mod tests {
         match ce.kind {
             CheckErrorKind::MalformedForm { head, reason, .. } => {
                 assert_eq!(head, ":my::form", "head must propagate; got: {head}");
-                assert!(
-                    reason.contains("name must be a plain symbol"),
-                    "expected NameNotSymbol reason; got: {reason}"
-                );
+                assert_eq!(reason, "name must be a plain symbol (not a keyword, literal, or nested form)");
             }
             other => panic!("expected MalformedForm; got: {:?}", other),
         }

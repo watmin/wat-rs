@@ -46,23 +46,12 @@ fn probe_1_parse_startup_error_to_edn_is_structured_not_detail() {
     let display_str = format!("{}", startup_err);
     let edn_str = wat_edn::write(&startup_err.to_edn());
 
-    eprintln!("=== probe_1 display: {}", display_str);
-    eprintln!("=== probe_1 edn:     {}", edn_str);
-
-    // Must be a tagged form in the wat.kernel namespace (delegates to
-    // ParseError::to_edn → #wat.kernel/<ParseErrorVariant>).
-    assert!(
-        edn_str.starts_with("#wat.parse/"),
-        "Parse startup error must produce #wat.parse/<Variant> tagged EDN; got: {}",
-        edn_str
-    );
-
-    // The whole point of the arc: NO `:detail` prose blob smuggling structure.
-    assert!(
-        !edn_str.contains(":detail"),
-        "Parse startup error must NOT carry a :detail prose blob (structure must \
-         be navigable fields); got: {}",
-        edn_str
+    // Must be a tagged form in the wat.parse namespace (delegates to
+    // ParseError::to_edn → #wat.parse/<ParseErrorVariant>); NO :detail blob.
+    assert_eq!(
+        edn_str,
+        r#"#wat.parse/UnclosedParen {:span {:file "test.wat" :line 1 :col 22}}"#,
+        "Parse startup error must produce exact structured #wat.parse/ EDN"
     );
 
     // Must differ from the Display string.
@@ -87,19 +76,11 @@ fn probe_2_sigmafn_startup_error_keeps_honest_detail() {
     let display_str = format!("{}", startup_err);
     let edn_str = wat_edn::write(&startup_err.to_edn());
 
-    eprintln!("=== probe_2 display: {}", display_str);
-    eprintln!("=== probe_2 edn:     {}", edn_str);
-
-    assert!(
-        edn_str.starts_with("#wat.macro/SigmaFnError"),
-        "SigmaFn must produce #wat.macro/SigmaFnError tagged EDN; got: {}",
-        edn_str
-    );
     // SigmaFn's :detail is the honest, deliberate exception (bare message).
-    assert!(
-        edn_str.contains(":detail"),
-        "SigmaFn (a bare message) carries its text as :detail; got: {}",
-        edn_str
+    assert_eq!(
+        edn_str,
+        r#"#wat.macro/SigmaFnError {:detail "sigma fn registration failed: bad config"}"#,
+        "SigmaFn must produce exact #wat.macro/SigmaFnError tagged EDN with :detail"
     );
     assert_ne!(edn_str, display_str, "to_edn() must differ from Display string");
     wat_edn::parse_owned(&edn_str).expect("must be valid EDN");
@@ -149,43 +130,11 @@ fn probe_4_check_startup_error_emits_structured_vector_not_detail() {
     let display_str = format!("{}", startup_err);
     let edn_str = wat_edn::write(&startup_err.to_edn());
 
-    eprintln!("=== probe_4 display: {}", display_str);
-    eprintln!("=== probe_4 edn:     {}", edn_str);
-
-    // Must be the structured collection envelope.
-    assert!(
-        edn_str.starts_with("#wat.check/CheckErrors"),
-        "Check startup error must produce #wat.check/CheckErrors; got: {}",
-        edn_str
-    );
-    // Must carry an :errors vector.
-    assert!(
-        edn_str.contains(":errors"),
-        "Check startup error must carry an :errors vector; got: {}",
-        edn_str
-    );
-    // Each inner CheckError must be its own navigable tagged value — NOT a
-    // line in a prose blob.
-    assert!(
-        edn_str.contains("#wat.check/UnknownCallee"),
-        "inner CheckError must be a navigable #wat.check/UnknownCallee; got: {}",
-        edn_str
-    );
-    assert!(
-        edn_str.contains("#wat.check/CommCallOutOfPosition"),
-        "inner CheckError must be a navigable #wat.check/CommCallOutOfPosition; got: {}",
-        edn_str
-    );
-    assert!(
-        edn_str.contains(":callee"),
-        "inner CheckError fields must be navigable keywords; got: {}",
-        edn_str
-    );
-    // The whole point: NO `:detail` prose blob.
-    assert!(
-        !edn_str.contains(":detail"),
-        "Check startup error must NOT stringify into a :detail blob; got: {}",
-        edn_str
+    // Must be the structured collection envelope with navigable inner CheckErrors; NO :detail.
+    assert_eq!(
+        edn_str,
+        r#"#wat.check/CheckErrors {:errors [#wat.check/UnknownCallee {:callee ":user::do-thing" :span {:file "user.wat" :line 8 :col 3}} #wat.check/CommCallOutOfPosition {:callee ":wat::kernel::send" :span {:file "user.wat" :line 8 :col 3}}]}"#,
+        "Check startup error must produce exact structured #wat.check/CheckErrors EDN"
     );
     // Must differ from Display.
     assert_ne!(edn_str, display_str, "to_edn() must produce structured EDN, not Display");

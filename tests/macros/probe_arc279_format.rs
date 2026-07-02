@@ -47,9 +47,20 @@ fn format_strict_missing_kwarg_is_macro_error() {
         .map_err(|e| format!("{e:?}"));
     assert!(r.is_err(), "format with a missing kwarg must be a macro-error at startup");
     let msg = r.unwrap_err();
-    assert!(
-        msg.contains("y") || msg.contains("kwarg"),
-        "macro-error diagnostic must name the missing placeholder or say 'kwarg'; got: {msg}"
+    assert_eq!(
+        msg,
+        concat!(
+            "Macro(MacroError { span: Span { file: ",
+            "\"tests/macros/probe_arc279_format_missing_kwarg.wat\"",
+            ", line: 5, col: 3, end_line: 5, end_col: 44 }, kind: ProgramBodyEvalFailed { macro_name: ",
+            "\":wat::core::format\"",
+            ", cause: MacroError { span: Span { file: ",
+            "\"wat/core.wat\"",
+            ", line: 984, col: 40, end_line: 988, end_col: 74 }, kind: MalformedTemplate { reason: ",
+            "\"format: placeholder {y} has no matching kwarg\"",
+            " } } } })"
+        ),
+        "missing kwarg must match macro-error diagnostic golden"
     );
 }
 
@@ -64,8 +75,19 @@ fn format_strict_unused_kwarg_is_macro_error() {
         .map_err(|e| format!("{e:?}"));
     assert!(r.is_err(), "format with an unused kwarg must be a macro-error at startup");
     let msg = r.unwrap_err();
-    assert!(
-        msg.contains("y") || msg.contains("unused"),
-        "macro-error diagnostic must name the unused kwarg or say 'unused'; got: {msg}"
+    assert_eq!(
+        msg,
+        concat!(
+            "Macro(MacroError { span: Span { file: ",
+            "\"tests/macros/probe_arc279_format_unused_kwarg.wat\"",
+            ", line: 5, col: 3, end_line: 5, end_col: 51 }, kind: ProgramBodyEvalFailed { macro_name: ",
+            "\":wat::core::format\"",
+            ", cause: MacroError { span: Span { file: ",
+            "\"wat/core.wat\"",
+            ", line: 1012, col: 24, end_line: 1016, end_col: 84 }, kind: MalformedTemplate { reason: ",
+            "\"format: kwarg :y is unused — no {y} in template\"",
+            " } } } })"
+        ),
+        "unused kwarg must match macro-error diagnostic golden"
     );
 }

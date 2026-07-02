@@ -99,16 +99,10 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_types.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    // Both Path types must appear as standalone keyword Symbols.
-    assert!(
-        line.contains(":wat::core::String"),
-        "expected ':wat::core::String' type Symbol in extracted types; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' type Symbol in extracted types; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"[#wat-edn.holon/Keyword :wat::core::String #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "extract-arg-types must return Vector of two Path-type Symbols for monomorphic fn"
     );
     // The return-type `:wat::core::String` appears in the sig too, but the
     // Vector only contains arg types (not the return). We verify we get
@@ -135,23 +129,11 @@ fn extract_arg_types_returns_bundles_for_parametric_args() {
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundles.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    // The Vector head should appear as a standalone Symbol (not fused with args).
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' as standalone Symbol (Parametric head); got: {}",
-        line
-    );
-    // The i64 arg type should appear as a standalone Symbol inside the Bundle.
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' as standalone Symbol (Parametric arg); got: {}",
-        line
-    );
-    // Structural marker: the pre-arc-201 flat spelling must NOT appear.
-    assert!(
-        !line.contains(":wat::core::Vector<wat::core::i64>"),
-        "structured emission must NOT contain the flattened parametric spelling; got: {}",
-        line
+    // Vector head and i64 arg appear as separate Symbols inside a Bundle (not fused).
+    assert_eq!(
+        line,
+        "\"[#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]]\"",
+        "extract-arg-types must return Vector with one structured Bundle for parametric fn"
     );
 }
 
@@ -197,23 +179,11 @@ fn extract_arg_types_composes_with_bundle_children_on_parametric() {
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundle_children.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    // The Bundle/children of the Vector type-AST should contain the
-    // head Symbol and the i64 arg Symbol as separate elements.
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' head Symbol in Bundle/children result; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' arg Symbol in Bundle/children result; got: {}",
-        line
-    );
-    // Verify the flat fused form is absent (confirms actual structure, not string).
-    assert!(
-        !line.contains(":wat::core::Vector<wat::core::i64>"),
-        "Bundle/children result must not contain flattened parametric spelling; got: {}",
-        line
+    // D2 chain: Bundle/children on the Vector param type-AST yields head + i64 arg as separate Symbols.
+    assert_eq!(
+        line,
+        "\"[#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "Bundle/children on parametric type-AST must yield [head-Symbol, arg-Symbol]"
     );
 }
 
@@ -232,9 +202,9 @@ fn extract_arg_types_errors_on_non_bundle_input() {
         "tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat",
     )
     .expect("expected runtime error from extract-arg-types on non-HolonAST input");
-    assert!(
-        err.contains("extract-arg-types"),
-        "expected error mentioning 'extract-arg-types'; got: {}",
-        err
+    assert_eq!(
+        err,
+        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_extract_arg_types_err_non_bundle.wat\", line: 6, col: 52, end_line: 6, end_col: 54 }, kind: TypeMismatch { op: \":wat::runtime::extract-arg-types\", expected: \"wat::holon::HolonAST (signature head)\", got: ValueSnapshot { type_name: \"wat::core::i64\", rendered: \"42\", provenance: Unknown } } }",
+        "extract-arg-types must raise TypeMismatch on non-HolonAST input"
     );
 }

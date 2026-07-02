@@ -25,10 +25,7 @@ fn a_record_cannot_declare_a_struct_field() {
         ),
         Err(e) => {
             let msg = format!("{e:?}");
-            assert!(
-                msg.contains("Conn") || msg.contains("portable") || msg.contains("struct"),
-                "expected a containment-rule rejection naming the offending non-portable field; got: {msg}"
-            );
+            assert_eq!(msg, r#"Type(TypeError { span: Span { file: "wat-rs/src/check.rs", line: 13645, col: 35, end_line: 13645, end_col: 35 }, kind: ImpureFieldInPureAggregate { aggregate: ":w::Bad", field: "c", field_ty: ":w::Conn" } })"#);
         }
     }
 }

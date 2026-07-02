@@ -149,10 +149,10 @@ fn probe_define_rejected_at_startup_check() {
     match result {
         Err(e) => {
             let msg = format!("{:?}", e);
-            assert!(
-                msg.contains(":wat::core::define"),
-                "expected error to mention ':wat::core::define'; got: {}",
-                msg
+            assert_eq!(
+                msg,
+                r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/probe_def_not_special_define_bad.wat", line: 4, col: 4, end_line: 4, end_col: 22 }, kind: MalformedForm { head: ":wat::core::define", reason: "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)", remedies: [Remedy { form: ":wat::core::defn", kind: Retirement, note: None }] } }]))"#,
+                "expected exact define-HARD-CUT error"
             );
         }
         Ok(_) => panic!(

@@ -53,17 +53,10 @@ fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, expr: &str) -> bo
 fn probe_1_rename_callable_name_accepts_keyword_first_child() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, "(:t::probe-1)");
-    // Renamed head must contain "probe-1-renamed".
-    assert!(
-        s.contains("probe-1-renamed"),
-        "expected 'probe-1-renamed' in renamed head, got: {}",
-        s
-    );
-    // Old name must be gone from the head keyword position.
-    assert!(
-        !s.contains("probe-1-fn"),
-        "expected 'probe-1-fn' to be absent from renamed head, got: {}",
-        s
+    assert_eq!(
+        s,
+        "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::probe-1-renamed #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"x\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
+        "rename-callable-name must emit exact golden"
     );
 }
 
@@ -98,13 +91,5 @@ fn probe_3_define_alias_end_to_end() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, "(:t::probe-3)");
     // Both length and my-length on [1,2,3] should produce 3.
-    // Output should contain "3 3".
-    assert!(
-        s.contains("3") && {
-            let count = s.matches('3').count();
-            count >= 2
-        },
-        "expected both calls to produce 3 (length of 3-vector), got: {}",
-        s
-    );
+    assert_eq!(s, "3 3", "defalias must produce same result as original for both calls");
 }

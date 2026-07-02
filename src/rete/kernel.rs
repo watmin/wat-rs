@@ -2559,8 +2559,10 @@ mod tests {
                 _ => panic!("joined token must have ?loc bound to a String"),
             }
         }).collect();
-        assert!(locs.contains("Oslo"),   "joined tokens must include an Oslo pair");
-        assert!(locs.contains("Bergen"), "joined tokens must include a Bergen pair");
-        assert_eq!(locs.len(), 2,        "exactly 2 distinct locations, no duplicates");
+        assert_eq!(
+            locs,
+            ["Oslo", "Bergen"].into_iter().map(String::from).collect::<std::collections::HashSet<String>>(),
+            "joined tokens must be exactly the Oslo and Bergen same-loc pairs"
+        );
     }
 }

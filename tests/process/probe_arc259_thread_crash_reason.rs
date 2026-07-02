@@ -40,7 +40,7 @@ fn compute_raise_text() -> String {
 fn thread_peer_surfaces_crash_reason_over_recv() {
     let err = compute_raise_text();
     assert!(
-        err.contains("BOOM-SENTINEL-9173"),
+        err.contains("BOOM-SENTINEL-9173"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "thread peer `recv'` must surface the crash reason over the pipe (like the process peer); \
          the message was discarded. got: {err}"
     );

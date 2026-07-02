@@ -105,26 +105,10 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
     let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_children_sig.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-
-    // The rendered Vec should contain BOTH the signature head name
-    // (:user::add-two) AND the parameter type keyword (:wat::core::i64)
-    // — proving the Vec is a real children sequence, not an empty/nil.
-    assert!(
-        line.contains(":user::add-two"),
-        "expected ':user::add-two' as the head Symbol in the children Vec; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' as a parameter type Symbol in the children Vec; got: {}",
-        line
-    );
-    // The `->` arrow Symbol should be in the Vec too (rendered as
-    // an EDN Symbol payload "->" inside a Symbol wrapper).
-    assert!(
-        line.contains("->"),
-        "expected the '->' arrow Symbol somewhere in the rendered children; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"[#wat-edn.holon/Keyword :user::add-two #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"a\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"b\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "Bundle/children on add-two signature must yield head + arg-pair Bundles + arrow + ret"
     );
 }
 
@@ -148,22 +132,11 @@ fn bundle_children_walks_parametric_type_slot() {
     );
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-
-    // The parametric type ':wat::core::Vector' appears as a
-    // standalone Symbol (inside the rest-pair Bundle's type slot,
-    // which is itself a Bundle thanks to slice 1).
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' as a standalone Symbol in the children Vec; got: {}",
-        line
-    );
-    // The flat pre-arc-201 spelling MUST NOT appear — that would mean
-    // slice 1 regressed and the type was flattened back into a single
-    // keyword.
-    assert!(
-        !line.contains(":wat::core::Vector<wat::core::i64>"),
-        "the flat pre-arc-201 spelling should NOT appear; got: {}",
-        line
+    // The parametric type appears as a structured Bundle (not a fused flat keyword).
+    assert_eq!(
+        line,
+        "\"[#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"init\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"&\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"xs\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "Bundle/children on sum-list signature must show :Vector standalone in nested Bundle"
     );
 }
 
@@ -178,10 +151,10 @@ fn bundle_children_errors_on_atom_input() {
         "tests/reflection/wat_arc201_holon_ast_accessors_children_err_atom.wat",
     )
     .expect("expected runtime error from Bundle/children on a leaf");
-    assert!(
-        err.contains("Bundle/children") && err.contains("non-Bundle"),
-        "expected TypeMismatch mentioning 'Bundle/children' and 'non-Bundle'; got: {}",
-        err
+    assert_eq!(
+        err,
+        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_holon_ast_accessors_children_err_atom.wat\", line: 7, col: 51, end_line: 7, end_col: 55 }, kind: TypeMismatch { op: \":wat::holon::Bundle/children\", expected: \"Bundle (signature head HolonAST)\", got: ValueSnapshot { type_name: \"non-Bundle HolonAST variant\", rendered: \"<unavailable>\", provenance: Unknown } } }",
+        "Bundle/children on a leaf must raise TypeMismatch with op and non-Bundle message"
     );
 }
 
@@ -195,10 +168,10 @@ fn bundle_first_returns_head_keyword_of_signature() {
     let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_first_head.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert!(
-        line.contains(":user::add-two"),
-        "expected the Bundle/first output to render as the head ':user::add-two' Symbol; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat-edn.holon/Keyword :user::add-two\"",
+        "Bundle/first on add-two signature must return the head Keyword Symbol"
     );
 }
 
@@ -214,13 +187,11 @@ fn bundle_first_composes_with_atom_value() {
     let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_first_compose.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    // The extracted keyword renders without the Symbol wrapper. The
-    // EDN renderer normalises `::` to `/` in keyword tails per the
-    // EDN keyword grammar, so `:user::add-two` lands as `:user/add-two`.
-    assert!(
-        line.contains(":user/add-two") || line.contains(":user::add-two"),
-        "expected the extracted keyword (':user/add-two' or ':user::add-two'); got: {}",
-        line
+    // EDN renderer normalises `::` to `/` in keyword tails; the keyword lands as `:user/add-two`.
+    assert_eq!(
+        line,
+        "\":user/add-two\"",
+        "Bundle/first + from-holon must extract the keyword value (EDN-normalised with /)"
     );
 }
 
@@ -232,10 +203,10 @@ fn bundle_first_errors_on_leaf_input() {
         "tests/reflection/wat_arc201_holon_ast_accessors_first_err_leaf.wat",
     )
     .expect("expected runtime error from Bundle/first on a leaf");
-    assert!(
-        err.contains("Bundle/first") && err.contains("non-Bundle"),
-        "expected TypeMismatch mentioning 'Bundle/first' and 'non-Bundle'; got: {}",
-        err
+    assert_eq!(
+        err,
+        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_holon_ast_accessors_first_err_leaf.wat\", line: 7, col: 48, end_line: 7, end_col: 52 }, kind: TypeMismatch { op: \":wat::holon::Bundle/first\", expected: \"Bundle (signature head HolonAST)\", got: ValueSnapshot { type_name: \"non-Bundle HolonAST variant\", rendered: \"<unavailable>\", provenance: Unknown } } }",
+        "Bundle/first on a leaf must raise TypeMismatch with op and non-Bundle message"
     );
 }
 
@@ -251,9 +222,9 @@ fn bundle_first_errors_on_empty_bundle() {
         "tests/reflection/wat_arc201_holon_ast_accessors_first_err_empty.wat",
     )
     .expect("expected runtime error from Bundle/first on empty Bundle");
-    assert!(
-        err.contains("Bundle/first") && err.contains("empty Bundle"),
-        "expected TypeMismatch mentioning 'Bundle/first' and 'empty Bundle'; got: {}",
-        err
+    assert_eq!(
+        err,
+        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_holon_ast_accessors_first_err_empty.wat\", line: 10, col: 53, end_line: 10, end_col: 58 }, kind: TypeMismatch { op: \":wat::holon::Bundle/first\", expected: \"Bundle with at least one child\", got: ValueSnapshot { type_name: \"empty Bundle\", rendered: \"<unavailable>\", provenance: Unknown } } }",
+        "Bundle/first on empty Bundle must raise TypeMismatch with empty-Bundle message"
     );
 }

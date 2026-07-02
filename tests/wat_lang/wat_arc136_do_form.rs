@@ -54,10 +54,10 @@ fn run_err_file(rel_path: &str) -> String {
 #[test]
 fn do_empty_form_is_malformed() {
     let err = run_err_file("tests/wat_lang/wat_arc136_do_form_empty_bad.wat");
-    assert!(
-        err.contains("do") && (err.contains("MalformedForm") || err.contains("at least one")),
-        "expected MalformedForm naming the do form; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_empty_bad.wat", line: 4, col: 54, end_line: 4, end_col: 68 }, kind: MalformedForm { head: ":wat::core::do", reason: "do form requires at least one form; got zero", remedies: [] } }]))"#,
+        "expected MalformedForm naming the do form"
     );
 }
 
@@ -87,10 +87,10 @@ fn do_recipient_unifies_with_final_form_type() {
 #[test]
 fn do_recipient_mismatch_fires_type_mismatch() {
     let err = run_err_file("tests/wat_lang/wat_arc136_do_form_mismatch_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected TypeMismatch at probe's body; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_mismatch_bad.wat", line: 5, col: 3, end_line: 7, end_col: 8 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::String", got: ":wat::core::i64", remedies: [] } }]))"#,
+        "expected TypeMismatch at probe's body"
     );
 }
 
@@ -106,15 +106,10 @@ fn do_non_final_type_is_unconstrained() {
 #[test]
 fn do_reflection_round_trip_emits_variadic_sketch() {
     let rendered = unwrap_string(run_expr("(:t::test7-signature)"));
-    assert!(
-        rendered.contains(":wat::core::do"),
-        "expected do keyword as signature head; got: {}",
-        rendered
-    );
-    assert!(
-        rendered.contains("<form>+"),
-        "expected variadic <form>+ slot in signature; got: {}",
-        rendered
+    assert_eq!(
+        rendered,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::do #wat-edn.holon/Symbol "<form>+"]"#,
+        "expected do keyword as signature head with variadic <form>+ slot"
     );
 }
 

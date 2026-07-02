@@ -100,12 +100,13 @@ fn t2_arc170_slice_2_main_fires_walker() {
     // The slice-2-shape (4-arg with argv + ExitCode return) is also
     // non-canonical post-slice-1e. Slice 1e's walker fires on it.
     let err = freeze_err("tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat");
-    assert!(
-        err.contains("BareLegacyMainSignature")
-            || err.contains(":user::main")
-            || err.contains("ExitCode"),
-        "expected diagnostic on the 4-arg ExitCode shape post-slice-1e; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"check:
+1 type-check error(s):
+  - tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat:3:191: :user::main: body produces :wat::core::u8; signature declares :wat::kernel::ExitCode
+"#,
+        "s1e_t2: slice-2 main shape diagnostic golden"
     );
 }
 

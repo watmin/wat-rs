@@ -97,17 +97,17 @@ fn destructure_binding() {
 #[test]
 fn odd_count_vector_errors() {
     let err = startup_err_file("tests/wat_lang/wat_arc168_let_flat_shape_odd_bad.wat");
-    assert!(
-        err.contains("even number of elements") || err.contains("MalformedForm"),
-        "expected clear error on odd-count `[x]`; got: {}",
-        err
+    assert_eq!(
+        err,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc168_let_flat_shape_odd_bad.wat:5:20: malformed :wat::core::let form: let bindings vector must have an even number of elements (alternating name expr name expr ...); got 1\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/wat_lang/wat_arc168_let_flat_shape_odd_bad.wat\", line: 5, col: 20, end_line: 5, end_col: 23 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"let bindings vector must have an even number of elements (alternating name expr name expr ...); got 1\", remedies: [] } }]))",
+        "expected MalformedForm for odd-count [x]"
     );
 
     let err3 = startup_err_file("tests/wat_lang/wat_arc168_let_flat_shape_odd3_bad.wat");
-    assert!(
-        err3.contains("even number of elements") || err3.contains("MalformedForm"),
-        "expected clear error on odd-count `[x 1 y]`; got: {}",
-        err3
+    assert_eq!(
+        err3,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc168_let_flat_shape_odd3_bad.wat:5:20: malformed :wat::core::let form: let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/wat_lang/wat_arc168_let_flat_shape_odd3_bad.wat\", line: 5, col: 20, end_line: 5, end_col: 27 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"let bindings vector must have an even number of elements (alternating name expr name expr ...); got 3\", remedies: [] } }]))",
+        "expected MalformedForm for odd-count [x 1 y]"
     );
 }
 
@@ -128,12 +128,10 @@ fn multi_form_let_body_typecheck() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc168_let_flat_shape_typecheck_bad.wat",
     );
-    assert!(
-        err.contains("TypeMismatch")
-            || err.contains("type mismatch")
-            || err.contains("expected"),
-        "expected type mismatch on non-final body form; got: {}",
-        err
+    assert_eq!(
+        err,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc168_let_flat_shape_typecheck_bad.wat:6:27: :wat::core::i64::+: parameter #2 expects :wat::core::i64; got :wat::core::String\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/wat_lang/wat_arc168_let_flat_shape_typecheck_bad.wat\", line: 6, col: 27, end_line: 6, end_col: 39 }, kind: TypeMismatch { callee: \":wat::core::i64::+\", param: \"#2\", expected: \":wat::core::i64\", got: \":wat::core::String\" } }]))",
+        "expected TypeMismatch on non-final body form"
     );
 }
 

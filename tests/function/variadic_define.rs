@@ -126,20 +126,11 @@ fn signature_of_defn_variadic_define_returns_rest_shape() {
     // their own Symbol entry inside a Bundle: `Symbol ":wat::core::Vector"`
     // and `Symbol ":wat::core::i64"`. Asserting both confirms the
     // structured emission reached the variadic rest slot.
-    assert!(rendered.contains("sum-of"), "expected 'sum-of' in {}", rendered);
-    assert!(rendered.contains("\"&\""), "expected '&' rest-marker symbol in {}", rendered);
-    assert!(rendered.contains("\"xs\""), "expected 'xs' rest-binder name in {}", rendered);
-    assert!(
-        rendered.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' Parametric head in rest-binder type in {}",
-        rendered
+    assert_eq!(
+        rendered,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :my::sum-of #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "init" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "&" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "xs" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64]"#,
+        "vd_sig: variadic defn signature golden"
     );
-    assert!(
-        rendered.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' Parametric arg in rest-binder type in {}",
-        rendered
-    );
-    assert!(rendered.contains("init"), "expected 'init' fixed-param name in {}", rendered);
 }
 
 // ─── Canonical pattern: variadic + reduce over rest (arc 148 slice 4 shape) ───

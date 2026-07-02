@@ -88,10 +88,10 @@ fn probe_5_unknown_field_errors() {
         Ok(v) => panic!("Probe 5 FAILED: expected error; got Ok({:?})", v.value_owned()),
         Err(e) => {
             let msg = format!("{:?}", e);
-            assert!(
-                msg.to_lowercase().contains("unknown") || msg.contains("nonexistent"),
-                "Probe 5: expected unknown-field-style error; got {}",
-                msg
+            assert_eq!(
+                msg,
+                r#"RuntimeError { span: Span { file: "tests/wat_lang/probe_arc234_stone4_hash_destructure_bad.wat", line: 8, col: 25, end_line: 8, end_col: 46 }, kind: UnknownField { record_class: "myapp::Voltage", field: "nonexistent", available: ["magnitude"] } }"#,
+                "Probe 5: expected exact UnknownField error"
             );
         }
     }

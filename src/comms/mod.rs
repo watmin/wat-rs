@@ -1027,10 +1027,7 @@ mod beta0_wire_tests {
             "42",
             "String::to_wire must be raw passthrough — a forms-server's plain `42` is the wire"
         );
-        assert!(
-            !edn_line.to_wire().contains("#wat-edn.holon"),
-            "the wire must carry no holon-AST envelope"
-        );
+        assert_eq!(edn_line.to_wire(), "42", "the wire must carry no holon-AST envelope");
         assert_eq!(String::from_wire("42").unwrap(), "42");
 
         // A tagged literal (#wat.kernel/...) is itself valid EDN and rides the

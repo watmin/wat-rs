@@ -26,10 +26,10 @@ fn contract_01_try_hard_cut_rejected() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone15_zombie_purge_try_bad.wat");
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains("Stone 241.15"),
-        ":wat::core::try must be HARD-CUT-rejected via Stone 241.15 arm; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone15_zombie_purge_try_bad.wat:5:20: malformed :wat::core::try form: ':wat::core::try' is retired (Stone 241.15); use ':wat::core::Result/try' instead\n  did you mean: :wat::core::Result/try [replaces a retired form]\n",
+        ":wat::core::try must be HARD-CUT-rejected via Stone 241.15 arm"
     );
 }
 
@@ -40,15 +40,10 @@ fn contract_02_try_rejection_remedy_names_result_try() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone15_zombie_purge_try_bad.wat");
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains(":wat::core::Result/try"),
-        "try retirement remedy must name :wat::core::Result/try; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "try remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone15_zombie_purge_try_bad.wat:5:20: malformed :wat::core::try form: ':wat::core::try' is retired (Stone 241.15); use ':wat::core::Result/try' instead\n  did you mean: :wat::core::Result/try [replaces a retired form]\n",
+        "try retirement remedy must name :wat::core::Result/try with [replaces a retired form]"
     );
 }
 
@@ -60,10 +55,10 @@ fn contract_03_option_expect_lowercase_hard_cut_rejected() {
         "tests/wat_lang/probe_arc241_stone15_zombie_purge_option_expect_bad.wat",
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains("Stone 241.15"),
-        ":wat::core::option::expect must be HARD-CUT-rejected via Stone 241.15 arm; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone15_zombie_purge_option_expect_bad.wat:5:4: malformed :wat::core::option::expect form: ':wat::core::option::expect' is retired (Stone 241.15); use ':wat::core::Option/expect' instead\n  did you mean: :wat::core::Option/expect [replaces a retired form]\n",
+        ":wat::core::option::expect must be HARD-CUT-rejected via Stone 241.15 arm"
     );
 }
 
@@ -75,15 +70,10 @@ fn contract_04_option_expect_lowercase_rejection_remedy_names_pascal() {
         "tests/wat_lang/probe_arc241_stone15_zombie_purge_option_expect_bad.wat",
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains(":wat::core::Option/expect"),
-        "option::expect retirement remedy must name :wat::core::Option/expect (PascalCase); got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "option::expect remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone15_zombie_purge_option_expect_bad.wat:5:4: malformed :wat::core::option::expect form: ':wat::core::option::expect' is retired (Stone 241.15); use ':wat::core::Option/expect' instead\n  did you mean: :wat::core::Option/expect [replaces a retired form]\n",
+        "option::expect retirement remedy must name :wat::core::Option/expect with [replaces a retired form]"
     );
 }
 
@@ -95,10 +85,10 @@ fn contract_05_result_expect_lowercase_hard_cut_rejected() {
         "tests/wat_lang/probe_arc241_stone15_zombie_purge_result_expect_bad.wat",
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains("Stone 241.15"),
-        ":wat::core::result::expect must be HARD-CUT-rejected via Stone 241.15 arm; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone15_zombie_purge_result_expect_bad.wat:5:4: malformed :wat::core::result::expect form: ':wat::core::result::expect' is retired (Stone 241.15); use ':wat::core::Result/expect' instead\n  did you mean: :wat::core::Result/expect [replaces a retired form]\n",
+        ":wat::core::result::expect must be HARD-CUT-rejected via Stone 241.15 arm"
     );
 }
 
@@ -110,14 +100,9 @@ fn contract_06_result_expect_lowercase_rejection_remedy_names_pascal() {
         "tests/wat_lang/probe_arc241_stone15_zombie_purge_result_expect_bad.wat",
     );
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains(":wat::core::Result/expect"),
-        "result::expect retirement remedy must name :wat::core::Result/expect (PascalCase); got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "result::expect remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone15_zombie_purge_result_expect_bad.wat:5:4: malformed :wat::core::result::expect form: ':wat::core::result::expect' is retired (Stone 241.15); use ':wat::core::Result/expect' instead\n  did you mean: :wat::core::Result/expect [replaces a retired form]\n",
+        "result::expect retirement remedy must name :wat::core::Result/expect with [replaces a retired form]"
     );
 }

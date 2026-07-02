@@ -28,10 +28,7 @@ fn pure_enum_with_struct_field_rejected() {
         ),
         Err(e) => {
             let msg = format!("{e:?}");
-            assert!(
-                msg.contains("Pure") || msg.contains("pure") || msg.contains("Impure") || msg.contains("containment"),
-                "expected a containment-rule rejection mentioning purity; got: {msg}"
-            );
+            assert_eq!(msg, r#"Type(TypeError { span: Span { file: "wat-rs/src/check.rs", line: 13663, col: 43, end_line: 13663, end_col: 43 }, kind: ImpureVariantFieldInPureEnum { enum_name: ":w2b::BadEvt", variant: "Live", field: "c", field_ty: ":w2b::Conn" } })"#);
         }
     }
 }

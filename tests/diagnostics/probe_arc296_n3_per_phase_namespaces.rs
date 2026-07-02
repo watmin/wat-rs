@@ -33,9 +33,10 @@ fn error_families_tag_under_their_phase_namespace() {
         kind: CheckErrorKind::UnknownCallee { callee: ":user::do-thing".into() },
     };
     let s = wat_edn::write(&check.to_edn());
-    assert!(
-        s.starts_with("#wat.check/"),
-        "CheckError must tag under #wat.check/; got: {s}"
+    assert_eq!(
+        s,
+        r#"#wat.check/UnknownCallee {:callee ":user::do-thing" :span {:file "test.wat" :line 1 :col 1}}"#,
+        "CheckError must tag under #wat.check/"
     );
 
     // TypeError → #wat.type/
@@ -44,9 +45,10 @@ fn error_families_tag_under_their_phase_namespace() {
         kind: TypeErrorKind::DuplicateType { name: ":user::T".into() },
     };
     let s = wat_edn::write(&ty.to_edn());
-    assert!(
-        s.starts_with("#wat.type/"),
-        "TypeError must tag under #wat.type/; got: {s}"
+    assert_eq!(
+        s,
+        r#"#wat.type/DuplicateType {:name ":user::T" :span {:file "test.wat" :line 1 :col 1}}"#,
+        "TypeError must tag under #wat.type/"
     );
 
     // RuntimeError → #wat.runtime/
@@ -55,9 +57,10 @@ fn error_families_tag_under_their_phase_namespace() {
         kind: RuntimeErrorKind::UnboundSymbol("x".into()),
     };
     let s = wat_edn::write(&rt.to_edn());
-    assert!(
-        s.starts_with("#wat.runtime/"),
-        "RuntimeError must tag under #wat.runtime/; got: {s}"
+    assert_eq!(
+        s,
+        r#"#wat.runtime/UnboundSymbol {:name "x" :span {:file "test.wat" :line 1 :col 1}}"#,
+        "RuntimeError must tag under #wat.runtime/"
     );
 
     // LoadError → #wat.load/, AND the embedded LoadFetchError STAYS #wat.kernel/
@@ -67,12 +70,10 @@ fn error_families_tag_under_their_phase_namespace() {
         kind: LoadErrorKind::Fetch(LoadFetchError::NotFound("/no/such.wat".into())),
     };
     let s = wat_edn::write(&load.to_edn());
-    assert!(
-        s.starts_with("#wat.load/"),
-        "LoadError must tag under #wat.load/; got: {s}"
-    );
-    assert!(
-        s.contains("#wat.kernel/NotFound"),
-        "the embedded LoadFetchError is shared infra — it MUST stay #wat.kernel/NotFound; got: {s}"
+    // LoadError under #wat.load/; embedded LoadFetchError STAYS #wat.kernel/NotFound (shared infra).
+    assert_eq!(
+        s,
+        r#"#wat.load/Fetch {:cause #wat.kernel/NotFound {:path "/no/such.wat"} :span {:file "test.wat" :line 1 :col 1}}"#,
+        "LoadError must tag under #wat.load/; embedded LoadFetchError must stay #wat.kernel/"
     );
 }

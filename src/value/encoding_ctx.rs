@@ -103,10 +103,10 @@ mod tests {
         let cfg = test_config();
         let ctx = EncodingCtx::from_config(&cfg);
         let dbg = format!("{:?}", ctx);
-        assert!(dbg.contains("EncodingCtx"), "expected struct name; got: {dbg}");
-        assert!(dbg.contains("global_seed: 42"), "expected seed 42; got: {dbg}");
-        assert!(dbg.contains(&format!("dim_count: {DEFAULT_DIM_COUNT}")), "expected dim_count; got: {dbg}");
-        // capacity = floor(sqrt(10000)) = 100
-        assert!(dbg.contains("capacity: 100"), "expected capacity 100; got: {dbg}");
+        assert_eq!(
+            dbg,
+            "EncodingCtx { global_seed: 42, dim_count: 10000, capacity: 100 }",
+            "Debug output mismatch"
+        );
     }
 }

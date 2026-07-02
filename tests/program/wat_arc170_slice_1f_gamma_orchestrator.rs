@@ -139,10 +139,10 @@ fn row_a_single_thread_println() {
     // its EDN form `"hello slice 1f-gamma"` (quoted) per
     // value_to_edn_with.
     let captured = drain_to_string(&stdout_capture);
-    assert!(
-        captured.contains("hello slice 1f-gamma"),
-        "stdout should contain the line; got {:?}",
-        captured
+    assert_eq!(
+        captured,
+        "\"hello slice 1f-gamma\"\n",
+        "s1f_rowA: orchestrator stdout golden"
     );
 }
 
@@ -161,8 +161,11 @@ fn row_b_multi_thread_println() {
     assert!(matches!(result, Ok(Value::Unit)), "got {:?}", result);
 
     let captured = drain_to_string(&stdout_capture);
+    // rune:lint(loose-assert) — 3 child threads print in non-deterministic order; any-order property check is correct
     assert!(captured.contains("child-a"), "expected child-a; got {:?}", captured);
+    // rune:lint(loose-assert) — 3 child threads print in non-deterministic order; any-order property check is correct
     assert!(captured.contains("child-b"), "expected child-b; got {:?}", captured);
+    // rune:lint(loose-assert) — 3 child threads print in non-deterministic order; any-order property check is correct
     assert!(captured.contains("child-c"), "expected child-c; got {:?}", captured);
 }
 

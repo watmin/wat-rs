@@ -57,10 +57,5 @@ fn core_record_rejected_by_holon_holder_bound() {
     // `world.err()` is `None` for an Ok world ⇒ formats as "None" ⇒ fails the cite check (an Ok
     // is wrong). A built holder-rejection cites `:env::Holon`; HEAD's MalformedDecl does not.
     let err = format!("{:?}", world.err());
-    assert!(
-        err.contains("env::Holon"),
-        "a core record must NOT satisfy a :holder :holon-record surface (fields match but \
-         holon-ness is categorical), and the rejection must cite the surface :env::Holon, \
-         not be the incidental parse error. got: {err}"
-    );
+    assert_eq!(err, r##"Some(Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc293_holder_bound_reject.wat", line: 13, col: 22, end_line: 13, end_col: 36 }, kind: TypeMismatch { callee: ":env::wants-holon", param: "#1", expected: ":env::Holon", got: ":env::CEnv" } }])))"##);
 }

@@ -3616,6 +3616,9 @@ mod tests {
             "expected NoTypeRegistry, got: {:?}",
             err
         );
+        // rune:lint(loose-assert) — Display embeds rust_caller_span!() (Rust file:line:col of the
+        // read_edn call-site inside edn_shim.rs); the file:line:col prefix shifts whenever lines
+        // are added above that site, making full assert_eq! infeasible
         assert!(
             rendered.contains("no type registry"),
             "expected NoTypeRegistry message; got: {}",
@@ -3839,10 +3842,7 @@ mod tests {
         let ast = forms.into_iter().next().expect("one form");
         let v = Value::wat__WatAST(Arc::new(ast));
         let s = value_to_edn_string(&v);
-        assert!(
-            !s.contains("opaque") && s.contains("-5"),
-            "a WatAST must render as its form (with operands), not opaque-nil; got: {s}"
-        );
+        assert_eq!(s, "(:wat.core/< -5 0)", "a WatAST must render as its form (with operands), not opaque-nil");
     }
 
     // ─── Arc 278 stone 0a — PersistentMap EDN round-trip ───────────────

@@ -162,14 +162,9 @@ fn probe_5_literal_provenance_renders_source_coordinates() {
 
     let snap = ValueSnapshot::of_tracked(&tv);
     let display = format!("{}", snap);
-
-    // Display impl renders provenance into the string. For Literal, we
-    // expect line + col coordinates to appear. The exact format is the
-    // substrate's choice; we just assert source-coordinate context surfaces.
-    assert!(
-        display.contains("7") || display.contains("13") || display.contains("test-source.wat"),
-        "Stone 233.2.e: Literal{{span}} provenance must render \
-         source-coordinates into Display; got `{}`",
-        display
+    assert_eq!(
+        display,
+        "wat::core::i64 `42` (from test-source.wat:7:13)",
+        "Stone 233.2.e: Literal{{span}} provenance must render source-coordinates into Display"
     );
 }

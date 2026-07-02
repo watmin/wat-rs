@@ -62,6 +62,7 @@ fn ticket_second_redemption_errors() {
     let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
     // The second redeem attempts to consume the already-drained cell;
     // OwnedMoveCell::take returns MalformedForm.
-    assert!(format!("{:?}", err).contains("already consumed"),
+    let errs = format!("{:?}", err);
+    assert!(errs.contains("already consumed"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
             "expected 'already consumed'; got {:?}", err);
 }

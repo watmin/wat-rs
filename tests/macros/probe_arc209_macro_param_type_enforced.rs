@@ -24,9 +24,10 @@ fn lying_macro_param_type_is_rejected_at_macro_def() {
         Err(e) => {
             let msg = format!("{e}");
             // Measure the diagnostic: it must name the param + say macro params are forms.
-            assert!(
-                msg.contains(":wat::WatAST") && (msg.to_lowercase().contains("param") || msg.contains('x')),
-                "rejection message should name the offending param + the required :wat::WatAST type; got:\n{msg}"
+            assert_eq!(
+                msg,
+                "macro: tests/macros/probe_arc209_macro_param_type_enforced_bad.wat:6:34: malformed defmacro: macro param `x` is declared `Path(\":wat::core::i64\")`, but a macro param always binds a form — its type must be `:wat::WatAST`",
+                "rejection message must match malformed defmacro golden"
             );
         }
         Ok(_) => panic!(

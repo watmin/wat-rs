@@ -30,10 +30,10 @@ fn typealias_divergent_errors() {
     let err = startup_err_file(
         "tests/wat_lang/wat_idempotent_redeclare_typealias_div_bad.wat",
     );
-    assert!(
-        err.contains("duplicate") || err.contains("Duplicate") || err.contains("Amount"),
-        "expected duplicate-type error mentioning Amount; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Type(TypeError { span: Span { file: "tests/wat_lang/wat_idempotent_redeclare_typealias_div_bad.wat", line: 5, col: 1, end_line: 5, end_col: 52 }, kind: DuplicateType { name: ":my::Amount" } })"#,
+        "expected DuplicateType error for divergent typealias re-registration"
     );
 }
 
@@ -49,10 +49,10 @@ fn define_divergent_body_errors() {
     let err = startup_err_file(
         "tests/wat_lang/wat_idempotent_redeclare_define_div_bad.wat",
     );
-    assert!(
-        err.contains("Duplicate") || err.contains("duplicate") || err.contains("add-one"),
-        "expected duplicate-define error; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "wat/core.wat", line: 512, col: 9, end_line: 512, end_col: 24 }, kind: DefRedefForbidden { name: ":my::add-one", original_def_span: Span { file: "wat/core.wat", line: 512, col: 9, end_line: 512, end_col: 24 } } }]))"#,
+        "expected DefRedefForbidden for divergent define re-registration"
     );
 }
 

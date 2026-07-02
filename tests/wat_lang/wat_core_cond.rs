@@ -70,30 +70,30 @@ fn cond_dispatches_on_bound_value() {
 #[test]
 fn cond_refuses_missing_else() {
     let err = run_err_file("tests/wat_lang/wat_core_cond_no_else_bad.wat");
-    assert!(
-        err.contains(":else") || err.contains("explicit default"),
-        "expected missing-:else diagnostic; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Macro(MacroError { span: Span { file: "wat/core.wat", line: 593, col: 15, end_line: 593, end_col: 62 }, kind: ProgramBodyEvalFailed { macro_name: ":wat::core::cond", cause: MacroError { span: Span { file: "wat/core.wat", line: 583, col: 5, end_line: 583, end_col: 82 }, kind: MalformedTemplate { reason: "cond: non-exhaustive — needs a terminal :else arm" } } } })"#,
+        "expected missing-:else diagnostic"
     );
 }
 
 #[test]
 fn cond_refuses_non_bool_test() {
     let err = run_err_file("tests/wat_lang/wat_core_cond_non_bool_bad.wat");
-    assert!(
-        err.contains(":wat::core::bool"),
-        "expected bool-type diagnostic; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_core_cond_non_bool_bad.wat", line: 6, col: 6, end_line: 6, end_col: 8 }, kind: TypeMismatch { callee: ":wat::core::if", param: "cond", expected: ":wat::core::bool", got: ":wat::core::i64" } }]))"#,
+        "expected TypeMismatch on non-bool cond test"
     );
 }
 
 #[test]
 fn cond_refuses_mismatched_body_type() {
     let err = run_err_file("tests/wat_lang/wat_core_cond_body_mismatch_bad.wat");
-    assert!(
-        err.contains("TypeMismatch") && err.contains("else-branch"),
-        "expected arm-body type mismatch (else-branch after macro expansion to if); got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_core_cond_body_mismatch_bad.wat", line: 7, col: 12, end_line: 7, end_col: 21 }, kind: TypeMismatch { callee: ":wat::core::if", param: "else-branch", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"#,
+        "expected TypeMismatch on arm-body mismatch after cond macro expansion"
     );
 }
 

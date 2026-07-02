@@ -121,34 +121,19 @@ fn body_of_unknown_name_returns_none() {
 #[test]
 fn signature_of_defn_foldl_renders_synthesised_shape() {
     let line = unwrap_string(run_expr("(:t::test10-sig-render)"), "sig-render");
-    assert!(
-        line.contains("foldl"),
-        "expected 'foldl' in rendered signature, got: {}",
-        line
-    );
-    assert!(
-        line.contains("_a0") && line.contains("_a1") && line.contains("_a2"),
-        "expected synthesised param names _a0/_a1/_a2, got: {}",
-        line
-    );
-    assert!(
-        line.contains("Acc") && line.contains("Vec"),
-        "expected type-param names T/Acc and Vec in signature, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::foldl<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a1" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a2" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]"#,
+        "foldl signature must render with synthesised param names and type params"
     );
 }
 
 #[test]
 fn lookup_define_user_function_contains_defn_keyword() {
     let line = unwrap_string(run_expr("(:t::test11-def-render)"), "def-render");
-    assert!(
-        line.contains("defn"),
-        "expected 'defn' in rendered define-ast, got: {}",
-        line
-    );
-    assert!(
-        line.contains("my-square"),
-        "expected 'my-square' in rendered define-ast, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::my-square #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::* #wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "x"]]"#,
+        "rendered define-ast must show defn head and my-square name"
     );
 }

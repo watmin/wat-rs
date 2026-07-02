@@ -57,9 +57,9 @@ fn define_alias_retired_form_rejected_at_startup() {
     );
     // Verify the error message names the retired form and the remedy.
     let err_msg = format!("{}", result.unwrap_err());
-    assert!(
-        err_msg.contains(":wat::runtime::define-alias") || err_msg.contains(":wat::core::defalias"),
-        "error message should reference the retired form or the replacement; got:\n{}",
-        err_msg
+    assert_eq!(
+        err_msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc143_define_alias_retired_bad.wat:4:2: malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead\n  did you mean: :wat::core::defalias [replaces a retired form]\n",
+        "error message should name the retired form and the :wat::core::defalias replacement"
     );
 }

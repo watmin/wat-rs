@@ -81,20 +81,10 @@ fn run_i64(fixture_path: &str) -> i64 {
 fn user_function_lookup_define_emits_defn_head() {
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_defn_head.wat");
     // Stone 241.16 — reflection emits :wat::core::defn (not :wat::core::define)
-    assert!(
-        line.contains(":wat::core::defn"),
-        "expected ':wat::core::defn' head in user-function lookup-define AST post-Stone-241.16, got: {}",
-        line
-    );
-    assert!(
-        !line.contains(":wat::core::define"),
-        "expected NO ':wat::core::define' head in user-function lookup-define AST post-Stone-241.16, got: {}",
-        line
-    );
-    assert!(
-        line.contains("user::greet"),
-        "expected user-function name in rendered AST, got: {}",
-        line
+    assert_eq!(
+        line,
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::greet #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"n\" #wat-edn.holon/Keyword :wat::core::String] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::String] #wat-edn.holon/Symbol \"n\"]",
+        "user-function lookup-define must emit :wat::core::defn head with greet body"
     );
 }
 
@@ -150,15 +140,10 @@ fn special_form_lookup_define_smoke() {
     // representative special form and asserts the slice-1 sentinel
     // marker is preserved in the rendered AST.
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_special_form.wat");
-    assert!(
-        line.contains(":wat::core::__internal/special-form"),
-        "expected special-form sentinel head, got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::if"),
-        "expected ':wat::core::if' name in rendered AST, got: {}",
-        line
+    assert_eq!(
+        line,
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/special-form #wat-edn.holon/Keyword :wat::core::if]",
+        "special-form lookup-define must emit sentinel head and :if name"
     );
 }
 
@@ -171,15 +156,10 @@ fn type_lookup_define_smoke() {
     // (full trio with head + body-of returns :None). This pins the
     // cross-test invariant on a different struct shape.
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_type.wat");
-    assert!(
-        line.contains(":wat::core::defstruct"),
-        "expected ':wat::core::defstruct' head in struct lookup-define AST, got: {}",
-        line
-    );
-    assert!(
-        line.contains("my::Pair"),
-        "expected struct name in rendered AST, got: {}",
-        line
+    assert_eq!(
+        line,
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defstruct #wat-edn.holon/Keyword :my::Pair #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/type-decl #wat-edn.holon/Keyword :my::Pair]]",
+        "type lookup-define must emit :defstruct head with my::Pair name"
     );
 }
 
@@ -193,28 +173,12 @@ fn type_lookup_define_smoke() {
 #[test]
 fn primitive_empty_lookup_define_emits_define_head() {
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_empty.wat");
-    // Primitive reflection emits `:wat::core::define` (not `:wat::core::define-dispatch`)
-    // and the synthetic internal-primitive sentinel body.
-    assert!(
-        !line.contains("define-dispatch"),
-        "expected NO 'define-dispatch' in :wat::core::empty? lookup-define post-241.13, got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::empty?"),
-        "expected ':wat::core::empty?' name in rendered AST, got: {}",
-        line
-    );
-    // Stone 241.16 — primitive reflection now emits :wat::core::defn (not :wat::core::define).
-    assert!(
-        line.contains(":wat::core::defn"),
-        "expected ':wat::core::defn' head in Primitive reflection post-Stone-241.16, got: {}",
-        line
-    );
-    assert!(
-        !line.contains(":wat::core::define"),
-        "expected NO ':wat::core::define' head in Primitive reflection post-Stone-241.16, got: {}",
-        line
+    // Stone 241.16 — primitive reflection emits :wat::core::defn (not :wat::core::define),
+    // and Stone 241.13 — no define-dispatch; empty? is a ∀T intrinsic Primitive.
+    assert_eq!(
+        line,
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::empty?<T> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a0\" #wat-edn.holon/Keyword :T] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::bool] #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/primitive #wat-edn.holon/Keyword :wat::core::empty?]]",
+        "empty? lookup-define must emit :defn head with internal-primitive sentinel body"
     );
 }
 

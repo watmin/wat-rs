@@ -62,6 +62,7 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
     let define_line = def_str(probe);
     let signature_line = sig_str(probe);
     let body_is_none = body_none(probe);
+    // rune:lint(loose-assert) — property-over-variable-set: called from multiple test fns with different `probe` values; `define_line` differs per form but every valid special form must carry this sentinel
     assert!(
         define_line.contains(":wat::core::__internal/special-form"),
         "lookup-define for {} should emit the special-form sentinel; got: {}",
@@ -86,12 +87,10 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
 fn lookup_form_if_returns_special_form() {
     assert_special_form("if", ":wat::core::if", ":wat::core::if");
     let signature_line = sig_str("if");
-    assert!(
-        signature_line.contains("<cond>")
-            && signature_line.contains("<then>")
-            && signature_line.contains("<else>"),
-        "expected <cond>/<then>/<else> slots in signature, got: {}",
-        signature_line
+    assert_eq!(
+        signature_line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::if #wat-edn.holon/Symbol "<cond>" #wat-edn.holon/Symbol "<then>" #wat-edn.holon/Symbol "<else>"]"#,
+        "if signature must carry <cond>/<then>/<else> slots"
     );
 }
 
@@ -99,12 +98,10 @@ fn lookup_form_if_returns_special_form() {
 fn lookup_form_let_returns_special_form() {
     assert_special_form("let", ":wat::core::let", ":wat::core::let");
     let signature_line = sig_str("let");
-    assert!(
-        signature_line.contains(":wat::core::let")
-            && signature_line.contains("<bindings>")
-            && signature_line.contains("<body>+"),
-        "expected let signature with <bindings>/<body>+, got: {}",
-        signature_line
+    assert_eq!(
+        signature_line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::let #wat-edn.holon/Symbol "<bindings>" #wat-edn.holon/Symbol "<body>+"]"#,
+        "let signature must carry <bindings>/<body>+ slots"
     );
 }
 
@@ -112,10 +109,10 @@ fn lookup_form_let_returns_special_form() {
 fn lookup_form_fn_returns_special_form() {
     assert_special_form("fn", ":wat::core::fn", ":wat::core::fn");
     let sig = sig_str("fn");
-    assert!(
-        sig.contains("<params>") && sig.contains("<body>+"),
-        "expected <params>/<body>+ in fn signature, got: {}",
-        sig
+    assert_eq!(
+        sig,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::fn #wat-edn.holon/Symbol "<params>" #wat-edn.holon/Symbol "<body>+"]"#,
+        "fn signature must carry <params>/<body>+ slots"
     );
 }
 
@@ -134,10 +131,10 @@ fn lookup_form_define_is_absent_from_registry() {
 fn lookup_form_match_returns_special_form() {
     assert_special_form("match", ":wat::core::match", ":wat::core::match");
     let sig = sig_str("match");
-    assert!(
-        sig.contains("<scrutinee>") && sig.contains("<arm>+"),
-        "expected <scrutinee>/<arm>+ in match signature, got: {}",
-        sig
+    assert_eq!(
+        sig,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::match #wat-edn.holon/Symbol "<scrutinee>" #wat-edn.holon/Symbol "->" #wat-edn.holon/Symbol "<T>" #wat-edn.holon/Symbol "<arm>+"]"#,
+        "match signature must carry <scrutinee>/<arm>+ slots"
     );
 }
 
@@ -145,10 +142,10 @@ fn lookup_form_match_returns_special_form() {
 fn lookup_form_quasiquote_returns_special_form() {
     assert_special_form("quasiquote", ":wat::core::quasiquote", ":wat::core::quasiquote");
     let sig = sig_str("quasiquote");
-    assert!(
-        sig.contains("<template>"),
-        "expected <template> in quasiquote signature, got: {}",
-        sig
+    assert_eq!(
+        sig,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::quasiquote #wat-edn.holon/Symbol "<template>"]"#,
+        "quasiquote signature must carry <template> slot"
     );
 }
 
@@ -158,17 +155,10 @@ fn lookup_form_struct_returns_special_form() {
     // lookup-define returns the macro definition (head :wat::core::defmacro); the macro
     // body expands all args through to :wat::core::structtype (the new low-level primitive).
     let define_line = def_str("defstruct");
-    assert!(
-        define_line.contains(":wat::core::defmacro"),
-        "Arc 293.2-parity: defstruct should now be a macro; lookup-define should contain \
-         :wat::core::defmacro; got: {}",
-        define_line
-    );
-    assert!(
-        define_line.contains(":wat::core::structtype"),
-        "Arc 293.2-parity: defstruct macro body should expand to :wat::core::structtype; \
-         got: {}",
-        define_line
+    assert_eq!(
+        define_line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defmacro #wat-edn.holon/Keyword :wat::core::defstruct #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "&" #wat-edn.holon/Symbol "args" #wat-edn.holon/Symbol "<-" #wat-edn.holon/Keyword :AST<Vec<wat::WatAST>>] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :AST<wat::WatAST> #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::quasiquote #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::structtype #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::unquote-splicing #wat-edn.holon/Symbol "args"]]]]"#,
+        "Arc 293.2-parity: defstruct must be a macro expanding to structtype"
     );
 }
 
@@ -176,10 +166,10 @@ fn lookup_form_struct_returns_special_form() {
 fn lookup_form_kernel_spawn_returns_special_form() {
     assert_special_form("spawn", ":wat::kernel::spawn", ":wat::kernel::spawn");
     let sig = sig_str("spawn");
-    assert!(
-        sig.contains(":wat::kernel::spawn"),
-        "expected spawn keyword as signature head, got: {}",
-        sig
+    assert_eq!(
+        sig,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::kernel::spawn #wat-edn.holon/Symbol "<retired-use-spawn-thread>"]"#,
+        "spawn signature must carry :wat::kernel::spawn head"
     );
 }
 

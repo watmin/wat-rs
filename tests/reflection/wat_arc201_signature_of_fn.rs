@@ -109,10 +109,10 @@ fn signature_of_fn_emits_anonymous_head() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_anon_head.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert!(
-        line.contains(":anonymous"),
-        "expected ':anonymous' head keyword in rendered signature; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"a\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"b\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "signature-of-fn must emit :anonymous head for an anonymous fn value"
     );
 }
 
@@ -126,35 +126,10 @@ fn signature_of_fn_extracts_monomorphic_arg_types() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_monomorphic_args.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' Symbol for the i64 arg; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::String"),
-        "expected ':wat::core::String' Symbol for the String arg; got: {}",
-        line
-    );
-    // The parameter names appear inside per-arg pair Bundles as
-    // Symbol payloads. To avoid false positives from substrings of
-    // the head keyword (`:anonymous` contains `n` and `s`), assert
-    // on the OWN-arg-pair shape: each pair is rendered as a Bundle
-    // whose first child is the param-name Symbol, second child is
-    // the type Symbol. The pair Symbol payload is rendered with
-    // quotes — but EDN write of the outer captured String escapes
-    // its quotes, so the captured line shows `\"n\"`. We assert
-    // both raw and escaped forms to be robust across writer
-    // variations.
-    assert!(
-        line.contains("\"n\"") || line.contains("\\\"n\\\""),
-        "expected 'n' param-name Symbol payload (raw or escaped); got: {}",
-        line
-    );
-    assert!(
-        line.contains("\"s\"") || line.contains("\\\"s\\\""),
-        "expected 's' param-name Symbol payload (raw or escaped); got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"n\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"s\\\" #wat-edn.holon/Keyword :wat::core::String] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::String]\"",
+        "signature-of-fn must emit atomic Symbols for i64/String monomorphic arg types"
     );
 }
 
@@ -171,23 +146,10 @@ fn signature_of_fn_extracts_parametric_arg_types() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_parametric_args.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' Parametric head as standalone Symbol; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' arg-Symbol inside the Parametric Bundle; got: {}",
-        line
-    );
-    // The flat pre-arc-201 spelling MUST NOT appear — that would mean
-    // slice 1 (which `function_to_signature_ast` consumes via
-    // `type_expr_to_ast`) regressed.
-    assert!(
-        !line.contains(":wat::core::Vector<wat::core::i64>"),
-        "structured emission should NOT contain the flattened parametric spelling; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"xs\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "signature-of-fn must emit structured Bundle for Vector<i64> parametric arg type"
     );
 }
 
@@ -202,15 +164,10 @@ fn signature_of_fn_extracts_return_type_path() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_ret_path.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' return Symbol; got: {}",
-        line
-    );
-    assert!(
-        line.contains("->"),
-        "expected '->' arrow Symbol; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "signature-of-fn must emit :anonymous head and -> arrow with i64 return type"
     );
 }
 
@@ -222,15 +179,10 @@ fn signature_of_fn_extracts_return_type_parametric() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_ret_parametric.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' as standalone return Symbol; got: {}",
-        line
-    );
-    assert!(
-        !line.contains(":wat::core::Vector<wat::core::i64>"),
-        "structured emission should NOT contain the flattened parametric return spelling; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]]\"",
+        "signature-of-fn must emit structured Bundle for Vector<i64> parametric return type"
     );
 }
 
@@ -246,19 +198,10 @@ fn signature_of_fn_composes_with_extract_arg_names() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_compose_names.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    // extract-arg-names returns a Vector of keywords (param name as
-    // keyword). EDN renders keywords with the `:` prefix. The names
-    // we passed in are bare symbols (`logger`, `counter`); rendered
-    // they appear with a leading colon.
-    assert!(
-        line.contains("logger"),
-        "expected 'logger' param name in extract-arg-names output; got: {}",
-        line
-    );
-    assert!(
-        line.contains("counter"),
-        "expected 'counter' param name in extract-arg-names output; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"[#wat-edn.holon/Symbol \\\"logger\\\" #wat-edn.holon/Symbol \\\"counter\\\"]\"",
+        "signature-of-fn output must compose with extract-arg-names to yield [logger, counter]"
     );
 }
 
@@ -272,25 +215,10 @@ fn signature_of_fn_composes_with_bundle_children() {
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_compose_bundle.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert!(
-        line.contains(":anonymous"),
-        "expected ':anonymous' head Symbol in children Vec; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' Parametric head as a standalone Symbol; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::String"),
-        "expected ':wat::core::String' Symbol inside the Parametric Bundle; got: {}",
-        line
-    );
-    assert!(
-        line.contains("->"),
-        "expected '->' arrow Symbol in children Vec; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"[#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"peer\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::String]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::String]\"",
+        "signature-of-fn output must compose with bundle-children to yield children vector"
     );
 }
 
@@ -304,14 +232,9 @@ fn signature_of_fn_errors_on_non_fn_input() {
         "tests/reflection/wat_arc201_signature_of_fn_err_non_fn.wat",
     )
     .expect("expected runtime error from signature-of-fn on non-fn input");
-    assert!(
-        err.contains("signature-of-fn"),
-        "expected error mentioning 'signature-of-fn'; got: {}",
-        err
-    );
-    assert!(
-        err.contains("wat::core::fn"),
-        "expected error mentioning expected type 'wat::core::fn'; got: {}",
-        err
+    assert_eq!(
+        err,
+        "RuntimeError { span: Span { file: \"tests/reflection/wat_arc201_signature_of_fn_err_non_fn.wat\", line: 6, col: 50, end_line: 6, end_col: 52 }, kind: TypeMismatch { op: \":wat::runtime::signature-of-fn\", expected: \"wat::core::fn value (e.g., from `(:wat::core::fn [...] -> :T body)`)\", got: ValueSnapshot { type_name: \"wat::core::i64\", rendered: \"42\", provenance: Unknown } } }",
+        "signature-of-fn must raise TypeMismatch on non-fn input"
     );
 }

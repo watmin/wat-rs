@@ -97,15 +97,16 @@ fn probe_5_negative_non_atomizable_element() {
     )
     .expect_err("expected startup failure for non-atomizable Fn type");
     let err = format!("{}\n---\n{:?}", err, err);
-    assert!(
-        err.contains("TypeMismatch"),
-        "to-holon on non-atomizable type must fail with TypeMismatch; got: {}",
-        err
-    );
-    assert!(
-        err.contains(":wat::holon::to-holon"),
-        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+2 type-check error(s):
+  - tests/collection/probe_arc216_stone4_predicate_composition_p5_bad.wat:6:28: :wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T); got :wat::core::Fn(wat::core::i64)->wat::core::i64
+  - tests/collection/probe_arc216_stone4_predicate_composition_p5_bad.wat:4:3: :user::compute: body produces :wat::holon::HolonAST; signature declares :()
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_arc216_stone4_predicate_composition_p5_bad.wat", line: 6, col: 28, end_line: 6, end_col: 29 }, kind: TypeMismatch { callee: ":wat::holon::to-holon", param: "#1", expected: "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)", got: ":wat::core::Fn(wat::core::i64)->wat::core::i64" } }, CheckError { span: Span { file: "tests/collection/probe_arc216_stone4_predicate_composition_p5_bad.wat", line: 4, col: 3, end_line: 6, end_col: 31 }, kind: ReturnTypeMismatch { function: ":user::compute", expected: ":()", got: ":wat::holon::HolonAST", remedies: [] } }]))"##,
+        "probe_5: non-atomizable element check-error golden"
     );
 }
 
@@ -120,14 +121,15 @@ fn probe_6_negative_non_atomizable_nested_fn() {
     )
     .expect_err("expected startup failure for non-atomizable Fn type");
     let err = format!("{}\n---\n{:?}", err, err);
-    assert!(
-        err.contains("TypeMismatch"),
-        "to-holon on Fn type (non-atomizable K analog) must fail with TypeMismatch; got: {}",
-        err
-    );
-    assert!(
-        err.contains(":wat::holon::to-holon"),
-        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+2 type-check error(s):
+  - tests/collection/probe_arc216_stone4_predicate_composition_p6_bad.wat:7:28: :wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T); got :wat::core::Fn(wat::core::i64)->wat::core::i64
+  - tests/collection/probe_arc216_stone4_predicate_composition_p6_bad.wat:4:3: :user::compute: body produces :wat::holon::HolonAST; signature declares :()
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_arc216_stone4_predicate_composition_p6_bad.wat", line: 7, col: 28, end_line: 7, end_col: 29 }, kind: TypeMismatch { callee: ":wat::holon::to-holon", param: "#1", expected: "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)", got: ":wat::core::Fn(wat::core::i64)->wat::core::i64" } }, CheckError { span: Span { file: "tests/collection/probe_arc216_stone4_predicate_composition_p6_bad.wat", line: 4, col: 3, end_line: 7, end_col: 31 }, kind: ReturnTypeMismatch { function: ":user::compute", expected: ":()", got: ":wat::holon::HolonAST", remedies: [] } }]))"##,
+        "probe_6: non-atomizable Fn type check-error golden"
     );
 }

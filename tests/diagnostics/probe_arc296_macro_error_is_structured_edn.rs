@@ -69,16 +69,11 @@ fn probe_1_startup_error_to_edn_is_tagged() {
     // Serialize and verify the structured chain is present.
     let serialized = wat_edn::write(&edn);
 
-    // Must contain the leaf cause: the UnboundSymbol "str".
-    assert!(
-        serialized.contains("UnboundSymbol"),
-        "startup_error_to_edn for Macro(..) must transitively surface 'UnboundSymbol'; got: {}",
-        serialized
-    );
-    assert!(
-        serialized.contains("\"str\""),
-        "startup_error_to_edn must surface the symbol name 'str'; got: {}",
-        serialized
+    // Must carry the full nested chain: ProgramBodyEvalFailed → MacroEvalRuntimeFailed → UnboundSymbol.
+    assert_eq!(
+        serialized,
+        r#"#wat.macro/ProgramBodyEvalFailed {:macro-name "my-macro" :cause #wat.macro/MacroEvalRuntimeFailed {:message "macro_eval: runtime::eval failed" :location {:file "test.wat" :line 3 :col 5} :causes [] :cause #wat.runtime/UnboundSymbol {:message "unbound symbol: str" :location {:file "test.wat" :line 3 :col 5} :causes [] :name "str"}} :span {:file "test.wat" :line 1 :col 1}}"#,
+        "startup_error_to_edn for Macro(..) must produce exact nested structured EDN"
     );
 
     // Must NOT be a bare String (the old prose-collapse behavior).
@@ -121,27 +116,11 @@ fn probe_2_macro_error_to_edn_leaf_cause_is_not_string() {
     let edn = outer.to_edn();
     let serialized = wat_edn::write(&edn);
 
-    eprintln!("=== probe_2 serialized: {}", serialized);
-
-    // The serialized form must NOT be a bare string containing "unbound symbol".
-    assert!(
-        !matches!(&edn, OwnedValue::String(_)),
-        "macro_error_to_edn must NOT be a bare String; got {:?}",
-        edn
-    );
-
-    // The serialized form MUST carry "UnboundSymbol" as a tag.
-    assert!(
-        serialized.contains("UnboundSymbol"),
-        "serialized macro error must carry 'UnboundSymbol' tag; got: {}",
-        serialized
-    );
-
-    // The serialized form MUST carry the symbol name.
-    assert!(
-        serialized.contains("str"),
-        "serialized macro error must carry ':name \"str\"'; got: {}",
-        serialized
+    // Must be exact nested structured EDN: ProgramBodyEvalFailed → MacroEvalRuntimeFailed → UnboundSymbol.
+    assert_eq!(
+        serialized,
+        r#"#wat.macro/ProgramBodyEvalFailed {:macro-name "expand-call" :cause #wat.macro/MacroEvalRuntimeFailed {:message "macro_eval: runtime::eval failed" :location {:file "src/my-lib.wat" :line 18 :col 3} :causes [] :cause #wat.runtime/UnboundSymbol {:message "unbound symbol: str" :location {:file "src/my-lib.wat" :line 18 :col 3} :causes [] :name "str"}} :span {:file "src/my-lib.wat" :line 10 :col 1}}"#,
+        "macro_error_to_edn must produce exact nested structured EDN (NOT a bare String)"
     );
 }
 

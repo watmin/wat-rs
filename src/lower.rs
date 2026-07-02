@@ -499,6 +499,7 @@ mod tests {
         let ast = crate::parse_one!("(123)").unwrap(); // first element is IntLit, not Keyword
         let err = lower(&ast).unwrap_err();
         let rendered = format!("{}", err);
+        // rune:lint(loose-assert) — variable Rust source file path embedded in error Display output via parse_one! span (varies by build environment)
         assert!(
             rendered.contains("src/") || rendered.contains(".rs:"),
             "expected LowerError Display to carry real source coordinates (file:line:col); got: {}",

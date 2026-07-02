@@ -108,8 +108,9 @@ fn probe_02_postcondition_failed_constructs_with_ensure_snapshot_and_dual_spans(
     } };
     match err {
         RuntimeError { kind: RuntimeErrorKind::PostconditionFailed { ensure_expr_snapshot, .. }, .. } => {
-            assert!(
-                ensure_expr_snapshot.contains("result"),
+            assert_eq!(
+                ensure_expr_snapshot,
+                "(:wat::core::fn [result <- :i64] -> :bool (> result 0))",
                 "ensure snapshot carries the :fn text"
             );
         }
@@ -128,10 +129,10 @@ fn probe_03_no_matching_clause_edn_tag_clean() {
     } };
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    assert!(
-        serialized.contains("NoMatchingClause") && !serialized.contains("NoMatchingClauseRuntime"),
-        "EDN tag must be clean NoMatchingClause (no Runtime suffix); got {}",
-        serialized
+    assert_eq!(
+        serialized,
+        r#"#wat.runtime/NoMatchingClause {:name ":my::process" :called-arity 1 :called-args [{:type "wat::core::i64" :rendered "42" :provenance nil}] :attempted-clauses [#wat.kernel/ClauseAttempt {:clause-index 0 :declared-arity 2 :declared-arg-types [":wat::core::i64" ":wat::core::i64"] :failure-reason #wat.kernel/ArityMismatch {:expected 2 :got 1}}] :span {:file "test.wat" :line 5 :col 3}}"#,
+        "EDN tag must be clean NoMatchingClause (no Runtime suffix)"
     );
 }
 
@@ -147,11 +148,10 @@ fn probe_04_postcondition_failed_edn_tag_clean() {
     } };
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    assert!(
-        serialized.contains("PostconditionFailed")
-            && !serialized.contains("PostconditionFailedRuntime"),
-        "EDN tag must be clean PostconditionFailed (no Runtime suffix); got {}",
-        serialized
+    assert_eq!(
+        serialized,
+        r#"#wat.runtime/PostconditionFailed {:defclause-name ":my::positive" :clause-index 0 :ensure-expr-snapshot "(fn ...)" :returned-value {:type "wat::core::i64" :rendered "-5" :provenance nil} :ensure-span {:file "test.wat" :line 5 :col 3} :span {:file "test.wat" :line 5 :col 3}}"#,
+        "EDN tag must be clean PostconditionFailed (no Runtime suffix)"
     );
 }
 
@@ -201,10 +201,10 @@ fn probe_08_postcondition_edn_carries_ensure_and_returned() {
     } };
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    assert!(
-        serialized.contains("ENSURE_MARKER_TEXT"),
-        "EDN must carry the ensure_expr_snapshot text; got {}",
-        serialized
+    assert_eq!(
+        serialized,
+        r#"#wat.runtime/PostconditionFailed {:defclause-name ":my::positive" :clause-index 0 :ensure-expr-snapshot "ENSURE_MARKER_TEXT" :returned-value {:type "wat::core::i64" :rendered "-5" :provenance nil} :ensure-span {:file "test.wat" :line 5 :col 3} :span {:file "test.wat" :line 5 :col 3}}"#,
+        "EDN must carry the ensure_expr_snapshot text"
     );
 }
 
@@ -219,9 +219,14 @@ fn probe_09_no_matching_clause_edn_round_trips() {
     } };
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
+    assert_eq!(
+        serialized,
+        r#"#wat.runtime/NoMatchingClause {:name ":my::process" :called-arity 1 :called-args [{:type "wat::core::i64" :rendered "42" :provenance nil}] :attempted-clauses [#wat.kernel/ClauseAttempt {:clause-index 0 :declared-arity 2 :declared-arg-types [":wat::core::i64" ":wat::core::i64"] :failure-reason #wat.kernel/ArityMismatch {:expected 2 :got 1}} #wat.kernel/ClauseAttempt {:clause-index 1 :declared-arity 1 :declared-arg-types [":wat::core::i64"] :failure-reason #wat.kernel/ArgTypeMismatch {:position 0 :expected ":wat::core::i64" :got ":wat::core::String"}}] :span {:file "test.wat" :line 5 :col 3}}"#,
+        "round-tripped EDN must be NoMatchingClause with both clause attempts"
+    );
     let parsed = wat_edn::parse_owned(&serialized).expect("EDN round-trip parse");
     assert!(
-        matches!(&parsed, wat_edn::OwnedValue::Tagged(tag, _) if tag.name().contains("NoMatchingClause")),
+        matches!(&parsed, wat_edn::OwnedValue::Tagged(tag, _) if tag.name() == "NoMatchingClause"),
         "round-tripped EDN must be Tagged with NoMatchingClause; got {:?}",
         parsed
     );
@@ -242,18 +247,15 @@ fn probe_10_attempt_list_count_preserved_through_edn() {
     } };
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
-    // All three clause indices should appear in the serialized attempt list.
+    // All three failure-reason discriminants and clause indices in one golden.
+    assert_eq!(
+        serialized,
+        r#"#wat.runtime/NoMatchingClause {:name ":my::process" :called-arity 3 :called-args [{:type "wat::core::i64" :rendered "1" :provenance nil} {:type "wat::core::i64" :rendered "2" :provenance nil} {:type "wat::core::i64" :rendered "3" :provenance nil}] :attempted-clauses [#wat.kernel/ClauseAttempt {:clause-index 0 :declared-arity 2 :declared-arg-types [":wat::core::i64" ":wat::core::i64"] :failure-reason #wat.kernel/ArityMismatch {:expected 2 :got 1}} #wat.kernel/ClauseAttempt {:clause-index 1 :declared-arity 1 :declared-arg-types [":wat::core::i64"] :failure-reason #wat.kernel/ArgTypeMismatch {:position 0 :expected ":wat::core::i64" :got ":wat::core::String"}} #wat.kernel/ClauseAttempt {:clause-index 2 :declared-arity 1 :declared-arg-types [":wat::core::i64"] :failure-reason #wat.kernel/GuardFalse nil}] :span {:file "test.wat" :line 5 :col 3}}"#,
+        "all three ClauseFailureReason variants present; attempt list embedded in EDN"
+    );
     let parsed = wat_edn::parse_owned(&serialized).expect("EDN round-trip parse");
     assert!(
         matches!(&parsed, wat_edn::OwnedValue::Tagged(_, _)),
         "serialized NoMatchingClause is Tagged; attempt list embedded within"
-    );
-    // The three failure-reason discriminants should be findable in the text.
-    assert!(
-        serialized.contains("ArityMismatch")
-            && serialized.contains("ArgTypeMismatch")
-            && serialized.contains("GuardFalse"),
-        "all three ClauseFailureReason variants present in EDN; got {}",
-        serialized
     );
 }

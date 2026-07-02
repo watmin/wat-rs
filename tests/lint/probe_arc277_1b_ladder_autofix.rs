@@ -22,12 +22,13 @@ fn ladder_autofix_rewrites_to_contains() {
         Value::String(ref s) => s.to_string(),
         other => panic!("lint-fix-file must return the fixed source String; got {other:?}"),
     };
-    assert!(
-        fixed.contains("contains?") && fixed.contains("HashSet"),
-        "the ladder must be rewritten to a (contains? (HashSet …) x) call; got: {fixed}"
-    );
-    assert!(
-        !fixed.contains("(:wat::core::if (:wat::core::= x"),
-        "the nested-if-=-ladder must be GONE after the fix; got: {fixed}"
+    assert_eq!(
+        fixed,
+        concat!(
+            "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool ",
+            "(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer ",
+            "\"a\" \"b\" \"c\") x))"
+        ),
+        "the ladder must be rewritten to a (contains? (HashSet …) x) golden"
     );
 }

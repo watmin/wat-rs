@@ -88,15 +88,10 @@ fn contract_06_rejection_remedies_name_replacements() {
         "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted_bad.wat",
     );
     let msg_def = format!("{}", result_def.unwrap_err());
-    assert!(
-        msg_def.contains(":wat::core::def"),
-        "def-restricted retirement remedy must name :wat::core::def; got:\n{}",
-        msg_def
-    );
-    assert!(
-        msg_def.contains("[replaces a retired form]"),
-        "def-restricted remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg_def
+    assert_eq!(
+        msg_def,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted_bad.wat:4:2: malformed :wat::core::def-restricted form: ':wat::core::def-restricted' is retired (Stone 241.14); use ':wat::core::def' with metadata-map: `(def :name {:restricted-to [<prefix-kw>...]} expr)`\n  did you mean: :wat::core::def [replaces a retired form] \u{2014} re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding\n",
+        "def-restricted retirement remedy must name :wat::core::def with [replaces a retired form]"
     );
 
     // defn-restricted → remedy names :wat::core::defn
@@ -104,14 +99,9 @@ fn contract_06_rejection_remedies_name_replacements() {
         "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted_bad.wat",
     );
     let msg_defn = format!("{}", result_defn.unwrap_err());
-    assert!(
-        msg_defn.contains(":wat::core::defn"),
-        "defn-restricted retirement remedy must name :wat::core::defn; got:\n{}",
-        msg_defn
-    );
-    assert!(
-        msg_defn.contains("[replaces a retired form]"),
-        "defn-restricted remedy must carry '[replaces a retired form]' annotation; got:\n{}",
-        msg_defn
+    assert_eq!(
+        msg_defn,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted_bad.wat:4:2: malformed :wat::core::defn-restricted form: ':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`\n  did you mean: :wat::core::defn [replaces a retired form] \u{2014} re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding\n",
+        "defn-restricted retirement remedy must name :wat::core::defn with [replaces a retired form]"
     );
 }

@@ -288,7 +288,7 @@ fn missing_user_main_rejected() {
     let code = output.status.code();
     assert_eq!(code, Some(4), "expected exit 4; got {:?}", code);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
+    assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
         stderr.contains(":user::main"),
         "stderr must mention :user::main; got: {}",
         stderr
@@ -332,7 +332,7 @@ fn wrong_arg_type_user_main_rejected() {
     // Arc 170: BareLegacyMainSignature fires at type-check → EXIT_STARTUP_ERROR=3.
     assert_eq!(output.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
+    assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
         stderr.contains(":user::main") || stderr.contains("legacy") || stderr.contains("canonical"),
         "stderr should mention the legacy main signature; got: {}",
         stderr
@@ -382,7 +382,7 @@ fn startup_error_bubbles_up_as_exit_3() {
     // Arc 211b — child's stderr now carries the structured #wat.kernel/ProcessPanics
     // EDN envelope (slice 1i) wrapping a StartupError variant. The substrate's
     // panic-as-EDN doctrine (arc 211b) supersedes the pre-211 "startup:" text prefix.
-    assert!(
+    assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
         stderr.contains("#wat.kernel/ProcessPanics") && stderr.contains("StartupError"),
         "stderr should contain structured ProcessPanics envelope with StartupError variant; got: {}",
         stderr
@@ -593,7 +593,7 @@ fn check_mode_exits_nonzero_on_bad_program() {
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
     // Default mode → text Display via stderr.
-    assert!(
+    assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
         stderr.contains("type-check error"),
         "stderr should contain type-check error; got: {}",
         stderr
@@ -625,20 +625,20 @@ fn check_output_edn_emits_record_per_diagnostic() {
         stdout
     );
     // Arc 296: namespace changed from wat.diag to wat.check.
-    assert!(
+    assert!( // rune:lint(loose-assert) — each EDN line includes :file "..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
         lines[0].starts_with("#wat.check/CommCallOutOfPosition"),
         "first line should be CommCallOutOfPosition tag; got: {}",
         lines[0]
     );
-    assert!(
+    assert!( // rune:lint(loose-assert) — each EDN line includes :file "..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
         lines[1].starts_with("#wat.check/ReturnTypeMismatch"),
         "second line should be ReturnTypeMismatch tag; got: {}",
         lines[1]
     );
     // Structured fields preserved verbatim — not text-wrapped.
     // :file field is prepended first; callee and function follow.
-    assert!(lines[0].contains(":callee \":wat::kernel::send\""));
-    assert!(lines[1].contains(":function \":user::main\""));
+    assert!(lines[0].contains(":callee \":wat::kernel::send\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[1].contains(":function \":user::main\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 
 #[test]
@@ -663,19 +663,19 @@ fn check_output_json_emits_record_per_diagnostic() {
         stdout
     );
     // Arc 296: JSON shape uses #tag sentinel; field keys carry EDN colon prefix.
-    assert!(
+    assert!( // rune:lint(loose-assert) — each JSON line includes ":file":"..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
         lines[0].contains("\"#tag\":\"wat.check/CommCallOutOfPosition\""),
         "first line should have #tag=wat.check/CommCallOutOfPosition; got: {}",
         lines[0]
     );
-    assert!(
+    assert!( // rune:lint(loose-assert) — each JSON line includes ":file":"..." with the temp path (pid + nanosecond timestamp via write_temp); full line is non-deterministic
         lines[1].contains("\"#tag\":\"wat.check/ReturnTypeMismatch\""),
         "second line should have #tag=wat.check/ReturnTypeMismatch; got: {}",
         lines[1]
     );
     // Keyword field keys carry leading colon in JSON (EDN keyword serialization).
-    assert!(lines[0].contains("\":callee\":\":wat::kernel::send\""));
-    assert!(lines[1].contains("\":function\":\":user::main\""));
+    assert!(lines[0].contains("\":callee\":\":wat::kernel::send\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[1].contains("\":function\":\":user::main\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 
 #[test]

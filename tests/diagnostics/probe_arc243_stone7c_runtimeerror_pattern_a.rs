@@ -79,8 +79,9 @@ fn runtimeerror_freeze_pair_elides_unknown_span() {
         kind: RuntimeErrorKind::UserMainMissing,
     };
     let rendered = err.to_string();
-    assert!(
-        !rendered.contains("<runtime>"),
-        "unknown span must be elided in Display output; got: {rendered:?}"
+    assert_eq!(
+        rendered,
+        ":user::main not defined — a wat program needs an entry point",
+        "unknown span must be elided in Display output"
     );
 }

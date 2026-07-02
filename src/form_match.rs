@@ -361,6 +361,7 @@ mod tests {
         let clause = &forms[0];
         let err = classify_clause(clause).unwrap_err();
         let rendered = format!("{}", err);
+        // rune:lint(loose-assert) — variable Rust source file path embedded in error Display output via parse_all! span (varies by build environment)
         assert!(
             rendered.contains("src/") || rendered.contains(".rs:"),
             "expected ClauseGrammarError Display to carry real source coordinates (file:line:col); got: {}",

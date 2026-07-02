@@ -169,16 +169,7 @@ fn probe_8_type_on_struct_instance() {
         Ok(v) => {
             let s = format!("{:?}", v);
             println!("Probe 8 (struct instance) result: {}", s);
-            assert!(
-                s.contains("myapp::Point"),
-                "Probe 8: expected return value to contain \"myapp::Point\"; got: {}",
-                s
-            );
-            assert!(
-                !s.contains(":myapp::Point"),
-                "Probe 8: expected NO leading colon on struct type name (strip ':'); got: {}",
-                s
-            );
+            assert_eq!(s, "String(\"myapp::Point\")", "Probe 8: unexpected struct type name (expected no leading colon)");
         }
         Err(e) => panic!("Probe 8 (struct instance) FAILED: {}", e),
     }

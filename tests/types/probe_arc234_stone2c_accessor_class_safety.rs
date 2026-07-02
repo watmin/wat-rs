@@ -59,11 +59,7 @@ fn probe_2_wrong_class_panics() {
             "Probe 2 FAILED: wrong-class accessor should panic; got Ok({:?})",
             v
         ),
-        Err(msg) => assert!(
-            msg.starts_with("panic-"),
-            "Probe 2: expected panic; got non-panic error {}",
-            msg
-        ),
+        Err(msg) => assert_eq!(msg, "panic-msg: :myapp::Voltage/magnitude: expected receiver of class :myapp::Voltage, got class :myapp::Point"),
     }
 }
 
@@ -77,18 +73,7 @@ fn probe_3_panic_message_names_both_classes() {
             "Probe 3 FAILED: wrong-class accessor should panic; got Ok({:?})",
             v
         ),
-        Err(msg) => {
-            assert!(
-                msg.contains("myapp::Voltage"),
-                "Probe 3: panic message should mention expected class 'myapp::Voltage'; got {}",
-                msg
-            );
-            assert!(
-                msg.contains("myapp::Point"),
-                "Probe 3: panic message should mention actual class 'myapp::Point'; got {}",
-                msg
-            );
-        }
+        Err(msg) => assert_eq!(msg, "panic-msg: :myapp::Voltage/magnitude: expected receiver of class :myapp::Voltage, got class :myapp::Point"),
     }
 }
 
@@ -103,23 +88,7 @@ fn probe_4_multi_field_each_accessor_checks_class() {
             "Probe 4 FAILED: Triple/b on Other instance should panic; got Ok({:?})",
             v
         ),
-        Err(msg) => {
-            assert!(
-                msg.starts_with("panic-"),
-                "Probe 4: expected panic; got {}",
-                msg
-            );
-            assert!(
-                msg.contains("myapp::Triple"),
-                "Probe 4: panic message should mention expected class 'myapp::Triple'; got {}",
-                msg
-            );
-            assert!(
-                msg.contains("myapp::Other"),
-                "Probe 4: panic message should mention actual class 'myapp::Other'; got {}",
-                msg
-            );
-        }
+        Err(msg) => assert_eq!(msg, "panic-msg: :myapp::Triple/b: expected receiver of class :myapp::Triple, got class :myapp::Other"),
     }
 }
 

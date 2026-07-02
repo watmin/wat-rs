@@ -374,7 +374,7 @@ mod waist_proof {
             .expect_err("an over-long address name must be refused at decode");
         match err.kind {
             EdnReadErrorKind::UnsupportedTag(msg) => {
-                assert!(msg.contains("exceeds"), "expected the over-long rejection, got: {msg}")
+                assert_eq!(msg, "wat-edn.cap/address (name 200 bytes exceeds the 107-byte abstract-UDS limit)");
             }
             other => panic!("expected UnsupportedTag for an over-long name, got {other:?}"),
         }
@@ -399,7 +399,7 @@ mod waist_proof {
             .expect_err("an empty address name must be refused at decode");
         match err.kind {
             EdnReadErrorKind::UnsupportedTag(msg) => {
-                assert!(msg.contains("empty"), "expected the empty-name rejection, got: {msg}")
+                assert_eq!(msg, "wat-edn.cap/address (empty name — a minted abstract name is never zero-length)");
             }
             other => panic!("expected UnsupportedTag for an empty name, got {other:?}"),
         }

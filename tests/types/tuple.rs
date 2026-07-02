@@ -64,16 +64,7 @@ fn tuple_pascal_canonical_works() {
 #[test]
 fn legacy_tuple_lowercase_redirects_via_pattern2_poison() {
     let err = startup_err("tests/types/tuple_legacy_lowercase_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected TypeMismatch from Pattern 2 poison; got: {}",
-        err
-    );
-    assert!(
-        err.contains("wat::core::Tuple"),
-        "expected redirect target 'wat::core::Tuple' in error; got: {}",
-        err
-    );
+    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/tuple_legacy_lowercase_bad.wat", line: 2, col: 85, end_line: 2, end_col: 102 }, kind: TypeMismatch { callee: ":wat::core::tuple", param: "(retired verb)", expected: ":wat::core::Tuple", got: ":wat::core::tuple" } }]))"#);
 }
 
 // --- 3. Tuple in function return position type-checks clean -------------

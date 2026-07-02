@@ -185,7 +185,7 @@ fn missing_user_main_surfaces_as_failure() {
     let (_, _, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-missing-main"));
     let msg = failure.expect("expected raised failure");
     assert!(
-        msg.contains("needs-main-sentinel"),
+        msg.contains("needs-main-sentinel"), // rune:lint(loose-assert) — msg embeds machine-specific absolute path from startup_beside/file!()
         "failure should propagate raise! payload; got {}",
         msg
     );
@@ -217,7 +217,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     );
     let msg = failure.expect("expected raised failure");
     assert!(
-        !msg.is_empty() && (msg.contains("boom") || msg.contains("panic")),
+        !msg.is_empty() && (msg.contains("boom") || msg.contains("panic")), // rune:lint(loose-assert) — msg embeds machine-specific absolute path from startup_beside/file!()
         "failure message should mention the raise payload or panic; got {}",
         msg
     );
@@ -288,7 +288,7 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     );
     // stdout should NOT contain "leaked".
     assert!(
-        !stdout.contains(&"\"leaked\"".to_string()),
+        !stdout.contains(&"\"leaked\"".to_string()), // rune:lint(loose-assert) — targeted-absence check — asserts only that the Ok-arm sentinel did not appear, not that stdout is exactly empty
         "out-of-scope read should not reach the Ok arm; stdout: {:?}",
         stdout
     );

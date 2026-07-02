@@ -52,10 +52,10 @@ fn read_frame_multiline_edn_map() {
     match result {
         Ok(Value::Option(opt)) => match opt.as_ref() {
             Some(Value::String(s)) => {
-                assert!(
-                    s.contains(":a") && s.contains(":b"),
-                    "read-frame must return the map frame string containing :a and :b; got: {:?}",
-                    s
+                assert_eq!(
+                    s.as_str(),
+                    "{\n  :a 1\n  :b 2\n}",
+                    "read-frame must return the exact EDN map frame golden"
                 );
             }
             other => panic!(

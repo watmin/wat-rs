@@ -76,10 +76,10 @@ fn accessor_typechecks_at_parse_time() {
         ),
         Err(e) => {
             let msg = format!("{e:?}");
-            assert!(
-                msg.contains("bogus-field"),
-                "expected the parse-time error to name the nonexistent record field `bogus-field` \
-                 (the accessor type-checks against ProcessLaunch); got: {msg}"
+            assert_eq!(
+                msg,
+                "Check(CheckErrors([CheckError { span: Span { file: \"tests/services/probe_arc209_c0b3bc_post_spawn_bogus_accessor.wat\", line: 10, col: 63, end_line: 10, end_col: 101 }, kind: UnknownCallee { callee: \":wat::spawn::ProcessLaunch/bogus-field\" } }]))",
+                "parse-time error must match ProcessLaunch/bogus-field golden"
             );
         }
     }

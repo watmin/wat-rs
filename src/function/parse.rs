@@ -326,12 +326,12 @@ mod tests {
             WatAST::Keyword(":wat::core::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
-        let msg = format!("{:?}", err);
+        let reason = match err {
+            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
+            other => panic!("expected MalformedForm, got {:?}", other),
+        };
         // reason() for ArgsVecNotVector (lines 114-115) is "fn signature: expected a vector …"
-        assert!(
-            msg.contains("expected a vector"),
-            "expected ArgsVecNotVector reason in error; got: {msg}"
-        );
+        assert_eq!(reason, "fn signature: expected a vector `[name <- :T ...]` as the args-vector; got keyword");
     }
 
     // ─── Lines 171-173: BadRetType production + lines 120: reason() ───────────
@@ -345,12 +345,12 @@ mod tests {
         // `:Any` is a valid keyword syntactically but fails reject_any check.
         let sig = sig_vec_arrow_ret(":Any");
         let err = parse_fn_signature(&sig).unwrap_err();
-        let msg = format!("{:?}", err);
+        let reason = match err {
+            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
+            other => panic!("expected MalformedForm, got {:?}", other),
+        };
         // reason() for BadRetType (line 120): "invalid return type: {kind}"
-        assert!(
-            msg.contains("invalid return type"),
-            "expected BadRetType reason in error; got: {msg}"
-        );
+        assert_eq!(reason, "invalid return type: :Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: :Any");
     }
 
     // ─── Lines 244-246: parse_fn_signature_with_rest error mapper ─────────────
@@ -367,14 +367,15 @@ mod tests {
         ];
         // Map to string inline — ParsedFnSignature<String> doesn't implement Debug,
         // so unwrap_err() is not usable directly; match avoids the Debug bound.
-        let err_msg = match parse_fn_signature_with_rest(&sig) {
+        let err = match parse_fn_signature_with_rest(&sig) {
             Ok(_) => panic!("expected Err for non-Vector args-slot; got Ok"),
-            Err(e) => format!("{:?}", e),
+            Err(e) => e,
         };
-        assert!(
-            err_msg.contains("expected a vector"),
-            "expected ArgsVecNotVector reason propagated by with_rest; got: {err_msg}"
-        );
+        let reason = match err {
+            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
+            other => panic!("expected MalformedForm, got {:?}", other),
+        };
+        assert_eq!(reason, "fn signature: expected a vector `[name <- :T ...]` as the args-vector; got int");
     }
 
     // ─── Lines 161-167: ArrowMissing production site ──────────────────────────
@@ -390,10 +391,10 @@ mod tests {
             WatAST::Keyword(":wat::core::i64".into(), span()),
         ];
         let err = parse_fn_signature(&sig).unwrap_err();
-        let msg = format!("{:?}", err);
-        assert!(
-            msg.contains("expected `->` between"),
-            "expected ArrowMissing reason in error; got: {msg}"
-        );
+        let reason = match err {
+            crate::runtime::RuntimeError { kind: crate::runtime::RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
+            other => panic!("expected MalformedForm, got {:?}", other),
+        };
+        assert_eq!(reason, "fn signature: expected `->` between args-vector and return type; got keyword");
     }
 }

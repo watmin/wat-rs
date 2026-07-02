@@ -102,32 +102,10 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     let out = run_file("tests/reflection/wat_arc201_structured_signature_types_parametric_fn.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-
-    // The Vector head and the i64 arg should both appear as DISTINCT
-    // EDN Symbols inside a Bundle (the parametric shape). Pre-arc-201
-    // these would have appeared as one fused string
-    // ":wat::core::Vector<wat::core::i64>" inside a single
-    // `#wat-edn.holon/Symbol "..."` form; post-arc-201 they each get
-    // their own Symbol wrapper.
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' as a standalone keyword in rendered signature; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' as a standalone keyword in rendered signature; got: {}",
-        line
-    );
-    // Structural marker: the flat-emission form would have spelled the
-    // type as ":wat::core::Vector<wat::core::i64>" verbatim. The
-    // structured form NEVER produces that substring. (The
-    // `<wat::core::i64>` suffix doesn't appear anywhere else in the
-    // signature head, so its absence is a clean witness.)
-    assert!(
-        !line.contains(":wat::core::Vector<wat::core::i64>"),
-        "structured emission should NOT contain the flattened parametric spelling; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"init\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"&\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"xs\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "signature-of-defn must emit structured parametric Bundle for sum-list fn"
     );
 }
 
@@ -142,10 +120,10 @@ fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     let line = render_signature_from_file(
         "tests/reflection/wat_arc201_structured_signature_types_atomic_plus.wat",
     );
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' in rendered atomic-type signature; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::i64::+ #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a0\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a1\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "signature-of-defn must emit atomic Symbols for i64::+ monomorphic signature"
     );
 }
 
@@ -165,43 +143,10 @@ fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
     let line = render_signature_from_file(
         "tests/reflection/wat_arc201_structured_signature_types_foldl.wat",
     );
-
-    // Parametric head appears as a standalone keyword.
-    assert!(
-        line.contains(":wat::core::Vector"),
-        "expected ':wat::core::Vector' as Parametric head in foldl signature; got: {}",
-        line
-    );
-    // Fn head appears (synthetic `:Fn` marker).
-    assert!(
-        line.contains(":Fn"),
-        "expected ':Fn' Bundle head for the fold-fn parameter; got: {}",
-        line
-    );
-    // Type variables :T and :Acc appear as standalone Symbols.
-    assert!(
-        line.contains(":Acc"),
-        "expected ':Acc' type variable in foldl signature; got: {}",
-        line
-    );
-    // The type variable ":T" appears inside a Bundle as a structured
-    // Keyword node (post arc 221 Stone 221.5: `watast_to_holon` now maps
-    // WatAST::Keyword → HolonAST::Keyword). The EDN renderer emits Keyword
-    // payloads WITHOUT surrounding quotes, so the rendered token is
-    // `#wat-edn.holon/Keyword :T`. Anchoring on `Keyword :T` avoids
-    // false-positive on the head suffix `foldl<T_Acc>` (where T appears
-    // unquoted and without the `Keyword` tag).
-    assert!(
-        line.contains("Keyword :T"),
-        "expected 'Keyword :T' (structured Keyword node) in foldl signature; got: {}",
-        line
-    );
-    // Negative — the pre-arc-201 flat spelling for the Fn parameter
-    // type does not appear.
-    assert!(
-        !line.contains("wat::core::Fn(Acc"),
-        "structured emission should NOT contain the flattened ':wat::core::Fn(Acc,T)->Acc' spelling; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::foldl<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a0\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a1\\\" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a2\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :Acc]\"",
+        "signature-of-defn must emit structured Parametric+Fn Bundles for foldl"
     );
 }
 
@@ -215,30 +160,10 @@ fn signature_of_defn_emits_structured_tuple_return_type() {
     let out = run_file("tests/reflection/wat_arc201_structured_signature_types_tuple.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-
-    // The synthetic `:Tuple` Bundle head distinguishes the structured
-    // emission from the legacy `:(...)` flat form.
-    assert!(
-        line.contains(":Tuple"),
-        "expected ':Tuple' Bundle head in rendered signature; got: {}",
-        line
-    );
-    // Tuple's element types appear as their own Symbols.
-    assert!(
-        line.contains(":wat::core::i64"),
-        "expected ':wat::core::i64' tuple element; got: {}",
-        line
-    );
-    assert!(
-        line.contains(":wat::core::String"),
-        "expected ':wat::core::String' tuple element; got: {}",
-        line
-    );
-    // Negative — legacy flat tuple spelling absent.
-    assert!(
-        !line.contains(":(wat::core::i64,wat::core::String)"),
-        "structured emission should NOT carry the legacy flat tuple spelling; got: {}",
-        line
+    assert_eq!(
+        line,
+        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::make-pair #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Tuple #wat-edn.holon/Keyword :wat::core::i64 #wat-edn.holon/Keyword :wat::core::String]]\"",
+        "signature-of-defn must emit structured Tuple Bundle for make-pair return type"
     );
 }
 

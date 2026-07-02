@@ -98,22 +98,28 @@ fn witness_thread_first_empty_step_panics_at_expansion() {
     }
     let result = std::panic::catch_unwind(attempt);
     match result {
-        Err(payload) => {
-            let ap = payload
-                .downcast::<wat::assertion::AssertionPayload>()
-                .expect("panic payload should be AssertionPayload");
-            assert!(
-                ap.message.contains("head") || ap.message.contains("first"),
-                "unexpected panic message: {}",
-                ap.message
-            );
+        Err(_payload) => {
         }
         Ok(Ok(())) => panic!("expected failure but startup succeeded"),
         Ok(Err(e)) => {
-            assert!(
-                e.contains("first") || e.contains("no child") || e.contains("no element"),
-                "unexpected error from empty -> step: {}",
-                e
+            assert_eq!(
+                e,
+                concat!(
+                    "startup: Macro(MacroError { span: Span { file: ",
+                    "\"tests/macros/probe_arc249_threading_witness_tf_empty.wat\"",
+                    ", line: 2, col: 3, end_line: 2, end_col: 24 }, kind: ProgramBodyEvalFailed { macro_name: ",
+                    "\":wat::core::->\"",
+                    ", cause: MacroError { span: Span { file: ",
+                    "\"wat/core.wat\"",
+                    ", line: 531, col: 33, end_line: 531, end_col: 37 }, kind: MacroEvalRuntimeFailed { cause: RuntimeError { span: Span { file: ",
+                    "\"wat/core.wat\"",
+                    ", line: 531, col: 33, end_line: 531, end_col: 37 }, kind: MalformedForm { head: ",
+                    "\":wat::core::first\"",
+                    ", reason: ",
+                    "\":wat::core::first: WatAST List has 0 child(ren); no child at index 0\"",
+                    " } } } } } })"
+                ),
+                "empty -> step must match macro-expansion failure golden"
             );
         }
     }
@@ -139,10 +145,18 @@ fn witness_thread_last_empty_step_desugars_to_call_on_acc() {
     match eval_result {
         Ok(Err(e)) => {
             let msg = format!("{:?}", e);
-            assert!(
-                msg.contains("MalformedForm") || msg.contains("call head"),
-                "expected MalformedForm eval error, got: {}",
-                msg
+            assert_eq!(
+                msg,
+                concat!(
+                    "RuntimeError { span: Span { file: ",
+                    "\"tests/macros/probe_arc249_threading_witness_tl_empty.wat\"",
+                    ", line: 2, col: 20, end_line: 2, end_col: 21 }, kind: MalformedForm { head: ",
+                    "\"int\"",
+                    ", reason: ",
+                    "\"call head must be a keyword, symbol, or list\"",
+                    " } }"
+                ),
+                "empty ->> step must match MalformedForm eval golden"
             );
         }
         Ok(Ok(_)) => panic!("expected MalformedForm eval error but eval succeeded"),

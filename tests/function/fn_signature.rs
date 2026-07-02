@@ -103,10 +103,15 @@ fn zero_arg_fn_with_empty_vector() {
 #[test]
 fn fn_body_type_mismatch_surfaces() {
     let err = startup_err("tests/function/fn_signature_body_mismatch.wat");
-    assert!(
-        err.contains("ReturnTypeMismatch") || err.contains("TypeMismatch"),
-        "expected ReturnTypeMismatch on body type mismatch; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+1 type-check error(s):
+  - tests/function/fn_signature_body_mismatch.wat:4:112: :anonymous: body produces :wat::core::i64; signature declares :()
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/function/fn_signature_body_mismatch.wat", line: 4, col: 112, end_line: 4, end_col: 113 }, kind: ReturnTypeMismatch { function: ":anonymous", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"##,
+        "fns7: body-type-mismatch golden"
     );
 }
 
@@ -116,10 +121,15 @@ fn fn_body_type_mismatch_surfaces() {
 #[test]
 fn malformed_args_vector_clear_error() {
     let err = startup_err("tests/function/fn_signature_malformed_args.wat");
-    assert!(
-        err.contains("fn arg-vector triple") || err.contains("name <- :T"),
-        "expected clear error on malformed args-vector triple; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+1 type-check error(s):
+  - tests/function/fn_signature_malformed_args.wat:6:42: malformed :wat::core::fn form: triple is incomplete; expected `name <- :T` but ran out of items
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/function/fn_signature_malformed_args.wat", line: 6, col: 42, end_line: 6, end_col: 43 }, kind: MalformedForm { head: ":wat::core::fn", reason: "triple is incomplete; expected `name <- :T` but ran out of items", remedies: [] } }]))"##,
+        "fns8: malformed args-vector golden"
     );
 }
 

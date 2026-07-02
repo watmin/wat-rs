@@ -78,6 +78,7 @@ fn probe_plain_panic_produces_structured_edn() {
     assert_ne!(msg, "<no failure>", "expected Some failure; child should have panicked");
 
     // failure.message MUST NOT be "forked program exited N" (old plain-text fallback).
+    // rune:lint(loose-assert) — `msg` is Failure.message from subprocess EDN output; the EDN may embed the absolute host filesystem path to the .wat fixture via the `:location` field. Full string varies by host. Targeted absence of the exit-code-only fallback ("forked program exited") is the real contract.
     assert!(
         !msg.contains("forked program exited"),
         "expected actual panic text in Failure.message; \

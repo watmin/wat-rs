@@ -86,15 +86,10 @@ mod tests {
         // Only 1 arg after the fn head has been stripped by the caller — too few.
         let args = &[WatAST::Vector(vec![], span.clone())];
         let err = eval_fn(args, &span, &env).unwrap_err();
-        let msg = format!("{:?}", err);
-        assert!(
-            msg.contains("expected [name <- :T ...] -> :Ret body"),
-            "expected short-arg MalformedForm reason; got: {msg}"
-        );
-        // The count (1 element) is embedded in the message.
-        assert!(
-            msg.contains("1 element"),
-            "expected element count in error; got: {msg}"
-        );
+        let reason = match err {
+            RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. } => reason,
+            other => panic!("expected MalformedForm, got {:?}", other),
+        };
+        assert_eq!(reason, "expected [name <- :T ...] -> :Ret body ...; got 1 element(s)");
     }
 }

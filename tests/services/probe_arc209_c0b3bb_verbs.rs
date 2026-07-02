@@ -49,11 +49,13 @@ fn thread_listener_allow_errors_with_tier_message() {
             .map_err(|e| format!("{e:?}"))
     })();
     match outcome {
-        Err(msg) => assert!(
-            msg.contains("process-tier"),
-            "expected allow' on a thread listener to be rejected with a process-tier message; \
-             got error: {msg}"
-        ),
+        Err(msg) => {
+            assert_eq!(
+                msg,
+                "RuntimeError { span: Span { file: \"tests/services/probe_arc209_c0b3bb_verbs_thread.wat\", line: 6, col: 33, end_line: 6, end_col: 34 }, kind: MalformedForm { head: \":wat::kernel::allow'\", reason: \"allow' is a process-tier service gate; a thread listener's handle IS the grant\" } }",
+                "allow' on a thread listener must match process-tier rejection golden"
+            );
+        }
         Ok(v) => panic!(
             "expected allow' on a thread listener to error (the crossbeam handle is the grant); \
              got {v:?}"

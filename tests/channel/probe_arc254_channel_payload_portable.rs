@@ -32,10 +32,10 @@ fn check_result(path: &str) -> Result<(), String> {
 fn bare_sender_payload_rejected_by_type_keyword_gate_not_portability() {
     let result = check_result("tests/channel/probe_arc254_channel_payload_portable_senders_bad.wat");
     let msg = result.expect_err("bare Sender payload is rejected today");
-    assert!(
-        msg.contains("not a valid type keyword"),
-        "expected the existing type-keyword gate (not a portability check); got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "1 type-check error(s):\n  - tests/channel/probe_arc254_channel_payload_portable_senders_bad.wat:2:57: malformed :wat::kernel::make-channel form: first argument :wat::kernel::Sender<:wat::core::i64> is not a valid type keyword\n",
+        "expected the existing type-keyword gate (not a portability check)"
     );
 }
 

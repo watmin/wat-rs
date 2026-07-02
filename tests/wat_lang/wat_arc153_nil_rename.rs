@@ -68,10 +68,10 @@ fn type_position_unit_post_retirement_is_unknown_fqdn() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat",
     );
-    assert!(
-        err.contains("BareLegacyUnitName"),
-        "expected BareLegacyUnitName walker to fire on retired :wat::core::unit; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        "expected BareLegacyUnitName walker to fire on retired :wat::core::unit"
     );
 }
 
@@ -99,11 +99,10 @@ fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_nil_i64_bad.wat",
     );
-    assert!(
-        err.contains(r#"ReturnTypeMismatch { function: ":t::probe""#)
-            || err.contains(r#"file: "<entry>""#) && err.contains("TypeMismatch"),
-        "expected user-source ReturnTypeMismatch when nil body meets i64 sig; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_nil_i64_bad.wat", line: 4, col: 51, end_line: 4, end_col: 54 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::i64", got: ":wat::core::nil", remedies: [] } }]))"#,
+        "expected ReturnTypeMismatch when nil body meets i64 sig"
     );
 }
 
@@ -123,10 +122,10 @@ fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_unit_sig_bad.wat",
     );
-    assert!(
-        err.contains("BareLegacyUnitName"),
-        "expected BareLegacyUnitName walker to fire on retired :wat::core::unit sig; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_sig_bad.wat", line: 4, col: 35, end_line: 4, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        "expected BareLegacyUnitName walker to fire on retired :wat::core::unit sig"
     );
 }
 
@@ -162,9 +161,9 @@ fn bare_legacy_unit_name_walker_retired() {
     let err = startup_err_file(
         "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat",
     );
-    assert!(
-        err.contains("BareLegacyUnitName"),
-        "expected BareLegacyUnitName walker to fire on bare :wat::core::unit; got: {}",
-        err
+    assert_eq!(
+        err,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        "expected BareLegacyUnitName walker to fire on bare :wat::core::unit"
     );
 }

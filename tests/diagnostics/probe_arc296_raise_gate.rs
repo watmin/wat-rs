@@ -27,12 +27,11 @@ fn raise_bare_integer_is_compile_error() {
          startup unexpectedly succeeded"
     );
     let msg = format!("{}", result.unwrap_err());
-    // The error must mention the type mismatch — either the Error surface name
-    // or "assignable" / "expected" language from the checker.
-    assert!(
-        msg.contains(":wat::core::Error") || msg.contains("Error") || msg.contains("assignable") || msg.contains("expected"),
-        "compile error should mention the type mismatch; got:\n{}",
-        msg
+    // The error must be the exact type-mismatch message from the checker.
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc296_raise_gate_bad.wat:12:25: :wat::kernel::raise!: parameter #1 expects :wat::core::Error; got :wat::core::i64\n",
+        "compile error must be exact type-mismatch diagnostic"
     );
 }
 

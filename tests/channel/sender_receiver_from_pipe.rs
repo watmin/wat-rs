@@ -185,7 +185,7 @@ fn probe_sender_receiver_from_pipe_edn_dispatch_via_eval() {
             let msg = format!("{}", e);
             let lc = msg.to_lowercase();
             assert!(
-                lc.contains("mismatch") || lc.contains("iowriter") || lc.contains("type") || lc.contains("expected"),
+                lc.contains("mismatch") || lc.contains("iowriter") || lc.contains("type") || lc.contains("expected"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from rust_caller_span!()
                 "expected TypeMismatch (wrong type); got: {}",
                 msg
             );
@@ -211,7 +211,7 @@ fn probe_sender_receiver_from_pipe_edn_dispatch_via_eval() {
             let msg = format!("{}", e);
             let lc = msg.to_lowercase();
             assert!(
-                lc.contains("mismatch") || lc.contains("ioreader") || lc.contains("type") || lc.contains("expected"),
+                lc.contains("mismatch") || lc.contains("ioreader") || lc.contains("type") || lc.contains("expected"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from rust_caller_span!()
                 "expected TypeMismatch (wrong type) for Receiver/from-pipe; got: {}",
                 msg
             );

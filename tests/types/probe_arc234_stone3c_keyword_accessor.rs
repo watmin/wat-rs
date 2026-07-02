@@ -59,6 +59,7 @@ fn probe_3_unknown_field_on_record_errors() {
             v
         ),
         Err(msg) => assert!(
+            // rune:lint(loose-assert) — error span embeds an absolute machine-specific path (/home/watmin/work/holon/wat-rs/...) via startup_beside(file!()); the real contract is UnknownField naming "nonexistent"
             msg.to_lowercase().contains("unknown") || msg.contains("nonexistent"),
             "Probe 3: expected error mentioning unknown/nonexistent; got {}",
             msg

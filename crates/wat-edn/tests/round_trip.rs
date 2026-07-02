@@ -43,8 +43,7 @@ fn collections_round_trip() {
 fn tagged_round_trip() {
     let (v1, out, v2) = round_trip(r#"#myapp/Order {:id 42 :total 99.99}"#);
     assert_eq!(v1, v2);
-    // Quick sanity: the rewrite preserves the tag prefix.
-    assert!(out.starts_with("#myapp/Order"));
+    assert_eq!(out, "#myapp/Order {:id 42 :total 99.99}");
 }
 
 #[test]
@@ -99,9 +98,9 @@ fn parser_rejects_supplementary_plane_char_literal() {
     // BMP-only (U+0000..=U+FFFF).
     let err = parse("\\😀").expect_err("supplementary-plane char must reject");
     let msg = format!("{}", err);
-    assert!(
-        msg.contains("supplementary-plane") || msg.contains("BMP"),
-        "diagnostic must surface the BMP constraint; got: {}",
-        msg
+    assert_eq!(
+        msg,
+        r"EDN parse error at byte 0: invalid character literal: \😀: supplementary-plane (U+1F600) not supported; wat-edn char literals are BMP-only",
+        "diagnostic must surface the BMP constraint"
     );
 }

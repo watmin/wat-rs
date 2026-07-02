@@ -312,11 +312,10 @@ mod tests {
     fn debug_shows_counts_and_option_flags() {
         let sym = SymbolTable::new();
         let dbg = format!("{:?}", sym);
-        // The Debug impl emits named fields — verify structural tokens.
-        assert!(dbg.contains("SymbolTable"), "expected struct name in Debug output; got: {dbg}");
-        assert!(dbg.contains("functions: 0"), "expected functions count; got: {dbg}");
-        assert!(dbg.contains("unit_variants: 0"), "expected unit_variants count; got: {dbg}");
-        assert!(dbg.contains("encoding_ctx: false"), "expected encoding_ctx flag false; got: {dbg}");
-        assert!(dbg.contains("binding_metadata: 0"), "expected binding_metadata count; got: {dbg}");
+        assert_eq!(
+            dbg,
+            "SymbolTable { functions: 0, unit_variants: 0, encoding_ctx: false, source_loader: false, macro_registry: false, presence_sigma_fn: false, coincident_sigma_fn: false, types: false, defined_values: 0, runtime_def_values: 0, redef_allowed: false, eval_redef_allowed: false, binding_metadata: 0 }",
+            "Debug output mismatch"
+        );
     }
 }

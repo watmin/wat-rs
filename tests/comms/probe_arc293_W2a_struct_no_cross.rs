@@ -94,10 +94,10 @@ fn struct_rejected_at_wire_SEND() {
          this world). got Ok"
     );
     let err_str = format!("{}", result.unwrap_err());
-    let lower = err_str.to_lowercase();
-    assert!(
-        lower.contains("pure") || lower.contains("portable") || lower.contains("struct") || lower.contains("wire"),
-        "check error must mention pure/portability/struct/wire (§7); got: {err_str}"
+    assert_eq!(
+        err_str,
+        "check:\n1 type-check error(s):\n  - tests/comms/probe_arc293_W2c_compile_time_send.wat:24:38: malformed :wat::kernel::peer-pair' form: a wire peer (Peer'<I,O>) carries only pure data — type :w2c::S is not pure (§7 purity wall). If this peer is used only within a thread (in-locus, shared memory), use ThreadSelfPeer'<I,O> — any I/O types are allowed in-locus. If this peer must cross a process boundary (wire), redesign I/O types to use records, scalars, or pure enums (no Sender/Receiver/handle fields).\n",
+        "check error must match arc 293 §7 purity wall golden"
     );
 }
 

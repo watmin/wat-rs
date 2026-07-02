@@ -66,10 +66,10 @@ fn contract_03_keyword_type_in_body_rejected_with_remedy() {
     };
     // The error must contain a structured remedy per Stone 241.10's apparatus.
     // Specific phrasing: doctrine guidance pointing at value-position correctness.
-    assert!(
-        msg.contains("Doctrine 1") || msg.contains("value position") || msg.contains("did you mean"),
-        ":wat::core::i64 in value position must be REJECTED with structured doctrine guidance; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03_bad.wat:1:50: malformed :wat::core::i64 form: Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position\n",
+        ":wat::core::i64 in value position must be REJECTED with Doctrine 1 structured guidance"
     );
 }
 

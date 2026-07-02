@@ -18,14 +18,7 @@ fn probe_1_concrete_receiver_fails_at_check_time() {
         Ok(_) => panic!("Probe 1 FAILED: expected check-time UnknownFunction error; got Ok"),
         Err(e) => {
             let msg = format!("{:?}", e);
-            let lower = msg.to_lowercase();
-            assert!(
-                lower.contains("check")
-                    || lower.contains("unknownfunction")
-                    || lower.contains("unknown"),
-                "Probe 1: expected check-time error mentioning unknown function; got {}",
-                msg
-            );
+            assert_eq!(msg, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc234_stone3c_fix_narrow_fallthrough_p1_bad.wat", line: 3, col: 28, end_line: 3, end_col: 34 }, kind: UnknownCallee { callee: ":bogus" } }]))"#);
         }
     }
 }

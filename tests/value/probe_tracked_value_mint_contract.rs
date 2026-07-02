@@ -111,14 +111,9 @@ fn probe_5_clone_preserves_value_and_provenance() {
 fn probe_6_debug_includes_value_and_provenance() {
     let tv = TrackedValue::new(Value::i64(42), Provenance::Unknown);
     let debug_str = format!("{:?}", tv);
-    assert!(
-        debug_str.contains("42"),
-        "Debug output must include the inner value; got: {}",
-        debug_str
-    );
-    assert!(
-        debug_str.contains("provenance") || debug_str.contains("Unknown"),
-        "Debug output must reflect provenance field; got: {}",
-        debug_str
+    assert_eq!(
+        debug_str,
+        "TrackedValue { value: i64(42), provenance: Unknown }",
+        "Debug output must include value and provenance"
     );
 }

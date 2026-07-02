@@ -307,7 +307,7 @@ fn t3_toplevel_defn_uses_user_types() {
     // The fn signature mentions `:my::Point`; expect that struct + the
     // accessor fn to be in the prologue.
     let type_decls = collect_type_decl_names(&package.prologue);
-    assert!(type_decls.contains(&":my::Point".to_string()),
+    assert!(type_decls.iter().any(|x| x == ":my::Point"),
             "Point struct must be extracted; got {:?}", type_decls);
     // Arc 170 slice 3 Gap F-3: extract_closure now sweeps the WHOLE parent
     // user type registry into the prologue, not just types statically
@@ -316,11 +316,11 @@ fn t3_toplevel_defn_uses_user_types() {
     // and therefore appear in the prologue after the Gap F-3 fix. This
     // ensures the child subprocess's TypeEnv matches the parent's for any
     // dynamic type lookup (e.g., edn::read on tagged EDN forms).
-    assert!(type_decls.contains(&":my::PriceUsd".to_string()),
+    assert!(type_decls.iter().any(|x| x == ":my::PriceUsd"),
             "PriceUsd must be in prologue (whole-registry sweep); got {:?}", type_decls);
-    assert!(type_decls.contains(&":my::Side".to_string()),
+    assert!(type_decls.iter().any(|x| x == ":my::Side"),
             "Side must be in prologue (whole-registry sweep); got {:?}", type_decls);
-    assert!(type_decls.contains(&":my::Coord".to_string()),
+    assert!(type_decls.iter().any(|x| x == ":my::Coord"),
             "Coord must be in prologue (whole-registry sweep); got {:?}", type_decls);
     let fresh = re_freeze(package.prologue);
     // Build a Point in the fresh world directly via the constructor.
@@ -385,9 +385,9 @@ fn t5_inline_lambda_captures_let_scope_struct() {
     );
     assert_eq!(shape.ret_type_kw, ":wat::core::i64");
     let type_decls = collect_type_decl_names(&package.prologue);
-    assert!(type_decls.contains(&":my::Config".to_string()));
+    assert!(type_decls.iter().any(|x| x == ":my::Config"));
     let captures = collect_def_names(&package.prologue);
-    assert!(captures.iter().any(|n| n.starts_with(":__captured_cfg")),
+    assert!(captures.iter().any(|n| n == ":__captured_cfg"),
             "expected `cfg` capture; got {:?}", captures);
     // Behavior equivalence.
     let fresh = re_freeze(package.prologue);
@@ -412,9 +412,9 @@ fn t6_lambda_captures_multiple_mixed_types() {
     // though the body doesn't reference it — capture collection is
     // driven by closed_env). Verify n and xs are present; cfg is
     // optional.
-    assert!(captures.iter().any(|c| c.starts_with(":__captured_n")),
+    assert!(captures.iter().any(|c| c == ":__captured_n"),
             "missing :__captured_n; got {:?}", captures);
-    assert!(captures.iter().any(|c| c.starts_with(":__captured_xs")),
+    assert!(captures.iter().any(|c| c == ":__captured_xs"),
             "missing :__captured_xs; got {:?}", captures);
     let fresh = re_freeze(package.prologue);
     // n=7, length(xs)=3, m=10 => 10+7+3 = 20.
@@ -434,7 +434,7 @@ fn t7_factory_pattern() {
     // lambda; it has no canonical name).
     let _shape = assert_entry_form_fn_form(&package.entry_form);
     let captures = collect_def_names(&package.prologue);
-    assert!(captures.iter().any(|c| c.starts_with(":__captured_config")),
+    assert!(captures.iter().any(|c| c == ":__captured_config"),
             "expected `config` capture (the factory's arg); got {:?}", captures);
     let fresh = re_freeze(package.prologue);
     let result =
@@ -458,17 +458,21 @@ fn t8_lambda_captures_sender_is_non_portable() {
     match &err {
         ExtractionError { kind: ExtractionErrorKind::ImpureCapture { name, type_name, path: _ }, .. } => {
             assert_eq!(name, "tx");
-            assert!(type_name.contains("Sender"), "type_name={}", type_name);
+            assert_eq!(type_name, "wat::kernel::Sender", "t8: impure capture type_name golden");
         }
         other => panic!("expected ImpureCapture; got {:?}", other),
     }
     // Verify the Display rendering carries the substrate-as-teacher
     // diagnostic. The report shape mandates a verbatim sample.
     let msg = format!("{}", err);
+    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
     assert!(msg.contains("`tx`"), "missing capture name: {}", msg);
+    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
     assert!(msg.contains("Sender"), "missing type: {}", msg);
+    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
     assert!(msg.contains("Impure types") || msg.contains("impure type"),
             "missing teacher hint: {}", msg);
+    // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
     assert!(msg.contains("stdin/stdout/stderr"),
             "missing pipes pointer: {}", msg);
 }
@@ -501,7 +505,7 @@ fn t9_captured_struct_holds_sender_field_nested() {
     let err = extract_err(&parent, &lambda, None);
     match err {
         ExtractionError { kind: ExtractionErrorKind::ImpureCapture { name: _, type_name, path }, .. } => {
-            assert!(type_name.contains("Sender"), "type_name={}", type_name);
+            assert_eq!(type_name, "wat::kernel::Sender", "t9: nested impure capture type_name golden");
             assert!(!path.is_empty(), "expected nested path naming the offending field");
         }
         other => panic!("expected ImpureCapture; got {:?}", other),
@@ -517,7 +521,7 @@ fn t10_captures_with_type_alias() {
     let package = extract(&parent, &fn_value, Some(":my::compute"));
     assert_entry_form_keyword(&package.entry_form, ":my::compute");
     let type_decls = collect_type_decl_names(&package.prologue);
-    assert!(type_decls.contains(&":my::Coord".to_string()),
+    assert!(type_decls.iter().any(|x| x == ":my::Coord"),
             "expected :my::Coord to be extracted; got {:?}", type_decls);
     let fresh = re_freeze(package.prologue);
     let result =
@@ -820,7 +824,7 @@ fn t20_match_user_enum_variant_records_type_dep() {
     // Type defn must be in prologue.
     let type_names = collect_type_decl_names(&package.prologue);
     assert!(
-        type_names.contains(&":my::Shape".to_string()),
+        type_names.iter().any(|x| x == ":my::Shape"),
         "expected :my::Shape in prologue type defs; got {:?}",
         type_names
     );

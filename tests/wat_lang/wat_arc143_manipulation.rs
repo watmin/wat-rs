@@ -60,35 +60,20 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn rename_callable_name_happy_path_foldl_to_reduce() {
     let line = unwrap_string(run_expr("(:t::test1-rename-foldl-to-reduce)"), "test1");
-    assert!(
-        line.contains("reduce"),
-        "expected 'reduce' in renamed head, got: {}",
-        line
-    );
-    assert!(
-        line.contains("T") && line.contains("Acc"),
-        "expected type params T and Acc preserved, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::list::reduce<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a1" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a2" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]"#,
+        "renamed head must be :wat::list::reduce with type params T and Acc preserved"
     );
 }
 
 #[test]
 fn rename_callable_name_no_type_params() {
     let line = unwrap_string(run_expr("(:t::test2-rename-no-type-params)"), "test2");
-    assert!(
-        line.contains("my-triple"),
-        "expected 'my-triple' in renamed head, got: {}",
-        line
-    );
-    assert!(
-        !line.starts_with(":t::my-double"),
-        "expected 'my-double' to be gone from first symbol, got: {}",
-        line
-    );
-    assert!(
-        line.contains(":t::my-triple"),
-        "expected ':t::my-triple' literal in rendered output, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::my-triple #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64]"#,
+        "renamed head must be :t::my-triple with no type params"
     );
 }
 
@@ -105,17 +90,10 @@ fn rename_callable_name_error_from_mismatch() {
 #[test]
 fn extract_arg_names_foldl_returns_three_names() {
     let line = unwrap_string(run_expr("(:t::test4-extract-foldl-names)"), "test4");
-    assert!(line.contains("_a0"), "expected ':_a0' in extracted names, got: {}", line);
-    assert!(line.contains("_a1"), "expected ':_a1' in extracted names, got: {}", line);
-    assert!(line.contains("_a2"), "expected ':_a2' in extracted names, got: {}", line);
-    // edn::write renders HolonAST::Symbol as `Symbol "_aN"`.
-    // eval_in_frozen gives us the string directly (no kernel::println encoding),
-    // so inner quotes are not escaped — match Symbol "_a (unescaped).
-    let count = line.matches("Symbol \"_a").count();
     assert_eq!(
-        count, 3,
-        "expected exactly 3 arg names (_a0/_a1/_a2), counted {} in: {}",
-        count, line
+        line,
+        r#"[#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Symbol "_a1" #wat-edn.holon/Symbol "_a2"]"#,
+        "extracted foldl arg names must be exactly _a0/_a1/_a2"
     );
 }
 
@@ -128,13 +106,10 @@ fn extract_arg_names_zero_args_returns_empty() {
 #[test]
 fn extract_arg_names_stops_before_return_type() {
     let line = unwrap_string(run_expr("(:t::test6-extract-stops-before-return)"), "test6");
-    assert!(line.contains("2 "), "expected length 2 in output, got: {}", line);
-    // eval_in_frozen gives the string directly; inner quotes from edn::write are not
-    // kernel::println-escaped, so Symbol "x" appears literally (unescaped).
-    assert!(
-        line.contains("Symbol \"x\"") && line.contains("Symbol \"y\""),
-        "expected arg-name Symbols x and y in output, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"2 [#wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "y"]"#,
+        "extract must stop before return type arrow and yield exactly x and y"
     );
 }
 
@@ -151,12 +126,9 @@ fn extract_arg_names_error_non_bundle() {
 #[test]
 fn rename_then_extract_preserves_arg_names() {
     let line = unwrap_string(run_expr("(:t::test8-rename-then-extract)"), "test8");
-    assert!(line.contains("2 "), "expected length 2 preserved after rename, got: {}", line);
-    // eval_in_frozen gives the string directly; inner quotes from edn::write are
-    // not kernel::println-escaped, so Symbol "x" appears literally (unescaped).
-    assert!(
-        line.contains("Symbol \"x\"") && line.contains("Symbol \"y\""),
-        "expected arg-name Symbols x and y preserved after rename, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"2 [#wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "y"]"#,
+        "arg names x and y must be preserved after rename"
     );
 }

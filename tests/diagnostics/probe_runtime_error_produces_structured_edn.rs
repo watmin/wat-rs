@@ -66,6 +66,7 @@ fn probe_runtime_error_produces_structured_edn() {
     eprintln!("=======================================================");
 
     // Row D — failure.message MUST NOT be "forked program exited N".
+    // rune:lint(loose-assert) — `msg` is Failure.message from subprocess EDN output; `apply_function` uses `wat::rust_caller_span!()` which embeds the absolute host filesystem path; full string varies by host. Targeted absence of the exit-code-only fallback ("forked program exited") is the real contract.
     assert!(
         !msg.contains("forked program exited"),
         "expected actual runtime error text in Failure.message; \

@@ -22,17 +22,7 @@ fn probe_1_dispatcher_routes_to_per_type_impl() {
     match run_compute_from("tests/types/probe_diagnostic_defprotocol_dispatch_p1.wat") {
         Ok(v) => {
             let s = format!("{:?}", v);
-            println!("Probe 1 result: {}", s);
-            assert!(
-                s.contains("voltage-formatted") && s.contains("celsius-formatted"),
-                "Probe 1: dispatcher should route to BOTH per-type impls; got: {}",
-                s
-            );
-            assert!(
-                s.contains("voltage-formatted|celsius-formatted"),
-                "Probe 1: results should appear in call order (v before c); got: {}",
-                s
-            );
+            assert_eq!(s, r#"String("voltage-formatted|celsius-formatted")"#);
         }
         Err(e) => panic!("Probe 1 FAILED: {}", e),
     }
@@ -46,12 +36,7 @@ fn probe_2_open_extension_after_dispatcher() {
     match run_compute_from("tests/types/probe_diagnostic_defprotocol_dispatch_p2.wat") {
         Ok(v) => {
             let s = format!("{:?}", v);
-            println!("Probe 2 result: {}", s);
-            assert!(
-                s.contains("voltage-after-dispatcher"),
-                "Probe 2: open extension should resolve to post-dispatcher impl; got: {}",
-                s
-            );
+            assert_eq!(s, r#"String("voltage-after-dispatcher")"#);
         }
         Err(e) => panic!("Probe 2 FAILED: {}", e),
     }
@@ -65,12 +50,7 @@ fn probe_3_missing_impl_raises_observable_error() {
     match run_compute_from("tests/types/probe_diagnostic_defprotocol_dispatch_p3.wat") {
         Ok(v) => panic!("Probe 3: expected error for missing impl; got: {:?}", v),
         Err(e) => {
-            println!("Probe 3 error (expected): {}", e);
-            assert!(
-                e.contains("Unhandled") || e.contains("Formattable-format") || e.contains("Unknown"),
-                "Probe 3: expected error referencing the missing verb (Unhandled / Formattable-format / UnknownFunction); got: {}",
-                e
-            );
+            assert_eq!(e, r#"eval: RuntimeError { span: Span { file: "tests/types/probe_diagnostic_defprotocol_dispatch_p3.wat", line: 10, col: 5, end_line: 10, end_col: 64 }, kind: UnknownFunction(":myapp::Unhandled/Formattable-format") }"#);
         }
     }
 }

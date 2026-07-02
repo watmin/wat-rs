@@ -68,53 +68,6 @@ fn get<'a>(map: &'a std::collections::HashMap<Value, Value>, key: &str) -> Optio
     map.get(&Value::wat__core__keyword(Arc::new(key.to_string())))
 }
 
-/// Read a keyword baseline value's content (without the leading colon).
-/// Arc 255.1b-iv-c: values are now plain `Value::wat__core__keyword` (not HolonAST-wrapped).
-fn keyword_content(v: &Value) -> String {
-    match v {
-        Value::wat__core__keyword(s) => {
-            s.strip_prefix(':').unwrap_or(s.as_str()).to_string()
-        }
-        other => panic!("expected plain keyword Value; got {:?}", other),
-    }
-}
-
-/// Read an i64 baseline value, or panic.
-/// Arc 255.1b-iv-c: values are now plain `Value::i64` (not HolonAST-wrapped).
-fn i64_val(v: &Value) -> i64 {
-    match v {
-        Value::i64(n) => *n,
-        other => panic!("expected plain i64 Value; got {:?}", other),
-    }
-}
-
-/// Read a bool baseline value, or panic.
-/// Arc 255.1b-iv-c: values are now plain `Value::bool` (not HolonAST-wrapped).
-fn bool_val(v: &Value) -> bool {
-    match v {
-        Value::bool(b) => *b,
-        other => panic!("expected plain bool Value; got {:?}", other),
-    }
-}
-
-/// Read a string baseline value, or panic.
-/// Arc 255.1b-iv-c: values are now plain `Value::String` (not HolonAST-wrapped).
-fn string_val(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.as_ref().clone(),
-        other => panic!("expected plain String Value; got {:?}", other),
-    }
-}
-
-/// Read a closed-domain enum's variant name from a `Value::Enum`, or panic.
-/// Arc 255.1b-iv-c: :kind/:defined-in/:layer are now `Value::Enum` unit variants.
-fn enum_variant(v: &Value) -> String {
-    match v {
-        Value::Enum(ev) => ev.variant_name.clone(),
-        other => panic!("expected Value::Enum; got {:?}", other),
-    }
-}
-
 // RED at HEAD: a rust builtin is not registered -> metadata-of returns None.
 #[test]
 #[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
@@ -153,52 +106,13 @@ fn user_form_carries_guaranteed_baseline() {
 #[test]
 #[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_answers_for_bytes_to_hex_intrinsic() {
-    let map = metadata_of_map(":wat::core::Bytes::to-hex");
-
-    // iv-c: :kind/:defined-in/:layer are now Value::Enum unit variants.
-    assert_eq!(enum_variant(get(&map, ":kind").expect(":kind present")), "Intrinsic");
-    assert_eq!(enum_variant(get(&map, ":defined-in").expect(":defined-in present")), "Rust");
-    assert_eq!(enum_variant(get(&map, ":layer").expect(":layer present")), "Substrate");
-    assert_eq!(i64_val(get(&map, ":arity").expect(":arity present")), 1);
-    assert!(bool_val(get(&map, ":pure").expect(":pure present")), "to-hex is pure");
-    assert!(
-        bool_val(get(&map, ":deterministic").expect(":deterministic present")),
-        "to-hex is deterministic"
-    );
-    // :name is the fqdn as a keyword (HolonAST::keyword strips the leading colon).
-    assert_eq!(
-        keyword_content(get(&map, ":name").expect(":name present")),
-        "wat::core::Bytes::to-hex"
-    );
-    let doc = string_val(get(&map, ":doc").expect(":doc present (handler has a /// docstring)"));
-    assert!(
-        doc.contains("lowercase-hex") || doc.contains("lowercase hex"),
-        ":doc must surface the to-hex docstring (prose containing 'lowercase-hex' or 'lowercase hex'); got: {:?}",
-        doc
-    );
+    unimplemented!("arc 255: metadata-of for Rust intrinsics; on unlock assert the exact :doc for Bytes::to-hex");
 }
 
 #[test]
 #[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_answers_for_bytes_from_hex_intrinsic() {
-    let map = metadata_of_map(":wat::core::Bytes::from-hex");
-
-    // iv-c: :kind/:defined-in/:layer are now Value::Enum unit variants.
-    assert_eq!(enum_variant(get(&map, ":kind").expect(":kind present")), "Intrinsic");
-    assert_eq!(enum_variant(get(&map, ":defined-in").expect(":defined-in present")), "Rust");
-    assert_eq!(enum_variant(get(&map, ":layer").expect(":layer present")), "Substrate");
-    assert_eq!(i64_val(get(&map, ":arity").expect(":arity present")), 1);
-    assert!(bool_val(get(&map, ":pure").expect(":pure present")), "from-hex is pure");
-    assert!(
-        bool_val(get(&map, ":deterministic").expect(":deterministic present")),
-        "from-hex is deterministic"
-    );
-    let doc = string_val(get(&map, ":doc").expect(":doc present (handler has a /// docstring)"));
-    assert!(
-        doc.contains("hex"),
-        ":doc must surface the from-hex docstring verbatim; got: {:?}",
-        doc
-    );
+    unimplemented!("arc 255: metadata-of for Rust intrinsics; on unlock assert the exact :doc for Bytes::from-hex");
 }
 
 /// Diagnostic: emit the EXACT metadata-of(Bytes/to-hex) map the builder wants

@@ -117,15 +117,10 @@ fn arc208_t1_process_readln_println_registered_as_result_returning() {
         .get(":wat::kernel::Process/readln")
         .expect("Process/readln registered in CheckEnv");
     let readln_ret_str = format!("{:?}", readln_scheme.ret);
-    assert!(
-        readln_ret_str.contains("Result"),
-        "Process/readln return type should contain Result; got: {}",
-        readln_ret_str
-    );
-    assert!(
-        readln_ret_str.contains("ProcessDiedError") || readln_ret_str.contains("Vector"),
-        "Process/readln return type should mention ProcessDiedError chain; got: {}",
-        readln_ret_str
+    assert_eq!(
+        readln_ret_str,
+        "Parametric { head: \"wat::core::Result\", args: [Path(\":I\"), Parametric { head: \"wat::core::Vector\", args: [Path(\":wat::kernel::ProcessDiedError\")] }] }",
+        "Process/readln return type must match golden"
     );
 
     // Process/println: Result<(), Vector<ProcessDiedError>> — not bare nil.
@@ -133,15 +128,10 @@ fn arc208_t1_process_readln_println_registered_as_result_returning() {
         .get(":wat::kernel::Process/println")
         .expect("Process/println registered in CheckEnv");
     let println_ret_str = format!("{:?}", println_scheme.ret);
-    assert!(
-        println_ret_str.contains("Result"),
-        "Process/println return type should contain Result; got: {}",
-        println_ret_str
-    );
-    assert!(
-        println_ret_str.contains("ProcessDiedError") || println_ret_str.contains("Vector"),
-        "Process/println return type should mention ProcessDiedError chain; got: {}",
-        println_ret_str
+    assert_eq!(
+        println_ret_str,
+        "Parametric { head: \"wat::core::Result\", args: [Tuple([]), Parametric { head: \"wat::core::Vector\", args: [Path(\":wat::kernel::ProcessDiedError\")] }] }",
+        "Process/println return type must match golden"
     );
 }
 
@@ -411,10 +401,10 @@ fn arc208_t6_walker_rejects_process_println_in_body_position() {
     // children, function argument positions, etc.
     // Negative fixture loaded from co-located wat_arc208_process_io_result_bad_println.wat.
     let err = freeze_err("tests/process/wat_arc208_process_io_result_bad_println.wat");
-    assert!(
-        err.contains("CommCallOutOfPosition") || err.contains("Process/println"),
-        "walker should fire CommCallOutOfPosition for Process/println in do-body; got: {}",
-        err
+    assert_eq!(
+        err,
+        "check:\n2 type-check error(s):\n  - tests/process/wat_arc208_process_io_result_bad_println.wat:9:6: :wat::kernel::Process/println may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::Result/expect`, or the value-position of `:wat::core::Option/expect`; silent disconnect must be handled at every comm call\n  - tests/process/wat_arc208_process_io_result_bad_println.wat:10:5: malformed :wat::core::nil form: Doctrine 1 (arc 242): ':wat::core::nil' is a TYPE keyword, not a value; use bare `nil` in value position\n",
+        "walker should fire CommCallOutOfPosition for Process/println in do-body"
     );
 }
 
@@ -426,9 +416,9 @@ fn arc208_t7_walker_rejects_process_readln_in_body_position() {
     // form triggers CommCallOutOfPosition.
     // Negative fixture loaded from co-located wat_arc208_process_io_result_bad_readln.wat.
     let err = freeze_err("tests/process/wat_arc208_process_io_result_bad_readln.wat");
-    assert!(
-        err.contains("CommCallOutOfPosition") || err.contains("Process/readln"),
-        "walker should fire CommCallOutOfPosition for Process/readln in do-body; got: {}",
-        err
+    assert_eq!(
+        err,
+        "check:\n1 type-check error(s):\n  - tests/process/wat_arc208_process_io_result_bad_readln.wat:9:6: :wat::kernel::Process/readln may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::Result/expect`, or the value-position of `:wat::core::Option/expect`; silent disconnect must be handled at every comm call\n",
+        "walker should fire CommCallOutOfPosition for Process/readln in do-body"
     );
 }

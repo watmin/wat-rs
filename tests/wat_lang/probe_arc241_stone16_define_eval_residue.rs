@@ -21,10 +21,10 @@ fn contract_01_define_rejection_carries_stone_241_16_marker() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat");
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains("Stone 241.16"),
-        ":wat::core::define rejection must carry Stone 241.16 marker post-stone (eval-time residue completion); got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        ":wat::core::define rejection must carry Stone 241.16 marker (eval-time residue completion)"
     );
 }
 
@@ -35,15 +35,10 @@ fn contract_02_retirement_remedy_preserves_defn_replacement() {
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat");
     let msg = format!("{}", result.unwrap_err());
-    assert!(
-        msg.contains(":wat::core::defn"),
-        "define retirement remedy must continue to name :wat::core::defn; got:\n{}",
-        msg
-    );
-    assert!(
-        msg.contains("[replaces a retired form]"),
-        "define remedy must continue to carry '[replaces a retired form]' annotation; got:\n{}",
-        msg
+    assert_eq!(
+        msg,
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "define retirement remedy must continue to name :wat::core::defn with [replaces a retired form]"
     );
 }
 

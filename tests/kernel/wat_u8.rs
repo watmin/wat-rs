@@ -45,7 +45,7 @@ fn u8_cast_out_of_range_errors_at_runtime() {
         .expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
-        msg.contains("u8") && msg.contains("256"),
+        msg.contains("u8") && msg.contains("256"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "expected out-of-range u8 error mentioning 256; got {:?}",
         err
     );
@@ -59,7 +59,7 @@ fn u8_cast_negative_errors_at_runtime() {
         .expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
-        msg.contains("u8") && msg.contains("-1"),
+        msg.contains("u8") && msg.contains("-1"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "expected out-of-range u8 error mentioning -1; got {:?}",
         err
     );

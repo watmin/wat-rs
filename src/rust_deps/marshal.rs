@@ -529,8 +529,7 @@ mod tests {
         let err = <(i64, i64) as FromWat>::from_wat(&v, "test", &s).unwrap_err();
         match err {
             RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. } => {
-                assert!(reason.contains("arity 2"));
-                assert!(reason.contains("arity 3"));
+                assert_eq!(reason, "expected tuple of arity 2; got arity 3");
             }
             other => panic!("expected MalformedForm, got {:?}", other),
         }

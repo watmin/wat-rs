@@ -230,10 +230,11 @@ mod tests {
             closed_env: None,
         };
         let dbg = format!("{:?}", f);
-        assert!(dbg.contains("Function"), "expected struct name; got: {dbg}");
-        assert!(dbg.contains(r#"name: Some(":my::fn")"#), "expected name field; got: {dbg}");
-        // closed_env: None → rendered as "<none>" per the Debug impl.
-        assert!(dbg.contains("<none>"), "expected <none> for absent closed_env; got: {dbg}");
+        assert_eq!(
+            dbg,
+            r#"Function { name: Some(":my::fn"), params: ["x"], rest_param: None, closed_env: "<none>" }"#,
+            "Debug output mismatch"
+        );
     }
 
     #[test]
@@ -251,7 +252,10 @@ mod tests {
             closed_env: Some(env),
         };
         let dbg = format!("{:?}", f);
-        // closed_env: Some(_) → rendered as "<env>" per the Debug impl.
-        assert!(dbg.contains("<env>"), "expected <env> for present closed_env; got: {dbg}");
+        assert_eq!(
+            dbg,
+            r#"Function { name: None, params: [], rest_param: None, closed_env: "<env>" }"#,
+            "Debug output mismatch"
+        );
     }
 }

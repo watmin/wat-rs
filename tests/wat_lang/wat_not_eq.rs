@@ -44,10 +44,10 @@ fn not_eq_f64_cross_numeric_coerce() {
         "expected cross-numeric not= to produce a type error; got Ok"
     );
     let msg = format!("{:?}", result.unwrap_err());
-    assert!(
-        msg.contains("TypeMismatch") || msg.contains("type") || msg.contains("f64"),
-        "expected TypeMismatch mentioning type mismatch; got: {}",
-        msg
+    assert_eq!(
+        msg,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_not_eq_cross_numeric_bad.wat", line: 4, col: 23, end_line: 4, end_col: 26 }, kind: TypeMismatch { callee: ":wat::core::not=", param: "#2", expected: ":wat::core::i64", got: ":wat::core::f64" } }]))"##,
+        "expected TypeMismatch on cross-numeric not= call"
     );
 }
 

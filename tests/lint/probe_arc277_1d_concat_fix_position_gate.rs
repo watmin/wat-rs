@@ -23,15 +23,17 @@ fn concat_fix_picks_head_by_position() {
         Value::String(ref s) => s.to_string(),
         other => panic!("expected String; got {other:?}"),
     };
-    // The defmacro-body concat → interpolate INTRINSIC (expand-time-legal).
-    assert!(
-        fixed.contains("(:wat::core::string::interpolate \"{s}::Op\" :s s)"),
-        "defmacro-body concat must become interpolate; got: {fixed}"
+    assert_eq!(
+        fixed,
+        concat!(
+            "(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String ",
+            "(:wat::core::let [s (:wat::core::ast-name x) nm ",
+            "(:wat::core::string::interpolate ",
+            "\"{s}::Op\" :s s)] nm)) ",
+            "(:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String ",
+            "(:wat::core::format ",
+            "\"x: {a}\" :a a))"
+        ),
+        "defmacro-body → interpolate, defn-body → format; must match position-gate golden"
     );
-    // The defn-body concat → format MACRO (zero-cost runtime).
-    assert!(
-        fixed.contains("(:wat::core::format \"x: {a}\" :a a)"),
-        "defn-body concat must stay format; got: {fixed}"
-    );
-    assert!(!fixed.contains("string::concat"), "both concats must be rewritten; got: {fixed}");
 }

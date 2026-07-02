@@ -286,41 +286,25 @@ fn algebra_vector_distinct_atoms_have_some_order() {
 #[test]
 fn hashmap_ord_raises_type_mismatch() {
     let err = run_expecting_check_error("tests/types/ord_hashmap_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected check-time TypeMismatch on HashMap ord; got {}",
-        err
-    );
+    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_hashmap_bad.wat", line: 6, col: 6, end_line: 6, end_col: 19 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":wat::core::HashMap<wat::core::String,wat::core::i64>" } }])"##);
 }
 
 #[test]
 fn hashset_ord_raises_type_mismatch() {
     let err = run_expecting_check_error("tests/types/ord_hashset_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected check-time TypeMismatch on HashSet ord; got {}",
-        err
-    );
+    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_hashset_bad.wat", line: 6, col: 6, end_line: 6, end_col: 19 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":wat::core::HashSet<wat::core::i64>" } }])"##);
 }
 
 #[test]
 fn enum_ord_raises_type_mismatch() {
     let err = run_expecting_check_error("tests/types/ord_enum_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected check-time TypeMismatch on Enum ord; got {}",
-        err
-    );
+    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_enum_bad.wat", line: 4, col: 4, end_line: 4, end_col: 17 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":my::Color" } }])"##);
 }
 
 #[test]
 fn struct_ord_raises_type_mismatch() {
     let err = run_expecting_check_error("tests/types/ord_struct_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected check-time TypeMismatch on Struct ord; got {}",
-        err
-    );
+    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_struct_bad.wat", line: 9, col: 6, end_line: 9, end_col: 19 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":my::Point" } }])"##);
 }
 
 #[test]
@@ -330,19 +314,11 @@ fn unit_ord_raises_type_mismatch() {
     // ordering a one-inhabitant type is meaningless). Same shape as the
     // five sibling rejection witnesses above.
     let err = run_expecting_check_error("tests/types/ord_unit_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected check-time TypeMismatch on unit ord; got {}",
-        err
-    );
+    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_unit_bad.wat", line: 3, col: 4, end_line: 3, end_col: 17 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":()" } }])"##);
 }
 
 #[test]
 fn holon_ast_ord_raises_type_mismatch() {
     let err = run_expecting_check_error("tests/types/ord_holon_ast_bad.wat");
-    assert!(
-        err.contains("TypeMismatch"),
-        "expected check-time TypeMismatch on HolonAST ord; got {}",
-        err
-    );
+    assert_eq!(err, r##"CheckErrors([CheckError { span: Span { file: "tests/types/ord_holon_ast_bad.wat", line: 3, col: 4, end_line: 3, end_col: 17 }, kind: TypeMismatch { callee: ":wat::core::<", param: "#1", expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)", got: ":wat::holon::HolonAST" } }])"##);
 }

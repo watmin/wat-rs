@@ -38,9 +38,21 @@ fn contract_01_keyword_bodied_non_exhaustive_cond_rejected() {
 fn contract_02_non_exhaustive_cond_names_else() {
     let r = check_path("tests/macros/probe_arc258_stone2b_macro_error_c02.wat");
     assert!(r.is_err(), "a non-exhaustive cond must be rejected");
-    assert!(
-        r.unwrap_err().contains(":else"),
-        "the non-exhaustive diagnostic must name :else"
+    let err258_02 = r.unwrap_err();
+    assert_eq!(
+        err258_02,
+        concat!(
+            "Macro(MacroError { span: Span { file: ",
+            "\"wat/core.wat\"",
+            ", line: 593, col: 15, end_line: 593, end_col: 62 }, kind: ProgramBodyEvalFailed { macro_name: ",
+            "\":wat::core::cond\"",
+            ", cause: MacroError { span: Span { file: ",
+            "\"wat/core.wat\"",
+            ", line: 583, col: 5, end_line: 583, end_col: 82 }, kind: MalformedTemplate { reason: ",
+            "\"cond: non-exhaustive — needs a terminal :else arm\"",
+            " } } } })"
+        ),
+        "non-exhaustive cond must match diagnostic golden"
     );
 }
 
@@ -51,8 +63,20 @@ fn contract_03_macro_error_surfaces_its_message() {
     // it generically and the message never surfaces.
     let r = check_path("tests/macros/probe_arc258_stone2b_macro_error_c03.wat");
     assert!(r.is_err(), "a macro calling macro-error must abort");
-    assert!(
-        r.unwrap_err().contains("kaboom-sentinel-9173"),
-        "macro-error's message must surface in the diagnostic"
+    let err258_03 = r.unwrap_err();
+    assert_eq!(
+        err258_03,
+        concat!(
+            "Macro(MacroError { span: Span { file: ",
+            "\"tests/macros/probe_arc258_stone2b_macro_error_c03.wat\"",
+            ", line: 6, col: 50, end_line: 6, end_col: 63 }, kind: ProgramBodyEvalFailed { macro_name: ",
+            "\":user::boom\"",
+            ", cause: MacroError { span: Span { file: ",
+            "\"tests/macros/probe_arc258_stone2b_macro_error_c03.wat\"",
+            ", line: 5, col: 3, end_line: 5, end_col: 51 }, kind: MalformedTemplate { reason: ",
+            "\"kaboom-sentinel-9173\"",
+            " } } } })"
+        ),
+        "macro-error sentinel must match diagnostic golden"
     );
 }

@@ -45,24 +45,7 @@ fn run_string(world: &wat::freeze::FrozenWorld, expr: &str) -> String {
 fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, "(:t::probe-1)");
-    // Must contain Keyword (not Symbol).
-    assert!(
-        s.contains("Keyword"),
-        "expected #wat-edn.holon/Keyword in output, got: {}",
-        s
-    );
-    // Content must NOT have a leading colon (Keyword stored without ":").
-    assert!(
-        !s.contains("Keyword \":\""),
-        "keyword content must not start with ':' — leading colon retired by arc 221, got: {}",
-        s
-    );
-    // Confirm NOT Symbol (regression guard).
-    assert!(
-        !s.contains("Symbol"),
-        "output must NOT contain Symbol — retired pre-arc-221 convention, got: {}",
-        s
-    );
+    assert_eq!(s, "#wat-edn.holon/Keyword :foo", "watast_to_holon Keyword must emit exact golden");
 }
 
 // ─── Probe 2 — `:wat::holon::leaf` Keyword arm (runtime.rs:20938) ───────────
@@ -74,16 +57,7 @@ fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
 fn probe_2_holon_leaf_keyword_produces_keyword_leaf() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, "(:t::probe-2)");
-    assert!(
-        s.contains("Keyword"),
-        "expected #wat-edn.holon/Keyword in output, got: {}",
-        s
-    );
-    assert!(
-        !s.contains("Symbol"),
-        "output must NOT contain Symbol — retired pre-arc-221 convention, got: {}",
-        s
-    );
+    assert_eq!(s, "#wat-edn.holon/Keyword :user::foo", "holon_leaf Keyword must emit exact golden");
 }
 
 // ─── Probe 3 — `eval-step!` AlreadyTerminal Keyword (runtime.rs:21322) ──────
@@ -99,20 +73,12 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
 
     // Part A: eval-step! on a keyword produces AlreadyTerminal.
     let s_a = run_string(&world, "(:t::probe-3a)");
-    assert!(
-        s_a.contains("AlreadyTerminal"),
-        "expected AlreadyTerminal for keyword step, got: {}",
-        s_a
-    );
+    assert_eq!(s_a, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)", "eval-step! keyword must emit exact golden");
 
     // Part B: from-wat(quote :outcome) and from-wat(quote :outcome) are equal
     // (same Keyword identity — both go through Stone 221.4b watast_to_holon).
     let s_b = run_string(&world, "(:t::probe-3b)");
-    assert!(
-        s_b.contains("true"),
-        "same keyword must produce equal HolonAST identities, got: {}",
-        s_b
-    );
+    assert_eq!(s_b, "true", "same keyword must produce equal HolonAST identities");
 }
 
 // ─── Probe 4 — EDN keyword wire format (edn_shim.rs:1899) ───────────────────
@@ -126,24 +92,7 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
 fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, "(:t::probe-4)");
-    // edn::write of HolonAST::Keyword("bar") must emit a Keyword-tagged form.
-    assert!(
-        s.contains("Keyword"),
-        "expected 'Keyword' in edn::write output for keyword leaf, got: {}",
-        s
-    );
-    // Confirm NOT Symbol (regression guard against pre-arc-221 Symbol output).
-    assert!(
-        !s.contains("Symbol"),
-        "edn::write output must NOT contain Symbol for keyword leaf, got: {}",
-        s
-    );
-    // Content must be "bar" (no leading colon — Keyword stores without sigil).
-    assert!(
-        s.contains("bar"),
-        "edn::write must emit keyword content 'bar' (without leading colon), got: {}",
-        s
-    );
+    assert_eq!(s, "#wat-edn.holon/Keyword :bar", "edn::write Keyword must emit exact golden");
 }
 
 // ─── Probe 5 — Value::Unit consistency — `:wat::holon::leaf` nil (arc 230) ──────
@@ -157,11 +106,7 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, "(:t::probe-5)");
     // Arc 230: nil = Bind(Atom("Symbol"), Atom("nil")) → serializes as #wat-edn.holon/Symbol "nil".
-    assert!(
-        s.contains("Symbol") && s.contains("nil"),
-        "expected #wat-edn.holon/Symbol \"nil\" in output (arc 230 nil composition), got: {}",
-        s
-    );
+    assert_eq!(s, "#wat-edn.holon/Symbol \"nil\"", "holon_leaf unit must emit exact golden");
 }
 
 // ─── Probe 6 — `watast_to_holon` Keyword round-trip distinctness ─────────────
@@ -173,9 +118,5 @@ fn probe_6_watast_to_holon_keyword_distinct_identities() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, "(:t::probe-6)");
     // (:wat::core::not false) = true → edn::write "true".
-    assert!(
-        s.contains("true"),
-        "expected distinct keyword identities (not eq = true), got: {}",
-        s
-    );
+    assert_eq!(s, "true", "distinct keywords must be non-equal");
 }

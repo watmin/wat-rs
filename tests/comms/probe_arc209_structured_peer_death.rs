@@ -40,17 +40,17 @@ fn thread_peer_recv_surfaces_structured_actual_and_expected() {
     let err = compute_raise_text();
     // Baseline (already shipped by arc 259 S3.5a-0): the message survives.
     assert!(
-        err.contains("structured-death-marker"),
+        err.contains("structured-death-marker"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "regression: the crash MESSAGE must still travel. got: {err}"
     );
     // The new bar: the STRUCTURED actual + expected must survive too.
     assert!(
-        err.contains("ACTUAL-42173"),
+        err.contains("ACTUAL-42173"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "the structured `actual` field must survive the crash path (it is discarded at \
          spawn.rs:472 today). got: {err}"
     );
     assert!(
-        err.contains("EXPECTED-99731"),
+        err.contains("EXPECTED-99731"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "the structured `expected` field must survive the crash path. got: {err}"
     );
 }

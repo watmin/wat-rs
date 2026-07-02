@@ -137,10 +137,10 @@ fn defn_zero_arg_function_works() {
 #[test]
 fn defn_body_type_mismatch_surfaces() {
     let err = startup_err("tests/function/defn_bad_type.wat");
-    assert!(
-        err.contains("ReturnTypeMismatch") || err.contains("TypeMismatch"),
-        "expected ReturnTypeMismatch when body type doesn't match declared return; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/function/defn_bad_type.wat", line: 6, col: 3, end_line: 6, end_col: 5 }, kind: ReturnTypeMismatch { function: ":user::bad", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"##,
+        "defn8: body-type-mismatch golden"
     );
 }
 
@@ -151,6 +151,7 @@ fn defn_body_type_mismatch_surfaces() {
 #[test]
 fn defn_redef_same_name_forbidden_by_default() {
     let err = startup_err("tests/function/defn_redef.wat");
+    // rune:lint(loose-assert) — error span references wat/core.wat:NNN which shifts as the stdlib grows
     assert!(
         err.contains("DefRedefForbidden"),
         "expected DefRedefForbidden on second defn of :user::f; got: {}",

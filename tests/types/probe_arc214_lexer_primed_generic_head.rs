@@ -44,6 +44,7 @@ fn primed_two_param_must_lex() {
     {
         Ok(()) => {} // lexed and checked — fine
         Err(e) => {
+            // rune:lint(loose-assert) — targeted absence in Err arm; at HEAD startup returns Ok (primed head lexes and checks), so this arm is unreachable; the assert guards against a lexer regression where CommaInKeywordBody would fire; the specific error message varies by which check phase rejects
             assert!(
                 !e.contains("comma inside keyword body"),
                 "primed generic head must pass the LEXER; got CommaInKeywordBody:\n{}",
@@ -73,15 +74,6 @@ fn primed_two_param_with_space_fails_same_as_unprimed() {
     )
     .expect_err("whitespace inside <...> is a lex error by design (unprimed control)");
     let unprimed = format!("{}", unprimed);
-    assert!(
-        !primed.contains("comma inside keyword body"),
-        "primed-with-space must NOT fail on the comma (angle_depth must be tracked); got:\n{}",
-        primed
-    );
-    assert!(
-        primed.contains("unclosed bracket") && unprimed.contains("unclosed bracket"),
-        "both primed and unprimed space cases fail with the whitespace/unclosed rule;\nprimed: {}\nunprimed: {}",
-        primed,
-        unprimed
-    );
+    assert_eq!(primed, "parse: wat-rs/crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 201: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace");
+    assert_eq!(unprimed, "parse: wat-rs/crates/wat-reader/src/parser.rs:112:28: lex error: lex error at byte 178: whitespace inside unclosed bracket in keyword \u{2014} keywords cannot contain whitespace");
 }

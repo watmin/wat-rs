@@ -205,10 +205,10 @@ fn probe_6_debug_contains_class() {
     );
     let rendered = format!("{:?}", r);
     println!("Probe 6 Debug: {}", rendered);
-    assert!(
-        rendered.contains("myapp::Voltage"),
-        "Probe 6: Debug output must contain class_fqdn 'myapp::Voltage'; got: {}",
-        rendered
+    assert_eq!(
+        rendered,
+        r#"Aggregate(AggregateValue { class: "myapp::Voltage", fields: [f64(5.0)], holder: HolonRecord, holon: Hologram(Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))]))) })"#,
+        "Probe 6: Debug output must match golden"
     );
 }
 

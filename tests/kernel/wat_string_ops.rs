@@ -85,7 +85,7 @@ fn split_produces_vec() {
 fn split_empty_separator_rejected() {
     let msg = run_expecting_eval_err(":my::compute-split-empty-sep");
     assert!(
-        msg.contains("separator must not be empty"),
+        msg.contains("separator must not be empty"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "expected empty-separator error; got {}",
         msg
     );
@@ -107,7 +107,7 @@ fn regex_matches_no_match() {
 fn regex_invalid_pattern_errors() {
     let msg = run_expecting_eval_err(":my::compute-regex-invalid");
     assert!(
-        msg.contains("invalid regex"),
+        msg.contains("invalid regex"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "expected invalid regex error; got {}",
         msg
     );

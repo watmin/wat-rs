@@ -541,6 +541,9 @@ fn variadic_macro_arity_too_few_uses_arity_too_few_variant() {
         err
     );
     let rendered = format!("{}", err);
+    // rune:lint(loose-assert) — Display embeds a Rust-derived source span in the error prefix
+    // (e.g. "src/macros/tests.rs:N:col:end_col: macro ..."); the file path shifts if the test
+    // file is moved or renamed, making full assert_eq! infeasible
     assert!(
         rendered.contains("expects at least 2 arguments"),
         "ArityTooFew Display must read 'expects at least 2 arguments'; got: {}",
@@ -884,6 +887,7 @@ fn arc138_macro_error_message_carries_span() {
     )
     .unwrap_err();
     let rendered = format!("{}", err);
+    // rune:lint(loose-assert) — variable Rust source file path embedded in error Display output via macro call-site span (varies by build environment)
     assert!(
         rendered.contains("src/") || rendered.contains(".rs:"),
         "expected MacroError Display to carry real source coordinates (file:line:col); got: {}",

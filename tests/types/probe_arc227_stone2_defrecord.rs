@@ -124,11 +124,7 @@ fn probe_defrecord_polymorphic_is_bare_basename_negative() {
 #[test]
 fn probe_defrecord_constructor_typed_rejects_wrong_type() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_typed_bad.wat");
-    assert!(
-        !err.contains("no error"),
-        "constructor must reject String where f64 expected (got: {})",
-        err
-    );
+    assert_eq!(err, "check:\n2 type-check error(s):\n  - tests/types/probe_arc227_stone2_defrecord_typed_bad.wat:3:78: :test::Voltage: parameter #1 expects :wat::core::f64; got :wat::core::String\n  - tests/types/probe_arc227_stone2_defrecord_typed_bad.wat:3:62: :user::compute: body produces :test::Voltage; signature declares :wat::holon::HolonAST\n");
 }
 
 // Test 7: Multi-segment namespace
@@ -254,11 +250,7 @@ fn probe_defrecord_cross_namespace_tags_distinct() {
 #[test]
 fn probe_defrecord_field_type_check_bool_rejected() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_bool_bad.wat");
-    assert!(
-        !err.contains("no error"),
-        "constructor must reject bool where f64 expected (got: {})",
-        err
-    );
+    assert_eq!(err, "check:\n2 type-check error(s):\n  - tests/types/probe_arc227_stone2_defrecord_bool_bad.wat:3:79: :test::Measured: parameter #1 expects :wat::core::f64; got :wat::core::bool\n  - tests/types/probe_arc227_stone2_defrecord_bool_bad.wat:3:62: :user::compute: body produces :test::Measured; signature declares :wat::holon::HolonAST\n");
 }
 
 // Test 19: Multi-segment namespace with field (NEW v2)
@@ -278,15 +270,7 @@ fn probe_defrecord_multi_segment_with_field() {
 #[test]
 fn probe_two_arg_form_only_one_arg_errors() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_onearg_bad.wat");
-    assert!(
-        err.contains("ArityMismatch") || err.contains("arity") || !err.contains("no error"),
-        "single-arg defrecord must error with ArityMismatch; got: {}",
-        err
-    );
-    assert!(
-        !err.contains("no error"),
-        "single-arg defrecord must error; startup succeeded unexpectedly"
-    );
+    assert_eq!(err, "macro: tests/types/probe_arc227_stone2_defrecord_onearg_bad.wat:2:1: macro :wat::core::defrecord expects 2 arguments; got 1");
 }
 
 // EXPECTATIONS row 3: N=0 canonical instance shape uses Bundle (not Atom(nil))
@@ -428,9 +412,5 @@ fn probe_cross_namespace_distinct_classifiers_n2() {
 #[test]
 fn probe_constructor_rejects_wrong_typed_field() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_wrongfield_bad.wat");
-    assert!(
-        !err.contains("no error"),
-        "N=2 constructor must reject String where i64 expected for field a (got: {})",
-        err
-    );
+    assert_eq!(err, "check:\n2 type-check error(s):\n  - tests/types/probe_arc227_stone2_defrecord_wrongfield_bad.wat:3:70: :ns::P: parameter #1 expects :wat::core::i64; got :wat::core::String\n  - tests/types/probe_arc227_stone2_defrecord_wrongfield_bad.wat:3:62: :user::compute: body produces :ns::P; signature declares :wat::holon::HolonAST\n");
 }

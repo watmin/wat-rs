@@ -163,12 +163,11 @@ fn select_prime_flood_no_deadlock() {
                                 );
                                 match s.fields.first() {
                                     Some(Value::String(msg)) => {
-                                        assert!(
-                                            msg.contains("cap") || msg.contains("frame") || msg.contains("512"),
-                                            "Failure.message must mention the cap; got {:?}",
-                                            msg
+                                            assert_eq!(
+                                            msg.as_str(),
+                                            "frame exceeded cap (message larger than the receiver's max-message-bytes budget)",
+                                            "Failure.message must match FrameTooLarge golden"
                                         );
-                                        eprintln!("[select_prime_flood_no_deadlock] Got Lost with cause: {:?}", msg);
                                     }
                                     other => panic!(
                                         "Failure.message (field 0) must be String; got {:?}",

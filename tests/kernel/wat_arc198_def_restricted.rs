@@ -38,20 +38,10 @@ fn def_restricted_caller_outside_allowed_namespace_fails() {
     let err = format!("{:?}", startup_from_file(
         "tests/kernel/wat_arc198_def_restricted_bad_outside_namespace.wat",
     ).expect_err("expected startup failure; got Ok"));
-    assert!(
-        err.contains(":my::kernel::restricted-fn"),
-        "error should name the restricted callee; got: {}",
-        err
-    );
-    assert!(
-        err.contains(":user::app::caller"),
-        "error should name the offending caller FQDN; got: {}",
-        err
-    );
-    assert!(
-        err.contains(":my::kernel::"),
-        "error should name the whitelist prefix; got: {}",
-        err
+    assert_eq!(
+        err,
+        "Check(CheckErrors([CheckError { span: Span { file: \"tests/kernel/wat_arc198_def_restricted_bad_outside_namespace.wat\", line: 9, col: 4, end_line: 9, end_col: 30 }, kind: DefRestrictedCallerNotAllowed { callee: \":my::kernel::restricted-fn\", enclosing_fn: \":user::app::caller\", prefixes: [\":my::kernel::\"] } }]))",
+        "error must match golden"
     );
 }
 
@@ -68,15 +58,10 @@ fn def_restricted_exact_fqdn_match_only_allows_named_caller() {
     let err = format!("{:?}", startup_from_file(
         "tests/kernel/wat_arc198_def_restricted_bad_exact_fqdn_denied.wat",
     ).expect_err("expected startup failure; got Ok"));
-    assert!(
-        err.contains(":my::kernel::other-caller"),
-        "error should name the denied caller (sibling in the same namespace); got: {}",
-        err
-    );
-    assert!(
-        err.contains(":my::kernel::restricted-fn"),
-        "error should name the restricted callee; got: {}",
-        err
+    assert_eq!(
+        err,
+        "Check(CheckErrors([CheckError { span: Span { file: \"tests/kernel/wat_arc198_def_restricted_bad_exact_fqdn_denied.wat\", line: 9, col: 4, end_line: 9, end_col: 30 }, kind: DefRestrictedCallerNotAllowed { callee: \":my::kernel::restricted-fn\", enclosing_fn: \":my::kernel::other-caller\", prefixes: [\":my::kernel::specific-caller\"] } }]))",
+        "error must match golden"
     );
 }
 
@@ -109,14 +94,9 @@ fn defn_metadata_restricted_enforces_for_caller_outside_whitelist() {
     let err = format!("{:?}", startup_from_file(
         "tests/kernel/wat_arc198_def_restricted_bad_outside_namespace.wat",
     ).expect_err("expected startup failure; got Ok"));
-    assert!(
-        err.contains(":my::kernel::restricted-fn"),
-        "error should name the restricted callee; got: {}",
-        err
-    );
-    assert!(
-        err.contains(":user::app::caller"),
-        "error should name the offending caller; got: {}",
-        err
+    assert_eq!(
+        err,
+        "Check(CheckErrors([CheckError { span: Span { file: \"tests/kernel/wat_arc198_def_restricted_bad_outside_namespace.wat\", line: 9, col: 4, end_line: 9, end_col: 30 }, kind: DefRestrictedCallerNotAllowed { callee: \":my::kernel::restricted-fn\", enclosing_fn: \":user::app::caller\", prefixes: [\":my::kernel::\"] } }]))",
+        "error must match golden"
     );
 }

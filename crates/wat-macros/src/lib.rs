@@ -1060,30 +1060,27 @@ mod tests {
     #[test]
     fn missing_path_rejected() {
         let err = parse(r#"scope = "shared""#).unwrap_err();
-        assert!(err.to_string().contains("path = \":rust::..."));
+        assert_eq!(err.to_string(), r#"wat_dispatch requires `path = ":rust::..."`"#);
     }
 
     #[test]
     fn invalid_scope_rejected() {
         let err = parse(r#"path = ":rust::x::Y", scope = "bogus""#).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("invalid scope"));
-        assert!(msg.contains("shared"));
-        assert!(msg.contains("thread_owned"));
-        assert!(msg.contains("owned_move"));
+        assert_eq!(msg, "invalid scope `bogus`; expected one of: shared, thread_owned, owned_move");
     }
 
     #[test]
     fn unknown_key_rejected() {
         let err =
             parse(r#"path = ":rust::x::Y", mystery = "?""#).unwrap_err();
-        assert!(err.to_string().contains("unknown wat_dispatch argument"));
+        assert_eq!(err.to_string(), "unknown wat_dispatch argument `mystery`; expected: path, scope, type_params");
     }
 
     #[test]
     fn duplicate_path_rejected() {
         let err = parse(r#"path = ":rust::a::B", path = ":rust::c::D""#).unwrap_err();
-        assert!(err.to_string().contains("duplicate `path`"));
+        assert_eq!(err.to_string(), "duplicate `path` in wat_dispatch attribute");
     }
 }
 

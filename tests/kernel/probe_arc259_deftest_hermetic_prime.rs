@@ -53,10 +53,12 @@ fn deftest_hermetic_prime_failing_raises_with_message() {
     );
     match r {
         Ok(()) => panic!("a failing deftest-hermetic' must RAISE; it returned Ok"),
-        Err(text) => assert!(
-            text.contains("HERMETIC-FAIL-SENTINEL"),
-            "the failing assertion's message must surface through deftest-hermetic' (pipe model, \
-             process Err channel); got: {text}"
-        ),
+        Err(text) => {
+            assert!(
+                text.contains("HERMETIC-FAIL-SENTINEL"), // rune:lint(loose-assert) — process crash error embeds machine-specific absolute path in process crash frames
+                "the failing assertion's message must surface through deftest-hermetic' (pipe model, \
+                 process Err channel); got: {text}"
+            );
+        }
     }
 }

@@ -237,16 +237,16 @@ fn probe_7_is_atomizable_tuple() {
     )
     .expect_err("expected startup failure for Tuple containing Fn");
     let err = format!("{}\n---\n{:?}", err, err);
-    assert!(
-        err.contains("TypeMismatch"),
-        "Tuple containing Fn must fail at check with TypeMismatch; got: {}",
-        err
-    );
-    // Arc 225 Stone 225.1: callee is now :wat::holon::to-holon (polymorphic UP verb).
-    assert!(
-        err.contains(":wat::holon::to-holon"),
-        "TypeMismatch must name the callee :wat::holon::to-holon; got: {}",
-        err
+    assert_eq!(
+        err,
+        r##"check:
+2 type-check error(s):
+  - tests/collection/probe_arc216_stone7_tuple_roundtrip_p7_bad.wat:7:28: :wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T); got :(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::String)
+  - tests/collection/probe_arc216_stone7_tuple_roundtrip_p7_bad.wat:4:3: :user::compute: body produces :wat::holon::HolonAST; signature declares :()
+
+---
+Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7_bad.wat", line: 7, col: 28, end_line: 7, end_col: 29 }, kind: TypeMismatch { callee: ":wat::holon::to-holon", param: "#1", expected: "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)", got: ":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::String)" } }, CheckError { span: Span { file: "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7_bad.wat", line: 4, col: 3, end_line: 7, end_col: 31 }, kind: ReturnTypeMismatch { function: ":user::compute", expected: ":()", got: ":wat::holon::HolonAST", remedies: [] } }]))"##,
+        "probe_7: Tuple-with-Fn non-atomizable check-error golden"
     );
 }
 
@@ -389,9 +389,9 @@ fn probe_12_from_holon_ast_arity_mismatch_error() {
         result.ok()
     );
     let err_msg = result.unwrap_err();
-    assert!(
-        err_msg.message().contains("arity mismatch") || err_msg.message().contains("2"),
-        "error must mention arity mismatch; got: {}",
-        err_msg.message()
+    assert_eq!(
+        err_msg.message(),
+        "2-tuple: arity mismatch — expected 2 Bind children, got 3",
+        "probe_12: arity mismatch error golden"
     );
 }

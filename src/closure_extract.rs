@@ -2737,6 +2737,6 @@ mod tests {
     #[test]
     fn synthetic_capture_name_prefixes_double_underscore() {
         let n = synthesize_capture_name("my-config");
-        assert!(n.starts_with(":__captured_"));
+        assert_eq!(n, ":__captured_my-config");
     }
 }

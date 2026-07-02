@@ -47,15 +47,10 @@ fn stone_b_user_namespace_thread_join_result_is_rejected() {
     // Stone 241.14 migrated restriction storage to binding_metadata);
     // the diagnostic names the callee + the allowed-caller whitelist.
     let err = startup_err("tests/channel/wat_arc170_stone_b_walker_collapse_thread_violation.wat");
-    assert!(
-        err.contains("Thread/join-result"),
-        "error should name the rejected verb; got: {}",
-        err
-    );
-    assert!(
-        err.contains("DefRestrictedCallerNotAllowed"),
-        "error should be arc 198's `DefRestrictedCallerNotAllowed` variant; got: {}",
-        err
+    assert_eq!(
+        err,
+        "Check(CheckErrors([CheckError { span: Span { file: \"tests/channel/wat_arc170_stone_b_walker_collapse_thread_violation.wat\", line: 4, col: 195, end_line: 4, end_col: 227 }, kind: DefRestrictedCallerNotAllowed { callee: \":wat::kernel::Thread/join-result\", enclosing_fn: \":my::test::call-thread-join\", prefixes: [\":wat::\"] } }]))",
+        "error must match arc 198 DefRestrictedCallerNotAllowed golden for Thread/join-result"
     );
 }
 
@@ -65,15 +60,10 @@ fn stone_b_user_namespace_process_join_result_is_rejected() {
     // Stone 3 applied `#[restricted_to(":wat::")]` to
     // `eval_kernel_process_join_result`; arc 198's walker now enforces.
     let err = startup_err("tests/channel/wat_arc170_stone_b_walker_collapse_process_violation.wat");
-    assert!(
-        err.contains("Process/join-result"),
-        "error should name the rejected verb; got: {}",
-        err
-    );
-    assert!(
-        err.contains("DefRestrictedCallerNotAllowed"),
-        "error should be arc 198's `DefRestrictedCallerNotAllowed` variant; got: {}",
-        err
+    assert_eq!(
+        err,
+        "Check(CheckErrors([CheckError { span: Span { file: \"tests/channel/wat_arc170_stone_b_walker_collapse_process_violation.wat\", line: 4, col: 199, end_line: 4, end_col: 232 }, kind: DefRestrictedCallerNotAllowed { callee: \":wat::kernel::Process/join-result\", enclosing_fn: \":my::test::call-process-join\", prefixes: [\":wat::\"] } }]))",
+        "error must match arc 198 DefRestrictedCallerNotAllowed golden for Process/join-result"
     );
 }
 

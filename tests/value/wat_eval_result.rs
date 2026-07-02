@@ -123,10 +123,10 @@ fn eval_err_exposes_both_kind_and_message() {
                 other => panic!("expected String; got {:?}", other),
             };
             assert_eq!(kind, "mutation-form-refused");
-            assert!(
-                message.contains(":wat::core::defstruct"),
-                "message should name the refused head; got {:?}",
-                message
+            assert_eq!(
+                message,
+                "eval refused mutation form: :wat::core::defstruct",
+                "message must name the refused head"
             );
         }
         other => panic!("expected tuple; got {:?}", other),

@@ -29,8 +29,7 @@ fn small_inline_collections() {
     assert_eq!(p, "[1 2 3]");
 
     let p = write_pretty(&parse("#{1 2 3}").unwrap().into_owned());
-    assert!(p.starts_with("#{"));
-    assert!(!p.contains('\n'));
+    assert_eq!(p, "#{1 2 3}");
 }
 
 #[test]
@@ -45,7 +44,7 @@ fn empty_collections() {
 fn nested_collections_break() {
     // Maps always use newlines (even small ones).
     let p = write_pretty(&parse(r#"{:a 1 :b 2}"#).unwrap().into_owned());
-    assert!(p.contains('\n'), "small map should still break per entry: {}", p);
+    assert_eq!(p, "{\n  :a 1\n  :b 2\n}");
     roundtrip_pretty(r#"{:a 1 :b 2}"#);
 }
 
@@ -72,7 +71,7 @@ fn realistic_blob_pretty_round_trips() {
 #[test]
 fn tagged_value_pretty() {
     let p = write_pretty(&parse(r#"#myapp/Order {:id 1 :name "x"}"#).unwrap().into_owned());
-    assert!(p.starts_with("#myapp/Order "));
+    assert_eq!(p, "#myapp/Order {\n  :id 1\n  :name \"x\"\n}");
     roundtrip_pretty(r#"#myapp/Order {:id 1 :name "x"}"#);
 }
 

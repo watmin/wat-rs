@@ -28,15 +28,15 @@ fn process_peer_recv_surfaces_structured_actual_and_expected() {
         Err(e) => format!("{e:?}"),
     };
     assert!(
-        err.contains("proc-structured-marker"),
+        err.contains("proc-structured-marker"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()) and source frame paths
         "the crash MESSAGE must travel on the process tier. got: {err}"
     );
     assert!(
-        err.contains("PROC-ACTUAL-5521"),
+        err.contains("PROC-ACTUAL-5521"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()); targeted sentinel check is the portable assertion
         "process tier: the structured `actual` must survive recv'. got: {err}"
     );
     assert!(
-        err.contains("PROC-EXPECTED-8841"),
+        err.contains("PROC-EXPECTED-8841"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()); targeted sentinel check is the portable assertion
         "process tier: the structured `expected` must survive recv'. got: {err}"
     );
 }

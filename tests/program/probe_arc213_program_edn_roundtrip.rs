@@ -69,32 +69,12 @@ fn t1_program_to_edn_is_plain_edn() {
         .expect("sample program must parse");
     let frame = program_to_edn(&forms);
 
-    // The whole point: no VSA hologram tags.
-    assert!(
-        !frame.contains("#wat-edn.holon"),
-        "T1 FAIL: program_to_edn output contains #wat-edn.holon tag (not plain EDN).\nFrame: {}",
-        &frame[..frame.len().min(500)]
-    );
-
-    // Native map syntax — the {:keys [x y]} destructure and {:a 1 :b 2} literal.
-    assert!(
-        frame.contains('{'),
-        "T1 FAIL: frame has no {{ }} map syntax.\nFrame: {}",
-        &frame[..frame.len().min(500)]
-    );
-
-    // Native set syntax — the #{:x :y :z} set literal.
-    assert!(
-        frame.contains("#{"),
-        "T1 FAIL: frame has no #{{ }} set syntax.\nFrame: {}",
-        &frame[..frame.len().min(500)]
-    );
-
-    // :wat.core/ keywords (the EDN form of :wat::core:: paths)
-    assert!(
-        frame.contains(":wat.core/"),
-        "T1 FAIL: frame has no :wat.core/... keywords (expected EDN form of :wat::core:: paths).\nFrame: {}",
-        &frame[..frame.len().min(500)]
+    // Exact golden covers all property checks: no holon tags, native set/map
+    // syntax present, :wat.core/ keywords emitted — all verified implicitly.
+    assert_eq!(
+        frame,
+        r#"[(:wat.config/set-capacity-mode! :error) (:wat.core/defstruct :myapp/Pt [x <- :wat.core/i64 y <- :wat.core/i64]) (:wat.core/defn :myapp/sum [p <- :myapp/Pt] -> :wat.core/i64 (:wat.core/let [{:keys [x y]} p] (:wat.core.i64/+ x y))) (:wat.core/defn :myapp/tags [] -> :wat.core/i64 (:wat.core/let [m {:a 1 :b 2} s #{:x :y :z}] 42)) (:wat.core/defn :user/main [] -> :wat.core/nil nil)]"#,
+        "t1_frame: program_to_edn golden"
     );
 
     eprintln!("T1 PASS — sample EDN frame:\n{}", &frame[..frame.len().min(800)]);
@@ -240,10 +220,10 @@ fn stop_trigger_slash_in_name_keyword() {
     } else {
         // EDN parse rejected it — confirm it's the two-slash error.
         let err_msg = parse_result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("more than one /") || err_msg.contains("invalid") || err_msg.contains("keyword"),
-            "STOP TRIGGER: parse failed with unexpected error: {}",
-            err_msg
+        assert_eq!(
+            err_msg,
+            "EDN parse error at byte 17: invalid keyword: more than one / in wat.core/char/of",
+            "stop_errmsg: EDN parse rejection golden"
         );
         eprintln!(
             "STOP TRIGGER CONFIRMED: '{}' rejected by EDN parser: {}",

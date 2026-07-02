@@ -223,15 +223,15 @@ fn process_peer_is_client_side_only_no_server_variant_emitted() {
     // The symmetric ThreadPeer is checked for contrast.
     let world = startup_bare().expect("startup");
     assert!(
-        world.types().contains(":wat::kernel::ProcessPeer"),
+        world.types().contains(":wat::kernel::ProcessPeer"), // rune:lint(loose-assert) — STOP-1: TypeEnv::contains() is an exact HashMap key lookup, not a string substring check
         ":wat::kernel::ProcessPeer (client-side) must be registered"
     );
     assert!(
-        !world.types().contains(":wat::kernel::ProcessPeer/Server"),
+        !world.types().contains(":wat::kernel::ProcessPeer/Server"), // rune:lint(loose-assert) — STOP-1: TypeEnv::contains() is an exact HashMap key lookup (targeted absence), not a string substring check
         ":wat::kernel::ProcessPeer/Server MUST NOT exist — server uses ambient stdio"
     );
     assert!(
-        world.types().contains(":wat::kernel::ThreadPeer"),
+        world.types().contains(":wat::kernel::ThreadPeer"), // rune:lint(loose-assert) — STOP-1: TypeEnv::contains() is an exact HashMap key lookup, not a string substring check
         ":wat::kernel::ThreadPeer (the symmetric Thread-side type) is present"
     );
 }

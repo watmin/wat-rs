@@ -133,6 +133,9 @@ fn checkerror_display_elides_unknown_secondary_span() {
         },
     };
     let rendered = err_unknown_secondary.to_string();
+    // rune:lint(loose-assert) — the stdin_sender_span is from rust_caller_span!() which
+    // embeds the absolute host filesystem path to this test source file; the full rendered
+    // string varies by host. The absence of "<runtime>" is the real contract.
     assert!(
         !rendered.contains("<runtime>"),
         "unknown secondary span must not appear in Display output; got: {rendered:?}"
@@ -148,9 +151,10 @@ fn checkerror_display_elides_unknown_secondary_span() {
         },
     };
     let rendered_known = err_known_secondary.to_string();
-    assert!(
-        rendered_known.contains("src/bar.wat:2:7"),
-        "known secondary span must appear in Display output; got: {rendered_known:?}"
+    assert_eq!(
+        rendered_known,
+        "process-join-holds-stdin-sender at src/bar.wat:5:1: `:wat::kernel::Process/join-result worker` blocks until the forked child exits, but `:wat::kernel::Process/stdin worker` was never extracted from the Process handle anywhere in this `let` scope. The substrate's child has a structural StdInService (arc 170 slice 1f) blocked on `read(fd 0)` waiting for EOF. The parent holds the write-end of the child's stdin pipe via the Process handle bound at src/bar.wat:2:7. Without EOF on that pipe, the child cannot exit; parent's join blocks forever — a true deadlock. ILLEGAL STATEMENT ORIENTATION. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: extract `:wat::kernel::Process/stdin worker` in an INNER `let` (nested inside an outer binding before the join binding) so the Sender drops at inner-let exit before the outer join runs. The inner let should also contain the output Receivers and drain them before returning. DO NOT add a wall-clock timeout to mask this — restructure the let.",
+        "known secondary span must appear in Display output"
     );
 }
 
@@ -180,10 +184,15 @@ fn checkerror_display_elides_unknown_span() {
         },
     };
     let rendered_unknown = err_unknown.to_string();
+    // rune:lint(loose-assert) — the outer span is from rust_caller_span!() which embeds
+    // the absolute host filesystem path to this test source file (file:line:col varies
+    // by host and source edits); asserting the full string would be host-specific.
+    // The absence of "<runtime>" is the real contract.
     assert!(
         !rendered_unknown.contains("<runtime>"),
         "unknown span must not appear in Display output; got: {rendered_unknown:?}"
     );
+    // rune:lint(loose-assert) — same as above: rendered_unknown is from err_unknown.to_string() where the outer span is from rust_caller_span!() which embeds the absolute host filesystem path; full string varies by host. The absence of the "<runtime>" sentinel is the real contract.
     assert!(
         !rendered_unknown.contains(" at <runtime>:0:0"),
         "unknown span sentinel must not appear mid-prose; got: {rendered_unknown:?}"
@@ -200,9 +209,10 @@ fn checkerror_display_elides_unknown_span() {
         },
     };
     let rendered_known = err_known.to_string();
-    assert!(
-        rendered_known.contains("src/foo.wat:10:3"),
-        "known span must appear in Display output; got: {rendered_known:?}"
+    assert_eq!(
+        rendered_known,
+        "scope-deadlock at src/foo.wat:10:3: Thread/join-result on 't' would block. Sibling binding 'tx' (a Sender) holds a Sender clone that outlives the worker; the worker's recv never sees EOF. Fix: nest the Sender binding (and any other Sender clones) in an inner let whose body returns 't' — outer scope holds only the Thread. SERVICE-PROGRAMS.md § \"The lockstep\".",
+        "known span must appear in Display output"
     );
 }
 
@@ -230,6 +240,7 @@ fn edn_elides_unknown_span() {
         },
     };
     let edn_str = wat_edn::write(&err_unknown.to_edn());
+    // rune:lint(loose-assert) — edn_str contains the absolute host filesystem path in :span from rust_caller_span!(); full string varies by host. Targeted absence of "<runtime>" sentinel is the real contract.
     assert!(
         !edn_str.contains("<runtime>"),
         "unknown span must not appear in EDN output; got: {edn_str:?}"
@@ -249,12 +260,9 @@ fn edn_elides_unknown_span() {
     // D1 (arc 296 Strike 2b): primary span key is now uniformly `:span`
     // across ALL CheckErrorKind variants. The outer CheckError::to_edn()
     // calls splice_span(kind.to_edn(), &self.span) which always appends `:span`.
-    assert!(
-        edn_str_known.contains(":span"),
-        "known span must produce a :span key in EDN output (D1: primary span normalized); got: {edn_str_known:?}"
-    );
-    assert!(
-        edn_str_known.contains("src/baz.wat"),
-        "known span must include the file name; got: {edn_str_known:?}"
+    assert_eq!(
+        edn_str_known,
+        r#"#wat.check/ScopeDeadlock {:thread-binding "t" :offending-binding "tx" :offending-kind "Sender" :span {:file "src/baz.wat" :line 7 :col 4}}"#,
+        "known span must produce :span key + file data in EDN output (D1: primary span normalized)"
     );
 }

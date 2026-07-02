@@ -22,11 +22,7 @@ fn probe_1_to_holon_returns_holon_form() {
     match run(":user::probe-1") {
         Ok(Value::holon__HolonAST(h)) => {
             let s = format!("{:?}", h);
-            assert!(
-                s.contains("myapp::Voltage") || s.contains("Voltage"),
-                "Probe 1: holon_form should mention the class; got {}",
-                s
-            );
+            assert_eq!(s, r#"Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))]))"#);
         }
         Ok(other) => panic!("Probe 1: expected Value::holon__HolonAST; got {:?}", other),
         Err(e) => panic!("Probe 1 FAILED: {}", e),
@@ -60,11 +56,7 @@ fn probe_3_bind_accepts_record_as_right() {
     match run(":user::probe-3") {
         Ok(Value::holon__HolonAST(h)) => {
             let s = format!("{:?}", h);
-            assert!(
-                s.contains("Bind") || s.contains("wrapper"),
-                "Probe 3: result should be a Bind containing the wrapper; got {}",
-                s
-            );
+            assert_eq!(s, r#"Bind(Atom(String("wrapper")), Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))])))"#);
         }
         Ok(other) => panic!("Probe 3: expected Value::holon__HolonAST; got {:?}", other),
         Err(e) => panic!("Probe 3 FAILED: {}", e),
@@ -79,7 +71,7 @@ fn probe_4_bundle_accepts_records_as_children() {
     match run(":user::probe-4") {
         Ok(Value::holon__HolonAST(h)) => {
             let s = format!("{:?}", h);
-            assert!(s.contains("Bundle"), "Probe 4: result should be a Bundle; got {}", s);
+            assert_eq!(s, r#"Bundle([Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(1.0)))])), Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(2.0)))])), Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(3.0)))]))])"#);
         }
         Ok(other) => panic!("Probe 4: expected Value::holon__HolonAST; got {:?}", other),
         Err(e) => panic!("Probe 4 FAILED: {}", e),
@@ -110,11 +102,7 @@ fn probe_6_mixed_records_and_holon_asts() {
     match run(":user::probe-6") {
         Ok(Value::holon__HolonAST(h)) => {
             let s = format!("{:?}", h);
-            assert!(
-                s.contains("Bind") && s.contains("Bundle"),
-                "Probe 6: result should contain Bind + Bundle composition; got {}",
-                s
-            );
+            assert_eq!(s, r#"Bind(Atom(String("wrapper")), Bundle([Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))])), Atom(String("marker"))]))"#);
         }
         Ok(other) => panic!("Probe 6: expected Value::holon__HolonAST; got {:?}", other),
         Err(e) => panic!("Probe 6 FAILED: {}", e),

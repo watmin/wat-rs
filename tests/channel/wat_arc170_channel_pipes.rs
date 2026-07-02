@@ -531,10 +531,10 @@ fn pipe_channel_invalid_edn_surfaces_as_decode_error() {
     );
     match outcome {
         RecvOutcome::DecodeError(msg) => {
-            assert!(
-                msg.to_lowercase().contains("edn") || msg.to_lowercase().contains("parse"),
-                "DecodeError message should mention EDN/parse; got: {}",
-                msg
+            assert_eq!(
+                msg,
+                "malformed EDN frame: EDN parse error at byte 7: unexpected token Symbol(\"is\")",
+                "DecodeError message must match EDN parse failure golden"
             );
         }
         other => panic!("expected DecodeError, got {:?}", other),
@@ -718,10 +718,10 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
     let outcome = eval(&select_ast, &env, world.symbols());
     match outcome {
         Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. }) => {
-            assert!(
-                reason.contains("PipeFd") || reason.to_lowercase().contains("pipefd"),
-                "expected PipeFd-rejection diagnostic, got: {}",
-                reason
+            assert_eq!(
+                reason,
+                "select on a PipeFd-backed Receiver is not supported (tier-2 select would require epoll/poll integration; no consumer demand today)",
+                "PipeFd-rejection diagnostic must match golden"
             );
         }
         other => panic!("expected MalformedForm error, got {:?}", other),

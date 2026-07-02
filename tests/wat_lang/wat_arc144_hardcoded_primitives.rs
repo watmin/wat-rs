@@ -132,14 +132,9 @@ fn body_of_length_returns_none() {
 #[test]
 fn lookup_define_length_renders_primitive_sentinel() {
     let line = unwrap_string(run_expr("(:t::lookup-vector-length-render)"));
-    assert!(
-        line.contains("__internal/primitive"),
-        "expected primitive sentinel marker in rendered AST, got: {}",
-        line
-    );
-    assert!(
-        line.contains("length"),
-        "expected primitive name 'length' in rendered AST, got: {}",
-        line
+    assert_eq!(
+        line,
+        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector/length<T> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/primitive #wat-edn.holon/Keyword :wat::core::Vector/length]]"#,
+        "rendered AST must carry __internal/primitive sentinel and length name"
     );
 }

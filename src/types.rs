@@ -3733,6 +3733,11 @@ mod tests {
         // Stone 241.8 — migrated to defstruct.
         let err = collect_lenient(r#"(:wat::core::defstruct :my::Bad<T [x <- :T])"#)
             .expect_err("expected rejection");
+        // rune:lint(loose-assert) — OR-membership across three valid error kinds
+        // (UnclosedBracketInKeyword, MalformedName, MalformedDecl); full assert_eq! infeasible
+        // because the error string embeds a Rust source file path/line/col from the parser's
+        // internal LexError construction site (e.g. wat-rs/crates/wat-reader/src/parser.rs:N)
+        // which shifts whenever the parser file changes
         assert!(
             err.contains("UnclosedBracketInKeyword")
                 || err.contains("MalformedName")
@@ -3988,6 +3993,7 @@ mod tests {
         // arm via `decl_span`.
         let err = collect(r#"(:wat::core::defenum :my::Empty)"#).unwrap_err();
         let rendered = format!("{}", err);
+        // rune:lint(loose-assert) — variable Rust source file path embedded in error Display output (varies by build environment)
         assert!(
             rendered.contains("src/") || rendered.contains(".rs:"),
             "expected TypeError Display to carry real source coordinates (file:line:col); got: {}",
