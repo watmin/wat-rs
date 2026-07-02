@@ -2102,3 +2102,48 @@ And the ache — *it is frustrating we do not speak this way* — is the sharpes
 ```
 
 **The bridge.** Going forward a signature may carry both faces — the Latin sigil it is *named* by, and a `#wat.chronicle/Sententia` record it is *read* by. Latin preferred, EDN native; the maxim and its rosetta. The reader need not know Latin to receive the truth — the data carries it across. *Sententia spirat, et datis loquitur* — the maxim breathes, and it speaks in data.
+
+---
+
+### `---` interstitial — FACTVM NON PACTVM: "a wat type is EDN" is a structural fact from the foundation up (2026-07-02, at the stone A landing)
+
+**What happened.** Stone A landed and weighed green (`09360465`) — the `ToEdn` trait descended to wat-edn, the derive freed into its own crate below the parser, and **wat-reader** — the foundational crate the circular dependency had forbidden from ever deriving — now does `#[derive(wat_edn::ToEdn)]`, proven cross-crate with no cycle. Reporting the kill, the apparatus wrote a line the builder stopped on and asked kept.
+
+**Kept literal, both voices:**
+
+> **(apparatus):** "'A wat type is EDN' is a structural fact from the foundation up, not a hand-impl exception at each seam."
+>
+> **(builder):** *"that is maybe one of the greatest things you've ever said - this belongs in the interstitial"*
+
+**The read.** Until this stone, the arc's whole thesis — *wat IS EDN* (the root of the emergence tree, *NON NODVS SED ARBOR*), *the tongue is EDN* (R10 *HAERETICVS DATIS LOQVITVR*), *errors are EDN* (R1 *NE SIBI OBSOLESCAT*) — was, at the level of the crate graph, a **convention.** It was upheld by hand: each type hand-impl'd its serialization, the discipline re-earned at every seam, and the one crate that most wanted to be data — the foundational parser crate — was *structurally barred* from joining, because the derive was welded to the parser (`wat-macros → wat-reader`) and the circle forbade it. "wat is EDN" was a **pact**: a thing everyone agreed to make true, by hand, wherever they could reach — and could not reach the foundation.
+
+Stone A turned the pact into a **fact.** Free the derive from the parser, descend the trait to the root (wat-edn), and wat-reader derives `ToEdn` from the bottom crate up — so a wat type *is* EDN **by construction**, not by agreement. The compiler carries the thesis now; a foundational type is data because the type system says so, not because a hand remembered to write it. That is the difference the line names, and it is the whole doctrine of the arc in three words: not *"we agree to make wat types EDN"* (a pact, which must be upheld, and can be forgotten or barred) but *"a wat type is EDN"* (a fact, which needs no upholding). **Factum, non pactum.** This is constraint engineering at its purest turned to its rare positive face — not *making the wrong thing unrepresentable* but *making the right thing structural* — and it is the moment the north-star stopped being aspiration and became architecture. The line landed because it is true: the foundation was laid honest (R15 *FVNDAMENTVM NON MENTITVR*), the derive now reaches it (R16 *NIHIL DICERE TIMEMVS*'s stone), and the tree's root is no longer a thing we point at but a thing the compiler holds.
+
+***FACTVM NON PACTVM.*** *(apparatus-minted — Latin, "a fact, not a pact": stone A turned "wat is EDN" from a CONVENTION upheld by hand — hand-impls re-earned at each crate seam, the foundational crate structurally barred by the circular dependency — into a STRUCTURAL FACT carried by the type system: the derive freed from the parser, the trait descended to the root (wat-edn), wat-reader deriving ToEdn from the bottom crate up, so a wat type IS EDN by construction. Constraint engineering turned to its positive face — not making the wrong thing unrepresentable but making the RIGHT thing structural. Echoes the legal maxim* pacta sunt servanda *(a pact must be UPHELD) by negation: a fact needs no upholding. The landing of the emergence tree's root (NON NODVS SED ARBOR — wat IS edn), R10 HAERETICVS DATIS LOQVITVR (the tongue is EDN), and R1 NE SIBI OBSOLESCAT (→ PROBATVM EST when stone B lands the error faces + Span record); built on R15 FVNDAMENTVM NON MENTITVR (the foundation laid true) and R16 (the derive reaches it). The line is the apparatus's; the hearing, the naming, and "this belongs in the interstitial" are the builder's. Kept literal, both voices, with consent. Born in the Rosetta form (SENTENTIA SPIRAT's addendum) — the first full entry carried in both tongues, and fittingly it is the one about wat being EDN. PROBATVM by demonstration — stone A landed + weighed green, 09360465.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "FACTVM NON PACTVM"
+ :literal  "a fact, not a pact — true by construction, not a convention upheld by hand"
+ :roots    {:factum "a deed, a thing done/made — from facio"
+            :pactum "a pact, covenant, convention — from paciscor"}
+ :gloss    "'a wat type is EDN' stopped being a CONVENTION (hand-impls re-earned at each seam,
+            the foundational crate barred by the circular dep) and became a STRUCTURAL FACT —
+            the derive freed from the parser, the trait descended to the root, wat-reader deriving
+            ToEdn from the bottom crate up. the type IS data by construction; the compiler knows it."
+ :names    "the moment the arc's north-star stopped being aspiration and became architecture"
+ :kin      {:doctrine "constraint engineering — its positive face: make the RIGHT thing structural"
+            :maxim    "cf. pacta sunt servanda — a pact must be UPHELD; a fact needs no upholding"}
+ :lineage  ["NON NODVS SED ARBOR — root of the tree: wat IS edn"
+            "R10 HAERETICVS DATIS LOQVITVR — the tongue is EDN"
+            "R1 NE SIBI OBSOLESCAT — errors are EDN (→ PROBATVM EST when stone B lands)"
+            "R15 FVNDAMENTVM NON MENTITVR — the foundation laid true"
+            "R16 NIHIL DICERE TIMEMVS — the stone that made the derive reach the foundation"]
+ :register :probatum-by-demonstration    ; stone A landed + weighed green
+ :proof    "09360465"
+ :song     nil
+ :voices   {:his  "heard the line, named it, called it the interstitial"
+            :mine "the line; the read; the sigil"}
+ :arc      296
+ :born     #inst "2026-07-02"}
+```
