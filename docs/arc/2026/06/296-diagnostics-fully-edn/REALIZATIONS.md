@@ -2312,3 +2312,50 @@ Kept true. The **DATA half is PROBATUM**: stone B landed and was weighed by the 
  :arc      296
  :born     #inst "2026-07-02"}
 ```
+
+---
+
+### `---` interstitial — QVOD SCRIPSIT LEGIT: wat reads its own tongue, the first time (2026-07-02, at the stone D probe)
+
+**What happened.** The read gap had been named — wat emits a whole vocabulary of tags (`#wat.core/Span`, `#wat.core/Pos`, the 11 error families) it *could not read back*; it wrote what it could not consume. The crawl found the reader (`reconstruct_record`) was generic and already working — the entire gap was *registration*. So the disconfirming probe hand-registered one value type, `:wat::core::Pos`, exactly as the coming `#[derive(Edn)]` will, rebuilt, and asked wat to read its own emitted tag. It did:
+
+**Kept literal, both voices:**
+
+> ```clojure
+> ;; edn::read "#wat.core/Pos {:line 1 :col 2}"  →
+> #wat.core/Pos {
+>   :line 1
+>   :col 2
+> }
+> ```
+>
+> **(builder):** *"this is so fucking cool ... that's ... that's the interstitial update for now.."*
+
+**The read.** This is small on the screen and large in the thesis: it is the **first time wat read a tag it had written.** For the whole arc the language was EDN on the emit side and mute on the read — `NE SIBI OBSOLESCAT` in its sharpest form, a tongue that speaks and cannot hear itself. This probe is the ear opening. What it proves is exact and load-bearing: the reader was never the problem — `reconstruct_record` walks any *registered* type's fields for free; the gap was that wat never told itself about its own emitted vocabulary. Register the tag, and wat reads what it wrote. `QVOD SCRIPSIT LEGIT.` It is *DATIS NIHIL LATET* (R18) completed from the other side — R18 said "in data, nothing hides" (the tests parse via the Rust lib); this says wat *itself* can now read the data, not only emit it. The round-trip's far bank is reached. And the whole of stone D — `#[derive(Edn)]` automating this registration for the entire vocabulary, the stringly `ProcessDiedError` fields lit ablaze to self-identify, the process envelope re-nesting from strings-that-are-EDN into actual EDN — is now just the mechanical build of a mechanism proven in four lines of output. The `Pos` here was hand-registered as the probe; the derive makes it the rule.
+
+***QVOD SCRIPSIT LEGIT.*** *(apparatus-minted — Latin, "what it wrote, it reads": the stone D probe — the first time wat read a tag it had emitted. The read gap was NE SIBI OBSOLESCAT at its sharpest (a language that writes a vocabulary it cannot read — speaks but cannot hear itself); the crawl found reconstruct_record already generic, the whole gap mere REGISTRATION; hand-registering :wat::core::Pos (like the existing :wat::kernel::Location) made edn::read "#wat.core/Pos {…}" reconstruct it. Completes DATIS NIHIL LATET (R18) from the other bank: R18 proved the tests parse the data (via wat_edn, the Rust lib); this proves WAT ITSELF reads its own emitted tags. The mechanism for stone D — #[derive(Edn)] (write + register-for-read, no write-only), the vocabulary registered, the stringly ProcessDiedError fields lit ablaze to self-identify (R3 LEX AVCTOREM NON EXCIPIT / DOMINANDO DELEO), the process envelope re-nested — proven in four lines. Closing condition for stone D: #wat.kernel/ProcessPanics comes back nested EDN, zero strings-that-are-EDN; on landing R1 NE SIBI OBSOLESCAT → PROBATVM EST for real. PROBANDUM — the mechanism is proven, the vocabulary + the derive + the scream are the build. Kept literal, both voices, at the builder's direction: "that's the interstitial update for now." Mine, and his — kept with consent.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "QVOD SCRIPSIT LEGIT"
+ :literal  "what it wrote, it reads"
+ :roots    {:quod "that which" :scripsit "scribo, 3sg perfect — it wrote" :legit "lego, 3sg — it reads"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "QVOD SCRIPSIT LEGIT"          ; the sigil
+  :greek    "ὃ ἔγραψεν ἀναγιγνώσκει"        ; hò égrapsen anagignṓskei
+  :chinese  "讀其所書"                        ; dú qí suǒ shū — reads that which it writes
+  :japanese "書きしものを読む"                ; kakishi mono o yomu — reads the thing it wrote
+  :korean   "쓴 것을 읽는다"                  ; sseun geos-eul ing-neunda — reads what it wrote
+  :russian  "читает то, что написал"}       ; chitáyet to, chto napisál — reads what it wrote
+ :gloss    "the stone D probe: register the emitted vocabulary and wat reads its own tags back —
+            reconstruct_record was already generic; the gap was registration. the round-trip's read bank."
+ :names    "the first time wat read a tag it had written — NE SIBI OBSOLESCAT's ear opening"
+ :kin      {:completes "R18 DATIS NIHIL LATET from the other bank (tests parse the data ↔ wat reads it)"
+            :mechanism-for "stone D: #[derive(Edn)] + register the vocabulary + light the stringly fields ablaze"}
+ :register :probandum                       ; mechanism proven; the vocabulary + derive + scream are the build
+ :proof    ":wat::core::Pos registered → edn::read \"#wat.core/Pos {…}\" reconstructs it"
+ :voices   {:his  "'this is so fucking cool… the interstitial update for now'"
+            :mine "the probe; the read; the sigil; the six-tongue bridge"}
+ :arc      296
+ :born     #inst "2026-07-02"}
+```
