@@ -160,6 +160,58 @@ pub use parser::{parse_all_with_file, parse_one_with_file, ParseError, ParseErro
 // The parse_one! and parse_all! macros are exported at crate root via
 // #[macro_export] in parser.rs — consumers call them as `wat::parse_one!(src)`.
 
+/// Assert two EDN strings are DATA-equal: parse both via `wat_edn::parse_owned`
+/// and compare the parsed `OwnedValue`s. A malformed emission FAILS to parse →
+/// the test fails (you cannot green a non-EDN error face). On mismatch the
+/// failure message shows the raw strings so the diff is readable.
+///
+/// Stone C (arc 296): this is the wall — the test proves EDN-ness by PARSING,
+/// not by trusting a string. A non-EDN face cannot pass; key-order / whitespace
+/// differences in the emission do NOT cause false failures.
+///
+/// The `$expected` side is typically `include_str!("<test>__<case>.edn")` — a
+/// co-located pretty-printed reference file generated from the actual at golden
+/// capture time. See `arc 296 stone C` for naming convention.
+#[macro_export]
+macro_rules! assert_edn_eq {
+    ($actual:expr, $expected:expr) => {{
+        let a_raw: String = $actual;
+        let e_raw: &str = $expected;
+        let a_val = ::wat_edn::parse_owned(&a_raw)
+            .unwrap_or_else(|err| panic!(
+                "STOP-1: ACTUAL is not valid EDN — a non-EDN error face survived stone B.\n\
+                 parse error: {}\n\
+                 actual: {}", err, a_raw));
+        let e_val = ::wat_edn::parse_owned(e_raw)
+            .unwrap_or_else(|err| panic!(
+                "EXPECTED golden is not valid EDN.\n\
+                 parse error: {}\n\
+                 expected: {}", err, e_raw));
+        assert_eq!(a_val, e_val,
+            "EDN data mismatch\n--- actual (raw) ---\n{}\n--- expected (raw) ---\n{}",
+            a_raw, e_raw);
+    }};
+    ($actual:expr, $expected:expr, $msg:expr) => {{
+        let a_raw: String = $actual;
+        let e_raw: &str = $expected;
+        let a_val = ::wat_edn::parse_owned(&a_raw)
+            .unwrap_or_else(|err| panic!(
+                "STOP-1: ACTUAL is not valid EDN — a non-EDN error face survived stone B.\n\
+                 message: {}\n\
+                 parse error: {}\n\
+                 actual: {}", $msg, err, a_raw));
+        let e_val = ::wat_edn::parse_owned(e_raw)
+            .unwrap_or_else(|err| panic!(
+                "EXPECTED golden is not valid EDN.\n\
+                 message: {}\n\
+                 parse error: {}\n\
+                 expected: {}", $msg, err, e_raw));
+        assert_eq!(a_val, e_val,
+            "EDN data mismatch ({})\n--- actual (raw) ---\n{}\n--- expected (raw) ---\n{}",
+            $msg, a_raw, e_raw);
+    }};
+}
+
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
     eval, register_aggregate_methods, register_defines, register_struct_methods,

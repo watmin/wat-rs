@@ -112,13 +112,12 @@ fn probe_5_mixed_value_types_rejected_at_check() {
         "tests/collection/probe_arc215_collection_literal_inference_p5_bad.wat",
     )
     .expect_err("expected startup failure for mixed-value-type map");
-    let err = format!("{}\n---\n{:?}", err, err);
-    assert_eq!(
-        err,
-        // Stone B (arc 296): Display+Debug now emit EDN. Golden recaptured.
-        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "{…} map literal: parameter value #2 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p5_bad.wat" :line 4 :col 32 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 37}} :causes [] :callee "{…} map literal" :param "value #2" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}
----
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "{…} map literal: parameter value #2 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p5_bad.wat" :line 4 :col 32 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 37}} :causes [] :callee "{…} map literal" :param "value #2" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}"##,
+    // Arc 296 stone C: the error's face is EDN (stone B). Assert DATA equality
+    // against a co-located pretty-printed `.edn` reference — parse both, compare
+    // the values. Display == Debug (both to_wire_edn), so one face is checked.
+    wat::assert_edn_eq!(
+        format!("{}", err),
+        include_str!("probe_arc215_collection_literal_inference__p5_mixed_value.edn"),
         "probe_5: mixed-value-type map TypeMismatch golden"
     );
 }
