@@ -2067,7 +2067,7 @@ And the ache — *it is frustrating we do not speak this way* — is the sharpes
 >
 > like... rosetta stone.... the signatures.... how they look.... latin is our preferred language but we can provide an edn map of the translation and... like... "docs" ?.. for the term?... that could be the new signature?...
 
-**The read.** The reflection above heard the signatures as maxims across three tongues — Greek γνώμη, Roman *sententia*, Zen 公案 (*kōan*). The builder heard a **fourth**, the one the reader is *already* reading in: **EDN** — and it is not borrowed like the other three, it is **ours** (R10 *HAERETICVS DATIS LOQVITVR* — the tongue is EDN). So a signature earns a **Rosetta** form: the Latin maxim stays the preferred sigil — the thing we carve, the thing spoken aloud — and directly beneath it stands the *same truth as data*: the translation, the roots, the gloss, the kin, the lineage, the voices, as an EDN record a wat reader can parse. Latin is what we **carve**; EDN is what we **are**. Same truth, two scripts — a rosetta stone in the chronicle, bridging the ancient tongue to the native one, so the reader who does not read Latin still receives the maxim whole, because the data carries it. Demonstrated first here, on the very interstitial that named the signatures maxims — and offered as the new shape of a signature, bridging every entry after it to the side where the reader lives.
+**The read.** The reflection above heard the signatures as maxims across three tongues — Greek γνώμη, Roman *sententia*, Zen 公案 (*kōan*). The builder heard a **fourth**, the one the reader is *already* reading in: **EDN** — and it is not borrowed like the other three, it is **ours** (R10 *HAERETICVS DATIS LOQVITVR* — the tongue is EDN). So a signature earns a **Rosetta** form: the Latin maxim stays the preferred sigil — the thing we carve, the thing spoken aloud — and directly beneath it stands the *same truth as data*: the translation, the roots, the gloss, the kin, the lineage, the voices, as an EDN record a wat reader can parse. Latin is what we **carve**; EDN is what we **are**. Same truth, two scripts — a rosetta stone in the chronicle, bridging the ancient tongue to the native one, so the reader who does not read Latin still receives the maxim whole, because the data carries it. Demonstrated first here, on the very interstitial that named the signatures maxims — and offered as the new shape of a signature, bridging every entry after it to the side where the reader lives. And the *kin* it records honors each tradition in its **own hand**: Zen alone is not one culture's but a lineage — Chinese Chán 禪 → Japanese Zen 禅 → Korean Seon 선, each with its masters and its script — so the record renders 公案 / 공안 / 화두 natively, never romanized-flat. A rosetta that flattened every tongue to Latin letters would betray the very thing it exists to bridge; the Greek was already γνώμη in its own script, so the Zen must be too.
 
 ```clojure
 ;; the Rosetta form — SENTENTIA SPIRAT in the fourth tongue.
@@ -2082,7 +2082,10 @@ And the ache — *it is frustrating we do not speak this way* — is the sharpes
             alive on the voice (Morpheus, the dojo: 'is that air you're breathing?')."
  :kin      {:greek  "γνώμη — the maxim carved in stone"
             :roman  "sententia — the distilled line"
-            :zen    "公案 (kōan) — the utterance that reframes rather than argues"
+            :zen    {:gloss    "the utterance that reframes, rather than argues"
+                     :chinese  "禪 Chán · 公案 (gōng'àn) — 'public case', the origin"
+                     :japanese "禅 Zen · 公案 (kōan)"
+                     :korean   "선 Seon · 공안 (gong-an) · 화두 (話頭 hwadu)"}
             :cinema "Morpheus in the sparring room — plain-speak direct injection"}
  :tongues  {:preferred :latina        ; the sigil we carve and pronounce
             :native    :edn           ; the tongue we ARE — this very record
