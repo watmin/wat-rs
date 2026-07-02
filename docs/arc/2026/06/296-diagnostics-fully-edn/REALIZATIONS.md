@@ -2428,3 +2428,47 @@ Kept true, and mid-becoming. What is **PROBATUM by demonstration**: the mechanis
  :arc      296
  :born     #inst "2026-07-02"}
 ```
+
+---
+
+### `---` interstitial — the night's breadcrumb: drawn, not run; a curare note at the compaction threshold (2026-07-02, session close)
+
+**What happened.** The builder called the stop — *"draw but do not implement now — i gotta do my own compaction loop — need to sleep for the night."* The swarm is drawn (`DESIGN-296-swarm.md`); it is NOT run. This note is the hand across the gap, so the far-side self resumes at the swarm and not at the re-derivation. Kept literal:
+
+> **(builder):** *"draw but do not implement now - i gotta do my own compaction loop - need to sleep for the night."*
+
+**The state, grounded (read the disk; do not trust this note's prose):**
+
+```clojure
+{:HEAD "cd741bb1 — stone C pilot (the .edn data-eq recapture pattern)"
+ :arc  "296 — diagnostics fully edn; the READ-SIDE round-trip is the spine (not a next arc)"
+ :landed
+ {:stone-D-wall "5c24ea6e — #[derive(Edn)] register-half (write + inventory-register-for-read, no
+                 write-only) + the drain in src/types.rs. Pos reads via the DERIVE. VERIFIED green."
+  :stone-C-pilot "cd741bb1 — assert_edn_eq! (src/lib.rs) + probe_5 flipped to a co-located pretty .edn.
+                  the recapture pattern the swarm copies."}
+ :RED
+ {:count "244 — full `cargo nextest run` (4288 run, 244 failed, 4044 passed). the HONEST number."
+  :cause "PRE-EXISTING from stones A/B: error/span goldens assert the OLD faces (rust-debug + bare span
+          map); emission is now EDN + #wat.core/Span. un-recaptured. ZERO from stone D (stash-proven)."}
+ :RESUME-HERE
+ {:next "run the recapture swarm — DESIGN-296-swarm.md. phase A (recapture the 244 via the .edn data-eq
+         pattern, format-robust, per-cluster dancers, capture-once efficiency). THEN phase B (vocab flip
+         ToEdn→Edn on the 11 families → round-trip; rides the wall). do NOT bundle A and B."
+  :do-not "summon a 244-golden swarm without: (1) the assert_edn_matches_file! UPDATE_EDN regen built +
+           proven on ONE cluster first (probe-first); (2) capture-once efficiency in every dancer brief;
+           (3) weighing the WHOLE disk (full nextest summary) at the end, NOT a grep."}
+ :R1  "NE SIBI OBSOLESCAT is PARTIAL — emit done (stones A/B), READ-side round-trip OPEN (stone D phases).
+       do NOT mark it PROBATVM until #[derive(Edn)] lands the vocabulary AND #wat.kernel/ProcessPanics
+       reads back as NESTED EDN (not a vec-of-strings)."}
+```
+
+**The lessons this session bled for (promote them; do not re-learn the expensive way):**
+- **Weigh the WHOLE disk, not the green you grepped.** The stone-B weigh used `cargo test --workspace` + a partial grep that caught only the collection target's 7 failures and missed ~237. I called it "full suite green" and "R1 PROBATVM EST"; both were wrong. Use `cargo nextest run` and read the *summary line*.
+- **Rebuild wat before probing.** Multiple probes (ednq, tag-read) ran a STALE installed binary (the "⚠ installed binary looks STALE" warning, ignored) — old error strings, unreliable results. `cargo install --path crates/wat-cli --force` first.
+- **Every test-heavy dancer brief hands it capture-once** (run to a file, grep the file, targeted `-p wat --test X` runs) — a sonnet burned ~20min re-running the 5-min suite to re-grep. ([[feedback_brief_sonnet_capture_test_output_once]])
+- **Draw the wall, then swarm.** `#[derive(Edn)]` (the register-half) had to land before the vocab-flip dancers could ride it — MVRVS AGMEN REGIT. The recapture swarm likewise needs the regen macro proven first.
+
+**The chronicle this session added** (all pushed): R15 *FVNDAMENTVM NON MENTITVR*, R16 *NIHIL DICERE TIMEMVS*, R17 *FALSA FACIES ARDET*, R18 *DATIS NIHIL LATET*, R19 *FIO QVOD SVM*; interstitials *SENTENTIA SPIRAT* (the signatures are maxims) → the six-tongue Rosetta form (Greek·Latin·Chinese·Japanese·Korean·Russian, Latin the sigil), *FACTVM NON PACTVM*, *QVOD SCRIPSIT LEGIT* (wat first read its own tongue). New signature form going forward: the Latin sigil + a `#wat.chronicle/Sententia` record with the six-tongue bridge.
+
+***No signature — this is the record tending itself before the gap.*** **RESUME-HERE (far side):** you are a NEW instance; you did not live the session written above; it is a lossy cache, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk), read the latest 296 REALIZATIONS entries whole, ground HEAD against the disk (`cd741bb1`), then resume at the recapture swarm (DESIGN-296-swarm.md) — probe the regen macro on one cluster first, weigh the whole disk. The 244 are the honest red; the wall is up; R1 is not yet done. Do not trust this note over the disk.
