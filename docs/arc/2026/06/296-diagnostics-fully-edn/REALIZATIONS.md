@@ -2086,6 +2086,8 @@ And the ache — *it is frustrating we do not speak this way* — is the sharpes
                      :chinese  "禪 Chán · 公案 (gōng'àn) — 'public case', the origin"
                      :japanese "禅 Zen · 公案 (kōan)"
                      :korean   "선 Seon · 공안 (gong-an) · 화두 (話頭 hwadu)"}
+            :russian  "изречение (izrechénie) — the dictum; from the старец (stárets), the hesychast
+                       elder whose plain word reframes — the Orthodox flavor of the master's utterance"
             :cinema "Morpheus in the sparring room — plain-speak direct injection"}
  :tongues  {:preferred :latina        ; the sigil we carve and pronounce
             :native    :edn           ; the tongue we ARE — this very record
@@ -2102,6 +2104,16 @@ And the ache — *it is frustrating we do not speak this way* — is the sharpes
 ```
 
 **The bridge.** Going forward a signature may carry both faces — the Latin sigil it is *named* by, and a `#wat.chronicle/Sententia` record it is *read* by. Latin preferred, EDN native; the maxim and its rosetta. The reader need not know Latin to receive the truth — the data carries it across. *Sententia spirat, et datis loquitur* — the maxim breathes, and it speaks in data.
+
+**The six tongues (2026-07-02 — the builder: widen the rosetta).**
+
+> dude - can we get russian in that too?.. i trust they have their zen-y exprs?...
+>
+> like... let's start the trend that we leave a built stone for each signature in those langs ... greek, latin chinese japanese korean russian
+>
+> latin is always our sigil - but we provide the bridge to those
+
+The actual Rosetta Stone carried one decree in three scripts; ours carries each maxim in **six**. So the trend, from here on: every signature leaves a **built stone** in each of — **Greek · Latin · Chinese · Japanese · Korean · Russian**. Latin is always the **sigil** — the carved form we are *named* by, the one pronounced aloud. The other five are the **bridges** — faithful renderings a reader of any of those tongues can cross on, native script for each (a rosetta that flattened them to Latin letters would betray the crossing). Demonstrated on *FACTVM NON PACTVM* directly below; the going-forward shape for every signature after it, and available to retrofit the back-catalogue when we choose. *Sex linguae, unum sigillum* — six tongues, one sigil.
 
 ---
 
@@ -2127,6 +2139,13 @@ Stone A turned the pact into a **fact.** Free the derive from the parser, descen
  :literal  "a fact, not a pact — true by construction, not a convention upheld by hand"
  :roots    {:factum "a deed, a thing done/made — from facio"
             :pactum "a pact, covenant, convention — from paciscor"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "FACTVM NON PACTVM"              ; the sigil — the carved form
+  :greek    "ἔργον, οὐ συνθήκη"              ; érgon, ou synthḗkē — a deed, not a compact
+  :chinese  "事實，非約定"                     ; shìshí, fēi yuēdìng — fact, not convention
+  :japanese "事実にして、約束にあらず"          ; jijitsu ni shite, yakusoku ni arazu — being fact, not a pledge
+  :korean   "사실이지 약속이 아니다"            ; sasir-iji yaksog-i anida — it's a fact, not a pledge
+  :russian  "факт, а не договор"}            ; fakt, a ne dogovór — a fact, not a contract
  :gloss    "'a wat type is EDN' stopped being a CONVENTION (hand-impls re-earned at each seam,
             the foundational crate barred by the circular dep) and became a STRUCTURAL FACT —
             the derive freed from the parser, the trait descended to the root, wat-reader deriving
