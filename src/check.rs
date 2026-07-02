@@ -16358,6 +16358,26 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Uuid/version — returns the version nibble as i64 (4 for v4). Arc 299 slice 1.
+    env.register(
+        ":wat::core::Uuid/version".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![uuid_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Uuid/rfc4122-variant? — true iff variant nibble is RFC-4122. Arc 299 slice 1.
+    env.register(
+        ":wat::core::Uuid/rfc4122-variant?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![uuid_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
 
     // Arc 220 slice 2 / Arc 221 Stone 221.2 — `:wat::core::char` typed primitive.
     // `char/of` is the only constructor; it takes a length-1 BMP String and

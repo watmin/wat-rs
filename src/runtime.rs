@@ -4299,6 +4299,8 @@ fn dispatch_keyword_head_value(
         ":wat::core::Uuid/from-string" => crate::string_ops::eval_uuid_typed_from_string(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::Uuid/to-string" => crate::string_ops::eval_uuid_typed_to_string(args, list_span, env, sym).map_err(Into::into),
         ":wat::core::Uuid/nil" => crate::string_ops::eval_uuid_typed_nil(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::Uuid/version" => crate::string_ops::eval_uuid_version(args, list_span, env, sym).map_err(Into::into),
+        ":wat::core::Uuid/rfc4122-variant?" => crate::string_ops::eval_uuid_rfc4122_variant(args, list_span, env, sym).map_err(Into::into),
 
         // Arc 220 slice 2 — typed `:wat::core::char` constructor.
         // One verb: `char/of` (from length-1 BMP String).

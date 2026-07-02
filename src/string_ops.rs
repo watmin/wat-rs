@@ -943,6 +943,78 @@ pub fn eval_uuid_typed_to_string(
     Ok(Value::String(Arc::new(u.to_string())))
 }
 
+/// `(:wat::core::Uuid/version u)` → `:wat::core::i64`.
+///
+/// Returns the version nibble of the UUID as an integer (e.g. 4 for a v4 UUID).
+/// Arc 299 slice 1.
+pub fn eval_uuid_version(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/version";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: if args.is_empty() {
+                list_span.clone()
+            } else {
+                args[0].span().clone()
+            }, kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } });
+    }
+    let u_val = eval(&args[0], env, sym)?.value_owned();
+    let u = match &u_val {
+        Value::wat__core__Uuid(u) => *u,
+        _ => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Uuid".into(),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
+            } });
+        }
+    };
+    Ok(Value::i64(u.get_version_num() as i64))
+}
+
+/// `(:wat::core::Uuid/rfc4122-variant? u)` → `:wat::core::bool`.
+///
+/// Returns `true` iff the UUID's variant nibble indicates RFC-4122 (variant
+/// bits `10xx` — nibble ∈ {8,9,a,b}). Arc 299 slice 1.
+pub fn eval_uuid_rfc4122_variant(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Uuid/rfc4122-variant?";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: if args.is_empty() {
+                list_span.clone()
+            } else {
+                args[0].span().clone()
+            }, kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } });
+    }
+    let u_val = eval(&args[0], env, sym)?.value_owned();
+    let u = match &u_val {
+        Value::wat__core__Uuid(u) => *u,
+        _ => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Uuid".into(),
+                got: Box::new(crate::runtime::ValueSnapshot::of(&u_val))
+            } });
+        }
+    };
+    Ok(Value::bool(u.get_variant() == uuid::Variant::RFC4122))
+}
+
 /// `(:wat::core::Uuid/nil)` → `:wat::core::Uuid`.
 ///
 /// Returns the nil UUID (`00000000-0000-0000-0000-000000000000`). Arc 207 slice 2.
