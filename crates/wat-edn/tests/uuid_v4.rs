@@ -1,17 +1,11 @@
-//! Arc 092 — `wat-edn` ships `new_uuid_v4()` behind the `mint`
-//! feature. These tests prove the contract:
+//! Arc 092 — `wat-edn`'s `new_uuid_v4()`. Arc 296 removed the `mint`
+//! feature; uuid generation is unconditional, so these tests always run.
+//! They prove the contract:
 //!
 //!   1. A v4 UUID minted by wat-edn round-trips through its own
 //!      `write` + `parse` cycle without loss.
 //!   2. Repeated mints produce distinct values (smoke screen against
 //!      a constant return; not a formal entropy proof).
-//!
-//! The whole file is `#[cfg(feature = "mint")]` — `cargo test`
-//! without features compiles wat-edn without the v4 dep, and these
-//! tests sit out the run. Both lanes must stay green; the gate has
-//! to actually gate.
-
-#![cfg(feature = "mint")]
 
 use std::collections::HashSet;
 use wat_edn::{new_uuid_v4, parse, write, Value};

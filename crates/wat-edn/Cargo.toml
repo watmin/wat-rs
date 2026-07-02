@@ -6,16 +6,18 @@ license = "MIT OR Apache-2.0"
 description = "Spec-conforming EDN parser and writer for Rust — typed wire format for the wat language and wider Clojure-EDN ecosystem."
 
 [features]
-# Default ships the parser/writer/JSON-bridge — pure transform, no entropy.
-default = []
-# `mint` enables `new_uuid_v4()` — pulls `uuid`'s `v4` feature, which links
-# `getrandom`. Off by default so parser-only consumers don't pay for entropy
-# init they don't use. Arc 092.
-mint = ["uuid/v4", "uuid/v5"]
+# `derive` re-exports the companion `wat-to-edn-derive` proc-macro so
+# consumers write `#[derive(wat_edn::ToEdn)]` (the serde/serde_derive pattern).
+# ON by default: in an EDN language, being-EDN is the rule, not an opt-in — the
+# derive is the mechanism a type becomes EDN. Parser-only consumers opt OUT via
+# `default-features = false`. Arc 296.
+default = ["derive"]
+derive = ["dep:wat-to-edn-derive"]
 
 [dependencies]
+wat-to-edn-derive = { path = "../wat-to-edn-derive", optional = true }
 chrono       = { version = "0.4", default-features = false, features = ["std", "clock"] }
-uuid         = "1"
+uuid.workspace = true
 num-bigint   = "0.4"
 bigdecimal   = "0.4"
 memchr       = "2"

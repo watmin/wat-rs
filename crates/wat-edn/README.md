@@ -13,10 +13,9 @@ Clojure's reference reader, with companion Clojure library
 [dependencies]
 wat-edn = { path = "../wat-rs/crates/wat-edn" }
 
-# Optional: enable v4 UUID minting (`new_uuid_v4()`). Pulls `uuid`'s `v4`
-# feature, which links `getrandom`. Off by default so parser-only consumers
-# don't pay for entropy init they don't use.
-# wat-edn = { path = "...", features = ["mint"] }
+# v4/v5 UUID generation (`new_uuid_v4()` / `new_uuid_v5()`) is built in — no
+# feature flag (arc 296 removed the optional `mint` feature: uuid generation
+# is core to wat, not an opt-in).
 ```
 
 ## Quickest example

@@ -7,3 +7,7 @@ description = "The wat reader front-end: span, identifier, AST, lexer, and parse
 repository = "https://github.com/watmin/wat-rs"
 
 [dependencies]
+# PROBE (arc 296 stone A): wat-reader depends on wat-edn so Span can derive
+# ToEdn from below the parser — the cycle-break the split exists for. The
+# `derive` feature is on by wat-edn's default.
+wat-edn = { path = "../wat-edn" }

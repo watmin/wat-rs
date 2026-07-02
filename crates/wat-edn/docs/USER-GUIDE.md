@@ -342,15 +342,11 @@ match v {
 - The simple form (no hyphens) and URN form are REJECTED — stricter
   than `uuid::Uuid::parse_str`'s default
 
-### Minting v4 UUIDs (`mint` feature, arc 092)
+### Minting v4 UUIDs (`new_uuid_v4`, arc 092)
 
-Default-feature wat-edn parses and writes existing `#uuid` values but
-does NOT generate new ones. Enable the `mint` Cargo feature to gain
-`new_uuid_v4()`:
-
-```toml
-wat-edn = { path = "...", features = ["mint"] }
-```
+wat-edn generates UUIDs out of the box — `new_uuid_v4()` and `new_uuid_v5()`
+need no feature flag (arc 296 removed the optional `mint` feature; uuid
+generation is core to wat, not an opt-in):
 
 ```rust
 use wat_edn::{new_uuid_v4, write, Value};

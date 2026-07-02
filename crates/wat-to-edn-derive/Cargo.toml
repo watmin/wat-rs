@@ -1,0 +1,15 @@
+[package]
+name = "wat-to-edn-derive"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Derive macro for wat-edn's `ToEdn` trait — the companion proc-macro crate, re-exported by wat-edn under the `derive` feature (the serde/serde_derive pattern). Depends on nothing of wat's, so wat-reader can derive ToEdn without a dependency cycle."
+repository = "https://github.com/watmin/wat-rs"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"

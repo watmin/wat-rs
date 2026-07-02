@@ -96,6 +96,20 @@ pub use writer::{write, write_pretty, write_to};
 /// name. Returned by [`Value::into_owned`] and [`parse_owned`].
 pub type OwnedValue = Value<'static>;
 
+/// PROBE (arc 296 stone A) — the trait the re-exported derive targets.
+/// The real `ToEdn` descends here (from the `wat` crate's `to_edn.rs`) once
+/// the probe is green; `ProbeToEdn` is a throwaway that proves the shape.
+pub trait ProbeToEdn {
+    fn probe_to_edn(&self) -> OwnedValue;
+}
+
+/// Re-export the companion derive so consumers write
+/// `#[derive(wat_edn::ProbeToEdn)]` — the serde/serde_derive pattern. A trait
+/// and a derive macro may share a name (type vs macro namespace), exactly as
+/// `serde::Serialize` is both.
+#[cfg(feature = "derive")]
+pub use wat_to_edn_derive::ProbeToEdn;
+
 /// Parse a single top-level EDN form from a string.
 ///
 /// Returns `Value<'_>` borrowing from `input` for the [`Value::String`]
@@ -144,25 +158,22 @@ pub fn parse_all(input: &str) -> Result<Vec<Value<'_>>> {
 /// parser accepts (per RFC 9562 + the wat-edn strictness on round-trip
 /// fidelity).
 ///
-/// Available only with the `mint` feature enabled (see Cargo.toml) —
-/// the feature pulls in `uuid`'s `v4` capability and transitively the
-/// `getrandom` system entropy source. Parser-only consumers stay lean.
+/// Pulls `uuid`'s `v4` capability and transitively the `getrandom` system
+/// entropy source. Unconditional as of arc 296 — the `mint` feature was
+/// removed; uuid generation is core to wat, not an opt-in.
 ///
 /// # Example
 ///
 /// ```
-/// # #[cfg(feature = "mint")] {
 /// use wat_edn::{new_uuid_v4, parse, write, Value};
 ///
 /// let id = new_uuid_v4();
 /// let edn = write(&Value::Uuid(id));
 /// let parsed = parse(&edn).expect("EDN must parse");
 /// assert_eq!(parsed.as_uuid(), Some(&id));
-/// # }
 /// ```
 // Arc 092. The first consumer is `wat-measure`'s `WorkUnit`, which
 // keys every measurement scope by uuid.
-#[cfg(feature = "mint")]
 pub fn new_uuid_v4() -> uuid::Uuid {
     uuid::Uuid::new_v4()
 }
@@ -175,15 +186,14 @@ pub fn new_uuid_v4() -> uuid::Uuid {
 /// Same inputs always produce the same output (deterministic). This makes v5
 /// suitable for content addressing and hierarchical UUID derivation.
 ///
-/// Available only with the `mint` feature enabled (see Cargo.toml) — the
-/// feature pulls in `uuid`'s `v5` capability. Parser-only consumers stay lean.
+/// Pulls `uuid`'s `v5` capability. Unconditional as of arc 296 — the `mint`
+/// feature was removed; uuid generation is core to wat, not an opt-in.
 ///
 /// Arc 206 slice 1.5 — substrate promotion of `:wat::core::uuid::v5`.
 ///
 /// # Example
 ///
 /// ```
-/// # #[cfg(feature = "mint")] {
 /// use wat_edn::new_uuid_v5;
 /// use uuid::Uuid;
 ///
@@ -191,9 +201,7 @@ pub fn new_uuid_v4() -> uuid::Uuid {
 /// let id1 = new_uuid_v5(ns, "hello");
 /// let id2 = new_uuid_v5(ns, "hello");
 /// assert_eq!(id1, id2, "v5 is deterministic");
-/// # }
 /// ```
-#[cfg(feature = "mint")]
 pub fn new_uuid_v5(namespace: uuid::Uuid, name: &str) -> uuid::Uuid {
     uuid::Uuid::new_v5(&namespace, name.as_bytes())
 }

@@ -8,4 +8,4 @@ description = "Telemetry primitives for wat — :wat::telemetry::* (Service<E,G>
 [dependencies]
 wat = { path = "../.." }
 wat-macros = { path = "../wat-macros" }
-uuid = "1"
+uuid.workspace = true

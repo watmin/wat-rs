@@ -6,6 +6,7 @@ members = [
     "crates/wat-doc",
     "crates/wat-lru",
     "crates/wat-edn",
+    "crates/wat-to-edn-derive",
     "crates/wat-holon-lru",
     "crates/wat-sqlite",
     "crates/wat-telemetry",
@@ -30,6 +31,7 @@ default-members = [
     "crates/wat-doc",
     "crates/wat-lru",
     "crates/wat-edn",
+    "crates/wat-to-edn-derive",
     "crates/wat-holon-lru",
     "crates/wat-sqlite",
     "crates/wat-telemetry",
@@ -40,6 +42,13 @@ default-members = [
     "examples/console-demo",
     "examples/interrogate",
 ]
+
+# uuid — declared ONCE here; every crate that needs it writes `uuid.workspace = true`
+# and inherits this version + features. Single version site → drift is unrepresentable
+# (a crate that inherits cannot also name a version). v4/v5 unconditional: arc 296 killed
+# the `mint` feature — uuid generation is core to wat, not an opt-in.
+[workspace.dependencies]
+uuid = { version = "1", features = ["v4", "v5"] }
 
 # Trim dev debuginfo from full DWARF to line tables only. The full `tests/*.rs`
 # dev gate links ~250 binaries; full debuginfo bloats every link. line-tables-only
@@ -71,8 +80,8 @@ tempfile = "3"
 wat-reader = { path = "crates/wat-reader" }
 wat-macros = { path = "crates/wat-macros" }
 wat-doc = { path = "crates/wat-doc" }
-wat-edn = { path = "crates/wat-edn", features = ["mint"] }
-uuid    = "1"
+wat-edn = { path = "crates/wat-edn" }
+uuid.workspace = true
 rpds    = "1"
 # Arc 198 slice 2 Stone 1 — link-time registry for Rust-side substrate
 # restriction declarations. Stone 1 adds the wiring (RestrictionEntry +
