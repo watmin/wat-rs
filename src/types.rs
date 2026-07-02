@@ -1018,6 +1018,20 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
+    // PROBE (stone D): register #wat.core/Pos so wat can READ its own emitted Pos.
+    // The disconfirming probe for "register the emitted vocabulary → the existing
+    // reconstruct_record reads it." If this round-trips, the #[derive(Edn)] just
+    // automates this registration for the whole vocabulary.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
+        name: ":wat::core::Pos".into(),
+        type_params: vec![],
+        fields: vec![
+            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
+            ("col".into(), TypeExpr::Path(":wat::core::i64".into())),
+        ],
+        restrictions: None,
+    }));
+
     // :wat::kernel::Frame — one entry from a Rust backtrace. The wat-
     // rs runtime populates these by iterating `std::backtrace::Backtrace`
     // frames when a sandboxed program panics; only populated if
