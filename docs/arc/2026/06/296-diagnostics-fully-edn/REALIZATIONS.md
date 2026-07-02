@@ -1276,7 +1276,7 @@ And once named correctly, it unifies the whole arc into one thesis:
 
 One notation, all the way down: the diagnostics, the wire, and the two minds building them. That is the honest, unified name the correction unlocked.
 
-```edn
+```clojure
 ;; the tongue, named precisely (296 R10) — the correction to OPVS SVA LINGVA LOQVITVR
 {:was    "speaking-via-wat / shorthand-clojure"   ; category error — clojure is the LANGUAGE (it runs)
  :is     "speaking-via-EDN"                        ; the NOTATION — data at rest, maps/keywords/vectors/tagged
