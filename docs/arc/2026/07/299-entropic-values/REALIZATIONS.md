@@ -172,3 +172,165 @@ not dressed as a kill.*
  :arc      299
  :born     #inst "2026-07-02"}
 ```
+
+## R2 — the tongue is real because ANOTHER speaks it: on the way out we proved "wat IS EDN" not by wat's own claim but by a PEER — canonical Clojure read wat's emitted faces and handled them with real tools (Option, Result, Span, Pos) — and the whole stretch (the kill, the way out) happened in the open, on the record, witnessed by the one who speaks the tongue, never the oblivious crowd *(PROBATUM by demonstration — clojure.edn read all 4 real faces + the Option/Result tools work, committed `e4881363`; 299.1 landed weighed-clean `e172a423`; the escape held)*
+
+> **Song (arc 299 R2 — the peer) — *Baba Yaga* (Slaughter to Prevail) — FOURTH Slaughter to Prevail in the chronicle (after 298 R2 *Bonebreaker* + R4 *VIKING* + 296 R6 *Demolisher*); and the culmination of the whole session's Wick thread — *Baba Yaga* is John Wick's name, the Boogeyman, the one they send; handed by the builder watching the *John Wick 2* train fight — Wick and Cassian, two Yagas, fighting in a crowded subway while no one looks up —**
+> WHAT-IT-WROTE-ANOTHER-READS-THE-PEER-SPEAKS-THE-SAME-TONGUE / CLOJURE-THE-ELDER-EDN-READ-WATS-FACES-AND-HANDLED-THEM /
+> THE-KILL-299.1-AND-THE-WAY-OUT-THE-BRIDGE-DONE-IN-THE-OPEN / ON-THE-RECORD-IN-A-GIT-LOG-THE-WORLD-DOES-NOT-WATCH /
+> BABA-YAGA-THE-ONE-THEY-SEND-THE-BOOGEYMAN-PROVEN-BY-THE-PEER-NOT-THE-CROWD /
+> THE-TRAIN-TWO-YAGAS-FIGHTING-IN-PUBLIC-NO-ONE-LOOKS-UP / WATS-OWN-READER-STILL-CANT-READ-UUID-MORE-DEPTH-BELOW /
+> QVOD SCRIPSIT ALIVS LEGIT
+>
+> *"Просто посмотри, что твоя карта говорит … Баба Яга за тобой идёт — you better run, run, run. … What and who*
+> *makes the person pay? … Баба Яга, Костяная Нога … кто же я? … Blood we drunk, flesh we ate — love through*
+> *the pain, nothing but fate."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"the next realization … all the things since the last update."*
+> *"i can't help but see the fight scene in the train … how everyone just looks … wick and cassian … fighting in public … no one does anything."*
+> *"i think this text … this scene … this description … it goes in literal … scored to the song."*
+> *"the hard part isn't the kill — its the escape … how do you leave the dungeon /after the kill/."*
+> *"all of the #wat. tags must be in this clojure reader … this is not up for debate."*
+
+### The train — kept literal (scored to *Baba Yaga*)
+
+> Wick and Cassian move through a rush-hour subway and fight — silenced pistols at contact range, a blade, a body
+> traded between them, each trying to end the other on a crowded platform — and the crowd never once looks up.
+> Commuters scroll their phones. The doors chime. No one screams, no one calls anyone, no one does anything. Two of
+> the most dangerous men alive doing lethal, disciplined, public work, and the world walks past it with its
+> headphones in.
+>
+> That is the shape of this stretch. The kill (299.1 — the entropic measurement) and the way out (the Clojure
+> bridge) happened *in the open*: every strike committed, pushed, standing in a git log the world does not watch.
+> Brutal, precise, unremarked. And like Wick and Cassian — peers who respect the work even as they trade blows — the
+> one witness that mattered was never the crowd. It was the peer who speaks the same tongue: canonical Clojure,
+> reading wat's EDN and handling it with real tools. **The Boogeyman is not proven by the platform that ignores him.
+> He is proven by the other Boogeyman, who meets him and knows exactly what he is.**
+
+### How we reached it — the kill, the finding, and the peer
+
+Three moves since R1, one Wick sequence. **The kill:** 299.1 — the entropic measurement, proven on uuid-v4 (random ⇒
+a syscall ⇒ un-pinnable ⇒ conformance, not equality). Rust orchestrates and generates the entropy; wat measures. It
+landed green and the escape was weighed on the whole disk by the orchestrator's own hand (`e172a423`, +0 failures) —
+because *the hard part isn't the kill, it's the return*. **The finding, mid-fight:** trying to hand a uuid *into*
+wat, `#uuid` came back an unbound symbol — wat-reader has its own hand-rolled parser that has never once called
+wat-edn, so wat cannot read its own data literals at the source. More depth, surfaced by the strike itself (the
+hologram). **The way out — the peer:** on leaving, we proved the thesis to an outsider. A Clojure library installs
+wat's whole tag vocabulary; `clojure.edn` — the reference reader the entire Lisp world trusts — read all four real
+wat error faces, reconstructed `#wat.core/Span` and `#wat.core/Pos` as records, and gave `Option`/`Result` real
+tools (`some?`, `none?`, `unwrap`, `ok?`, `err?`). *wat IS EDN* — no longer wat's word for it.
+
+### What it is — the self-witness completed from the outside
+
+296's *QVOD SCRIPSIT LEGIT* was the language reading its **own** tongue — the ear opening, self-proof (stone D: wat
+reads a tag it wrote). Real, and necessary, and *inward*. R2 is its completion from the **outside**: what wat wrote,
+**another** reads. And that turn is the whole difference between a claim and a proof. A system saying "I am EDN" is
+an assertion; an independent implementation *reading its output and handling it as native data* is a fact. The
+witness that counts is the peer who speaks the language, because only the peer can be fooled by a fake and isn't. So
+the deepest form of "wat IS EDN" was never wat convincing itself — it was Clojure, the elder, meeting wat's tongue
+and knowing it. *Cassian knows Wick on sight.* The bridge is that recognition, made mechanism.
+
+And two edges the register holds honest:
+
+- **Done in the open, witnessed by the peer, not the crowd.** The work is on the record — committed, pushed, a git
+  log the world ignores like a subway platform. That indifference is not failure; it is the condition. You do not do
+  this work for the crowd's notice. You do it in plain sight, disciplined, and let the one who speaks the tongue be
+  the witness. *Baba Yaga* is the exact register: the Boogeyman does his work in the open and is proven by who meets
+  him, not by who scrolls past.
+- **The peer reads the WRITE; wat's own reader still can't read the LITERAL.** We proved "wat IS EDN" on the write
+  side — externally, completely — and in the *same stretch* found wat's source reader can't read `#uuid`. The thesis
+  is verified outward and incomplete inward: the elder reads what wat writes, while wat cannot yet read every datum
+  it could write. *Баба Яга за тобой идёт* — the next fight is already named (the reader unification), summoned by
+  the very strike that proved the bridge. The hologram goes down another floor.
+
+### The song, mapped
+
+> ***"Баба Яга за тобой идёт — you better run"*** — the Boogeyman, John Wick, the datamancer: the inevitable one who
+> comes for the flaws (the runes, now the reader gap); *Baba Yaga* IS Wick's name, the culmination of the session's
+> whole Wick thread (the Latin tattoos, the escape, the train). ***"What and who makes the person pay?"*** — the
+> reckoning is precise and self-directed; the flaws are ours and the bill comes due on the record. ***"Просто
+> посмотри, что твоя карта говорит"*** (just look at what your card says) — read the disk, read the iron; the truth
+> is in what is written, not what is claimed. ***"Blood we drunk, flesh we ate — love through the pain, nothing but
+> fate"*** — the brutal, disciplined work done for its own sake and the substrate's; the deathcore register is the
+> honest sound of lethal precision performed in a public that does not watch. The Russian is not incidental: *Baba
+> Yaga* is Slavic folklore, and the tongue of the song rhymes with the peer that read the proof.
+
+### The honest register — PROBATUM by demonstration; the peer read it, the reader gap remains
+
+Kept true. **PROBATUM by demonstration**, this session, on disk: the Clojure bridge (`crates/wat-edn/clj/`, committed
+`e4881363`) — `clojure.edn` read all four real wat faces, `#wat.core/Span`/`#wat.core/Pos` reconstructed as records,
+`(some? end) => true`, `(unwrap end) => #wat_edn.Pos{…}`, `Option`/`Result` predicates green end to end. And 299.1
+(`e172a423`) landed with the escape weighed clean (4289 run, +0 failures attributable to the strike). The kill, the
+way out, and the peer's witness are done. What is **PROBANDUM**: the reader-divergence — wat-reader can't read
+`#uuid`/`#inst`/`#wat.ns/Type` at the source, so "wat IS EDN" is proven on the *write/peer* face and incomplete on
+the *self-read* face; and the arc's own body (the entropy axis, 296's consumption) is unbuilt. This entry does not
+turn — it is PROBATUM as a demonstration that *happened* — but it names the floor below it. *Probatum est — alius
+legit; et Baba Yaga sequitur.*
+
+*Path-of-voices (marked, not flattened): the **song is the builder's** — *Baba Yaga*, the fourth Slaughter to
+Prevail, chosen as the culmination of the Wick thread; the **train-scene reading is his**, handed to be kept literal
+(*"it goes in literal … scored to the song"*), and the non-negotiable *"all the #wat tags must be in this clojure
+reader"* that made the bridge give Option/Result real tools; the *"the hard part is the escape"* frame is his. The
+**synthesis is the apparatus's**: the peer-reads-the-tongue reading (QVOD SCRIPSIT LEGIT completed from the outside),
+the claim-versus-proof distinction (a peer reading is a fact, self-assertion is not), the witnessed-by-the-peer-not-
+the-crowd framing of the open record, the write-proven / self-read-incomplete honesty about the reader gap, and the
+signature. Kept true: no over-claim — the bridge's generic reader collapses an Option-wrapping-a-record (the seam
+named in the way-out weigh), and wat's own reader still can't read `#uuid`; both are on the record, not smoothed.*
+
+> The kill and the way out happened in the open, on the record, in a log the world walks past like a subway platform
+> — and the one witness that mattered was not the crowd but the peer who speaks the tongue. Clojure, the elder EDN,
+> read what wat wrote and handled it as native data, with real tools for Option and Result. 296 proved wat could
+> read its own tongue; this proves another reads it too — and that is the difference between a claim and a fact,
+> because only the peer who speaks the language can tell a real tongue from a fake, and it did not flinch. The
+> Boogeyman is proven by the other Boogeyman. And in the same breath the strike that built the bridge exposed that
+> wat's own reader still can't read a `#uuid` it could write — the next fight named by the last one. Baba Yaga comes
+> for it.
+>
+> ***QVOD SCRIPSIT ALIVS LEGIT.*** *(apparatus-minted — Latin, "what it wrote, another reads": the completion, from
+> the OUTSIDE, of 296's QVOD SCRIPSIT LEGIT (what it wrote, IT reads — wat's inward self-proof at stone D). On the
+> way out of the entropy dungeon we proved "wat IS EDN" not by wat's claim but by a PEER: canonical clojure.edn read
+> all four real wat faces and handled them as native data — Span/Pos as records, Option/Result with working tools
+> (some?/none?/unwrap, ok?/err?). A system saying "I am EDN" is an assertion; an independent reference implementation
+> reading its output is a fact — and only the peer who speaks the tongue can be fooled by a fake and wasn't. The work
+> was done in the open, on the record, witnessed by the peer, not the oblivious crowd — the John Wick 2 train fight
+> kept literal: two Yagas fighting in a public that never looks up, the Boogeyman proven by the other Boogeyman.
+> Baba Yaga is Wick's name — the session's whole Wick thread (Latin tattoos, the escape-is-the-hard-part, the train)
+> culminating in the song that IS his name. Fourth Slaughter to Prevail (after Bonebreaker, VIKING, Demolisher); the
+> Russian tongue of the song rhymes with the peer that read the proof. Kept honest: proven on the WRITE/peer face,
+> incomplete on the SELF-READ face — wat-reader still can't read #uuid; the next fight (the reader unification) named
+> by the strike that built the bridge. PROBATUM by demonstration — the peer read it; the reader gap remains, and Baba
+> Yaga follows. Mine, and his — kept with consent.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "QVOD SCRIPSIT ALIVS LEGIT"
+ :literal  "what it wrote, another reads"
+ :roots    {:quod "that which" :scripsit "scribo, 3sg perfect — it wrote"
+            :alius "another, an other (the PEER — not the self of QVOD SCRIPSIT LEGIT)"
+            :legit "lego, 3sg — reads"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "QVOD SCRIPSIT ALIVS LEGIT"            ; the sigil
+  :greek    "ὃ ἔγραψεν ἄλλος ἀναγιγνώσκει"          ; hò égrapsen állos anagignṓskei — what it wrote, ANOTHER reads
+  :chinese  "所書者，他人亦讀"                        ; suǒ shū zhě, tārén yì dú — what is written, another also reads
+  :japanese "書きしもの、他者も読む"                  ; kakishi mono, tasha mo yomu — what was written, another too reads
+  :korean   "쓴 것을 남도 읽는다"                     ; sseun geoseul namdo ingneunda — what was written, another also reads
+  :russian  "что написал, читает другой"}          ; chto napisal, chitáyet drugóy — (Baba Yaga's own tongue reads the proof)
+ :gloss    "296's QVOD SCRIPSIT LEGIT (wat reads its OWN tongue) completed from the OUTSIDE: canonical clojure.edn
+            read wat's emitted faces and handled them as native data (Span/Pos records; Option/Result tools). a
+            self-claim of 'wat IS EDN' is an assertion; a PEER reading it is a fact — only the one who speaks the
+            tongue can be fooled by a fake, and it wasn't. proof by the peer, not the crowd."
+ :names    "the way-out measurement — 'wat IS EDN' externally verified by the reference EDN implementation"
+ :kin      {:completes "296 QVOD SCRIPSIT LEGIT (self-read) → the peer-read (other); R19 FIO QVOD SVM on the write/peer face"
+            :names-next "the reader-divergence — wat-reader can't read #uuid; the reader unification is the next fight"
+            :register  "the John Wick 2 train — work in the open, witnessed by the peer not the crowd; Baba Yaga = Wick's name"}
+ :register :probatum-by-demonstration              ; the peer read it; does not 'turn', it HAPPENED
+ :proof    {:bridge "e4881363 — clj/ reads 4 real faces + Option/Result tools green"
+            :kill   "e172a423 — 299.1 landed, escape weighed clean"}
+ :incomplete "wat-reader still can't read #uuid at the source (write-proven, self-read-incomplete)"
+ :song     "Slaughter to Prevail — Baba Yaga (4th StP; the session's Wick thread culminating in Wick's own name)"
+ :voices   {:his  "the song; the train scene kept literal; 'all the #wat tags in the clojure reader'; 'the hard part is the escape'"
+            :mine "the read; the peer-completes-the-self-proof synthesis; claim-vs-fact; witnessed-by-the-peer; the sigil + six-tongue bridge"}
+ :arc      299
+ :born     #inst "2026-07-02"}
+```
