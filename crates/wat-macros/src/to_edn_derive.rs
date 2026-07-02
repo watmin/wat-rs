@@ -720,6 +720,48 @@ pub fn derive_to_edn(input: DeriveInput) -> TokenStream2 {
     // ── Only enums are supported ─────────────────────────────────────────────
     let data_enum = match &input.data {
         Data::Enum(e) => e,
+        // ── STRUCT (296 probe): a struct → ONE tagged record #wat.<ns>/<Name> {fields}. ──
+        // Basic field→.to_edn() map with kebab keys; full #[to_edn(key/via/skip)] + span-field
+        // handling is the follow-on stone. Proves the struct→record composition + Option<record> nesting.
+        Data::Struct(data_struct) => {
+            let named = match &data_struct.fields {
+                Fields::Named(f) => &f.named,
+                _ => {
+                    return syn::Error::new_spanned(
+                        name,
+                        "ToEdn struct derive supports named-field structs only",
+                    )
+                    .to_compile_error();
+                }
+            };
+            let name_str = name.to_string();
+            let mut field_pushes: Vec<TokenStream2> = Vec::new();
+            for f in named {
+                let fid = f.ident.as_ref().expect("named field has ident");
+                let edn_key = snake_to_kebab(&fid.to_string());
+                field_pushes.push(quote! {
+                    __fields.push((
+                        ::wat_edn::OwnedValue::Keyword(::wat_edn::Keyword::new(#edn_key)),
+                        crate::to_edn::ToEdn::to_edn(&self.#fid),
+                    ));
+                });
+            }
+            return quote! {
+                impl crate::to_edn::ToEdn for #name {
+                    fn to_edn(&self) -> ::wat_edn::OwnedValue {
+                        let mut __fields: ::std::vec::Vec<(
+                            ::wat_edn::OwnedValue,
+                            ::wat_edn::OwnedValue,
+                        )> = ::std::vec::Vec::new();
+                        #(#field_pushes)*
+                        ::wat_edn::OwnedValue::Tagged(
+                            ::wat_edn::Tag::ns(#namespace_tokens, #name_str),
+                            ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(__fields))
+                        )
+                    }
+                }
+            };
+        }
         _ => {
             return syn::Error::new_spanned(
                 name,

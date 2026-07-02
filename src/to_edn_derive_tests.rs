@@ -155,6 +155,51 @@ fn key_rename_span_known_emits_renamed_key() {
     );
 }
 
+// ── F. STRUCT derive (296 closing strike, Stone 1) — `#[derive(ToEdn)]` on a struct emits
+// one tagged record `#wat.<ns>/<Name> {fields}`, namespace via `#[to_edn(namespace = ...)]`,
+// with `Option<record>` nesting honestly (#wat.core.Option/{Some,None}). The pattern the
+// `#wat.core/Span` record (Stone 2) is built on: a struct → a typed record, data all the way down.
+#[derive(wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::CORE)]
+struct PosProbe296 {
+    line: i64,
+    col: i64,
+}
+#[derive(wat_macros::ToEdn)]
+#[to_edn(namespace = crate::error_ns::CORE)]
+struct SpanProbe296 {
+    file: String,
+    line: i64,
+    col: i64,
+    end: Option<PosProbe296>,
+}
+
+#[test]
+fn struct_derive_emits_namespaced_tagged_record_with_optional_nested() {
+    // Some(end): a real range — nested record inside an Option inside the record.
+    let some = SpanProbe296 {
+        file: "f.wat".to_owned(),
+        line: 3,
+        col: 8,
+        end: Some(PosProbe296 { line: 3, col: 12 }),
+    };
+    assert_eq!(
+        wat_edn::write(&some.to_edn()),
+        r#"#wat.core/SpanProbe296 {:file "f.wat" :line 3 :col 8 :end #wat.core.Option/Some #wat.core/PosProbe296 {:line 3 :col 12}}"#,
+    );
+    // None(end): a point — absence spoken as #wat.core.Option/None, no end==start sentinel.
+    let none = SpanProbe296 {
+        file: "g.wat".to_owned(),
+        line: 1,
+        col: 0,
+        end: None,
+    };
+    assert_eq!(
+        wat_edn::write(&none.to_edn()),
+        r#"#wat.core/SpanProbe296 {:file "g.wat" :line 1 :col 0 :end #wat.core.Option/None nil}"#,
+    );
+}
+
 /// Arc 298.2: `rust_caller_span!()` IS emitted under the renamed `:call-span` key.
 /// The sentinel-elide-when-unknown discipline is retired; every span is real.
 #[test]
