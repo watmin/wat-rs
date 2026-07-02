@@ -44,8 +44,32 @@
 
 use std::sync::Arc;
 
+/// End-position of a source range: one char past the last char of the
+/// token or form.
+///
+/// Stone B (arc 296): `Pos` is a first-class typed value — `#[derive(ToEdn)]`
+/// emits `#wat.core/Pos {:line N :col N}` so the end-position is structured
+/// data at every boundary that reads it.
+#[derive(Clone, Debug, wat_edn::ToEdn)]
+#[to_edn(namespace = wat_edn::CORE)]
+pub struct Pos {
+    /// 1-indexed line number (one past the last char's line for end positions).
+    pub line: i64,
+    /// 1-indexed column number (one past the last char for end positions).
+    pub col: i64,
+}
+
 /// Source location attached to an AST node.
-#[derive(Debug, Clone)]
+///
+/// Stone B (arc 296): `Span` is a first-class typed value — `#[derive(ToEdn)]`
+/// emits `#wat.core/Span {:file "…" :line N :col N :end …}` so spans are
+/// structured data at every boundary that reads them.
+///
+/// `end` is `Some(Pos)` when the lexer or parser computed a real range
+/// (wat-source tokens and structural forms); `None` for point-spans from
+/// Rust call sites (`rust_caller_span!()`) where no end is available.
+#[derive(Clone, Debug, wat_edn::ToEdn)]
+#[to_edn(namespace = wat_edn::CORE)]
 pub struct Span {
     /// Best-effort file label. See module docs.
     pub file: Arc<String>,
@@ -53,29 +77,26 @@ pub struct Span {
     pub line: i64,
     /// 1-indexed column number (char-count from line start).
     pub col: i64,
-    /// 1-indexed end line (one past the last char of the token/form).
-    /// Defaults to `line` when constructed via `Span::new` (degenerate end==start).
-    pub end_line: i64,
-    /// 1-indexed end column (one past the last char of the token/form).
-    /// Defaults to `col` when constructed via `Span::new` (degenerate end==start).
-    pub end_col: i64,
+    /// End position of the range (one past the last char), or `None`
+    /// for point-spans where no end is available (Rust call sites).
+    pub end: Option<Pos>,
 }
 
 impl Span {
-    /// Build a span with the given file label and 1-indexed position.
-    /// `end_line` and `end_col` default to `line`/`col` (degenerate end==start).
-    /// All existing call sites keep compiling unchanged.
+    /// Build a point-span with the given file label and 1-indexed position.
+    /// `end` is `None` — no end information is available.
+    /// Used by `rust_caller_span!()` and all Rust call sites that genuinely
+    /// have no range end.
     pub fn new(file: Arc<String>, line: i64, col: i64) -> Self {
-        Span { file, line, col, end_line: line, end_col: col }
+        Span { file, line, col, end: None }
     }
 
     /// Build a span with explicit start AND end positions. Used by the lexer
     /// (to stamp each token's end) and the parser (to combine open..close for
     /// structural nodes). Arc 281.
     pub fn with_end(file: Arc<String>, line: i64, col: i64, end_line: i64, end_col: i64) -> Self {
-        Span { file, line, col, end_line, end_col }
+        Span { file, line, col, end: Some(Pos { line: end_line, col: end_col }) }
     }
-
 }
 
 impl std::fmt::Display for Span {
@@ -133,35 +154,4 @@ impl std::hash::Hash for Span {
 /// Arc 298.2: every span is now a real location; no sentinel elision.
 pub fn span_prefix(span: &Span) -> String {
     format!("{}: ", span)
-}
-
-// ─── ToEdn ──────────────────────────────────────────────────────────────────
-//
-// The impl lives in `wat-reader` (where `Span` is defined) rather than in
-// the `wat` crate because `ToEdn` is now defined in `wat-edn`. The orphan
-// rule forbids implementing a foreign trait for a foreign type; keeping the
-// impl in the crate that owns the type satisfies the rule.
-//
-// The produced form `{:file "…" :line N :col N}` is identical to
-// `panic_hook::span_to_map` in the `wat` crate — the two must stay in sync.
-
-impl wat_edn::ToEdn for Span {
-    fn to_edn(&self) -> wat_edn::OwnedValue {
-        use std::borrow::Cow;
-        use wat_edn::{Keyword, OwnedValue};
-        OwnedValue::Map(vec![
-            (
-                OwnedValue::Keyword(Keyword::new("file")),
-                OwnedValue::String(Cow::Owned(self.file.as_str().to_owned())),
-            ),
-            (
-                OwnedValue::Keyword(Keyword::new("line")),
-                OwnedValue::Integer(self.line),
-            ),
-            (
-                OwnedValue::Keyword(Keyword::new("col")),
-                OwnedValue::Integer(self.col),
-            ),
-        ])
-    }
 }

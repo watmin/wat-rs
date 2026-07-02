@@ -68,12 +68,22 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
 // ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
 impl crate::to_edn::ToEdn for MacroError {
-    /// Arc 298.3 — Pattern A: derive on MacroErrorKind generates the
-    /// variant body; `splice_span` appends `:span` from the outer struct.
-    /// Replaces the deleted hand-written `macro_error_to_edn` match.
+    /// Pattern A: derive on MacroErrorKind generates the variant body;
+    /// `:span` appended via `span.to_edn()` (Stone B).
     fn to_edn(&self) -> OwnedValue {
-        use crate::to_edn::splice_span;
-        splice_span(self.kind.to_edn(), &self.span)
+        use crate::to_edn::edn_kw;
+        let kind_val = self.kind.to_edn();
+        match kind_val {
+            OwnedValue::Tagged(tag, body) => {
+                let mut fields = match *body {
+                    OwnedValue::Map(f) => f,
+                    other => vec![(edn_kw("body"), other)],
+                };
+                fields.push((edn_kw("span"), self.span.to_edn()));
+                OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
+            }
+            other => other,
+        }
     }
 }
 

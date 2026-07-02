@@ -98,7 +98,7 @@ fn probe_p6_wrong_value_type_rejected_at_type_check() {
     let err = format!("{:?}", err);
     assert_eq!(
         err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p6_bad.wat", line: 6, col: 16, end_line: 6, end_col: 28 }, kind: TypeMismatch { callee: ":wat::core::HashMap", param: "value #1", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"##,
+        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::HashMap: parameter value #1 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_hashmap_ctor_vector_symmetric_p6_bad.wat" :line 6 :col 16 :end #wat.core.Option/Some #wat.core/Pos {:line 6 :col 28}} :causes [] :callee ":wat::core::HashMap" :param "value #1" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}"##,
         "probe_p6: wrong-value type check-error golden"
     );
 }
@@ -114,7 +114,7 @@ fn probe_p7_odd_pair_count_rejected() {
     let err = format!("{:?}", err);
     assert_eq!(
         err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p7_bad.wat", line: 5, col: 9, end_line: 5, end_col: 28 }, kind: MalformedForm { head: ":wat::core::HashMap", reason: "arity after :K :V type args must be even (alternating key/value pairs); got 1", remedies: [] } }]))"##,
+        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/MalformedForm {:message "malformed :wat::core::HashMap form: arity after :K :V type args must be even (alternating key/value pairs); got 1" :location #wat.core/Span {:file "tests/collection/probe_hashmap_ctor_vector_symmetric_p7_bad.wat" :line 5 :col 9 :end #wat.core.Option/Some #wat.core/Pos {:line 5 :col 28}} :causes [] :head ":wat::core::HashMap" :reason "arity after :K :V type args must be even (alternating key/value pairs); got 1" :remedies []}]}"##,
         "probe_p7: odd pair count check-error golden"
     );
 }
@@ -130,7 +130,7 @@ fn probe_p8_missing_both_type_args_rejected() {
     let err = format!("{:?}", err);
     assert_eq!(
         err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p8_bad.wat", line: 5, col: 9, end_line: 5, end_col: 28 }, kind: ArityMismatch { callee: ":wat::core::HashMap", expected: 2, got: 0 } }]))"##,
+        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/ArityMismatch {:message ":wat::core::HashMap: expected 2 argument(s); got 0" :location #wat.core/Span {:file "tests/collection/probe_hashmap_ctor_vector_symmetric_p8_bad.wat" :line 5 :col 9 :end #wat.core.Option/Some #wat.core/Pos {:line 5 :col 28}} :causes [] :callee ":wat::core::HashMap" :expected 2 :got 0}]}"##,
         "probe_p8: missing both type args arity-error golden"
     );
 }
@@ -146,7 +146,7 @@ fn probe_p9_missing_v_type_arg_rejected() {
     let err = format!("{:?}", err);
     assert_eq!(
         err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_hashmap_ctor_vector_symmetric_p9_bad.wat", line: 5, col: 9, end_line: 5, end_col: 28 }, kind: ArityMismatch { callee: ":wat::core::HashMap", expected: 2, got: 1 } }]))"##,
+        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/ArityMismatch {:message ":wat::core::HashMap: expected 2 argument(s); got 1" :location #wat.core/Span {:file "tests/collection/probe_hashmap_ctor_vector_symmetric_p9_bad.wat" :line 5 :col 9 :end #wat.core.Option/Some #wat.core/Pos {:line 5 :col 28}} :causes [] :callee ":wat::core::HashMap" :expected 2 :got 1}]}"##,
         "probe_p9: missing V type arg arity-error golden"
     );
 }

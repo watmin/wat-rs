@@ -20938,12 +20938,13 @@ mod tests {
             .find(|e| matches!(e, CheckError { kind: CheckErrorKind::ChannelPairDeadlock { .. }, .. }))
             .expect("ChannelPairDeadlock variant present");
         let display = format!("{}", pair_err);
-        // rune:lint(loose-assert) — Display embeds a Rust source file path/line/col from the
-        // check() call-site span (e.g. "src/check.rs:N:col:end_col"); the line number shifts
-        // whenever lines are added above the call site in check.rs, making full assert_eq! infeasible
+        // Stone B: Display now emits EDN (not human prose). The load-bearing contract is the
+        // tag discriminant: every ChannelPairDeadlock error MUST emit the tagged EDN form.
+        // rune:lint(loose-assert) — Display embeds a dynamic :location span (file/line/col varies);
+        // tag discriminant is the stable contract. Full assert_eq! infeasible.
         assert!(
-            display.contains("channel-pair-deadlock"),
-            "Display impl missing load-bearing 'channel-pair-deadlock' substring; got: {}",
+            display.contains("ChannelPairDeadlock"),
+            "Display must emit #wat.check/ChannelPairDeadlock; got: {}",
             display
         );
     }

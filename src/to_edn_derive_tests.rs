@@ -149,9 +149,10 @@ fn key_rename_span_known_emits_renamed_key() {
         name: "foo".to_owned(),
     };
     let edn = wat_edn::write(&e.to_edn());
+    // Stone B: span fields now emit #wat.core/Span tagged records, not bare maps.
     assert_eq!(
         edn,
-        r#"#wat.kernel/WithCallSpan {:call-span {:file "f.wat" :line 3 :col 5} :name "foo"}"#,
+        r#"#wat.kernel/WithCallSpan {:call-span #wat.core/Span {:file "f.wat" :line 3 :col 5 :end #wat.core.Option/None nil} :name "foo"}"#,
     );
 }
 
@@ -303,9 +304,10 @@ fn secondary_span_both_known_key_override_applied() {
         name: "def".to_owned(),
     };
     let edn = wat_edn::write(&e.to_edn());
+    // Stone B: span fields now emit #wat.core/Span tagged records, not bare maps.
     assert_eq!(
         edn,
-        r#"#wat.kernel/Def {:span {:file "a.wat" :line 1 :col 1} :outer-span {:file "b.wat" :line 2 :col 3} :name "def"}"#,
+        r#"#wat.kernel/Def {:span #wat.core/Span {:file "a.wat" :line 1 :col 1 :end #wat.core.Option/None nil} :outer-span #wat.core/Span {:file "b.wat" :line 2 :col 3 :end #wat.core.Option/None nil} :name "def"}"#,
     );
 }
 
@@ -326,7 +328,8 @@ fn secondary_span_primary_rust_caller_secondary_known() {
     assert!(edn.contains("\"wat-rs/src/"), "primary :span must be real Rust path; got: {}", edn);
     // Secondary span must appear with the known wat location.
     // rune:lint(loose-assert) — EDN embeds variable primary rust_caller_span!(); secondary known-span substring presence is the contract
-    assert!(edn.contains(r#":outer-span {:file "b.wat" :line 2 :col 3}"#), ":outer-span must emit known span; got: {}", edn);
+    // Stone B: span fields emit #wat.core/Span tagged records; substring match on tag + file.
+    assert!(edn.contains(r#":outer-span #wat.core/Span {:file "b.wat" :line 2 :col 3"#), ":outer-span must emit known span; got: {}", edn);
     // Non-span field must appear.
     // rune:lint(loose-assert) — EDN embeds variable rust_caller_span!() making full assert_eq! infeasible; non-span field presence is the contract
     assert!(edn.contains(r#":name "def""#), ":name must be present; got: {}", edn);

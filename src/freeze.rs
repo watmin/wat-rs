@@ -511,7 +511,6 @@ impl FrozenWorld {
 /// Failures at any stage of the startup pipeline. Each variant names
 /// the pass that raised it so users see "type check failed" rather
 /// than a bare error.
-#[derive(Debug)]
 pub enum StartupError {
     Parse(ParseError),
     Config(ConfigError),
@@ -536,20 +535,16 @@ pub enum StartupError {
     SigmaFn(String),
 }
 
+impl fmt::Debug for StartupError {
+    // Stone B: Debug emits EDN, not Rust struct layout.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&crate::to_edn::to_wire_edn(self))
+    }
+}
+
 impl fmt::Display for StartupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StartupError::Parse(e) => write!(f, "parse: {}", e),
-            StartupError::Config(e) => write!(f, "config: {}", e),
-            StartupError::Load(e) => write!(f, "load: {}", e),
-            StartupError::Macro(e) => write!(f, "macro: {}", e),
-            StartupError::Type(e) => write!(f, "types: {}", e),
-            StartupError::Resolve(e) => write!(f, "resolve: {}", e),
-            StartupError::Check(e) => write!(f, "check:\n{}", e),
-            StartupError::Runtime(e) => write!(f, "registration: {}", e),
-            StartupError::Stdlib(e) => write!(f, "stdlib: {}", e),
-            StartupError::SigmaFn(msg) => write!(f, "sigma-fn: {}", msg),
-        }
+        f.write_str(&crate::to_edn::to_wire_edn(self))
     }
 }
 

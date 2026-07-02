@@ -20,7 +20,7 @@ use std::fmt;
 /// `Display`/`diagnostic()` elide unknown spans.
 ///
 /// Multiple errors accumulate in a single pass so users get one batch of findings.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CheckError {
     pub span: Span,
     pub kind: CheckErrorKind,
@@ -758,11 +758,16 @@ impl fmt::Display for CheckErrorKind {
     }
 }
 
+impl fmt::Debug for CheckError {
+    // Stone B: Debug emits EDN, not Rust struct layout.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&crate::to_edn::to_wire_edn(self))
+    }
+}
+
 impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Message text lives once in `fmt_with_span`; the span-bearing form
-        // passes Some so the prefix and any mid-prose spans are woven in.
-        self.kind.fmt_with_span(Some(&self.span), f)
+        f.write_str(&crate::to_edn::to_wire_edn(self))
     }
 }
 
@@ -770,16 +775,18 @@ impl std::error::Error for CheckError {}
 
 
 /// Aggregated errors — `check_program` returns all findings together.
-#[derive(Debug)]
 pub struct CheckErrors(pub Vec<CheckError>);
+
+impl fmt::Debug for CheckErrors {
+    // Stone B: Debug emits EDN, not Rust struct layout.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&crate::to_edn::to_wire_edn(self))
+    }
+}
 
 impl fmt::Display for CheckErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{} type-check error(s):", self.0.len())?;
-        for e in &self.0 {
-            writeln!(f, "  - {}", e)?;
-        }
-        Ok(())
+        f.write_str(&crate::to_edn::to_wire_edn(self))
     }
 }
 

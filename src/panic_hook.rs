@@ -48,7 +48,7 @@
 
 use crate::assertion::AssertionPayload;
 use crate::value::FrameInfo;
-use crate::span::Span;
+// `Span` imported inside `#[cfg(test)] mod tests` (only used in test helpers).
 use std::borrow::Cow;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -154,8 +154,12 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
 
     // ── :location ────────────────────────────────────────────────────
     // Arc 298.2: every span is a real location; always emit.
+    // Stone B: use span.to_edn() — the derive-generated #wat.core/Span tagged record.
     let location_val = match &payload.location {
-        Some(span) => span_to_map(span),
+        Some(span) => {
+            use crate::to_edn::ToEdn;
+            span.to_edn()
+        }
         None => OwnedValue::Nil,
     };
 
@@ -203,30 +207,9 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     ])
 }
 
-/// Convert a [`Span`] to `{:file "..." :line N :col N}`.
-///
-/// Promoted to `pub(crate)` as `span_to_edn` (arc 233 Stone 233.3) so
-/// `runtime_error_edn` can reuse the helper without duplicating it.
-pub(crate) fn span_to_edn(span: &Span) -> OwnedValue {
-    span_to_map(span)
-}
-
-fn span_to_map(span: &Span) -> OwnedValue {
-    OwnedValue::Map(vec![
-        (
-            OwnedValue::Keyword(Keyword::new("file")),
-            OwnedValue::String(Cow::Owned(span.file.as_str().to_owned())),
-        ),
-        (
-            OwnedValue::Keyword(Keyword::new("line")),
-            OwnedValue::Integer(span.line),
-        ),
-        (
-            OwnedValue::Keyword(Keyword::new("col")),
-            OwnedValue::Integer(span.col),
-        ),
-    ])
-}
+// Stone B (arc 296): `span_to_map` / `span_to_edn` retired — the derive on
+// `Span` (in `wat-reader`) subsumes the hand-built map. Callers now use
+// `span.to_edn()` directly.
 
 /// Convert a [`FrameInfo`] to `{:callee <keyword> :at <location-map>}`.
 ///
@@ -234,6 +217,7 @@ fn span_to_map(span: &Span) -> OwnedValue {
 /// Strip the `:` prefix, then use `keyword_from_callee_path` to build a
 /// proper EDN keyword using the same convention as `edn_shim::keyword_from_wat_path`.
 fn frame_to_map(frame: &FrameInfo) -> OwnedValue {
+    use crate::to_edn::ToEdn;
     OwnedValue::Map(vec![
         (
             OwnedValue::Keyword(Keyword::new("callee")),
@@ -241,7 +225,7 @@ fn frame_to_map(frame: &FrameInfo) -> OwnedValue {
         ),
         (
             OwnedValue::Keyword(Keyword::new("at")),
-            span_to_map(&frame.call_span),
+            frame.call_span.to_edn(),
         ),
     ])
 }
@@ -283,6 +267,7 @@ impl crate::to_edn::ToEdn for crate::assertion::AssertionPayload {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::span::Span;
     use std::sync::Arc;
 
     fn mk_span(file: &str, line: i64, col: i64) -> Span {
@@ -341,9 +326,11 @@ mod tests {
         let msg = get_field(&pairs, "message");
         assert_eq!(msg.as_str(), Some("assert-eq failed"), "message: {:?}", msg);
 
-        // :location map with :file :line :col
+        // :location is now a #wat.core/Span tagged record (Stone B)
         let loc = get_field(&pairs, "location");
-        let loc_pairs = loc.as_map().expect("location is a map");
+        let (loc_tag, loc_body) = loc.as_tagged().expect("location is a tagged Span");
+        assert_eq!(loc_tag.to_string(), "#wat.core/Span", "location tag: {:?}", loc_tag);
+        let loc_pairs = loc_body.as_map().expect("Span body is a map");
         let file_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("file")).map(|(_, v)| v).expect(":file");
         assert_eq!(file_val.as_str(), Some("wat-tests/foo.wat"), "file: {:?}", file_val);
         let line_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("line")).map(|(_, v)| v).expect(":line");

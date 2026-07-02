@@ -134,13 +134,9 @@ fn probe_8_mixed_type_vector_rejected_at_check() {
     let err = format!("{}\n---\n{:?}", err, err);
     assert_eq!(
         err,
-        r##"check:
-1 type-check error(s):
-  - tests/collection/probe_arc215_stone2_p8_bad.wat:4:26: :wat::core::vec: parameter #3 expects :wat::core::i64; got :wat::core::String
-  did you mean: :wat::core::Vector [replaces a retired form] — rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value
-
+        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::vec: parameter #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p8_bad.wat" :line 4 :col 26 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee ":wat::core::vec" :param "#3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies [#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value"}]}]}
 ---
-Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_arc215_stone2_p8_bad.wat", line: 4, col: 26, end_line: 4, end_col: 31 }, kind: TypeMismatch { callee: ":wat::core::vec", param: "#3", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"##,
+#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::vec: parameter #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p8_bad.wat" :line 4 :col 26 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee ":wat::core::vec" :param "#3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies [#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value"}]}]}"##,
         "probe_8: mixed-type vector TypeMismatch golden"
     );
 }
@@ -220,12 +216,9 @@ fn probe_13_mixed_k_map_rejected_at_check() {
     let err = format!("{}\n---\n{:?}", err, err);
     assert_eq!(
         err,
-        r##"check:
-1 type-check error(s):
-  - tests/collection/probe_arc215_stone2_p13_bad.wat:4:30: {…} map literal: parameter key #2 expects :wat::core::i64; got :wat::core::String
-
+        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "{…} map literal: parameter key #2 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p13_bad.wat" :line 4 :col 30 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "{…} map literal" :param "key #2" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}
 ---
-Check(CheckErrors([CheckError { span: Span { file: "tests/collection/probe_arc215_stone2_p13_bad.wat", line: 4, col: 30, end_line: 4, end_col: 35 }, kind: TypeMismatch { callee: "{…} map literal", param: "key #2", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"##,
+#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "{…} map literal: parameter key #2 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p13_bad.wat" :line 4 :col 30 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "{…} map literal" :param "key #2" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}"##,
         "probe_13: mixed-K map TypeMismatch golden"
     );
 }

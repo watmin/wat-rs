@@ -3733,13 +3733,12 @@ mod tests {
         // Stone 241.8 — migrated to defstruct.
         let err = collect_lenient(r#"(:wat::core::defstruct :my::Bad<T [x <- :T])"#)
             .expect_err("expected rejection");
-        // rune:lint(loose-assert) — OR-membership across three valid error kinds
-        // (UnclosedBracketInKeyword, MalformedName, MalformedDecl); full assert_eq! infeasible
-        // because the error string embeds a Rust source file path/line/col from the parser's
-        // internal LexError construction site (e.g. wat-rs/crates/wat-reader/src/parser.rs:N)
-        // which shifts whenever the parser file changes
+        // Stone B: {:?} and Display now emit EDN (not human prose). The error kind
+        // is #wat.parse/Lex (a lex error at the keyword with whitespace inside `<`).
+        // rune:lint(loose-assert) — EDN embeds variable Rust source path/line from the parser's
+        // LexError construction site; tag discriminant is the stable contract
         assert!(
-            err.contains("UnclosedBracketInKeyword")
+            err.contains("#wat.parse/Lex")
                 || err.contains("MalformedName")
                 || err.contains("MalformedDecl"),
             "expected lex or type-decl error, got: {}",

@@ -99,7 +99,6 @@ impl fmt::Display for EvalBreak {
 /// explicit sentinel for the rare site with no recoverable source location
 /// (freeze-pair variants `UserMainMissing` / `EvalVerificationFailed`);
 /// `Display` / EDN elide unknown spans.
-#[derive(Debug)]
 pub struct RuntimeError {
     pub span: Span,
     pub kind: RuntimeErrorKind,
@@ -593,10 +592,18 @@ impl fmt::Display for RuntimeErrorKind {
     }
 }
 
+impl fmt::Debug for RuntimeError {
+    // Stone B (arc 296): {:?}-impostor wall — Debug emits EDN via to_wire_edn,
+    // not the Rust struct layout. Every face that reads this error sees structured
+    // EDN, never a Rust debug blob.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&crate::to_edn::to_wire_edn(self))
+    }
+}
+
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Span-bearing form: passes Some so prefix and mid-prose spans are woven in.
-        self.kind.fmt_with_span(Some(&self.span), f)
+        f.write_str(&crate::to_edn::to_wire_edn(self))
     }
 }
 

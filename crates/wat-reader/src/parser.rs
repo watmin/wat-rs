@@ -17,14 +17,14 @@
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
 use crate::lexer::{lex, LexError, SpannedToken, Token};
-use crate::span::{span_prefix, Span};
+use crate::span::Span;
 use std::fmt;
 use std::sync::Arc;
 
 /// Parse error. Pattern A (Stone 243.7d): span at the outer struct
 /// level; variant data in `ParseErrorKind`. Every constructor demands
 /// the span — silent omission is uncompilable.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct ParseError {
     pub span: Span,
     pub kind: ParseErrorKind,
@@ -98,10 +98,19 @@ impl fmt::Display for ParseErrorKind {
     }
 }
 
+impl fmt::Debug for ParseError {
+    // Stone B (arc 296): Debug emits EDN (to_edn(), since to_wire_edn is in the
+    // `wat` crate which depends on `wat-reader` — no reverse dep allowed).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use wat_edn::ToEdn;
+        f.write_str(&wat_edn::write(&self.to_edn()))
+    }
+}
+
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let prefix = span_prefix(&self.span);
-        write!(f, "{}{}", prefix, self.kind)
+        use wat_edn::ToEdn;
+        f.write_str(&wat_edn::write(&self.to_edn()))
     }
 }
 
@@ -261,9 +270,12 @@ impl<'a> Cursor<'a> {
             Token::LParen => {
                 // Arc 281 — thread the close span so the List node covers open..close.
                 let (list, close_span) = self.parse_list_body(span.clone())?;
+                let (end_l, end_c) = close_span.end.as_ref()
+                    .map(|p| (p.line, p.col))
+                    .unwrap_or((close_span.line, close_span.col));
                 let node_span = Span::with_end(
                     span.file.clone(), span.line, span.col,
-                    close_span.end_line, close_span.end_col,
+                    end_l, end_c,
                 );
                 Ok(Some(WatAST::List(list, node_span)))
             }
@@ -274,9 +286,12 @@ impl<'a> Cursor<'a> {
                 // (distinct from `()`, which is Unit / empty List).
                 // Arc 281 — thread the close span so the Vector node covers open..close.
                 let (items, close_span) = self.parse_vector_body(span.clone())?;
+                let (end_l, end_c) = close_span.end.as_ref()
+                    .map(|p| (p.line, p.col))
+                    .unwrap_or((close_span.line, close_span.col));
                 let node_span = Span::with_end(
                     span.file.clone(), span.line, span.col,
-                    close_span.end_line, close_span.end_col,
+                    end_l, end_c,
                 );
                 Ok(Some(WatAST::Vector(items, node_span)))
             }
@@ -291,9 +306,12 @@ impl<'a> Cursor<'a> {
                 // parse error from `parse_map_literal_body`.
                 // Arc 281 — thread the close span so the Map node covers open..close.
                 let (items, close_span) = self.parse_brace_body(span.clone())?;
+                let (end_l, end_c) = close_span.end.as_ref()
+                    .map(|p| (p.line, p.col))
+                    .unwrap_or((close_span.line, close_span.col));
                 let node_span = Span::with_end(
                     span.file.clone(), span.line, span.col,
-                    close_span.end_line, close_span.end_col,
+                    end_l, end_c,
                 );
                 self.parse_map_literal_body(items, node_span)
             }
@@ -304,9 +322,12 @@ impl<'a> Cursor<'a> {
                 // T inferred by check.rs from element types.
                 // Arc 281 — thread the close span so the Set node covers open..close.
                 let (items, close_span) = self.parse_brace_body(span.clone())?;
+                let (end_l, end_c) = close_span.end.as_ref()
+                    .map(|p| (p.line, p.col))
+                    .unwrap_or((close_span.line, close_span.col));
                 let node_span = Span::with_end(
                     span.file.clone(), span.line, span.col,
-                    close_span.end_line, close_span.end_col,
+                    end_l, end_c,
                 );
                 self.parse_hashset_literal_body(items, node_span)
             }

@@ -62,12 +62,23 @@ pub(crate) fn edn_path_segments(path: &String) -> OwnedValue {
 // ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
 impl crate::to_edn::ToEdn for RuntimeError {
-    /// Arc 298.3 — Pattern A: derive on RuntimeErrorKind generates the
-    /// variant body; `splice_span` appends `:span` from the outer struct.
-    /// Replaces the deleted hand-written `runtime_error_to_edn` match.
+    /// Pattern A: derive on RuntimeErrorKind generates the variant body;
+    /// `:span` appended via `span.to_edn()` (Stone B: the derive-generated
+    /// typed record replaces the hand-built `splice_span` helper).
     fn to_edn(&self) -> OwnedValue {
-        use crate::to_edn::splice_span;
-        splice_span(self.kind.to_edn(), &self.span)
+        use crate::to_edn::edn_kw;
+        let kind_val = self.kind.to_edn();
+        match kind_val {
+            OwnedValue::Tagged(tag, body) => {
+                let mut fields = match *body {
+                    OwnedValue::Map(f) => f,
+                    other => vec![(edn_kw("body"), other)],
+                };
+                fields.push((edn_kw("span"), self.span.to_edn()));
+                OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
+            }
+            other => other,
+        }
     }
 }
 
@@ -203,7 +214,8 @@ fn str_val(s: &str) -> OwnedValue {
 }
 
 fn span_val(span: &Span) -> OwnedValue {
-    crate::panic_hook::span_to_edn(span)
+    use crate::to_edn::ToEdn;
+    span.to_edn()
 }
 
 fn tagged(variant: &'static str, body: OwnedValue) -> OwnedValue {

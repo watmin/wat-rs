@@ -22,25 +22,22 @@ pub struct UnresolvedReference {
 }
 
 /// Name-resolution errors.
-#[derive(Debug)]
 pub enum ResolveError {
     /// One or more references don't resolve. `unresolved` carries ALL
     /// failures so the user can fix them in a single pass.
     UnresolvedReferences(Vec<UnresolvedReference>),
 }
 
+impl fmt::Debug for ResolveError {
+    // Stone B: Debug emits EDN, not Rust struct layout.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&crate::to_edn::to_wire_edn(self))
+    }
+}
+
 impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ResolveError::UnresolvedReferences(list) => {
-                writeln!(f, "{} unresolved reference(s):", list.len())?;
-                for r in list {
-                    // Arc 298.2: every span is real; always emit location.
-                    writeln!(f, "  - {} at {} ({})", r.path, r.span, r.context)?;
-                }
-                Ok(())
-            }
-        }
+        f.write_str(&crate::to_edn::to_wire_edn(self))
     }
 }
 
@@ -81,11 +78,12 @@ impl crate::to_edn::WatError for ResolveError {
 }
 
 impl crate::to_edn::ToEdn for ResolveError {
-    /// `#wat.kernel/UnresolvedReferences {:unresolved [#wat.kernel/UnresolvedReference {…} …]}`
+    /// `#wat.resolve/UnresolvedReferences {:unresolved [#wat.resolve/UnresolvedReference {…} …]}`
     /// — each failed reference is a navigable tagged value (path, context,
-    /// span), not a line in a prose blob.
+    /// span), not a line in a prose blob. Stone B: `span.to_edn()` emits the
+    /// derive-generated typed `#wat.core/Span` record.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_kw, edn_str, push_span_field};
+        use crate::to_edn::{edn_kw, edn_str};
         use wat_edn::{OwnedValue, Tag};
 
         match self {
@@ -93,11 +91,11 @@ impl crate::to_edn::ToEdn for ResolveError {
                 let refs: Vec<OwnedValue> = list
                     .iter()
                     .map(|r| {
-                        let mut fields = vec![
+                        let fields = vec![
                             (edn_kw("path"), edn_str(&r.path)),
                             (edn_kw("context"), edn_str(r.context)),
+                            (edn_kw("span"), r.span.to_edn()),
                         ];
-                        push_span_field(&mut fields, "span", &r.span);
                         OwnedValue::Tagged(Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReference"), Box::new(OwnedValue::Map(fields)))
                     })
                     .collect();

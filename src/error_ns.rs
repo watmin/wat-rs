@@ -1,7 +1,10 @@
 //! THE single source of truth for error tag namespaces. Rename HERE → every production
 //! emission site follows (one edit). Test-literal goldens carry the string by nature; a
 //! codemod/sed sweep is the refactor for those.
-pub const CORE:    &str = "wat.core";     // core typed value records (Span, Pos, Fault, Option) — intueri: not kernel
+//
+// Stone B (arc 296, D2): CORE re-references wat_edn::CORE — one source, no drift.
+// FVNDAMENTVM NON MENTITVR.
+pub const CORE:    &str = wat_edn::CORE;  // core typed value records (Span, Pos, Fault, Option) — intueri: not kernel
 pub const CONFIG:  &str = "wat.config";
 pub const CHECK:   &str = "wat.check";
 pub const TYPE:    &str = "wat.type";

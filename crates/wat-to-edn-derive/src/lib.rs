@@ -91,17 +91,9 @@ fn snake_to_kebab(s: &str) -> String {
     s.replace('_', "-")
 }
 
-/// Check if the type's last path segment ident is `Span`.
-///
-/// Handles `Span`, `crate::span::Span`, `wat_reader::span::Span`, etc.
-fn is_span_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(last_seg) = type_path.path.segments.last() {
-            return last_seg.ident == "Span";
-        }
-    }
-    false
-}
+// Stone B (arc 296): `is_span_type` deleted — `Span: ToEdn` via `#[derive]`
+// in `wat-reader`, so the derive emits `.to_edn()` on Span fields exactly as
+// for any other ToEdn type. No special-casing needed. FACTVM NON PACTVM.
 
 // ── Attribute data structures ─────────────────────────────────────────────────
 
@@ -815,7 +807,7 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
                 // Build per-field emit tokens.
                 let mut field_pushes: Vec<TokenStream2> = Vec::new();
 
-                for (field_ident, field_ty) in &fields_info {
+                for (field_ident, _field_ty) in &fields_info {
                     // Find the field's syn::Field to get attrs.
                     let syn_field = named_fields
                         .named
@@ -836,18 +828,6 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
                         // Skipped field: bound in the match arm (still available as
                         // a variant-level `via` arg) but emits NO plain pair.
                         // Continue without pushing.
-                    } else if is_span_type(field_ty) {
-                        // Span field: use push_span_field (elide-when-unknown).
-                        // NOTE: crate::to_edn::push_span_field stays crate-relative
-                        // (it references Span + crate::panic_hook which are in `wat`).
-                        // This arm only fires for types in the `wat` crate.
-                        field_pushes.push(quote! {
-                            crate::to_edn::push_span_field(
-                                &mut __fields,
-                                #edn_key,
-                                #field_ident,
-                            );
-                        });
                     } else if let Some(via_path) = field_attr.via_fn {
                         // via-overridden field: call the helper fn.
                         field_pushes.push(quote! {

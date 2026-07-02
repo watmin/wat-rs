@@ -1,11 +1,10 @@
 use crate::runtime::RuntimeError;
-use crate::span::{span_prefix, Span};
+use crate::span::Span;
 use std::fmt;
 
 /// Errors during macro registration / expansion. Pattern A (Stone
 /// 243.7d): span at the outer struct level; variant data in
 /// `MacroErrorKind`.
-#[derive(Debug)]
 pub struct MacroError {
     pub span: Span,
     pub kind: MacroErrorKind,
@@ -176,10 +175,16 @@ impl fmt::Display for MacroErrorKind {
     }
 }
 
+impl fmt::Debug for MacroError {
+    // Stone B: Debug emits EDN, not Rust struct layout.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&crate::to_edn::to_wire_edn(self))
+    }
+}
+
 impl fmt::Display for MacroError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let prefix = span_prefix(&self.span);
-        write!(f, "{}{}", prefix, self.kind)
+        f.write_str(&crate::to_edn::to_wire_edn(self))
     }
 }
 

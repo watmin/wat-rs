@@ -183,48 +183,15 @@ pub(crate) fn edn_int(n: i64) -> OwnedValue {
     OwnedValue::Integer(n)
 }
 
-/// A span EDN value (`{:file … :line … :col …}`).
-pub(crate) fn edn_span(span: &crate::span::Span) -> OwnedValue {
-    crate::panic_hook::span_to_edn(span)
-}
-
-/// Append a `:key {span}` entry to `fields`. Arc 298.2: every span is a
-/// real location (wat source or Rust caller), so always appended.
-pub(crate) fn push_span_field(
-    fields: &mut Vec<(OwnedValue, OwnedValue)>,
-    key: &str,
-    span: &crate::span::Span,
-) {
-    fields.push((edn_kw(key), edn_span(span)));
-}
-
-/// Splice a `:span` field into the body map of a derive-generated tagged value.
-///
-/// The `#[derive(ToEdn)]` macro generates `#wat.kernel/<Variant> {<fields>}`
-/// for each kind-enum variant. The outer Pattern-A struct (which carries the
-/// span) calls this helper to append `:span {…}` LAST, matching the old
-/// hand-written serializers exactly.
-///
-/// - Arc 298.2: every span is real; `:span` is always appended.
-/// - If `val` is not a `Tagged(_, Map(_))`, the span is still appended to
-///   whatever map can be extracted; a `body` key wraps non-map bodies as a
-///   fallback (defensive — should never happen for well-formed derive output).
-///
-/// NO smuggle surface: this helper only appends `:span`; no arbitrary
-/// expression can be injected through it.
-pub(crate) fn splice_span(val: OwnedValue, span: &crate::span::Span) -> OwnedValue {
-    match val {
-        OwnedValue::Tagged(tag, body) => {
-            let mut fields = match *body {
-                OwnedValue::Map(f) => f,
-                other => vec![(edn_kw("body"), other)],
-            };
-            push_span_field(&mut fields, "span", span);
-            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(fields)))
-        }
-        other => other,
-    }
-}
+// Stone B (arc 296): `edn_span`, `push_span_field`, `splice_span` retired —
+// `Span: ToEdn` (via derive in `wat-reader`) subsumes all three. Callers that
+// previously called `splice_span(kind_edn, &self.span)` now push
+// `(edn_kw("span"), self.span.to_edn())` directly.  Callers that called
+// `push_span_field(&mut fields, "span", span)` now push inline.
+// `location_from_span` (below) now delegates to `span.to_edn()`.
+//
+// The `is_span_type` special-case in `wat-to-edn-derive` is also deleted;
+// `Span` fields are now handled by the normal `.to_edn()` path.
 
 /// The first line of a (possibly multi-line) message, trimmed of trailing
 /// whitespace.
@@ -244,12 +211,12 @@ pub(crate) fn first_line(s: String) -> String {
 
 /// Build the `:location` value for a [`WatError`] impl.
 ///
-/// Returns the span as `{:file "…" :line N :col N}`. Arc 298.2: every span
-/// is a real location (wat source or `rust_caller_span!()`), so always
-/// emitted. Call this in each `WatError::location()` impl for Pattern-A
-/// errors (span on the outer struct).
+/// Returns the span as `#wat.core/Span {…}` (the derive-generated tagged
+/// record). Arc 298.2: every span is a real location (wat source or
+/// `rust_caller_span!()`), so always emitted. Stone B: uses `span.to_edn()`
+/// so the location is a proper typed record, not a bare map.
 pub(crate) fn location_from_span(span: &crate::span::Span) -> OwnedValue {
-    edn_span(span)
+    span.to_edn()
 }
 
 /// Strip the raw `:span` key from a tagged map's body.

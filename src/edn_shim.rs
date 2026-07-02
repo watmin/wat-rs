@@ -563,13 +563,15 @@ pub fn eval_ast_end_span(
     let span = ast.span();
     #[allow(clippy::mutable_key_type)]
     let mut map: std::collections::HashMap<Value, Value> = std::collections::HashMap::new();
+    let end_line = span.end.as_ref().map(|p| p.line).unwrap_or(span.line);
+    let end_col  = span.end.as_ref().map(|p| p.col).unwrap_or(span.col);
     map.insert(
         Value::wat__core__keyword(std::sync::Arc::new(":line".to_string())),
-        Value::i64(span.end_line),
+        Value::i64(end_line),
     );
     map.insert(
         Value::wat__core__keyword(std::sync::Arc::new(":col".to_string())),
-        Value::i64(span.end_col),
+        Value::i64(end_col),
     );
     Ok(crate::value::TrackedValue::new(
         Value::wat__std__HashMap(std::sync::Arc::new(map)),

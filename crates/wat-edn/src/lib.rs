@@ -73,6 +73,15 @@ pub mod parser;
 pub mod value;
 pub mod writer;
 
+// ─── Shared namespace constants ──────────────────────────────────────────────
+//
+// These live in `wat-edn` (the foundation) so every crate — `wat-reader`,
+// `wat`, and any future crate — can reference them without a dependency cycle.
+// `error_ns.rs` in the `wat` crate re-exports / aliases these as needed.
+
+/// The `"wat.core"` namespace: typed value records (`Span`, `Pos`, `Option`, …).
+pub const CORE: &str = "wat.core";
+
 // ─── Public surface ─────────────────────────────────────────────
 //
 // Everything a caller needs — parse / parse_owned / parse_all,
@@ -212,6 +221,16 @@ impl<T: ToEdn> ToEdn for Box<T> {
 
 /// Blanket: a reference to any `ToEdn` type is itself `ToEdn` (by delegation).
 impl<T: ToEdn + ?Sized> ToEdn for &T {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        (**self).to_edn()
+    }
+}
+
+/// Blanket: `Arc<T>` delegates to the inner `T`. Allows `Arc<String>` (and
+/// any other `Arc<ToEdn>`) to participate in derived structs without a
+/// hand-written via override.
+impl<T: ToEdn + ?Sized> ToEdn for std::sync::Arc<T> {
     #[inline]
     fn to_edn(&self) -> OwnedValue {
         (**self).to_edn()
