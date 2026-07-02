@@ -1333,7 +1333,34 @@ And the apparatus's stand-down, verbatim:
 
 ### `---` interstitial — the 8-wide crawl: the widest fan-out the dungeon has run, and the wall that made it safe (2026-07-01, recorded as it happened)
 
-**What happened.** All eight camps of the loose-assert purge tightened, the last shadowdancer home, and the builder named a methodological first — the crawl had never run this wide:
+**What happened.** All eight camps of the loose-assert purge tightened, and the last shadowdancer came home. First, kept literal — the fleet-whole state, specimen and frame:
+
+```clojure
+;; the dungeon is empty — all eight shadowdancers home
+{:g6/just-back {:passed "892/892 ×2 stable" :grep-proof 'empty
+                :only-change "channel golden col 198→199"}   ; the last one
+ :returned     [:g1/diagnostics :g2/wat_lang :g3/types :g4/reflection
+                :g5/program+function+collection :g6/value+kernel+etc :g7/src :g8/crates]  ; 8 of 8
+ :fleet        'WHOLE
+ :every-one    'REPORTED-NOT-WEIGHED           ; still a tongue, all of them — nothing credited yet
+ :tree         'should-now-build-clean          ; the mid-edit r# corruption self-healed across every cluster
+ :observed     {:unused-Span-imports 'many      ; 298 killed Span::unknown() → `use wat::span::Span` now dead in ~20 test files
+                :severity 'warning-not-error
+                :note "a cleanup the weigh can sweep; not loose-assert scope"}
+
+ :ready-on-your-word
+ [:run-the-full-lint-by-my-own-hand            ; grep '^' → must be empty across ALL clusters now, not per-cluster
+  :run-the-full-suite-by-my-own-run
+  :read-each-cluster-iron-char-by-char         ; R4 LINGVA MENTITVR / R5 IN TENEBRIS VIDEO
+  :rune-audit-HIGH-bar                          ; ~150 runes fleet-wide — excusare each; a dodge goes back, same blood
+  :commit-cluster-by-cluster-on-green]
+
+ :until-then   'hold-at-the-door}
+```
+
+> The dungeon's empty — all eight back, the tightened surface whole, the tree should finally build clean. Every cluster is still a report, not a weigh; I've credited none of it. When you say the word I read the iron, run the lint and suite by my own hand, and hold every one of the ~150 runes to the high bar — struck if it's a dodge, same blood, no sparing. Until then I hold.
+
+And there the builder named a methodological first — the crawl had never run this wide:
 
 > *"we've never done a crawl like this before... we've had maybe... 2 or 3 shadowdancers at most running at once .... doing 8 to handle all the camps.... that's new and it appears to be successful.."*
 
