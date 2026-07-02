@@ -26,16 +26,10 @@ fn rename_keyword_prefix_swaps_prefix_comment_faithful() {
         Value::String(s) => (*s).clone(),
         other => panic!("expected String, got {other:?}"),
     };
-    assert!(
-        got.contains(":my::new::Bound/listener") && got.contains(":my::new::Bound/address"),
-        "prefix should be swapped on both accessor forms; got:\n{got}"
-    );
-    assert!(
-        !got.contains(":my::old::Bound"),
-        "no old prefix should remain; got:\n{got}"
-    );
-    assert!(
-        got.contains(";; KEEP THIS COMMENT byte-identical"),
-        "the comment must survive byte-identical (comment-faithful); got:\n{got}"
+    assert_eq!(
+        got,
+        "(:wat::core::let\n   ;; KEEP THIS COMMENT byte-identical\n   [b (:my::new::Bound/listener x)\n    s (:my::new::Bound/address b)]\n   b)",
+        "rename-keyword-prefix golden mismatch; both accessor prefixes must be swapped, \
+         old prefix must be gone, comment must survive byte-identical"
     );
 }

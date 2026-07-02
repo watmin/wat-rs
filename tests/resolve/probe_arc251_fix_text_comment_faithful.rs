@@ -21,13 +21,11 @@ fn fix_text_preserves_comments_and_strips_redundant_annotation() {
         Ok(Value::String(s)) => (*s).clone(),
         other => panic!("expected fix-text to return a migrated source String; got {other:?}"),
     };
-    assert!(
-        out.contains(";; this doc comment must survive byte-identical"),
-        "the comment must survive BYTE-IDENTICAL (span-edit, not AST-reprint); got:\n{out}"
-    );
-    assert!(
-        !out.contains("-> :wat::core::i64"),
-        "the redundant if-return annotation `-> :wat::core::i64` must be stripped; got:\n{out}"
+    assert_eq!(
+        out,
+        ";; this doc comment must survive byte-identical\n(wat.core/if true   1 2)",
+        "fix-text golden mismatch; comment must survive byte-identical, \
+         -> :wat::core::i64 annotation must be stripped"
     );
 }
 
@@ -43,11 +41,12 @@ fn fix_text_is_comment_faithful_on_many_comments_and_idempotent() {
         }
     };
     let once = s("(:user::once)");
-    for c in ["alpha comment", "beta comment", "gamma trailing"] {
-        assert!(once.contains(&format!(";; {c}")), "comment `;; {c}` must survive byte-identical; got:\n{once}");
-    }
-    assert!(once.contains("\n\n"), "the blank line between forms must survive; got:\n{once}");
-    assert!(!once.contains("-> :wat::core::i64"), "the redundant annotation must be stripped; got:\n{once}");
+    assert_eq!(
+        once,
+        ";; alpha comment\n;; beta comment\n\n(wat.core/if true   1 2)\n;; gamma trailing",
+        "fix-text (many-comments) golden mismatch; all comments + blank line must survive, \
+         -> :wat::core::i64 annotation must be stripped"
+    );
     let twice = s("(:user::twice)");
     assert_eq!(twice, once, "fix-text must be IDEMPOTENT — a second pass yields zero edits (byte-identical)");
 }

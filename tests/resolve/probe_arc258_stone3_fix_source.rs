@@ -84,25 +84,31 @@ fn contract_04_fix_source_strips_if_annotation() {
 #[test]
 fn contract_05_fix_source_recurses() {
     let out = eval_string("c05").expect("c05: fix-source + write-forms of nested if");
-    assert!(
-        !out.contains("->"),
-        "fix-source recurses into (do …) and strips the inner if's annotation; got: {out}"
+    assert_eq!(
+        out,
+        "(:wat.core/do (:wat.core/if true 1 2))",
+        "fix-source must recurse into (do …) and strip the inner if's annotation"
     );
 }
 
 #[test]
 fn contract_06_fix_source_preserves_option_expect() {
     let out = eval_string("c06").expect("c06: fix-source + write-forms of Option/expect");
-    assert!(
-        out.contains("->"),
-        "Option/expect's `-> :T` must be preserved through the walk; got: {out}"
+    assert_eq!(
+        out,
+        r#"(:wat.core/do (:wat.core/Option/expect -> :wat.core/i64 x "m"))"#,
+        "fix-source must preserve Option/expect's -> :T annotation through the walk"
     );
 }
 
 #[test]
 fn contract_07_end_to_end_clean_source() {
     let out = eval_string("c07-str").expect("c07-str: fix-source + write-forms of annotated if");
-    assert!(!out.contains("->"), "cleaned if carries no `->`; got: {out}");
+    assert_eq!(
+        out,
+        "(:wat.core/if true 1 2)",
+        "fix-source + write-forms: cleaned if must carry no -> and preserve head :wat::core::if"
+    );
     assert_eq!(
         eval_bool("c07-bool"),
         Ok(true),

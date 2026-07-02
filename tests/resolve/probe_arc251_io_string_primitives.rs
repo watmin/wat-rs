@@ -66,6 +66,9 @@ fn contract_05_list_dir_returns_full_paths() {
     let world = startup_beside(file!()).expect("startup");
     let entries = eval_vec_strings(&world, "(:user::c04)").expect("list-dir");
     assert!(!entries.is_empty(), "list-dir must return entries");
+    // rune:lint(loose-assert) — property over a variable set: the `wat/` directory's contents
+    // grow as .wat files are added to the repo; the set and its enumeration order vary; the
+    // contract is the path-prefix property, not any fixed exact set.
     assert!(
         entries.iter().all(|e| e.starts_with("wat/")),
         "every entry must be a FULL path under the listed dir; got {entries:?}"

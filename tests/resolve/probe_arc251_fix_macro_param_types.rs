@@ -19,14 +19,12 @@ fn fix_macro_param_types_rewrites_defmacro_only_comment_faithful() {
         Ok(Value::String(s)) => (*s).clone(),
         other => panic!("expected migrated source String; got {other:?}"),
     };
-    // comment survives byte-identical
-    assert!(out.contains(";; keep me byte-identical"), "comment must survive; got:\n{out}");
-    // defmacro param/rest/return types rewritten to the honest AST types
-    assert!(out.contains("a <- :wat::WatAST"), "fixed param type → :wat::WatAST; got:\n{out}");
-    assert!(out.contains("rest <- :wat::core::Vector<wat::WatAST>"), "rest param type → Vector<wat::WatAST>; got:\n{out}");
-    assert!(out.contains("-> :wat::WatAST a)"), "return type → :wat::WatAST; got:\n{out}");
-    assert!(!out.contains(":wat::holon::HolonAST") && !out.contains(":AST<"), "no holon/AST<> macro types left; got:\n{out}");
-    // the sibling defn's REAL types are untouched (defmacro-scoped rule)
-    assert!(out.contains("x <- :wat::core::i64") && out.contains("-> :wat::core::i64 x)"),
-        "the defn's real types must NOT be touched; got:\n{out}");
+    assert_eq!(
+        out,
+        ";; keep me byte-identical\n\
+(:wat::core::defmacro :user::m [a <- :wat::WatAST & rest <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST a)\n\
+(:wat::core::defn :user::f [x <- :wat::core::i64] -> :wat::core::i64 x)",
+        "fix-macro-param-types golden mismatch; comment must survive byte-identical, \
+         defmacro params rewritten to :wat::WatAST, defn untouched"
+    );
 }

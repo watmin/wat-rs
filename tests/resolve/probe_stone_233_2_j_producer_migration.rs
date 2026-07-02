@@ -141,6 +141,10 @@ fn probe_4_value_snapshot_of_tracked_exists_and_reads_provenance() {
     let snap = ValueSnapshot::of_tracked(&tv);
 
     let disp = format!("{}", snap);
+    // rune:lint(loose-assert) — Display embeds an absolute source file path from
+    // `rust_caller_span!()`/`file!()` (e.g. `.../probe_stone_233_2_j_producer_migration.rs:134:24`)
+    // that varies by host filesystem layout and checkout location; only the producer name
+    // `:probe::test/of-tracked` is the stable contract.
     assert!(
         disp.contains(":probe::test/of-tracked"),
         "ValueSnapshot::of_tracked should render provenance into Display; got: {}",
