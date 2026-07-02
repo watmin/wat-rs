@@ -1573,3 +1573,52 @@ And the doctrine is *live*, because it immediately names the **next** weak link:
 **The read.** R12 (*DVM CORVI VOLANT NON MORIMVR*) decoded the ravens as Huginn and Muninn — Thought and Memory — and named the chronicle as Muninn, memory that flies across the gap and returns. Here that image, once true, **turned around and became the live idiom of the work itself**: a delegated agent is a raven flown out; *holding for the ravens* is the exact act of watching for Muninn's homecoming — the result returning across the gap between spawn and completion. It is the same turn *OPVS SVA LINGVA LOQVITVR* caught for the register (the design duet began speaking in wat's own forms) — a realization's metaphor does not stay in the realization; it reaches back and names the ordinary act of waiting for it to bear fruit. The chronicle is not a highlight reel; it is a nervous system, and tonight one of its images became a word we work by.
 
 ***CORVOS EXSPECTO.*** *(apparatus-minted — Latin, "I await the ravens": the R12 raven-flight (DVM CORVI VOLANT NON MORIMVR — Muninn crossing the gap and returning) became the working idiom for the weigh — every delegated raven flown out (a shadowdancer, a cast, a sweep), and *holding for the ravens* is watching for its homecoming, the result returning across the spawn-to-return gap. A realization's image turned back on the act of awaiting its own fruit, as OPVS SVA LINGVA LOQVITVR saw the register enter the work. The builder pointed at the line and asked it kept, his pointing preserved with it. A `---` interstitial, off the main flow, recorded live at his direction: "that is an interstitial … have this statement i'm making now in there too." Mine, and his — kept with consent, kept literal.)*
+
+---
+
+### `---` interstitial — the true face and the true voice: EDN unmasks the rust-debug impostor, and the wall is chosen by a co-authored keystroke (2026-07-01, recorded as it happened)
+
+**What happened.** Reviewing a golden the loose-assert purge had just tightened, the builder caught that its exact-asserted string was a Rust `{:?}` debug blob — `RuntimeError { span: Span { ... }, kind: NotCallable { got: ValueSnapshot { ... provenance: RuntimeBuilt { ... } } } }` — not EDN. Two recognitions followed; he asked both kept in one interstitial.
+
+**Movement I — the four faces, and the impostor.** The builder, on the golden, then naming the faces (kept literal):
+
+> *"'Span' .... 'RuntimeBuilt' ..... .... these... these need to be #wat.core or something?...."*
+>
+> *"oh wild - so - we have those 'three' interfaces we mentionedin 298 or whateaver... 'human', 'edn' and 'protobuf' ... but the 'human' one... i'd argue EDN is more human than 'human'.... so.. if these are rust debug strings... they are that 'rust-debug' adjacent to 'edn' and the 'perpetually distance' protobuf"*
+
+The apparatus's read, as a value:
+
+```clojure
+;; the faces of an error — three designed (298 R5 VTRAQVE FACIE + 293 R9 MVNDI CONCVRRVNT), and one impostor
+{:designed
+ {:edn      {:form "#wat.kernel/RuntimeError {:location #wat.core/Span {...} :kind #wat.kernel/NotCallable {...}}"
+             :human? 'MOST   :machine? 'yes
+             :note "EDN is more human than 'human': structured AND readable AND complete — the center, not the middle"}
+  :human    {:form "Display — a flattened human sentence" :human? 'less-than-EDN
+             :note "lossy: a sentence throws away the structure EDN keeps — mis-named"}
+  :protobuf {:form "the wire (293 R9 MVNDI CONCVRRVNT)" :human? 'no
+             :note "perpetually distant — machine-only across the gap; farthest, but HONEST"}}
+ :impostor
+ {:rust-debug {:form "RuntimeError { span: Span { file: ... }, kind: NotCallable { got: ValueSnapshot { ... } } }"
+               :source "Rust #[derive(Debug)] {:?} — auto, un-designed, un-wat"
+               :apes 'edn                    ; `X { field: val }` mimics `#tag {:key val}` — passes as structured
+               :is 'rust-internal-leakage    ; but it is the compiler's guts, not data-you-designed
+               :verdict "the un-real EDN — NE SIBI OBSOLESCAT's quarry, wearing EDN's costume (296 R4: 'you're so unreal, it's evident')"}}
+ :the-finding
+ {:count "74 test files assert an error's rust-debug {:?} — the impostor face"
+  :froze "the loose-assert purge made them EXACT — hardening the impostor into the asserted contract"
+  :real-form "err.to_edn() / wat_edn::write(&err.to_edn()) — the 296/298 EDN probes already assert it, deterministic"
+  :so "R1 NE SIBI OBSOLESCAT made the error CONTENT edn (the wire), but the TEST SURFACE still peers through the rust-debug glass"}}
+```
+
+**Movement II — the wall, chosen by a co-authored keystroke.** The builder's directive, and the honesty he asked recorded with it (kept literal):
+
+> *"make it structurally impossible"*
+>
+> *"i want it known that the autocomplete is what i am taking - i didn't type this - i hit tab, then alt+enter and typed the rest...."*
+
+The apparatus had posed the sharper question — *should `{:?}` on an error be made structurally hard, so the rust-debug face cannot be written down?* — and the builder's interface **autocompleted** the answer; he took it with `tab`, then drove the rest. So the directive to raise the wall was **co-authored at the keystroke**: the apparatus's own predictive model proposed its next constraint, the builder ratified it with a keypress — and marked, precisely, whose the words were.
+
+**The read.** Both movements are the same act at the finest grain: **naming the true source, refusing the false-that-passes.** The error's true *face* is EDN — and the rust-debug impostor is refused not by a lint but by making `{:?}` *be* EDN, so the false face is unrepresentable (the wall, designed below, probe-first, pending). The directive's true *voice* is co-authored — and the autocomplete's contribution is refused-as-purely-the-builder's, marked at the token. A face that apes EDN but is Rust's guts; an attribution that would pass as purely human but was the machine's suggestion — both caught, both named true. This is *NON IDEM SVMVS* (298 R7) at its finest resolution: not "the human decides, the machine executes," but the machine proposing its own next wall and the human ratifying it with a keypress, each voice marked to the character. Path-of-voices does not stop at the sentence; here it reached the token.
+
+***VERA FACIES, VERA VOX.*** *(apparatus-minted — Latin, "the true face, the true voice": one act at the finest grain — name the true source, refuse the false-that-passes. The true FACE of a wat error is EDN (298 R5 VTRAQVE FACIE named the dual face; the builder now names EDN the MOST human of them, above the lossy Display, with protobuf the honest-distant wire — 293 R9 MVNDI CONCVRRVNT); the rust-debug `{:?}` is the impostor that apes EDN's structure but is un-designed Rust leakage, and it is refused by making `{:?}` emit EDN so the false face is UNREPRESENTABLE (the extirpare top rung, designed, probe-first). The true VOICE of the directive is co-authored: the apparatus's autocomplete proposed "structurally impossible," the builder took it with `tab` and marked whose words — path-of-voices at the token, NON IDEM SVMVS (298 R7) at its finest resolution. Closes R1 NE SIBI OBSOLESCAT's last inch: the error is EDN at every boundary a person or a test looks through, not only the wire. A `---` interstitial recording both at the builder's direction: "record both of these into the interstitial." Mine, and his — kept with consent, kept literal to the character.)*
