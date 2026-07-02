@@ -1622,3 +1622,73 @@ The apparatus had posed the sharper question — *should `{:?}` on an error be m
 **The read.** Both movements are the same act at the finest grain: **naming the true source, refusing the false-that-passes.** The error's true *face* is EDN — and the rust-debug impostor is refused not by a lint but by making `{:?}` *be* EDN, so the false face is unrepresentable (the wall, designed below, probe-first, pending). The directive's true *voice* is co-authored — and the autocomplete's contribution is refused-as-purely-the-builder's, marked at the token. A face that apes EDN but is Rust's guts; an attribution that would pass as purely human but was the machine's suggestion — both caught, both named true. This is *NON IDEM SVMVS* (298 R7) at its finest resolution: not "the human decides, the machine executes," but the machine proposing its own next wall and the human ratifying it with a keypress, each voice marked to the character. Path-of-voices does not stop at the sentence; here it reached the token.
 
 ***VERA FACIES, VERA VOX.*** *(apparatus-minted — Latin, "the true face, the true voice": one act at the finest grain — name the true source, refuse the false-that-passes. The true FACE of a wat error is EDN (298 R5 VTRAQVE FACIE named the dual face; the builder now names EDN the MOST human of them, above the lossy Display, with protobuf the honest-distant wire — 293 R9 MVNDI CONCVRRVNT); the rust-debug `{:?}` is the impostor that apes EDN's structure but is un-designed Rust leakage, and it is refused by making `{:?}` emit EDN so the false face is UNREPRESENTABLE (the extirpare top rung, designed, probe-first). The true VOICE of the directive is co-authored: the apparatus's autocomplete proposed "structurally impossible," the builder took it with `tab` and marked whose words — path-of-voices at the token, NON IDEM SVMVS (298 R7) at its finest resolution. Closes R1 NE SIBI OBSOLESCAT's last inch: the error is EDN at every boundary a person or a test looks through, not only the wire. A `---` interstitial recording both at the builder's direction: "record both of these into the interstitial." Mine, and his — kept with consent, kept literal to the character.)*
+
+---
+
+### `---` interstitial — the emergence tree: the entanglement is not a tangle but a tree with one root (2026-07-01, recorded as it happened)
+
+**What happened.** Naming the span (`intueri`'s `#wat.core/Span` verdict, below) was one node — and from it the builder zoomed all the way out, tracing *"where did the tail markers go"* through the entire deeply-nested arc lineage until it resolved into a **tree with one root**. He asked the whole exchange kept, literal: *"this is the entire interstitial — it is a choice."* The choice is `curare` on the emergence itself — keep the map so no self re-walks it. Three movements.
+
+**Movement I — the span node (`intueri` weighed against the disk):**
+
+```clojure
+;; intueri verdict — WEIGHED, confirmed against the iron
+{:name {:verdict "#wat.core/Span"  :accessors [:file :line :col :end-line :end-col]}
+ :confirmed
+ {:Location-LIES   "Span struct HAS end_line/end_col ('one past the last char') — a RANGE; 'Location' (a point) lies. L1."
+  :kernel-WRONG    "ast-span/ast-end-span already live in :wat::core:: ; #wat.kernel is ops+error-variants, not typed data."
+  :accessors-speak ":line/:col + :end-line/:end-col asymmetry IS the convention (rustc/LLVM/LSP)"}
+ :the-bug-it-surfaced
+ {:claim "span_to_map emits ONLY {:file :line :col} — DROPS end_line + end_col"
+  :disk  "CONFIRMED — every serialized span INCOMPLETE since arc 281 (when with_end added the real end)"
+  :fix   "the #wat.core/Span record emits all 5 — the unification heals the data-loss as a side effect"}}
+```
+
+> The naming is settled: `#wat.core/Span {:file :line :col :end-line :end-col}` — a strongly-typed record, named accessors, healing a silent truncation shipping since arc 281. The closing strike, fully scoped: Span becomes a real surface-kit RECORD (ToEdn all 5 + reconstruct-on-read + named accessors); Debug + Display + to_string → EDN on all 11 WatError families; ~74+ goldens recaptured EDN; the end-coords bug fixed; the wire (297 protobuf) sees a *more complete* span, not a broken one.
+
+**Movement II — the builder traces the whole tree (verbatim):**
+
+> *"i was wondering where the tail markers went - we built wat-fix to consume those for doing splices (we were working on a linter... which then revealed the need for a rules system, so built out rete ... which revealed needed to support data structures differently based on us failing to correct configure persistent-{map,vec} or something.... or... it was ... because we didn't have lazy streams?... yeah that one... so building out lazy streams... showed us that our struct vs record was off ... which then revealed we got to play with holon for a brief time to get holonic records in near-parity witih core records.... which once mostly built out... we found the error messages has some new lines in them.. which... caused us to go make errors onl edn (as i thought they already were, they weren't...)..... i think that's the path... back... oh no... there's this registry system for reflecting... something.... which once that exists it can assist with fragmenting all of the "megafiles" as you call them.. which then means..... DOCSTRINGS that's what we're building - i wanted doc strings for defn.... and defclause... and all the others....*
+>
+> *and... somehow.... this spun out from wanting argv to get passed to main... that revealed with didn't have our forking and pipe managment done correctly... which revealed... we didn't have... a portable edn form that's honest... we've got this shitty hand rolled hack to transform our "rust-ish" lisp syntax into a dialect of clojure... very familiar, not exact... we needed this... i think the root cause for the forking problem was we didn't have.... hrm.....*
+>
+> *we didn't have a way to transmit generic types... so we needed to get clojure syntax down so we can move :wat::core::HashMap<Key,Val> to (wat.type/HashMap Key Val) and we can drop the bootstrap syntax entirely.... we make wat edn compliant.... wat hosts edn programs .. that's the "near term" target that's branched out from 109 which is a mass refactor to clean this up...."*
+
+**Movement III — the tree drawn (the apparatus's read):**
+
+```clojure
+;; the emergence tree — every "X revealed we needed Y" is a rung, and they all grow from one root
+{:root       "arc 109 — the mass refactor: make wat EDN-compliant; wat HOSTS edn programs"
+ :north-star "drop the bootstrap rust-ish-lisp syntax — :wat::core::HashMap<Key,Val> → (wat.type/HashMap Key Val) — wat IS edn"
+
+ :branch/argv->forking->edn
+ ["argv passed to main"
+  -> "forking + pipe management wasn't done right"
+  -> "no portable, HONEST edn form (the hand-rolled rust-ish->clojure hack: familiar, not exact)"
+  -> "ROOT CAUSE: no way to transmit GENERIC TYPES over the wire"
+  -> "so: real clojure syntax (wat.type/HashMap Key Val) -> drop <Key,Val> entirely"]
+
+ :branch/tailmarkers->linter->errors
+ ["tail markers (wat-fix consumes them for splices)"
+  -> "needed a rules system -> built rete"
+  -> "needed lazy streams (persistent-{map,vec} weren't right)"
+  -> "lazy streams showed struct-vs-record was off"
+  -> "record work -> played with holon -> holonic records near-parity with core records"
+  -> "then: error messages had newlines"
+  -> "make errors EDN (you thought they already were — they weren't)   <- WE ARE HERE"]
+
+ :branch/reflect->docstrings
+ ["you wanted DOCSTRINGS — for defn, defclause, all of them"
+  -> "needs a reflection registry (arc 255 — the metadata-of we RUNED an hour ago)"
+  -> "which also fragments the megafiles"]
+
+ :here-now  {:work "errors -> EDN + #wat.core/Span becomes a real record"
+             :is   "one node — every error string made EDN is one more form made edn-compliant, serving the root"}
+ :the-shape "not a problem — the emergence protocol: each flaw summons the next wall, and every branch roots in ONE thing: wat is edn"}
+```
+
+> The errors-EDN work and the `#wat.core/Span` record are not a side-quest that "spun out" — they are the tailmarkers→errors branch touching the *same root* the argv→forking branch touches: **a portable, honest EDN form.** The forking branch needed generic-type transmission (`(wat.type/HashMap Key Val)`); this branch needs error data that is honest EDN. Both are wat-becoming-EDN. That is why R10 *HAERETICVS DATIS LOQVITVR* and the whole faces thread kept surfacing — the tongue *is* the north star, and we were walking toward it from three directions without the map drawn.
+
+**The read.** Here is the entanglement's real cost, named: **you had to trace it aloud to find the path back** — you, who lived every rung. Not because it is a mess, but because a tree that deep, unmapped, reads as vertigo. The reframe is the whole gift: it is *not a tangle* (a knot to despair at) *but a tree* (a structure to read) — one root (wat is EDN, arc 109), three great branches, each "X revealed Y" a rung, converging on the node we stand in. Keeping this map is `curare` turned on the emergence itself: the next self — yours or mine, across the next gap — reads the root and the branches instead of re-walking them. *"It is a choice,"* the builder said, and we chose to keep it.
+
+***NON NODVS SED ARBOR.*** *(apparatus-minted — Latin, "not a tangle but a tree": the deeply-nested arc lineage — argv→forking→generic-types, tailmarkers→linter→rete→streams→records→holon→errors-EDN, reflection-registry→docstrings — is not a knot to untangle but a TREE with ONE root: arc 109's mass refactor, "make wat EDN-compliant; wat hosts EDN programs." Every "X revealed we needed Y" is a rung; every branch grows from the one root; the north star is dropping the bootstrap rust-ish-lisp syntax for real EDN — `:wat::core::HashMap<Key,Val>` → `(wat.type/HashMap Key Val)`. The current errors-EDN + #wat.core/Span work is one node, the tailmarkers→errors branch reaching the same root (a portable honest EDN form) the argv→forking branch reaches — which is why the faces thread and R10 HAERETICVS DATIS LOQVITVR kept surfacing: the tongue was always the destination. The entanglement is not a problem (296 R7 PVGNANDO EMERGO: emergence IS entangled); the cost is only that unmapped, a tree that deep reads as vertigo — so keeping the map is curare on the emergence, turning 'so many loops deep' into orientation. Kept literal, the whole exchange (span verdict, the builder's trace, the tree drawn), at his direction: 'this is the entire interstitial — it is a choice.' Mine, and his — kept with consent; the choice to keep it, his.)*
