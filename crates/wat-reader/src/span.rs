@@ -47,10 +47,11 @@ use std::sync::Arc;
 /// End-position of a source range: one char past the last char of the
 /// token or form.
 ///
-/// Stone B (arc 296): `Pos` is a first-class typed value — `#[derive(ToEdn)]`
-/// emits `#wat.core/Pos {:line N :col N}` so the end-position is structured
-/// data at every boundary that reads it.
-#[derive(Clone, Debug, wat_edn::ToEdn)]
+/// Stone D (arc 296): `Pos` uses `#[derive(Edn)]` — the round-trip derive.
+/// This emits `#wat.core/Pos {:line N :col N}` on the write side AND
+/// submits an `EdnSchema` entry so `edn::read "#wat.core/Pos {…}"` can
+/// reconstruct it without any hand-written registration.
+#[derive(Clone, Debug, wat_edn::Edn)]
 #[to_edn(namespace = wat_edn::CORE)]
 pub struct Pos {
     /// 1-indexed line number (one past the last char's line for end positions).

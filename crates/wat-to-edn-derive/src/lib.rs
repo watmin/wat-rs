@@ -64,13 +64,16 @@ use quote::quote;
 use syn::parse::Parse as _;
 use syn::{Data, DeriveInput, Fields};
 
-// ── Entry point ────────────────────────────────────────────────────────────────
+// ── Entry points ───────────────────────────────────────────────────────────────
 
 /// `#[derive(ToEdn)]` — structural EDN body generator for kind-enums and structs.
 ///
 /// Generates `impl ::wat_edn::ToEdn for <Type>` from the Rust type so there
 /// is no hand-written `to_edn()` match body. An embedded field whose type does
 /// not implement `ToEdn` is a compile error (the structural wall arc 296 promises).
+///
+/// Write-only: does NOT submit an `EdnSchema` entry — the type can be emitted
+/// but not read back.  Use `#[derive(Edn)]` for types that must round-trip.
 ///
 /// ## Helper attribute `#[to_edn(...)]`
 ///
@@ -82,6 +85,37 @@ pub fn derive_to_edn(input: TokenStream) -> TokenStream {
     derive_to_edn_inner(parsed).into()
 }
 
+/// `#[derive(Edn)]` — the round-trip derive (arc 296 stone D).
+///
+/// Generates BOTH:
+/// 1. `impl ::wat_edn::ToEdn for <Type>` (the write half — identical to `ToEdn`).
+/// 2. An `::inventory::submit!(::wat_edn::EdnSchema { … })` block (the register
+///    half) so the reader (`reconstruct_record` in `edn_shim.rs`) can reconstruct
+///    the type from its EDN form without any hand-written registration.
+///
+/// The consumer crate must have `inventory = "0.3"` as a direct dependency so
+/// `::inventory::submit!` in the generated code resolves.
+///
+/// ## STOP-2
+///
+/// If any non-skipped field's Rust type has no known wat type-path mapping,
+/// `#[derive(Edn)]` emits a `compile_error!` — the type is not safely
+/// round-trippable until a mapping is added.  Use `#[to_edn(skip)]` on
+/// fields that are intentionally write-only.
+#[proc_macro_derive(Edn, attributes(to_edn))]
+pub fn derive_edn(input: TokenStream) -> TokenStream {
+    let parsed = syn::parse_macro_input!(input as syn::DeriveInput);
+    // Generate the write impl (identical to ToEdn).
+    let write_impl = derive_to_edn_inner(parsed.clone());
+    // Generate the EdnSchema submit block (the register half).
+    let schema_submit = derive_edn_schema(&parsed);
+    quote! {
+        #write_impl
+        #schema_submit
+    }
+    .into()
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 /// Convert a snake_case identifier string to kebab-case EDN key.
@@ -89,6 +123,302 @@ pub fn derive_to_edn(input: TokenStream) -> TokenStream {
 /// `setter_head` → `"setter-head"`, `field` → `"field"`, `a_b` → `"a-b"`.
 fn snake_to_kebab(s: &str) -> String {
     s.replace('_', "-")
+}
+
+// ── EdnSchema code generator (arc 296 stone D) ────────────────────────────────
+
+/// Map a Rust `syn::Type` to the canonical wat type-path string for use in an
+/// `EdnSchema.fields` entry.
+///
+/// Only plain named types (no generics) with known wat equivalents are mapped.
+/// Everything else is a STOP-2: the caller should either add a mapping or
+/// annotate the field with `#[to_edn(skip)]`.
+///
+/// The returned `&'static str` is a string literal embedded in the submit block.
+fn rust_type_to_wat_path(ty: &syn::Type) -> Result<&'static str, TokenStream2> {
+    let syn::Type::Path(tp) = ty else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "#[derive(Edn)] STOP-2: field type is not a simple path (reference, \
+             generic wrapper, etc.) — no automatic wat type-path mapping exists. \
+             Add #[to_edn(skip)] to exclude from the schema, or use a plain named type.",
+        )
+        .to_compile_error());
+    };
+
+    if tp.qself.is_some() {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "#[derive(Edn)] STOP-2: qualified self types are not supported in schema generation.",
+        )
+        .to_compile_error());
+    }
+
+    let seg = tp
+        .path
+        .segments
+        .last()
+        .ok_or_else(|| syn::Error::new_spanned(ty, "#[derive(Edn)]: empty type path").to_compile_error())?;
+
+    // Reject generics: `Option<T>`, `Arc<T>`, etc.
+    match &seg.arguments {
+        syn::PathArguments::None => {}
+        _ => {
+            return Err(syn::Error::new_spanned(
+                ty,
+                format!(
+                    "#[derive(Edn)] STOP-2: generic type `{}<…>` has no automatic wat \
+                     type-path mapping. Add #[to_edn(skip)] to exclude from the schema.",
+                    seg.ident,
+                ),
+            )
+            .to_compile_error());
+        }
+    }
+
+    match seg.ident.to_string().as_str() {
+        "i64"    => Ok(":wat::core::i64"),
+        "i32"    => Ok(":wat::core::i64"),
+        "u32"    => Ok(":wat::core::i64"),
+        "usize"  => Ok(":wat::core::i64"),
+        "bool"   => Ok(":wat::core::bool"),
+        "String" => Ok(":wat::core::String"),
+        other    => Err(syn::Error::new_spanned(
+            ty,
+            format!(
+                "#[derive(Edn)] STOP-2: Rust type `{}` has no registered wat type-path \
+                 mapping. Add a mapping in `rust_type_to_wat_path` (for standard types) \
+                 or annotate the field with #[to_edn(skip)].",
+                other,
+            ),
+        )
+        .to_compile_error()),
+    }
+}
+
+/// Generate `::inventory::submit!(::wat_edn::EdnSchema { … })` blocks for all
+/// tagged types produced by the `Edn` derive.
+///
+/// - **Struct**: one submit block covering all non-skipped, non-via named fields.
+/// - **Enum**: one submit block per variant, covering that variant's fields.
+///
+/// STOP-2 is surfaced as a `compile_error!` token stream when a field's Rust
+/// type has no known wat type-path mapping or when a `via`-annotated field is
+/// encountered (the logical type is ambiguous without a mapping override).
+fn derive_edn_schema(input: &DeriveInput) -> TokenStream2 {
+    let name = &input.ident;
+    let name_str = name.to_string();
+
+    let enum_attr = match parse_enum_attrs(input) {
+        Ok(a)  => a,
+        Err(e) => return e,
+    };
+    let namespace_tokens: TokenStream2 = match enum_attr.namespace {
+        Some(path) => quote! { #path },
+        None       => quote! { "wat.kernel" },
+    };
+
+    match &input.data {
+        // ── Struct: one EdnSchema submit ─────────────────────────────────────
+        Data::Struct(data_struct) => {
+            let named = match &data_struct.fields {
+                Fields::Named(f) => &f.named,
+                _ => {
+                    return syn::Error::new_spanned(
+                        name,
+                        "#[derive(Edn)] supports named-field structs only; \
+                         tuple/unit structs have no field names to emit.",
+                    )
+                    .to_compile_error();
+                }
+            };
+
+            let mut field_pairs: Vec<TokenStream2> = Vec::new();
+            for f in named {
+                let fid = f.ident.as_ref().expect("named field has ident");
+
+                let field_attr = match parse_field_attrs(f) {
+                    Ok(a)  => a,
+                    Err(e) => return e,
+                };
+
+                // skip fields are intentionally excluded from the schema.
+                if field_attr.skip {
+                    continue;
+                }
+
+                // via fields use custom serialization — the logical type is
+                // ambiguous without an annotation (STOP-2).
+                if field_attr.via_fn.is_some() {
+                    return syn::Error::new_spanned(
+                        f,
+                        "#[derive(Edn)] STOP-2: field with #[to_edn(via = …)] has an \
+                         unknown logical wat type; the schema entry cannot be generated \
+                         automatically. Add #[to_edn(skip)] to exclude this field from \
+                         the schema.",
+                    )
+                    .to_compile_error();
+                }
+
+                let edn_key = field_attr
+                    .key_override
+                    .unwrap_or_else(|| snake_to_kebab(&fid.to_string()));
+
+                let wat_path = match rust_type_to_wat_path(&f.ty) {
+                    Ok(p)  => p,
+                    Err(e) => return e,
+                };
+
+                field_pairs.push(quote! { (#edn_key, #wat_path) });
+            }
+
+            quote! {
+                ::inventory::submit! {
+                    ::wat_edn::EdnSchema {
+                        tag_ns:   #namespace_tokens,
+                        tag_name: #name_str,
+                        fields:   &[#(#field_pairs),*],
+                    }
+                }
+            }
+        }
+
+        // ── Enum: one EdnSchema submit per variant ────────────────────────────
+        Data::Enum(data_enum) => {
+            let mut submits: Vec<TokenStream2> = Vec::new();
+
+            for variant in &data_enum.variants {
+                let variant_name_str = variant.ident.to_string();
+
+                match &variant.fields {
+                    // Named-field variant: same logic as struct.
+                    Fields::Named(named_fields) => {
+                        let mut field_pairs: Vec<TokenStream2> = Vec::new();
+                        for f in &named_fields.named {
+                            let fid = f.ident.as_ref().expect("named field has ident");
+                            let field_attr = match parse_field_attrs(f) {
+                                Ok(a)  => a,
+                                Err(e) => return e,
+                            };
+                            if field_attr.skip {
+                                continue;
+                            }
+                            if field_attr.via_fn.is_some() {
+                                return syn::Error::new_spanned(
+                                    f,
+                                    "#[derive(Edn)] STOP-2: via field in enum variant \
+                                     has ambiguous logical type; add #[to_edn(skip)].",
+                                )
+                                .to_compile_error();
+                            }
+                            let edn_key = field_attr
+                                .key_override
+                                .unwrap_or_else(|| snake_to_kebab(&fid.to_string()));
+                            let wat_path = match rust_type_to_wat_path(&f.ty) {
+                                Ok(p)  => p,
+                                Err(e) => return e,
+                            };
+                            field_pairs.push(quote! { (#edn_key, #wat_path) });
+                        }
+                        submits.push(quote! {
+                            ::inventory::submit! {
+                                ::wat_edn::EdnSchema {
+                                    tag_ns:   #namespace_tokens,
+                                    tag_name: #variant_name_str,
+                                    fields:   &[#(#field_pairs),*],
+                                }
+                            }
+                        });
+                    }
+
+                    // Unit variant: empty fields.
+                    Fields::Unit => {
+                        submits.push(quote! {
+                            ::inventory::submit! {
+                                ::wat_edn::EdnSchema {
+                                    tag_ns:   #namespace_tokens,
+                                    tag_name: #variant_name_str,
+                                    fields:   &[],
+                                }
+                            }
+                        });
+                    }
+
+                    // Single-field tuple variant: one field named by #[to_edn(key)].
+                    Fields::Unnamed(f) if f.unnamed.len() == 1 => {
+                        let variant_attr = match parse_variant_attrs(variant) {
+                            Ok(a)  => a,
+                            Err(e) => return e,
+                        };
+                        let edn_key = match variant_attr.key {
+                            Some(k) => k,
+                            None    => return syn::Error::new_spanned(
+                                variant,
+                                "#[derive(Edn)] STOP-2: single-field tuple variant requires \
+                                 #[to_edn(key = \"…\")] to name the schema field.",
+                            )
+                            .to_compile_error(),
+                        };
+                        let field = f.unnamed.iter().next().expect("len == 1");
+                        let field_attr = match parse_field_attrs(field) {
+                            Ok(a)  => a,
+                            Err(e) => return e,
+                        };
+                        if field_attr.skip {
+                            submits.push(quote! {
+                                ::inventory::submit! {
+                                    ::wat_edn::EdnSchema {
+                                        tag_ns:   #namespace_tokens,
+                                        tag_name: #variant_name_str,
+                                        fields:   &[],
+                                    }
+                                }
+                            });
+                        } else if field_attr.via_fn.is_some() {
+                            return syn::Error::new_spanned(
+                                variant,
+                                "#[derive(Edn)] STOP-2: via field in tuple variant has \
+                                 ambiguous logical type; add #[to_edn(skip)].",
+                            )
+                            .to_compile_error();
+                        } else {
+                            let wat_path = match rust_type_to_wat_path(&field.ty) {
+                                Ok(p)  => p,
+                                Err(e) => return e,
+                            };
+                            submits.push(quote! {
+                                ::inventory::submit! {
+                                    ::wat_edn::EdnSchema {
+                                        tag_ns:   #namespace_tokens,
+                                        tag_name: #variant_name_str,
+                                        fields:   &[(#edn_key, #wat_path)],
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    // Multi-field tuple: no safe key assignment.
+                    Fields::Unnamed(_) => {
+                        return syn::Error::new_spanned(
+                            variant,
+                            "#[derive(Edn)] STOP-2: multi-field tuple variants have \
+                             no safe key assignment; convert to a named-field variant.",
+                        )
+                        .to_compile_error();
+                    }
+                }
+            }
+
+            quote! { #(#submits)* }
+        }
+
+        _ => syn::Error::new_spanned(
+            name,
+            "#[derive(Edn)] is supported on enums and named-field structs only.",
+        )
+        .to_compile_error(),
+    }
 }
 
 // Stone B (arc 296): `is_span_type` deleted — `Span: ToEdn` via `#[derive]`

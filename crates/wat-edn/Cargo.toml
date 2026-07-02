@@ -16,6 +16,10 @@ derive = ["dep:wat-to-edn-derive"]
 
 [dependencies]
 wat-to-edn-derive = { path = "../wat-to-edn-derive", optional = true }
+# Arc 296 stone D — `EdnSchema` inventory channel: `collect!` lives here
+# (type-owner), `submit!` lives in any crate that #[derive(Edn)]s,
+# `iter` lives in wat's register_builtin_types drain.
+inventory = "0.3"
 chrono       = { version = "0.4", default-features = false, features = ["std", "clock"] }
 uuid.workspace = true
 num-bigint   = "0.4"

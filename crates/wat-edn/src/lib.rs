@@ -244,6 +244,50 @@ impl<T: ToEdn + ?Sized> ToEdn for std::sync::Arc<T> {
 #[cfg(feature = "derive")]
 pub use wat_to_edn_derive::ToEdn;
 
+/// `#[derive(wat_edn::Edn)]` — the round-trip derive: generates the `ToEdn`
+/// write impl AND submits an `EdnSchema` entry into the link-time inventory so
+/// the reader can reconstruct the type.  One derive → both faces.
+///
+/// Arc 296 stone D: `#[derive(Edn)]` replaces `#[derive(ToEdn)]` for types
+/// that must be readable back.  `#[derive(ToEdn)]` stays for write-only types
+/// (opaque handles, etc.) that never need to be read back.
+#[cfg(feature = "derive")]
+pub use wat_to_edn_derive::Edn;
+
+// ─── EDN schema registry (arc 296 stone D) ──────────────────────────────────
+//
+// `#[derive(Edn)]` emits one `inventory::submit!(EdnSchema { … })` per tagged
+// type it processes.  The drain in `wat/src/types.rs::register_builtin_types`
+// iterates `inventory::iter::<EdnSchema>()` at startup and calls
+// `TypeEnv::register_builtin` for each, making the type readable via
+// `reconstruct_record` in `edn_shim.rs`.
+//
+// Design invariant: `inventory::collect!` MUST live in the same crate as the
+// type definition (`wat-edn`) so the linker sees both the collector and all
+// submitted entries when building the final binary.
+
+/// Link-time schema registry entry for round-trippable EDN types.
+///
+/// A `#[derive(Edn)]` emits `inventory::submit!(EdnSchema { … })` alongside
+/// the `ToEdn` write impl so `reconstruct_record` (the read path in
+/// `edn_shim.rs`) can find the type during startup without any hand-written
+/// registration.
+///
+/// The drain in `wat/src/types.rs::register_builtin_types` iterates
+/// `inventory::iter::<EdnSchema>()` and calls `TypeEnv::register_builtin`
+/// for each entry — exactly the shape the hand-written PROBE used.
+pub struct EdnSchema {
+    /// Namespace component of the EDN tag, e.g. `"wat.core"`.
+    /// Typically a reference to a `wat_edn::*` namespace constant.
+    pub tag_ns: &'static str,
+    /// Name component of the EDN tag, e.g. `"Pos"`.
+    pub tag_name: &'static str,
+    /// Field pairs in declaration order: `(edn-kebab-key, ":wat::type::Path")`.
+    /// Skipped fields (`#[to_edn(skip)]`) are absent.
+    pub fields: &'static [(&'static str, &'static str)],
+}
+inventory::collect!(EdnSchema);
+
 /// Parse a single top-level EDN form from a string.
 ///
 /// Returns `Value<'_>` borrowing from `input` for the [`Value::String`]

@@ -11,3 +11,8 @@ repository = "https://github.com/watmin/wat-rs"
 # ToEdn from below the parser — the cycle-break the split exists for. The
 # `derive` feature is on by wat-edn's default.
 wat-edn = { path = "../wat-edn" }
+# Arc 296 stone D: `#[derive(Edn)]` on Pos (and eventually Span) emits
+# `::inventory::submit!(::wat_edn::EdnSchema { … })` in the generated code.
+# That code is compiled in this crate's context, so inventory must be a
+# direct dependency here so `::inventory` resolves.
+inventory = "0.3"

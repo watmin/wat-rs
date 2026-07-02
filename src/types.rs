@@ -1018,20 +1018,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
-    // PROBE (stone D): register #wat.core/Pos so wat can READ its own emitted Pos.
-    // The disconfirming probe for "register the emitted vocabulary → the existing
-    // reconstruct_record reads it." If this round-trips, the #[derive(Edn)] just
-    // automates this registration for the whole vocabulary.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
-        name: ":wat::core::Pos".into(),
-        type_params: vec![],
-        fields: vec![
-            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
-            ("col".into(), TypeExpr::Path(":wat::core::i64".into())),
-        ],
-        restrictions: None,
-    }));
-
     // :wat::kernel::Frame — one entry from a Rust backtrace. The wat-
     // rs runtime populates these by iterating `std::backtrace::Backtrace`
     // frames when a sandboxed program panics; only populated if
@@ -1574,6 +1560,43 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // built-in root hierarchy seed — no source form exists; unreachable cycle path (two distinct roots).
     env.register_subtype(":wat::holon::Record", ":wat::core::Record", crate::rust_caller_span!())
         .expect("built-in typesub root cannot cycle");
+
+    // Arc 296 stone D — drain `inventory::iter::<::wat_edn::EdnSchema>()`.
+    //
+    // Any Rust type annotated with `#[derive(Edn)]` emits an
+    // `::inventory::submit!(::wat_edn::EdnSchema { … })` at link time.  Here
+    // we iterate those entries and call `register_builtin` for each, making
+    // the type readable by `reconstruct_record` in `edn_shim.rs` without any
+    // hand-written registration.
+    //
+    // Ordering: this runs at `TypeEnv::with_builtins()` time — before stdlib
+    // and user types land — which is correct because these are builtin
+    // substrate types (e.g. `:wat::core::Pos`), not user-defined types.
+    //
+    // rune:sequi(ambient-context) — `inventory::iter` is link-time static
+    // state; the same idiom as the `RestrictionEntry` drain in `freeze/env.rs`.
+    for schema in inventory::iter::<::wat_edn::EdnSchema>() {
+        // Convert "wat.core" + "Pos" → ":wat::core::Pos"
+        let name = format!(
+            ":{}::{}",
+            schema.tag_ns.replace('.', "::"),
+            schema.tag_name,
+        );
+        let fields: Vec<(String, TypeExpr)> = schema
+            .fields
+            .iter()
+            .map(|(edn_key, wat_path)| {
+                ((*edn_key).to_string(), TypeExpr::Path((*wat_path).to_string()))
+            })
+            .collect();
+        env.register_builtin(TypeDef::Aggregate(AggregateDef {
+            holder: Holder::Record,
+            name,
+            type_params: vec![],
+            fields,
+            restrictions: None,
+        }));
+    }
 }
 
 /// Arc 293 K3 — derive the THREE backing aggregates from a surface declaration.
