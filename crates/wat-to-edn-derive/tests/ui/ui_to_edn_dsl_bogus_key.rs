@@ -3,7 +3,7 @@
 // Arc 296 Strike 2a — unknown `#[to_edn(...)]` directives must emit a
 // compile_error! naming the allowed set of directives.
 
-use wat_macros::ToEdn;
+use wat_to_edn_derive::ToEdn;
 
 #[derive(ToEdn)]
 pub enum BadBogus {

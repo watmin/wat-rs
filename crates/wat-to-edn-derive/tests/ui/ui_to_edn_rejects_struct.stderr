@@ -1,0 +1,5 @@
+error: ToEdn struct derive supports named-field structs only
+  --> tests/ui/ui_to_edn_rejects_struct.rs:17:12
+   |
+17 | pub struct BadKind(String);
+   |            ^^^^^^^

@@ -1,5 +1,0 @@
-error: ToEdn derive supports enums (kind-enums) only in Strike 1
- --> tests/ui/ui_to_edn_rejects_struct.rs:9:12
-  |
-9 | pub struct BadKind {
-  |            ^^^^^^^

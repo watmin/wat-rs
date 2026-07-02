@@ -265,7 +265,7 @@ pub struct LoadError {
 /// — a match over the variants. Snake-case field names become kebab-case EDN
 /// keys. The outer `LoadError::to_edn()` splices `:span` last via
 /// `splice_span` (Strike 3b; replaces the deleted hand-written match body).
-#[derive(Debug, wat_macros::ToEdn)]
+#[derive(Debug, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::LOAD)]
 pub enum LoadErrorKind {
     /// The load form was malformed — wrong arity, wrong interface

@@ -2,7 +2,7 @@
 //!
 //! Formerly contained a hand-written `runtime_error_to_edn` match over all 28
 //! [`crate::runtime::RuntimeError`] variants. Arc 298.3 deleted that serializer;
-//! `RuntimeErrorKind` now carries `#[derive(wat_macros::ToEdn)]` and the
+//! `RuntimeErrorKind` now carries `#[derive(wat_edn::ToEdn)]` and the
 //! `impl ToEdn for RuntimeError` wrapper delegates to
 //! `splice_span(self.kind.to_edn(), &self.span)`.
 //!

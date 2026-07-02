@@ -25,7 +25,7 @@ pub struct TypeError {
 /// for TypeErrorKind`. All fields use the default derive (`.to_edn()`); no
 /// nested error causes — `remedies: Vec<Remedy>` serializes via the blanket
 /// `impl<T: ToEdn> ToEdn for Vec<T>`, identical to the deleted `remedies_to_edn`.
-#[derive(Debug, wat_macros::ToEdn)]
+#[derive(Debug, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::TYPE)]
 pub enum TypeErrorKind {
     /// Arc 138 slice 2 — names the OFFENDING decl's name keyword

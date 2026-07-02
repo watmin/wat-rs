@@ -5,7 +5,7 @@
 // `.join(", ")`. The derive parser detects the trailing tokens and emits a
 // compile_error! naming the constraint.
 
-use wat_macros::ToEdn;
+use wat_to_edn_derive::ToEdn;
 
 #[derive(ToEdn)]
 pub enum BadVia {

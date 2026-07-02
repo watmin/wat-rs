@@ -390,7 +390,7 @@ pub struct StdlibError {
 /// `:message`/`:location`/`:causes`) matching the deleted hand-written serializer
 /// which called `cause.error_edn()`. The `path` field (`&'static str`) serializes
 /// via the blanket `impl<T: ToEdn+?Sized> ToEdn for &T` + `impl ToEdn for str`.
-#[derive(Debug, wat_macros::ToEdn)]
+#[derive(Debug, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::STDLIB)]
 pub enum StdlibErrorKind {
     ParseFailed {

@@ -1,7 +1,7 @@
 //! Arc 296 / Arc 298.3 — EDN serializers for `MacroError` and `StartupError`.
 //!
 //! Arc 298.3 deleted `macro_error_to_edn`; `MacroErrorKind` now carries
-//! `#[derive(wat_macros::ToEdn)]` and the `impl ToEdn for MacroError` wrapper
+//! `#[derive(wat_edn::ToEdn)]` and the `impl ToEdn for MacroError` wrapper
 //! delegates to `splice_span(self.kind.to_edn(), &self.span)`.
 //!
 //! `startup_error_to_edn` is KEPT (transparent passthrough, no smuggle hazard).

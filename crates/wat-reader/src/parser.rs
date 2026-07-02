@@ -107,6 +107,60 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
+// ─── ToEdn ──────────────────────────────────────────────────────────────────
+//
+// The impl lives in `wat-reader` (where `ParseError` is defined) rather than
+// in the `wat` crate because `ToEdn` is now in `wat-edn`. The orphan rule
+// forbids implementing a foreign trait for a foreign type; keeping the impl
+// in the crate that owns the type satisfies the rule.
+//
+// The `"wat.parse"` namespace literal mirrors `crate::error_ns::PARSE` in
+// the `wat` crate. They must stay in sync.
+
+impl wat_edn::ToEdn for ParseError {
+    /// `#wat.parse/<VariantName> {:span {…} <variant fields>}` — Pattern A:
+    /// span at the outer struct. The `Lex` variant nests the underlying
+    /// `LexError` message as `:cause`; every other variant is structureless.
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use std::borrow::Cow;
+        use wat_edn::{Keyword, OwnedValue, Tag};
+
+        let (variant, mut fields): (&str, Vec<(OwnedValue, OwnedValue)>) = match &self.kind {
+            ParseErrorKind::Lex(e) => (
+                "Lex",
+                vec![(
+                    OwnedValue::Keyword(Keyword::new("cause")),
+                    OwnedValue::String(Cow::Owned(e.to_string())),
+                )],
+            ),
+            ParseErrorKind::UnexpectedRParen => ("UnexpectedRParen", vec![]),
+            ParseErrorKind::UnclosedParen => ("UnclosedParen", vec![]),
+            ParseErrorKind::UnexpectedRBracket => ("UnexpectedRBracket", vec![]),
+            ParseErrorKind::UnclosedBracket => ("UnclosedBracket", vec![]),
+            ParseErrorKind::UnexpectedRBrace => ("UnexpectedRBrace", vec![]),
+            ParseErrorKind::UnclosedBrace => ("UnclosedBrace", vec![]),
+            ParseErrorKind::MalformedBraceLiteral { reason } => (
+                "MalformedBraceLiteral",
+                vec![(
+                    OwnedValue::Keyword(Keyword::new("reason")),
+                    OwnedValue::String(Cow::Owned(reason.clone())),
+                )],
+            ),
+            ParseErrorKind::TrailingContent => ("TrailingContent", vec![]),
+            ParseErrorKind::Empty => ("Empty", vec![]),
+        };
+        // Append the span — always present (arc 298.2: every span is real).
+        fields.push((
+            OwnedValue::Keyword(Keyword::new("span")),
+            self.span.to_edn(),
+        ));
+        OwnedValue::Tagged(
+            Tag::ns("wat.parse", variant),
+            Box::new(OwnedValue::Map(fields)),
+        )
+    }
+}
+
 impl From<LexError> for ParseError {
     fn from(e: LexError) -> Self {
         ParseError { span: crate::rust_caller_span!(), kind: ParseErrorKind::Lex(e) }

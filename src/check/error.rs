@@ -51,7 +51,7 @@ pub struct CheckError {
 /// their domain names (e.g. `"output-location"`, `"bind-location"`). Primary spans
 /// are never in the kind enum — they live on the outer `CheckError.span` field and
 /// are spliced in uniformly by `impl ToEdn for CheckError`.
-#[derive(Debug, Clone, wat_macros::ToEdn)]
+#[derive(Debug, Clone, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::CHECK)]
 pub enum CheckErrorKind {
     /// Arc 138 slice 1 — arity mismatch at a call site.
@@ -327,7 +327,7 @@ pub enum CheckErrorKind {
 /// `#wat.kernel/<Tag>` tagged value with its fields as a map — structure
 /// preserved by construction. `Display` reproduces the original prose
 /// byte-for-byte so the human-visible sentence is unchanged.
-#[derive(Debug, Clone, wat_macros::ToEdn)]
+#[derive(Debug, Clone, wat_edn::ToEdn)]
 pub enum EnsureFnInvalidReason {
     /// The `:ensure` form is not a `:wat::core::fn` list.
     NotFnForm,

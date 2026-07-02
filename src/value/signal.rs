@@ -117,11 +117,11 @@ pub struct RuntimeError {
 /// **Freeze pair** (`UserMainMissing`, `EvalVerificationFailed`): no span on
 /// the kind; construct with outer `crate::rust_caller_span!()`, honestly elided by Display.
 ///
-/// Arc 298.3: `#[derive(wat_macros::ToEdn)]` generates the kind enum's
+/// Arc 298.3: `#[derive(wat_edn::ToEdn)]` generates the kind enum's
 /// `impl ToEdn`. The outer `RuntimeError::to_edn()` wraps it with
 /// `splice_span(self.kind.to_edn(), &self.span)`. Replaces the deleted
 /// hand-written `runtime_error_to_edn` match in `runtime_error_edn.rs`.
-#[derive(Debug, wat_macros::ToEdn)]
+#[derive(Debug, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::RUNTIME)]
 pub enum RuntimeErrorKind {
     #[to_edn(key = "name")]

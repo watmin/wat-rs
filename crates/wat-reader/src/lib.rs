@@ -17,26 +17,32 @@ pub use identifier::{fresh_scope, Identifier, ScopeId};
 pub use parser::{parse_all_with_file, parse_one_with_file, ParseError, ParseErrorKind};
 pub use span::Span;
 
-// PROBE (arc 296 stone A disconfirming probe) — proves a re-exported derive
-// macro with a helper attribute resolves as `#[derive(wat_edn::…)]` from a
-// dependent crate, with no dependency cycle (wat-reader → wat-edn →
-// wat-to-edn-derive is acyclic). Deleted when the real ToEdn derive lands.
+// Arc 296 stone A: real cross-crate derive guard.
+//
+// Proves the REAL `ToEdn` derive works from `wat-reader` (a crate that does
+// NOT depend on `wat` or `wat-macros`). The cycle-break the stone exists for:
+// wat-reader → wat-edn → wat-to-edn-derive (acyclic). This test persists as
+// the guard until stone B makes Span itself a derive-tagged record.
 #[cfg(test)]
-mod probe_arc296_stone_a {
-    #[derive(wat_edn::ProbeToEdn)]
-    #[to_edn(namespace = "probe")]
+mod real_derive_cross_crate {
+    /// Minimal struct that derives `wat_edn::ToEdn` from `wat-reader`.
+    /// No namespace attr → defaults to `"wat.kernel"` (the back-compat default).
+    #[derive(wat_edn::ToEdn)]
     #[allow(dead_code)]
-    struct ProbeSpan {
+    struct ReaderProbe {
+        name: String,
         line: i64,
     }
 
     #[test]
-    fn reexported_derive_resolves_from_a_dependent_with_no_cycle() {
-        use wat_edn::ProbeToEdn;
-        let v = ProbeSpan { line: 3 }.probe_to_edn();
-        assert!(
-            matches!(v, wat_edn::OwnedValue::Nil),
-            "the re-exported derive emitted a working impl"
+    fn real_derive_works_cross_crate_no_cycle() {
+        use wat_edn::ToEdn;
+        let v = ReaderProbe { name: "x".to_owned(), line: 7 }.to_edn();
+        let edn = wat_edn::write(&v);
+        assert_eq!(
+            edn,
+            r#"#wat.kernel/ReaderProbe {:name "x" :line 7}"#,
+            "the real ToEdn derive emits a correct tagged record from wat-reader"
         );
     }
 }

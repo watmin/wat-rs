@@ -134,3 +134,34 @@ impl std::hash::Hash for Span {
 pub fn span_prefix(span: &Span) -> String {
     format!("{}: ", span)
 }
+
+// ─── ToEdn ──────────────────────────────────────────────────────────────────
+//
+// The impl lives in `wat-reader` (where `Span` is defined) rather than in
+// the `wat` crate because `ToEdn` is now defined in `wat-edn`. The orphan
+// rule forbids implementing a foreign trait for a foreign type; keeping the
+// impl in the crate that owns the type satisfies the rule.
+//
+// The produced form `{:file "…" :line N :col N}` is identical to
+// `panic_hook::span_to_map` in the `wat` crate — the two must stay in sync.
+
+impl wat_edn::ToEdn for Span {
+    fn to_edn(&self) -> wat_edn::OwnedValue {
+        use std::borrow::Cow;
+        use wat_edn::{Keyword, OwnedValue};
+        OwnedValue::Map(vec![
+            (
+                OwnedValue::Keyword(Keyword::new("file")),
+                OwnedValue::String(Cow::Owned(self.file.as_str().to_owned())),
+            ),
+            (
+                OwnedValue::Keyword(Keyword::new("line")),
+                OwnedValue::Integer(self.line),
+            ),
+            (
+                OwnedValue::Keyword(Keyword::new("col")),
+                OwnedValue::Integer(self.col),
+            ),
+        ])
+    }
+}

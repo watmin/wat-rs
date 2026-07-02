@@ -96,19 +96,134 @@ pub use writer::{write, write_pretty, write_to};
 /// name. Returned by [`Value::into_owned`] and [`parse_owned`].
 pub type OwnedValue = Value<'static>;
 
-/// PROBE (arc 296 stone A) — the trait the re-exported derive targets.
-/// The real `ToEdn` descends here (from the `wat` crate's `to_edn.rs`) once
-/// the probe is green; `ProbeToEdn` is a throwaway that proves the shape.
-pub trait ProbeToEdn {
-    fn probe_to_edn(&self) -> OwnedValue;
+/// Serialize `self` to a structured tagged [`OwnedValue`].
+///
+/// Every error and diagnostic type in `wat` implements this trait. The wire and
+/// IPC boundaries in `wat` are generic over `ToEdn`, so a type that does not
+/// implement this trait cannot reach the wire.
+///
+/// The trait lives here (in `wat-edn`, the foundational crate) so that
+/// `wat-reader` — and every crate — can `#[derive(wat_edn::ToEdn)]` without a
+/// dependency cycle. The companion derive macro lives in `wat-to-edn-derive`
+/// and is re-exported under the `derive` feature (the serde/serde_derive
+/// pattern).
+///
+/// ## Contract
+/// - The returned value MUST be structured tagged EDN, NOT a bare
+///   `OwnedValue::String`.
+/// - The `OwnedValue` passthrough impl (`impl ToEdn for OwnedValue`) allows
+///   pre-computed EDN values to cross the boundary without unwrapping.
+pub trait ToEdn {
+    fn to_edn(&self) -> OwnedValue;
+}
+
+/// Identity implementation: an already-serialized [`OwnedValue`] is itself
+/// the EDN form.
+impl ToEdn for OwnedValue {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        self.clone()
+    }
+}
+
+// ─── Primitive + container `ToEdn` impls ────────────────────────────────────
+//
+// These live here (where the trait is defined) to satisfy the orphan rule:
+// implementing a foreign trait for a foreign type is forbidden. String, i64,
+// Vec<T>, Option<T> etc. are all std/core types; only the trait's defining
+// crate may implement it for them.
+
+impl ToEdn for String {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::String(std::borrow::Cow::Owned(self.clone()))
+    }
+}
+
+impl ToEdn for str {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::String(std::borrow::Cow::Owned(self.to_owned()))
+    }
+}
+
+impl ToEdn for i64 {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Integer(*self)
+    }
+}
+
+impl ToEdn for usize {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Integer(*self as i64)
+    }
+}
+
+impl ToEdn for u32 {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Integer(*self as i64)
+    }
+}
+
+impl ToEdn for bool {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Bool(*self)
+    }
+}
+
+impl<T: ToEdn> ToEdn for Vec<T> {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        OwnedValue::Vector(self.iter().map(|x| x.to_edn()).collect())
+    }
+}
+
+impl<T: ToEdn> ToEdn for Option<T> {
+    /// `None` → `#wat.core.Option/None nil`.
+    /// `Some(v)` → `#wat.core.Option/Some <v.to_edn()>`.
+    ///
+    /// A transparent `nil`/`<inner>` form erases the discriminant — bare nil
+    /// is `:wat::core::nil` (a nil value), NOT `None` (an absent option).
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        match self {
+            None => OwnedValue::Tagged(
+                value::Tag::ns("wat.core.Option", "None"),
+                Box::new(OwnedValue::Nil),
+            ),
+            Some(v) => OwnedValue::Tagged(
+                value::Tag::ns("wat.core.Option", "Some"),
+                Box::new(v.to_edn()),
+            ),
+        }
+    }
+}
+
+impl<T: ToEdn> ToEdn for Box<T> {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        (**self).to_edn()
+    }
+}
+
+/// Blanket: a reference to any `ToEdn` type is itself `ToEdn` (by delegation).
+impl<T: ToEdn + ?Sized> ToEdn for &T {
+    #[inline]
+    fn to_edn(&self) -> OwnedValue {
+        (**self).to_edn()
+    }
 }
 
 /// Re-export the companion derive so consumers write
-/// `#[derive(wat_edn::ProbeToEdn)]` — the serde/serde_derive pattern. A trait
+/// `#[derive(wat_edn::ToEdn)]` — the serde/serde_derive pattern. A trait
 /// and a derive macro may share a name (type vs macro namespace), exactly as
 /// `serde::Serialize` is both.
 #[cfg(feature = "derive")]
-pub use wat_to_edn_derive::ProbeToEdn;
+pub use wat_to_edn_derive::ToEdn;
 
 /// Parse a single top-level EDN form from a string.
 ///

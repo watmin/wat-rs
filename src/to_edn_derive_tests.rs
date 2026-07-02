@@ -69,7 +69,7 @@ fn toy_hints(a: &String, b: &String) -> Option<Vec<String>> {
 ///
 /// The `span` field's default key would be `:span`; the annotation overrides
 /// it to `:call-span`. Arc 298.2: always emitted (no sentinel elision).
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 enum KeyRenameTest {
     WithCallSpan {
         #[to_edn(key = "call-span")]
@@ -84,7 +84,7 @@ enum KeyRenameTest {
 /// derive would generate `xs.to_edn()` which would not compile. With
 /// `via = toy_transform`, the field is serialized by calling
 /// `toy_transform(xs)` instead — no `ToEdn` bound required.
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 enum FieldViaTest {
     Transform {
         #[to_edn(via = toy_transform)]
@@ -98,7 +98,7 @@ enum FieldViaTest {
 /// `NilType` is a unit variant with two synthetic constant pairs prepended.
 /// `Mixed` is a struct variant where the literal pair is prepended before the
 /// real `count` field.
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 enum LiteralTest {
     #[to_edn(literal(primitive = ":()", fqdn = ":wat::core::nil"))]
     NilType,
@@ -111,7 +111,7 @@ enum LiteralTest {
 /// `toy_hints(a, b)` receives the bound field idents directly and returns
 /// `Option<Vec<String>>`. On `Some`, `:hints [...]` is appended. On `None`,
 /// the key is elided.
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 enum ViaVariantTest {
     #[to_edn(via(key = "hints", fn = toy_hints, args(a, b)))]
     Pair { a: String, b: String },
@@ -123,7 +123,7 @@ enum ViaVariantTest {
 /// `#[to_edn(key = "outer-span")]` so the EDN key is `:outer-span` instead of
 /// the snake→kebab default `:outer-define-span`. Both fields are always emitted
 /// since `rust_caller_span!()` is a real Rust location (sentinel retired).
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 enum MultiSpanTest {
     Def {
         span: crate::span::Span,
@@ -159,13 +159,13 @@ fn key_rename_span_known_emits_renamed_key() {
 // one tagged record `#wat.<ns>/<Name> {fields}`, namespace via `#[to_edn(namespace = ...)]`,
 // with `Option<record>` nesting honestly (#wat.core.Option/{Some,None}). The pattern the
 // `#wat.core/Span` record (Stone 2) is built on: a struct → a typed record, data all the way down.
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::CORE)]
 struct PosProbe296 {
     line: i64,
     col: i64,
 }
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::CORE)]
 struct SpanProbe296 {
     file: String,
@@ -361,7 +361,7 @@ fn secondary_span_both_rust_caller_both_emit() {
 /// This is the minimal proof of the new tuple-variant capability: the variant
 /// tag is emitted as usual; the single field gets the EDN key declared by
 /// the variant-level annotation.
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 enum TupleVariantTest {
     /// Keyed single-field tuple: variant-level key names the field's EDN key.
     #[to_edn(key = "cause")]
@@ -377,7 +377,7 @@ fn toy_tuple_via(s: &String) -> OwnedValue {
 
 /// F2. Tuple variant with field-level `via` — field-level `#[to_edn(via = ...)]`
 /// overrides how the single field's value is computed.
-#[derive(wat_macros::ToEdn)]
+#[derive(wat_edn::ToEdn)]
 enum TupleVariantViaTest {
     #[to_edn(key = "len")]
     WithVia(

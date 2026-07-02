@@ -269,12 +269,10 @@ fn keyword_from_callee_path(path: &str) -> OwnedValue {
 }
 
 // ─── ToEdn impls ─────────────────────────────────────────────────────────────
-
-impl crate::to_edn::ToEdn for crate::span::Span {
-    fn to_edn(&self) -> OwnedValue {
-        span_to_edn(self)
-    }
-}
+//
+// `impl ToEdn for Span` moved to `wat-reader/src/span.rs` (orphan rule:
+// `Span` is defined in `wat-reader`; `ToEdn` is defined in `wat-edn`; the
+// impl must live in the crate that owns the type).
 
 impl crate::to_edn::ToEdn for crate::assertion::AssertionPayload {
     fn to_edn(&self) -> OwnedValue {

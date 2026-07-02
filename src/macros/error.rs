@@ -14,12 +14,12 @@ pub struct MacroError {
 /// Variant data for [`MacroError`]. Spans live in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
 ///
-/// Arc 298.3: `#[derive(wat_macros::ToEdn)]` generates the kind enum's
+/// Arc 298.3: `#[derive(wat_edn::ToEdn)]` generates the kind enum's
 /// `impl ToEdn`. The outer `MacroError::to_edn()` wraps it with
 /// `splice_span(self.kind.to_edn(), &self.span)`. Replaces the deleted
 /// hand-written `macro_error_to_edn` match in `macros/error_edn.rs`.
 // MacroErrorKind is pub because it's the type of MacroError's pub `kind` field (no private-in-public).
-#[derive(Debug, wat_macros::ToEdn)]
+#[derive(Debug, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::MACRO)]
 pub enum MacroErrorKind {
     /// Two `(:wat::core::defmacro ...)` forms registered the same name.

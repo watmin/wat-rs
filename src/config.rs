@@ -134,7 +134,7 @@ pub struct ConfigError {
 
 /// Variant data for [`ConfigError`]. Spans live in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
-#[derive(Debug, Clone, PartialEq, wat_macros::ToEdn)]
+#[derive(Debug, Clone, PartialEq, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::CONFIG)]
 pub enum ConfigErrorKind {
     /// A `set-*!` form appeared after a non-setter form in the entry file.

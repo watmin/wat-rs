@@ -35,23 +35,10 @@
 
 use wat_edn::OwnedValue;
 
-/// Serialize `self` to a structured tagged [`OwnedValue`].
-///
-/// Every error and diagnostic type implements this trait. The wire and IPC
-/// boundaries are generic over `ToEdn`, so a type that does not implement
-/// this trait cannot reach the wire.
-///
-/// ## Contract
-/// - The returned value MUST be structured tagged EDN, NOT a bare
-///   `OwnedValue::String`. A `String` payload at the wire boundary is a
-///   violation of the "EDN all the way down" principle.
-/// - Implementations delegate to the existing named free functions
-///   (`runtime_error_to_edn`, `macro_error_to_edn`, …) so behavior is
-///   byte-identical to the pre-trait path. The free functions are thin
-///   wrappers once the impls exist.
-pub trait ToEdn {
-    fn to_edn(&self) -> OwnedValue;
-}
+/// Re-exported from `wat-edn` (where the trait is now defined). All
+/// `impl ToEdn for LocalType` sites in this crate use `crate::to_edn::ToEdn`
+/// which resolves here via this re-export — unchanged by the trait relocation.
+pub use wat_edn::ToEdn;
 
 // ─── The floor trait (arc 296 strike 2) ──────────────────────────────────────
 
@@ -158,122 +145,13 @@ pub trait WatError {
     }
 }
 
-/// Identity implementation: an already-serialized [`OwnedValue`] is itself
-/// the EDN form.
-///
-/// This impl is the passthrough at the wire boundary — code that builds an
-/// `OwnedValue` directly (e.g. via `make_simple_edn`) can pass it to the
-/// generic `impl ToEdn` boundary without loss of type safety. The constraint
-/// still holds: any type that is NOT already an `OwnedValue` and carries no
-/// `ToEdn` impl cannot reach the wire.
-impl ToEdn for OwnedValue {
-    fn to_edn(&self) -> OwnedValue {
-        self.clone()
-    }
-}
-
 // ─── Building blocks — primitive + container `ToEdn` impls ───────────────────
 //
-// These are the foundation for `#[derive(ToEdn)]`: every field in a kind-enum
-// calls `.to_edn()` on its value, so a field type without `ToEdn` is a compile
-// error. Each impl is byte-identical to the corresponding `edn_str` / `edn_int`
-// / etc. constructor above.
-
-impl ToEdn for String {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        OwnedValue::String(std::borrow::Cow::Owned(self.clone()))
-    }
-}
-
-impl ToEdn for str {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        OwnedValue::String(std::borrow::Cow::Owned(self.to_owned()))
-    }
-}
-
-impl ToEdn for i64 {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        OwnedValue::Integer(*self)
-    }
-}
-
-impl ToEdn for usize {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        OwnedValue::Integer(*self as i64)
-    }
-}
-
-impl ToEdn for u32 {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        OwnedValue::Integer(*self as i64)
-    }
-}
-
-impl ToEdn for bool {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        OwnedValue::Bool(*self)
-    }
-}
-
-impl<T: ToEdn> ToEdn for Vec<T> {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        OwnedValue::Vector(self.iter().map(|x| x.to_edn()).collect())
-    }
-}
-
-impl<T: ToEdn> ToEdn for Option<T> {
-    /// Arc 298.1 — Option is a discriminated type; serialize with its tag.
-    ///
-    /// `None` → `#wat.core.Option/None nil` (the tag needs a body; nil is
-    /// the honest placeholder for "there is no value").
-    /// `Some(v)` → `#wat.core.Option/Some <v.to_edn()>`.
-    ///
-    /// This mirrors 298.1's edn_shim update (Value::Option write arms).
-    /// A transparent `nil`/`<inner>` form erases the discriminant — bare nil
-    /// is `:wat::core::nil` (a nil value), NOT `None` (an absent option).
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        match self {
-            None => OwnedValue::Tagged(
-                wat_edn::Tag::ns("wat.core.Option", "None"),
-                Box::new(OwnedValue::Nil),
-            ),
-            Some(v) => OwnedValue::Tagged(
-                wat_edn::Tag::ns("wat.core.Option", "Some"),
-                Box::new(v.to_edn()),
-            ),
-        }
-    }
-}
-
-impl<T: ToEdn> ToEdn for Box<T> {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        (**self).to_edn()
-    }
-}
-
-/// Blanket: a reference to any `ToEdn` type is itself `ToEdn` (by delegation).
-///
-/// This is the bridge that lets derive-generated code call `.to_edn()` on
-/// a field reference (`field: &String` → `<&String as ToEdn>::to_edn(field)`)
-/// without needing explicit auto-deref. It also handles the double-reference
-/// case (`expected: &&'static str` from a `&'static str` field after pattern
-/// matching on `&self`) correctly: each level delegates to the next until the
-/// base impl is reached.
-impl<T: ToEdn + ?Sized> ToEdn for &T {
-    #[inline]
-    fn to_edn(&self) -> OwnedValue {
-        (**self).to_edn()
-    }
-}
+// These impls live in `wat-edn` (where the trait is defined) to satisfy
+// the orphan rule: implementing a foreign trait for a foreign type is
+// forbidden. Primitive and std impls (String, i64, Vec<T>, Option<T>, …)
+// are provided by `wat-edn`. Local `wat`-crate types (FlatMessage, error
+// kinds, …) are implemented in their respective modules.
 
 // ─── Shared low-level EDN builders ───────────────────────────────────────────
 //
