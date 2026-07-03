@@ -411,6 +411,23 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
             continue;
         }
 
+        // Non-ASCII token-start byte — clean refusal, never a panic (arc 300
+        // stone reader-unicode-parity). wat source is a narrower grammar than
+        // EDN — a Unicode symbol isn't wat source, and wat-reader doesn't try
+        // to parse it (that's `wat-edn`'s job, the clj-parity target). Must
+        // sit AFTER the string/char-literal dispatch above (so `"héllo"` and
+        // `\é` are unaffected — those are legitimate UTF-8 content reached via
+        // their own ASCII-byte dispatch) and BEFORE keyword/symbol dispatch
+        // below, so the byte-wise `lex_keyword` / `lex_symbol` scanners never
+        // see a multi-byte lead byte. `c` here is `bytes[i] as char` (a Latin-1
+        // widen, not a real decode); re-decode the true scalar from `src` for
+        // the error (`i` is a valid char boundary — every prior token fully
+        // consumed its bytes).
+        if !c.is_ascii() {
+            let real = src[i..].chars().next().unwrap_or(c);
+            return Err(LexError { position: i, kind: LexErrorKind::UnexpectedChar(real) });
+        }
+
         // Keyword token — end_i = `next` (one past the last keyword char).
         if c == ':' {
             let start = i;

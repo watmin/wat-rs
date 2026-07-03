@@ -176,7 +176,12 @@ impl<'a> Lexer<'a> {
                 let start = self.pos;
                 self.lex_number(start)
             }
-            _ if is_symbol_start(b) => {
+            // Non-ASCII lead byte in token-start position — admit it as a
+            // symbol start (clj-parity: `clojure.edn` reads `😀`/`é`/`λ`/
+            // `foo→bar` as Symbols). Previously dead-ended at `UnexpectedByte`;
+            // `lex_symbol` now decodes the scalar (mirrors the `decode_utf8_char`
+            // pattern the char-literal path already uses below).
+            _ if is_symbol_start(b) || b >= 0x80 => {
                 let start = self.pos;
                 self.lex_symbol(start)
             }
@@ -398,6 +403,21 @@ impl<'a> Lexer<'a> {
         let mut decoded_body: Option<String> = None;
         while let Some(b) = self.peek() {
             let in_brackets = depth > 0;
+            // Non-ASCII scalar: clj-parity admits it as a keyword-body
+            // constituent (`:λ`, `:a😀`). It's never `<`/`>`/`,`/`_`, so it
+            // can't affect depth tracking or the wire-decode swap below —
+            // decode it (same `decode_utf8_char` pattern as the char-literal
+            // and symbol paths), push it whole if the body is already owned,
+            // advance by its full byte width, and move to the next byte.
+            if b >= 0x80 {
+                let (c, byte_len) = decode_utf8_char(&self.input[self.pos..])
+                    .map_err(|e| Error::at(self.pos, ErrorKind::Utf8(e)))?;
+                if let Some(buf) = decoded_body.as_mut() {
+                    buf.push(c);
+                }
+                self.pos += byte_len;
+                continue;
+            }
             let body_continue = is_symbol_continue(b) || (in_brackets && b == b',');
             if !body_continue {
                 break;
@@ -450,13 +470,23 @@ impl<'a> Lexer<'a> {
             .peek()
             .ok_or_else(|| Error::at(start, ErrorKind::InvalidSymbol("empty".into())))?;
 
-        if !is_symbol_start(first) {
+        if first >= 0x80 {
+            // Non-ASCII lead byte: clj-parity admits any Unicode scalar as a
+            // symbol-start char (`😀`, `é`, `λ`). Decode the full scalar
+            // (same `decode_utf8_char` pattern as the char-literal path
+            // above) so `self.pos` lands on the next char boundary, never
+            // mid-sequence.
+            let (_, byte_len) = decode_utf8_char(&self.input[self.pos..])
+                .map_err(|e| Error::at(self.pos, ErrorKind::Utf8(e)))?;
+            self.pos += byte_len;
+        } else if !is_symbol_start(first) {
             return Err(Error::at(
                 start,
                 ErrorKind::InvalidSymbol(format!("invalid first byte 0x{:02x}", first)),
             ));
+        } else {
+            self.pos += 1;
         }
-        self.pos += 1;
 
         // Spec: "If `-`, `+` or `.` are the first character, the second
         // character (if any) must be non-numeric." (`-N` / `+N` are routed
@@ -476,6 +506,12 @@ impl<'a> Lexer<'a> {
         while let Some(b) = self.peek() {
             if is_symbol_continue(b) {
                 self.pos += 1;
+            } else if b >= 0x80 {
+                // Non-ASCII continuation scalar (clj-parity: `foo→bar` is one
+                // Symbol). Decode + advance by the full char width.
+                let (_, byte_len) = decode_utf8_char(&self.input[self.pos..])
+                    .map_err(|e| Error::at(self.pos, ErrorKind::Utf8(e)))?;
+                self.pos += byte_len;
             } else {
                 break;
             }
