@@ -94,8 +94,9 @@ fn comparison_string_same_type_works() {
 // problem. Arc 300 C4 solved N-ary (heterogeneous N-ary → an honest
 // NoMatchingClause gap) and adopted 2-ary mixed contagion — "clojure's
 // expressability on rust's platform": `(+ 1 2.0)` => 3.0 (float wins). So these
-// mixed-ARITHMETIC fixtures now TYPE-CHECK (=> f64). Comparison is a separate
-// thread and still rejects at check (see `comparison_i64_f64_mixed_rejected_at_check`).
+// mixed-ARITHMETIC fixtures now TYPE-CHECK (=> f64). Comparison was a separate
+// thread; arc 300 C5 closed it too (see `comparison_i64_f64_mixed_coerces`
+// below) — checker now matches eval + clj for mixed-numeric comparison.
 
 #[test]
 fn arith_i64_f64_mixed_coerces_to_f64() {
@@ -124,13 +125,17 @@ fn arith_f64_i64_mixed_coerces_to_f64() {
 }
 
 #[test]
-fn comparison_i64_f64_mixed_rejected_at_check() {
+fn comparison_i64_f64_mixed_coerces() {
+    // arc 300 C5: mixed-numeric comparison now type-checks (consistency with C4's
+    // arithmetic reversal + eval + clj — `(< 1 2.0)` => true both at check and eval).
+    // Retires 237.8a's comparison-side cross-numeric reject; see `infer_ordering`'s
+    // `both_numeric` arm (src/check.rs).
     let result = startup_from_file(
         "tests/types/probe_arc237_8a_no_implicit_coercion_cmp_i64_f64_bad.wat",
     );
     assert!(
-        result.is_err(),
-        "i64 < f64 MUST reject at check (no implicit coercion in comparison); got: {:?}",
+        result.is_ok(),
+        "i64 < f64 now coerces/type-checks (arc 300 C5 retired 237.8a's comparison reject); got: {:?}",
         result,
     );
 }

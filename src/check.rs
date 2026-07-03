@@ -12385,6 +12385,23 @@ fn infer_hashset_constructor(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
+/// Arc 300 Stone C5 — the mixed-numeric CHECK class.
+///
+/// `{i64, f64, bigint, rational}` — the four numeric leaf types whose
+/// cross-pairs `values_equal`/`values_compare` (runtime.rs) already
+/// compute (C1–C4). `u8` deliberately excluded: it has no cross-numeric
+/// arm in the eval matrix (only `u8,u8`), so admitting it here would
+/// open a check-accepts/eval-has-no-arm gap — the STOP trigger this
+/// stone must not hit. Shared by `infer_equality` (`= not=`) and
+/// `infer_ordering` (`< > <= >=`) — both comparison-family checkers
+/// undo 237.8a's cross-numeric deletion the same way, for numerics only.
+fn is_numeric_check_path(p: &str) -> bool {
+    matches!(
+        p,
+        ":wat::core::i64" | ":wat::core::f64" | ":wat::core::bigint" | ":wat::core::rational"
+    )
+}
+
 /// Arc 050 — polymorphic comparison/equality inference.
 ///
 /// Check-side signature inference for the polymorphic comparison
@@ -12460,6 +12477,10 @@ fn infer_equality(
                 || crate::types::is_subtype(bp, ap, env.types())
                 || (crate::types::is_subtype(ap, ":wat::core::Record", env.types())
                     && crate::types::is_subtype(bp, ":wat::core::Record", env.types()))
+                // Arc 300 Stone C5 — both_numeric: undoes 237.8a's cross-numeric
+                // deletion for the numeric case only. `(= 1 1.0)` now type-checks
+                // (still evaluates to `false` — category-aware `=` is C4's, unchanged).
+                || (is_numeric_check_path(ap) && is_numeric_check_path(bp))
         } else {
             false
         };
@@ -12573,12 +12594,21 @@ fn infer_ordering(
         // This is the principal doc: the error KIND changes from NoMatchingClause (old defclause
         // path) to TypeMismatch (unify failure) for cross-type ordering.
         if unify(&a_resolved, &b_resolved, subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: op.into(),
-                param: "#2".into(),
-                expected: format_type(&apply_subst(&a_resolved, subst)),
-                got: format_type(&apply_subst(&b_resolved, subst))
-            } });
+            // Arc 300 Stone C5 — both_numeric EXCEPTION: a unify failure between two DIFFERENT
+            // numeric leaf types (`(< 1 2.0)`, i64 vs f64) is well-formed (matches eval + clj) —
+            // only the cross-numeric unify-fail case is excepted; same-type unify success below
+            // (incl. same-type bigint/rational, whose `is_type_orderable` gate is untouched) is
+            // out of C5's scope.
+            let both_numeric = matches!(&a_resolved, TypeExpr::Path(p) if is_numeric_check_path(p))
+                && matches!(&b_resolved, TypeExpr::Path(p) if is_numeric_check_path(p));
+            if !both_numeric {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: op.into(),
+                    param: "#2".into(),
+                    expected: format_type(&apply_subst(&a_resolved, subst)),
+                    got: format_type(&apply_subst(&b_resolved, subst))
+                } });
+            }
         } else {
             // Types unified — now gate on the orderable class.
             let unified = apply_subst(&a_resolved, subst);

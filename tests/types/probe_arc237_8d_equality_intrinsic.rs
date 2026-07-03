@@ -12,6 +12,9 @@
 //!   - REGRESSION (GREEN at HEAD + after): uniform `=`/`not=` over scalars,
 //!     composites, and RECORDS (the ∀T relational case the cut must not regress);
 //!     cross-numeric / cross-type stay check errors.
+//!     [arc 300 C5 update: cross-numeric `=` now type-checks — see
+//!     `regression_cross_numeric_now_type_checks` below; cross-type stays a check
+//!     error, unchanged, out of C5's scope.]
 //!   - CUT-CONFIRMERS (RED at HEAD — the aliases still resolve; `#[ignore]`'d):
 //!     un-ignored by sonnet after the four aliases are removed, then GREEN.
 //!
@@ -63,11 +66,15 @@ fn regression_eq_records_is_the_relational_case() {
 }
 
 #[test]
-fn regression_cross_numeric_is_check_error() {
+fn regression_cross_numeric_now_type_checks() {
+    // arc 300 C5 RETIRED 237.8a's comparison-side reject: mixed-numeric `=` now
+    // type-checks (`infer_equality`'s `both_numeric` arm), matching eval + clj.
+    // `(= 1 2.0)` still EVALS to `false` (category-aware `=`, C4's contract,
+    // unchanged). Formerly `regression_cross_numeric_is_check_error`.
     let r = startup_from_file(
         "tests/types/probe_arc237_8d_equality_intrinsic_cross_numeric_bad.wat",
     );
-    assert!(r.is_err(), "cross-numeric `=` must be a check error");
+    assert!(r.is_ok(), "cross-numeric `=` now type-checks (arc 300 C5); got: {:?}", r);
 }
 
 #[test]

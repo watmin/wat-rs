@@ -12,6 +12,9 @@
 //!   - REGRESSION (preserve behavior; GREEN at HEAD): polymorphic `=`/`not=` over
 //!     scalars + composites; cross-numeric `(= 1 2.0)` and cross-type `(= 1 "x")`
 //!     are check errors (THE DECISION + existing infer_comparison).
+//!     [arc 300 C5 update: cross-numeric `=` now type-checks — see
+//!     `regression_cross_numeric_now_type_checks` below; cross-type stays a check
+//!     error, unchanged, out of C5's scope.]
 //!   - MINT-CONFIRMERS (RED at HEAD; `:f64::=`/`:f64::not=` do not exist yet;
 //!     `#[ignore]`'d): un-ignored by sonnet after the f64 equality leaves are minted.
 //!
@@ -53,10 +56,14 @@ fn regression_not_eq() {
 }
 
 #[test]
-fn regression_cross_numeric_is_check_error() {
-    // THE DECISION: `(= 1 2.0)` is a check error, not a coerced comparison.
+fn regression_cross_numeric_now_type_checks() {
+    // arc 300 C5 RETIRED 237.8a's comparison-side reject (the same reversal C4 made
+    // for arithmetic): mixed-numeric `=` now type-checks (`infer_equality`'s
+    // `both_numeric` arm), matching eval + clj. `(= 1 2.0)` still EVALS to `false`
+    // (category-aware `=`, C4's contract, unchanged) — C5 only makes the check accept
+    // it as well-formed. Formerly `regression_cross_numeric_is_check_error`.
     let r = startup_from_file("tests/types/probe_arc237_8c_equality_grid_cross_numeric_bad.wat");
-    assert!(r.is_err(), "cross-numeric `=` must be a check error");
+    assert!(r.is_ok(), "cross-numeric `=` now type-checks (arc 300 C5); got: {:?}", r);
 }
 
 #[test]

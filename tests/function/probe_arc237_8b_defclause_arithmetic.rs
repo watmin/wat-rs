@@ -122,9 +122,11 @@ fn regression_cross_type_plus_coerces_to_f64() {
 }
 
 #[test]
-fn regression_cross_type_lt_rejected() {
+fn regression_cross_type_lt_coerces() {
+    // arc 300 C5 RETIRED 237.8a's comparison-side reject — mixed-numeric ordering
+    // (`(< 1 2.0)`) now type-checks, matching C4's arithmetic reversal + eval + clj.
     let result = startup_from_file("tests/function/probe_arc237_8b_regression_cross_lt_bad.wat");
-    assert!(result.is_err(), "cross-type i64<f64 MUST reject; got Ok");
+    assert!(result.is_ok(), "cross-type i64<f64 now coerces/type-checks (arc 300 C5); got Err: {:?}", result);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
