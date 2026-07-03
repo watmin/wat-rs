@@ -84,7 +84,29 @@
                        n <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::+ acc n))
       (:wat::core::f64::+ x y)
-      rest)))
+      rest))
+  ;; Arc 300 stone C1 — bigint: 1-ary, 2-ary, N-ary fold (mirrors i64/f64
+  ;; above, one type over; arbitrary precision — NEVER overflows).
+  ([x <- :wat::core::bigint] -> :wat::core::bigint x)
+  ([x <- :wat::core::bigint
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::+ x y))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::bigint
+    & rest <- :wat::core::Vector<wat::core::bigint>] -> :wat::core::bigint
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::bigint
+                       n <- :wat::core::bigint] -> :wat::core::bigint
+        (:wat::core::bigint::+ acc n))
+      (:wat::core::bigint::+ x y)
+      rest))
+  ;; Contagion: i64 ⊕ bigint → bigint (i64 promotes via i64::to-bigint; NEVER
+  ;; demotes the bigint side back to i64).
+  ([x <- :wat::core::i64
+    y <- :wat::core::bigint] -> :wat::core::bigint
+    (:wat::core::bigint::+ (:wat::core::i64::to-bigint x) y))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::i64] -> :wat::core::bigint
+    (:wat::core::bigint::+ x (:wat::core::i64::to-bigint y))))
 
 (:wat::core::defclause :wat::core::-
   ;; NO 0-ary clause — :NoMatchingClause fires
@@ -114,7 +136,29 @@
                        n <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::- acc n))
       (:wat::core::f64::- x y)
-      rest)))
+      rest))
+  ;; Arc 300 stone C1 — bigint: 1-ary negate (identity-on-left = 0, promoted
+  ;; via i64::to-bigint), 2-ary, N-ary fold (mirrors i64/f64 above).
+  ([x <- :wat::core::bigint] -> :wat::core::bigint
+    (:wat::core::bigint::- (:wat::core::i64::to-bigint 0) x))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::- x y))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::bigint
+    & rest <- :wat::core::Vector<wat::core::bigint>] -> :wat::core::bigint
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::bigint
+                       n <- :wat::core::bigint] -> :wat::core::bigint
+        (:wat::core::bigint::- acc n))
+      (:wat::core::bigint::- x y)
+      rest))
+  ;; Contagion: i64 ⊕ bigint → bigint.
+  ([x <- :wat::core::i64
+    y <- :wat::core::bigint] -> :wat::core::bigint
+    (:wat::core::bigint::- (:wat::core::i64::to-bigint x) y))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::i64] -> :wat::core::bigint
+    (:wat::core::bigint::- x (:wat::core::i64::to-bigint y))))
 
 (:wat::core::defclause :wat::core::*
   ;; 0-ary identity: i64 1 (Lisp multiplicative identity)
@@ -145,7 +189,28 @@
                        n <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::* acc n))
       (:wat::core::f64::* x y)
-      rest)))
+      rest))
+  ;; Arc 300 stone C1 — bigint: 1-ary, 2-ary, N-ary fold (mirrors i64/f64
+  ;; above, one type over; arbitrary precision — NEVER overflows).
+  ([x <- :wat::core::bigint] -> :wat::core::bigint x)
+  ([x <- :wat::core::bigint
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::* x y))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::bigint
+    & rest <- :wat::core::Vector<wat::core::bigint>] -> :wat::core::bigint
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::bigint
+                       n <- :wat::core::bigint] -> :wat::core::bigint
+        (:wat::core::bigint::* acc n))
+      (:wat::core::bigint::* x y)
+      rest))
+  ;; Contagion: i64 ⊕ bigint → bigint.
+  ([x <- :wat::core::i64
+    y <- :wat::core::bigint] -> :wat::core::bigint
+    (:wat::core::bigint::* (:wat::core::i64::to-bigint x) y))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::i64] -> :wat::core::bigint
+    (:wat::core::bigint::* x (:wat::core::i64::to-bigint y))))
 
 (:wat::core::defclause :wat::core::/
   ;; NO 0-ary clause — :NoMatchingClause fires
@@ -175,7 +240,27 @@
                        n <- :wat::core::f64] -> :wat::core::f64
         (:wat::core::f64::/ acc n))
       (:wat::core::f64::/ x y)
-      rest)))
+      rest))
+  ;; Arc 300 stone C1 — bigint: 1-ary reciprocal, 2-ary. `:wat::core::bigint::/`
+  ;; COLLAPSES to `:wat::core::rational` when not evenly divisible (clj: `(/ 1N
+  ;; 2N) => 1/2`), so unlike +/-/*, there is deliberately NO N-ary fold arm here
+  ;; — folding would feed a possibly-Rational intermediate back into
+  ;; `bigint::/`'s bigint-only 2-ary Rust intrinsic on the second+ step, an
+  ;; honest TypeMismatch rather than a silent wrong answer. 3+-ary bigint
+  ;; division is a clean `:NoMatchingClause` gap (out of C1's scope; C2's
+  ;; rational arithmetic is the natural home for a fold that can carry a
+  ;; collapsed intermediate).
+  ([x <- :wat::core::bigint] -> :wat::core::bigint
+    (:wat::core::bigint::/ (:wat::core::i64::to-bigint 1) x))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::/ x y))
+  ;; Contagion: i64 ⊕ bigint → bigint (2-ary only, same collapse caveat as above).
+  ([x <- :wat::core::i64
+    y <- :wat::core::bigint] -> :wat::core::bigint
+    (:wat::core::bigint::/ (:wat::core::i64::to-bigint x) y))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::i64] -> :wat::core::bigint
+    (:wat::core::bigint::/ x (:wat::core::i64::to-bigint y))))
 
 ;; ─── kwargs-lower — shared kwargs lowering macro (Arc 260.1b Part B) ─────────
 ;;

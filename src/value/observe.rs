@@ -197,6 +197,9 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         // Arc 300 stone B — a genuine ratio always has den>=2 (a den==1
         // literal already reduced to an Integer at lex time) — no `"/1"` case.
         Value::wat__core__Rational(r) => format!("{}/{}", r.numer(), r.denom()),
+        // Arc 300 stone C1 — bigint renders with the `N` suffix (pr/edn form),
+        // mirroring clj's `1N` and wat-edn's `writer.rs` (`"{}N"`).
+        Value::wat__core__BigInt(n) => format!("{}N", n),
 
         // ── Option / Result — wat-surface variant shape ───────────
         Value::Option(opt) => match &**opt {

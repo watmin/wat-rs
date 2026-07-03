@@ -55,6 +55,10 @@ uuid = { version = "1", features = ["v4", "v5"] }
 # the uuid convention above. Arc 300 stone A (rationals in wat-edn).
 num-bigint = "0.4"
 num-rational = "0.4"
+# num-traits — arc 300 stone C1: `ToPrimitive` for `bigint::to-f64`. Already a
+# transitive dep of num-bigint/num-rational (resolved in Cargo.lock); declared
+# directly here so `wat` can use `ToPrimitive` without a new resolution.
+num-traits = "0.2"
 
 # Trim dev debuginfo from full DWARF to line tables only. The full `tests/*.rs`
 # dev gate links ~250 binaries; full debuginfo bloats every link. line-tables-only
@@ -90,6 +94,7 @@ wat-edn = { path = "crates/wat-edn" }
 uuid.workspace = true
 num-rational.workspace = true
 num-bigint.workspace = true
+num-traits.workspace = true
 rpds    = "1"
 # Arc 198 slice 2 Stone 1 — link-time registry for Rust-side substrate
 # restriction declarations. Stone 1 adds the wiring (RestrictionEntry +

@@ -20,6 +20,7 @@ use crate::channel::{SenderInner, ReceiverInner};
 use crate::types::{Holder, TypeExpr};
 use crate::value::Function;
 use crate::stream::Stream;
+use num_bigint::BigInt;
 use num_rational::BigRational;
 
 /// Runtime value.
@@ -308,7 +309,8 @@ pub enum Value {
     /// codepoints U+10000–U+10FFFF rejected at construction + lex time).
     /// Constructed via `(:wat::core::char/of "x")` or `\c` literal.
     wat__core__Char(char),
-    /// Arc 300 stone B — `:wat::core::Rational`. Typed rational primitive,
+    /// Arc 300 stone B — `:wat::core::rational` (Stone C1 lowercased the surface;
+    /// see the `char` precedent). Typed rational primitive,
     /// REPRESENTATION ONLY (no arithmetic — that is Stone C). Boxed for the
     /// same cache-friendliness reason as other rarely-hot variants.
     /// Always a genuine ratio already reduced to lowest terms with the sign
@@ -317,6 +319,14 @@ pub enum Value {
     /// (`4/2`) becomes `Value::i64` instead, never this variant.
     /// Constructed via the `<int>/<int>` source literal (`WatAST::RationalLit`).
     wat__core__Rational(Box<BigRational>),
+    /// Arc 300 stone C1 — `:wat::core::bigint`. Arbitrary-precision integer,
+    /// a FULL first-class arithmetic type (contrast `wat__core__Rational`,
+    /// representation-only in Stone B): `+ - *` never wrap/overflow,
+    /// contagious (`i64 ⊕ bigint → bigint`, never demotes), `/` collapses
+    /// to `bigint` (divisible) or `Rational` (else, reusing `BigRational`).
+    /// Boxed for the same cache-friendliness reason as `wat__core__Rational`.
+    /// Constructed via the `<int>N` source literal (`WatAST::BigIntLit`).
+    wat__core__BigInt(Box<BigInt>),
     /// Arc 220 Stone 220.4 — `:wat::core::List<T>`. Typed linked-list primitive.
     /// Distinct from `Value::Vec` (`:wat::core::Vector`) — preserves the EDN
     /// parens-vs-brackets distinction for faithful round-trips with Clojure.
@@ -602,6 +612,13 @@ impl PartialEq for Value {
             // Arc 300 stone B — Rational equality. `BigRational` implements
             // `PartialEq` (structural, already-reduced so no `1/2 != 2/4` gap).
             (Value::wat__core__Rational(a), Value::wat__core__Rational(b)) => a == b,
+            // Arc 300 stone C1 — BigInt equality. `num_bigint::BigInt` implements
+            // `PartialEq` (structural). Category-aware cross-type equality with
+            // i64 (both INTEGER category) lives here too — `values_equal` in
+            // runtime.rs is the polymorphic `=` entry point and mirrors this arm;
+            // this `Value::eq` (structural Rust equality, used for HashMap/HashSet
+            // keys where BigInt is NOT atomizable) stays same-type-only.
+            (Value::wat__core__BigInt(a), Value::wat__core__BigInt(b)) => a == b,
             // Arc 220 Stone 220.4 — List same-type equality.
             (Value::wat__core__List(a), Value::wat__core__List(b)) => {
                 sequence_eq(a.iter(), b.iter())
@@ -753,6 +770,8 @@ impl std::hash::Hash for Value {
             Value::wat__core__Char(c) => c.hash(state),
             // Arc 300 stone B — Rational hash. `BigRational` implements `Hash`.
             Value::wat__core__Rational(r) => r.hash(state),
+            // Arc 300 stone C1 — BigInt hash. `num_bigint::BigInt` implements `Hash`.
+            Value::wat__core__BigInt(n) => n.hash(state),
             // Arc 220 Stone 220.4 — Vec + List handled above (early-return); unreachable.
             Value::Vec(_) | Value::wat__core__List(_) => unreachable!("handled above"),
             // HashSet: sort element hashes for set semantics (order-independent).
@@ -1145,10 +1164,14 @@ impl Value {
             Value::Instant(_) => "wat::time::Instant",
             Value::Duration(_) => "wat::time::Duration",
             Value::wat__core__Uuid(_) => "wat::core::Uuid",
-            // Arc 220
-            Value::wat__core__Char(_) => "wat::core::Char",
-            // Arc 300 stone B
-            Value::wat__core__Rational(_) => "wat::core::Rational",
+            // Arc 220 — Stone 242.1 renamed the surface to `char`; this arm was
+            // half-propagated (still emitted capital). C1 fixes it.
+            Value::wat__core__Char(_) => "wat::core::char",
+            // Arc 300 stone B — Stone C1 lowercases the surface (Doctrine 2:
+            // scalar types are lowercase). Rust variant stays Capital.
+            Value::wat__core__Rational(_) => "wat::core::rational",
+            // Arc 300 stone C1 — lowercase from birth (Doctrine 2).
+            Value::wat__core__BigInt(_) => "wat::core::bigint",
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
             // Arc 118 — lazy seq.
@@ -1241,6 +1264,7 @@ impl Value {
             Value::wat__core__Uuid(_) => self.type_name().to_string(),
             Value::wat__core__Char(_) => self.type_name().to_string(),
             Value::wat__core__Rational(_) => self.type_name().to_string(),
+            Value::wat__core__BigInt(_) => self.type_name().to_string(),
             Value::wat__core__List(_) => self.type_name().to_string(),
             Value::wat__stream__Stream(_) => self.type_name().to_string(),
             Value::wat__core__clauses(_) => self.type_name().to_string(),

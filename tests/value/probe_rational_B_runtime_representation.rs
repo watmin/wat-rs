@@ -43,15 +43,15 @@ fn eval_render(src: &str) -> (String, String) {
 #[test]
 fn rational_literal_reads_as_runtime_rational() {
     let (ty, rendered) = eval_render("1/2");
-    assert_eq!(ty, "wat::core::Rational", "1/2 must eval to a rational (clj: clojure.lang.Ratio)");
+    assert_eq!(ty, "wat::core::rational", "1/2 must eval to a rational (clj: clojure.lang.Ratio)");
     assert_eq!(rendered, "1/2", "1/2 renders canonically");
 }
 
 #[test]
 fn rational_literal_reduces_and_signs_like_clj() {
     // reduced to lowest terms, sign on numerator, denominator > 0
-    assert_eq!(eval_render("-6/4"), ("wat::core::Rational".into(), "-3/2".into()));
-    assert_eq!(eval_render("10/4"), ("wat::core::Rational".into(), "5/2".into()));
+    assert_eq!(eval_render("-6/4"), ("wat::core::rational".into(), "-3/2".into()));
+    assert_eq!(eval_render("10/4"), ("wat::core::rational".into(), "5/2".into()));
 }
 
 // ─── a literal reducing to a whole number is an Integer, NOT a Ratio (clj Long) ──

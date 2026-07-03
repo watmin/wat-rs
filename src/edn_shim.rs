@@ -457,6 +457,7 @@ pub fn eval_ast_kind(
         WatAST::IntLit(..) => "int",
         WatAST::FloatLit(..) => "float",
         WatAST::RationalLit(..) => "rational",
+        WatAST::BigIntLit(..) => "bigint",
         WatAST::BoolLit(..) => "bool",
         WatAST::StringLit(..) => "string",
         WatAST::NilLit(..) => "nil",
@@ -1492,7 +1493,8 @@ fn edn_to_typed_value_inner(
             },
             // Arc 300 stone B — rational literal typed-coerce path, mirrors
             // the `:wat::core::Uuid` / `:wat::core::char` latent-gap pattern.
-            ":wat::core::Rational" => match edn {
+            // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
+            ":wat::core::rational" => match edn {
                 Edn::Rational(r) => Ok(Value::wat__core__Rational(Box::new((**r).clone()))),
                 other => Err(mismatch(target, other)),
             },
@@ -3057,6 +3059,9 @@ pub fn value_to_edn_with(
         Value::wat__core__Char(c) => OwnedValue::Char(*c),
         // Arc 300 stone B — typed Rational → EDN rational literal round-trip.
         Value::wat__core__Rational(r) => OwnedValue::Rational(Box::new((**r).clone())),
+        // Arc 300 stone C1 — typed BigInt → EDN bigint literal round-trip (mirrors
+        // Rational immediately above, one type over).
+        Value::wat__core__BigInt(n) => OwnedValue::BigInt(Box::new((**n).clone())),
         // Arc 293.R2.1 — Record/HolonRecord: Aggregate with holder != Struct.
         // No guard here — the Struct arm above catches holder==Struct; this arm is reached
         // only for Record/HolonRecord. Guard dropped so Rust's exhaustiveness checker sees

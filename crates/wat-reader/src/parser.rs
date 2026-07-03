@@ -337,6 +337,9 @@ impl<'a> Cursor<'a> {
             // desugar; see DESIGN-STONE-rational-B-runtime.md). Already
             // reduced + normalized by the lexer.
             Token::Rational(r) => Ok(Some(WatAST::RationalLit(r.clone(), span))),
+            // Arc 300 stone C1 — bigint literal, numeric-literal lane (mirrors
+            // the Rational arm immediately above, one type over).
+            Token::BigInt(n) => Ok(Some(WatAST::BigIntLit(n.clone(), span))),
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
             Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone(), span))),
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone(), span))),

@@ -3266,8 +3266,11 @@ pub(crate) fn infer(
     match ast {
         WatAST::IntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::i64".into())),
         WatAST::FloatLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::f64".into())),
-        // Arc 300 stone B — rational literal infers as :wat::core::Rational.
-        WatAST::RationalLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::Rational".into())),
+        // Arc 300 stone B — rational literal infers as :wat::core::rational.
+        // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
+        WatAST::RationalLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::rational".into())),
+        // Arc 300 stone C1 — bigint literal infers as :wat::core::bigint (lowercase from birth).
+        WatAST::BigIntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bigint".into())),
         WatAST::BoolLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bool".into())),
         WatAST::StringLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::String".into())),
         // Arc 244 — NilLit is the canonical nil VALUE literal; infers as :wat::core::nil.
@@ -7494,13 +7497,29 @@ fn check_subpattern(
             }
         },
         // Arc 300 stone B — rational literal sub-pattern.
+        // Stone C1 lowercased the surface (Doctrine 2: scalar types lowercase).
         WatAST::RationalLit(_, _) => match expected_ty {
-            TypeExpr::Path(p) if p == ":wat::core::Rational" => Some(false),
+            TypeExpr::Path(p) if p == ":wat::core::rational" => Some(false),
             other => {
                 errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "rational literal pattern in {} position",
+                        format_type(other)
+                    ),
+                    remedies: vec![],
+                } });
+                None
+            }
+        },
+        // Arc 300 stone C1 — bigint literal sub-pattern.
+        WatAST::BigIntLit(_, _) => match expected_ty {
+            TypeExpr::Path(p) if p == ":wat::core::bigint" => Some(false),
+            other => {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "bigint literal pattern in {} position",
                         format_type(other)
                     ),
                     remedies: vec![],
@@ -10492,6 +10511,7 @@ fn infer_make_channel(
                         WatAST::IntLit(_, _) => "int",
                         WatAST::FloatLit(_, _) => "float",
                         WatAST::RationalLit(_, _) => "rational",
+                        WatAST::BigIntLit(_, _) => "bigint",
                         WatAST::BoolLit(_, _) => "bool",
                         WatAST::StringLit(_, _) => "string",
                         WatAST::Symbol(_, _) => "symbol",
@@ -13585,6 +13605,8 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::core::keyword"
                 | "wat::core::Uuid"
                 | "wat::core::char"
+                | "wat::core::rational"
+                | "wat::core::bigint"
                 | "wat::core::nil"
                 | "wat::core::unit"
                 // the :wat::core::Record umbrella means "any record" — pure;
@@ -15342,6 +15364,8 @@ fn register_builtins(env: &mut CheckEnv) {
     let u8_ty = || TypeExpr::Path(":wat::core::u8".into());
     let f64_ty = || TypeExpr::Path(":wat::core::f64".into());
     let bool_ty = || TypeExpr::Path(":wat::core::bool".into());
+    // Arc 300 stone C1 — bigint intrinsic signatures below.
+    let bigint_ty = || TypeExpr::Path(":wat::core::bigint".into());
     let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
     let t_var = || TypeExpr::Path(":T".into());
 
@@ -15835,6 +15859,67 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+
+    // Arc 300 stone C1 — bigint arithmetic. Arbitrary precision — arms below
+    // have NO overflow branch (contrast i64 above, which wraps). Same-type
+    // 2-ary signature mirrors i64/f64; the `wat/core.wat` defclause folds
+    // these into 0/1/N-ary surface + the i64⊕bigint contagion arms (which
+    // reuse `:wat::core::i64::to-bigint` to promote i64 before calling in).
+    for op in &[
+        ":wat::core::bigint::+",
+        ":wat::core::bigint::-",
+        ":wat::core::bigint::*",
+    ] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![bigint_ty(), bigint_ty()],
+                ret: bigint_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+    // `/` is declared optimistically as `bigint -> bigint -> bigint`: the
+    // checker's static signature names the common case; the actual runtime
+    // value collapses to `:wat::core::rational` when not evenly divisible
+    // (mirrors Stone B's `BigRational`, reused rather than duplicated).
+    // Sound-enough per the substrate's existing checker/runtime split (check
+    // is the optimistic primary gate; `values_equal`/`values_compare` etc.
+    // are the honest runtime backstop) — the same posture already used
+    // throughout this file's comments.
+    env.register(
+        ":wat::core::bigint::/".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![bigint_ty(), bigint_ty()],
+            ret: bigint_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 300 stone C1 — i64 → bigint promotion (infallible; arbitrary
+    // precision never loses i64 range). Used by the contagion arms in
+    // `wat/core.wat`'s `+ - * /` defclauses.
+    env.register(
+        ":wat::core::i64::to-bigint".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: bigint_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 300 stone C1 — bigint -> f64 (lossy for magnitudes beyond f64's
+    // 53-bit mantissa; same posture as i64::to-f64 above).
+    env.register(
+        ":wat::core::bigint::to-f64".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![bigint_ty()],
+            ret: f64_ty(),
+            rest_param_type: None,
+        },
+    );
 
     // arc 237 Stone 237.8a — mixed-type arithmetic leaf registrations
     // DELETED under THE DECISION (`feedback_no_implicit_coercion`).

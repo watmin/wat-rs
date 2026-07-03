@@ -24,6 +24,7 @@ use std::borrow::Cow;
 
 use crate::identifier::Identifier;
 use crate::span::Span;
+use num_bigint::BigInt;
 use num_rational::BigRational;
 
 /// Arc 257 slice 2 — discriminant for `MapDestructure`.
@@ -70,6 +71,14 @@ pub enum WatAST {
     /// the numerator and denominator >= 2; a literal reducing to a whole
     /// number (`4/2`) parses to `IntLit` instead, never this variant.
     RationalLit(BigRational, Span),
+
+    /// Arbitrary-precision integer literal, as in `1N`, `-5N`,
+    /// `9223372036854775807N` (arc 300 stone C1). Numeric-literal lane
+    /// (follows `IntLit`/`FloatLit`/`RationalLit`), NOT a desugared
+    /// constructor call. Unlike `RationalLit`'s den==1 reduction to
+    /// `IntLit`, this NEVER reduces — `1N` is always bigint regardless of
+    /// magnitude (clj: `(class 1N)` is `clojure.lang.BigInt`).
+    BigIntLit(BigInt, Span),
 
     /// Boolean literal, as in `true` or `false`.
     BoolLit(bool, Span),
@@ -156,6 +165,7 @@ impl WatAST {
             WatAST::IntLit(_, s)
             | WatAST::FloatLit(_, s)
             | WatAST::RationalLit(_, s)
+            | WatAST::BigIntLit(_, s)
             | WatAST::BoolLit(_, s)
             | WatAST::StringLit(_, s)
             | WatAST::NilLit(s)
@@ -181,6 +191,10 @@ impl WatAST {
     /// sign on numerator); see `RationalLit`'s doc. Arc 300 stone B.
     pub fn rational(r: BigRational) -> Self {
         WatAST::RationalLit(r, crate::rust_caller_span!())
+    }
+    /// Synthetic bigint literal. Arc 300 stone C1.
+    pub fn bigint(n: BigInt) -> Self {
+        WatAST::BigIntLit(n, crate::rust_caller_span!())
     }
     pub fn bool(b: bool) -> Self {
         WatAST::BoolLit(b, crate::rust_caller_span!())
@@ -428,6 +442,7 @@ impl WatAST {
             WatAST::IntLit(_, _) => "int",
             WatAST::FloatLit(_, _) => "float",
             WatAST::RationalLit(_, _) => "rational",
+            WatAST::BigIntLit(_, _) => "bigint",
             WatAST::BoolLit(_, _) => "bool",
             WatAST::StringLit(_, _) => "string",
             WatAST::NilLit(_) => "nil",
@@ -476,6 +491,7 @@ impl std::hash::Hash for WatAST {
             WatAST::IntLit(n, _) => n.hash(state),
             WatAST::FloatLit(x, _) => x.to_bits().hash(state),
             WatAST::RationalLit(r, _) => r.hash(state),
+            WatAST::BigIntLit(n, _) => n.hash(state),
             WatAST::BoolLit(b, _) => b.hash(state),
             WatAST::StringLit(s, _) => s.hash(state),
             // NilLit: leaf literal — discriminant (above) fully identifies it.

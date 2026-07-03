@@ -538,6 +538,8 @@ fn walk_free_symbols(
         | WatAST::FloatLit(..)
         // Arc 300 stone B — RationalLit is a leaf literal, same as IntLit/FloatLit.
         | WatAST::RationalLit(..)
+        // Arc 300 stone C1 — BigIntLit is a leaf literal too.
+        | WatAST::BigIntLit(..)
         | WatAST::BoolLit(..)
         | WatAST::StringLit(..)
         // Arc 244 — NilLit is a leaf literal; no free symbols to collect.
@@ -1006,6 +1008,8 @@ fn collect_pattern_bindings(
         WatAST::IntLit(..)
         | WatAST::FloatLit(..)
         | WatAST::RationalLit(..)
+        // Arc 300 stone C1: BigIntLit joins it too.
+        | WatAST::BigIntLit(..)
         | WatAST::BoolLit(..)
         | WatAST::StringLit(..)
         | WatAST::NilLit(..) => Ok(()),
@@ -1579,6 +1583,9 @@ fn encode_value_with_path(
         // desugared call, per DESIGN-STONE-rational-B-runtime.md's pinned
         // contract) — re-encodes directly as a `RationalLit`.
         Value::wat__core__Rational(r) => Ok(WatAST::RationalLit((**r).clone(), span)),
+        // Arc 300 stone C1 — BigInt is the numeric-literal lane (mirrors Rational
+        // immediately above, one type over): re-encodes directly as a `BigIntLit`.
+        Value::wat__core__BigInt(n) => Ok(WatAST::BigIntLit((**n).clone(), span)),
         Value::wat__core__keyword(k) => {
             // A wat-level keyword value is constructed via
             // `(:wat::core::keyword "literal-text")` — but the simpler
@@ -2179,6 +2186,8 @@ fn rewrite_with_scope(
         | WatAST::FloatLit(_, _)
         // Arc 300 stone B — RationalLit is a leaf; no scope rewrite needed.
         | WatAST::RationalLit(_, _)
+        // Arc 300 stone C1 — BigIntLit is a leaf too.
+        | WatAST::BigIntLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         // Arc 244 — NilLit is a leaf; no scope rewrite needed.

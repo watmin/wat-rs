@@ -55,6 +55,13 @@
 
 ;; ─── Case 4: the surface runs ────────────────────────────────────────
 
+;; REVISIT: `verify-stdlib` walks the ENTIRE stdlib dep-order, so it grows with the
+;; stdlib and is the one deftest heavy enough to approach the default budget — it races
+;; under full-suite parallel contention (passes solo ~1s, crosses the default only under
+;; load). Explicit 30s headroom until the test is made load-insensitive (off wall-clock).
+;; A long-standing problematic-but-good-intentioned test; arc 300 C1 (bigint, +85 stdlib
+;; lines) consumed the last of its margin.
+(:wat::test::time-limit "30s")
 (:wat::test::deftest :wat-tests::deporder::verify-stdlib-runs
   ()
   ;; (:wat::deporder::verify-stdlib) must evaluate without error and return

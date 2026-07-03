@@ -86,6 +86,13 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::i64::/"
             | ":wat::core::i64::to-string"
             | ":wat::core::i64::to-f64"
+            // Arc 300 stone C1 — bigint arithmetic + conversions.
+            | ":wat::core::bigint::+"
+            | ":wat::core::bigint::-"
+            | ":wat::core::bigint::*"
+            | ":wat::core::bigint::/"
+            | ":wat::core::i64::to-bigint"
+            | ":wat::core::bigint::to-f64"
             | ":wat::core::f64::+"
             | ":wat::core::f64::-"
             | ":wat::core::f64::*"
@@ -244,6 +251,8 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         | WatAST::FloatLit(_, _)
         // Arc 300 stone B — rational literal is pure, deterministic data.
         | WatAST::RationalLit(_, _)
+        // Arc 300 stone C1 — bigint literal is pure, deterministic data too.
+        | WatAST::BigIntLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         | WatAST::NilLit(_)

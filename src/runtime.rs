@@ -43,6 +43,8 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 use holon::{encode, HolonAST, Similarity};
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::os::fd::FromRawFd;
@@ -3622,6 +3624,12 @@ pub(crate) fn eval_inner(
             Value::wat__core__Rational(Box::new(r.clone())),
             Provenance::Literal { span: span.clone() },
         )),
+        // Arc 300 stone C1 — bigint literal, full arithmetic type (mirrors
+        // Rational immediately above, one type over).
+        WatAST::BigIntLit(n, span) => Ok(TrackedValue::new(
+            Value::wat__core__BigInt(Box::new(n.clone())),
+            Provenance::Literal { span: span.clone() },
+        )),
         WatAST::BoolLit(b, span) => Ok(TrackedValue::new(
             Value::bool(*b),
             Provenance::Literal { span: span.clone() },
@@ -4291,6 +4299,27 @@ fn dispatch_keyword_head_value(
                 Ok(a.wrapping_div(b))
             }
         }),
+        // Arc 300 stone C1 — bigint arithmetic. Arbitrary precision — NO
+        // wrapping/overflow branch (contrast i64 above); `+ - *` always
+        // succeed. `/` collapses to bigint (divisible) or rational (else),
+        // reusing Stone B's `BigRational` — never a runtime error except
+        // division by zero.
+        ":wat::core::bigint::+" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
+            Ok(Value::wat__core__BigInt(Box::new(a + b)))
+        }),
+        ":wat::core::bigint::-" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
+            Ok(Value::wat__core__BigInt(Box::new(a - b)))
+        }),
+        ":wat::core::bigint::*" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
+            Ok(Value::wat__core__BigInt(Box::new(a * b)))
+        }),
+        ":wat::core::bigint::/" => eval_bigint_arith(head, args, list_span, env, sym, bigint_div),
+        // Arc 300 stone C1 — i64 → bigint promotion (infallible; used by the
+        // i64⊕bigint contagion arms in `wat/core.wat`'s arithmetic defclauses).
+        ":wat::core::i64::to-bigint" => eval_i64_to_bigint(args, list_span, env, sym),
+        // Arc 300 stone C1 — bigint -> f64 (lossy beyond f64's 53-bit
+        // mantissa; same posture as i64::to-f64).
+        ":wat::core::bigint::to-f64" => eval_bigint_to_f64(args, list_span, env, sym),
         // String basics — per-type ops under :wat::core::string namespace,
         // following the :wat::core::i64 namespace precedent. Char-oriented.
         ":wat::core::string::contains?" => {
@@ -6723,7 +6752,10 @@ fn val_type_path(val: &Value) -> &'static str {
         // (scalar types lowercase per Doctrine 2).
         Value::wat__core__Char(_) => ":wat::core::char",
         // Arc 300 stone B — FQDN-only (mirrors Uuid, not the bare-primitive char).
-        Value::wat__core__Rational(_) => ":wat::core::Rational",
+        // Stone C1 lowercased the surface (Doctrine 2: scalar types are lowercase).
+        Value::wat__core__Rational(_) => ":wat::core::rational",
+        // Arc 300 stone C1 — arbitrary-precision integer.
+        Value::wat__core__BigInt(_) => ":wat::core::bigint",
         Value::wat__core__List(_) => ":wat::core::List",
         Value::wat__stream__Stream(_) => ":wat::stream::Stream",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",
@@ -7348,6 +7380,69 @@ where
     }
 }
 
+/// Bigint arith: `:wat::core::bigint::{+,-,*,/}`. Strictly bigint × bigint.
+/// No promotion; an i64 arg is a type error — callers promote explicitly via
+/// `:wat::core::i64::to-bigint` (the `wat/core.wat` contagion arms do this).
+/// Arc 300 stone C1 — arbitrary precision: `op` never sees an overflow case
+/// (contrast `eval_i64_arith`'s wrapping semantics). `op` returns a `Value`
+/// directly (not a `BigInt`) because `/` can collapse to EITHER
+/// `Value::wat__core__BigInt` (divisible) or `Value::wat__core__Rational`
+/// (else) — a single-output-type shape can't express that.
+fn eval_bigint_arith<F>(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: F,
+) -> Result<Value, EvalBreak>
+where
+    F: Fn(&BigInt, &BigInt, &Span) -> Result<Value, EvalBreak>,
+{
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: head.into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let a_span = args[0].span().clone();
+    let b_span = args[1].span().clone();
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
+    match (a.value(), b.value()) {
+        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => op(x, y, &b_span),
+        (other, _) if !matches!(other, Value::wat__core__BigInt(_)) => Err(RuntimeError { span: a_span, kind: RuntimeErrorKind::TypeMismatch {
+            op: head.into(),
+            expected: "bigint",
+            got: Box::new(ValueSnapshot::of(a.value()))
+        } }.into()),
+        (_, _) => Err(RuntimeError { span: b_span, kind: RuntimeErrorKind::TypeMismatch {
+            op: head.into(),
+            expected: "bigint",
+            got: Box::new(ValueSnapshot::of(b.value()))
+        } }.into()),
+    }
+}
+
+/// `:wat::core::bigint::/`'s op fn: divisible → `bigint` quotient;
+/// otherwise → `:wat::core::rational` (reduced via `BigRational::new`,
+/// REUSING Stone B's rational representation — no new rational impl).
+/// Division by zero is a clean runtime error, never a panic (BigInt's `Div`
+/// would otherwise panic on zero divisor like a primitive integer divide).
+fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value, EvalBreak> {
+    use num_traits::Zero;
+    if b.is_zero() {
+        return Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into());
+    }
+    let (q, r) = (a / b, a % b);
+    if r.is_zero() {
+        Ok(Value::wat__core__BigInt(Box::new(q)))
+    } else {
+        Ok(Value::wat__core__Rational(Box::new(num_rational::BigRational::new(a.clone(), b.clone()))))
+    }
+}
+
 /// `:wat::core::u8 <i64-expr>` — range-checked cast from `:i64` to
 /// `:u8`. Arc 008 slice 1. Rejects values outside 0..=255 at runtime
 /// with a MalformedForm describing the offending value. The argument
@@ -7503,6 +7598,56 @@ fn eval_i64_to_f64(
         },
     )?;
     Ok(Value::f64(n as f64))
+}
+
+/// `:wat::core::i64::to-bigint` — infallible promotion (arbitrary precision
+/// never loses i64 range). Arc 300 stone C1: used by the `wat/core.wat`
+/// `+ - * /` defclauses' i64⊕bigint contagion arms.
+fn eval_i64_to_bigint(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let n = eval_one_arg(
+        ":wat::core::i64::to-bigint",
+        args,
+        list_span,
+        env,
+        sym,
+        "i64",
+        |v| match v {
+            Value::i64(n) => Ok(n),
+            other => Err(other),
+        },
+    )?;
+    Ok(Value::wat__core__BigInt(Box::new(BigInt::from(n))))
+}
+
+/// `:wat::core::bigint::to-f64` — lossy beyond f64's 53-bit mantissa (same
+/// posture as `:wat::core::i64::to-f64`). Arc 300 stone C1.
+fn eval_bigint_to_f64(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let n = eval_one_arg(
+        ":wat::core::bigint::to-f64",
+        args,
+        list_span,
+        env,
+        sym,
+        "bigint",
+        |v| match v {
+            Value::wat__core__BigInt(n) => Ok(n),
+            other => Err(other),
+        },
+    )?;
+    let x = n.to_f64().unwrap_or_else(|| {
+        if *n < BigInt::from(0) { f64::NEG_INFINITY } else { f64::INFINITY }
+    });
+    Ok(Value::f64(x))
 }
 
 fn eval_f64_to_string(
@@ -8161,6 +8306,18 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Stone 237.8c — the (i64,f64)/(f64,i64) cross-numeric arms (arc 050) deleted.
         // THE DECISION (237.8a): the checker rejects mixed-numeric `=` before eval;
         // these arms are unreachable. HARD CUT.
+        // Arc 300 stone C1 — bigint equality. Same-type: structural
+        // (`num_bigint::BigInt` implements `PartialEq`). Category-aware
+        // cross-type: bigint↔i64 compares by VALUE (both INTEGER category —
+        // clj: `(= 1N 1)` => true); bigint↔f64 is a DIFFERENT category and is
+        // cleanly `false` (clj: `(= 1N 1.0)` => false), never a TypeMismatch —
+        // this is the one deliberate exception to "cross-numeric falls to
+        // None" above: `=`'s category-awareness is bigint's pinned contract.
+        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => Some(x == y),
+        (Value::wat__core__BigInt(x), Value::i64(y)) => Some(x.as_ref() == &BigInt::from(*y)),
+        (Value::i64(x), Value::wat__core__BigInt(y)) => Some(&BigInt::from(*x) == y.as_ref()),
+        (Value::wat__core__BigInt(_), Value::f64(_)) => Some(false),
+        (Value::f64(_), Value::wat__core__BigInt(_)) => Some(false),
         (Value::String(x), Value::String(y)) => Some(x == y),
         (Value::bool(x), Value::bool(y)) => Some(x == y),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
@@ -8372,6 +8529,13 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         (Value::f64(x), Value::i64(y)) => {
             Some(x.partial_cmp(&(*y as f64)).unwrap_or(Ordering::Equal))
         }
+        // Arc 300 stone C1 — bigint total order. Same-type: `BigInt`
+        // implements `Ord`. Cross-type with i64: promote i64 to bigint
+        // before comparing (mirrors the i64↔f64 promotion pattern above;
+        // `cf i64↔f64 :8369` per the design's room table).
+        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => Some(x.cmp(y)),
+        (Value::wat__core__BigInt(x), Value::i64(y)) => Some(x.as_ref().cmp(&BigInt::from(*y))),
+        (Value::i64(x), Value::wat__core__BigInt(y)) => Some(BigInt::from(*x).cmp(y.as_ref())),
         (Value::String(x), Value::String(y)) => Some(x.cmp(y)),
         (Value::bool(x), Value::bool(y)) => Some(x.cmp(y)),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x.cmp(y)),
@@ -8793,6 +8957,23 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::core::f64::*" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
         // Stone 237.8b — IEEE 754: f64 / 0.0 = ±Inf or NaN; not an error.
         ":wat::core::f64::/" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a / b))),
+        // Arc 300 stone C1 — bigint arithmetic leaves. Arbitrary precision —
+        // `+ - *` never overflow (contrast the i64 leaves above).
+        ":wat::core::bigint::+" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| Ok(Value::wat__core__BigInt(Box::new(a + b))))),
+        ":wat::core::bigint::-" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| Ok(Value::wat__core__BigInt(Box::new(a - b))))),
+        ":wat::core::bigint::*" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| Ok(Value::wat__core__BigInt(Box::new(a * b))))),
+        ":wat::core::bigint::/" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
+            use num_traits::Zero;
+            if b.is_zero() {
+                return Err(());
+            }
+            let (q, r) = (a / b, a % b);
+            if r.is_zero() {
+                Ok(Value::wat__core__BigInt(Box::new(q)))
+            } else {
+                Ok(Value::wat__core__Rational(Box::new(num_rational::BigRational::new(a.clone(), b.clone()))))
+            }
+        })),
         _ => None,
     }
 }
@@ -8849,6 +9030,34 @@ where
         _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(f64, f64)",
+            got: Box::new(ValueSnapshot::of(&a))
+        } }.into()),
+    }
+}
+
+/// Arc 300 stone C1 — bigint substrate-addressed arithmetic leaf, mirroring
+/// `arith_i64_i64_inner`/`arith_f64_f64_inner` above. `op` returns a `Value`
+/// directly (not a `BigInt`) so `/` can produce EITHER
+/// `Value::wat__core__BigInt` or `Value::wat__core__Rational` — same
+/// two-output-type reason as `eval_bigint_arith`.
+fn arith_bigint_bigint_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    op: F,
+) -> Result<Value, EvalBreak>
+where
+    F: Fn(&BigInt, &BigInt) -> Result<Value, ()>,
+{
+    let a = vals.first().expect("arity-checked");
+    let b = vals.get(1).expect("arity-checked");
+    match (a, b) {
+        (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => match op(x, y) {
+            Ok(v) => Ok(v),
+            Err(()) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DivisionByZero }.into()),
+        },
+        _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+            op: impl_name.into(),
+            expected: "(bigint, bigint)",
             got: Box::new(ValueSnapshot::of(&a))
         } }.into()),
     }
@@ -12311,6 +12520,12 @@ fn try_match_pattern(
             Value::wat__core__Rational(v) if v.as_ref() == r => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
+        // Arc 300 stone C1 — bigint literal sub-pattern; compares by structural
+        // equality (mirrors the Rational arm immediately above, one type over).
+        WatAST::BigIntLit(n, _) => match value {
+            Value::wat__core__BigInt(v) if v.as_ref() == n => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
         WatAST::BoolLit(b, _) => match value {
             Value::bool(v) if v == b => Ok(Some(outer.clone())),
             _ => Ok(None),
@@ -13435,7 +13650,9 @@ fn is_builtin_primitive(name: &str) -> bool {
             | "wat::core::keyword"
             | "wat::core::nil"
             | "wat::core::Uuid"
-            | "wat::core::Char"
+            | "wat::core::char"
+            | "wat::core::rational"
+            | "wat::core::bigint"
             | "wat::core::fn"
             | "wat::core::Tuple"
             | "wat::core::Vector"
@@ -15153,6 +15370,10 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         // encoding (same shape family as the String arm below), NOT a new
         // holon-rs primitive. Revisit if/when a holon-side Rational lands.
         WatAST::RationalLit(r, _) => HolonAST::string(format!("{}/{}", r.numer(), r.denom())),
+        // Arc 300 stone C1 — same SURPRISE as Rational immediately above: no
+        // native holon-rs bigint leaf. Lower to its canonical rendered string
+        // ("<n>N"), same lossy-but-honest shape family as the Rational arm.
+        WatAST::BigIntLit(n, _) => HolonAST::string(format!("{}N", n)),
         WatAST::BoolLit(b, _) => HolonAST::bool_(*b),
         WatAST::StringLit(s, _) => HolonAST::string(s.as_str()),
         // Arc 244 — NilLit lowers to HolonAST::symbol("nil") — the HolonAST nil
@@ -23022,6 +23243,8 @@ fn step_form(
         // Arc 300 stone B — SURPRISE (see `watast_to_holon`'s note): holon-rs
         // has no native rational leaf; lower to its canonical rendered string.
         WatAST::RationalLit(r, _) => Ok(StepValue::Terminal(HolonAST::string(format!("{}/{}", r.numer(), r.denom())))),
+        // Arc 300 stone C1 — same SURPRISE as Rational immediately above.
+        WatAST::BigIntLit(n, _) => Ok(StepValue::Terminal(HolonAST::string(format!("{}N", n)))),
         WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
         WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
         // Arc 244 — NilLit terminal step → HolonAST::symbol("nil") (nil HolonAST representation).
@@ -23076,6 +23299,8 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
         // Arc 300 stone B — SURPRISE (see `watast_to_holon`'s note): holon-rs
         // has no native rational leaf; lower to its canonical rendered string.
         WatAST::RationalLit(r, _) => Some(HolonAST::string(format!("{}/{}", r.numer(), r.denom()))),
+        // Arc 300 stone C1 — same SURPRISE as Rational immediately above.
+        WatAST::BigIntLit(n, _) => Some(HolonAST::string(format!("{}N", n))),
         WatAST::BoolLit(b, _) => Some(HolonAST::bool_(*b)),
         WatAST::StringLit(s, _) => Some(HolonAST::string(s.as_str())),
         // Arc 221 Stone 221.4b — Keyword value-shape recognition → HolonAST::Keyword leaf.
@@ -23111,6 +23336,8 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                             | WatAST::FloatLit(_, _)
                             // Arc 300 stone B — Rational joins the primitive-literal group.
                             | WatAST::RationalLit(_, _)
+                            // Arc 300 stone C1 — BigInt joins it too.
+                            | WatAST::BigIntLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
                             | WatAST::Keyword(_, _) => None,
@@ -23130,6 +23357,8 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                             | WatAST::FloatLit(_, _)
                             // Arc 300 stone B — Rational joins the primitive-literal group.
                             | WatAST::RationalLit(_, _)
+                            // Arc 300 stone C1 — BigInt joins it too.
+                            | WatAST::BigIntLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
                             | WatAST::Keyword(_, _) => {
@@ -23947,6 +24176,12 @@ fn try_match_pattern_ast(
         // Arc 300 stone B — rational literal pattern (parse-tree level).
         WatAST::RationalLit(r, _) => Ok(match scrutinee {
             WatAST::RationalLit(s, _) if s == r => Some(Vec::new()),
+            _ => None,
+        }),
+        // Arc 300 stone C1 — bigint literal pattern (parse-tree level; mirrors
+        // the Rational arm immediately above, one type over).
+        WatAST::BigIntLit(n, _) => Ok(match scrutinee {
+            WatAST::BigIntLit(s, _) if s == n => Some(Vec::new()),
             _ => None,
         }),
         WatAST::BoolLit(b, _) => Ok(match scrutinee {

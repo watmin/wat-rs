@@ -37,7 +37,8 @@ use wat_edn::{OwnedValue, Symbol};
 pub enum WatEdnBridgeError {
     /// An EDN form shape that has no `WatAST` counterpart appeared in the
     /// encoded program frame (e.g. `Tagged`, `Inst`, `Uuid`, `Char`,
-    /// `BigInt`, `BigDec`, namespaced `Symbol`).
+    /// `BigDec`, namespaced `Symbol`). Arc 300 stone C1: `BigInt` now HAS a
+    /// counterpart (`WatAST::BigIntLit`) and is no longer in this list.
     UnsupportedEdnForm { shape: String },
     /// A keyword in the EDN frame could not be decoded to a wat keyword path.
     KeywordDecode { raw: String },
@@ -93,6 +94,9 @@ pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
         WatAST::FloatLit(x, _) => OwnedValue::Float(*x),
         // Arc 300 stone B — rational literal, already reduced/normalized.
         WatAST::RationalLit(r, _) => OwnedValue::Rational(Box::new(r.clone())),
+        // Arc 300 stone C1 — bigint literal (mirrors Rational immediately above,
+        // one type over).
+        WatAST::BigIntLit(n, _) => OwnedValue::BigInt(Box::new(n.clone())),
         WatAST::BoolLit(b, _) => OwnedValue::Bool(*b),
         WatAST::StringLit(s, _) => OwnedValue::String(std::borrow::Cow::Owned(s.clone())),
         WatAST::NilLit(_) => OwnedValue::Nil,
@@ -125,8 +129,9 @@ pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
 /// identical to every other decode site.
 ///
 /// Returns a `WatEdnBridgeError` (never panics) for EDN forms that have
-/// no WatAST counterpart: `Tagged`, `Inst`, `Uuid`, `Char`, `BigInt`,
-/// `BigDec`, or a namespaced `Symbol`.
+/// no WatAST counterpart: `Tagged`, `Inst`, `Uuid`, `Char`, `BigDec`, or a
+/// namespaced `Symbol`. Arc 300 stone C1: `BigInt` now decodes to
+/// `WatAST::BigIntLit` — no longer in this list.
 ///
 /// Span is not preserved — all reconstructed nodes carry `crate::rust_caller_span!()`.
 /// `startup_from_forms` and the freeze pipeline work correctly with unknown
@@ -140,6 +145,10 @@ pub fn edn_to_watast(v: &OwnedValue) -> Result<WatAST, WatEdnBridgeError> {
         Edn::Float(x) => Ok(WatAST::FloatLit(*x, crate::rust_caller_span!())),
         // Arc 300 stone B — rational literal round-trip.
         Edn::Rational(r) => Ok(WatAST::RationalLit((**r).clone(), crate::rust_caller_span!())),
+        // Arc 300 stone C1 — bigint literal round-trip (mirrors Rational
+        // immediately above, one type over; symmetric with this file's own
+        // `watast_to_edn` encode arm, which now emits `OwnedValue::BigInt`).
+        Edn::BigInt(n) => Ok(WatAST::BigIntLit((**n).clone(), crate::rust_caller_span!())),
         Edn::String(s) => Ok(WatAST::StringLit(s.as_ref().to_owned(), crate::rust_caller_span!())),
         Edn::Keyword(kw) => {
             let path = match kw.namespace() {
@@ -193,9 +202,6 @@ pub fn edn_to_watast(v: &OwnedValue) -> Result<WatAST, WatEdnBridgeError> {
         }),
         Edn::Char(c) => Err(WatEdnBridgeError::UnsupportedEdnForm {
             shape: format!("Char({c:?})"),
-        }),
-        Edn::BigInt(n) => Err(WatEdnBridgeError::UnsupportedEdnForm {
-            shape: format!("BigInt({n})"),
         }),
         Edn::BigDec(d) => Err(WatEdnBridgeError::UnsupportedEdnForm {
             shape: format!("BigDec({d})"),

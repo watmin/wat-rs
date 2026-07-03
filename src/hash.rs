@@ -131,6 +131,9 @@ const TAG_SET: u8 = 0x1c;
 /// Arc 300 stone B — rational literal tag `<int>/<int>`. Distinct from
 /// `TAG_INT`/`TAG_FLOAT` so a `RationalLit` never hash-collides with either.
 const TAG_RATIONAL: u8 = 0x1d;
+/// Arc 300 stone C1 — bigint literal tag `<int>N`. Distinct from every
+/// other numeric tag so a `BigIntLit` never hash-collides with them.
+const TAG_BIGINT: u8 = 0x1e;
 
 /// Ed25519 signature length in bytes.
 const ED25519_SIG_LEN: usize = 64;
@@ -191,6 +194,15 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>, renumber: &mut ScopeRenu
             out.extend_from_slice(numer.as_bytes());
             out.extend_from_slice(&(denom.len() as u32).to_le_bytes());
             out.extend_from_slice(denom.as_bytes());
+        }
+        // Arc 300 stone C1 — bigint literal. Arbitrary precision (no fixed-width
+        // byte form); encode as a length-prefixed decimal string (mirrors the
+        // Rational arm immediately above).
+        WatAST::BigIntLit(n, _) => {
+            out.push(TAG_BIGINT);
+            let digits = n.to_string();
+            out.extend_from_slice(&(digits.len() as u32).to_le_bytes());
+            out.extend_from_slice(digits.as_bytes());
         }
         WatAST::BoolLit(b, _) => {
             out.push(TAG_BOOL);

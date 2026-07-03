@@ -147,6 +147,14 @@ pub enum Token {
     /// [`Token::Int`] instead, never this variant — so a `Rational` here
     /// never holds an integer-valued ratio.
     Rational(BigRational),
+    /// Arbitrary-precision integer literal — `<int>N` form (arc 300 stone
+    /// C1). Mirrors `wat-edn`'s `N`-suffix lexing
+    /// (`crates/wat-edn/src/lexer.rs::lex_number`'s `Token::BigInt` branch)
+    /// and Clojure's `1N` BigInteger literal. Unlike the `/` rational path
+    /// above, this NEVER reduces to `Token::Int` even when the value fits
+    /// in i64 — `1N` is always bigint (clj: `(class 1N)` is
+    /// `clojure.lang.BigInt` regardless of magnitude).
+    BigInt(num_bigint::BigInt),
 }
 
 /// Byte offset into the source string. Used by [`LexError`] variants
@@ -892,6 +900,19 @@ fn lex_numeric_or_symbol(src: &str, start: usize) -> Result<(Token, usize), LexE
                     };
                 }
                 return Ok((Token::Rational(ratio), i));
+            }
+        }
+    }
+    // BigInt literal: `<int>N` suffix (arc 300 stone C1). Mirrors wat-edn's
+    // `N`-suffix lexing (`crates/wat-edn/src/lexer.rs`'s `Token::BigInt`
+    // branch): strip the trailing `N`, parse the body as `num_bigint::BigInt`.
+    // Never reduces to `Token::Int` — `1N` is always bigint (contrast the
+    // `/` rational path above, which DOES reduce den==1 to Integer).
+    if let Some(body) = raw.strip_suffix('N') {
+        let digits = body.strip_prefix('-').unwrap_or(body);
+        if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
+            if let Ok(n) = body.parse::<num_bigint::BigInt>() {
+                return Ok((Token::BigInt(n), i));
             }
         }
     }
