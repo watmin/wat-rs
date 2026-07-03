@@ -35,14 +35,41 @@ rational support. Naming the tension here so the strike is honest about which re
 
 ## The direction (for the deciding strike, not locked here)
 
-- A **rational value type** in the value system (a `Ratio { num, den }`, reduced to lowest terms, sign on
-  the numerator — clojure's normal form).
-- **Reader:** parse `<int>/<int>` as a Ratio in both `wat-edn` and (via the 300 convergence) `wat-reader`;
-  match `clojure.edn`'s grammar (`1/2`, `-3/4`, denominator ≠ 0, no `0` leading — reuse the integer
-  rules per part).
-- **Writer / printing:** round-trip `Ratio` back to `n/d` so `wat-edn` write == clj read.
-- **Arithmetic / typing:** the language-level surface (a `wat.core` rational type + ops) is the larger
-  half and can follow the reader/value work; the reader-parity piece is what closes the `1/2` differential.
+**The pivotal design fact (grounded 2026-07-03): wat has NO numeric tower.** `src/runtime.rs:4266` —
+*"Integer arithmetic — strict i64. No promotion from f64."* Arithmetic is **type-locked** (`i64::+`,
+`f64::+`, explicit `i64::to-f64` to cross) — the opposite of Clojure's auto-promoting int/ratio/float
+tower. So in wat, **rationals are a self-contained strict type with their own ops**, not a tower
+integration. That bounds the work; it also means we deliberately diverge from Clojure's *arithmetic*
+semantics (parity is on the *reader*, not the tower).
+
+The work splits into two separable layers:
+
+**Layer 1 — EDN data (`crates/wat-edn`), the small half — this ALONE closes the ward's `1/2` exemption.**
+`wat_edn::Value` already carries `Integer(i64)` / `BigInt(Box<BigInt>)` / `Float(f64)` / `BigDecimal`, and
+the crate already deps `num_bigint`.
+- A `Value::Rational` variant — cleanest as `num_rational::BigRational` (GCD-reduce/normalize for free;
+  matches Clojure's BigInteger-backed Ratios).
+- Lexer: recognize `<int>/<int>` as ONE token (today `1` lexes as a number and `/` starts a new token) →
+  build + normalize (reduce to lowest terms, sign on numerator, denominator > 0, `d/1` → Integer,
+  `0/n` → 0 — Clojure's normal form).
+- Writer + equality/hash. This is `wat-edn` *reading* rationals as EDN data — moderate, self-contained,
+  no runtime/type-system changes.
+
+**Layer 2 — the language (`src/runtime.rs` + type system + `wat/core.wat` + `wat-reader`), the bigger half
+— needed for wat PROGRAMS to compute with rationals.** The runtime's numeric values are `i64`/`f64`/`u8`
+(note: **no `BigInt` in the runtime** — only in the EDN data layer). So:
+- A runtime `Value::Rational` + a `:wat::core::Rational` type in the type system.
+- Type-locked ops (`Rational::+ - * /`, comparison, `Rational::to-f64`, `i64::to-rational`) — strict/
+  explicit, matching wat's i64/f64 discipline; **not** auto-promotion.
+- `wat-reader` (source) lexing `1/2` → a rational literal in `WatAST`; Display/printing.
+
+**The two gating calls:**
+1. **Backing integer type.** Clojure Ratios are arbitrary-precision (BigInteger). Layer 1 can be
+   `BigRational` trivially (dep exists). The *language* layer has no BigInt today — so a language Rational
+   is either `i64`-bounded (simple, can overflow) or arrives with BigInt runtime support (bigger, the
+   honest Clojure match). **This is the real fork.**
+2. **Scope.** Ward-green / EDN-data parity = **Layer 1 alone** (no runtime/type changes). Rationals
+   *usable in wat code* = Layer 1 + Layer 2 (where the BigInt question + type-system work live).
 
 ## Why deferred (not scaffolding-about-to-be-deleted)
 
