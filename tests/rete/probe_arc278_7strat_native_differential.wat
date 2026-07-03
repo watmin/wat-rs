@@ -19,3 +19,22 @@
 (:wat::rete::defrule :n::ok
   :when [(:n::A (?k <- :k)) (:wat::rete::not (:n::Bad (?k <- :k)))]
   :then (:wat::rete::insert (:n::Ok ?k)))
+
+;; ── 3-STRATUM negation chain (the harder case: facts must thread across TWO negation layers) ──
+;; A(1),A(2),A(3): Bad for k=2 (stratum 0); Warn = A with no Bad (stratum 1); Safe = A with no Warn (stratum 2).
+;; Correct closure: Bad={2}, Warn={1,3}, Safe={2} → (Bad:1, Warn:2, Safe:1). Exercises acc-facts reconstruction:
+;; Warn's stratum must see the derived Bad; Safe's stratum must see the derived Warn.
+(:wat::core::defrecord :n3::A    [k <- :wat::core::i64])
+(:wat::core::defrecord :n3::Bad  [k <- :wat::core::i64])
+(:wat::core::defrecord :n3::Warn [k <- :wat::core::i64])
+(:wat::core::defrecord :n3::Safe [k <- :wat::core::i64])
+
+(:wat::rete::defrule :n3::mark-bad
+  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
+  :then (:wat::rete::insert (:n3::Bad ?k)))
+(:wat::rete::defrule :n3::mark-warn
+  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Bad (?k <- :k)))]
+  :then (:wat::rete::insert (:n3::Warn ?k)))
+(:wat::rete::defrule :n3::mark-safe
+  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Warn (?k <- :k)))]
+  :then (:wat::rete::insert (:n3::Safe ?k)))

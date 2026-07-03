@@ -1042,8 +1042,9 @@ pub(crate) fn eval_fire_once_native(
 /// each node's PV; the inner pass collects each Record. Mirrors `collect-derived`
 /// (`wat/rete.wat:940-955`).
 ///
-/// Used by the P4a re-run path (`fire_fixpoint`) — kept for documentation.
-#[allow(dead_code)]
+/// Used by the P4a re-run path (`fire_fixpoint`, kept for documentation) AND by the
+/// 7-strat-native stratified driver (`fire_rules_stratified`) to collect each stratum's
+/// derived facts.
 fn collect_derived(production_pm: &Value) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
     match production_pm {
@@ -1069,8 +1070,11 @@ fn collect_derived(production_pm: &Value) -> Vec<Value> {
 /// fact would grow `facts` every round and spin forever. Mirrors `merge-facts`
 /// (`wat/rete.wat:960-972`).
 ///
-/// Used by the P4a re-run path (`fire_fixpoint`) — kept for documentation.
-#[allow(dead_code)]
+/// Used by the P4a re-run path (`fire_fixpoint`, kept for documentation) AND by the
+/// 7-strat-native stratified driver (`fire_rules_stratified`) — R18: the cross-stratum
+/// derived-fact accumulation MUST value-dedup (mirrors the oracle's `merge-facts`,
+/// `wat/rete.wat:1752`), not concat, or a fact produced by more than one stratum's
+/// query is double-counted.
 fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
     // Start with a clone of the existing PV.
     let mut pv: rpds::VectorSync<Value> = match facts_pv {
@@ -1116,11 +1120,24 @@ fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
 
 /// Read the `facts` field (position 5) from a frozen Session Value.
 ///
-/// Used by the P4a re-run path (`fire_fixpoint`) — kept for documentation.
-#[allow(dead_code)]
+/// Used by the P4a re-run path (`fire_fixpoint`, kept for documentation) AND by the
+/// 7-strat-native stratified driver (`fire_rules_stratified`) to read a session's
+/// current fact set (both the original input session and each stratum's fired sub-session).
 fn session_facts(session: &Value) -> Value {
     match session {
         Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[5].clone(),
+        _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
+    }
+}
+
+/// Read the `rules` field (position 1) from a frozen Session Value. Mirrors `session_facts`
+/// (position 5) — same field-reading convention as `to_transient` (`wat/rete.wat:124-131`
+/// declaration order: network(0) rules(1) alpha-memory(2) beta-memory(3) production-memory(4)
+/// facts(5) next-id(6)). Used by `eval_fire_rules_native` to read the rule set once, before
+/// deciding fast-path vs stratified dispatch.
+fn session_rules(session: &Value) -> Value {
+    match session {
+        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[1].clone(),
         _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
     }
 }
@@ -1962,6 +1979,259 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
     Ok(session_with_facts(&to_persistent(wm), input_facts))
 }
 
+// ── Arc 278 Stone 7-strat-native: STRATIFIED negation, native port ──────────────
+//
+// Faithful Rust port of the wat ORACLE's stratification (`wat/rete.wat:1543-1800`):
+// `rule-produces` / `rule-negates` / `stratify-sweep` / `stratify-fix` / `rule-stratum` /
+// `stratify` / `fire-stratified-loop` / `fire-stratified`. The oracle is the reference and
+// does NOT change (`DESIGN-STONE-7strat-native.md`); this is a SEPARATE, self-contained Rust
+// impl that moves in lockstep with it (the dual-impl doctrine — no `native?` flag anywhere).
+
+/// A fact-form's type head, colon-stripped: `(:Type ...)` → `"Type"`.
+/// Mirrors the inline `ast-name` + colon-strip done identically in both `rule-produces`
+/// (`wat/rete.wat:1558-1562`) and `rule-negates` (`wat/rete.wat:1586-1589`).
+fn fact_type_head(fact_form: &WatAST) -> Option<String> {
+    if let WatAST::List(items, _) = fact_form {
+        let raw = match items.first() {
+            Some(WatAST::Keyword(k, _)) => k.clone(),
+            Some(WatAST::Symbol(s, _)) => s.as_str().to_string(),
+            _ => return None,
+        };
+        return Some(raw.trim_start_matches(':').to_string());
+    }
+    None
+}
+
+/// Extract the produced type FQDNs from a Rule's RHS forms.
+/// Each RHS form's second child (`items[1]`) is the fact-form being inserted; no check on the
+/// RHS form's own head — the oracle unconditionally reads the second child. Mirrors
+/// `rule-produces` (`wat/rete.wat:1546-1565`).
+fn rule_produces(rhs: &[WatAST]) -> Vec<String> {
+    let mut out = Vec::new();
+    for form in rhs {
+        if let WatAST::List(items, _) = form {
+            if let Some(fact_form) = items.get(1) {
+                if let Some(name) = fact_type_head(fact_form) {
+                    out.push(name);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Extract the negated type FQDNs from a Rule's LHS conditions.
+/// Only `(:wat::rete::not <fact-form>)` conditions contribute a dependency edge; every other
+/// condition shape is ignored (positive conditions, `:where`, `:exists`, accumulate). Mirrors
+/// `rule-negates` (`wat/rete.wat:1570-1593`).
+fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
+    let mut out = Vec::new();
+    for form in lhs {
+        if let WatAST::List(items, _) = form {
+            if let Some(WatAST::Keyword(k, _)) = items.first() {
+                if k.as_str() == ":wat::rete::not" {
+                    if let Some(fact_form) = items.get(1) {
+                        if let Some(name) = fact_type_head(fact_form) {
+                            out.push(name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// One sweep over all rules' (produced, negated) pairs, raising `type_strata` entries.
+/// For each rule: `required = max(stratum[n]+1 for n in negated, default 0)`; for each produced
+/// type `p`: `stratum[p] = max(stratum[p], required)`. Returns `true` iff any stratum rose.
+/// Mirrors `stratify-sweep` (`wat/rete.wat:1599-1646`).
+fn native_stratify_sweep(
+    rule_parts: &[(Vec<String>, Vec<String>)],
+    type_strata: &mut HashMap<String, i64>,
+) -> bool {
+    let mut changed = false;
+    for (produced, negated) in rule_parts {
+        let mut required = 0i64;
+        for n in negated {
+            let v = *type_strata.get(n).unwrap_or(&0) + 1;
+            if v > required {
+                required = v;
+            }
+        }
+        for p in produced {
+            let cur = *type_strata.get(p).unwrap_or(&0);
+            if required > cur {
+                type_strata.insert(p.clone(), required);
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
+/// Recursive fixpoint for stratification: sweeps until converged or `remaining` runs out.
+/// A negation cycle (non-terminating strata) raises the same "not stratifiable" error the
+/// oracle raises. Mirrors `stratify-fix` (`wat/rete.wat:1651-1667`).
+fn native_stratify_fix(
+    rule_parts: &[(Vec<String>, Vec<String>)],
+    mut type_strata: HashMap<String, i64>,
+    mut remaining: i64,
+) -> Result<HashMap<String, i64>, EvalBreak> {
+    loop {
+        let changed = native_stratify_sweep(rule_parts, &mut type_strata);
+        if !changed {
+            return Ok(type_strata);
+        }
+        if remaining <= 0 {
+            return Err(RuntimeError {
+                span: crate::rust_caller_span!(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: ":wat::rete::fire-rules'".into(),
+                    reason: "stratify: negation cycle detected — rule set is not stratifiable".into(),
+                },
+            }
+            .into());
+        }
+        remaining -= 1;
+    }
+}
+
+/// Compute the type→stratum map for a rule set (`length(rules)+1` sweeps is always enough for
+/// a stratifiable set — same bound the oracle uses). Mirrors `stratify` (`wat/rete.wat:1707-1713`).
+fn native_stratify(rule_parts: &[(Vec<String>, Vec<String>)]) -> Result<HashMap<String, i64>, EvalBreak> {
+    let bound = rule_parts.len() as i64 + 1;
+    native_stratify_fix(rule_parts, HashMap::new(), bound)
+}
+
+/// A single rule's stratum given the final type-strata:
+/// `max(max strata[p] for produced p, max strata[n]+1 for negated n)`.
+/// Mirrors `rule-stratum` (`wat/rete.wat:1671-1702`).
+fn native_rule_stratum(produced: &[String], negated: &[String], type_strata: &HashMap<String, i64>) -> i64 {
+    let from_p = produced.iter().map(|p| *type_strata.get(p).unwrap_or(&0)).max().unwrap_or(0);
+    let from_n = negated.iter().map(|n| *type_strata.get(n).unwrap_or(&0) + 1).max().unwrap_or(0);
+    from_p.max(from_n)
+}
+
+/// Invoke the pure-wat `:wat::rete::compile` verb on a native-built rule subset — there is no
+/// native compiler; `compile` (`wat/rete.wat:793-815`) is the ONE shared front-end both fire
+/// paths already consume. Mirrors the proven native→wat call pattern used by
+/// `accumulate_value`'s 8-custom user-fold-fn dispatch (kernel.rs, `eval_test_core`-style: bind
+/// the runtime `Value` into a fresh child env under a synthetic name, build a two-element call
+/// AST, `eval_inner` it).
+fn invoke_wat_compile(stratum_rules: Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+    let span = crate::rust_caller_span!();
+    let var_name = "__stratum_rules__".to_string();
+    let base = crate::runtime::Environment::new();
+    let env = base
+        .child()
+        .bind_unknown_span(var_name.clone(), crate::runtime::TrackedValue::from(stratum_rules))
+        .build();
+    let call = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::rete::compile".to_string(), span.clone()),
+            WatAST::Symbol(crate::scope::Identifier::bare(var_name), span.clone()),
+        ],
+        span,
+    );
+    Ok(crate::runtime::eval_inner(&call, &env, sym)?.value_owned())
+}
+
+/// Native stratified fire drive — port of `fire-stratified-loop` + `fire-stratified`
+/// (`wat/rete.wat:1724-1800`), wrapped the way `fire-rules-spec` wraps `fire-stratified`
+/// (`wat/rete.wat:1808-1820`: reset `facts = input` on the final result).
+///
+/// Per stratum `[0..=max_s]` ascending: filter the ORIGINAL typed rule set to that stratum,
+/// compile a FRESH sub-session for just those rules (eliminates the shared-alpha
+/// duplicate-edge doubling the oracle's doc comment names, `wat/rete.wat:1767-1770`), seed it
+/// with all facts accumulated from lower strata (so this stratum's `:not` sees the complete
+/// prior derivation), fire it to its own fixpoint, and value-dedup-merge (`merge_facts` — R18,
+/// NOT concat) the newly derived facts into the running accumulator.
+fn fire_rules_stratified(
+    session: &Value,
+    parts: &[(Value, Vec<String>, Vec<String>)],
+    rule_strata: &[i64],
+    max_s: i64,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let input_facts = session_facts(session);
+
+    let mut acc_facts: Value = input_facts.clone();
+    let mut acc_derived: Vec<Value> = Vec::new();
+
+    for s in 0..=max_s {
+        // Filter the original typed rule set to this stratum (same filter the oracle's
+        // fire-stratified-loop applies, `wat/rete.wat:1735-1738`).
+        let mut stratum_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        for ((rule_val, _, _), stratum) in parts.iter().zip(rule_strata.iter()) {
+            if *stratum == s {
+                stratum_pv = stratum_pv.push_back(rule_val.clone());
+            }
+        }
+        let stratum_rules = Value::wat__core__PersistentVector(stratum_pv);
+
+        // Fresh compiled network for this stratum only, seeded with the accumulated facts.
+        let sub_sess = invoke_wat_compile(stratum_rules, sym)?;
+        let sub_sess = session_with_facts(&sub_sess, acc_facts.clone());
+
+        let fired = fire_fixpoint_delta(&sub_sess, sym, None)?;
+
+        // Collect this stratum's derived facts from its production-memory (position 4).
+        // NOTE: unlike the oracle's bare `fire-fixpoint` (whose `Session/facts` is left as the
+        // full input∪derived closure, `wat/rete.wat:1754`), native `fire_fixpoint_delta` already
+        // resets `facts = input` internally (its own fire-rules-shaped contract) — so `fired`'s
+        // facts field equals the seed, not the closure. Reconstruct the closure explicitly below.
+        let production_pm = match &fired {
+            Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[4].clone(),
+            _ => Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+        };
+        let new_derived = collect_derived(&production_pm);
+
+        // acc_facts := this stratum's post-fixpoint closure (seed ∪ new_derived), for the next
+        // stratum's `:not` to see — the value the oracle gets for free by reading
+        // `(:wat::rete::Session/facts fired)` (`wat/rete.wat:1754`).
+        acc_facts = merge_facts(&acc_facts, &new_derived);
+
+        // acc_derived := value-dedup union across strata (mirrors `merge-facts`, R18 — NOT concat).
+        let acc_derived_pv: rpds::VectorSync<Value> = acc_derived.iter().cloned().collect();
+        let merged = merge_facts(&Value::wat__core__PersistentVector(acc_derived_pv), &new_derived);
+        acc_derived = match merged {
+            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+            _ => acc_derived,
+        };
+    }
+
+    // Pack derived facts into production-memory {0: acc_derived} (mirrors fire-stratified's
+    // `fprod-m`, wat/rete.wat:1792) and reset facts = input (mirrors fire-rules-spec's outer
+    // wrap, wat/rete.wat:1808-1820). network/rules/next-id preserved from the ORIGINAL input
+    // session; alpha-memory/beta-memory reset to empty (mirrors fire-stratified's Session
+    // constructor, wat/rete.wat:1793-1800).
+    let mut prod_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    for d in &acc_derived {
+        prod_pv = prod_pv.push_back(d.clone());
+    }
+    let prod_pm = rpds::HashTrieMapSync::new_sync().insert(Value::i64(0), Value::wat__core__PersistentVector(prod_pv));
+
+    match session {
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            let sf = a.fields.as_slice();
+            Ok(Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.clone(),
+                Arc::new(vec![
+                    sf[0].clone(),                                             // network (original)
+                    sf[1].clone(),                                             // rules (original)
+                    Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()), // alpha-memory
+                    Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()), // beta-memory
+                    Value::wat__core__PersistentMap(prod_pm),                  // production-memory
+                    input_facts,                                               // facts = input
+                    sf[6].clone(),                                             // next-id (original)
+                ]),
+            ))))
+        }
+        other => Ok(other.clone()),
+    }
+}
+
 // ── Public entry: native fire-rules' ─────────────────────────────────────────
 
 /// `(:wat::rete::fire-rules' <session>) -> :wat::rete::Session`
@@ -1992,9 +2262,63 @@ pub(crate) fn eval_fire_rules_native(
     // Evaluate the session argument.
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
 
-    // P4b: run the semi-naive delta fixpoint (input_facts restore is done inside).
-    // Pass None — the fast path records no support index (zero behavior change).
-    fire_fixpoint_delta(&session, sym, None)
+    // 7-strat-native: read the rule set once and compute each rule's stratum (port of the
+    // oracle's stratify: produces/negates/sweep/fix/rule-stratum). `max_s == 0` means no rule
+    // negates a type any rule in the SAME OR LOWER stratum produces — i.e. no negation-over-
+    // derived — so the fast unstratified path is observationally identical and MUST stay the
+    // one taken (byte-identical to today, zero perf cost for the 99% non-stratified case).
+    let rules_value = session_rules(&session);
+    let rules: Vec<Value> = match &rules_value {
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        _ => vec![],
+    };
+    let mut parts: Vec<(Value, Vec<String>, Vec<String>)> = Vec::with_capacity(rules.len());
+    for r in &rules {
+        let (_, rsf) = match node_record(r) {
+            Some(x) => x,
+            None => continue,
+        };
+        let to_asts = |v: &Value| -> Vec<WatAST> {
+            match v {
+                Value::wat__core__PersistentVector(pv) => pv
+                    .iter()
+                    .filter_map(|x| match x {
+                        Value::wat__WatAST(ast) => Some((**ast).clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => vec![],
+            }
+        };
+        let lhs = to_asts(&rsf[1]);
+        let rhs = to_asts(&rsf[2]);
+        let produced = rule_produces(&rhs);
+        let negated = rule_negates(&lhs);
+        parts.push((r.clone(), produced, negated));
+    }
+
+    let pn_only: Vec<(Vec<String>, Vec<String>)> =
+        parts.iter().map(|(_, p, n)| (p.clone(), n.clone())).collect();
+    let type_strata = native_stratify(&pn_only)?;
+
+    let mut max_s: i64 = 0;
+    let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
+    for (_, produced, negated) in &parts {
+        let s = native_rule_stratum(produced, negated, &type_strata);
+        rule_strata.push(s);
+        if s > max_s {
+            max_s = s;
+        }
+    }
+
+    if max_s == 0 {
+        // UNCHANGED fast path — P4b: run the semi-naive delta fixpoint (input_facts restore is
+        // done inside). Pass None — the fast path records no support index (zero behavior change).
+        return fire_fixpoint_delta(&session, sym, None);
+    }
+
+    // Stratified drive — port of fire-stratified-loop, bottom→top.
+    fire_rules_stratified(&session, &parts, &rule_strata, max_s, sym)
 }
 
 // ── Public entry: native fire-rules-explain' ─────────────────────────────────

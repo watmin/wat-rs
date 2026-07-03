@@ -67,3 +67,44 @@ fn differential_stratified_negation() {
     assert_eq!(native, oracle, "native==oracle on stratified negation; native={native:?} oracle={oracle:?}");
     assert_eq!(native, (1, 1), "native: Bad=1, Ok=1 (== Clara's neg.clj); got {native:?}");
 }
+
+/// Fire `A(1),A(2),A(3)` through the 3-stratum chain and return (Bad, Warn, Safe) counts.
+fn counts3(fire_fn: &str) -> Result<(i64, i64, i64), String> {
+    let run = format!(
+        "(:wat::core::let\n\
+          [rules   (:wat::rete::collect-rules :n3)\n\
+           s0      (:wat::rete::compile rules)\n\
+           s1      (:wat::rete::insert s0 (:n3::A 1))\n\
+           s2      (:wat::rete::insert s1 (:n3::A 2))\n\
+           s3      (:wat::rete::insert s2 (:n3::A 3))\n\
+           fired   (:wat::rete::{fire_fn} s3)]\n\
+          (:wat::core::PersistentVector\n\
+            (:wat::core::length (:wat::rete::query-by-type-string fired \"n3::Bad\"))\n\
+            (:wat::core::length (:wat::rete::query-by-type-string fired \"n3::Warn\"))\n\
+            (:wat::core::length (:wat::rete::query-by-type-string fired \"n3::Safe\"))))"
+    );
+    let w = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
+    let ast = wat::parse_one!(&run).map_err(|e| format!("parse: {e:?}"))?;
+    let out = eval_in_frozen(&ast, &w, &Environment::new()).map_err(|e| format!("eval: {e:?}"))?.value_owned();
+    match &out {
+        Value::wat__core__PersistentVector(v) => {
+            let g = |i: usize| match v.get(i) {
+                Some(Value::i64(n)) => Ok(*n),
+                other => Err(format!("slot {i}: expected i64; got {other:?}")),
+            };
+            Ok((g(0)?, g(1)?, g(2)?))
+        }
+        other => Err(format!("expected PV; got {other:?}")),
+    }
+}
+
+/// THE HARDER DIFFERENTIAL — 3 strata, facts threaded across TWO negation layers.
+/// Guards the native stratified driver's cross-stratum acc-facts reconstruction (the one deviation
+/// from a line-for-line port) beyond the minimal 2-stratum neg case — the R18 lesson made a test.
+#[test]
+fn differential_three_stratum_negation() {
+    let oracle = counts3("fire-rules-spec").expect("oracle fire");
+    let native = counts3("fire-rules").expect("native fire");
+    assert_eq!(native, oracle, "native==oracle on 3-stratum negation; native={native:?} oracle={oracle:?}");
+    assert_eq!(native, (1, 2, 1), "native: Bad=1, Warn=2, Safe=1 (only k=2 is Safe); got {native:?}");
+}
