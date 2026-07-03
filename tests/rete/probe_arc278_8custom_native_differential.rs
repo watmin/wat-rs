@@ -111,9 +111,15 @@ fn fence_rejects_impure_fold() {
          (:wat::core::defn :user::main [] -> :wat::core::nil nil)";
     let w = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .expect("world should freeze (the impure fold is defined; the rule using it is the violation)");
-    // Compiling the rule must RAISE (the accumulate-branch fences the user fold pure∧det).
+    // Compiling the rule must be REJECTED (the accumulate-branch fences the user fold pure∧det).
+    // The fence rejects by PANICKING (Option/expect → panic_any, same as raise!); catch it.
+    // (Before the arc-296 None-fix an illegal `(:wat::core::None)` form threw a *catchable* error
+    // here — that form was never legal and is now corrected; the fence's real reject is a panic.)
     let run = "(:wat::core::let [rules (:wat::rete::collect-rules :w)] (:wat::rete::compile rules))";
     let ast = wat::parse_one!(run).expect("parse");
-    let res = eval_in_frozen(&ast, &w, &Environment::new());
-    assert!(res.is_err(), "impure custom fold must be rejected at compile; got Ok");
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        eval_in_frozen(&ast, &w, &Environment::new())
+    }));
+    let rejected = caught.map_or(true, |res| res.is_err());
+    assert!(rejected, "impure custom fold must be rejected at compile; got Ok");
 }

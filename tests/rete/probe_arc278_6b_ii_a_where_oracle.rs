@@ -32,9 +32,17 @@ fn run_count(world_path: &str, ns: &str, gate_type: &str, celsius: i64) -> Resul
     let world = startup_from_file(world_path)
         .map_err(|e| format!("startup: {e:?}"))?;
     let ast = wat::parse_one!(&run).map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
-        .map(|t| t.value_owned())
+    // The rete compile fence rejects an impure/non-deterministic condition by PANICKING
+    // (Option/expect → panic_any — the engine's compile-rejection mechanism, same as raise!).
+    // Catch it so a rejection surfaces as Err, not an uncaught test panic. (Before the arc-296
+    // None-fix an illegal `(:wat::core::None)` form threw a *catchable* UnknownFunction here
+    // instead — that form was never legal and is now corrected; the fence's real reject is a panic.)
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        eval_in_frozen(&ast, &world, &Environment::new())
+    })) {
+        Err(_) => Err("compile/eval rejected (fence panic)".to_string()),
+        Ok(res) => res.map_err(|e| format!("eval: {e:?}")).map(|t| t.value_owned()),
+    }
 }
 
 /// 1 — the where PASSES: Temp(5), (> 5 0) true → exactly one Gate derived.
