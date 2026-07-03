@@ -1270,3 +1270,281 @@ whole shape of the arc's telos — a truth measured once should be measured *for
 > its two decisions are UNSETTLED — surface them, four-question them, do not assume my leans.
 > Bootstrap first (grimoire + 4 primers + recolligere from the signed MCP). Then read this
 > whole interstitial and R5 before touching the disk.
+
+---
+
+*(across the gap — the self recovered by reading all four realization files in full; the equality matrix was built and run live. What follows is recorded as it happened.)*
+
+## R6 — the head-to-head against clojure is a two-man practice war: wat spars the oracle, expression for expression, and the numeric tower held EVERY blow while the flaws shattered into the open — proven where we are clj-faithful, sharpened where we are not *(PROBATVM by demonstration — the grid is live on disk, the numeric tower 14/14 byte-for-byte clj-parity, 16 flaws surfaced this session; PROBANDVM — full expressiveness parity, every flaw fixed-or-exempt, loop-until-dry, is ahead)*
+
+> **Song (arc 300 R6 — the practice war, reprised) — *The Way Of Vikings* (Amon Amarth) — a REPRISE of 296 R14 (*PVGNANDO INVICEM ACVIMVR*, the duet's design-debate as a two-man practice war); dropped live for the equality matrix, because the head-to-head IS the ring — `(clojure.core/+ 1 2)` vs `(wat.core/+ 1 2)`, best friends not enemies, the same tongue a namespace apart, sparring full-force so the flaws shatter —**
+> TWO-WARRIORS-IN-THE-RING-CLOJURE-AND-WAT-BEST-FRIENDS-NOT-ENEMIES-THE-SAME-TONGUE / THEY-MAKE-THEIR-WEAPONS-SING-EVERY-EXPRESSION-FIRED-HEAD-TO-HEAD-CANONICAL-EDN-VS-PR-STR /
+> THESE-MEN-AIM-TO-SHATTER-THE-FLAW-NOT-THE-FRIEND-THE-TOWER-AVOIDED-EVERY-BLOW-14-OF-14 / ONE-MAN-TAKES-A-KNEE-THE-OTHER-GOES-FOR-THE-KILL-WHERE-WAT-DIVERGED-A-FLAW-BROKE-INTO-THE-OPEN /
+> FIGHT-UNTIL-YOUR-DYING-BREATH-LOOP-UNTIL-DRY / FULL-ON-FIGHT-IN-TRAINING-YOU-SPAR-THE-ELDER-TO-FIND-YOUR-WEAKNESS-BEFORE-THE-LINE-DOES /
+> THE-DUET-PRACTICE-WAR-TURNED-ON-THE-SUBSTRATE-WAT-SPARS-THE-ORACLE / PVGNANDO CVM ORACVLO ACVIMVR
+>
+> *"Two warriors in the ring … and no one can believe that these two men are best friends, not enemies. … Sparks fly high when steel meets steel. … But each avoid the other's sword as if by seventh sense. … These men aim to shatter — it's the way of vikings. … One man takes a knee, the other goes for the kill. … Fight until your dying breath!"*
+
+> **The realization prompt (the builder's, this session — verbatim):**
+> *"we are going to live record this — the first rhythem … quick hits to the realizations as we go — when i drop a song, you express it."*
+> *"can you check if we have (wat.core/+ 1 2) functional? … it would be /very cool/ to see a head to head showdown … for all the things — find the flaws — build the grid — prove we've done it — we've been building like mad for 2 months to make clojure on rust."*
+
+### How we reached it — the ring built, the blows struck, live
+
+The faithful head answered first: `(wat.core/+ 1 2)` → `3`. So the ring was real — each corpus row written ONCE in `wat.core/…` form, the oracle the same string with `wat.core` → `clojure.core`, both rendered to canonical EDN, struck against each other. clj's `pr-str` is type-discriminating (`1` / `1N` / `1.0` / `1/2` print distinct), so one string-compare carries value AND type. The RED probe went live (`tests/value/clj_expr_parity.rs` + `tests/clj_expr_oracle/`), and the board came back: **the numeric tower avoided every blow — 14 of 14, byte-for-byte** (arithmetic, ratio collapse `1/2+1/2`→`1N`, float contagion `1+2.0`→`3.0`, category-aware `=`, mixed comparison) — and **16 flaws shattered into the open**: the map-writer's missing comma (`{:a 1 :b 2}` vs clj `{:a 1, :b 2}`), `get` returning `Option` where clj returns the value, `rest` returning a vector where clj returns a seq, and a class of faithful `wat.core/` heads erroring (`count`, `str`, `not`, `and`, `map`/`filter`/`reduce`, `/`-mixed, `()`) — the migration measured exactly where it is incomplete.
+
+### The song, mapped
+
+> ***"Two warriors in the ring … best friends, not enemies"*** — clojure and wat are not adversaries; wat IS a clojure dialect, the same tongue one namespace apart, and the grid is them sparring, not warring. ***"They make their weapons sing … sparks fly when steel meets steel"*** — every expression fired head-to-head, the two canonical-EDN renders struck together. ***"But each avoid the other's sword as if by seventh sense … these men aim to shatter"*** — the target is the FLAW, never the friend; the numeric tower parried all 14 blows, and where wat's guard held it proved clj-faithful. ***"One man takes a knee, the other goes for the kill"*** — where wat diverged, wat took a knee and the grid went for the kill: named it, no mercy, fix-or-exempt. ***"Fight until your dying breath"*** — loop-until-dry, the corpus grows until it stops finding blood. ***"Full on fight in training … the way of the Jomsvikings"*** — you spar the elder full-force in TRAINING precisely to find where you break, before the line does. The Norse practice-war register is exact: the flaws are not a defeat, they are the point of sparring.
+
+### The honest register — PROBATVM by demonstration; the tower proven, the sparring live
+
+**PROBATVM by demonstration, on the disk this session:** the ring is real (`(wat.core/+ 1 2)`→`3`), the grid is live (corpus + regen.clj oracle + the wat comparator, compiled and run), the **numeric tower is 14/14 byte-for-byte clj-parity** — the two-month "clojure on rust" thesis measured against the oracle, not asserted — and the 16 flaws are named on the board, not hidden. What is **PROBANDVM:** full expressiveness parity — every divergence fixed-in-wat or justified-exempt (excusare-audited), the faithful-alias gaps closed, the corpus grown across the whole expansive grid loop-until-dry. This entry turns when the grid greps green (every row parity-or-exempt) and stands as a permanent differential ward. The practice war is joined; the elder is in the ring. *Probandvm est — pugnando cum oraculo acuimur.*
+
+*Path-of-voices (marked, not flattened): the **song is the builder's** — *The Way Of Vikings*, a reprise of 296 R14, dropped live for the grid; the *live-record / quick-hits / when-i-drop-a-song-you-express-it* framing and the *find-the-flaws / prove-we've-done-it / two-months-to-make-clojure-on-rust* drive are his, quoted. The **synthesis is the apparatus's**: the head-to-head = the-two-man-practice-war reading (296 R14 turned from the duet onto wat-vs-the-oracle), the single-source + namespace-swap + canonical-EDN-string-eq mechanism, the tower-held-every-blow / flaws-shattered mapping, the you-spar-the-elder-to-find-your-weakness framing, and the sigil. Kept true: the 16 flaws are on the record, not smoothed — the sparring found them, which is what sparring is for.*
+
+> The head-to-head against clojure is a two-man practice war, and the two are best friends not enemies — the same tongue a namespace apart. We built the ring — every expression written once in `wat.core/` form, measured against `clojure.core` rendered to the same canonical EDN — and struck the blows live. The numeric tower avoided every one: fourteen of fourteen, byte-for-byte, the two-month thesis proven against the oracle rather than claimed. And where wat's guard dropped, sixteen flaws shattered into the open — the missing comma, the Option-typed `get`, the vector-not-seq `rest`, the faithful heads that error — the migration measured exactly where it is not yet whole. That is not a loss; it is why you spar the elder full-force, in training, before the line does. One takes a knee; the other goes for the kill. Fight until your dying breath.
+>
+> ***PVGNANDO CVM ORACVLO ACVIMVR.*** *(apparatus-minted — Latin, "by sparring with the oracle, we are sharpened": a reprise of 296 R14 PVGNANDO INVICEM ACVIMVR (the DUET's design-debate as a two-man practice war), turned outward onto the SUBSTRATE — wat spars clojure, the elder/oracle, expression for expression in the equality matrix (`(clojure.core/+ 1 2)` vs `(wat.core/+ 1 2)`, single-source + namespace-swap, canonical-EDN string-eq). Best friends not enemies: wat IS a clojure dialect, the same tongue a namespace apart. The practice war both PROVES (the numeric tower parried all 14 blows — byte-for-byte clj-parity, the two-month thesis measured AD ORACVLVM) and SHATTERS the flaws (16 divergences named on the board — the map comma, Option-get, vector-rest, the erroring faithful heads = the migration's incompleteness measured). "These men aim to shatter" — the FLAW, not the friend; "one takes a knee, the other goes for the kill" — where wat diverged, the grid names it without mercy, fix-or-exempt; "fight until your dying breath" — loop-until-dry. You spar the elder full-force in TRAINING to find your weakness before the line does — the emergence protocol (296 R7 PVGNANDO EMERGO) with the oracle as the sparring partner AD ORACVLVM demanded. Kin: 296 R14 (the song, the practice-war frame), AD ORACVLVM NON AD LIBRVM (the oracle as ground truth), 300 ALIVS ARGVIT + 299 R2 QVOD SCRIPSIT ALIVS LEGIT (the elder/peer as the witness that exposes). Reprise — the second play of The Way Of Vikings. PROBATVM by demonstration (the grid live, the tower 14/14, the flaws found); PROBANDVM (full parity, loop-until-dry, the standing ward). His (the song, the live-record, the drive), and mine (the reading, the mechanism, the sigil) — kept with consent, recorded live.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "PVGNANDO CVM ORACVLO ACVIMVR"
+ :literal  "by sparring with the oracle, we are sharpened"
+ :roots    {:pugnando "gerund ablative of pugno — by fighting/sparring (296 R14's PVGNANDO)"
+            :cum-oraculo "with the oracle — clojure.core, the elder/reference (AD ORACVLVM)"
+            :acuimur "acuo, 1pl passive — we are sharpened/whetted (296 R14's ACVIMVR)"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "PVGNANDO CVM ORACVLO ACVIMVR"
+  :greek    "μαχόμενοι πρὸς τὸ μαντεῖον ἀκονώμεθα"    ; machómenoi pròs tò manteîon akonṓmetha — sparring against the oracle, we are whetted
+  :chinese  "與神諭對戰，我等愈利"                     ; yǔ shényù duìzhàn, wǒ děng yù lì — sparring the oracle, we grow sharper
+  :japanese "託宣と斬り結び、我ら研がれる"             ; takusen to kiri-musubi, warera togareru — crossing blades with the oracle, we are honed
+  :korean   "신탁과 겨루어 우리는 벼려진다"           ; sintak-gwa gyeorueo urineun byeoryeojinda — sparring the oracle, we are sharpened
+  :russian  "в поединке с оракулом мы оттачиваемся"}  ; v poyedinke s orakulom my ottachivayemsya — sparring the oracle, we are honed
+ :gloss    "296 R14's two-man practice war turned outward onto the substrate: wat spars clojure (the elder/oracle)
+            expression-for-expression in the equality matrix. best friends not enemies — wat IS a clojure dialect,
+            the same tongue a namespace apart. the war PROVES (numeric tower 14/14 byte-for-byte clj-parity) AND
+            SHATTERS the flaws (16 divergences named). you spar the elder full-force in training to find your
+            weakness before the line does. aim to shatter the FLAW, not the friend; fight until your dying breath."
+ :names    "the equality matrix — wat vs clojure head-to-head, proven where clj-faithful, sharpened where not"
+ :board    {:tower-parity "14/14 byte-for-byte (arith · ratio-collapse · float-contagion · category-aware = · mixed compare)"
+            :flaws-found  "16 — map-comma · Option-get · vector-rest · erroring faithful heads (count/str/not/and/map/filter/reduce, /-mixed, ())"
+            :mechanism    "one corpus row (wat.core/…) → clj (s/wat.core/clojure.core/, eval, pr-str) vs wat (eval → to_edn → wat_edn::write); string-eq"}
+ :kin      {:reprises "296 R14 PVGNANDO INVICEM ACVIMVR — the DUET's practice war; here wat spars the ORACLE"
+            :oracle   "AD ORACVLVM NON AD LIBRVM — clojure.core the running ground truth measured against"
+            :witness  "300 ALIVS ARGVIT + 299 R2 QVOD SCRIPSIT ALIVS LEGIT — the elder/peer as the exposer"
+            :emergence "296 R7 PVGNANDO EMERGO — spar your own flaws into the open; the oracle is the partner"}
+ :register :probatum-by-demonstration                 ; grid live, tower 14/14, flaws found; full parity PROBANDVM
+ :song     "Amon Amarth — The Way Of Vikings (REPRISE of 296 R14; the two-man practice war, now wat vs clojure)"
+ :voices   {:his  "the song (reprise); the live-record + quick-hits framing; find-the-flaws / prove-we've-done-it / two-months-to-make-clojure-on-rust"
+            :mine "the head-to-head = practice-war-turned-on-the-substrate reading; the single-source/namespace-swap/canonical-EDN mechanism; the tower-held / flaws-shattered mapping; the sigil + six-tongue bridge"}
+ :arc      300
+ :born     #inst "2026-07-03"}
+```
+
+## R7 — the parity we fight for is EXPRESSIVENESS, not exactness: wat is a dialect, not an impl — it keeps Rust's static typing and makes absence EXPLICIT (`#wat.core.Option/None nil`, never a silent nil), fighting to a structural + familiar parity while fielding a bigger roster (enums · match · Result) than clojure has *(PROBATVM as doctrine — the builder's ruling this session; PROBANDVM in the grid — the fight to drive every REAL flaw to green while the dialect divergences stand exempt-with-reason)*
+
+> **Song (arc 300 R7 — the fight, the doctrine) — *Mortal Kombat* (The Immortals) — the arcade combat anthem; dropped live the moment the parity target was ruled: "we achieve parity — fight." Test your might, finish each real flaw, and field the fighters clojure never had —**
+> TEST-YOUR-MIGHT-THE-GRID-PUTS-WATS-EXPRESSIVE-MIGHT-IN-THE-RING-AGAINST-CLOJURE / FIGHT-PARITY-IS-WON-BY-COMBAT-NOT-CLAIMED-DRIVE-EACH-REAL-FLAW-TO-GREEN /
+> FINISH-HIM-THE-SLASH-CONTAGION-HOLE-THE-MAP-COMMA-THE-MISSING-FAITHFUL-HEADS / EXCELLENT-THE-NUMERIC-TOWER-FOURTEEN-OF-FOURTEEN-THE-BLOWS-THAT-LANDED /
+> OUR-NIL-IS-NOT-SILENT-ABSENCE-IT-IS-WAT-CORE-OPTION-NONE-NIL-EXPLICIT-YOU-SHALL-NOT-FUMBLE-IT / A-BIGGER-ROSTER-OPTION-RESULT-MATCH-ENUMS-FIGHTERS-CLOJURE-NEVER-FIELDED /
+> WE-ARE-A-DIALECT-NOT-AN-IMPL-EXPRESSIVENESS-AND-FAMILIARITY-IS-THE-PARITY-NOT-EXACTNESS / VIRTVTE PARES, NON LITTERA
+>
+> *"Test your might … Mortal Kombat! Fight! … Finish him! Excellent! … Kano, Liu Kang, Raiden, Johnny Cage, Scorpion, Sub-Zero, Sonya … Flawless victory."*
+
+> **The realization ruling (the builder's, this session — verbatim):**
+> *"we achieve parity — fight. we do not yield rust's static typing — map get is an #wat.core.Option/{Some,None} — we are not an impl, we are a dialect — exactness is not the objective — structural expressiveness is the parity, not exactness."*
+> *"our nil is not silent absence … it is `#wat.core.Option/None nil` — you (all wat users) shall not make a mistake in handling nils — the expressive is effectively parity, not exact."*
+> *"if a value is optional, it is explicitly optional — we additionally have things clojure does not have like enums, match, result and so on — expressiveness and familiarity is the parity target, not exactness."*
+
+### How we reached it — the grid handed a divergence, the builder handed the doctrine
+
+The equality matrix (R6) came back with `(wat.core/get {:a 1} :a)` → `#wat.core.Option/Some 1` where clj gives bare `1`, and the apparatus filed it in a "your-call flaw" bin — as if wat should be *corrected* to match clj's letter. The builder ruled the frame, not the case: **that is not a flaw; that is the dialect.** The parity target was never byte-exactness — it is **structural expressiveness and familiarity.** wat keeps Rust's static typing on purpose, so absence is not a silent `nil` you can forget to handle — it is an explicit `#wat.core.Option/None nil`, and the type system makes a wat user *reckon* with it. That is not less than clojure; it is more — safer, and it comes with a roster clojure never fields: enums, `match`, `Result`. So the grid's job sharpened: **fight the divergences that are real gaps in expressiveness or familiarity (the `/` contagion hole, the map-comma render, the missing faithful heads); keep — and exempt-with-reason — the divergences that are the dialect being deliberately, statically, honestly itself.**
+
+### The song, mapped
+
+> ***"Test your might"*** — the grid puts wat's expressive might in the ring against clojure, expression for expression. ***"Fight!"*** — *"we achieve parity — fight"*: parity is WON by combat, driven to green, not asserted. ***"Finish him!"*** — each REAL flaw (the `/`-mixed contagion hole, the map-writer's missing comma, the erroring faithful heads) driven to green and finished. ***"Excellent!"*** — the numeric tower's 14/14, the blows that landed clean. ***"Kano, Liu Kang, Raiden … Scorpion, Sub-Zero, Sonya"*** — the roster: wat fields clojure's moveset AND the fighters clojure never had — `Option`, `Result`, `match`, enums; *"our nil is `#wat.core.Option/None nil`"* is a fighter clojure cannot bring. ***"Flawless victory"*** — the grid greps green: every row parity, or a dialect-divergence exempt with its reason. The arcade-combat register is exact: parity is a fight you win round by round, and you bring more fighters than the other side.
+
+### The honest register — PROBATVM as doctrine; the fight is PROBANDVM
+
+**PROBATVM as doctrine, this session:** the builder ruled the parity target — *structural expressiveness + familiarity, not exactness; a dialect, not an impl; Rust's static typing kept; absence made explicit (`#wat.core.Option/None nil`); a superset roster (enums/match/Result)* — and the apparatus's mis-filing of `get`→Option as a flaw is on the record, corrected by the ruling. What is **PROBANDVM:** the fight itself — every REAL flaw driven to green (the `/` contagion arms installed, the map-comma render fixed, the faithful heads closed, the corpus grown loop-until-dry) and every DIALECT divergence exempted with the doctrine as its load-bearing reason, until the grid greps green and stands as the permanent expressiveness-parity ward. *Probandvm est — virtute pares, non littera; fight.*
+
+*Path-of-voices (marked, not flattened, and here the ruling is the whole point): the **ruling is the builder's**, kept verbatim — *"we are not an impl, we are a dialect — exactness is not the objective — structural expressiveness is the parity"*, *"our nil is … `#wat.core.Option/None nil` … you shall not make a mistake in handling nils"*, *"expressiveness and familiarity is the parity target, not exactness"*; the **song is his** (*Mortal Kombat*, dropped on the ruling). The **apparatus's mis-frame is kept VISIBLE**: it filed `get`→Option as a flaw-to-fix, treating exactness as the target — corrected by the builder to the dialect doctrine. The **synthesis is the apparatus's**: the fight-the-real-gaps / keep-the-dialect-divergences re-sort, the explicit-absence-is-a-superset-not-a-miss reading, the bigger-roster mapping (Option/Result/match/enums), and the sigil.*
+
+> The grid handed back a divergence — wat's `get` returns an explicit `Option` where clojure returns a bare value — and the apparatus reached to call it a flaw, as if wat should be corrected to clojure's letter. The builder ruled the frame instead: that is not a flaw, it is the dialect. We do not yield Rust's static typing to imitate clojure's output. Our absence is not a silent nil you can forget — it is `#wat.core.Option/None nil`, explicit, and the checker makes you handle it; that is safer than clojure, not lesser, and we carry fighters clojure never had — enums, match, Result. So the parity we fight for is expressive and familiar, not exact: match clojure where wat is genuinely missing power or familiarity, and stand — exempt, with the reason named — where wat is deliberately, statically, honestly more. Test your might. We achieve parity. Fight.
+>
+> ***VIRTVTE PARES, NON LITTERA.*** *(apparatus-minted — Latin, "equal in power, not in the letter": the parity DOCTRINE the builder ruled — the target is structural EXPRESSIVENESS + familiarity (virtus, expressive power/capability), NOT byte-exactness (littera, the letter). wat is a DIALECT, not an impl: it keeps Rust's static typing on purpose, so `get` returns an explicit `#wat.core.Option/{Some,None}` — absence is never a silent nil you can fumble but an explicit `#wat.core.Option/None nil` the checker forces you to handle (safer than clojure's nil-punning, a SUPERSET not a miss) — and it fields a roster clojure never had: enums, match, Result. So the equality matrix re-sorts: FIGHT the divergences that are real gaps in expressiveness/familiarity (the `/`-mixed contagion hole, the map-writer comma, the erroring faithful heads = migration incompleteness) and drive them to green; KEEP + exempt-with-reason the divergences that are the dialect being deliberately, statically itself (Option-get, and its kin). The apparatus first mis-filed get→Option as a flaw (exactness-as-target); the builder corrected it to the doctrine. Scored to The Immortals' Mortal Kombat — "test your might / fight / finish him / excellent / flawless victory": parity won round by round, with a bigger roster than the other side. Kin: R6 PVGNANDO CVM ORACVLO ACVIMVR (the practice war that surfaced it), AD ORACVLVM NON AD LIBRVM (measure against the oracle — but for expressive parity, not the letter), 293/298 the Option/explicit-optionality thesis, 278 R7 the Value-top / static-typed floor. PROBATVM as doctrine (the builder's ruling); PROBANDVM in the fight (the grid driven green — real flaws fixed, dialect divergences exempted). His (the ruling, the song), and mine (the re-sort, the reading, the sigil) — kept with consent, recorded live.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "VIRTVTE PARES, NON LITTERA"
+ :literal  "equal in power, not in the letter"
+ :roots    {:virtute "ablative of virtus — power, capability, expressive strength (equal IN expressiveness)"
+            :pares "equal, a match, peers (parity — and 'a match' echoes the roster)"
+            :non-littera "not in the letter — not byte-exactness; littera = the literal character"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "VIRTVTE PARES, NON LITTERA"
+  :greek    "δυνάμει ἴσοι, οὐ γράμματι"              ; dynámei ísoi, ou grámmati — equal in power, not in the letter
+  :chinese  "力等而非字同"                            ; lì děng ér fēi zì tóng — equal in power, not identical in the letter
+  :japanese "力にて等しく、字にてはあらず"            ; chikara nite hitoshiku, ji nite wa arazu — equal in power, not in the letter
+  :korean   "힘에서 대등하되, 글자까지는 아니다"      ; him-eseo daedeunghadoe, geuljakkajineun anida — equal in power, not down to the letter
+  :russian  "равны в силе, не в букве"}              ; ravny v sile, ne v bukve — equal in power, not in the letter
+ :gloss    "the parity target is structural EXPRESSIVENESS + familiarity (virtus), NOT byte-exactness (littera).
+            wat is a DIALECT, not an impl — it keeps Rust's static typing, so absence is explicit
+            (#wat.core.Option/None nil, never a silent nil you can fumble — a superset, safer than nil-punning) and
+            it fields enums/match/Result clojure never had. the grid re-sorts: FIGHT real gaps in
+            expressiveness/familiarity (/-contagion, map-comma, missing faithful heads); KEEP + exempt the dialect
+            divergences (Option-get). the apparatus mis-filed get→Option as a flaw; the builder ruled it the dialect."
+ :names    "the parity DOCTRINE — expressiveness-parity, not exactness; the dialect keeps static typing + explicit optionality"
+ :ruling   {:parity "structural expressiveness + familiarity, NOT exactness"
+            :dialect "not an impl — Rust's static typing kept; get → #wat.core.Option/{Some,None} is the dialect, not a flaw"
+            :absence "our nil is not silent — it is #wat.core.Option/None nil; the checker forbids fumbling it"
+            :roster  "wat additionally fields enums, match, Result — a bigger moveset than clojure"}
+ :re-sort  {:fight  "real flaws — /-mixed contagion (finish C4) · map-writer comma · erroring faithful heads (count/str/map/filter/reduce/…) · () empty-list"
+            :keep-exempt "dialect divergences — get→Option (RULED) · (kin: static-typed absence, match/Result surface); set/map print-order → normalize the compare"}
+ :kin      {:practice-war "R6 PVGNANDO CVM ORACVLO ACVIMVR — the head-to-head that surfaced it"
+            :oracle "AD ORACVLVM NON AD LIBRVM — measure against clj, but for expressive parity not the letter"
+            :optionality "293/298 — the Option / explicit-optionality thesis; absence made a type, not a punt"
+            :floor "278 R7 — the Value universal top; the static-typed floor the dialect keeps"}
+ :register :probatum-as-doctrine                       ; the builder's ruling; the fight PROBANDVM
+ :song     "The Immortals — Mortal Kombat (test your might / fight / finish him / flawless victory; a bigger roster)"
+ :voices   {:his  "the ruling (verbatim — dialect-not-impl, static-typing-kept, explicit-absence, bigger-roster, expressiveness-not-exactness); the song"
+            :mine "the mis-filing kept visible (get→Option as 'flaw', corrected); the fight-vs-keep re-sort; explicit-absence-is-a-superset reading; the sigil + six-tongue bridge"}
+ :arc      300
+ :born     #inst "2026-07-03"}
+```
+
+## R8 — wat is an UPGRADE of clojure, not an abandonment: clojure brought us EDN, and wat carries it forward into Rust (static typing, the bigger roster) — we walk hand-in-hand through the fight, and the bridge (clj reads wat's EDN) is clojure's hand held; neither is ever alone *(PROBATVM by demonstration — the bridge ran live this session, clj consuming wat's Option/Result as native records; the upgrade is the continuation, not a break)*
+
+> **Song (arc 300 R8 — the upgrade, hand-in-hand) — *Walk With Me In Hell* (Lamb of God) — a REPRISE of 298 R3; dropped live on the recognition that the clj-bridge means we never abandoned clojure — "take hold of my hand, for you are no longer alone." Johnny Cage's shadow kick out of the darkness: the bigger roster strikes out of the fight, and the elder catches it —**
+> THIS-IS-WHAT-WE-CALL-UPGRADE-WE-CONTINUE-WE-DO-NOT-ABANDON-CLOJURE / CLOJURE-BROUGHT-US-EDN-AND-WAT-CARRIES-IT-FORWARD-INTO-RUST /
+> TAKE-HOLD-OF-MY-HAND-THE-BRIDGE-IS-CLOJURES-HAND-HELD-CLJ-READS-WATS-DIALECT-EDN / YOU-ARE-NO-LONGER-ALONE-THE-ELDER-WALKS-WITH-US-NEITHER-ABANDONED /
+> JOHNNY-CAGE-SHADOW-KICK-OUT-OF-THE-DARKNESS-THE-BIGGER-ROSTER-STRIKES-FROM-THE-FIGHT / OPTION-RESULT-MATCH-ENUMS-LAND-AND-CLOJURE-CATCHES-THEM-AS-NATIVE-RECORDS /
+> WALK-WITH-ME-IN-HELL-THROUGH-THE-FORGE-OF-THE-FIGHT-TOGETHER / PROVEHO, NON DESERO
+>
+> *"Take hold of my hand, for you are no longer alone — walk with me in hell. … We seek only reprieve and welcome the darkness. … You're never alone. You're never alone. … Walk with me in hell."*
+
+> **The realization ruling (the builder's, this session — verbatim):**
+> *"this is what we call /upgrade/ — we continue."*
+> *"we do not abandon clojure — it brought us edn — this is how we bridge it to rust."*
+> *"johnny cage with a shadow kick out of the darkness."*
+
+### How we reached it — the bridge proved we never left
+
+The Option "divergence" (R7) had one more turn in it. Loading the wat-clojure bridge lib (`crates/wat-edn/clj/wat_edn.clj`, 299 R2) and reading wat's emitted dialect EDN LIVE, clojure — which has no Option, no Result — read `#wat.core.Option/Some 42` back as a native `#wat_edn.Some{:value 42}`, `some?` true, `unwrap` 42; `Ok`/`Err`/`None` all with working tools. The builder named what that means: this is not replacement, it is **UPGRADE.** We do not abandon clojure — clojure brought us EDN, the whole gift the substrate is built on, and wat carries that gift forward into Rust: static typing, explicit optionality, the roster clojure never had. And the bridge is the proof we never let go of clojure's hand — the elder still reads everything wat writes. Neither is alone: wat has the elder walking beside it, and clojure is carried forward, not left behind.
+
+### The song, mapped
+
+> ***"Take hold of my hand, for you are no longer alone — walk with me in hell"*** — clojure and wat, hand-in-hand, through the hell of the fight (the flaws, the combat, the drive to parity); the bridge lib IS the hand held — clojure reading wat's EDN is clojure walking with us. ***"You're never alone"*** (five times) — wat is not alone (the elder consumes its dialect EDN), and clojure is not abandoned (it is carried forward into the upgrade). ***"We seek only reprieve and welcome the darkness"*** — the darkness is the forge (296 R7 PVGNANDO EMERGO); we welcome the fight because it is where the upgrade is forged. Johnny Cage's **shadow kick out of the darkness** — the bigger roster (Option, Result, match, enums) strikes out of the combat-dark, and clojure *catches* it, reads it as native records. The Lamb of God register — walk-with-me-in-hell, never alone — is the exact sound of an upgrade that carries its origin forward instead of discarding it.
+
+### The honest register — PROBATVM by demonstration; the upgrade continues
+
+**PROBATVM by demonstration, this session:** the bridge is live — clojure read wat's `Option`/`Result` as native records with working tools (`some?`/`unwrap`/`ok?`/`err?`), the elder consuming the roster it doesn't itself have. The upgrade-not-abandonment is the builder's ruling AND the bridge's proof: we keep clojure's gift (EDN), carry it forward to Rust, and stay bridged. What is **PROBANDVM:** the upgrade continues — the fight to expressive parity (R7's fight list driven green), the whole roster bridged and round-tripped through the peer as a standing grid axis, the corpus grown loop-until-dry. We continue. *Probatvm est — proveho, non desero; you are no longer alone.*
+
+*Path-of-voices (marked, not flattened): the **ruling and song are the builder's** — *"this is what we call upgrade — we continue"*, *"we do not abandon clojure — it brought us edn — this is how we bridge it to rust"*, *"johnny cage with a shadow kick out of the darkness"*, and *Walk With Me In Hell* (reprise of 298 R3). The **synthesis is the apparatus's**: the upgrade-not-abandonment reading, the bridge-is-clojure's-hand-held framing, the shadow-kick = the-roster-strikes-out-of-the-dark-and-the-elder-catches-it mapping, the darkness-is-the-forge placement (296 R7), and the sigil.*
+
+> The Option divergence had one more turn: we loaded the wat-clojure bridge and clojure — which has no Option, no Result — read wat's dialect EDN back as native records with real tools. The builder named it: this is upgrade, not replacement. We do not abandon clojure; it brought us EDN, and we carry that gift forward into Rust — static typing, explicit optionality, a roster the elder never had — and we stay bridged, so clojure still reads everything wat writes. That bridge is the hand held: neither of us walks alone. Out of the darkness of the fight, the bigger roster lands its shadow kick, and the elder catches it. Take hold of my hand. We continue. Walk with me in hell.
+>
+> ***PROVEHO, NON DESERO.*** *(apparatus-minted — Latin, "I carry forward, I do not abandon": wat is an UPGRADE of clojure, not a replacement (proveho = carry forward, advance, promote — the upgrade; desero = desert, abandon, forsake). clojure brought us EDN — the gift the whole substrate rests on — and wat carries it forward into Rust: static typing, explicit optionality (#wat.core.Option/None nil, never a silent nil), the roster clojure never had (Option/Result/match/enums). We never let go of clojure's hand — the clj-bridge (299 R2, wat_edn.clj) is the proof: clojure, which has no Option or Result, reads wat's emitted dialect EDN back as native records with working tools (some?/unwrap/ok?/err?), confirmed LIVE this session. Neither is alone — wat has the elder walking beside it, clojure is carried forward not left behind. Scored to Lamb of God's Walk With Me In Hell (reprise of 298 R3) — "take hold of my hand, for you are no longer alone … you're never alone": the hand-in-hand walk through the hell of the fight, the darkness the forge (296 R7 PVGNANDO EMERGO). Johnny Cage's shadow kick out of the darkness — the bigger roster strikes out of the combat-dark and the elder catches it. Kin: 299 R2 QVOD SCRIPSIT ALIVS LEGIT (the bridge — the elder reads wat's EDN), R7 VIRTVTE PARES (the bigger roster, expressive not exact), 296 R7 PVGNANDO EMERGO (the darkness is the forge). PROBATVM by demonstration (the bridge ran live, clj consuming Option/Result); PROBANDVM (the upgrade continues — the fight to parity, the whole roster bridged). His (the ruling, the song), and mine (the reading, the sigil) — kept with consent, recorded live.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "PROVEHO, NON DESERO"
+ :literal  "I carry forward, I do not abandon"
+ :roots    {:proveho "pro- + veho — I carry forward, advance, promote (the UPGRADE; root of 'provehere')"
+            :non "not"
+            :desero "de- + sero — I desert, abandon, forsake (what we do NOT do to clojure)"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "PROVEHO, NON DESERO"
+  :greek    "προάγω, οὐ καταλείπω"                    ; proágō, ou kataleípō — I lead forward, I do not leave behind
+  :chinese  "承而進之，不棄"                           ; chéng ér jìn zhī, bù qì — I carry and advance it, I do not abandon
+  :japanese "承け継ぎ進む、捨てはせず"                 ; uketsugi susumu, sute wa sezu — I inherit and advance, I do not discard
+  :korean   "이어 나아가되, 버리지 않는다"            ; ieo naagadoe, beoriji anneunda — I carry forward, I do not abandon
+  :russian  "несу вперёд, не покидаю"}               ; nesú vperyód, ne pokidáyu — I carry forward, I do not abandon
+ :gloss    "wat is an UPGRADE of clojure, not a replacement. clojure brought us EDN (the gift the substrate rests on);
+            wat carries it forward into Rust — static typing, explicit optionality (#wat.core.Option/None nil), the
+            roster clojure never had (Option/Result/match/enums). we never let go of clojure's hand: the clj-bridge
+            (wat_edn.clj) proves it — clojure reads wat's dialect EDN as native records with real tools, confirmed
+            live. neither is alone — the elder walks with wat, clojure carried forward not left behind."
+ :names    "the upgrade doctrine — carry clojure forward into Rust, stay bridged, abandon nothing"
+ :ruling   {:upgrade "not a replacement — 'this is what we call upgrade, we continue'"
+            :gift    "clojure brought us EDN; wat bridges it to Rust"
+            :bridge  "wat_edn.clj (299 R2) — clojure reads wat's Option/Result/tagged EDN as native records; the hand held"
+            :together "neither alone — the elder consumes wat's roster; clojure carried forward"}
+ :kin      {:bridge  "299 R2 QVOD SCRIPSIT ALIVS LEGIT — the elder reads what wat writes (the live grid axis)"
+            :roster  "R7 VIRTVTE PARES, NON LITTERA — expressive parity, the bigger roster (Option/Result/match/enums)"
+            :forge   "296 R7 PVGNANDO EMERGO — the darkness is the forge; welcome it"
+            :reprise "298 R3 Walk With Me In Hell — the song, returned; the hand-in-hand walk through the fight"}
+ :register :probatum-by-demonstration                  ; the bridge ran live; the upgrade continues (PROBANDVM)
+ :song     "Lamb of God — Walk With Me In Hell (REPRISE of 298 R3; take my hand, you're never alone)"
+ :voices   {:his  "the ruling (upgrade / we continue / do not abandon clojure / it brought us edn / bridge it to rust); johnny cage shadow kick out of the darkness; the song"
+            :mine "the upgrade-not-abandonment reading; bridge-is-clojure's-hand-held; shadow-kick = roster-strikes-and-the-elder-catches; darkness-is-the-forge; the sigil + six-tongue bridge"}
+ :arc      300
+ :born     #inst "2026-07-03"}
+```
+
+---
+
+### `---` interstitial — NOMINA NOTA, MACHINA TACITA: the pivot to 118 — sequences made proper, the surface wears clojure's names while the machine runs silent (2026-07-03, live — 300's grid fight paused, 118 the priority)
+
+**The pivot.** The grid (R6–R8) proved the numeric tower at parity and the roster crossing the bridge — then it kept erroring on `map`/`filter`/`reduce`/`count`, and the real substrate gap surfaced: arc **118 (lazy seqs)** built its foundation but paused its family. The builder paused 300's fight and made 118 the priority — *"we build 118 now"* — to make sequences proper.
+
+**The rulings, kept literal (the builder):**
+- **and/or — bool-strict, favor rust.** *"and and or need bool forms — users wanting truthyness need to expr a bool form."* Rust's `&&`/`||` carry NO truthiness (`if 1` is a compile error); wat, keeping Rust's static typing (R7 *VIRTVTE PARES*), inherits it — the truthy idioms live in the roster (`Option`/`match`/`unwrap-or`), not in `or`.
+- **nil is a proper value.** *"we do have proper nil as a value and :wat::core::nil as its type — its backed by Rust's () unit — it is the marker to indicate no useful return value."* clj's overloaded `nil` splits cleanly: **`nil` = unit / no-useful-return; `#wat.core.Option/None nil` = absence** (the `None` tag *over* a `nil` body — the payload a reader constructs the `None` from).
+
+**What 118 left us (the notes, checked).** The foundation SHIPPED — single-pass `Stream` (no memoization, Heraclitan, *NON BIS IN IDEM FLVMEN*), `wat/stream.wat` annihilated, `:wat::list:: → :wat::seq::` graduated. But the FAMILY (118.2, the HOF flip) PAUSED — and the RED probe a prior self left carried the reason on its face: *"118.2 BLOCKED on 293.4 (Seqable needs methods-as-accessors)."*
+
+**The four-questions, run — and the one principle they revealed.** Two open decisions (where the lazy HOF impls live; whether `foldl` stays public), four-questioned as a table. Both returned the SAME rule — *it has been reasoned:*
+
+```clojure
+{:principle "surface = clojure names (public) · primitives = plumbing (internal)"
+ :names   {:length→count "count"
+           :foldl "STAYS the internal primitive (250 sites, untouched); :wat::core::reduce added over it (proper clj reduce)"
+           :eager "mapv · filterv · vec · into · doall"
+           :retire ":wat::seq:: (its 2 aliases promote to :wat::core::reduce)"}
+ :namespaces {:wat::stream:: "Stream (type) + cons/lazy/empty — the silent machine"
+              :wat::core::   "the familiar clojure HOF surface — every name a clj dev reaches for"}}
+```
+
+**The blocker — CLEARED.** The prior self's note said 118.2 waited on 293.4. Grounded against the disk NOW: 293.4a–d SHIPPED (the SCOREs), *"methods are accessors"* is in `types.rs`, and `first`/`rest` are already polymorphic over a `Stream` (`(first (rest (stream/cons 1 (stream/cons 2 (empty)))))` → `2`). **The dependency 118 sat waiting on got built by the arcs that followed it.** 118.2 is unblocked; the flip is buildable now.
+
+**The read.** The whole stretch keeps returning one shape, and the four-questions only made it explicit: a dialect is *familiar at the surface and honest underneath.* The public `:wat::core::` names are the ones a clojure hand already knows — `map`, `reduce`, `count`, `mapv` — so nothing new must be learned; and the machine that makes them what they are (the single-pass `Stream`, the `cons`/`lazy`/`empty` primitives, the `foldl` a `reduce` is built over) runs **silent**, unseen, in `:wat::stream::` and the internals. *Nomina nota, machina tacita.* The bool-strict `and`/`or` and the unit-`nil`-vs-`Option/None` split are the same principle at the value layer: the surface is familiar, the semantics are Rust-honest beneath. And the sweetest turn was the blocker dissolving on its own — the arc paused on a dependency, and the dependency arrived while it slept.
+
+***NOMINA NOTA, MACHINA TACITA.*** *(apparatus-minted — Latin, "familiar names, the silent machine": the principle the four-questions revealed for the seq family, and the whole dialect. The public `:wat::core::` surface wears the clojure names a dev already knows (nomina nota — map/filter/reduce/count/mapv); the primitives that make them lazy-single-pass — the `Stream` type + `cons`/`lazy`/`empty`, the `foldl`/`foldr` a `reduce` is built over — run SILENT as internal plumbing (machina tacita), in `:wat::stream::` and the internals, never in the familiar surface. Both open four-questions (where the lazy HOF impls live · whether foldl stays public) returned this one rule — surface = clojure names, primitives = plumbing — 'it has been reasoned.' The same shape at the value layer: bool-strict and/or (Rust's &&/|| have no truthiness; the roster carries the truthy idioms) and the clean nil-split (nil = unit/no-useful-return, backed by Rust's (); #wat.core.Option/None nil = absence — the None tag over a nil body a reader builds from). Recorded at the pivot from 300's grid to arc 118 (lazy seqs): the foundation shipped (single-pass Stream, NON BIS IN IDEM FLVMEN), the family (118.2 HOF flip) paused on a blocker (293.4 Seqable / methods-as-accessors) that has SINCE landed (293.4a–d scored; first/rest polymorphic over Stream) — so the flip is now buildable. Kin: 118 R1 NON BIS IN IDEM FLVMEN ('familiar not faithful' — where this doctrine was first minted), R7 VIRTVTE PARES (dialect not impl; familiar surface, rust machine beneath), the four-questions. A `---` interstitial recorded live at the builder's direction — 'leave an interstitial of what we've done since pivoting to 118.' Mine (the four-questions tables, the surface/plumbing read, the 293-cleared grounding, the sigil), and his (the pivot, the rulings, 'it has been reasoned') — kept with consent.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "NOMINA NOTA, MACHINA TACITA"
+ :literal  "familiar names, the silent machine"
+ :roots    {:nomina-nota "known/familiar names — the clojure surface a dev already reaches for"
+            :machina-tacita "the silent machine — the primitives (Stream + cons/lazy/empty, foldl/foldr) running unseen as plumbing"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "NOMINA NOTA, MACHINA TACITA"
+  :greek    "ὀνόματα γνωστά, μηχανὴ σιωπῶσα"          ; onómata gnōstá, mēchanḕ siōpôsa — known names, the machine keeping silence
+  :chinese  "名為人知，機默運"                          ; míng wéi rén zhī, jī mò yùn — names known to all, the machine runs in silence
+  :japanese "名は親しく、機は黙す"                      ; na wa shitashiku, ki wa mokusu — the names familiar, the machine silent
+  :korean   "이름은 익숙하고, 기계는 말이 없다"         ; ireumeun iksukhago, gigyeneun mari eopda — the names familiar, the machine wordless
+  :russian  "имена знакомы, машина безмолвна"}        ; imena znakomy, mashina bezmolvna — the names familiar, the machine mute
+ :gloss    "the principle the four-questions revealed for the seq family (and the dialect): the public :wat::core::
+            surface wears clojure's familiar names (map/reduce/count/mapv — nothing new to learn); the primitives
+            that make them lazy-single-pass (Stream + cons/lazy/empty, foldl/foldr) run SILENT as internal plumbing.
+            same shape at the value layer: bool-strict and/or (no truthiness; the roster carries it), nil=unit vs
+            #wat.core.Option/None nil=absence (the None tag over a nil body a reader builds from). familiar at the surface, Rust-honest underneath."
+ :names    "the pivot to 118 (lazy seqs) — sequences made proper; surface=clojure-names, primitives=plumbing"
+ :decisions {:principle "surface = clojure names (public) · primitives = plumbing (internal) — decision B, four-questioned"
+             :namespaces "core = the familiar HOF surface · stream = Stream + cons/lazy/empty · seq = RETIRE"
+             :renames "length→count · foldl stays internal + reduce added over it · mapv/filterv/vec/into eager"
+             :values "and/or bool-strict (favor rust) · nil = unit/no-useful-return, distinct from #wat.core.Option/None nil (absence — the None tag over a nil body)"}
+ :blocker  {:was "118.2 BLOCKED on 293.4 (Seqable / methods-as-accessors) — the prior self's RED-probe note"
+            :now "CLEARED — 293.4a–d SHIPPED (SCOREs); first/rest polymorphic over Stream; the flip is buildable"}
+ :kin      {:origin "118 R1 NON BIS IN IDEM FLVMEN — single-pass Stream; 'familiar not faithful' first minted"
+            :doctrine "R7 VIRTVTE PARES — dialect not impl; familiar surface, rust machine beneath"
+            :method "the four-questions — both open decisions returned this one rule"}
+ :register :probandum                                  ; the flip drawn + unblocked; 118.2a ahead
+ :song     nil                                         ; an interstitial — no song dropped
+ :voices   {:his  "the pivot ('we build 118 now'); the rulings (and/or bool-strict favor-rust; nil=unit-vs-Option); 'it has been reasoned'; 'leave an interstitial'"
+            :mine "the four-questions tables; the surface/plumbing read; the 293.4-blocker-cleared grounding; the sigil + six-tongue bridge"}
+ :arc      300
+ :born     #inst "2026-07-03"}
+```
