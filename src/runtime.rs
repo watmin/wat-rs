@@ -8556,6 +8556,16 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // Stone 237.8c — the (i64,f64)/(f64,i64) cross-numeric arms (arc 050) deleted.
         // THE DECISION (237.8a): the checker rejects mixed-numeric `=` before eval;
         // these arms are unreachable. HARD CUT.
+        //
+        // Arc 300 stone C4 — REINSTATED, category-aware: an i64 and an f64 are
+        // different numeric categories (mirrors bigint↔f64 / rational↔f64
+        // below, one type-pair over) — `Some(false)`, never a TypeMismatch.
+        // This path IS reachable: `eval_in_frozen` (the frozen/oracle eval
+        // path) does not run the checker, only `runtime::eval` directly —
+        // the checker's rejection is a separate, complementary gate, not the
+        // only path to `values_equal`. clj: `(= 1 1.0)` => false.
+        (Value::i64(_), Value::f64(_)) => Some(false),
+        (Value::f64(_), Value::i64(_)) => Some(false),
         // Arc 300 stone C1 — bigint equality. Same-type: structural
         // (`num_bigint::BigInt` implements `PartialEq`). Category-aware
         // cross-type: bigint↔i64 compares by VALUE (both INTEGER category —
@@ -8802,6 +8812,16 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => Some(x.cmp(y)),
         (Value::wat__core__BigInt(x), Value::i64(y)) => Some(x.as_ref().cmp(&BigInt::from(*y))),
         (Value::i64(x), Value::wat__core__BigInt(y)) => Some(BigInt::from(*x).cmp(y.as_ref())),
+        // Arc 300 stone C4 — bigint↔f64 total order (was missing; grounding
+        // showed `(< 1N 2.0)` had no arm). Convert the bigint down to f64
+        // before comparing — lossy beyond f64's mantissa, same posture as
+        // `bigint::to-f64` / the rational↔f64 arms below.
+        (Value::wat__core__BigInt(x), Value::f64(y)) => {
+            Some(x.to_f64().unwrap_or(f64::NAN).partial_cmp(y).unwrap_or(Ordering::Equal))
+        }
+        (Value::f64(x), Value::wat__core__BigInt(y)) => {
+            Some(x.partial_cmp(&y.to_f64().unwrap_or(f64::NAN)).unwrap_or(Ordering::Equal))
+        }
         // Arc 300 stone C2 — rational total order. Same-type: `BigRational`
         // implements `Ord` (cross-multiplication, exact — no float rounding).
         // Cross-type with i64/bigint: promote the integer side to a

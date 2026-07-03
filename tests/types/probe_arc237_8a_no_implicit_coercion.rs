@@ -89,32 +89,36 @@ fn comparison_string_same_type_works() {
     );
 }
 
-// ─── Cross-type — disconfirming AT HEAD; un-ignore in Stone 237.8a ──────────
-// Today these all SUCCEED silently (the falsehood THE DECISION rejects).
-// Post-237.8a: they must reject at check (`infer_arithmetic` + `infer_comparison`
-// tightened); `result.is_err()` flips to TRUE; the `#[ignore]` annotation
-// comes off.
+// ─── Cross-type ARITHMETIC — arc 300 C4 RETIRED 237.8a's reject ─────────────
+// 237.8a rejected all mixed arithmetic as a workaround for the unsolved N-ary
+// problem. Arc 300 C4 solved N-ary (heterogeneous N-ary → an honest
+// NoMatchingClause gap) and adopted 2-ary mixed contagion — "clojure's
+// expressability on rust's platform": `(+ 1 2.0)` => 3.0 (float wins). So these
+// mixed-ARITHMETIC fixtures now TYPE-CHECK (=> f64). Comparison is a separate
+// thread and still rejects at check (see `comparison_i64_f64_mixed_rejected_at_check`).
 
 #[test]
-fn arith_i64_f64_mixed_rejected_at_check() {
+fn arith_i64_f64_mixed_coerces_to_f64() {
+    // arc 300 C4: (+ i64 f64) => f64 — the fixture declares `-> f64` and now type-checks.
     let result = startup_from_file(
         "tests/types/probe_arc237_8a_no_implicit_coercion_arith_i64_f64_bad.wat",
     );
     assert!(
-        result.is_err(),
-        "i64 + f64 MUST reject at check (no implicit coercion); got: {:?}",
+        result.is_ok(),
+        "i64 + f64 now coerces to f64 (arc 300 C4 retired 237.8a's reject); got: {:?}",
         result,
     );
 }
 
 #[test]
-fn arith_f64_i64_mixed_rejected_at_check() {
+fn arith_f64_i64_mixed_coerces_to_f64() {
+    // arc 300 C4: (+ f64 i64) => f64 (both operand orders).
     let result = startup_from_file(
         "tests/types/probe_arc237_8a_no_implicit_coercion_arith_f64_i64_bad.wat",
     );
     assert!(
-        result.is_err(),
-        "f64 + i64 MUST reject at check (no implicit coercion); got: {:?}",
+        result.is_ok(),
+        "f64 + i64 now coerces to f64 (arc 300 C4 retired 237.8a's reject); got: {:?}",
         result,
     );
 }

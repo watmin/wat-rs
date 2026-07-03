@@ -148,7 +148,24 @@
     (:wat::core::f64::+ (:wat::core::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::core::f64::+ x (:wat::core::rational::to-f64 y))))
+    (:wat::core::f64::+ x (:wat::core::rational::to-f64 y)))
+  ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
+  ;; → f64 (both operand orders; FLOAT CONTAGION — no collapse). Promote the
+  ;; non-f64 operand via i64::to-f64 / bigint::to-f64 (both already exist),
+  ;; then the existing f64::+. Mirrors C1's i64⊕bigint / C2's rational⊕f64
+  ;; contagion arms immediately above, one type-pair over.
+  ([x <- :wat::core::i64
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::+ (:wat::core::i64::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::i64] -> :wat::core::f64
+    (:wat::core::f64::+ x (:wat::core::i64::to-f64 y)))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::+ (:wat::core::bigint::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::bigint] -> :wat::core::f64
+    (:wat::core::f64::+ x (:wat::core::bigint::to-f64 y))))
 
 (:wat::core::defclause :wat::core::-
   ;; NO 0-ary clause — :NoMatchingClause fires
@@ -239,7 +256,22 @@
     (:wat::core::f64::- (:wat::core::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::core::f64::- x (:wat::core::rational::to-f64 y))))
+    (:wat::core::f64::- x (:wat::core::rational::to-f64 y)))
+  ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
+  ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+` C4 arms
+  ;; immediately above the previous defclause, one operator over.
+  ([x <- :wat::core::i64
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::- (:wat::core::i64::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::i64] -> :wat::core::f64
+    (:wat::core::f64::- x (:wat::core::i64::to-f64 y)))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::- (:wat::core::bigint::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::bigint] -> :wat::core::f64
+    (:wat::core::f64::- x (:wat::core::bigint::to-f64 y))))
 
 (:wat::core::defclause :wat::core::*
   ;; 0-ary identity: i64 1 (Lisp multiplicative identity)
@@ -326,7 +358,22 @@
     (:wat::core::f64::* (:wat::core::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::core::f64::* x (:wat::core::rational::to-f64 y))))
+    (:wat::core::f64::* x (:wat::core::rational::to-f64 y)))
+  ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
+  ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+`/`-` C4 arms
+  ;; above, one operator over.
+  ([x <- :wat::core::i64
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::* (:wat::core::i64::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::i64] -> :wat::core::f64
+    (:wat::core::f64::* x (:wat::core::i64::to-f64 y)))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::* (:wat::core::bigint::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::bigint] -> :wat::core::f64
+    (:wat::core::f64::* x (:wat::core::bigint::to-f64 y))))
 
 (:wat::core::defclause :wat::core::/
   ;; NO 0-ary clause — :NoMatchingClause fires
@@ -416,7 +463,22 @@
     (:wat::core::f64::/ (:wat::core::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::core::f64::/ x (:wat::core::rational::to-f64 y))))
+    (:wat::core::f64::/ x (:wat::core::rational::to-f64 y)))
+  ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
+  ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+`/`-`/`*`
+  ;; C4 arms above, one operator over.
+  ([x <- :wat::core::i64
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::/ (:wat::core::i64::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::i64] -> :wat::core::f64
+    (:wat::core::f64::/ x (:wat::core::i64::to-f64 y)))
+  ([x <- :wat::core::bigint
+    y <- :wat::core::f64] -> :wat::core::f64
+    (:wat::core::f64::/ (:wat::core::bigint::to-f64 x) y))
+  ([x <- :wat::core::f64
+    y <- :wat::core::bigint] -> :wat::core::f64
+    (:wat::core::f64::/ x (:wat::core::bigint::to-f64 y))))
 
 ;; ─── kwargs-lower — shared kwargs lowering macro (Arc 260.1b Part B) ─────────
 ;;

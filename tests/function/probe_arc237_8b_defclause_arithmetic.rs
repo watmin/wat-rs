@@ -113,9 +113,12 @@ fn regression_ordering_i64_lt_works() {
 }
 
 #[test]
-fn regression_cross_type_plus_rejected() {
+fn regression_cross_type_plus_coerces_to_f64() {
+    // arc 300 C4 RETIRED 237.8a's arithmetic reject — mixed 2-ary contagion adopted
+    // (clojure's expressability): `(+ 1 2.0)` => f64, so the fixture now type-checks.
+    // (The N-ary honest-gap superseded the blanket reject; comparison stays a separate thread.)
     let result = startup_from_file("tests/function/probe_arc237_8b_regression_cross_plus_bad.wat");
-    assert!(result.is_err(), "cross-type i64+f64 MUST reject; got Ok");
+    assert!(result.is_ok(), "cross-type i64+f64 now coerces to f64 (arc 300 C4); got Err: {:?}", result);
 }
 
 #[test]
