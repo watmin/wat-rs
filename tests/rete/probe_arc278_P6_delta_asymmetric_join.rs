@@ -1,0 +1,250 @@
+//! Arc 278 P6 — delta hash-join asymmetric arrival DIFFERENTIAL gate.
+//!
+//! Root cause under test: the `fire_fixpoint_delta` hash-join step cached `join_keys[J]` lazily
+//! from samples. If the RIGHT side of a join (the alpha memory) arrived in an EARLIER round than
+//! the LEFT side (the beta/token memory), the join node J was skipped for every prior round and
+//! `right_idx[J]` was never populated. When the left side finally arrived, the right index was
+//! empty → zero matches → derived fact dropped (C=0 instead of C=2 in the chain case).
+//!
+//! Fix (P6 catch-up): on first keying of J, rebuild `right_idx[J]` and `left_idx[J]` from ALL
+//! cumulative wm.alpha/wm.beta and emit a full cross-join. Zero double-count risk because J
+//! produced nothing before first keying.
+//!
+//! Cases:
+//!   1. Chain (the minimal repro): R1: A→B, R2: B⋈A→C.  Insert A(1),A(2).  C=2.
+//!   2. 3-level cascade:           R1: A→B, R2: B⋈A→C, R3: C⋈B→D.  Insert A(1),A(2).  D=2.
+//!   3. Left arrives before right: X(?k)⋈Y(?k)→Z.  Insert X(1),X(2) THEN Y(1),Y(2) (all before fire).
+//!   4. Right arrives before left (classic bug case): same R2 join but with N=5 inputs.
+//!
+//! Run: cargo nextest run -p wat -E 'test(/P6_delta_asymmetric/)'
+
+use std::sync::Arc;
+use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::load::InMemoryLoader;
+use wat::runtime::{Environment, Value};
+
+/// Run a WAT expression in an in-memory world. Returns the `Value` produced.
+fn run_expr(world_src: &str, expr: &str) -> Value {
+    let world = startup_from_source(world_src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup_from_source");
+    let ast = wat::parse_one!(expr).expect("parse_one");
+    eval_in_frozen(&ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
+        .value_owned()
+}
+
+/// Run the same expression with BOTH `fire-rules'` (native delta) and `fire-rules-spec` (oracle),
+/// assert they agree, and return the common count.
+fn assert_native_eq_oracle(world_src: &str, expr_template: &str, type_str: &str) -> i64 {
+    let native_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules'");
+    let oracle_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules-spec");
+    let native = run_expr(world_src, &native_expr);
+    let oracle = run_expr(world_src, &oracle_expr);
+    assert_eq!(
+        native, oracle,
+        "native fire-rules' must match oracle fire-rules-spec for type {type_str}; native={native:?} oracle={oracle:?}"
+    );
+    match native {
+        Value::i64(n) => n,
+        other => panic!("expected i64 count, got {other:?}"),
+    }
+}
+
+// ─── Case 1: chain (the minimal bug repro) ───────────────────────────────────
+//
+// R1: A(?k) → B(?k)
+// R2: B(?k) ⋈ A(?k) → C(?k)
+// Insert A(1), A(2). Expected: B=2, C=2.
+//
+// Bug: A (right of R2's hash join) arrives in round 1 while B (left) is not yet derived.
+// J is skipped; right_idx[J] never populated. Round 2: B arrives but right_idx is empty → C=0.
+
+const CHAIN_WORLD: &str = r#"
+(:wat::core::defrecord :chain::A [k <- :wat::core::i64])
+(:wat::core::defrecord :chain::B [k <- :wat::core::i64])
+(:wat::core::defrecord :chain::C [k <- :wat::core::i64])
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+
+/// Build the chain let-expression for `N` input A records. `FIRE_VERB` is a placeholder.
+fn chain_expr(n: usize, query_type: &str) -> String {
+    let r1c = "(:wat::core::quote (:chain::A (?k <- :k)))";
+    let r1t = "(:wat::core::quote (:wat::rete::insert (:chain::B ?k)))";
+    let r2c1 = "(:wat::core::quote (:chain::B (?k <- :k)))";
+    let r2c2 = "(:wat::core::quote (:chain::A (?k <- :k)))";
+    let r2t = "(:wat::core::quote (:wat::rete::insert (:chain::C ?k)))";
+    let mut binds = format!(
+        "  r1 (:wat::rete::Rule \"r1\" \
+             (:wat::core::PersistentVector {r1c}) \
+             (:wat::core::PersistentVector {r1t}))\n\
+         r2 (:wat::rete::Rule \"r2\" \
+             (:wat::core::PersistentVector {r2c1} {r2c2}) \
+             (:wat::core::PersistentVector {r2t}))\n\
+         s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2))\n"
+    );
+    let mut prev = 0usize;
+    for i in 1..=n {
+        let cur = i;
+        binds.push_str(&format!(
+            "  s{cur} (:wat::rete::insert s{prev} (:chain::A {i}))\n"
+        ));
+        prev = cur;
+    }
+    format!(
+        "(:wat::core::let [{binds}\n\
+           fired (FIRE_VERB s{prev})]\n\
+           (:wat::core::length (:wat::rete::query-by-type-string fired \"{query_type}\")))"
+    )
+}
+
+#[test]
+fn chain_b_derived_equals_oracle() {
+    let count = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(2, "chain::B"), "chain::B");
+    assert_eq!(count, 2, "R1 derives B for each A; expected B=2, got {count}");
+}
+
+#[test]
+fn chain_c_join_equals_oracle() {
+    // THE bug case: C was 0 before the fix; oracle gives 2.
+    let count = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(2, "chain::C"), "chain::C");
+    assert_eq!(count, 2, "R2 joins each B with matching A → C=2; got {count}");
+}
+
+#[test]
+fn chain_c_five_inputs_equals_oracle() {
+    // Stress: N=5 inputs.
+    let count = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(5, "chain::C"), "chain::C");
+    assert_eq!(count, 5, "5 A inputs → 5 C outputs; got {count}");
+}
+
+// ─── Case 2: 3-level cascade with derived⋈input joins ──────────────────────
+//
+// R1: A(?k) → B(?k)
+// R2: B(?k) ⋈ A(?k) → C(?k)    [derived⋈input]
+// R3: C(?k) ⋈ B(?k) → D(?k)    [derived⋈derived]
+// Insert A(1), A(2). Expected: B=2, C=2, D=2.
+
+const TRIPLE_WORLD: &str = r#"
+(:wat::core::defrecord :tri::A [k <- :wat::core::i64])
+(:wat::core::defrecord :tri::B [k <- :wat::core::i64])
+(:wat::core::defrecord :tri::C [k <- :wat::core::i64])
+(:wat::core::defrecord :tri::D [k <- :wat::core::i64])
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+
+fn triple_expr(n: usize, query_type: &str) -> String {
+    let rules = "\
+        r1 (:wat::rete::Rule \"r1\" \
+             (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k <- :k)))) \
+             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::B ?k)))))\n\
+        r2 (:wat::rete::Rule \"r2\" \
+             (:wat::core::PersistentVector \
+               (:wat::core::quote (:tri::B (?k <- :k))) \
+               (:wat::core::quote (:tri::A (?k <- :k)))) \
+             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::C ?k)))))\n\
+        r3 (:wat::rete::Rule \"r3\" \
+             (:wat::core::PersistentVector \
+               (:wat::core::quote (:tri::C (?k <- :k))) \
+               (:wat::core::quote (:tri::B (?k <- :k)))) \
+             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::D ?k)))))\n\
+        s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2 r3))\n";
+    let mut binds = rules.to_string();
+    let mut prev = 0usize;
+    for i in 1..=n {
+        binds.push_str(&format!("  s{i} (:wat::rete::insert s{prev} (:tri::A {i}))\n"));
+        prev = i;
+    }
+    format!(
+        "(:wat::core::let [{binds}\n\
+           fired (FIRE_VERB s{prev})]\n\
+           (:wat::core::length (:wat::rete::query-by-type-string fired \"{query_type}\")))"
+    )
+}
+
+#[test]
+fn triple_cascade_d_equals_oracle_n2() {
+    // 3-level cascade: A→B (R1), B⋈A→C (R2, derived⋈input), C⋈B→D (R3, derived⋈derived).
+    // Both R2 and R3 have asymmetric arrival: left arrives later than right.
+    let count = assert_native_eq_oracle(TRIPLE_WORLD, &triple_expr(2, "tri::D"), "tri::D");
+    assert_eq!(count, 2, "3-level cascade: 2 A inputs → D=2; got {count}");
+}
+
+#[test]
+fn triple_cascade_d_equals_oracle_n5() {
+    let count = assert_native_eq_oracle(TRIPLE_WORLD, &triple_expr(5, "tri::D"), "tri::D");
+    assert_eq!(count, 5, "3-level cascade: 5 A inputs → D=5; got {count}");
+}
+
+#[test]
+fn triple_cascade_all_types_equal_oracle() {
+    // Verify every intermediate type too: B=2, C=2, D=2.
+    for ty in ["tri::B", "tri::C", "tri::D"] {
+        let count = assert_native_eq_oracle(TRIPLE_WORLD, &triple_expr(2, ty), ty);
+        assert_eq!(count, 2, "expected 2 for {ty}, got {count}");
+    }
+}
+
+// ─── Case 3: left arrives before right ──────────────────────────────────────
+//
+// R1: X(?k) ⋈ Y(?k) → Z(?k).  Insert ALL X first, then ALL Y (all before fire).
+// No cascade here — both sides are input. But the hash-join sees X tokens first
+// (from d_alpha[AlphaX]→root-join→d_beta) and Y elements only in the right delta.
+// This is the "left before right" case.
+
+const XYZ_WORLD: &str = r#"
+(:wat::core::defrecord :xyz::X [k <- :wat::core::i64])
+(:wat::core::defrecord :xyz::Y [k <- :wat::core::i64])
+(:wat::core::defrecord :xyz::Z [k <- :wat::core::i64])
+(:wat::core::defn :user::main [] -> :wat::core::nil nil)
+"#;
+
+fn xyz_expr(n: usize, query_type: &str) -> String {
+    // Rule: X(?k) ⋈ Y(?k) → Z(?k).  X is the first (left) condition, Y is the second (right).
+    let rule = "\
+        r1 (:wat::rete::Rule \"r1\" \
+             (:wat::core::PersistentVector \
+               (:wat::core::quote (:xyz::X (?k <- :k))) \
+               (:wat::core::quote (:xyz::Y (?k <- :k)))) \
+             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:xyz::Z ?k)))))\n\
+        s0 (:wat::rete::compile (:wat::core::PersistentVector r1))\n";
+    let mut binds = rule.to_string();
+    let mut prev = 0usize;
+    // Insert ALL X first (i=1..n), then ALL Y (i=1..n).
+    // X seeds the left memory BEFORE Y arrives on the right.
+    for i in 1..=n {
+        let idx = prev + 1;
+        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::X {i}))\n"));
+        prev = idx;
+    }
+    for i in 1..=n {
+        let idx = prev + 1;
+        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::Y {i}))\n"));
+        prev = idx;
+    }
+    format!(
+        "(:wat::core::let [{binds}\n\
+           fired (FIRE_VERB s{prev})]\n\
+           (:wat::core::length (:wat::rete::query-by-type-string fired \"{query_type}\")))"
+    )
+}
+
+#[test]
+fn xyz_z_left_before_right_equals_oracle() {
+    // X arrives before Y in the fact stream. Both arrive in the SAME initial fire round
+    // (they are input facts, not derived). The join processes them in alpha-delta order.
+    let count = assert_native_eq_oracle(XYZ_WORLD, &xyz_expr(3, "xyz::Z"), "xyz::Z");
+    assert_eq!(count, 3, "X⋈Y→Z with matching k=1..3: expected Z=3, got {count}");
+}
+
+// ─── Case 4: right arrives before left (classic bug) — 5-input variant ──────
+//
+// Same chain network as case 1 but confirms the classic "right before left" scenario
+// with N=5 at higher scale to stress-test the catch-up join.
+
+#[test]
+fn chain_classic_right_before_left_n5() {
+    let count_b = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(5, "chain::B"), "chain::B");
+    let count_c = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(5, "chain::C"), "chain::C");
+    assert_eq!(count_b, 5, "B=5 for 5 A inputs; got {count_b}");
+    assert_eq!(count_c, 5, "C=5: each B joins its matching A; got {count_c}");
+}

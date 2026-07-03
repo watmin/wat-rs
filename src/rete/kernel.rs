@@ -1609,7 +1609,10 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
 
                 // Step 1: Ensure join_keys[J] is cached.
                 // Compute from a sample token at P and a sample element at A (if both exist).
-                if !join_keys_cache.contains_key(child_id) {
+                // first_keying=true means J was previously skipped while one side was empty;
+                // a one-time catch-up full-join is required to populate right_idx[J] from ALL
+                // cumulative wm.alpha[alpha_id] (not just the current round's dr).
+                let first_keying = if !join_keys_cache.contains_key(child_id) {
                     let sample_tok = wm.beta.get(node_id).and_then(|v| v.first());
                     let sample_el  = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
@@ -1626,6 +1629,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                                 a_str.cmp(b_str)
                             });
                             join_keys_cache.insert(*child_id, keys);
+                            true // first keying: catch-up full-join needed
                         }
                         _ => {
                             // Neither side has data yet — skip this node for this round.
@@ -1633,10 +1637,65 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
                             continue;
                         }
                     }
-                }
+                } else {
+                    false
+                };
 
                 // Group C: borrow join_keys (pointer bump) instead of cloning (Vec alloc + copy).
                 let jk: &[Value] = &join_keys_cache[child_id];
+
+                // CATCH-UP (first keying only): J was skipped every prior round while one side
+                // was empty, so right_idx[J] was never populated from those rounds' facts.
+                // Rebuild from ALL cumulative wm.alpha[alpha_id] and wm.beta[parent], cross-join
+                // fully, and build both indexes. Safe: J produced ZERO tokens before first keying
+                // so there is nothing to double-count. On subsequent rounds the incremental
+                // semi-naive path (steps 2–5 below) handles new arrivals correctly.
+                //
+                // Note: at this point in the round, steps 1 (alpha delta) and 2 (root-join delta)
+                // have ALREADY run, so wm.alpha and wm.beta contain ALL cumulative data including
+                // this round's new elements — the catch-up covers historical AND current-round facts.
+                if first_keying {
+                    // Clone to avoid split-borrow conflicts with later wm.beta/d_beta mutations.
+                    let all_right: Vec<Value> = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
+                    let all_left:  Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
+                    // Build right_idx[J] from ALL cumulative right elements.
+                    {
+                        let ridx = right_idx.entry(*child_id).or_default();
+                        for el in &all_right {
+                            let (_, el_b) = element_fact_bindings(el);
+                            let k = key_of(el_b, jk);
+                            ridx.entry(k).or_default().push(el.clone());
+                        }
+                    }
+                    // Full cross-join: every left token keyed against right_idx[J].
+                    let mut new_tokens: Vec<Token> = Vec::new();
+                    if let Some(ridx) = right_idx.get(child_id) {
+                        for tok in &all_left {
+                            let k = key_of(&tok.bindings, jk);
+                            if let Some(bucket) = ridx.get(&k) {
+                                for el in bucket {
+                                    let (el_fact, el_b) = element_fact_bindings(el);
+                                    let new_tok = extend_token(tok, el_fact, el_b, alpha_id);
+                                    new_tokens.push(new_tok);
+                                }
+                            }
+                        }
+                    }
+                    // Build left_idx[J] from ALL cumulative left tokens.
+                    {
+                        let lidx = left_idx.entry(*child_id).or_default();
+                        for tok in all_left {
+                            let k = key_of(&tok.bindings, jk);
+                            lidx.entry(k).or_default().push(tok);
+                        }
+                    }
+                    // Emit catch-up tokens into cumulative and delta memories.
+                    for new_tok in new_tokens {
+                        wm.beta.entry(*child_id).or_default().push(new_tok.clone());
+                        d_beta.entry(*child_id).or_default().push(new_tok);
+                    }
+                    continue; // Skip incremental steps 2–5 for this round.
+                }
 
                 // Group C: borrow dl/dr slices — no Vec alloc per node per round.
                 // NLL ends these borrows at their last use (step 5), before step 6 mutates d_beta.
