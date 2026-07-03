@@ -37,11 +37,19 @@ eval_fire_rules_native(session):
       let sub_sess = <invoke wat compile on stratum_rules via the kernel.rs:1345 pattern>;
       let sub_sess = <seed sub_sess with each fact in acc_facts via wat insert (same native→wat pattern)>;
       let fired = fire_fixpoint_delta(&sub_sess, sym, None)?;
-      acc_derived.extend(collect_derived(<fired production_memory>));
+      acc_derived = merge_facts(acc_derived, collect_derived(<fired production_memory>));  // VALUE-DEDUP, not concat — see below
       acc_facts = <fired Session/facts>;
   }
   <return a Session Value: production_memory = {0: acc_derived}, facts = input>   // mirror fire-stratified + fire-rules-spec exactly
 ```
+
+**LOAD-BEARING — the cross-stratum accumulation must value-dedup (R18).** The oracle's `fire-stratified-loop`
+merges each stratum's derived with `merge-facts` (`wat/rete.wat:1752`) — a value-equality union (`contains?`), NOT a
+concat. The native side MUST do the same (there is a native `merge_facts` in `kernel.rs` — used by the fixpoint at
+`~1092/1130/1149`; reuse it). Why it matters: the probe measures via `query-by-type-string`, which reads the
+*accumulated production-memory*; if you concat instead of value-dedup, a fact produced in more than one stratum (or
+re-derived) is double-counted and the differential reads `Ok=2`/`Bad=2` — the exact query-artifact R18 diagnosed. Mirror
+the oracle's `merge-facts` exactly.
 
 **Blast radius:** `src/rete/kernel.rs` ONLY. New: `native_stratify` + its helpers + `fire_rules_stratified` +
 the dispatch in `eval_fire_rules_native`. No new public verbs.
