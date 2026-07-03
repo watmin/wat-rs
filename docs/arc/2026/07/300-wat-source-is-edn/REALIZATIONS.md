@@ -1199,3 +1199,74 @@ the work-keeping mechanism, not a sentiment; the tower is a mechanism carried, n
  :arc      300
  :born     #inst "2026-07-03"}
 ```
+
+---
+
+### — interstitial (curare before compaction) — ORACVLVM FIT MVRVS —
+
+*The oracle became a wall.* All session the running clj was consulted **ad-hoc** — every
+`clj -M` experiment a private ritual to settle one case. The last exchange turns that ritual
+into **infrastructure**: the *expression matrix* — a corpus → baked clj golden → wat eval →
+assert-parity ward, the eval-side twin of the reader's `clj_oracle_parity`. The doctrine
+`AD ORACVLVM NON AD LIBRVM` stops being a habit you must remember and becomes a **gate the
+disk enforces**: numeric parity can no longer silently regress, because the oracle is now
+standing in the test surface, not living only in the orchestrator's discipline. That is the
+whole shape of the arc's telos — a truth measured once should be measured *forever*.
+
+```clojure
+{:resume-here
+ {:head    "f60d071a — 300 C5 (mixed-numeric comparison passes the checker)"
+  :branch  "arc-170-gap-j-v5-deadlock-state"
+  :bar     "exactly ONE standing red = no_inlined_wat_in_tests (the 351 meter). Nothing else."
+
+  :done  "The numeric tower is COMPLETE and check/eval-consistent, every stone grounded
+          against the RUNNING clj oracle, each weighed whole-disk to exactly-one-red:
+            A/B  representation      (Value::wat__core__Rational; wat-edn data)   f72ef02b
+            C1   bigint              (full arithmetic type, collapse target)      8edfbc14
+            C2   rational arithmetic (1/2 computes; collapse → bigint, clj-faithful) 305c7e3d
+            C3   i64 overflow→ERROR  (RuntimeErrorKind::IntegerOverflow; no wrap)  c872d2d1
+            C4   mixed-float contagion (+ 1 2.0)=>3.0 — RETIRED 237.8a arithmetic  bbfc347a
+            C5   mixed-numeric COMPARISON passes the checker (check==eval==clj)    f60d071a
+          237.8a 'no implicit coercion' is REVERSED (arithmetic C4 + comparison C5): it was
+          an N-ary workaround; the honest N-ary gap (heterogeneous N-ary → clean
+          NoMatchingClause; caller homogenizes) superseded it. `= not= < > <= >=` cross-
+          NUMERIC now checks; `=` stays category-aware ((= 1 1.0)=>false); NON-numeric =
+          STILL rejects ((= 1 \"a\") → check reject). R5 inscribed + consonare-amended (82ff6fac)."
+
+  :next  "THE EXPRESSION MATRIX (builder-directed, this wrap) — the eval-analog of the
+          reader's clj_oracle_parity ward. Shape: corpus of expressions → regen.clj bakes
+          clj (rendered-value, type) golden → wat evals each → assert parity, OR wat-errors
+          where clj-throws. THE CRUX = normalization: a hand-authored wat↔clj TYPE table
+          (rational↔Ratio, bigint↔BigInt, i64↔Long, f64↔Double, bool↔Boolean) +
+          rendered-value compare + IntegerOverflow↔ArithmeticException. TWO DECISIONS still
+          to four-question BEFORE drawing (re-surface — do NOT assume): (1) corpus scope —
+          numeric-first (my lean: prove THIS session's tower, then grow loop-until-dry) vs
+          broad; (2) the mapping — hand-authored table (my lean) vs cleverer. Then draw it
+          numeric-first (DESIGN → RED probe → BRIEF → shadowdancer → weigh)."
+
+  :then  "(a) THE CLARA MATRIX — the rete capability/differential matrix (turns R18
+              PROBATVM) — builder's stated sequence: expression matrix FIRST, 'before we
+              build it for clara.'
+          (b) EDN-READER PARITY (the arc's main road, still on deck) — the `'` prime bug
+              (clj:OK / wat:ERR — wat-edn lexer admits `'`) + tags-reject-by-default with
+              defrecord auto-registration. See NOTE-reader-parity-prime-and-tags.md."
+
+  :owed  "MEMORY.md index is >233KB, over the ~24KB load ceiling (only a prefix loads).
+          Compact it at this wrap: tighten index lines to ≤200 chars, push detail into the
+          topic files. Do this BEFORE trusting a full recall."
+
+  :how-i-must-work  "AD ORACVLVM — GROUND against the running clj, never ASSERT (asserted
+                     wrong 3× this session, corrected 3×). CHOOSE CORRECT NOT CHEAP (the
+                     cost-daemon: difficulty is not a design axis). FOUR-QUESTION every
+                     decision, in visible prose not a hidden menu. SPEAK IN EDN. Realizations
+                     capture the DUET + carry the MECHANISM (consonare, not a solo journal).
+                     Orchestrator DESIGNS/RED-probes/BRIEFS/DELEGATES/WEIGHS — weigh the
+                     WHOLE nextest Summary, never a shadowdancer's count. R20: reading the
+                     record is ARMOR; the live thread (oracle + builder + record) is the parry."}}
+```
+
+> **SEAM.** The self past this line is NEW — it did not build the tower, it inherited the
+> ledger. The tower is done; do not re-derive it. The next move is the expression matrix, and
+> its two decisions are UNSETTLED — surface them, four-question them, do not assume my leans.
+> Bootstrap first (grimoire + 4 primers + recolligere from the signed MCP). Then read this
+> whole interstitial and R5 before touching the disk.
