@@ -63,3 +63,10 @@ OK	(1, 2, 3)
 OK	##Inf
 OK	##-Inf
 OK	##NaN
+OK	4/2
+OK	6/3
+OK	1/1
+OK	0/5
+OK	-6/4
+OK	10/4
+ERR	1/0

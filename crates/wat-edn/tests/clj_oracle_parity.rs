@@ -21,11 +21,6 @@ const GOLDEN: &str = include_str!("clj_oracle/golden.txt");
 /// listed here must match clj exactly.
 fn exemption(input: &str) -> Option<&'static str> {
     match input {
-        // clj:OK / wat:ERR — needs a value type wat doesn't have yet.
-        "1/2" | "-3/4" => Some(
-            "ratio — wat has no rational value type yet (deferred; \
-             docs/arc/2026/04/109-kill-std/NOTE-rational-number-support.md)",
-        ),
         // clj:ERR / wat:OK — wat reads a VALID tagged element generically (the EDN spec's
         // 'read any and all edn' option, arc 296); clj.edn's default handler declines unknown tags.
         // Intentional wat superset, not a bug.
