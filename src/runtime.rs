@@ -44,6 +44,7 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use holon::{encode, HolonAST, Similarity};
 use num_bigint::BigInt;
+use num_rational::BigRational;
 use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -4320,6 +4321,24 @@ fn dispatch_keyword_head_value(
         // Arc 300 stone C1 — bigint -> f64 (lossy beyond f64's 53-bit
         // mantissa; same posture as i64::to-f64).
         ":wat::core::bigint::to-f64" => eval_bigint_to_f64(args, list_span, env, sym),
+        // Arc 300 stone C2 — rational arithmetic. Every op COLLAPSES: a
+        // BigRational result reducing to a whole number becomes `:wat::core::
+        // bigint` (C1's type), the inverse of C1's `bigint::/` -> rational
+        // collapse. Arbitrary precision — never overflows.
+        ":wat::core::rational::+" => eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b)),
+        ":wat::core::rational::-" => eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b)),
+        ":wat::core::rational::*" => eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b)),
+        ":wat::core::rational::/" => eval_rational_arith(head, args, list_span, env, sym, rational_div),
+        // Arc 300 stone C2 — i64/bigint → rational promotion (infallible;
+        // used by the i64⊕rational / bigint⊕rational contagion arms in
+        // `wat/core.wat`'s arithmetic defclauses).
+        ":wat::core::i64::to-rational" => eval_i64_to_rational(args, list_span, env, sym),
+        ":wat::core::bigint::to-rational" => eval_bigint_to_rational(args, list_span, env, sym),
+        // Arc 300 stone C2 — rational -> f64 (float-contagion path + explicit cast).
+        ":wat::core::rational::to-f64" => eval_rational_to_f64(args, list_span, env, sym),
+        // Arc 300 stone C2 — numerator/denominator slash-form accessors (cf Uuid/version).
+        ":wat::core::rational/numerator" => eval_rational_numerator(args, list_span, env, sym),
+        ":wat::core::rational/denominator" => eval_rational_denominator(args, list_span, env, sym),
         // String basics — per-type ops under :wat::core::string namespace,
         // following the :wat::core::i64 namespace precedent. Char-oriented.
         ":wat::core::string::contains?" => {
@@ -7443,6 +7462,225 @@ fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value, EvalBreak>
     }
 }
 
+/// Coerce a `Value` to a `BigRational` for rational arithmetic — accepts
+/// `:wat::core::rational` directly AND `:wat::core::bigint` (self-promoted
+/// via `BigRational::from_integer`). Arc 300 stone C2: the bigint acceptance
+/// is NOT strictness relaxation for its own sake — it is what lets
+/// `wat/core.wat`'s N-ary rational fold reuse the SAME raw `rational::{+,-,*,/}`
+/// intrinsic as its fold step (mirroring i64/f64/bigint's fold shape exactly)
+/// even after an intermediate step COLLAPSES to bigint (see [`collapse_bigrational`]).
+/// An i64 arg is still a type error — callers promote i64 explicitly via
+/// `:wat::core::i64::to-rational` (mirrors C1's i64::to-bigint contagion pattern).
+fn to_bigrational(v: &Value) -> Option<BigRational> {
+    match v {
+        Value::wat__core__Rational(r) => Some((**r).clone()),
+        Value::wat__core__BigInt(n) => Some(BigRational::from_integer((**n).clone())),
+        _ => None,
+    }
+}
+
+/// The pinned C2 collapse: a `BigRational` arithmetic result that reduces to
+/// a whole number (`is_integer()`) becomes `:wat::core::bigint` (C1's type,
+/// reused as the collapse target — never a new "integer-valued rational"
+/// representation); otherwise it stays `:wat::core::rational`. Inverse of
+/// C1's `bigint::/` → rational collapse (that one collapses DOWN on failure
+/// to divide evenly; this one collapses UP whenever the ratio happens to
+/// reduce to an integer).
+fn collapse_bigrational(r: BigRational) -> Value {
+    if r.is_integer() {
+        Value::wat__core__BigInt(Box::new(r.to_integer()))
+    } else {
+        Value::wat__core__Rational(Box::new(r))
+    }
+}
+
+/// Rational arith: `:wat::core::rational::{+,-,*,/}`. Modeled on
+/// `eval_bigint_arith` above, one type over — but EVERY op here can
+/// COLLAPSE (contrast bigint, where only `/` collapses): `op` returns the
+/// raw `BigRational` result and this wrapper applies [`collapse_bigrational`]
+/// uniformly. Operands are coerced via [`to_bigrational`] (rational or
+/// bigint; i64 is still a type error — promote explicitly via
+/// `:wat::core::i64::to-rational`).
+fn eval_rational_arith<F>(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: F,
+) -> Result<Value, EvalBreak>
+where
+    F: Fn(&BigRational, &BigRational, &Span) -> Result<BigRational, EvalBreak>,
+{
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: head.into(),
+            expected: 2,
+            got: args.len()
+        } }.into());
+    }
+    let a_span = args[0].span().clone();
+    let b_span = args[1].span().clone();
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
+    match (to_bigrational(a.value()), to_bigrational(b.value())) {
+        (Some(x), Some(y)) => {
+            let r = op(&x, &y, &b_span)?;
+            Ok(collapse_bigrational(r))
+        }
+        (None, _) => Err(RuntimeError { span: a_span, kind: RuntimeErrorKind::TypeMismatch {
+            op: head.into(),
+            expected: "rational",
+            got: Box::new(ValueSnapshot::of(a.value()))
+        } }.into()),
+        (_, None) => Err(RuntimeError { span: b_span, kind: RuntimeErrorKind::TypeMismatch {
+            op: head.into(),
+            expected: "rational",
+            got: Box::new(ValueSnapshot::of(b.value()))
+        } }.into()),
+    }
+}
+
+/// `:wat::core::rational::/`'s op fn: division by zero is a clean runtime
+/// error, never a panic (mirrors `bigint_div`'s zero-divisor guard).
+fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> Result<BigRational, EvalBreak> {
+    use num_traits::Zero;
+    if b.is_zero() {
+        return Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into());
+    }
+    Ok(a / b)
+}
+
+/// `:wat::core::i64::to-rational` — infallible promotion (mirrors C1's
+/// `i64::to-bigint`). Used by the `wat/core.wat` `+ - * /` defclauses'
+/// i64⊕rational contagion arms.
+fn eval_i64_to_rational(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let n = eval_one_arg(
+        ":wat::core::i64::to-rational",
+        args,
+        list_span,
+        env,
+        sym,
+        "i64",
+        |v| match v {
+            Value::i64(n) => Ok(n),
+            other => Err(other),
+        },
+    )?;
+    Ok(Value::wat__core__Rational(Box::new(BigRational::from_integer(BigInt::from(n)))))
+}
+
+/// `:wat::core::bigint::to-rational` — infallible promotion. Used by the
+/// `wat/core.wat` `+ - * /` defclauses' bigint⊕rational contagion arms.
+fn eval_bigint_to_rational(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let n = eval_one_arg(
+        ":wat::core::bigint::to-rational",
+        args,
+        list_span,
+        env,
+        sym,
+        "bigint",
+        |v| match v {
+            Value::wat__core__BigInt(n) => Ok(n),
+            other => Err(other),
+        },
+    )?;
+    Ok(Value::wat__core__Rational(Box::new(BigRational::from_integer(*n))))
+}
+
+/// `:wat::core::rational::to-f64` — `BigRational::to_f64` via num-traits
+/// `ToPrimitive` (mirrors `eval_bigint_to_f64`'s posture). Also the float-
+/// contagion path (`rational ⊕ f64 → f64`) used by the `core.wat` defclauses.
+fn eval_rational_to_f64(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let r = eval_one_arg(
+        ":wat::core::rational::to-f64",
+        args,
+        list_span,
+        env,
+        sym,
+        "rational",
+        |v| match v {
+            Value::wat__core__Rational(r) => Ok(r),
+            other => Err(other),
+        },
+    )?;
+    let x = r.to_f64().unwrap_or_else(|| {
+        use num_traits::Signed;
+        if r.is_negative() { f64::NEG_INFINITY } else { f64::INFINITY }
+    });
+    Ok(Value::f64(x))
+}
+
+/// Shared by `rational/numerator` + `rational/denominator`: a `BigInt`
+/// component that fits in `i64` renders as `:wat::core::i64` (the common
+/// case); one that doesn't renders as `:wat::core::bigint` (never silently
+/// truncated).
+fn bigint_component_to_value(n: BigInt) -> Value {
+    match n.to_i64() {
+        Some(i) => Value::i64(i),
+        None => Value::wat__core__BigInt(Box::new(n)),
+    }
+}
+
+/// `:wat::core::rational/numerator` — slash-form accessor (cf `Uuid/version`).
+fn eval_rational_numerator(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let r = eval_one_arg(
+        ":wat::core::rational/numerator",
+        args,
+        list_span,
+        env,
+        sym,
+        "rational",
+        |v| match v {
+            Value::wat__core__Rational(r) => Ok(r),
+            other => Err(other),
+        },
+    )?;
+    Ok(bigint_component_to_value(r.numer().clone()))
+}
+
+/// `:wat::core::rational/denominator` — slash-form accessor (cf `Uuid/version`).
+fn eval_rational_denominator(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let r = eval_one_arg(
+        ":wat::core::rational/denominator",
+        args,
+        list_span,
+        env,
+        sym,
+        "rational",
+        |v| match v {
+            Value::wat__core__Rational(r) => Ok(r),
+            other => Err(other),
+        },
+    )?;
+    Ok(bigint_component_to_value(r.denom().clone()))
+}
+
 /// `:wat::core::u8 <i64-expr>` — range-checked cast from `:i64` to
 /// `:u8`. Arc 008 slice 1. Rejects values outside 0..=255 at runtime
 /// with a MalformedForm describing the offending value. The argument
@@ -8318,6 +8556,22 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::i64(x), Value::wat__core__BigInt(y)) => Some(&BigInt::from(*x) == y.as_ref()),
         (Value::wat__core__BigInt(_), Value::f64(_)) => Some(false),
         (Value::f64(_), Value::wat__core__BigInt(_)) => Some(false),
+        // Arc 300 stone C2 — rational equality. Same-type: structural
+        // (`BigRational` implements `PartialEq`, already-reduced). Category-
+        // aware cross-type: a genuine rational always has denominator >= 2
+        // (Stone B's invariant — an integer-valued ratio already collapsed
+        // at construction), so it is NEVER integer-valued and NEVER equal to
+        // an i64/bigint (clj: `(= 1/2 1)` => false); rational↔f64 is a
+        // DIFFERENT category too (clj: `(= 1/2 0.5)` => false) — same
+        // deliberate cross-numeric-falls-to-`Some(false)` exception bigint
+        // established immediately above, one type over.
+        (Value::wat__core__Rational(x), Value::wat__core__Rational(y)) => Some(x == y),
+        (Value::wat__core__Rational(_), Value::i64(_)) => Some(false),
+        (Value::i64(_), Value::wat__core__Rational(_)) => Some(false),
+        (Value::wat__core__Rational(_), Value::wat__core__BigInt(_)) => Some(false),
+        (Value::wat__core__BigInt(_), Value::wat__core__Rational(_)) => Some(false),
+        (Value::wat__core__Rational(_), Value::f64(_)) => Some(false),
+        (Value::f64(_), Value::wat__core__Rational(_)) => Some(false),
         (Value::String(x), Value::String(y)) => Some(x == y),
         (Value::bool(x), Value::bool(y)) => Some(x == y),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
@@ -8536,6 +8790,33 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
         (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => Some(x.cmp(y)),
         (Value::wat__core__BigInt(x), Value::i64(y)) => Some(x.as_ref().cmp(&BigInt::from(*y))),
         (Value::i64(x), Value::wat__core__BigInt(y)) => Some(BigInt::from(*x).cmp(y.as_ref())),
+        // Arc 300 stone C2 — rational total order. Same-type: `BigRational`
+        // implements `Ord` (cross-multiplication, exact — no float rounding).
+        // Cross-type with i64/bigint: promote the integer side to a
+        // `BigRational` before comparing (mirrors the i64↔bigint promotion
+        // pattern immediately above, one type over). Cross-type with f64:
+        // convert the rational to f64 before comparing (mirrors the i64↔f64
+        // promotion pattern above) — lossy beyond f64's mantissa, same
+        // posture as `bigint::to-f64`.
+        (Value::wat__core__Rational(x), Value::wat__core__Rational(y)) => Some(x.cmp(y)),
+        (Value::wat__core__Rational(x), Value::i64(y)) => {
+            Some(x.as_ref().cmp(&BigRational::from_integer(BigInt::from(*y))))
+        }
+        (Value::i64(x), Value::wat__core__Rational(y)) => {
+            Some(BigRational::from_integer(BigInt::from(*x)).cmp(y.as_ref()))
+        }
+        (Value::wat__core__Rational(x), Value::wat__core__BigInt(y)) => {
+            Some(x.as_ref().cmp(&BigRational::from_integer((**y).clone())))
+        }
+        (Value::wat__core__BigInt(x), Value::wat__core__Rational(y)) => {
+            Some(BigRational::from_integer((**x).clone()).cmp(y.as_ref()))
+        }
+        (Value::wat__core__Rational(x), Value::f64(y)) => {
+            Some(x.to_f64().unwrap_or(f64::NAN).partial_cmp(y).unwrap_or(Ordering::Equal))
+        }
+        (Value::f64(x), Value::wat__core__Rational(y)) => {
+            Some(x.partial_cmp(&y.to_f64().unwrap_or(f64::NAN)).unwrap_or(Ordering::Equal))
+        }
         (Value::String(x), Value::String(y)) => Some(x.cmp(y)),
         (Value::bool(x), Value::bool(y)) => Some(x.cmp(y)),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x.cmp(y)),
@@ -8974,6 +9255,20 @@ pub(crate) fn dispatch_substrate_impl(
                 Ok(Value::wat__core__Rational(Box::new(num_rational::BigRational::new(a.clone(), b.clone()))))
             }
         })),
+        // Arc 300 stone C2 — rational arithmetic leaves. Every op COLLAPSES
+        // (contrast bigint above, where only `/` collapses) — the shared
+        // `arith_rational_rational_inner` helper applies `collapse_bigrational`
+        // after `op` returns the raw `BigRational`.
+        ":wat::core::rational::+" => Some(arith_rational_rational_inner(impl_name, vals, |a, b| Ok(a + b))),
+        ":wat::core::rational::-" => Some(arith_rational_rational_inner(impl_name, vals, |a, b| Ok(a - b))),
+        ":wat::core::rational::*" => Some(arith_rational_rational_inner(impl_name, vals, |a, b| Ok(a * b))),
+        ":wat::core::rational::/" => Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
+            use num_traits::Zero;
+            if b.is_zero() {
+                return Err(());
+            }
+            Ok(a / b)
+        })),
         _ => None,
     }
 }
@@ -9058,6 +9353,35 @@ where
         _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),
             expected: "(bigint, bigint)",
+            got: Box::new(ValueSnapshot::of(&a))
+        } }.into()),
+    }
+}
+
+/// Arc 300 stone C2 — rational substrate-addressed arithmetic leaf, mirroring
+/// `arith_bigint_bigint_inner` above. `op` returns the raw `BigRational`
+/// (not a `Value`) because EVERY rational op collapses (contrast bigint,
+/// where only `/` does) — this helper applies `collapse_bigrational`
+/// uniformly after `op`. Operands are coerced via `to_bigrational` (rational
+/// or bigint — see its doc for why bigint is accepted here too).
+fn arith_rational_rational_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    op: F,
+) -> Result<Value, EvalBreak>
+where
+    F: Fn(&BigRational, &BigRational) -> Result<BigRational, ()>,
+{
+    let a = vals.first().expect("arity-checked");
+    let b = vals.get(1).expect("arity-checked");
+    match (to_bigrational(a), to_bigrational(b)) {
+        (Some(x), Some(y)) => match op(&x, &y) {
+            Ok(r) => Ok(collapse_bigrational(r)),
+            Err(()) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DivisionByZero }.into()),
+        },
+        _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
+            op: impl_name.into(),
+            expected: "(rational, rational)",
             got: Box::new(ValueSnapshot::of(&a))
         } }.into()),
     }

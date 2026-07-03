@@ -15921,6 +15921,87 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 300 stone C2 — rational arithmetic. Same-type 2-ary signature
+    // mirrors bigint above; the `wat/core.wat` defclause folds these into
+    // 0/1/N-ary surface + the i64⊕rational / bigint⊕rational / f64⊕rational
+    // contagion arms (which reuse `i64::to-rational` / `bigint::to-rational` /
+    // `rational::to-f64` to homogenize before calling in). Declared
+    // optimistically as `rational -> rational -> rational`: EVERY op here can
+    // collapse to `:wat::core::bigint` at runtime (contrast bigint, where
+    // only `/` collapses) — same "sound-enough" posture as `bigint::/`
+    // immediately above (check is the optimistic primary gate; the runtime
+    // collapse is the honest backstop).
+    let rational_ty = || TypeExpr::Path(":wat::core::rational".into());
+    for op in &[
+        ":wat::core::rational::+",
+        ":wat::core::rational::-",
+        ":wat::core::rational::*",
+        ":wat::core::rational::/",
+    ] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![rational_ty(), rational_ty()],
+                ret: rational_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+    // Arc 300 stone C2 — i64/bigint → rational promotion (infallible).
+    // Used by the contagion arms in `wat/core.wat`'s `+ - * /` defclauses.
+    env.register(
+        ":wat::core::i64::to-rational".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: rational_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::core::bigint::to-rational".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![bigint_ty()],
+            ret: rational_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 300 stone C2 — rational -> f64 (float-contagion path + explicit
+    // cast; same posture as bigint::to-f64 above).
+    env.register(
+        ":wat::core::rational::to-f64".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![rational_ty()],
+            ret: f64_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 300 stone C2 — numerator/denominator slash-form accessors (cf
+    // Uuid/version). Declared optimistically as returning i64 (the common
+    // case); the runtime returns bigint for a component that overflows i64
+    // (same "sound-enough" posture as bigint::/ above).
+    env.register(
+        ":wat::core::rational/numerator".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![rational_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::core::rational/denominator".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![rational_ty()],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+
     // arc 237 Stone 237.8a — mixed-type arithmetic leaf registrations
     // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
     // +'i64'f64, -'i64'f64, *'i64'f64, /'i64'f64,
