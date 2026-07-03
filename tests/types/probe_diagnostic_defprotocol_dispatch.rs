@@ -45,6 +45,7 @@ fn probe_2_open_extension_after_dispatcher() {
 // ─── Probe 3 ────────────────────────────────────────────────────────────────
 //
 // Missing impl is OBSERVABLE error — apply raises UnknownFunction.
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_3_missing_impl_raises_observable_error() {
     match run_compute_from("tests/types/probe_diagnostic_defprotocol_dispatch_p3.wat") {

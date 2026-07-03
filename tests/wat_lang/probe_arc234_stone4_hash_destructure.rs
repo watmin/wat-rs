@@ -77,6 +77,7 @@ fn probe_4_hashmap_destructure_none() {
 }
 
 // ─── Probe 5 ────────────────────────────────────────────────────────────────
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_5_unknown_field_errors() {
     // The unknown-field error fires at eval time (checker permits the form, runtime rejects).

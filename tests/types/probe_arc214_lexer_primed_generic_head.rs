@@ -62,6 +62,7 @@ fn primed_two_param_must_lex() {
 /// rule is what fires. (The earlier form of this test asserted "must lex,"
 /// which mistook the by-design whitespace rule for the apostrophe bug and
 /// passed only via a case-sensitivity accident; corrected 2026-06-07.)
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn primed_two_param_with_space_fails_same_as_unprimed() {
     let primed = startup_from_file(

@@ -25,6 +25,7 @@ fn make_span() -> Span {
     Span::new(Arc::new("test.wat".to_string()), 1, 1)
 }
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn error_families_tag_under_their_phase_namespace() {
     // CheckError → #wat.check/

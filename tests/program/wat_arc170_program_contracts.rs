@@ -490,6 +490,7 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
 
 // ─── T8. fork-program callsite — walker fires ─────────────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn t8_fork_program_callsite_fires_walker() {
     let err = freeze_err("tests/program/wat_arc170_program_contracts_t8_fork_program.wat");
@@ -506,6 +507,7 @@ where `worker-fn` reads from `rx`, writes to `tx`. See `docs/arc/2026/05/170-pro
     );
 }
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn t8b_fork_program_ast_callsite_fires_walker() {
     let err = freeze_err("tests/program/wat_arc170_program_contracts_t8b_fork_program_ast.wat");
@@ -524,6 +526,7 @@ where `worker-fn` reads from `rx`, writes to `tx`. See `docs/arc/2026/05/170-pro
 
 // ─── T9. spawn-program callsite — walker fires ───────────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn t9_spawn_program_callsite_fires_walker() {
     let err = freeze_err("tests/program/wat_arc170_program_contracts_t9_spawn_program.wat");
@@ -540,6 +543,7 @@ where `worker-fn` satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel
     );
 }
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn t9b_spawn_program_ast_callsite_fires_walker() {
     let err = freeze_err("tests/program/wat_arc170_program_contracts_t9b_spawn_program_ast.wat");

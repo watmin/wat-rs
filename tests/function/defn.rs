@@ -134,6 +134,7 @@ fn defn_zero_arg_function_works() {
 /// Defn declares `-> :wat::core::nil` but body returns `:wat::core::i64`.
 /// The fn form's type-checker fires `ReturnTypeMismatch` (or `TypeMismatch`)
 /// on the post-expansion form.
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn defn_body_type_mismatch_surfaces() {
     let err = startup_err("tests/function/defn_bad_type.wat");

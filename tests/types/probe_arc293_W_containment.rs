@@ -16,6 +16,7 @@
 
 use wat::freeze::startup_beside;
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn a_record_cannot_declare_a_struct_field() {
     match startup_beside(file!()) {

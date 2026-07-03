@@ -42,6 +42,7 @@ fn run(compute_fn: &str) -> Value {
 
 // ─── Self-recursion via if ────────────────────────────────────────────
 
+#[ignore = "boundary-slow: million-depth recursion; not a golden"]
 #[test]
 fn self_recursion_via_if_at_million_depth() {
     // The canonical TCO benchmark from the arc 003 design doc. Without

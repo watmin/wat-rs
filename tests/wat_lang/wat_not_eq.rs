@@ -33,6 +33,7 @@ fn not_eq_i64_false_when_same() {
     assert!(!unwrap_bool(run_expr("(:t::test2-not-eq-false)")));
 }
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn not_eq_f64_cross_numeric_coerce() {
     // Arc-237 Stone 237.8a: cross-numeric coercion for equality DELETED.

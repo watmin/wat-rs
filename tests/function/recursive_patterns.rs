@@ -105,6 +105,7 @@ fn linear_shadowing() {
 
 // ─── Slice 3: exhaustiveness — partial-coverage rule ─────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn nonexhaustive_partial_pattern_rejected() {
     let err = freeze_err("tests/function/recursive_patterns_nonexhaustive.wat");

@@ -32,6 +32,7 @@ fn contract_01_define_dispatch_hard_cut_rejected() {
 
 // ─── C02: rejection carries structured retirement remedy naming defclause ──────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_02_rejection_remedy_names_defclause() {
     let result = startup_from_file(

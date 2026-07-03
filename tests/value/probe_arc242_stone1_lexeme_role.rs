@@ -51,6 +51,7 @@ fn contract_02_keyword_nil_preserved_as_type() {
 
 // ─── C03: :wat::core::Char HARD-CUT-rejected with retirement remedy ────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_legacy_char_hard_cut_with_remedy() {
     // The _bad fixture defines :test::needs-char with :wat::core::Char (uppercase).

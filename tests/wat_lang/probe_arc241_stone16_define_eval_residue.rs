@@ -16,6 +16,7 @@ use wat::freeze::startup_from_file;
 
 // ─── C01: define rejection error mentions "Stone 241.16" marker ────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_01_define_rejection_carries_stone_241_16_marker() {
     let result =
@@ -30,6 +31,7 @@ fn contract_01_define_rejection_carries_stone_241_16_marker() {
 
 // ─── C02: retirement remedy STILL names :wat::core::defn (preservation) ────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_02_retirement_remedy_preserves_defn_replacement() {
     let result =

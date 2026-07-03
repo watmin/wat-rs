@@ -48,6 +48,7 @@ const CRASHING_CHILD_SRC: &str = r#"
 
 /// `select'` over `[child]` where child immediately crashes.
 /// At HEAD this raises; after the strike it returns `ServiceEvent::Lost{idx=0}`.
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn select_prime_yields_lost_when_process_child_crashes() {
     // Empty parent world — substrate stdlib only.

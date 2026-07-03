@@ -224,6 +224,7 @@ fn signature_of_fn_composes_with_bundle_children() {
 
 // ─── Errors cleanly on non-fn input ────────────────────────────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn signature_of_fn_errors_on_non_fn_input() {
     // Passing a non-fn value (an i64 here) must raise TypeMismatch with

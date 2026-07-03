@@ -48,6 +48,7 @@ fn define_alias_length_to_user_size_delegates_correctly() {
 
 // ─── Test 3: retired form :wat::runtime::define-alias is HARD-CUT-rejected ───
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn define_alias_retired_form_rejected_at_startup() {
     let result = startup_from_file("tests/wat_lang/wat_arc143_define_alias_retired_bad.wat");

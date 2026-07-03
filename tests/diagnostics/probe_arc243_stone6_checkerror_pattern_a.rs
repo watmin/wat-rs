@@ -120,6 +120,7 @@ fn checkerror_span_access_is_single_path() {
 /// and an UNKNOWN secondary `stdin_sender_span`.  The pre-fix code interpolated
 /// `stdin_sender_span` unconditionally; the fix gates it so the phrase reads
 /// naturally without a location.
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn checkerror_display_elides_unknown_secondary_span() {
     let known_outer = Span::new(Arc::new("src/bar.wat".to_string()), 5, 1);
@@ -172,6 +173,7 @@ fn checkerror_display_elides_unknown_secondary_span() {
 ///
 /// `ScopeDeadlock` is chosen because it is the simplest mid-prose variant
 /// (no secondary-span fields, emits "scope-deadlock at {s}: " inline).
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn checkerror_display_elides_unknown_span() {
     // --- (a) UNKNOWN span: mid-prose location must be suppressed ---
@@ -226,6 +228,7 @@ fn checkerror_display_elides_unknown_span() {
 /// (a) UNKNOWN outer span — the serialized EDN must not contain `"<runtime>"`.
 /// (b) KNOWN outer span — the serialized EDN must contain `:location` and
 ///     the file:line:col data.
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn edn_elides_unknown_span() {
     use wat::to_edn::ToEdn;

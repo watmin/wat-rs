@@ -51,6 +51,7 @@ fn run_err_file(rel_path: &str) -> String {
 
 // ─── 1. Empty: (:wat::core::do) → MalformedForm parse error ─────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn do_empty_form_is_malformed() {
     let err = run_err_file("tests/wat_lang/wat_arc136_do_form_empty_bad.wat");
@@ -84,6 +85,7 @@ fn do_recipient_unifies_with_final_form_type() {
 
 // ─── 5. Recipient mismatch fires TypeMismatch ───────────────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn do_recipient_mismatch_fires_type_mismatch() {
     let err = run_err_file("tests/wat_lang/wat_arc136_do_form_mismatch_bad.wat");

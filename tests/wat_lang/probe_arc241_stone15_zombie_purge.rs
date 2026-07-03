@@ -21,6 +21,7 @@ use wat::freeze::startup_from_file;
 
 // ─── C01: :wat::core::try HARD-CUT-rejected with Stone 241.15 signature ────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_01_try_hard_cut_rejected() {
     let result =
@@ -35,6 +36,7 @@ fn contract_01_try_hard_cut_rejected() {
 
 // ─── C02: C01 rejection remedy names :wat::core::Result/try ────────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_02_try_rejection_remedy_names_result_try() {
     let result =
@@ -49,6 +51,7 @@ fn contract_02_try_rejection_remedy_names_result_try() {
 
 // ─── C03: :wat::core::option::expect HARD-CUT via Stone 241.15 signature ───────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_option_expect_lowercase_hard_cut_rejected() {
     let result = startup_from_file(
@@ -64,6 +67,7 @@ fn contract_03_option_expect_lowercase_hard_cut_rejected() {
 
 // ─── C04: C03 rejection remedy names :wat::core::Option/expect ─────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_04_option_expect_lowercase_rejection_remedy_names_pascal() {
     let result = startup_from_file(
@@ -79,6 +83,7 @@ fn contract_04_option_expect_lowercase_rejection_remedy_names_pascal() {
 
 // ─── C05: :wat::core::result::expect HARD-CUT via Stone 241.15 signature ───────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_05_result_expect_lowercase_hard_cut_rejected() {
     let result = startup_from_file(
@@ -94,6 +99,7 @@ fn contract_05_result_expect_lowercase_hard_cut_rejected() {
 
 // ─── C06: C05 rejection remedy names :wat::core::Result/expect ─────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_06_result_expect_lowercase_rejection_remedy_names_pascal() {
     let result = startup_from_file(

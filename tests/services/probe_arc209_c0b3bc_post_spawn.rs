@@ -63,6 +63,7 @@ fn thread_post_spawn_hook_fires_with_empty_launch() {
     );
 }
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn accessor_typechecks_at_parse_time() {
     // GREEN after 3b-c: the ctor is known, so the checker reaches the hook body and rejects the

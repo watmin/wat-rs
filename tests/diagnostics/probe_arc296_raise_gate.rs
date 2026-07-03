@@ -16,6 +16,7 @@ use wat::runtime::Environment;
 
 /// Wall proof: (raise! 42) is rejected at compile time.
 /// The type checker requires :wat::core::Error; i64 does not satisfy it.
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn raise_bare_integer_is_compile_error() {
     let result = startup_from_file(

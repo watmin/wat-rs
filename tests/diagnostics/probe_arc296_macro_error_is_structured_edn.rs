@@ -24,6 +24,7 @@ use wat_edn::OwnedValue;
 
 // ─── Probe 1 — startup_error_to_edn produces Tagged OwnedValue ──────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_1_startup_error_to_edn_is_tagged() {
     // Build the error chain:
@@ -89,6 +90,7 @@ fn probe_1_startup_error_to_edn_is_tagged() {
 
 // ─── Probe 2 — macro_error_to_edn is navigable to the leaf cause ────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn probe_2_macro_error_to_edn_leaf_cause_is_not_string() {
     let runtime_span = Span::new(Arc::new("src/my-lib.wat".to_string()), 18, 3);

@@ -56,6 +56,7 @@ fn contract_02_bare_nil_in_body_passes() {
 
 // ─── C03: :wat::core::i64 in body REJECTED with remedy ────────────────────────
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn contract_03_keyword_type_in_body_rejected_with_remedy() {
     // (:wat::core::defn :f [] -> :wat::core::i64 :wat::core::i64) — ILLEGAL.

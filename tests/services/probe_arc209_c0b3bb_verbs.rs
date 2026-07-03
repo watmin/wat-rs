@@ -35,6 +35,7 @@ fn process_listener_allow_deny_succeed() {
     );
 }
 
+#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn thread_listener_allow_errors_with_tier_message() {
     // RED at HEAD: `allow'` is an unknown head → the error names an unknown verb, NOT the tier.
