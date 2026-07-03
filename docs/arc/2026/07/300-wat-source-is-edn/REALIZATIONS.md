@@ -726,3 +726,72 @@ self repeats.*
  :arc      300
  :born     #inst "2026-07-02"}
 ```
+
+---
+
+### `---` interstitial — VNVM AGE, DENVO SPECTA: the batch-apply corrupted, the one-turn fixpoint is the cure; curare before compaction, resume on the far side (2026-07-02, session close)
+
+**What happened.** Driving the stdlib (300.3), the converter corrupted complex forms — merged tokens, lost leading parens (`(wat.core/quasiquotet.core/recordtype`, `unquote-splicingfn`) — on the quasiquote-dense macro bodies (Record.wat / core.wat). The builder caught it **in vim, by eye**, in the dancer's `/tmp` verification copies — before the real stdlib was ever driven (`git status wat/` = 0, no damage). And the automated gate had said "19 byte-identical." Kept literal, the builder's diagnosis:
+
+> **(builder):** *"do you query out N transforms and then apply them in sequence? does doing this change where char offsets are as the contents shift between movements? … is it not better to play this game one turn at a time — observe the board, find the next move, act on it, re-observe the board … until no turns remain … run the rules engine, do one unit of work, re-run, do a unit of work, until there's no work left."*
+>
+> **(builder):** *"we do not have recur — wat is TCO proper."*
+
+**The root cause.** The drive queries out **N edits** computed against the *original* text, then applies them in sequence (`fix-text-apply`, in `wat/fix.wat` — shared by BOTH `fix-text` and the rete-drive). Each applied edit shifts the bytes after it, so the next edit's offset — computed pre-shift — points at the wrong place; dense/adjacent conversions overlap and eat each other. Right-to-left sorting only papers the simple case. **And the "byte-identical to fix-text" gate never caught it because fix-text has the same buggy apply — two wrongs agreeing.** A same-source diff is NOT a correctness check.
+
+**The cure (the builder's, and it is rete's own nature — fire-fixpoint).** One turn at a time: OBSERVE the board (a fresh parse — offsets always true), find the moves (fire-rules), act on ONE, RE-OBSERVE, until no moves remain. wat is TCO-proper, so it is plain tail recursion — **no `recur`**:
+
+```clojure
+;; wat is TCO-proper — a tail-recursive fn, NO recur (Clojure's loop/recur is a JVM workaround wat doesn't need)
+(wat.core/defn :fix::drive [text :- :wat::core::String] :- :wat::core::String
+  (wat.core/let [edits (:fix::observe-and-fire text)]   ; OBSERVE: fresh parse → assert :fix::Node facts → fire-rules → query out
+    (wat.core/if (:wat::core::empty? edits)
+      text                                                ; no moves remain — DONE (fixpoint)
+      (:fix::drive (:fix::apply-one edits text)))))        ; act on ONE edit, tail-call → TCO'd, re-observe next turn
+```
+
+Offsets cannot drift (recomputed against the current board each turn); overlaps cannot merge (one move in flight); it converges (a converted `::`-keyword becomes a symbol and no longer matches its rule). rete stays pure — it only DEDUCES the moves; the drive applies ONE and re-observes.
+
+**The lessons (promote them):**
+- **Batch-apply N text edits computed on stale offsets = corruption.** Apply ONE, re-parse, repeat (fixpoint / tail recursion). The rules deduce; the consumer applies one turn at a time.
+- **A gate that diffs your output against another tool built on the SAME machinery is not a correctness check** — it's two broken clocks agreeing. Verify against TRUTH: the converted file must **parse + re-freeze** (round-trip), which corruption fails and a same-source diff never would.
+- **Slow is smooth, smooth is fast.** I chased the impressive move (drive the whole corpus in one sweep) and verified against a bent blade. One correct move, observed, beats a fast wrong one hunted.
+
+***VNVM AGE, DENVO SPECTA.*** *(apparatus-minted — Latin, "do one, look anew": the one-turn fixpoint — apply ONE edit, then RE-OBSERVE the true board (a fresh parse); never batch N edits against stale offsets (that corrupts — merged tokens, lost parens). rete's fire-fixpoint made the drive's discipline; wat TCO-proper, so tail recursion, no recur. The gate's twin: verify against TRUTH (parse + re-freeze / round-trip), not a same-machinery mirror. Slow is smooth, smooth is fast — one correct move beats a fast wrong one. Kept literal at the builder's direction, curare before compaction.)*
+
+---
+
+### `---` RESUME-HERE (far side of the gap) — the night's breadcrumb (2026-07-02, session close)
+
+**Grounded state (read the disk; do not trust this prose over it):**
+
+```clojure
+{:HEAD "243bdb27 — 300 R4 LIMES IPSE LEX (this interstitial commits on top)"
+ :branch "arc-170-gap-j-v5-deadlock-state"
+ :arc  "300 — wat source IS EDN (the reader/dialect conversion); the descent for the ONE READER (VNVS LECTOR NE DIVIDANTVR)"
+ :landed
+ {:300.1 "384f5d6f — additive dual-surface: faithful symbol def-names REGISTER (both tongues alive, one body). verified."
+  :300.2 "83b291f9 — the conversion as PURE rete defrules: rules DEDUCE (:fix::HeadConv/ArrowConv/TypeConv), the drive
+          QUERIES OUT + ACTIONS. rete UNTOUCHED (pure). reproduced fix-text byte-identical ON SIMPLE FORMS."
+  :field "CLEAN — 0 failed (weighed). 241 recapture-pending goldens QUARANTINED (tracked: docs/arc/2026/06/296-diagnostics-fully-edn/IGNORE-LEDGER.md; gate: empty before 296 closes; unlock: the recapture)."
+  :pretty "4723b4c6 — .edn goldens pretty-print on UPDATE_EDN capture (data-eq, format-free)."
+  :bridge "e4881363 — crates/wat-edn/clj/ — canonical clojure.edn reads wat's EDN (the peer proof, 300... wait 299 R2 QVOD SCRIPSIT ALIVS LEGIT)."}
+ :THE-BUG
+ {:what "the DRIVE corrupts complex forms — fix-text-apply batches N edits on stale offsets → merged tokens / lost parens on
+         quasiquote-dense macros (Record.wat / core.wat). the byte-identical-to-fix-text GATE is FLAWED (same buggy apply)."
+  :stdlib "NOT driven — clean (git status wat/ = 0). the corruption was in /tmp verification copies only."}
+ :RESUME-HERE
+ {:next "redraw + build 300.3 as the ONE-TURN FIXPOINT drive: observe (fresh parse) → fire-rules (deduce) → apply ONE edit →
+         re-observe → until no edits. wat TCO-proper — tail recursion, NO recur. rete stays PURE (deduce only)."
+  :gate "a REAL correctness check: the converted file must PARSE + RE-FREEZE (round-trip), NOT match fix-text (same bug).
+         PROVE it first on the files that corrupted — Record.wat / core.wat — before driving the corpus."
+  :then "drive the stdlib (37 files, dual-surface accepts faithful — no stash-dance) → rebuild → cargo nextest 0-failed →
+         then the rest of the corpus (1173 .wat + ~192 rust) → RETIRE the rust-scheme surface → one reader."
+  :do-not "(1) do NOT batch-apply N edits (it corrupts); (2) do NOT verify against fix-text (same buggy apply — verify by
+           round-trip); (3) do NOT re-drive until the fixpoint + round-trip gate are PROVEN on Record.wat/core.wat;
+           (4) do NOT touch src/rete/matcher.rs (rete is ALWAYS pure — see feedback_rete_is_always_pure...)."}
+ :chronicle "299 (entropy → the peer-bridge → the law → the descent) + 300 (R1 IN REGVLA SALVS, R2 IN VNVM RENASCIMVR,
+             R3 COGITARE REGERE MVNIRE, R4 LIMES IPSE LEX + interstitials) — all pushed."}
+```
+
+***No signature — the record tending itself before the gap.*** **RESUME-HERE (far side):** you are a NEW instance; you did not live the session above; it is a lossy cache, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk), read the 299 + 300 REALIZATIONS whole, ground HEAD against the disk, then resume at the ONE-TURN FIXPOINT drive (300.3 redo) — build it, prove the round-trip on Record.wat/core.wat FIRST, weigh the whole disk. The stdlib is clean; the bug is the batch-apply; the cure is one-move-re-observe. Slow is smooth. Do not trust this note over the disk.
