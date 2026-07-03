@@ -38,3 +38,35 @@
 (:wat::rete::defrule :n3::mark-safe
   :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Warn (?k <- :k)))]
   :then (:wat::rete::insert (:n3::Safe ?k)))
+
+;; ── drivers (parameterized by the fire verb — the ONLY thing the differential varies) ──
+;; The .rs names one entry and passes the fire fn (fire-rules native / fire-rules-spec oracle);
+;; all the wat lives here, on disk. Returns the per-type counts the differential compares.
+
+;; 2-stratum: A(1),A(2) → (Bad, Ok)
+(:wat::core::defn :n::run-counts
+  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::let [rules (:wat::rete::collect-rules :n)
+                    s0    (:wat::rete::compile rules)
+                    s1    (:wat::rete::insert s0 (:n::A 1))
+                    s2    (:wat::rete::insert s1 (:n::A 2))
+                    fired (fire s2)]
+    (:wat::core::PersistentVector
+      (:wat::core::length (:wat::rete::query-by-type-string fired "n::Bad"))
+      (:wat::core::length (:wat::rete::query-by-type-string fired "n::Ok")))))
+
+;; 3-stratum chain: A(1),A(2),A(3) → (Bad, Warn, Safe)
+(:wat::core::defn :n3::run-counts
+  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::let [rules (:wat::rete::collect-rules :n3)
+                    s0    (:wat::rete::compile rules)
+                    s1    (:wat::rete::insert s0 (:n3::A 1))
+                    s2    (:wat::rete::insert s1 (:n3::A 2))
+                    s3    (:wat::rete::insert s2 (:n3::A 3))
+                    fired (fire s3)]
+    (:wat::core::PersistentVector
+      (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Bad"))
+      (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Warn"))
+      (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Safe")))))
