@@ -18,15 +18,14 @@
 //!
 //! Run: cargo nextest run -p wat -E 'test(/P6_delta_asymmetric/)'
 
-use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
 
-/// Run a WAT expression in an in-memory world. Returns the `Value` produced.
-fn run_expr(world_src: &str, expr: &str) -> Value {
-    let world = startup_from_source(world_src, None, Arc::new(InMemoryLoader::new()))
-        .expect("startup_from_source");
+/// Run a WAT expression against the co-located `.wat` world (all record types for the three scenarios).
+/// The rules are constructed at runtime inside `expr` (parameterized by N), so only records live in the
+/// fixture. Returns the `Value` produced.
+fn run_expr(expr: &str) -> Value {
+    let world = startup_beside(file!()).expect("startup_beside");
     let ast = wat::parse_one!(expr).expect("parse_one");
     eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
@@ -35,11 +34,11 @@ fn run_expr(world_src: &str, expr: &str) -> Value {
 
 /// Run the same expression with BOTH `fire-rules'` (native delta) and `fire-rules-spec` (oracle),
 /// assert they agree, and return the common count.
-fn assert_native_eq_oracle(world_src: &str, expr_template: &str, type_str: &str) -> i64 {
+fn assert_native_eq_oracle(expr_template: &str, type_str: &str) -> i64 {
     let native_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules'");
     let oracle_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules-spec");
-    let native = run_expr(world_src, &native_expr);
-    let oracle = run_expr(world_src, &oracle_expr);
+    let native = run_expr(&native_expr);
+    let oracle = run_expr(&oracle_expr);
     assert_eq!(
         native, oracle,
         "native fire-rules' must match oracle fire-rules-spec for type {type_str}; native={native:?} oracle={oracle:?}"
@@ -58,13 +57,6 @@ fn assert_native_eq_oracle(world_src: &str, expr_template: &str, type_str: &str)
 //
 // Bug: A (right of R2's hash join) arrives in round 1 while B (left) is not yet derived.
 // J is skipped; right_idx[J] never populated. Round 2: B arrives but right_idx is empty → C=0.
-
-const CHAIN_WORLD: &str = r#"
-(:wat::core::defrecord :chain::A [k <- :wat::core::i64])
-(:wat::core::defrecord :chain::B [k <- :wat::core::i64])
-(:wat::core::defrecord :chain::C [k <- :wat::core::i64])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 /// Build the chain let-expression for `N` input A records. `FIRE_VERB` is a placeholder.
 fn chain_expr(n: usize, query_type: &str) -> String {
@@ -99,21 +91,21 @@ fn chain_expr(n: usize, query_type: &str) -> String {
 
 #[test]
 fn chain_b_derived_equals_oracle() {
-    let count = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(2, "chain::B"), "chain::B");
+    let count = assert_native_eq_oracle(&chain_expr(2, "chain::B"), "chain::B");
     assert_eq!(count, 2, "R1 derives B for each A; expected B=2, got {count}");
 }
 
 #[test]
 fn chain_c_join_equals_oracle() {
     // THE bug case: C was 0 before the fix; oracle gives 2.
-    let count = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(2, "chain::C"), "chain::C");
+    let count = assert_native_eq_oracle(&chain_expr(2, "chain::C"), "chain::C");
     assert_eq!(count, 2, "R2 joins each B with matching A → C=2; got {count}");
 }
 
 #[test]
 fn chain_c_five_inputs_equals_oracle() {
     // Stress: N=5 inputs.
-    let count = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(5, "chain::C"), "chain::C");
+    let count = assert_native_eq_oracle(&chain_expr(5, "chain::C"), "chain::C");
     assert_eq!(count, 5, "5 A inputs → 5 C outputs; got {count}");
 }
 
@@ -123,14 +115,6 @@ fn chain_c_five_inputs_equals_oracle() {
 // R2: B(?k) ⋈ A(?k) → C(?k)    [derived⋈input]
 // R3: C(?k) ⋈ B(?k) → D(?k)    [derived⋈derived]
 // Insert A(1), A(2). Expected: B=2, C=2, D=2.
-
-const TRIPLE_WORLD: &str = r#"
-(:wat::core::defrecord :tri::A [k <- :wat::core::i64])
-(:wat::core::defrecord :tri::B [k <- :wat::core::i64])
-(:wat::core::defrecord :tri::C [k <- :wat::core::i64])
-(:wat::core::defrecord :tri::D [k <- :wat::core::i64])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 fn triple_expr(n: usize, query_type: &str) -> String {
     let rules = "\
@@ -165,13 +149,13 @@ fn triple_expr(n: usize, query_type: &str) -> String {
 fn triple_cascade_d_equals_oracle_n2() {
     // 3-level cascade: A→B (R1), B⋈A→C (R2, derived⋈input), C⋈B→D (R3, derived⋈derived).
     // Both R2 and R3 have asymmetric arrival: left arrives later than right.
-    let count = assert_native_eq_oracle(TRIPLE_WORLD, &triple_expr(2, "tri::D"), "tri::D");
+    let count = assert_native_eq_oracle(&triple_expr(2, "tri::D"), "tri::D");
     assert_eq!(count, 2, "3-level cascade: 2 A inputs → D=2; got {count}");
 }
 
 #[test]
 fn triple_cascade_d_equals_oracle_n5() {
-    let count = assert_native_eq_oracle(TRIPLE_WORLD, &triple_expr(5, "tri::D"), "tri::D");
+    let count = assert_native_eq_oracle(&triple_expr(5, "tri::D"), "tri::D");
     assert_eq!(count, 5, "3-level cascade: 5 A inputs → D=5; got {count}");
 }
 
@@ -179,7 +163,7 @@ fn triple_cascade_d_equals_oracle_n5() {
 fn triple_cascade_all_types_equal_oracle() {
     // Verify every intermediate type too: B=2, C=2, D=2.
     for ty in ["tri::B", "tri::C", "tri::D"] {
-        let count = assert_native_eq_oracle(TRIPLE_WORLD, &triple_expr(2, ty), ty);
+        let count = assert_native_eq_oracle(&triple_expr(2, ty), ty);
         assert_eq!(count, 2, "expected 2 for {ty}, got {count}");
     }
 }
@@ -190,13 +174,6 @@ fn triple_cascade_all_types_equal_oracle() {
 // No cascade here — both sides are input. But the hash-join sees X tokens first
 // (from d_alpha[AlphaX]→root-join→d_beta) and Y elements only in the right delta.
 // This is the "left before right" case.
-
-const XYZ_WORLD: &str = r#"
-(:wat::core::defrecord :xyz::X [k <- :wat::core::i64])
-(:wat::core::defrecord :xyz::Y [k <- :wat::core::i64])
-(:wat::core::defrecord :xyz::Z [k <- :wat::core::i64])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
 
 fn xyz_expr(n: usize, query_type: &str) -> String {
     // Rule: X(?k) ⋈ Y(?k) → Z(?k).  X is the first (left) condition, Y is the second (right).
@@ -232,7 +209,7 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
 fn xyz_z_left_before_right_equals_oracle() {
     // X arrives before Y in the fact stream. Both arrive in the SAME initial fire round
     // (they are input facts, not derived). The join processes them in alpha-delta order.
-    let count = assert_native_eq_oracle(XYZ_WORLD, &xyz_expr(3, "xyz::Z"), "xyz::Z");
+    let count = assert_native_eq_oracle(&xyz_expr(3, "xyz::Z"), "xyz::Z");
     assert_eq!(count, 3, "X⋈Y→Z with matching k=1..3: expected Z=3, got {count}");
 }
 
@@ -243,8 +220,8 @@ fn xyz_z_left_before_right_equals_oracle() {
 
 #[test]
 fn chain_classic_right_before_left_n5() {
-    let count_b = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(5, "chain::B"), "chain::B");
-    let count_c = assert_native_eq_oracle(CHAIN_WORLD, &chain_expr(5, "chain::C"), "chain::C");
+    let count_b = assert_native_eq_oracle(&chain_expr(5, "chain::B"), "chain::B");
+    let count_c = assert_native_eq_oracle(&chain_expr(5, "chain::C"), "chain::C");
     assert_eq!(count_b, 5, "B=5 for 5 A inputs; got {count_b}");
     assert_eq!(count_c, 5, "C=5: each B joins its matching A; got {count_c}");
 }
