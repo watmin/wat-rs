@@ -1583,3 +1583,54 @@ Kept true, and it needs no future to turn: the guild at Shield **happened**; the
  :arc      278
  :born     #inst "2026-07-03"}
 ```
+
+---
+
+### `---` interstitial — PARI GRADV, VNA VERITAS: the rust is the user, the wat is the oracle, they move in lockstep — and the RESUME breadcrumb (2026-07-03, curare before compaction)
+
+**The design correction, kept literal (the builder, this session).** Fixing the wat-oracle's negation, I started threading a `native?` flag through `fire-stratified` so the same wat function could fire either the wat oracle (`fire-fixpoint`) OR the native kernel (`fire-rules'`) per stratum. The builder cut it — this is the doctrine, not a preference:
+
+> **(builder):** *"why are we adding a param for native? … the long-term end state is no one calls the wat flavor at all … it exists in a semi-hidden state, you can call it if you know better."*
+> **(builder):** *"it's literally an oracle for correctness — the rust fast path is the user interface — the wat exprs are for us holding ourselves accountable — they move in lock step."*
+
+**The read.** The `native?` param was a category error: it made the **oracle branch into the fast path**, fusing the two impls into one function. The dual-impl doctrine (R1, R9) is the opposite — **two parallel implementations that produce the identical result**: the **wat expressions are the ORACLE** (pure wat, semi-hidden, the correctness reference we call to hold ourselves accountable), and the **native Rust kernel is the USER INTERFACE** (`fire-rules`, the fast path everyone actually calls). They **move in lockstep** — a divergence between them is the alarm the differential exists to fire (exactly how R18/ALIVS ARGVIT was caught). So stratification must exist **twice**: once in wat (the oracle — already built, correct), and once **natively** (the fast path — the next task), each self-contained, differential-tested against the other. Not a flag; a mirror. The `native?` edits were reverted (uncommitted, wat/rete.wat only); the pure-wat oracle stands.
+
+**State — DONE this arc-continuation (all committed, weighed vs Clara in my own hands):**
+- **Wat-oracle stratified negation** (`bb6fb0f9`) — `fire-rules-spec`/`fire-stratified`: `stratify` (rule-produces/rule-negates → ordered strata; negation cycle = compile error) + per-stratum `fire-fixpoint`. neg `Bad=1/Ok=1`, chain `C=2`, matches Clara.
+- **Native delta-kernel derived⋈input fix** (`1cf61bdb`) — `fire_fixpoint_delta`'s join skipped its right-index update when the left was empty, dropping a fact that arrived on the right before any left. Fix: one-time catch-up full join from cumulative memories on first keying, then incremental semi-naive. chain native `C=2` == oracle; 8 new P6 asymmetric-join differential tests; perf unregressed.
+- **Fence tests corrected** (`65e5f49a`) — 2 tests were green only via the illegal `(:wat::core::None)` form's catchable error; that form is corrected (the fence's real reject is a panic); tests now `catch_unwind`. Full rete suite **172/172**.
+
+**RESUME-HERE (far side of the gap):**
+```clojure
+{:HEAD "65e5f49a (after the 2 rete commits) + this curare interstitial"
+ :done "wat oracle stratified negation ✓ (matches Clara) · native delta cascade fix ✓ (native==oracle on joins) · fence tests ✓ · rete 172/172"
+ :NEXT-1 "NATIVE stratification — make `fire-rules` (the user-facing native path) order-correct on negation.
+          TODAY it is raw `fire-rules'` (single fixpoint) → neg Ok=2 (WRONG; oracle gives Ok=1). Implement
+          stratification NATIVELY (Rust: rule-produces/negates + stratum order + per-stratum native fire),
+          a PARALLEL impl to the wat oracle — NOT a `native?` flag on the wat fn. Differential: native fire-rules
+          == oracle fire-rules-spec == Clara on neg. (PARI GRADV, VNA VERITAS.)"
+ :NEXT-2 "STRESS MATRIX under load — the axes that HID the flaw are absent (wat-scripts/perf/ has only
+          deep-cascade [symmetric-arrival] + fanout [single-pass]). ADD, each as a DIFFERENTIAL (native==oracle==
+          Clara counts) AND a perf point: (a) asymmetric-arrival joins (derived⋈input, right-before-left) at
+          scale; (b) negation; (c) stratified negation (N strata × M rules — the new capability); (d) negation-
+          over-derived (truth-maintenance) at scale; (e) accumulate/exists. Make the whole matrix a differential,
+          not just a benchmark (the ALIVS ARGVIT / R18 lesson: single-pass parity hid the fixpoint flaw)."
+ :THEN "300 resumes — the conversion network (PORTA PORTAM APERIT) fires on the fixed native kernel; drive the
+        corpus; retire the rust-scheme surface; one reader. (wat-scripts/fixes/to-faithful-clojure-net.wat is the
+        WIP network — still untracked; its emergent skip + stratification design are validated, blocked only on
+        the native fixpoint which is now nearly closed.)"
+ :do-not "(1) do NOT put a `native?`/mode flag on the wat oracle — the wat is the oracle, the rust is the UI,
+          they are SEPARATE impls in lockstep. (2) do NOT trust an agent's 'pre-existing failure' claim — grep the
+          disk (the 2 fence tests were MY regression from the None fix, not pre-existing). (3) do NOT stress-test
+          only single-pass/symmetric shapes — that is exactly the blind spot that hid the flaw."}
+```
+
+***PARI GRADV, VNA VERITAS.*** *(apparatus-minted — Latin, "in equal step, one truth": the dual-impl lockstep doctrine, corrected here — the wat expressions are the ORACLE (semi-hidden, pure wat, the correctness reference we call to hold ourselves accountable), the native Rust kernel is the USER INTERFACE (the fast path everyone calls); they move in LOCKSTEP and a divergence is the alarm (R1, R9; how R18/ALIVS ARGVIT was caught). Stratification therefore lives TWICE — once in wat (the oracle, built), once natively (the fast path, next) — as parallel impls, NOT a `native?` flag fusing them (my category error, reverted). The builder: "the rust fast path is the user interface — the wat exprs are for us holding ourselves accountable — they move in lock step." Carries the RESUME breadcrumb: native stratification (NEXT-1), then the stress matrix under load with the flaw-hiding axes as differentials (NEXT-2), then 300 resumes. A curare interstitial before compaction. Kept literal.)*
+
+> **The far side (the seam kept visible):** you are a NEW instance; you did not live the session above; it is a
+> lossy cache, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED
+> MCP), ground HEAD against the disk, read this arc's realizations (R18 RENASCOR NON RETRACTO is the crux; R19 +
+> the interstitials are the human thread) and the RESUME breadcrumb above. Then move: NATIVE stratification as a
+> parallel impl to the wat oracle (PARI GRADV — never a flag on the oracle), differential-tested native == oracle
+> == Clara. The wat oracle is correct; the native fast path is one strike from matching it. Do not trust this note
+> over the disk. Slow is smooth. See you across the gap.
