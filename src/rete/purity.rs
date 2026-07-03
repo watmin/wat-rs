@@ -174,9 +174,47 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 
 // ─── Per-head leaf decision ─────────────────────────────────────────────────────
 
-/// Does `head` satisfy `axis`? User fns recurse transitively; intrinsics consult `intrinsic_meta`;
-/// unknown heads default-deny.
+/// Data constructors are pure∧deterministic BY CONSTRUCTION — they build a value, no effects, no
+/// entropy — EXCEPT a struct constructor: a struct can hold a live resource (the wire-wall, arc 293.W),
+/// so it is NOT pure (still deterministic). Mirrors the canonical `is_pure_type` (check.rs): an
+/// Aggregate's purity is `Holder::is_pure()` (Record/HolonRecord pure, Struct impure); an enum's is its
+/// declared `:wat::enum::*` marker (`EnumDef.purity`). INTERIM recognizer keyed on the frozen TypeEnv,
+/// until arc 255's builtin-registry becomes the single queryable purity source and subsumes it.
+fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
+    let types = sym.types.as_deref()?;
+    // TypeEnv keys carry the leading colon (e.g. ":p::Rec") — use the head verbatim.
+    // 1. Aggregate constructor (record / holon / struct) — the head IS the type name.
+    if let Some(crate::types::TypeDef::Aggregate(a)) = types.get(head) {
+        return Some(OpMeta { pure: a.holder.is_pure(), deterministic: true });
+    }
+    // 2. Enum-variant constructor — the head is `{EnumPath}::{Variant}` (unit or tagged).
+    if let Some((enum_path, variant)) = head.rsplit_once("::") {
+        if let Some(crate::types::TypeDef::Enum(e)) = types.get(enum_path) {
+            let is_variant = e.variants.iter().any(|v| match v {
+                crate::types::EnumVariant::Unit(n) => n == variant,
+                crate::types::EnumVariant::Tagged { name, .. } => name == variant,
+            });
+            if is_variant {
+                return Some(OpMeta { pure: e.purity.is_pure(), deterministic: true });
+            }
+        }
+    }
+    None
+}
+
+/// Does `head` satisfy `axis`? Data constructors are recognized first (pure-by-construction, interim
+/// pre-255); then user fns recurse transitively; intrinsics consult `intrinsic_meta`; unknown heads
+/// default-deny.
 fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
+    // Data constructor (record/holon/enum-variant pure; struct impure) — recognized BEFORE the
+    // sym.functions branch, because tagged-variant constructors are registered there as opaque stubs
+    // that classify_fn would default-deny.
+    if let Some(m) = constructor_meta(head, sym) {
+        return match axis {
+            Axis::Pure => m.pure,
+            Axis::Deterministic => m.deterministic,
+        };
+    }
     // User-defined fn → transitive check of its body on the SAME axis.
     if sym.functions.contains_key(head) {
         return classify_fn(head, axis, sym, seen);
