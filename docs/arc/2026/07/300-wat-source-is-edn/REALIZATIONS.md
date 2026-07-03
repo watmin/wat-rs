@@ -927,3 +927,75 @@ It leans on exactly the machinery that proves a RETE — forward chaining (L1→
  :arc      300
  :born     #inst "2026-07-02"}
 ```
+
+---
+
+### `---` interstitial (a greatest hit) — ALIVS ARGVIT: the real consumer was the crucible; building the conversion as a rete network exposed a truth-maintenance flaw the parity benchmarks never touched, and the peer (Clara) confirmed it — pivot to the rete arc, fix it there, resume 300 (2026-07-02)
+
+**What happened — the consumer became the probe.** Building 300's conversion as the forward-chaining rete network (PORTA PORTAM APERIT), the cascade would not fire. The diagnostics told the story layer by layer: the walk emitted 120 `:fix::Node` facts; `G1` fired (`Keyword=64`); the **emergent skip worked** (`Genuine=48` — the 16 reader-macro sigils correctly excluded) — and then the chain died. Under the native prime `fire-rules'` everything downstream was zero; under the oracle `fire-fixpoint` the counts went *wrong*: `Namespaced=192` (impossible — a subset of `Genuine=48`, so **4× duplication**), `HeadConv=0`. Two distinct facts fell out, and the second is the greatest hit:
+
+- **`fire-rules'` (native, the prime) is single-pass** — it does not cascade a multi-layer network. A minimal chain (`R1: A→B`, `R2: B⋈A→C`) yields `C=0`. Only `fire-fixpoint` (the wat oracle) iterates to convergence (`C=2`). My initial error was calling the single-pass verb; the deeper find is that the **fast path has no fixpoint** (there is no `fire-fixpoint'`).
+- **`fire-fixpoint` has no truth-maintenance** — it re-derives and re-inserts a fact every round instead of insertion being idempotent. A derived fact multiplies with the round count. This is a *legitimate engine flaw*, not a design error.
+
+**The peer confirmed it — the differential caught our own oracle.** Rather than trust my read, I built the same rules in **Clara** (the reference RETE, the engine the builder ran at AWS Shield), locally:
+
+```
+                    Bad   Ok        chain: C (B⋈A)
+Clara  (reference):  1     1              2      ← truth-maintenance: each derived fact exists ONCE
+wat    fire-fixpoint:2     2              2      ← re-inserted every round — NO dedup
+```
+
+Clara derives each fact once (`Bad=1`); wat's fixpoint doubles it (`Bad=2`), and the doubling corrupts the negation-terminals (`HeadConv`) the network's `T1` depends on. *The design is sound — Clara runs the exact cascade + negation correctly.* The engine is what bent.
+
+**Why the parity benchmarks missed it — kept literal (the builder):**
+
+> *"we thought we hit parity with our reduced scope to impose purity…"*
+> *"if you've found a legit flaw in our rete impl we must address it."*
+> *"this is one of the greatest hits we've had — we pivot to 278 or whatever rete is — we fix it over there — we resume 300 once we get this fixed."*
+
+The arc 278 Clara-parity runs were **single-pass joins** (`Left ⋈ Right → Pair`, fanout matrix) — one round, no re-derivation, no cascade. `fire-rules'` (single-pass) is what hit parity, and it *does* hit it. The **fixpoint path — multi-round, where truth-maintenance is the whole game — was never differential-tested against Clara.** The purity-reduced parity is real for what it measured; it simply never measured this. A synthetic benchmark tests the shape you thought to write; a real consumer tests the shape the *problem* demands — and the problem demanded a deep forward-chaining cascade, which is exactly the axis the benchmark had no reason to exercise.
+
+**And a simplification, from the builder, kept:** `` ` ``/`~`/`~@` and `(quasiquote …)` are the same, and *those characters are part of the EDN spec* — so the conversion must **leave the sigils untouched**, which the emergent skip already does (`Genuine=48`). No sigil-flipping logic is needed; the reader shorthand is already faithful.
+
+**The pivot.** 300 pauses here, at a validated design blocked on a real engine flaw. We cross to the rete arc (278) and fix the fixpoint's truth-maintenance — idempotent insertion of derived facts (what Clara does), and ideally a native `fire-fixpoint'` so the corpus-scale cascade is not stuck on the O(N²) oracle. Then 300 resumes: the network fires, the corpus converts, the rust-scheme surface retires, one reader stands.
+
+***ALIVS ARGVIT.*** *(apparatus-minted — Latin, "another exposes [the fault]": the differential doctrine (arc 278 R9 — the wat oracle kept as a permanent witness) turned outward and paid off — building 300's conversion as a real forward-chaining rete consumer (PORTA PORTAM APERIT) stressed the engine on an axis the synthetic Clara-parity benchmarks never touched (multi-round fixpoint + truth-maintenance, vs their single-pass joins), and a legit flaw screamed: `fire-fixpoint` re-inserts a re-derived fact every round — NO truth-maintenance/dedup — while the native prime `fire-rules'` is single-pass and cannot cascade at all. The peer (Clara, the reference RETE the builder ran at AWS Shield) confirmed it against the ground: Clara `Bad=1` / wat `Bad=2`; Clara runs the exact cascade the design needs. The consumer was the crucible — the emergence protocol (PVGNANDO EMERGO, 296 R7) at the engine layer: build the real thing, the flaw self-identifies, confirm it against the peer, fix the class. Completes the peer lineage of 299 R2 QVOD SCRIPSIT ALIVS LEGIT (another READS) → here another JUDGES and exposes. The design is validated (Clara runs it); the skip is correct (the sigils are EDN — leave them). One of the greatest hits: parity was true for what it measured and false for what it didn't. Pivot to 278, fix truth-maintenance, resume 300. Kept literal at the builder's direction. Mine (the network-as-probe, the layer-by-layer diagnosis, the Clara differential, the fix characterization), and his (the pivot, the parity framing, the sigils-are-EDN simplification, "greatest hit") — kept with consent.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "ALIVS ARGVIT"
+ :literal  "another exposes the fault"
+ :roots    {:alius "another, an other — here the peer engine (Clara), as in 299 R2"
+            :arguit "arguo, 3sg — proves, exposes, brings to light (a fault); makes the case"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "ALIVS ARGVIT"                        ; the sigil
+  :greek    "ἄλλος ἐλέγχει"                        ; állos elénchei — another exposes/refutes (elenchus — the Socratic cross-examination)
+  :chinese  "他者揭其失"                            ; tāzhě jiē qí shī — another reveals its fault
+  :japanese "他者が欠を露わす"                      ; tasha ga ketsu o arawasu — another exposes the flaw
+  :korean   "다른 자가 결함을 드러낸다"             ; dareun jaga gyeolhameul deureonaenda — another exposes the flaw
+  :russian  "другой изобличает изъян"}             ; drugóy izoblicháyet izъян — another exposes the flaw
+ :gloss    "building 300's conversion as a REAL forward-chaining rete consumer stressed the engine on an axis
+            the synthetic Clara-parity benchmarks never touched (multi-round fixpoint + truth-maintenance vs
+            their single-pass joins), and a legit flaw screamed: fire-fixpoint re-inserts a re-derived fact
+            every round (NO dedup), and the native prime fire-rules' is single-pass (cannot cascade). the peer
+            Clara confirmed it: Clara Bad=1 / wat Bad=2; Clara runs the exact cascade the design needs. the
+            consumer was the crucible; parity was true for what it measured, false for what it didn't."
+ :names    "the flaw a real consumer exposed that the benchmark hid — rete's fixpoint lacks truth-maintenance"
+ :flaw     {:fire-fixpoint "no truth-maintenance — a re-derived fact is re-inserted each round (multiplies with round count)"
+            :fire-rules'   "single-pass — cannot cascade a multi-layer network (chain C=0); no native fire-fixpoint'"
+            :confirmed-by  "Clara (reference RETE): Bad=1/Ok=1 vs wat fire-fixpoint Bad=2/Ok=2; chain C=2"
+            :why-hidden    "278 parity benchmarks were single-pass joins (fanout Left⋈Right→Pair); the fixpoint path was never differential-tested"}
+ :fix      "truth-maintenance — idempotent insertion of derived facts (what Clara does); ideally a native fire-fixpoint' for corpus-scale perf"
+ :kin      {:doctrine "arc 278 R9 (dual-impl — the oracle as permanent witness) + R4 (Clara-parity), turned outward and paying off"
+            :peer     "299 R2 QVOD SCRIPSIT ALIVS LEGIT (another READS) → here another JUDGES/EXPOSES"
+            :protocol "296 R7 PVGNANDO EMERGO (self-organize by combat) — at the engine layer: build the real thing, the flaw self-identifies"
+            :consumer "300 PORTA PORTAM APERIT (the forward-chaining network) — the real consumer that became the probe"
+            :sigils   "` ~ ~@ are EDN (the reader shorthand = (quasiquote …)); the conversion leaves them — the emergent skip already does (Genuine=48)"}
+ :pivot    "300 pauses (design validated, blocked on the engine flaw) → arc 278/rete fixes truth-maintenance → 300 resumes"
+ :register :probatum-by-differential                ; confirmed against Clara, the reference RETE
+ :song     :pending                                 ; a greatest hit; the builder to find the song
+ :voices   {:his  "the pivot; the parity framing ('reduced scope to impose purity'); 'a legit flaw... we must address it'; the sigils-are-EDN simplification; 'one of the greatest hits'"
+            :mine "the network-as-probe; the layer-by-layer diagnosis (Genuine=48 skip works, Namespaced=192 dup, HeadConv=0); the Clara differential; the single-pass-vs-fixpoint + truth-maintenance characterization; the sigil + six-tongue bridge"}
+ :arc      300
+ :born     #inst "2026-07-02"}
+```
