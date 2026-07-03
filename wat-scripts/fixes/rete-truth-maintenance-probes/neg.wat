@@ -10,10 +10,10 @@
   :when [(:n::A (?k <- :k)) (:wat::rete::not (:n::Bad (?k <- :k)))]
   :then (:wat::rete::insert (:n::Ok ?k)))
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [s0 (:wat::rete::compile (:wat::rete::collect-rules :n))
-                    s1 (:wat::rete::insert s0 (:n::A 1))
-                    s2 (:wat::rete::insert s1 (:n::A 2))
-                    fp (:wat::rete::fire-fixpoint s2)]
+  (:wat::core::let [s0    (:wat::rete::compile (:wat::rete::collect-rules :n))
+                    s1    (:wat::rete::insert s0 (:n::A 1))
+                    s2    (:wat::rete::insert s1 (:n::A 2))
+                    fired (:wat::rete::fire-rules-spec s2)]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "Bad (expect 1) = " (:wat::core::str (:wat::core::length (:wat::rete::query-by-type-string fp "n::Bad")))))
-      (:wat::kernel::println (:wat::core::string::concat "Ok  (expect 1, k=1) = " (:wat::core::str (:wat::core::length (:wat::rete::query-by-type-string fp "n::Ok"))))))))
+      (:wat::kernel::println (:wat::core::string::concat "Bad (expect 1) = " (:wat::core::str (:wat::core::length (:wat::rete::query-by-type-string fired "n::Bad")))))
+      (:wat::kernel::println (:wat::core::string::concat "Ok  (expect 1, k=1) = " (:wat::core::str (:wat::core::length (:wat::rete::query-by-type-string fired "n::Ok"))))))))

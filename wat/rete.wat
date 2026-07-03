@@ -1507,20 +1507,309 @@
           new-facts
           (:wat::rete::Session/next-id fired))))))
 
-;; fire-rules-spec — the wat reference engine (the SPEC / differential oracle). Run fire-fixpoint, then
-;; restore Session.facts = input only. Re-run-from-scratch each call: simple and obviously correct, so it
-;; is the reference the fast native kernel (`fire-rules'`) is differential-tested against. This is NOT the
-;; production verb — the public `fire-rules` (below) dispatches to the native kernel; `fire-rules-spec` is
-;; kept as the executable specification (arc 278 P5 close: wat = spec, Rust = impl).
-;; WHY the facts=input split: fire-fixpoint accumulates derived facts into Session.facts across rounds so
-;; cascades match (input ∪ derived visible to each round); but the RETURNED Session.facts must hold ONLY the
-;; asserted/input facts (the retractable base). This is the fact-model fix for 4c TM: with facts = input
-;; only, retract-then-fire recomputes the closure from a smaller input → consequences vanish transitively.
+;; ─── stratified negation (arc 300 interstitial) ─────────────────────────────
+;;
+;; STRATIFICATION: partition rules so every rule negating type T fires only
+;; AFTER all rules producing T have run to fixpoint. This fixes non-monotonic
+;; negation: a rule consuming NOT(T) cannot fire before T is fully derived and
+;; thereby leak a spurious derived fact that is never retracted.
+;;
+;; Standard stratified-datalog algorithm:
+;;   1. Assign each produced-type a stratum number (init 0).
+;;   2. Iterate: if rule R negates type N, all types R produces must be at
+;;      stratum ≥ stratum[N]+1. Repeat until fixpoint or cycle detected.
+;;   3. Group rules by stratum ascending → fire each group to fixpoint before
+;;      advancing to the next, threading the accumulated facts forward so
+;;      higher-stratum rules see the complete lower-stratum derivation.
+;;
+;; WHY this location: immediately before fire-rules-spec which it replaces.
+;; WHY fire-fixpoint unchanged: it is correct within a stratum (monotone,
+;; finite, no negation-ordering hazard). Stratification is the ordering layer.
+
+;; StratifyAcc — sweep accumulator: current type-strata map + change flag.
+;; type-strata: HashMap<String,i64> mapping produced-type FQDN → stratum number.
+;; changed: true iff this sweep raised any stratum value.
+(:wat::core::defrecord :wat::rete::StratifyAcc
+  [type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+   changed     <- :wat::core::bool])
+
+;; FireStratAcc — fold accumulator for fire-stratified.
+;; facts:   accumulated Session.facts after each stratum (input + all derived so far).
+;; derived: dedup union of all derived facts across completed strata.
+(:wat::core::defrecord :wat::rete::FireStratAcc
+  [facts   <- :wat::core::PersistentVector
+   derived <- :wat::core::PersistentVector])
+
+;; rule-produces — extract produced type-FQDNs (colon-free) from a Rule's RHS.
+;; Each RHS form is (:wat::rete::insert (:ProducedType …)); the type head is the
+;; first child of the second child of the insert form (per the insert surface grammar).
+(:wat::core::defn :wat::rete::rule-produces
+  [rule <- :wat::rete::Rule]
+  -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::let [rhs (:wat::rete::Rule/rhs rule)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
+                       form <- :wat::WatAST]
+        -> :wat::core::PersistentVector<wat::core::String>
+        (:wat::core::let [form-ch   (:wat::core::ast->children form)
+                          fact-form (:wat::core::second form-ch)
+                          fact-ch   (:wat::core::ast->children fact-form)
+                          type-hd   (:wat::core::first fact-ch)
+                          raw-nm    (:wat::core::ast-name type-hd)
+                          ;; strip leading colon → bare FQDN matching (:wat::core::type fact)
+                          type-nm   (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-nm 0 1) ":")
+                                      (:wat::core::string::subs raw-nm 1 (:wat::core::string::length raw-nm))
+                                      raw-nm)]
+          (:wat::core::PersistentVector/conj acc type-nm)))
+      (:wat::core::PersistentVector)
+      rhs)))
+
+;; rule-negates — extract negated type-FQDNs (colon-free) from a Rule's LHS.
+;; Only (:wat::rete::not <fact-form>) conditions create negative dependency edges;
+;; positive conditions, :where, :exists, and accumulate are all ignored here.
+(:wat::core::defn :wat::rete::rule-negates
+  [rule <- :wat::rete::Rule]
+  -> :wat::core::PersistentVector<wat::core::String>
+  (:wat::core::let [lhs (:wat::rete::Rule/lhs rule)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
+                       form <- :wat::WatAST]
+        -> :wat::core::PersistentVector<wat::core::String>
+        (:wat::core::let [form-ch (:wat::core::ast->children form)
+                          head    (:wat::core::first form-ch)
+                          hd-nm   (:wat::core::ast-name head)]
+          (:wat::core::if (:wat::core::= hd-nm ":wat::rete::not")
+            ;; second child of (:not <fact-form>) is the negated fact pattern
+            (:wat::core::let [fact-form (:wat::core::second form-ch)
+                              fact-ch   (:wat::core::ast->children fact-form)
+                              type-hd   (:wat::core::first fact-ch)
+                              raw-nm    (:wat::core::ast-name type-hd)
+                              type-nm   (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-nm 0 1) ":")
+                                          (:wat::core::string::subs raw-nm 1 (:wat::core::string::length raw-nm))
+                                          raw-nm)]
+              (:wat::core::PersistentVector/conj acc type-nm))
+            acc)))
+      (:wat::core::PersistentVector)
+      lhs)))
+
+;; stratify-sweep — one pass over all rules updating type-strata.
+;; For each rule: required = max(stratum[n]+1 for n in negated, default 0).
+;; For each produced type p: stratum[p] = max(stratum[p], required).
+;; Returns StratifyAcc{updated type-strata, changed flag (true if any stratum rose)}.
+(:wat::core::defn :wat::rete::stratify-sweep
+  [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
+   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>]
+  -> :wat::rete::StratifyAcc
+  (:wat::core::foldl
+    (:wat::core::fn [acc  <- :wat::rete::StratifyAcc
+                     rule <- :wat::rete::Rule]
+      -> :wat::rete::StratifyAcc
+      (:wat::core::let [ts       (:wat::rete::StratifyAcc/type-strata acc)
+                        changed  (:wat::rete::StratifyAcc/changed acc)
+                        produced (:wat::rete::rule-produces rule)
+                        negated  (:wat::rete::rule-negates rule)
+                        ;; required = max(stratum[n]+1 for n in negated, default 0)
+                        required (:wat::core::foldl
+                                   (:wat::core::fn [mx  <- :wat::core::i64
+                                                    neg <- :wat::core::String]
+                                     -> :wat::core::i64
+                                     (:wat::core::let [ns (:wat::core::match
+                                                             (:wat::core::HashMap/get ts neg)
+                                                             -> :wat::core::i64
+                                                           ((:wat::core::Some v) v)
+                                                           (:wat::core::None 0))
+                                                       v  (:wat::core::i64::+ ns 1)]
+                                       (:wat::core::if (:wat::core::i64::> v mx) v mx)))
+                                   0
+                                   negated)
+                        ;; for each produced type: raise stratum to required if higher
+                        new-acc  (:wat::core::foldl
+                                   (:wat::core::fn [inner <- :wat::rete::StratifyAcc
+                                                    p     <- :wat::core::String]
+                                     -> :wat::rete::StratifyAcc
+                                     (:wat::core::let [its (:wat::rete::StratifyAcc/type-strata inner)
+                                                       ich (:wat::rete::StratifyAcc/changed inner)
+                                                       cur (:wat::core::match
+                                                              (:wat::core::HashMap/get its p)
+                                                              -> :wat::core::i64
+                                                            ((:wat::core::Some v) v)
+                                                            (:wat::core::None 0))]
+                                       (:wat::core::if (:wat::core::i64::> required cur)
+                                         (:wat::rete::StratifyAcc
+                                           (:wat::core::HashMap/assoc its p required)
+                                           true)
+                                         inner)))
+                                   (:wat::rete::StratifyAcc ts changed)
+                                   produced)]
+        new-acc))
+    (:wat::rete::StratifyAcc type-strata false)
+    rules))
+
+;; stratify-fix — recursive fixpoint for stratification.
+;; Sweeps until no stratum changes (converged) or remaining iterations run out.
+;; Raises on negation cycle: rule set is not stratifiable (non-terminating strata).
+(:wat::core::defn :wat::rete::stratify-fix
+  [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
+   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+   remaining   <- :wat::core::i64]
+  -> :wat::core::HashMap<wat::core::String,wat::core::i64>
+  (:wat::core::let [result  (:wat::rete::stratify-sweep rules type-strata)
+                    changed (:wat::rete::StratifyAcc/changed result)
+                    new-ts  (:wat::rete::StratifyAcc/type-strata result)]
+    (:wat::core::if (:wat::core::not changed)
+      new-ts
+      ;; still changing — check for cycle before recursing
+      (:wat::core::let [_cycle (:wat::core::Option/expect
+                                  (:wat::core::if (:wat::core::i64::> remaining 0)
+                                    (:wat::core::Some nil)
+                                    :wat::core::None)
+                                  "stratify: negation cycle detected — rule set is not stratifiable")]
+        (:wat::rete::stratify-fix rules new-ts (:wat::core::i64::- remaining 1))))))
+
+;; rule-stratum — compute the stratum of one rule given the final type-strata.
+;; = max(max strata[p] for produced p, max strata[n]+1 for negated n).
+(:wat::core::defn :wat::rete::rule-stratum
+  [rule        <- :wat::rete::Rule
+   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>]
+  -> :wat::core::i64
+  (:wat::core::let [produced (:wat::rete::rule-produces rule)
+                    negated  (:wat::rete::rule-negates rule)
+                    from-p   (:wat::core::foldl
+                               (:wat::core::fn [mx <- :wat::core::i64
+                                                p  <- :wat::core::String]
+                                 -> :wat::core::i64
+                                 (:wat::core::let [ps (:wat::core::match
+                                                         (:wat::core::HashMap/get type-strata p)
+                                                         -> :wat::core::i64
+                                                       ((:wat::core::Some v) v)
+                                                       (:wat::core::None 0))]
+                                   (:wat::core::if (:wat::core::i64::> ps mx) ps mx)))
+                               0
+                               produced)
+                    from-n   (:wat::core::foldl
+                               (:wat::core::fn [mx <- :wat::core::i64
+                                                n  <- :wat::core::String]
+                                 -> :wat::core::i64
+                                 (:wat::core::let [ns (:wat::core::match
+                                                         (:wat::core::HashMap/get type-strata n)
+                                                         -> :wat::core::i64
+                                                       ((:wat::core::Some v) v)
+                                                       (:wat::core::None 0))
+                                                   v  (:wat::core::i64::+ ns 1)]
+                                   (:wat::core::if (:wat::core::i64::> v mx) v mx)))
+                               0
+                               negated)]
+    (:wat::core::if (:wat::core::i64::> from-n from-p) from-n from-p)))
+
+;; stratify — compute the type→stratum HashMap for a rule set.
+;; Returns HashMap<String,i64> mapping each produced-type FQDN to its stratum number.
+;; Raises "negation cycle" if the rule set is not stratifiable (cyclic negation dependency).
+(:wat::core::defn :wat::rete::stratify
+  [rules <- :wat::core::PersistentVector<wat::rete::Rule>]
+  -> :wat::core::HashMap<wat::core::String,wat::core::i64>
+  (:wat::core::let [init-ts (:wat::core::HashMap :wat::core::String :wat::core::i64)
+                    ;; length(rules)+1 sweeps is always enough for a stratifiable set
+                    bound   (:wat::core::i64::+ (:wat::core::length rules) 1)]
+    (:wat::rete::stratify-fix rules init-ts bound)))
+
+;; fire-stratified-loop — recursive descent over strata [current..max-s].
+;; Filters the original `rules` (typed PersistentVector<Rule>) to the current stratum
+;; on each call, avoiding type erasure that would occur from storing rule groups in an
+;; outer PersistentVector. Threads (acc-facts, acc-derived) forward across strata.
+;;
+;; WHY recursive rather than foldl-over-a-PV: foldl would require the inner elements
+;; to be declared as PersistentVector (unparameterised), losing Rule type information
+;; and causing compile to reject the argument at the call site. Recursive descent on
+;; an index always filters the original typed PV — no type information is lost.
+(:wat::core::defn :wat::rete::fire-stratified-loop
+  [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
+   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+   current     <- :wat::core::i64
+   max-s       <- :wat::core::i64
+   acc-facts   <- :wat::core::PersistentVector
+   acc-derived <- :wat::core::PersistentVector]
+  -> :wat::rete::FireStratAcc
+  (:wat::core::if (:wat::core::i64::> current max-s)
+    (:wat::rete::FireStratAcc acc-facts acc-derived)
+    (:wat::core::let [;; filter produces PersistentVector<Rule> — type preserved from `rules`
+                      stratum-rules (:wat::core::filter
+                                      (:wat::core::fn [r <- :wat::rete::Rule] -> :wat::core::bool
+                                        (:wat::core::= (:wat::rete::rule-stratum r type-strata) current))
+                                      rules)
+                      ;; fresh compiled network for this stratum only — no shared-alpha edge
+                      sub-sess    (:wat::rete::compile stratum-rules)
+                      ;; seed with ALL accumulated facts so negation sees complete prior strata
+                      sub-sess2   (:wat::core::foldl
+                                    (:wat::core::fn [s <- :wat::rete::Session
+                                                     f <- :wat::core::Record]
+                                      -> :wat::rete::Session
+                                      (:wat::rete::insert s f))
+                                    sub-sess
+                                    acc-facts)
+                      fired       (:wat::rete::fire-fixpoint sub-sess2)
+                      new-derived (:wat::rete::collect-derived
+                                     (:wat::rete::Session/production-memory fired))
+                      merged-d    (:wat::rete::merge-facts acc-derived new-derived)
+                      ;; advance facts to the post-fixpoint closure (input ∪ derived so far)
+                      new-facts   (:wat::rete::Session/facts fired)]
+      (:wat::rete::fire-stratified-loop
+        rules type-strata
+        (:wat::core::i64::+ current 1)
+        max-s
+        new-facts
+        merged-d))))
+
+;; fire-stratified — stratified fixpoint fire: the ORDER-CORRECT engine.
+;; Computes type-strata (stratify), finds the highest stratum, then delegates to
+;; fire-stratified-loop which fires each stratum [0..max-s] to its own fixpoint in
+;; ascending order, threading accumulated facts forward across strata.
+;;
+;; WHY re-compile each stratum: each stratum's sub-session is a fresh compiled network
+;; for ONLY that stratum's rules. This eliminates the shared-alpha duplicate-edge bug
+;; (two rules sharing first condition → alpha.children=[join,join] → double derivation)
+;; that made Bad=2 when both rules were compiled into a single network.
+(:wat::core::defn :wat::rete::fire-stratified
+  [session <- :wat::rete::Session]
+  -> :wat::rete::Session
+  (:wat::core::let [rules     (:wat::rete::Session/rules session)
+                    facts     (:wat::rete::Session/facts session)
+                    final-ts  (:wat::rete::stratify rules)
+                    ;; compute highest stratum number across all rules (0 if rules is empty)
+                    max-s     (:wat::core::foldl
+                                (:wat::core::fn [mx   <- :wat::core::i64
+                                                 rule <- :wat::rete::Rule]
+                                  -> :wat::core::i64
+                                  (:wat::core::let [rs (:wat::rete::rule-stratum rule final-ts)]
+                                    (:wat::core::if (:wat::core::i64::> rs mx) rs mx)))
+                                0
+                                rules)
+                    final-acc (:wat::rete::fire-stratified-loop
+                                rules final-ts 0 max-s
+                                facts
+                                (:wat::core::PersistentVector))
+                    all-d     (:wat::rete::FireStratAcc/derived final-acc)
+                    ;; pack derived facts into a production-memory structure the caller can query
+                    fprod-m   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) 0 all-d)]
+    (:wat::rete::Session
+      (:wat::rete::Session/network session)
+      (:wat::rete::Session/rules   session)
+      (:wat::core::PersistentMap)
+      (:wat::core::PersistentMap)
+      fprod-m
+      (:wat::rete::FireStratAcc/facts final-acc)
+      (:wat::rete::Session/next-id session))))
+
+;; fire-rules-spec — the wat reference engine (the SPEC / differential oracle).
+;; Now delegates to fire-stratified (which handles negation-over-derived correctly)
+;; instead of a bare fire-fixpoint. Within each stratum fire-stratified still uses
+;; fire-fixpoint — the per-stratum logic is unchanged, only the ordering is fixed.
+;; Restores Session.facts = input only (same invariant as before): retract-then-fire
+;; recomputes the full closure from the reduced input, so consequences vanish transitively.
 (:wat::core::defn :wat::rete::fire-rules-spec
   [session <- :wat::rete::Session]
   -> :wat::rete::Session
   (:wat::core::let [input (:wat::rete::Session/facts session)
-                    fired (:wat::rete::fire-fixpoint session)]
+                    fired (:wat::rete::fire-stratified session)]
     (:wat::rete::Session
       (:wat::rete::Session/network           fired)
       (:wat::rete::Session/rules             fired)
