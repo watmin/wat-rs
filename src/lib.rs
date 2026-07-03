@@ -242,10 +242,13 @@ macro_rules! assert_edn_matches_file {
             .join($name);
         if ::std::env::var_os("UPDATE_EDN").is_some() {
             // capture-don't-guess (298.2): a non-EDN face is NEVER written as a golden.
-            ::wat_edn::parse_owned(&a_raw).unwrap_or_else(|err| panic!(
+            // PRETTY on capture — the assert is DATA-equality (it parses both sides), so the
+            // golden's FORMAT is free; pretty-print (wat_edn::write_pretty, 2-space indent) makes
+            // it legible instead of a flat one-line blob. The data compared is identical either way.
+            let a_val = ::wat_edn::parse_owned(&a_raw).unwrap_or_else(|err| panic!(
                 "STOP-1: refusing to capture a non-EDN face as a golden — a non-EDN \
                  error face survived stone B.\n parse error: {}\n actual: {}", err, a_raw));
-            let body = if a_raw.ends_with('\n') { a_raw.clone() } else { format!("{}\n", a_raw) };
+            let body = format!("{}\n", ::wat_edn::write_pretty(&a_val));
             ::std::fs::write(&edn_path, body)
                 .unwrap_or_else(|e| panic!("UPDATE_EDN: failed to write {:?}: {}", edn_path, e));
             eprintln!("UPDATE_EDN: captured {:?}", edn_path);

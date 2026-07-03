@@ -1,1 +1,25 @@
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::if: parameter cond expects :wat::core::bool; got :wat::core::i64" :location #wat.core/Span {:file "tests/wat_lang/wat_core_cond_non_bool_bad.wat" :line 6 :col 6 :end #wat.core.Option/Some #wat.core/Pos {:line 6 :col 8}} :causes [] :callee ":wat::core::if" :param "cond" :expected ":wat::core::bool" :got ":wat::core::i64" :remedies []}]}
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message ":wat::core::if: parameter cond expects :wat::core::bool; got :wat::core::i64"
+      :location #wat.core/Span {
+        :file "tests/wat_lang/wat_core_cond_non_bool_bad.wat"
+        :line 6
+        :col 6
+        :end #wat.core.Option/Some #wat.core/Pos {
+          :line 6
+          :col 8
+        }
+      }
+      :causes []
+      :callee ":wat::core::if"
+      :param "cond"
+      :expected ":wat::core::bool"
+      :got ":wat::core::i64"
+      :remedies []
+    }
+  ]
+}
