@@ -550,7 +550,7 @@
                         _fence    (:wat::core::Option/expect  
                                       (:wat::core::if (:wat::core::and is-pure is-det)
                                         (:wat::core::Some nil)
-                                        (:wat::core::None))
+                                        :wat::core::None)
                                       "compile-condition: where expr must be pure and deterministic")
                         ;; mint the TestNode
                         network0  (:wat::rete::CompileState/network state0)
@@ -580,7 +580,7 @@
         (:wat::core::let [_guard      (:wat::core::Option/expect  
                                           (:wat::core::if (:wat::core::i64::>= parent-id 0)
                                             (:wat::core::Some nil)
-                                            (:wat::core::None))
+                                            :wat::core::None)
                                           "compile-condition: negation must follow a binding condition")
                           ;; Extract <inner> — the 2nd child of (:wat::rete::not <inner>)
                           inner       (:wat::core::second cond-ch)
@@ -615,7 +615,7 @@
           (:wat::core::let [_guard       (:wat::core::Option/expect  
                                             (:wat::core::if (:wat::core::i64::>= parent-id 0)
                                               (:wat::core::Some nil)
-                                              (:wat::core::None))
+                                              :wat::core::None)
                                             "compile-condition: exists must follow a binding condition")
                             ;; Extract <inner> — the 2nd child of (:wat::rete::exists <inner>)
                             inner        (:wat::core::second cond-ch)
@@ -651,7 +651,7 @@
           (:wat::core::let [_guard       (:wat::core::Option/expect  
                                              (:wat::core::if (:wat::core::i64::>= parent-id 0)
                                                (:wat::core::Some nil)
-                                               (:wat::core::None))
+                                               :wat::core::None)
                                              "compile-condition: accumulate must follow a binding condition")
                             ;; result-var: strip the "?" prefix from head-nm to get the var name string
                             result-var   head-nm
@@ -679,7 +679,7 @@
                                                    (:wat::rete::pure? fence-call)
                                                    (:wat::rete::deterministic? fence-call))
                                                  (:wat::core::Some nil)
-                                                 (:wat::core::None)))
+                                                 :wat::core::None))
                                              "compile-condition: custom accumulator must be pure and deterministic")
                             ;; assert items[3] is :from (structural validation)
                             from-kw      (:wat::core::Option/expect  
@@ -688,7 +688,7 @@
                             _from-check  (:wat::core::Option/expect  
                                              (:wat::core::if (:wat::core::= (:wat::core::ast-name from-kw) ":from")
                                                (:wat::core::Some nil)
-                                               (:wat::core::None))
+                                               :wat::core::None)
                                              "compile-condition: accumulate expected :from at position 3")
                             ;; inner: items[4] — the :from fact-pattern condition
                             inner        (:wat::core::Option/expect  
