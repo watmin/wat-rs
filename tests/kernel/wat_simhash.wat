@@ -38,7 +38,11 @@
 
 (:wat::core::defn :my::compute-arithmetic [] -> :wat::core::String
   (:wat::core::let
-    [k      (:wat::holon::simhash (:wat::holon::to-holon "x"))
-     doubled (:wat::core::+ k k)]
+    ;; a simhash result is a usable :wat::core::i64 in arithmetic. Arc 300 C3 —
+    ;; `(+ k k)` on a hash (a large i64) OVERFLOWS, which now honestly errors
+    ;; (don't-wrap-error); overflow-tosses is covered by probe_rational_C3_i64_overflow.
+    ;; Here we demonstrate usability with a non-overflowing op.
+    [k    (:wat::holon::simhash (:wat::holon::to-holon "x"))
+     zero (:wat::core::- k k)]
     "ok"))
 

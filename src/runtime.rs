@@ -4278,26 +4278,38 @@ fn dispatch_keyword_head_value(
         ":wat::core::u8" => eval_u8_cast(args, list_span, env, sym),
 
         // Integer arithmetic — strict i64. No promotion from f64.
-        // Wrapping on overflow (matches `eval_poly_arith`'s i64
-        // semantics; protects against debug-mode panics on hash-
-        // derived inputs like `:wat::holon::simhash`).
+        // Arc 300 stone C3 — checked on overflow: `checked_*` returns
+        // `None` -> a distinct, honest `RuntimeErrorKind::IntegerOverflow`
+        // error (never a silent wrap; never conflated with DivisionByZero).
+        // clj's default `+` throws on overflow ("long overflow"); the
+        // builder's ruling is "don't wrap, error" — not auto-promote to
+        // bigint (the caller chooses the wider type explicitly via C1's
+        // `:wat::core::i64::to-bigint`).
         // Stone 237.8b — drop '2 suffix; per-Type binary primitives are
         // strictly 2-ary Rust intrinsics; suffix was arity-disambiguation
         // scaffolding now superseded by defclause polymorphic surface.
         ":wat::core::i64::+" => {
-            eval_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.wrapping_add(b)))
+            eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+                a.checked_add(b).ok_or_else(|| RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b } }.into())
+            })
         }
         ":wat::core::i64::-" => {
-            eval_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.wrapping_sub(b)))
+            eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+                a.checked_sub(b).ok_or_else(|| RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b } }.into())
+            })
         }
         ":wat::core::i64::*" => {
-            eval_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.wrapping_mul(b)))
+            eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+                a.checked_mul(b).ok_or_else(|| RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b } }.into())
+            })
         }
         ":wat::core::i64::/" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
             if b == 0 {
                 Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
             } else {
-                Ok(a.wrapping_div(b))
+                // i64::MIN / -1 is the one division overflow edge (checked_div
+                // returns None here since b != 0 was already ruled out above).
+                a.checked_div(b).ok_or_else(|| RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b } }.into())
             }
         }),
         // Arc 300 stone C1 — bigint arithmetic. Arbitrary precision — NO
@@ -9227,11 +9239,22 @@ pub(crate) fn dispatch_substrate_impl(
         // f64-f64 = 8 leaves. Mixed-type leaves (+'i64'f64 etc.)
         // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
         // Stone 237.8b — drop '2 suffix from per-Type binary primitives.
-        ":wat::core::i64::+" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_add(b)))),
-        ":wat::core::i64::-" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_sub(b)))),
-        ":wat::core::i64::*" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_mul(b)))),
+        // Arc 300 stone C3 — checked on overflow (contrast the wrapping
+        // shown in the comment above, now retired): `checked_*` -> `None`
+        // becomes `I64ArithErr::Overflow`, mapped by `arith_i64_i64_inner`
+        // to a distinct `RuntimeErrorKind::IntegerOverflow` (never
+        // conflated with `DivisionByZero`, never silently wrapped).
+        ":wat::core::i64::+" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| a.checked_add(b).ok_or(I64ArithErr::Overflow(a, b)))),
+        ":wat::core::i64::-" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| a.checked_sub(b).ok_or(I64ArithErr::Overflow(a, b)))),
+        ":wat::core::i64::*" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| a.checked_mul(b).ok_or(I64ArithErr::Overflow(a, b)))),
         ":wat::core::i64::/" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 { Err(()) } else { Ok(a.wrapping_div(b)) }
+            if b == 0 {
+                Err(I64ArithErr::DivByZero)
+            } else {
+                // i64::MIN / -1 is the one division overflow edge (checked_div
+                // returns None here since b != 0 was already ruled out above).
+                a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
+            }
         })),
         ":wat::core::f64::+" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
         ":wat::core::f64::-" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
@@ -9284,20 +9307,34 @@ pub(crate) fn dispatch_substrate_impl(
 /// to `RuntimeError::DivisionByZero` with a synthesized span — the
 /// dispatch path doesn't have argument spans available, so the span
 /// is unknown).
+///
+/// Arc 300 stone C3 — the i64 leaves (only) enrich this to
+/// [`I64ArithErr`], a small kind distinguishing divide-by-zero from
+/// `checked_*` overflow (`None`); `f64`/`bigint`/`rational` are
+/// unaffected and keep the plain `Result<T, ()>` divide-by-zero-only
+/// channel.
+enum I64ArithErr {
+    DivByZero,
+    /// `checked_add/sub/mul/div` returned `None` — carries the operands
+    /// so the error names the exact overflowing expression.
+    Overflow(i64, i64),
+}
+
 fn arith_i64_i64_inner<F>(
     impl_name: &str,
     vals: &[Value],
     op: F,
 ) -> Result<Value, EvalBreak>
 where
-    F: Fn(i64, i64) -> Result<i64, ()>,
+    F: Fn(i64, i64) -> Result<i64, I64ArithErr>,
 {
     let a = vals.first().expect("arity-checked");
     let b = vals.get(1).expect("arity-checked");
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => match op(*x, *y) {
             Ok(r) => Ok(Value::i64(r)),
-            Err(()) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DivisionByZero }.into()),
+            Err(I64ArithErr::DivByZero) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DivisionByZero }.into()),
+            Err(I64ArithErr::Overflow(a, b)) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::IntegerOverflow { op: impl_name.into(), a, b } }.into()),
         },
         _ => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: impl_name.into(),

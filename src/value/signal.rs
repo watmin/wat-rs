@@ -143,6 +143,17 @@ pub enum RuntimeErrorKind {
     #[to_edn(key = "name")]
     ParamShadowsBuiltin(String),
     DivisionByZero,
+    /// `i64 + - *` (`checked_*`) overflow — Arc 300 stone C3. Distinct from
+    /// `DivisionByZero` (conflating "doesn't fit in 64 bits" with "can't
+    /// divide by zero" would be dishonest). Carries the op + both operands
+    /// so the message names the exact overflowing expression (mirrors
+    /// `TypeMismatch`/`ArityMismatch`'s op-carrying style). No auto-promotion
+    /// to bigint — the caller chooses the wider type explicitly.
+    IntegerOverflow {
+        op: String,
+        a: i64,
+        b: i64,
+    },
     #[to_edn(key = "name")]
     DuplicateDefine(String),
     #[to_edn(key = "prefix")]
@@ -421,6 +432,9 @@ impl RuntimeErrorKind {
             }
             RuntimeErrorKind::DivisionByZero => {
                 write!(f, "{}division by zero", prefix)
+            }
+            RuntimeErrorKind::IntegerOverflow { op, a, b } => {
+                write!(f, "{}i64 overflow: {} {} {} does not fit in 64 bits", prefix, a, op, b)
             }
             RuntimeErrorKind::DuplicateDefine(p) => {
                 write!(f, "{}duplicate define: {} already registered", prefix, p)
