@@ -329,7 +329,35 @@
   -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, quasiquotes only at branch tails.
   (:wat::core::let
-    [params-vec   (:wat::core::first rest)
+    [;; Arc 300.1 — faithful-Clojure def-name: a namespaced Symbol name
+     ;; (`user/main`, `my/ctor`) is the keyword FQDN's twin. Rebuild it as a
+     ;; Keyword node (`:user::main`) so BOTH branches below (kwargs + backward-
+     ;; compat) consume a keyword uniformly — `keyword/to-string name` and
+     ;; `~name` both expect a keyword. Bare (no `/`) → `:name`. Additive: a
+     ;; Keyword name (the rust-scheme surface) passes straight through.
+     name
+     (:wat::core::if (:wat::core::= (:wat::core::ast-kind name) "symbol")
+       -> :wat::WatAST
+       (:wat::core::let
+         [name-raw (:wat::core::ast-name name)
+          name-fqdn
+          (:wat::core::if (:wat::core::string::contains? name-raw "/")
+            -> :wat::core::String
+            (:wat::core::let
+              [slash-parts (:wat::core::string::split name-raw "/")
+               ;; `first` returns the element directly (raises if empty);
+               ;; `last` returns an Option (arc-278 accessor asymmetry).
+               ns-part  (:wat::core::first slash-parts)
+               nm-part  (:wat::core::Option/expect (:wat::core::last slash-parts)
+                          "defn faithful name: missing name")
+               ns-path  (:wat::core::string::join "::" (:wat::core::string::split ns-part "."))]
+              (:wat::core::string::concat ":"
+                (:wat::core::string::concat ns-path
+                  (:wat::core::string::concat "::" nm-part))))
+            (:wat::core::string::concat ":" name-raw))]
+         (:wat::core::keyword-node name-fqdn))
+       name)
+     params-vec   (:wat::core::first rest)
      params-ch    (:wat::core::ast->children params-vec)
      params-len   (:wat::core::length params-ch)
      ;; Detect `& [...]` tail: params-len >= 2 AND second-to-last is a Symbol named "&"

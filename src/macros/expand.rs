@@ -226,6 +226,30 @@ pub(super) fn expand_form(
                 }
             }
 
+            // Arc 300.1 — faithful-Clojure dual surface: a namespaced Symbol head
+            // (`wat.core/defn`) dispatches to the macro exactly as its keyword FQDN
+            // (`:wat::core::defn`) would. Additive — the Keyword-head path above is
+            // untouched; this fires ONLY when the head is a `/`-bearing Symbol that
+            // maps to a registered macro. A namespaced symbol that is NOT a macro
+            // falls through to `normalize_symbol_refs` (call-position ref rewriting).
+            if let Some(WatAST::Symbol(ident, sym_span)) = expanded_children.first() {
+                if ident.as_str().contains('/') {
+                    let slash_pos = ident.as_str().rfind('/').unwrap();
+                    let primary = crate::edn_shim::ns_to_wat_path(
+                        &ident.as_str()[..slash_pos],
+                        &ident.as_str()[slash_pos + 1..],
+                    );
+                    if let Some(def) = registry.get(&primary) {
+                        let kw_span = sym_span.clone();
+                        let mut new_children = expanded_children;
+                        new_children[0] = WatAST::Keyword(primary, kw_span);
+                        let args = new_children[1..].to_vec();
+                        let expanded = expand_macro_call(def, args, list_span.clone(), env, sym)?;
+                        return expand_form(expanded, registry, expansion_depth + 1, env, sym);
+                    }
+                }
+            }
+
             // Not a macro call — preserve the outer list's span.
             Ok(WatAST::List(expanded_children, list_span))
         }

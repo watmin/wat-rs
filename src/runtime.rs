@@ -2472,6 +2472,21 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<(String, Arc<Function>, Optio
             Ok(pair) => pair,
             Err(_) => return None,
         },
+        // Arc 300.1 — faithful-Clojure dual surface: a namespaced Symbol in
+        // def-name position (`user/main`) is the keyword FQDN's twin. Convert
+        // to `:user::main` so the def registers under the SAME key the harness
+        // and resolver look up. Additive — the Keyword arm above is unchanged.
+        WatAST::Symbol(s, _) if s.as_str().contains('/') => {
+            let slash_pos = s.as_str().rfind('/').unwrap();
+            let kw = crate::edn_shim::ns_to_wat_path(
+                &s.as_str()[..slash_pos],
+                &s.as_str()[slash_pos + 1..],
+            );
+            match split_name_and_type_params(&kw) {
+                Ok(pair) => pair,
+                Err(_) => return None,
+            }
+        }
         _ => return None,
     };
     // Stone 241.6 — if 4 items, items[2] must be a non-empty metadata-map;
@@ -2717,6 +2732,20 @@ fn try_parse_user_variadic_def_fn_form(
             Ok(pair) => pair,
             Err(_) => return Ok(None),
         },
+        // Arc 300.1 — faithful-Clojure dual surface (variadic twin of Site B):
+        // a namespaced Symbol def-name (`my/fold`) → keyword FQDN so faithful
+        // VARIADIC defs register too. Additive — Keyword arm above unchanged.
+        WatAST::Symbol(s, _) if s.as_str().contains('/') => {
+            let slash_pos = s.as_str().rfind('/').unwrap();
+            let kw = crate::edn_shim::ns_to_wat_path(
+                &s.as_str()[..slash_pos],
+                &s.as_str()[slash_pos + 1..],
+            );
+            match split_name_and_type_params(&kw) {
+                Ok(pair) => pair,
+                Err(_) => return Ok(None),
+            }
+        }
         _ => return Ok(None),
     };
     // items[2] must be a `(:wat::core::fn ARGS-VECTOR -> :RET body...)` list.
