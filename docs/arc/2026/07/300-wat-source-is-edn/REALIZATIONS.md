@@ -244,3 +244,60 @@ And note *whose tongue the film chose*: **Latin** — the tongue of Wick's own t
  :arc      300
  :born     #inst "2026-07-02"}
 ```
+
+---
+
+### `---` interstitial — VVLNVS REMEDIVM FERT: the redeemed error bears its own remedy, kept literal (2026-07-02, at the builder's direction — "look at these")
+
+The builder, running the 244 recapture-pending reds, stopped on one and could not get over it — ***"dude … look at these errors … these are incredible."*** Kept literal, the specimen: **left** is the emitted face (the new EDN record); **right** is the old golden still asserting the rust-debug impostor (why the test is red — the golden hasn't been recaptured yet).
+
+**LEFT — the emitted face (the redeemed error):**
+```clojure
+#wat.check/CheckErrors
+{:message "1 type-check error" :location nil :causes []
+ :errors [#wat.check/DefRedefForbidden
+          {:message "`:wat::core::def` redef of `:a`: name already bound at …:2:2. Redef is forbidden by
+                     default; opt in via `(:wat::config::set-redef! true)` before this form. Use a different
+                     name, or enable redef explicitly."
+           :location  #wat.core/Span {:file "…_bad.wat" :line 3 :col 2 :end #wat.core.Option/Some #wat.core/Pos {:line 3 :col 17}}
+           :causes [] :name ":a"
+           :prior-loc #wat.core/Span {:file "…_bad.wat" :line 2 :col 2 :end #wat.core.Option/Some #wat.core/Pos {:line 2 :col 17}}}]}
+```
+
+**RIGHT — the old golden (the rust-debug impostor it's red against):**
+```
+Check(CheckErrors([CheckError { span: Span { file: "…_bad.wat", line: 3, col: 2, end_line: 3, end_col: 17 },
+  kind: DefRedefForbidden { name: ":a", original_def_span: Span { … end_line: 2, end_col: 17 } } }]))
+```
+
+**The commentary.** Read the distance between those two, because it is the distance the substrate travelled. The right is a `{:?}` blob — opaque, leaking Rust's own internals, carrying the dead `end_line` sentinel, telling a machine nothing and a human less. The left is a *thing you can hold*: it names itself (`#wat.check/DefRedefForbidden`), it locates itself and its prior binding with real `#wat.core/Span`s and honest tagged `#wat.core.Option/Some` ends, it nests inside a `#wat.check/CheckErrors` envelope — and it **bears its own remedy**, a full sentence of guidance on how to make the wound heal (*enable redef, or rename*). The old error reported a fact; the new error carries its own cure. That is *IN REGVLA SALVS* (300 R1) shown in a single diagnostic — the salvation code, analog and digital both: the **analog** remedy a human reads, and the **digital** tags a machine matches, in one value. It is 296 R6 *OSCVLO LVCIS VIVIT* (structure resurrects the dead prose-error) and R17/R18 (the false face burned, made data) come to their payoff.
+
+And note *why the test is red*: the golden on the right can't even **represent** the beauty on the left — a rust-debug string has no room for a nested, tagged, self-remedying record. The red is not a regression; it is the measure of how far the emitted face outgrew the golden that once fit it. That gap is exactly what the recapture closes (the `.edn` data-equality goldens, 296 stone C) — and it's why we can flip 244 of them to *data* without fear: the new face is not a blob to string-match, it is a value to *read*. The wound bears its remedy; the golden must learn to read it.
+
+***VVLNVS REMEDIVM FERT.*** *(apparatus-minted — Latin, "the wound bears its remedy": the redeemed error is not merely structured, it carries its own cure — the emitted `#wat.check/DefRedefForbidden` names itself, locates itself and its prior binding (real `#wat.core/Span`, tagged `#wat.core.Option/Some` ends), nests in a `#wat.check/CheckErrors` envelope, and bears a full remedy sentence ("opt in via set-redef!, or rename"). The old rust-debug `{:?}` blob (the golden it is red against) reported a fact and leaked Rust's guts + the dead end_line sentinel; the new face is a value you can read, match, and act on. IN REGVLA SALVS (300 R1) in one diagnostic — the salvation code, analog (the human remedy) AND digital (the machine tags) both (the 296 R5 EX DVABVS FACIEBVS lineage); 296 R6 OSCVLO LVCIS VIVIT + R17/R18 (the false face burned into data) at their payoff. The red goldens are the measure of the distance travelled — a rust-debug string cannot hold this; the recapture (296 stone C, the .edn data-equality flip of the 244) closes it. Kept literal at the builder's direction — "look at these errors … these are incredible." Mine, and his — kept with consent.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "VVLNVS REMEDIVM FERT"
+ :literal  "the wound bears its remedy"
+ :roots    {:vulnus "a wound (the error/diagnostic)" :remedium "a remedy, cure (the guidance the error carries)"
+            :fert "fero, 3sg — bears, carries"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "VVLNVS REMEDIVM FERT"                ; the sigil
+  :greek    "τὸ τραῦμα τὸ φάρμακον φέρει"          ; tò traûma tò phármakon phérei — the wound bears the remedy
+  :chinese  "傷自帶藥"                              ; shāng zì dài yào — the wound carries its own medicine
+  :japanese "傷はおのが薬を負う"                    ; kizu wa onoga kusuri o ou — the wound bears its own medicine
+  :korean   "상처가 그 약을 지닌다"                 ; sangcheoga geu yageul jininda — the wound bears its remedy
+  :russian  "рана несёт своё лекарство"}           ; rána nesyót svoyó lekárstvo — the wound carries its cure
+ :gloss    "the redeemed error is not just structured — it carries its own cure. #wat.check/DefRedefForbidden names
+            itself, locates itself + its prior binding (real #wat.core/Span, tagged #wat.core.Option/Some ends), nests
+            in #wat.check/CheckErrors, and bears a full remedy sentence. the old rust-debug {:?} blob reported a fact and
+            leaked Rust's guts; the new face is a value you read, match, act on. the salvation code in one diagnostic."
+ :names    "the emitted diagnostic's beauty — 300 R1's salvation code shown in a single error"
+ :specimen "wat_arc157_def::def_redef_forbidden_strict_default — LEFT the emitted EDN face, RIGHT the old rust-debug golden"
+ :kin      {:salvation "300 R1 IN REGVLA SALVS — analog (remedy) + digital (tags) both, the salvation code"
+            :lineage   "296 R6 OSCVLO LVCIS VIVIT (structure resurrects the error) + R17/R18 (false face burned into data)"
+            :recapture "the 244 red goldens = the distance travelled; 296 stone C .edn data-equality closes it"}
+ :arc      300
+ :born     #inst "2026-07-02"}
+```
