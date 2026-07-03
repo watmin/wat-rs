@@ -1,24 +1,17 @@
-;; tests/rete/probe_arc300_2_fix_defrule.wat — arc 300.2 probe: the fix conversion as rete defrules.
+;; tests/rete/probe_arc300_2_fix_defrule.wat — arc 300.2: the fix conversion as PURE rete defrules.
 ;;
-;; Fact model: one record per AST node; one edit record per replacement.
-;; Explores whether rete defrules can express the faithful-Clojure conversion from fix.wat.
+;; rete is ALWAYS pure in wat: rules DEDUCE, the deductions are QUERIED OUT and ACTIONED
+;; outside rete. A :then NEVER transforms a value — it inserts a classification fact whose
+;; fields are only ?var bindings (offset/len/name), which the v1 RHS resolver already handles.
 ;;
-;; FINDINGS (summarised; full analysis in probe_arc300_2_fix_defrule.rs):
+;; The transformation (keyword/to-symbol, keyword/to-type-form, ":-") and the I/O live in the
+;; DRIVE (wat-scripts/fixes/to-faithful-clojure-rete.wat), OUTSIDE rete — the consumer's job.
 ;;
-;;   ✓ Conditions: rete alpha-match + :where CAN express all required predicates:
-;;       - inline (:wat::core::= ?kind "symbol") for type equality
-;;       - (:wat::rete::where ...) for string::contains?, not, or — all pure+det
-;;   ✓ arrow→:- rule: FULLY EXPRESSIBLE — literal ":-" in the :then RHS.
-;;   ✗ head-keyword→symbol + keyword→type-form: STOP-1.
-;;       The RHS uses build_insert_fact whose resolve_operand handles ONLY
-;;       ?var / :field / literals. Nested expressions like
-;;       (:wat::core::keyword/to-symbol ?name) return None → RuntimeError at fire.
-;;       Furthermore, keyword/to-symbol requires a WatAST::Keyword node, not a String,
-;;       so even if arbitrary exprs were supported the type would mismatch.
-;;       With the spec'd Node fact model (name is a String), the converted symbol text
-;;       cannot be produced in the :then.  The arrow→:- rule IS the upper bound of what
-;;       the v1 engine can express for this conversion.
+;; This fixture is the rete-firing unit test: assert :fix::Node facts, fire, and confirm the
+;; three PURE classification facts (:fix::HeadConv / :fix::ArrowConv / :fix::TypeConv) deduce.
 
+;; ── fact model ──────────────────────────────────────────────────────────────
+;; Node — one per leaf AST node the walk visits (position-aware: post-arrow tracked).
 (:wat::core::defrecord :fix::Node
   [kind       <- :wat::core::String
    name       <- :wat::core::String
@@ -26,17 +19,29 @@
    len        <- :wat::core::i64
    post-arrow <- :wat::core::bool])
 
-(:wat::core::defrecord :fix::Edit
+;; The three PURE classification facts — offset/len (+ name where the drive needs it to
+;; reconstruct the keyword). No transformed text: the drive does keyword/to-symbol etc.
+(:wat::core::defrecord :fix::HeadConv
   [offset <- :wat::core::i64
    len    <- :wat::core::i64
-   text   <- :wat::core::String])
+   name   <- :wat::core::String])
 
-;; head-keyword-str? — true if name string contains "::" (is ::-namespaced).
+(:wat::core::defrecord :fix::ArrowConv
+  [offset <- :wat::core::i64
+   len    <- :wat::core::i64])
+
+(:wat::core::defrecord :fix::TypeConv
+  [offset <- :wat::core::i64
+   len    <- :wat::core::i64
+   name   <- :wat::core::String])
+
+;; ── pure string predicates (used in :where guards) ──────────────────────────
+;; head-keyword-str? — name string is ::-namespaced.
 (:wat::core::defn :fix::head-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
   (:wat::core::string::contains? name "::"))
 
-;; type-shaped-keyword-str? — true if name contains "<" + ">" OR "(" + ")".
+;; type-shaped-keyword-str? — name has matching "<" + ">" OR "(" + ")".
 (:wat::core::defn :fix::type-shaped-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
   (:wat::core::if (:wat::core::if (:wat::core::string::contains? name "<")
@@ -47,33 +52,11 @@
       (:wat::core::string::contains? name ")")
       false)))
 
-;; ── Rule (1): arrow→:- — FULLY EXPRESSIBLE ──────────────────────────────────
-;; kind="symbol" ∧ (name="<-" ∨ name="->") → Edit(offset, len, ":-")
-;; The literal ":-" in :then is a StringLit — resolve_operand handles it directly.
-(:wat::rete::defrule :fix::arrow->colon
-  :when
-  [(:fix::Node
-     (?offset <- :offset)
-     (?len    <- :len)
-     (?kind   <- :kind)
-     (?name   <- :name)
-     (:wat::core::= ?kind "symbol"))
-   (:wat::rete::where (:wat::core::or
-                        (:wat::core::= ?name "<-")
-                        (:wat::core::= ?name "->")))]
-  :then
-  (:wat::rete::insert (:fix::Edit ?offset ?len ":-")))
+;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────
 
-;; ── Rule (2): head-keyword→symbol — STOP-1 DOCUMENTED ──────────────────────
-;; kind="keyword" ∧ name has "::" ∧ ¬post-arrow ∧ ¬type-shaped → Edit(offset, len, ???)
-;;
-;; CONDITIONS: fully expressible via :where (demonstrated below).
-;; RHS: STOP-1. The desired text is (keyword/to-symbol name) = e.g. "wat.core/defrecord",
-;; but resolve_operand cannot evaluate a nested call expression. Using ?name in the text
-;; position produces the RAW keyword string ":wat::core::defrecord" — wrong, but proves
-;; that the CONDITIONS fire correctly. The converted text is unreachable from a String
-;; binding via the v1 RHS mechanism.
-(:wat::rete::defrule :fix::head-keyword->symbol
+;; head-keyword→conv: kind=keyword ∧ contains "::" ∧ ¬post-arrow ∧ ¬type-shaped
+;;   → deduce HeadConv(offset, len, name). The drive turns name into (keyword/to-symbol name).
+(:wat::rete::defrule :fix::head-keyword->conv
   :when
   [(:fix::Node
      (?offset     <- :offset)
@@ -86,8 +69,39 @@
    (:wat::rete::where (:wat::core::not ?post-arrow))
    (:wat::rete::where (:wat::core::not (:fix::type-shaped-keyword-str? ?name)))]
   :then
-  ;; STOP-1: ?name is ":wat::core::defrecord" (raw), not "wat.core/defrecord" (wanted).
-  ;; There is no v1 mechanism to compute keyword/to-symbol in the RHS.
-  (:wat::rete::insert (:fix::Edit ?offset ?len ?name)))
+  (:wat::rete::insert (:fix::HeadConv ?offset ?len ?name)))
+
+;; arrow→conv: kind=symbol ∧ (name="<-" ∨ name="->") → deduce ArrowConv(offset, len).
+;;   The drive emits the literal ":-".
+(:wat::rete::defrule :fix::arrow->conv
+  :when
+  [(:fix::Node
+     (?offset <- :offset)
+     (?len    <- :len)
+     (?kind   <- :kind)
+     (?name   <- :name)
+     (:wat::core::= ?kind "symbol"))
+   (:wat::rete::where (:wat::core::or
+                        (:wat::core::= ?name "<-")
+                        (:wat::core::= ?name "->")))]
+  :then
+  (:wat::rete::insert (:fix::ArrowConv ?offset ?len)))
+
+;; type-keyword→conv: kind=keyword ∧ (post-arrow ∨ type-shaped)
+;;   → deduce TypeConv(offset, len, name). The drive turns name into (keyword/to-type-form name).
+(:wat::rete::defrule :fix::type-keyword->conv
+  :when
+  [(:fix::Node
+     (?offset     <- :offset)
+     (?len        <- :len)
+     (?kind       <- :kind)
+     (?name       <- :name)
+     (?post-arrow <- :post-arrow)
+     (:wat::core::= ?kind "keyword"))
+   (:wat::rete::where (:wat::core::or
+                        ?post-arrow
+                        (:fix::type-shaped-keyword-str? ?name)))]
+  :then
+  (:wat::rete::insert (:fix::TypeConv ?offset ?len ?name)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil nil)

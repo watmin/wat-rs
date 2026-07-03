@@ -1,53 +1,20 @@
-//! Arc 300.2 probe — the fix conversion as rete defrules.
+//! Arc 300.2 — the fix conversion as PURE rete defrules.
 //!
-//! Explores whether rete defrules can express the faithful-Clojure conversion.
+//! rete is always pure in wat: the rules DEDUCE classification facts; the deductions are
+//! QUERIED OUT and ACTIONED (transformed + written) by the drive, OUTSIDE rete. No :then
+//! ever transforms a value — it inserts a fact carrying only ?var bindings (offset/len/name).
 //!
-//! ## Findings
+//! This test proves the three rules DEDUCE the right classification facts:
+//!   - a head-keyword Node (kind=keyword, "::", ¬post-arrow, ¬type-shaped) → HeadConv
+//!   - an arrow Node (kind=symbol, "<-"/"->")                              → ArrowConv
+//!   - a post-arrow / type-shaped keyword Node                            → TypeConv
+//! and that the facts carry the node's offset/len/name unchanged (the drive does the transform).
 //!
-//! ### What works (conditions + arrow→:-)
+//! The byte-identical golden reproduction is verified by running the DRIVE
+//! (wat-scripts/fixes/to-faithful-clojure-rete.wat) against `:wat::fix::fix-text` — see the
+//! arc 300.2 report / commit message.
 //!
-//! The rete CONDITION language — alpha-match inline constraints plus `:where` TestNodes —
-//! can express ALL required predicates:
-//!   - inline `(:wat::core::= ?kind "symbol")`: equality constraint in the fact-type clause.
-//!   - `(:wat::rete::where (:wat::core::or ...))`:`or` over bound ?vars.
-//!   - `(:wat::rete::where (:fix::head-keyword-str? ?name))`: user-defined string predicate.
-//!   - `(:wat::rete::where (:wat::core::not ?post-arrow))`: bool negation on a bound ?var.
-//!
-//! The `arrow→:-` rule fires end-to-end: conditions bind ?offset/?len/?name, the :where
-//! filters to arrow symbols, and the RHS produces Edit(offset, len, ":-") via a StringLit
-//! that `resolve_operand` handles directly.
-//!
-//! ### STOP-1: head-keyword→symbol (and keyword→type-form)
-//!
-//! `build_insert_fact` resolves RHS fact-form args via `resolve_operand`, which supports:
-//!   ?var  → look up in token bindings (returns the bound Value)
-//!   :field → read from the current fact's fields (empty in RHS — always None)
-//!   literal (IntLit/FloatLit/BoolLit/StringLit) → its bare Value
-//!   ANYTHING ELSE → None → RuntimeError at fire time
-//!
-//! Therefore `(:fix::Edit ?offset ?len (:wat::core::keyword/to-symbol ?name))` in the :then
-//! would raise at fire time: the nested list `(:wat::core::keyword/to-symbol ?name)` is
-//! not a supported operand. (Even if it were evaluated, `keyword/to-symbol` requires a
-//! `WatAST::Keyword` node, but `?name` binds a `Value::String`.)
-//!
-//! The only available text for the :then is `?name` — which binds the raw keyword string
-//! ":wat::core::defrecord". That is wrong: the golden wants "wat.core/defrecord".
-//!
-//! The STOP-1 is at the RHS: the v1 `build_insert_fact` cannot evaluate function calls;
-//! the conversion text (`keyword/to-symbol` result) cannot be produced in the :then.
-//!
-//! ### Rete expressiveness verdict
-//!
-//! - `arrow→:-`: EXPRESSIBLE (literal ":-" in :then). One rule fully proven.
-//! - `head-keyword→symbol`: CONDITIONS expressible; RHS STOP-1.
-//! - `keyword→type-form`: same STOP-1 (same RHS limitation).
-//!
-//! To achieve byte-identical golden output via the rete engine, the fact model would need
-//! to carry precomputed converted text (computed in the driver where AST nodes are
-//! accessible), so the rules dispatch on conditions and pass through the precomputed text.
-//! That design works but shifts the conversion logic from the rules into the driver.
-//!
-//! Run: cargo test --release -p wat --test probe_arc300_2_fix_defrule
+//! Run: cargo test --release -p wat --test rete probe_arc300_2
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_beside};
@@ -63,157 +30,101 @@ fn ev(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
     .value_owned()
 }
 
-// ── (1) arrow→:- rule — fully expressible ───────────────────────────────────
+/// Build the fire lifecycle for a single asserted Node, then a query tail expression.
+fn fire_one(node_ctor: &str, query_tail: &str) -> String {
+    format!(
+        r#"(:wat::core::let
+             [rules   (:wat::rete::collect-rules :fix)
+              session (:wat::rete::compile rules)
+              session (:wat::rete::insert session {node_ctor})
+              fired   (:wat::rete::fire-rules session)]
+             {query_tail})"#
+    )
+}
+
+// ── head-keyword→conv ────────────────────────────────────────────────────────
 
 #[test]
-fn arrow_rule_fires_one_edit() {
+fn head_keyword_deduces_headconv() {
     let world = startup_beside(file!()).expect("world freezes with fact model + rules");
-
-    // Assert a Node for "<-" (symbol, arrow) at offset=0 len=2 post-arrow=false.
-    let count = ev(
-        &world,
-        r#"(:wat::core::let
-             [rules   (:wat::rete::collect-rules :fix)
-              session (:wat::rete::compile rules)
-              session (:wat::rete::insert session (:fix::Node "symbol" "<-" 0 2 false))
-              fired   (:wat::rete::fire-rules session)]
-             (:wat::core::length (:wat::rete::query fired :fix::Edit)))"#,
-    );
-    assert_eq!(count, Value::i64(1), "arrow→:- derives one Edit; got {count:?}");
+    // :wat::core::defrecord — head keyword, not post-arrow, not type-shaped.
+    let node = r#"(:fix::Node "keyword" ":wat::core::defrecord" 1 21 false)"#;
+    let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
+    assert_eq!(count, Value::i64(1), "one HeadConv deduced; got {count:?}");
+    // The fact carries the RAW name (pure — no transform in :then).
+    let name = ev(&world, &fire_one(node,
+        "(:fix::HeadConv/name (:wat::core::first (:wat::rete::query fired :fix::HeadConv)))"));
+    assert_eq!(name, Value::String(Arc::new(":wat::core::defrecord".to_string())),
+        "HeadConv.name is the raw keyword string (pure); got {name:?}");
+    // offset/len passed through.
+    let off = ev(&world, &fire_one(node,
+        "(:fix::HeadConv/offset (:wat::core::first (:wat::rete::query fired :fix::HeadConv)))"));
+    assert_eq!(off, Value::i64(1), "HeadConv.offset passed through; got {off:?}");
 }
 
 #[test]
-fn arrow_rule_edit_text_is_colon_bind() {
+fn post_arrow_keyword_is_not_headconv() {
     let world = startup_beside(file!()).expect("world freezes");
+    // post-arrow=true → excluded from head-keyword→conv (the ¬post-arrow guard).
+    let node = r#"(:fix::Node "keyword" ":wat::core::String" 10 18 true)"#;
+    let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
+    assert_eq!(count, Value::i64(0), "post-arrow keyword is not a HeadConv; got {count:?}");
+}
 
-    // The derived Edit's text must be ":-" (the literal from the :then RHS).
-    let text = ev(
-        &world,
-        r#"(:wat::core::let
-             [rules   (:wat::rete::collect-rules :fix)
-              session (:wat::rete::compile rules)
-              session (:wat::rete::insert session (:fix::Node "symbol" "<-" 0 2 false))
-              fired   (:wat::rete::fire-rules session)
-              edits   (:wat::rete::query fired :fix::Edit)
-              edit    (:wat::core::first edits)]
-             (:fix::Edit/text edit))"#,
-    );
-    assert_eq!(
-        text,
-        Value::String(Arc::new(":-".to_string())),
-        "arrow→:- produces the literal ':-' in :then; got {text:?}"
-    );
+// ── arrow→conv ────────────────────────────────────────────────────────────────
+
+#[test]
+fn left_arrow_deduces_arrowconv() {
+    let world = startup_beside(file!()).expect("world freezes");
+    let node = r#"(:fix::Node "symbol" "<-" 0 2 false)"#;
+    let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::ArrowConv))"));
+    assert_eq!(count, Value::i64(1), "'<-' deduces one ArrowConv; got {count:?}");
+    let off = ev(&world, &fire_one(node,
+        "(:fix::ArrowConv/offset (:wat::core::first (:wat::rete::query fired :fix::ArrowConv)))"));
+    assert_eq!(off, Value::i64(0), "ArrowConv.offset passed through; got {off:?}");
 }
 
 #[test]
-fn arrow_rule_right_arrow_also_fires() {
+fn right_arrow_deduces_arrowconv() {
     let world = startup_beside(file!()).expect("world freezes");
-
-    // "->" also triggers the arrow→:- rule (the :where uses or).
-    let count = ev(
-        &world,
-        r#"(:wat::core::let
-             [rules   (:wat::rete::collect-rules :fix)
-              session (:wat::rete::compile rules)
-              session (:wat::rete::insert session (:fix::Node "symbol" "->" 5 2 false))
-              fired   (:wat::rete::fire-rules session)]
-             (:wat::core::length (:wat::rete::query fired :fix::Edit)))"#,
-    );
-    assert_eq!(count, Value::i64(1), "'->' also triggers arrow rule; got {count:?}");
+    let node = r#"(:fix::Node "symbol" "->" 5 2 false)"#;
+    let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::ArrowConv))"));
+    assert_eq!(count, Value::i64(1), "'->' also deduces an ArrowConv; got {count:?}");
 }
 
 #[test]
-fn non_arrow_symbol_no_edit() {
+fn non_arrow_symbol_deduces_nothing() {
     let world = startup_beside(file!()).expect("world freezes");
-
-    // A non-arrow symbol (e.g. "path") should produce zero Edits.
-    let count = ev(
-        &world,
-        r#"(:wat::core::let
-             [rules   (:wat::rete::collect-rules :fix)
-              session (:wat::rete::compile rules)
-              session (:wat::rete::insert session (:fix::Node "symbol" "path" 10 4 false))
-              fired   (:wat::rete::fire-rules session)]
-             (:wat::core::length (:wat::rete::query fired :fix::Edit)))"#,
-    );
-    assert_eq!(count, Value::i64(0), "non-arrow symbol produces no Edit; got {count:?}");
+    let node = r#"(:fix::Node "symbol" "path" 10 4 false)"#;
+    let arrows = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::ArrowConv))"));
+    let heads = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
+    assert_eq!(arrows, Value::i64(0), "non-arrow symbol → no ArrowConv; got {arrows:?}");
+    assert_eq!(heads, Value::i64(0), "non-arrow symbol → no HeadConv; got {heads:?}");
 }
 
-// ── (2) STOP-1: head-keyword→symbol conditions fire but text is wrong ────────
-//
-// These tests DOCUMENT the STOP-1 gap rather than assert the desired behavior.
-// The conditions ARE expressible (the rule fires). The RHS CANNOT produce the
-// converted text — it can only bind ?name which is the raw ":wat::core::defrecord"
-// string, not the desired "wat.core/defrecord".
+// ── type-keyword→conv ─────────────────────────────────────────────────────────
 
 #[test]
-fn head_keyword_rule_conditions_fire() {
-    // Proves: conditions (inline = constraint + :where string predicates) ARE expressible.
-    // The rule fires for a head-keyword Node.
+fn post_arrow_keyword_deduces_typeconv() {
     let world = startup_beside(file!()).expect("world freezes");
-
-    let count = ev(
-        &world,
-        r#"(:wat::core::let
-             [rules   (:wat::rete::collect-rules :fix)
-              session (:wat::rete::compile rules)
-              session (:wat::rete::insert session (:fix::Node "keyword" ":wat::core::defrecord" 1 21 false))
-              fired   (:wat::rete::fire-rules session)]
-             (:wat::core::length (:wat::rete::query fired :fix::Edit)))"#,
-    );
-    // One Edit derives — the conditions fired.  But the text is wrong (see below).
-    assert_eq!(count, Value::i64(1), "conditions fire for head-keyword Node; got {count:?}");
+    // :wat::core::String immediately after "<-" → post-arrow=true → TypeConv (not type-shaped, but post-arrow).
+    let node = r#"(:fix::Node "keyword" ":wat::core::String" 10 18 true)"#;
+    let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::TypeConv))"));
+    assert_eq!(count, Value::i64(1), "post-arrow keyword deduces a TypeConv; got {count:?}");
+    let name = ev(&world, &fire_one(node,
+        "(:fix::TypeConv/name (:wat::core::first (:wat::rete::query fired :fix::TypeConv)))"));
+    assert_eq!(name, Value::String(Arc::new(":wat::core::String".to_string())),
+        "TypeConv.name is the raw keyword string (pure); got {name:?}");
 }
 
 #[test]
-fn head_keyword_stop1_text_is_raw_name_not_converted() {
-    // STOP-1 EVIDENCE: the derived Edit's text is the raw ?name binding ":wat::core::defrecord"
-    // NOT the converted "wat.core/defrecord" the golden requires.
-    //
-    // Root cause: build_insert_fact calls resolve_operand for each :then fact-form arg.
-    // resolve_operand only handles ?var / :field / literals.  The desired expression
-    // (:wat::core::keyword/to-symbol ?name) is a nested List → resolve_operand returns
-    // None → RuntimeError.  So the rule's :then uses ?name (raw String) as text instead.
-    //
-    // This test PASSES — it asserts the observed (wrong) behavior, confirming the gap.
+fn type_shaped_keyword_deduces_typeconv_even_when_not_post_arrow() {
     let world = startup_beside(file!()).expect("world freezes");
-
-    let text = ev(
-        &world,
-        r#"(:wat::core::let
-             [rules   (:wat::rete::collect-rules :fix)
-              session (:wat::rete::compile rules)
-              session (:wat::rete::insert session (:fix::Node "keyword" ":wat::core::defrecord" 1 21 false))
-              fired   (:wat::rete::fire-rules session)
-              edits   (:wat::rete::query fired :fix::Edit)
-              edit    (:wat::core::first edits)]
-             (:fix::Edit/text edit))"#,
-    );
-    // STOP-1: raw name, not "wat.core/defrecord" (what the golden requires).
-    assert_eq!(
-        text,
-        Value::String(Arc::new(":wat::core::defrecord".to_string())),
-        "STOP-1: text is raw name not converted symbol; got {text:?}"
-    );
-}
-
-#[test]
-fn post_arrow_keyword_no_head_keyword_edit() {
-    // A post-arrow keyword (post-arrow=true) is NOT matched by head-keyword→symbol.
-    // The :where (:wat::core::not ?post-arrow) guard correctly excludes it.
-    // (It would be matched by keyword→type-form — not yet written due to STOP-1.)
-    let world = startup_beside(file!()).expect("world freezes");
-
-    let count = ev(
-        &world,
-        r#"(:wat::core::let
-             [rules   (:wat::rete::collect-rules :fix)
-              session (:wat::rete::compile rules)
-              session (:wat::rete::insert session (:fix::Node "keyword" ":wat::core::String" 10 18 true))
-              fired   (:wat::rete::fire-rules session)]
-             (:wat::core::length (:wat::rete::query fired :fix::Edit)))"#,
-    );
-    // head-keyword→symbol does NOT fire for post-arrow keywords.
-    // No other rule covers this case (keyword→type-form not written — same STOP-1).
-    assert_eq!(count, Value::i64(0), "post-arrow keyword excluded from head-keyword rule; got {count:?}");
+    // A structurally-type-shaped keyword (Vector<...>) is a TypeConv even at head position.
+    let node = r#"(:fix::Node "keyword" ":wat::core::Vector<wat::core::i64>" 0 30 false)"#;
+    let types = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::TypeConv))"));
+    let heads = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
+    assert_eq!(types, Value::i64(1), "type-shaped keyword deduces a TypeConv; got {types:?}");
+    // ...and is EXCLUDED from HeadConv (the ¬type-shaped guard) — no double edit.
+    assert_eq!(heads, Value::i64(0), "type-shaped keyword excluded from HeadConv; got {heads:?}");
 }

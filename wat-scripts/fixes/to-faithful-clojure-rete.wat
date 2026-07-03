@@ -1,0 +1,258 @@
+;; wat-scripts/fixes/to-faithful-clojure-rete.wat — the faithful-Clojure conversion as PURE rete.
+;;
+;; wat rewrites wat with its OWN rule engine. rete is always pure: the RULES DEDUCE
+;; classification facts; this DRIVE queries them out and ACTIONS them (the transform + the
+;; I/O), OUTSIDE rete. A :then never transforms a value — the byte-for-byte reproduction of
+;; :wat::fix::fix-text is achieved by the deduce-then-action split, not by an engine change.
+;;
+;; PIPELINE (per file):
+;;   read → parse → position-aware walk emitting :fix::Node facts (kind/name/offset/len/post-arrow)
+;;   → collect-rules :fix → compile → insert every Node → fire-rules
+;;   → QUERY OUT :fix::HeadConv / :fix::ArrowConv / :fix::TypeConv (the pure deductions)
+;;   → for each, build a span edit (the TRANSFORM lives HERE):
+;;       HeadConv → (ast-name (keyword/to-symbol (keyword-node name)))   e.g. wat.core/defrecord
+;;       ArrowConv → ":-"
+;;       TypeConv → (write-forms (keyword/to-type-form (keyword-node name)))  e.g. wat.type/String
+;;   → sort edits right-to-left (descending offset; spans are disjoint) → fix-text-apply → write.
+;;
+;; Reuses fix.wat's walk primitives (structural?, arrow?, fix-text-offset-of, fix-text-apply).
+;; NOTE: source.wat contains no `if`, so the golden's `strip-if` (redundant `-> :T` on an if)
+;; is not exercised here; the three conv rules reproduce the source.wat golden byte-identical.
+;;
+;; Usage (one EDN vector of paths on stdin):
+;;   printf '["wat/source.wat"]\n' | cargo wat ./wat-scripts/fixes/to-faithful-clojure-rete.wat
+;;
+;; Dry-run on a /tmp copy first (MANDATORY):
+;;   cp wat/source.wat /tmp/pilot.wat
+;;   printf '["/tmp/pilot.wat"]\n' | cargo wat ./wat-scripts/fixes/to-faithful-clojure-rete.wat
+;;   diff <(fix-text output) /tmp/pilot.wat   # must be byte-identical
+
+;; ── fact model (mirrors tests/rete/probe_arc300_2_fix_defrule.wat) ───────────
+(:wat::core::defrecord :fix::Node
+  [kind       <- :wat::core::String
+   name       <- :wat::core::String
+   offset     <- :wat::core::i64
+   len        <- :wat::core::i64
+   post-arrow <- :wat::core::bool])
+
+(:wat::core::defrecord :fix::HeadConv
+  [offset <- :wat::core::i64
+   len    <- :wat::core::i64
+   name   <- :wat::core::String])
+
+(:wat::core::defrecord :fix::ArrowConv
+  [offset <- :wat::core::i64
+   len    <- :wat::core::i64])
+
+(:wat::core::defrecord :fix::TypeConv
+  [offset <- :wat::core::i64
+   len    <- :wat::core::i64
+   name   <- :wat::core::String])
+
+;; ── pure string predicates (used in :where guards) ──────────────────────────
+(:wat::core::defn :fix::head-keyword-str?
+  [name <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::string::contains? name "::"))
+
+(:wat::core::defn :fix::type-shaped-keyword-str?
+  [name <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::if (:wat::core::if (:wat::core::string::contains? name "<")
+                    (:wat::core::string::contains? name ">")
+                    false)
+    true
+    (:wat::core::if (:wat::core::string::contains? name "(")
+      (:wat::core::string::contains? name ")")
+      false)))
+
+;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────
+(:wat::rete::defrule :fix::head-keyword->conv
+  :when
+  [(:fix::Node
+     (?offset     <- :offset)
+     (?len        <- :len)
+     (?kind       <- :kind)
+     (?name       <- :name)
+     (?post-arrow <- :post-arrow)
+     (:wat::core::= ?kind "keyword"))
+   (:wat::rete::where (:fix::head-keyword-str? ?name))
+   (:wat::rete::where (:wat::core::not ?post-arrow))
+   (:wat::rete::where (:wat::core::not (:fix::type-shaped-keyword-str? ?name)))]
+  :then
+  (:wat::rete::insert (:fix::HeadConv ?offset ?len ?name)))
+
+(:wat::rete::defrule :fix::arrow->conv
+  :when
+  [(:fix::Node
+     (?offset <- :offset)
+     (?len    <- :len)
+     (?kind   <- :kind)
+     (?name   <- :name)
+     (:wat::core::= ?kind "symbol"))
+   (:wat::rete::where (:wat::core::or
+                        (:wat::core::= ?name "<-")
+                        (:wat::core::= ?name "->")))]
+  :then
+  (:wat::rete::insert (:fix::ArrowConv ?offset ?len)))
+
+(:wat::rete::defrule :fix::type-keyword->conv
+  :when
+  [(:fix::Node
+     (?offset     <- :offset)
+     (?len        <- :len)
+     (?kind       <- :kind)
+     (?name       <- :name)
+     (?post-arrow <- :post-arrow)
+     (:wat::core::= ?kind "keyword"))
+   (:wat::rete::where (:wat::core::or
+                        ?post-arrow
+                        (:fix::type-shaped-keyword-str? ?name)))]
+  :then
+  (:wat::rete::insert (:fix::TypeConv ?offset ?len ?name)))
+
+;; ── the walk: emit a :fix::Node per keyword/symbol leaf (position-aware) ─────
+;; Mirrors :wat::fix::fix-text-seq-edits: threads prev-arrow? across siblings, recurses
+;; structural nodes (resetting prev-arrow? to false, exactly as fix-text-struct-edits does).
+(:wat::core::defn :fix::collect-nodes-node
+  [node        <- :wat::WatAST
+   prev-arrow? <- :wat::core::bool
+   lines       <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<fix::Node>
+  (:wat::core::if (:wat::fix::structural? node)
+    (:fix::collect-nodes-seq (:wat::core::ast->children node) false lines)
+    (:wat::core::let [kind (:wat::core::ast-kind node)]
+      (:wat::core::if (:wat::core::or (:wat::core::= kind "keyword")
+                                      (:wat::core::= kind "symbol"))
+        (:wat::core::let [name (:wat::core::ast-name node)
+                          off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
+                          len  (:wat::core::string::length name)]
+          (:wat::core::Vector :fix::Node (:fix::Node kind name off len prev-arrow?)))
+        (:wat::core::Vector :fix::Node)))))
+
+(:wat::core::defn :fix::collect-nodes-seq
+  [items       <- :wat::core::Vector<wat::WatAST>
+   prev-arrow? <- :wat::core::bool
+   lines       <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<fix::Node>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :fix::Node)
+    (:wat::core::let [h  (:wat::core::first items)
+                      tl (:wat::core::rest items)]
+      (:wat::core::concat
+        (:fix::collect-nodes-node h prev-arrow? lines)
+        (:fix::collect-nodes-seq tl (:wat::fix::arrow? h) lines)))))
+
+;; ── stage the facts: fold insert over the Node vector ────────────────────────
+(:wat::core::defn :fix::insert-nodes
+  [session <- :wat::rete::Session
+   nodes   <- :wat::core::Vector<fix::Node>]
+  -> :wat::rete::Session
+  (:wat::core::foldl
+    (:wat::core::fn [s <- :wat::rete::Session  n <- :fix::Node] -> :wat::rete::Session
+      (:wat::rete::insert s n))
+    session
+    nodes))
+
+;; ── query-out + action: turn each pure conv fact into a span edit (the TRANSFORM) ──
+;; HeadConv → (ast-name (keyword/to-symbol (keyword-node name))) — the ::-keyword becomes a symbol.
+(:wat::core::defn :fix::head-edits
+  [convs <- :wat::core::PersistentVector
+   acc   <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::foldl
+    (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+                     hc <- :fix::HeadConv]
+      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      (:wat::core::concat a
+        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+          (:wat::core::Tuple
+            (:fix::HeadConv/offset hc)
+            (:fix::HeadConv/len hc)
+            (:wat::core::ast-name
+              (:wat::core::keyword/to-symbol
+                (:wat::core::keyword-node (:fix::HeadConv/name hc))))))))
+    acc
+    convs))
+
+;; ArrowConv → ":-" (the annotation-arrow becomes the faithful bind marker).
+(:wat::core::defn :fix::arrow-edits
+  [convs <- :wat::core::PersistentVector
+   acc   <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::foldl
+    (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+                     ac <- :fix::ArrowConv]
+      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      (:wat::core::concat a
+        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+          (:wat::core::Tuple
+            (:fix::ArrowConv/offset ac)
+            (:fix::ArrowConv/len ac)
+            ":-"))))
+    acc
+    convs))
+
+;; TypeConv → (write-forms (keyword/to-type-form (keyword-node name))) — the type-keyword becomes a type form.
+(:wat::core::defn :fix::type-edits
+  [convs <- :wat::core::PersistentVector
+   acc   <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::foldl
+    (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+                     tc <- :fix::TypeConv]
+      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      (:wat::core::concat a
+        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+          (:wat::core::Tuple
+            (:fix::TypeConv/offset tc)
+            (:fix::TypeConv/len tc)
+            (:wat::core::write-forms
+              (:wat::core::keyword/to-type-form
+                (:wat::core::keyword-node (:fix::TypeConv/name tc))))))))
+    acc
+    convs))
+
+;; ── convert: the full deduce-then-action pipeline for one source string ──────
+(:wat::core::defn :fix::convert
+  [src <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::let [lines   (:wat::core::string::split src "\n")
+                    tree    (:wat::core::read-string src)
+                    forms   (:wat::core::ast->children tree)
+                    ;; walk → :fix::Node facts (kind/name/offset/len/post-arrow)
+                    nodes   (:fix::collect-nodes-seq forms false lines)
+                    ;; PURE rete: deduce the classification facts
+                    rules   (:wat::rete::collect-rules :fix)
+                    session (:wat::rete::compile rules)
+                    staged  (:fix::insert-nodes session nodes)
+                    fired   (:wat::rete::fire-rules staged)
+                    ;; query out + action (the transform lives here, outside rete)
+                    ;; query-by-type-string (colon-free FQDN) is the checked-body idiom — the bare
+                    ;; type-name constructor form `query` wants doesn't type-check in a defn body.
+                    empty-e (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+                    e1      (:fix::head-edits  (:wat::rete::query-by-type-string fired "fix::HeadConv")  empty-e)
+                    e2      (:fix::arrow-edits (:wat::rete::query-by-type-string fired "fix::ArrowConv") e1)
+                    e3      (:fix::type-edits  (:wat::rete::query-by-type-string fired "fix::TypeConv")  e2)
+                    ;; sort right-to-left (descending offset; spans disjoint) so splicing is stable
+                    sorted  (:wat::core::sort
+                              (:wat::core::fn [a <- :(wat::core::i64,wat::core::i64,wat::core::String)
+                                               b <- :(wat::core::i64,wat::core::i64,wat::core::String)]
+                                -> :wat::core::bool
+                                (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
+                              e3)]
+    (:wat::fix::fix-text-apply src sorted)))
+
+;; ── drive: read → convert → write, per path (mirrors to-faithful-clojure.wat) ─
+(:wat::core::defn :user::apply-each
+  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  (:wat::core::if (:wat::core::empty? paths)
+    nil
+    (:wat::core::let [path (:wat::core::first paths)]
+      (:wat::core::do
+        (:wat::io::write-file path
+          (:fix::convert (:wat::io::read-file path)))
+        (:wat::kernel::println (:wat::core::string::concat "[to-faithful-clojure-rete] " path))
+        (:user::apply-each (:wat::core::rest paths))))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:user::apply-each
+    (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)))
