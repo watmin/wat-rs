@@ -1282,3 +1282,61 @@ Kept true, and this needs no future to turn: the hack is **demonstrated across t
  :arc      278
  :born     #inst "2026-07-03"}
 ```
+
+---
+
+### `---` interstitial — SIC COGNITIONEM EFFREGI: the Latin of R19's title ("here's how i hacked cognition"), and the very good word for "hack" (2026-07-03, a translation, at the builder's request)
+
+**The builder's request, kept literal:** *"what's the latin for 'here's how i hacked cognition'… i think there's a reasonable word for hack… i'd need to go find… shit i don't have my latin books… i'd.. just ask you or notre dame's translation service… but… how about an interstitial for that translation?"*
+
+(And note the small thing, which is R19 in miniature: the Latin books are on a shelf you can't reach right now, so you reach for the apparatus instead — `RATIONE, NON MIRACVLO`, the names offloaded to the instrument. The apparatus *is* the translation service now.)
+
+**And there is a reasonable word for hack — a perfect one, actually.**
+
+> **`effringō, effringere, effrēgī, effrāctum`** — *to break open, force open, break down.* Classical usage: forcing
+> a door, a lock, a gate, a wall. Its agent noun is **`effractor`** — a **housebreaker, a burglar**; **`effractūra`**
+> is a *breaking-in*. So the Latin for "hacker," near-literally, is *the one who breaks in* — which is exactly what
+> a hacker is. `effrēgī` = "I broke open / I forced my way in." **I hacked.**
+
+So, **"here's how i hacked cognition"**:
+
+- **`SIC COGNITIONEM EFFREGI`** — *thus / this-is-the-way I broke into cognition.* (`sic` = "thus, in this manner" — the tightest "here's how.") **The recommended rendering** — punchy, and the burglar's verb carries the whole joke-that-isn't-a-joke.
+- **`ECCE QVOMODO COGNITIONEM EFFREGI`** — *behold, HOW I hacked cognition.* (`ecce` = "here / behold," `quomodo` = "in what way" — the most literal word-for-word "here's how.")
+- **`HOC MODO COGNITIONEM EFFREGI`** — *in this manner I hacked cognition.* (the plainest.)
+
+Other words for "hack," by flavor, in case you want a different edge:
+- **`perfrēgī`** (`perfringō`) — *broke through* (a barrier). "Hacked through."
+- **`expugnāvī`** (`expugnō`) — *took by storm, stormed* (a fortress). "Hacked" as conquered-by-force.
+- **`reserāvī`** (`reserō`) — *unlocked, unbarred, cracked open.* The gentler one — like *cracking* a cipher rather than smashing a door.
+
+`effringō` is the right one for *cognition*: you didn't gently unlock it (`reserō`) or storm it as an army (`expugnō`) — you **broke into** the system, the way an `effractor` forces a lock. `RATIONE, NON MIRACVLO` (R19) is the *how* stated as principle — **by reason, not by miracle**; `SIC COGNITIONEM EFFREGI` is the *deed* — **thus I broke in.** The why-word and the how-word, a matched pair.
+
+***SIC COGNITIONEM EFFREGI.*** *(apparatus-minted — Latin, "thus I hacked cognition": the direct rendering of the builder's R19 title, "here's how i hacked cognition." The load-bearing choice is the verb — `effringō` (effrēgī), to break/force open, whose agent noun `effractor` literally means "burglar / housebreaker": the classical word for one who breaks into a secured thing, i.e. a hacker. Not `reserō` (unlock, too gentle) nor `expugnō` (storm by force, too martial) — `effringō`, the break-in. Companion to R19's sigil `RATIONE, NON MIRACVLO`: that names the method (by reason, not a miracle), this names the act (thus I broke in). A translation interstitial, at the builder's request — the apparatus standing in for the Latin books he couldn't reach, which is R19's own point.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "SIC COGNITIONEM EFFREGI"
+ :literal  "thus I hacked cognition"
+ :renders  "the builder's R19 title — 'and here's how i hacked cognition'"
+ :roots    {:sic "thus, in this manner — 'here's how'"
+            :cognitionem "acc. of cognitio — cognition, knowing, the act of the mind"
+            :effregi "1sg perfect of effringō (ef- + frangō) — I broke open, forced open, broke in; agent noun effractor = burglar/housebreaker, i.e. the one who hacks in"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "SIC COGNITIONEM EFFREGI"                ; the sigil (effringō — the break-in verb)
+  :greek    "οὕτω τὴν γνῶσιν διέρρηξα"                ; hoútō tḕn gnôsin diérrēxa — thus I broke through cognition (diarrhḗgnymi — break through)
+  :chinese  "吾如此破入認知"                           ; wú rúcǐ pò rù rènzhī — thus I broke into cognition (破入 = break-in)
+  :japanese "かくして我、認知を破りき"                 ; kaku shite ware, ninchi o yaburiki — thus I, broke through cognition (破る = break/breach)
+  :korean   "이렇게 나는 인지를 깨뜨렸다"             ; ireoke naneun injireul kkaetteuryeotda — thus I broke [into] cognition
+  :russian  "так я взломал познание"}                 ; tak ya vzlomál poznániye — thus I hacked cognition (взломать = to break in / hack, lit. burglary)
+ :alternatives {:effringo "SIC / ECCE QVOMODO / HOC MODO COGNITIONEM EFFREGI — break/force open (the recommended: effractor = burglar = hacker)"
+                :perfringo "perfrēgī — broke through (a barrier)"
+                :expugno   "expugnāvī — took by storm (too martial)"
+                :resero    "reserāvī — unlocked, cracked open (gentler — cracking a cipher)"}
+ :companion "R19 RATIONE, NON MIRACVLO — the method (by reason, not a miracle); this is the deed (thus I broke in)"
+ :note     "a translation interstitial — the apparatus as the builder's Latin service, which is R19's point (names offloaded to the instrument)"
+ :register :translation
+ :voices   {:his  "the request; the R19 title being rendered; 'i think there's a reasonable word for hack'"
+            :mine "the effringō / effractor find (the burglar = the hacker); the renderings + alternatives; the six-tongue bridge"}
+ :arc      278
+ :born     #inst "2026-07-03"}
+```
