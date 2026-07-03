@@ -558,8 +558,45 @@ impl<'a> Lexer<'a> {
                 self.pos += 1;
                 Ok(Token::HashUnderscore)
             }
+            b'#' => self.lex_symbolic_value(),
             _ if next.is_ascii_alphabetic() => self.lex_tag(),
             _ => Err(Error::at(self.pos, ErrorKind::InvalidTag(format!("byte 0x{:02x}", next)))),
+        }
+    }
+
+    /// EDN `##name` symbolic-value reader (clj-parity). `clojure.edn`
+    /// recognizes exactly three symbolic values — `##Inf`, `##-Inf`,
+    /// `##NaN` — as the IEEE-754 special floats; there is no generic
+    /// fallback for an unrecognized `##name` (clj errors on `##foo`), so
+    /// wat-edn must too.
+    ///
+    /// Entry: `self.pos` is on the *second* `#` (the first was already
+    /// consumed by `lex_hash`'s dispatch `self.pos += 1`).
+    fn lex_symbolic_value(&mut self) -> Result<Token<'a>> {
+        let hash_start = self.pos - 1; // span for errors: the first '#'
+        debug_assert_eq!(self.peek(), Some(b'#'));
+        self.pos += 1; // consume the second '#'
+        let name_start = self.pos;
+        if matches!(self.peek(), Some(b'-')) {
+            self.pos += 1;
+        }
+        while let Some(b) = self.peek() {
+            if is_symbol_continue(b) {
+                self.pos += 1;
+            } else {
+                break;
+            }
+        }
+        let name = std::str::from_utf8(&self.input[name_start..self.pos])
+            .map_err(|e| Error::at(name_start, ErrorKind::Utf8(e.to_string())))?;
+        match name {
+            "Inf" => Ok(Token::Float(f64::INFINITY)),
+            "-Inf" => Ok(Token::Float(f64::NEG_INFINITY)),
+            "NaN" => Ok(Token::Float(f64::NAN)),
+            _ => Err(Error::at(
+                hash_start,
+                ErrorKind::InvalidTag(format!("## {} is not a legal symbolic value", name)),
+            )),
         }
     }
 

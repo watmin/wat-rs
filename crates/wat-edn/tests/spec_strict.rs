@@ -86,11 +86,15 @@ fn allows_legitimate_zero_forms() {
     assert_eq!(parse("0e10").unwrap(), Value::Float(0.0));
 }
 
-// ─── CRIT-3: `:/` is not a legal keyword ────────────────────────
+// ─── CRIT-3 (revised, clj-oracle parity): `:/` IS a legal keyword ──
+// `clojure.edn` — the oracle — accepts `:/` as the keyword form of the
+// bare `/` symbol; the original CRIT-3 reading came from the 13-year-old
+// spec doc, not the reference reader. `:/foo` (a slash prefix followed
+// by more) stays illegal.
 
 #[test]
-fn rejects_slash_keyword() {
-    assert!(parse(":/").is_err());
+fn accepts_bare_slash_keyword() {
+    assert_eq!(parse(":/").unwrap(), Value::Keyword(Keyword::new("/")));
 }
 
 #[test]

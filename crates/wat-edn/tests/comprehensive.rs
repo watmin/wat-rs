@@ -524,9 +524,11 @@ fn keyword_double_colon_rejected() {
 }
 
 #[test]
-fn keyword_slash_rejected() {
-    // Spec: :/ is not a legal keyword.
-    assert!(parse(":/").is_err());
+fn keyword_bare_slash_accepted() {
+    // clj-oracle parity: clojure.edn accepts `:/` as the keyword form of
+    // the bare `/` symbol (the 13-year-old spec doc's "`:/` is not a
+    // legal keyword" reading does not match the reference reader).
+    assert_eq!(parse(":/").unwrap(), Value::Keyword(Keyword::new("/")));
 }
 
 #[test]

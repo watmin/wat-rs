@@ -377,13 +377,15 @@ fn parse_namespaced(
         return Err(wrap("empty".into()));
     }
 
-    // `/` is a legal SYMBOL on its own; not a legal keyword/tag body.
+    // `/` is a legal SYMBOL on its own; clj-parity (arc: clj-oracle
+    // differential ward) also admits it as a bare KEYWORD body — `:/`
+    // reads as `Keyword { namespace: None, name: "/" }`, the keyword
+    // form of the bare `/` symbol. Only Tag stays out of reach (the
+    // lexer never emits a tag body of "/"; a tag must start with an
+    // alphabetic byte).
     if body == "/" {
         match kind {
-            BodyKind::Symbol => return Ok((None, "/")),
-            BodyKind::Keyword => return Err(wrap(":/ is not a legal keyword".into())),
-            // Lexer never emits a tag body of "/" (tag must start with
-            // an alphabetic byte), but the symmetry holds the rule.
+            BodyKind::Symbol | BodyKind::Keyword => return Ok((None, "/")),
             BodyKind::Tag => unreachable!("lexer rejects tag bodies starting with /"),
         }
     }
