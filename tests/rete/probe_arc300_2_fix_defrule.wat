@@ -104,4 +104,3 @@
   :then
   (:wat::rete::insert (:fix::TypeConv ?offset ?len ?name)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

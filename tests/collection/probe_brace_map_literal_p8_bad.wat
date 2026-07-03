@@ -9,4 +9,3 @@
     [p (:test214::PaperResult "kept" 3.14)
      {outcome grace-residue} p]
     outcome))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

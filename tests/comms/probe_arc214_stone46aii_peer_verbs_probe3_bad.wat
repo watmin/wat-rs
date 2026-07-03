@@ -10,4 +10,3 @@
                    _ (:wat::kernel::send' peer "not-an-i64")]
     nil))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

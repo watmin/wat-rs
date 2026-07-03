@@ -2,4 +2,3 @@
 ;; Probe 13: mixed-K map {1 "v" "two" "w"} must fail at check with TypeMismatch.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::length {1 "v" "two" "w"}))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

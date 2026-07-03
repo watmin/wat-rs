@@ -5,4 +5,3 @@
     [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
      t (:wat::core::Tuple f "tag")]
     (:wat::holon::to-holon t)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

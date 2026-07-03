@@ -4,4 +4,3 @@
 (:wat::test::deftest' :user::failing ()
   (:wat::kernel::assertion-failed! "DEFTEST-FAIL-SENTINEL" :wat::core::None :wat::core::None))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

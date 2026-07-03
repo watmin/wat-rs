@@ -6,4 +6,3 @@
     `~x))
 (:wat::core::defn :user::probe [n <- :wat::core::i64]
   -> :wat::core::i64 (:my::capturing n))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

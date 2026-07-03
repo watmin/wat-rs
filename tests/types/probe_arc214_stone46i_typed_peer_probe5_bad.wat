@@ -3,4 +3,3 @@
   (:wat::kernel::spawn-program' (:wat::spawn::thread)
     (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
       (:wat::kernel::send' self (:wat::kernel::recv' self)))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

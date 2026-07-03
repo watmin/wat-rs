@@ -2,4 +2,3 @@
 ;; Stone 241.11/241.16 — startup fails; does not reach runtime.
 (:wat::core::defn :my::bad-define [] -> :wat::core::nil
   (:wat::core::define (:my::inner -> :wat::core::nil) :wat::core::nil))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

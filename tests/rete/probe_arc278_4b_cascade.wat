@@ -5,4 +5,3 @@
 (:wat::core::defrecord :weather::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
 (:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
 (:wat::core::defrecord :weather::WeatherAlert [location <- :wat::core::String])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

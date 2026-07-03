@@ -2,4 +2,3 @@
 ;; Arc 255 banked disconfirming gate — un-ignores when undeclared type keywords become check errors.
 (:wat::core::defstruct :probe::Bogus
   [x <- :wat::kernel::CompletelyBogusNeverDeclared])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

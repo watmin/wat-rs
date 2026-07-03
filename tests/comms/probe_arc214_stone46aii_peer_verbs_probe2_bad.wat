@@ -9,4 +9,3 @@
                              (:wat::kernel::send' self (:wat::kernel::recv' self))))]
     (:wat::kernel::recv' peer)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

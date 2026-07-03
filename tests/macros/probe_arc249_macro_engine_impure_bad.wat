@@ -1,4 +1,3 @@
 (:wat::core::defmacro :my::impure-cu [] -> :AST<wat::holon::HolonAST>
   `~(:wat::kernel::stopped?))
 (:wat::core::defn :user::probe [] -> :wat::core::bool (:my::impure-cu))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

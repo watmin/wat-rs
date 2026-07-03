@@ -10,4 +10,3 @@
 
 (:test::make-bad-ret)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

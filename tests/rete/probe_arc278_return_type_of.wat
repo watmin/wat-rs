@@ -2,4 +2,3 @@
 ;; slurped via startup_beside(file!()). Defines :weather::ColdAndWindy for return-type-of tests.
 
 (:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

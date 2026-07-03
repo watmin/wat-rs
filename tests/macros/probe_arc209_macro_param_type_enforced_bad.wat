@@ -4,4 +4,3 @@
 ;; A macro whose param claims :wat::core::i64 — a lie: a macro param is always a form.
 ;; Arc 251.5 / 209: macro-def now REJECTS a lying <- :i64 at definition time.
 (:wat::core::defmacro :user::bad [x <- :wat::core::i64] -> :wat::WatAST x)
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

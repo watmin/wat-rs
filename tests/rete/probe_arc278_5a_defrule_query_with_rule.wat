@@ -10,4 +10,3 @@
    (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]
   :then
   (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -8,4 +8,3 @@
       (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv)))
     nil))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

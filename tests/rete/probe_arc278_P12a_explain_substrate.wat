@@ -19,4 +19,3 @@
   :then
   (:wat::rete::insert (:weather::WeatherAlert ?c ?k)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

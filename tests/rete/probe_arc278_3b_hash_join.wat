@@ -3,4 +3,3 @@
 
 (:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])
 (:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

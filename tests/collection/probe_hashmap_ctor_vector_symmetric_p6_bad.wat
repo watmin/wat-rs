@@ -7,4 +7,3 @@
     (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -7,4 +7,3 @@
 
 (:wat::core::defn :test::needs-char [c <- :wat::core::Char] -> :wat::core::Char c)
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

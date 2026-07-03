@@ -12,4 +12,3 @@
   :then
   (:wat::rete::insert (:alert::Unattended ?loc)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -5,4 +5,3 @@
     [g (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::add n 1))]
     (:wat::holon::to-holon g)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

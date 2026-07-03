@@ -4,4 +4,3 @@
 (:wat::test::deftest' :user::passing ()
   (:wat::test::assert-eq 4 (:wat::core::+ 2 2)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

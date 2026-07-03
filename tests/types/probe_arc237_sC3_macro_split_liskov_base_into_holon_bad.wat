@@ -3,4 +3,3 @@
 (:wat::holon::defrecord :my::HPt [x <- :wat::core::i64  y <- :wat::core::i64])
 (:wat::core::defn :wh [v <- :wat::holon::Record] -> :wat::core::bool true)
 (:wat::core::defn :gb [p <- :my::Pt] -> :wat::core::bool (:wh p))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

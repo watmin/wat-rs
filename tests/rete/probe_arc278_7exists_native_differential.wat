@@ -12,4 +12,3 @@
   :then
   (:wat::rete::insert (:w::Watched ?loc)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

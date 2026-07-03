@@ -9,4 +9,3 @@
      _ (:wat::kernel::close' peer)]
     0))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

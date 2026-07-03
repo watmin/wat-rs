@@ -4,4 +4,3 @@
   (:wat::core::let
     [f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)]
     (:wat::holon::to-holon f)))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

@@ -4,4 +4,3 @@
   (:wat::core::let
     [{:foo bar} "val"]
     "ok"))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

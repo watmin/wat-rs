@@ -18,4 +18,3 @@
   :then
   (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

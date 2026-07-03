@@ -2,4 +2,3 @@
 (:wat::core::defstruct :my::Bad
   {}
   [field <- :wat::core::i64])
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

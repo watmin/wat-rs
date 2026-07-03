@@ -2,4 +2,3 @@
 ;; Probe 8: mixed-type vector [1 "two"] must fail at check with TypeMismatch.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::length [1 "two"]))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

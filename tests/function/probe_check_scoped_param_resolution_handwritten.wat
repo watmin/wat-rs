@@ -6,4 +6,3 @@
 (:wat::core::defclause :test::bad-ret-direct
   ([x <- :wat::core::i64] -> :wat::core::bool x))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

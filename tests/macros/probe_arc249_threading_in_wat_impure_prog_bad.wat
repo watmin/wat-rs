@@ -3,4 +3,3 @@
     `(:wat::core::not ~(:wat::kernel::stopped?))
     `false))
 (:wat::core::defn :user::probe [] -> :wat::core::bool (:test::impure-prog))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

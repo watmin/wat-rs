@@ -11,4 +11,3 @@
   :then
   (:wat::rete::insert (:wg::Gate ?c)))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

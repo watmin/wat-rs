@@ -4,4 +4,3 @@
 (:wat::test::deftest-hermetic' :user::failing ()
   (:wat::kernel::assertion-failed! "HERMETIC-FAIL-SENTINEL" :wat::core::None :wat::core::None))
 
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)

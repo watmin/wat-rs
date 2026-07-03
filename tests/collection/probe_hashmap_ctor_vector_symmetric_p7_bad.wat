@@ -4,4 +4,3 @@
   (:wat::core::let
     [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo)]
     0))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
