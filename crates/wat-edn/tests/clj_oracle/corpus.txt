@@ -1,0 +1,65 @@
+nil
+true
+false
+0
+-5
+42
++7
+9999999999
+1.5
+-2.0
+1e10
+1.5M
+1/2
+-3/4
+""
+"abc"
+"with \"quote\""
+"tab\tnl\n"
+"héllo"
+"a 😀 b"
+\a
+\newline
+\space
+\tab
+\é
+\😀
+é
+foo
+foo-bar
++
+-
+/
+my.ns/foo
+foo?
+*foo*
+😀
+é
+λ
+foo→bar
+:foo
+:my/foo
+:a-b
+:a😀
+:λ
+::foo
+:/
+()
+(1 2 3)
+(a (b c))
+[]
+[1 2 3]
+{}
+{:a 1}
+{:a 1 :b 2}
+{[1 2] 3}
+#{}
+#{1 2 3}
+#inst "1985-04-12T23:20:50.52Z"
+#uuid "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+#myapp/Foo {:x 1}
+[a #_b c]
+(1, 2, 3)
+##Inf
+##-Inf
+##NaN

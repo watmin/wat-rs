@@ -1,0 +1,65 @@
+OK	nil
+OK	true
+OK	false
+OK	0
+OK	-5
+OK	42
+OK	+7
+OK	9999999999
+OK	1.5
+OK	-2.0
+OK	1e10
+OK	1.5M
+OK	1/2
+OK	-3/4
+OK	""
+OK	"abc"
+OK	"with \"quote\""
+OK	"tab\tnl\n"
+OK	"héllo"
+OK	"a 😀 b"
+OK	\a
+OK	\newline
+OK	\space
+OK	\tab
+OK	\é
+ERR	\😀
+OK	é
+OK	foo
+OK	foo-bar
+OK	+
+OK	-
+OK	/
+OK	my.ns/foo
+OK	foo?
+OK	*foo*
+OK	😀
+OK	é
+OK	λ
+OK	foo→bar
+OK	:foo
+OK	:my/foo
+OK	:a-b
+OK	:a😀
+OK	:λ
+ERR	::foo
+OK	:/
+OK	()
+OK	(1 2 3)
+OK	(a (b c))
+OK	[]
+OK	[1 2 3]
+OK	{}
+OK	{:a 1}
+OK	{:a 1 :b 2}
+OK	{[1 2] 3}
+OK	#{}
+OK	#{1 2 3}
+OK	#inst "1985-04-12T23:20:50.52Z"
+OK	#uuid "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+ERR	#myapp/Foo {:x 1}
+OK	[a #_b c]
+OK	(1, 2, 3)
+OK	##Inf
+OK	##-Inf
+OK	##NaN
