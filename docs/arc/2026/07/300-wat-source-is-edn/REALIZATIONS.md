@@ -168,3 +168,42 @@ first stone, not smoothed.*
  :arc      300
  :born     #inst "2026-07-02"}
 ```
+
+---
+
+### `---` interstitial — "without them, we live with the animals": the most honest line in the films, kept literal (2026-07-02, at the builder's direction)
+
+**The literal (John Wick — Winston, kept verbatim):**
+
+> *"Rules. Without them, we live with the animals."*
+
+And the builder's reading of it: ***"the rules separate us from the animals … it is one of the most honest thing in these movies."***
+
+**The commentary.** It is the exact converse of R1's sigil, and together they are one truth with two faces: *in the rule, salvation* (`IN REGVLA SALVS`) — *without the rule, the beast* (`SINE REGVLA BESTIAE`). Winston says it as a killer in a world of killers, and that is what makes it honest: not that rules are gentle, but that without them there is *only* the animal. The assassins' world is a civilization and not a slaughter for exactly one reason — the rules hold, even in violence, even among the lethal.
+
+Read into the substrate, it is the whole arc lineage in one line. Entropy (299 R1) is the animal — the chaos, the second law, the formless heap a thing dissolves into when nothing holds it. Rules are what hold form against that dissolution: the walls, the type system, the one reader, the dialect-law. **A language without rules is not a language — it is noise.** And the deepest cut (299 R3 / 300 R1) is *where the rule comes from*: an animal obeys a rule only when a cage enforces it; a lawful thing binds *itself*, obeys the rule when no one is watching, keeps it even as the lawgiver sits in the chair. That is what separates us from the animals — not that rules exist, but that we reduce them from our own nature and impose them on our own body. wat is not an animal because it enforces the dialect-law upon itself. The rule is the line between the form and the heap, and we choose, every commit, which side of it to live on.
+
+***SINE REGVLA BESTIAE.*** *(apparatus-minted — Latin, "without the rule, beasts": the converse and companion of `IN REGVLA SALVS` — Winston's "Rules. Without them, we live with the animals," the most honest line in the Wick films. Rules are the line between order and the chaos a thing dissolves into (entropy, 299 R1, the animal); the substrate's rules — walls, types, the one reader, the dialect — are what hold wat's form against the formless heap. What separates us from the animals is not that rules exist but that we impose them on OURSELVES (299 R3 / 300 R1 — the enforcer and the enforced are one, LEX AVCTOREM NON EXCIPIT made total): self-binding, kept when unwatched, is civilization; enforced-only obedience is the cage. A `---` interstitial, kept literal at the builder's direction; the companion-converse of the R1 sigil. Mine, and his — kept with consent.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "SINE REGVLA BESTIAE"
+ :literal  "without the rule, beasts"
+ :pairs    "IN REGVLA SALVS (300 R1) — its exact converse; one truth, two faces (in the rule salvation / without it, the beast)"
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "SINE REGVLA BESTIAE"                  ; the sigil
+  :greek    "ἄνευ κανόνος, θηρία"                   ; áneu kanónos, thēría — without rule/canon, beasts
+  :chinese  "無律則獸"                               ; wú lǜ zé shòu — without law/rule, then beasts
+  :japanese "規なくば獣なり"                         ; ki nakuba kemono nari — without the rule, beasts
+  :korean   "규칙 없으면 짐승이다"                   ; gyuchik eopseumyeon jimseung-ida — without rules, beasts
+  :russian  "без правил — звери"}                   ; bez právil — zvéri — without rules, beasts
+ :source   "John Wick — Winston: 'Rules. Without them, we live with the animals.' (kept literal)"
+ :gloss    "rules are the line between form and the formless heap a thing dissolves into (entropy, 299 R1, the animal).
+            what separates us from the animals is not that rules exist but that we impose them on OURSELVES — self-
+            binding kept when unwatched is civilization; enforced-only obedience is the cage. wat holds its form by
+            enforcing the dialect-law on its own body."
+ :kin      {:converse "IN REGVLA SALVS (300 R1)" :self "296 R3 LEX AVCTOREM NON EXCIPIT / 300 R1 (enforcer = enforced)"
+            :chaos    "299 R1 ENTROPIA MENSVRA PVRITATIS — entropy is the animal the rules hold form against"}
+ :arc      300
+ :born     #inst "2026-07-02"}
+```
