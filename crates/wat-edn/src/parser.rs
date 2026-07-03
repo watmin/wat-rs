@@ -11,6 +11,7 @@ use crate::value::{Keyword, Symbol, Tag, Value};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use num_bigint::BigInt;
+use num_rational::BigRational;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -134,6 +135,29 @@ impl<'a> Parser<'a> {
                     Error::at(pos, ErrorKind::InvalidNumber(format!("{}M", s)))
                 })?;
                 Ok(Value::BigDec(Box::new(n)))
+            }
+            Token::Rational { numer, denom } => {
+                let n = BigInt::from_str(numer).map_err(|_| {
+                    Error::at(pos, ErrorKind::InvalidNumber(format!("{}/{}", numer, denom)))
+                })?;
+                let d = BigInt::from_str(denom).map_err(|_| {
+                    Error::at(pos, ErrorKind::InvalidNumber(format!("{}/{}", numer, denom)))
+                })?;
+                // The lexer already refused an all-zero denom before this
+                // token existed (see lexer::lex_number), so `BigRational::new`
+                // (which panics on a zero denom) never sees one here.
+                let ratio = BigRational::new(n, d);
+                // Clojure-faithful normalization: a ratio whose denominator
+                // reduces to 1 is an Integer (`4/2` -> `2`), not a Ratio.
+                if ratio.is_integer() {
+                    let numer = ratio.numer();
+                    match numer.to_string().parse::<i64>() {
+                        Ok(i) => Ok(Value::Integer(i)),
+                        Err(_) => Ok(Value::BigInt(Box::new(numer.clone()))),
+                    }
+                } else {
+                    Ok(Value::Rational(Box::new(ratio)))
+                }
             }
             // c: Cow<'a, str> from the lexer — fast path is Borrowed
             // (zero-copy slice into the input), Owned only when the

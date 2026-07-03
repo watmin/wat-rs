@@ -24,6 +24,7 @@ use std::borrow::Cow;
 
 use crate::identifier::Identifier;
 use crate::span::Span;
+use num_rational::BigRational;
 
 /// Arc 257 slice 2 — discriminant for `MapDestructure`.
 ///
@@ -61,6 +62,14 @@ pub enum WatAST {
 
     /// Floating-point literal, as in `3.14`, `-0.5`, `1e10`.
     FloatLit(f64, Span),
+
+    /// Rational literal, as in `1/2`, `-3/2` (arc 300 stone B). Numeric-
+    /// literal lane (follows `IntLit`/`FloatLit`), NOT a desugared
+    /// constructor call — see `DESIGN-STONE-rational-B-runtime.md`. Always
+    /// a genuine ratio already reduced to lowest terms with the sign on
+    /// the numerator and denominator >= 2; a literal reducing to a whole
+    /// number (`4/2`) parses to `IntLit` instead, never this variant.
+    RationalLit(BigRational, Span),
 
     /// Boolean literal, as in `true` or `false`.
     BoolLit(bool, Span),
@@ -146,6 +155,7 @@ impl WatAST {
         match self {
             WatAST::IntLit(_, s)
             | WatAST::FloatLit(_, s)
+            | WatAST::RationalLit(_, s)
             | WatAST::BoolLit(_, s)
             | WatAST::StringLit(_, s)
             | WatAST::NilLit(s)
@@ -166,6 +176,11 @@ impl WatAST {
     }
     pub fn float(x: f64) -> Self {
         WatAST::FloatLit(x, crate::rust_caller_span!())
+    }
+    /// Synthetic rational literal — `r` must already be reduced (den >= 2,
+    /// sign on numerator); see `RationalLit`'s doc. Arc 300 stone B.
+    pub fn rational(r: BigRational) -> Self {
+        WatAST::RationalLit(r, crate::rust_caller_span!())
     }
     pub fn bool(b: bool) -> Self {
         WatAST::BoolLit(b, crate::rust_caller_span!())
@@ -412,6 +427,7 @@ impl WatAST {
         match self {
             WatAST::IntLit(_, _) => "int",
             WatAST::FloatLit(_, _) => "float",
+            WatAST::RationalLit(_, _) => "rational",
             WatAST::BoolLit(_, _) => "bool",
             WatAST::StringLit(_, _) => "string",
             WatAST::NilLit(_) => "nil",
@@ -459,6 +475,7 @@ impl std::hash::Hash for WatAST {
         match self {
             WatAST::IntLit(n, _) => n.hash(state),
             WatAST::FloatLit(x, _) => x.to_bits().hash(state),
+            WatAST::RationalLit(r, _) => r.hash(state),
             WatAST::BoolLit(b, _) => b.hash(state),
             WatAST::StringLit(s, _) => s.hash(state),
             // NilLit: leaf literal — discriminant (above) fully identifies it.

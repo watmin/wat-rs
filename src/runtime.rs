@@ -3617,6 +3617,11 @@ pub(crate) fn eval_inner(
             Value::f64(*x),
             Provenance::Literal { span: span.clone() },
         )),
+        // Arc 300 stone B — rational literal, representation only.
+        WatAST::RationalLit(r, span) => Ok(TrackedValue::new(
+            Value::wat__core__Rational(Box::new(r.clone())),
+            Provenance::Literal { span: span.clone() },
+        )),
         WatAST::BoolLit(b, span) => Ok(TrackedValue::new(
             Value::bool(*b),
             Provenance::Literal { span: span.clone() },
@@ -6717,6 +6722,8 @@ fn val_type_path(val: &Value) -> &'static str {
         // Stone 242.1 — renamed from :wat::core::Char to :wat::core::char
         // (scalar types lowercase per Doctrine 2).
         Value::wat__core__Char(_) => ":wat::core::char",
+        // Arc 300 stone B — FQDN-only (mirrors Uuid, not the bare-primitive char).
+        Value::wat__core__Rational(_) => ":wat::core::Rational",
         Value::wat__core__List(_) => ":wat::core::List",
         Value::wat__stream__Stream(_) => ":wat::stream::Stream",
         Value::wat__kernel__Sender(_) => ":wat::kernel::Sender",
@@ -12298,6 +12305,12 @@ fn try_match_pattern(
             Value::f64(v) if v == f => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
+        // Arc 300 stone B — rational literal sub-pattern; compares by
+        // structural equality (both sides are already-reduced BigRationals).
+        WatAST::RationalLit(r, _) => match value {
+            Value::wat__core__Rational(v) if v.as_ref() == r => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
         WatAST::BoolLit(b, _) => match value {
             Value::bool(v) if v == b => Ok(Some(outer.clone())),
             _ => Ok(None),
@@ -15131,6 +15144,15 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
     match a {
         WatAST::IntLit(n, _) => HolonAST::i64(*n),
         WatAST::FloatLit(x, _) => HolonAST::f64(*x),
+        // Arc 300 stone B — SURPRISE (not in the brief's mapped rooms):
+        // holon-rs's `HolonAST` has no native rational leaf (only
+        // String/I64/F64/Bool/Char — see holon-rs/src/kernel/holon_ast.rs).
+        // holon-rs is out of scope for this stone (it belongs to a
+        // different crate, never named in the brief's room list). Lower to
+        // its canonical rendered string ("n/d") — a lossy-but-honest leaf
+        // encoding (same shape family as the String arm below), NOT a new
+        // holon-rs primitive. Revisit if/when a holon-side Rational lands.
+        WatAST::RationalLit(r, _) => HolonAST::string(format!("{}/{}", r.numer(), r.denom())),
         WatAST::BoolLit(b, _) => HolonAST::bool_(*b),
         WatAST::StringLit(s, _) => HolonAST::string(s.as_str()),
         // Arc 244 — NilLit lowers to HolonAST::symbol("nil") — the HolonAST nil
@@ -22997,6 +23019,9 @@ fn step_form(
         // cases). Defense in depth.
         WatAST::IntLit(n, _) => Ok(StepValue::Terminal(HolonAST::i64(*n))),
         WatAST::FloatLit(x, _) => Ok(StepValue::Terminal(HolonAST::f64(*x))),
+        // Arc 300 stone B — SURPRISE (see `watast_to_holon`'s note): holon-rs
+        // has no native rational leaf; lower to its canonical rendered string.
+        WatAST::RationalLit(r, _) => Ok(StepValue::Terminal(HolonAST::string(format!("{}/{}", r.numer(), r.denom())))),
         WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
         WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
         // Arc 244 — NilLit terminal step → HolonAST::symbol("nil") (nil HolonAST representation).
@@ -23048,6 +23073,9 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
     match form {
         WatAST::IntLit(n, _) => Some(HolonAST::i64(*n)),
         WatAST::FloatLit(x, _) => Some(HolonAST::f64(*x)),
+        // Arc 300 stone B — SURPRISE (see `watast_to_holon`'s note): holon-rs
+        // has no native rational leaf; lower to its canonical rendered string.
+        WatAST::RationalLit(r, _) => Some(HolonAST::string(format!("{}/{}", r.numer(), r.denom()))),
         WatAST::BoolLit(b, _) => Some(HolonAST::bool_(*b)),
         WatAST::StringLit(s, _) => Some(HolonAST::string(s.as_str())),
         // Arc 221 Stone 221.4b — Keyword value-shape recognition → HolonAST::Keyword leaf.
@@ -23081,6 +23109,8 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                             // Callers passing primitives to Atom should use :wat::holon::to-holon.
                             WatAST::IntLit(_, _)
                             | WatAST::FloatLit(_, _)
+                            // Arc 300 stone B — Rational joins the primitive-literal group.
+                            | WatAST::RationalLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
                             | WatAST::Keyword(_, _) => None,
@@ -23098,6 +23128,8 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                         match &items[1] {
                             WatAST::IntLit(_, _)
                             | WatAST::FloatLit(_, _)
+                            // Arc 300 stone B — Rational joins the primitive-literal group.
+                            | WatAST::RationalLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
                             | WatAST::Keyword(_, _) => {
@@ -23910,6 +23942,11 @@ fn try_match_pattern_ast(
         }),
         WatAST::FloatLit(f, _) => Ok(match scrutinee {
             WatAST::FloatLit(s, _) if s == f => Some(Vec::new()),
+            _ => None,
+        }),
+        // Arc 300 stone B — rational literal pattern (parse-tree level).
+        WatAST::RationalLit(r, _) => Ok(match scrutinee {
+            WatAST::RationalLit(s, _) if s == r => Some(Vec::new()),
             _ => None,
         }),
         WatAST::BoolLit(b, _) => Ok(match scrutinee {

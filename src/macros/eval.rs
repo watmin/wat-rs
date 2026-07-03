@@ -243,6 +243,8 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
         // Leaf nodes — no sub-forms to check.
         WatAST::IntLit(_, _)
         | WatAST::FloatLit(_, _)
+        // Arc 300 stone B — rational literal is a leaf, same as int/float.
+        | WatAST::RationalLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         | WatAST::NilLit(_)

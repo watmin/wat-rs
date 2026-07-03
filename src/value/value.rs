@@ -20,6 +20,7 @@ use crate::channel::{SenderInner, ReceiverInner};
 use crate::types::{Holder, TypeExpr};
 use crate::value::Function;
 use crate::stream::Stream;
+use num_rational::BigRational;
 
 /// Runtime value.
 ///
@@ -307,6 +308,15 @@ pub enum Value {
     /// codepoints U+10000–U+10FFFF rejected at construction + lex time).
     /// Constructed via `(:wat::core::char/of "x")` or `\c` literal.
     wat__core__Char(char),
+    /// Arc 300 stone B — `:wat::core::Rational`. Typed rational primitive,
+    /// REPRESENTATION ONLY (no arithmetic — that is Stone C). Boxed for the
+    /// same cache-friendliness reason as other rarely-hot variants.
+    /// Always a genuine ratio already reduced to lowest terms with the sign
+    /// on the numerator and denominator >= 2 (mirrors `wat-edn::Value::Rational`
+    /// / clj's `clojure.lang.Ratio`); a literal reducing to a whole number
+    /// (`4/2`) becomes `Value::i64` instead, never this variant.
+    /// Constructed via the `<int>/<int>` source literal (`WatAST::RationalLit`).
+    wat__core__Rational(Box<BigRational>),
     /// Arc 220 Stone 220.4 — `:wat::core::List<T>`. Typed linked-list primitive.
     /// Distinct from `Value::Vec` (`:wat::core::Vector`) — preserves the EDN
     /// parens-vs-brackets distinction for faithful round-trips with Clojure.
@@ -589,6 +599,9 @@ impl PartialEq for Value {
             (Value::wat__core__Uuid(a), Value::wat__core__Uuid(b)) => a == b,
             // Arc 220 — Char equality. `char` implements `PartialEq`.
             (Value::wat__core__Char(a), Value::wat__core__Char(b)) => a == b,
+            // Arc 300 stone B — Rational equality. `BigRational` implements
+            // `PartialEq` (structural, already-reduced so no `1/2 != 2/4` gap).
+            (Value::wat__core__Rational(a), Value::wat__core__Rational(b)) => a == b,
             // Arc 220 Stone 220.4 — List same-type equality.
             (Value::wat__core__List(a), Value::wat__core__List(b)) => {
                 sequence_eq(a.iter(), b.iter())
@@ -738,6 +751,8 @@ impl std::hash::Hash for Value {
             Value::wat__core__Uuid(u) => u.hash(state),
             // Arc 220 — Char hash. `char` implements `Hash`.
             Value::wat__core__Char(c) => c.hash(state),
+            // Arc 300 stone B — Rational hash. `BigRational` implements `Hash`.
+            Value::wat__core__Rational(r) => r.hash(state),
             // Arc 220 Stone 220.4 — Vec + List handled above (early-return); unreachable.
             Value::Vec(_) | Value::wat__core__List(_) => unreachable!("handled above"),
             // HashSet: sort element hashes for set semantics (order-independent).
@@ -1132,6 +1147,8 @@ impl Value {
             Value::wat__core__Uuid(_) => "wat::core::Uuid",
             // Arc 220
             Value::wat__core__Char(_) => "wat::core::Char",
+            // Arc 300 stone B
+            Value::wat__core__Rational(_) => "wat::core::Rational",
             // Arc 220 Stone 220.4
             Value::wat__core__List(_) => "wat::core::List",
             // Arc 118 — lazy seq.
@@ -1223,6 +1240,7 @@ impl Value {
             Value::Duration(_) => self.type_name().to_string(),
             Value::wat__core__Uuid(_) => self.type_name().to_string(),
             Value::wat__core__Char(_) => self.type_name().to_string(),
+            Value::wat__core__Rational(_) => self.type_name().to_string(),
             Value::wat__core__List(_) => self.type_name().to_string(),
             Value::wat__stream__Stream(_) => self.type_name().to_string(),
             Value::wat__core__clauses(_) => self.type_name().to_string(),

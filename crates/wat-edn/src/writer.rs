@@ -58,6 +58,7 @@ fn is_inline_value(v: &Value) -> bool {
             | Value::Float(_)
             | Value::BigInt(_)
             | Value::BigDec(_)
+            | Value::Rational(_)
             | Value::String(_)
             | Value::Char(_)
             | Value::Symbol(_)
@@ -209,6 +210,7 @@ pub fn write_to(v: &Value, out: &mut String) {
         Value::BigInt(n) => write!(out, "{}N", n).unwrap(),
         Value::Float(f) => write_float(*f, out),
         Value::BigDec(n) => write!(out, "{}M", n).unwrap(),
+        Value::Rational(n) => write!(out, "{}/{}", n.numer(), n.denom()).unwrap(),
         Value::String(s) => write_string(s, out),
         Value::Char(c) => write_char(*c, out),
         Value::Symbol(s) => write_symbol(s, out),

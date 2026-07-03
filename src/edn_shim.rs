@@ -456,6 +456,7 @@ pub fn eval_ast_kind(
     let kind = match ast {
         WatAST::IntLit(..) => "int",
         WatAST::FloatLit(..) => "float",
+        WatAST::RationalLit(..) => "rational",
         WatAST::BoolLit(..) => "bool",
         WatAST::StringLit(..) => "string",
         WatAST::NilLit(..) => "nil",
@@ -1232,6 +1233,9 @@ fn edn_to_value_caps(
         Edn::Bool(b) => Ok(Value::bool(*b)),
         Edn::Integer(n) => Ok(Value::i64(*n)),
         Edn::Float(x) => Ok(Value::f64(*x)),
+        // Arc 300 stone B — rational literal, representation only (no
+        // arithmetic; Stone A already normalized so `denom() >= 2`).
+        Edn::Rational(r) => Ok(Value::wat__core__Rational(Box::new((**r).clone()))),
         Edn::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
         // Arc 220 slice 2: EDN character literal `\c` → typed `:wat::core::char`.
         // Previously folded to String (lossy). Now preserved as a typed char
@@ -1336,6 +1340,7 @@ fn edn_shape_name(edn: &wat_edn::OwnedValue) -> &'static str {
         Edn::Bool(_) => "Bool",
         Edn::Integer(_) => "Integer",
         Edn::Float(_) => "Float",
+        Edn::Rational(_) => "Rational",
         Edn::String(_) => "String",
         Edn::Char(_) => "Char",
         Edn::Keyword(_) => "Keyword",
@@ -1483,6 +1488,12 @@ fn edn_to_typed_value_inner(
             // (scalar types lowercase per Doctrine 2).
             ":wat::core::char" => match edn {
                 Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
+                other => Err(mismatch(target, other)),
+            },
+            // Arc 300 stone B — rational literal typed-coerce path, mirrors
+            // the `:wat::core::Uuid` / `:wat::core::char` latent-gap pattern.
+            ":wat::core::Rational" => match edn {
+                Edn::Rational(r) => Ok(Value::wat__core__Rational(Box::new((**r).clone()))),
                 other => Err(mismatch(target, other)),
             },
             // Universal top (arc 278 R7): UP is free — ANY EDN value IS a
@@ -3044,6 +3055,8 @@ pub fn value_to_edn_with(
         // Arc 220 — typed Char → EDN character literal.
         // `char` is `Copy`; `OwnedValue::Char` already exists in wat-edn.
         Value::wat__core__Char(c) => OwnedValue::Char(*c),
+        // Arc 300 stone B — typed Rational → EDN rational literal round-trip.
+        Value::wat__core__Rational(r) => OwnedValue::Rational(Box::new((**r).clone())),
         // Arc 293.R2.1 — Record/HolonRecord: Aggregate with holder != Struct.
         // No guard here — the Struct arm above catches holder==Struct; this arm is reached
         // only for Record/HolonRecord. Guard dropped so Rust's exhaustiveness checker sees

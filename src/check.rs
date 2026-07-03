@@ -3266,6 +3266,8 @@ pub(crate) fn infer(
     match ast {
         WatAST::IntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::i64".into())),
         WatAST::FloatLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::f64".into())),
+        // Arc 300 stone B — rational literal infers as :wat::core::Rational.
+        WatAST::RationalLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::Rational".into())),
         WatAST::BoolLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bool".into())),
         WatAST::StringLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::String".into())),
         // Arc 244 — NilLit is the canonical nil VALUE literal; infers as :wat::core::nil.
@@ -7491,6 +7493,21 @@ fn check_subpattern(
                 None
             }
         },
+        // Arc 300 stone B — rational literal sub-pattern.
+        WatAST::RationalLit(_, _) => match expected_ty {
+            TypeExpr::Path(p) if p == ":wat::core::Rational" => Some(false),
+            other => {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "rational literal pattern in {} position",
+                        format_type(other)
+                    ),
+                    remedies: vec![],
+                } });
+                None
+            }
+        },
         WatAST::BoolLit(_, _) => match expected_ty {
             TypeExpr::Path(p) if p == ":wat::core::bool" => Some(false),
             other => {
@@ -10474,6 +10491,7 @@ fn infer_make_channel(
                     match other {
                         WatAST::IntLit(_, _) => "int",
                         WatAST::FloatLit(_, _) => "float",
+                        WatAST::RationalLit(_, _) => "rational",
                         WatAST::BoolLit(_, _) => "bool",
                         WatAST::StringLit(_, _) => "string",
                         WatAST::Symbol(_, _) => "symbol",

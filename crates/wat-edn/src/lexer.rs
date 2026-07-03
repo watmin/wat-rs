@@ -51,6 +51,16 @@ pub enum Token<'a> {
     BigInt(&'a str),
     /// Big decimal (raw decimal, no `M` suffix).
     BigDec(&'a str),
+    /// Rational literal (`<int>/<int>`): raw numerator digits (optional
+    /// leading sign, same body a lone `Integer`/`BigInt` token would
+    /// carry) and raw denominator digits (plain digit run, no sign —
+    /// the EDN ratio grammar allows a sign only on the numerator).
+    /// The lexer has already refused an all-zero denominator (`1/0`,
+    /// `-5/0`) with a clean `Err`, so a `Rational` token's `denom` is
+    /// guaranteed non-zero here — the parser reduces + normalizes
+    /// (`4/2` → `Integer(2)`, `1/2` stays a `Rational`) without a
+    /// zero-denominator case to guard against.
+    Rational { numer: &'a str, denom: &'a str },
     String(Cow<'a, str>),
     Char(char),
     /// Keyword body (no leading `:`) plus its start-of-body byte
@@ -640,6 +650,33 @@ impl<'a> Lexer<'a> {
 
         while matches!(self.peek(), Some(b'0'..=b'9')) {
             self.pos += 1;
+        }
+
+        // Ratio literal: `<int>/<digit+>`. Must be checked before the
+        // float `.`/`e` paths below — a ratio has no fractional part,
+        // exponent, or `M`/`N` suffix. Only fires when a digit
+        // immediately follows the `/`; `1/x` (division-style symbol
+        // use) leaves the `/` unconsumed so `next_token` re-dispatches
+        // on it as its own token, same as any other punctuation run.
+        if self.peek() == Some(b'/') && matches!(self.peek_at(1), Some(b'0'..=b'9')) {
+            let numer = std::str::from_utf8(&self.input[start..self.pos])
+                .expect("number body is ASCII");
+            self.pos += 1; // consume '/'
+            let denom_start = self.pos;
+            while matches!(self.peek(), Some(b'0'..=b'9')) {
+                self.pos += 1;
+            }
+            let denom = std::str::from_utf8(&self.input[denom_start..self.pos])
+                .expect("number body is ASCII");
+            // clj: "Divide by zero" — refuse here, before a Value ever
+            // exists, so the parser never has to handle a zero denom.
+            if denom.bytes().all(|b| b == b'0') {
+                return Err(Error::at(
+                    denom_start,
+                    ErrorKind::InvalidNumber("divide by zero".into()),
+                ));
+            }
+            return Ok(Token::Rational { numer, denom });
         }
 
         let mut is_float = false;

@@ -18,6 +18,7 @@
 //! f64                number
 //! NaN / ±Inf         {"#float": "nan" | "inf" | "neg-inf"}
 //! bigdec             {"#bigdec": "3.14M"}
+//! rational           {"#rational": "1/2"}
 //! string             string
 //! char               {"#char": "X"}
 //! keyword            ":foo"  /  ":ns/foo"  (colon prefix)
@@ -39,6 +40,7 @@ use crate::OwnedValue;
 use bigdecimal::BigDecimal;
 use chrono::SecondsFormat;
 use num_bigint::BigInt;
+use num_rational::BigRational;
 use serde_json::{Map, Number, Value as JV};
 use std::str::FromStr;
 use thiserror::Error;
@@ -69,6 +71,9 @@ pub enum JsonError {
 
     #[error("invalid #bigdec: {0}")]
     InvalidBigDec(String),
+
+    #[error("invalid #rational: {0}")]
+    InvalidRational(String),
 
     #[error("invalid #char: {0}")]
     InvalidChar(String),
@@ -123,6 +128,9 @@ pub(crate) fn edn_to_json(v: &Value<'_>) -> JV {
             }
         }
         Value::BigDec(n) => single_key_object("#bigdec", JV::String(format!("{}M", n))),
+        Value::Rational(n) => {
+            single_key_object("#rational", JV::String(format!("{}/{}", n.numer(), n.denom())))
+        }
         Value::String(s) => JV::String(s.to_string()),
         Value::Char(c) => single_key_object("#char", JV::String(c.to_string())),
         Value::Keyword(k) => JV::String(format!("{}", k)), // includes leading `:`
@@ -274,6 +282,7 @@ fn object_to_edn(map: &Map<String, JV>) -> JsonResult<OwnedValue> {
         match k.as_str() {
             "#bigint" => return decode_bigint(v),
             "#bigdec" => return decode_bigdec(v),
+            "#rational" => return decode_rational(v),
             "#float" => return decode_float_sentinel(v),
             "#char" => return decode_char(v),
             "#symbol" => return decode_symbol(v),
@@ -331,6 +340,28 @@ fn decode_bigint(v: &JV) -> JsonResult<OwnedValue> {
     let trimmed = s.strip_suffix('N').unwrap_or(s);
     let n = BigInt::from_str(trimmed).map_err(|_| JsonError::InvalidBigInt(s.into()))?;
     Ok(Value::BigInt(Box::new(n)))
+}
+
+/// Decode a `{"#rational": "<n>/<d>"}` sentinel. Re-applies the same
+/// Clojure-faithful normalization as the EDN parser (a denominator
+/// that reduces to 1 is an Integer, not a Rational) so a hand-authored
+/// JSON payload (e.g. `"4/2"`) can't smuggle in a non-canonical Value
+/// that `crate::parse` would never itself produce.
+fn decode_rational(v: &JV) -> JsonResult<OwnedValue> {
+    let s = v
+        .as_str()
+        .ok_or_else(|| JsonError::InvalidRational(v.to_string()))?;
+    let ratio =
+        BigRational::from_str(s).map_err(|_| JsonError::InvalidRational(s.into()))?;
+    if ratio.is_integer() {
+        let numer = ratio.numer();
+        match numer.to_string().parse::<i64>() {
+            Ok(i) => Ok(Value::Integer(i)),
+            Err(_) => Ok(Value::BigInt(Box::new(numer.clone()))),
+        }
+    } else {
+        Ok(Value::Rational(Box::new(ratio)))
+    }
 }
 
 fn decode_bigdec(v: &JV) -> JsonResult<OwnedValue> {

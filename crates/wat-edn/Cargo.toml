@@ -22,7 +22,8 @@ wat-to-edn-derive = { path = "../wat-to-edn-derive", optional = true }
 inventory = "0.3"
 chrono       = { version = "0.4", default-features = false, features = ["std", "clock"] }
 uuid.workspace = true
-num-bigint   = "0.4"
+num-bigint.workspace = true
+num-rational.workspace = true
 bigdecimal   = "0.4"
 memchr       = "2"
 thiserror    = "1"

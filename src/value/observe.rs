@@ -194,6 +194,9 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::f64(x) => x.to_string(),
         Value::String(s) => format!("\"{}\"", s),
         Value::wat__core__keyword(k) => (**k).clone(),
+        // Arc 300 stone B — a genuine ratio always has den>=2 (a den==1
+        // literal already reduced to an Integer at lex time) — no `"/1"` case.
+        Value::wat__core__Rational(r) => format!("{}/{}", r.numer(), r.denom()),
 
         // ── Option / Result — wat-surface variant shape ───────────
         Value::Option(opt) => match &**opt {

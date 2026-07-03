@@ -49,6 +49,12 @@ default-members = [
 # the `mint` feature — uuid generation is core to wat, not an opt-in.
 [workspace.dependencies]
 uuid = { version = "1", features = ["v4", "v5"] }
+# num-bigint/num-rational — arbitrary-precision integer + rational support for
+# wat-edn's BigInt/Rational values. Workspace deps (builder-directed: one
+# version, no drift) even though only wat-edn consumes them today — mirrors
+# the uuid convention above. Arc 300 stone A (rationals in wat-edn).
+num-bigint = "0.4"
+num-rational = "0.4"
 
 # Trim dev debuginfo from full DWARF to line tables only. The full `tests/*.rs`
 # dev gate links ~250 binaries; full debuginfo bloats every link. line-tables-only
@@ -82,6 +88,8 @@ wat-macros = { path = "crates/wat-macros" }
 wat-doc = { path = "crates/wat-doc" }
 wat-edn = { path = "crates/wat-edn" }
 uuid.workspace = true
+num-rational.workspace = true
+num-bigint.workspace = true
 rpds    = "1"
 # Arc 198 slice 2 Stone 1 — link-time registry for Rust-side substrate
 # restriction declarations. Stone 1 adds the wiring (RestrictionEntry +

@@ -4,6 +4,7 @@ use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use compact_str::CompactString;
 use num_bigint::BigInt;
+use num_rational::BigRational;
 use std::borrow::Cow;
 use std::fmt;
 use uuid::Uuid;
@@ -36,6 +37,17 @@ pub enum Value<'a> {
     /// `BigDecimal` is `BigInt + scale` (~40 B); boxed for the same
     /// reason as `BigInt`.
     BigDec(Box<BigDecimal>),
+    /// Arbitrary-precision rational (`<int>/<int>` EDN literal). Ships
+    /// in a `Box` for the same cache-friendliness reason as `BigInt` /
+    /// `BigDec`. Always normalized (reduced to lowest terms, sign on
+    /// the numerator, denominator > 0) by construction — `BigRational`
+    /// reduces on every arithmetic op / `new`, and the parser only ever
+    /// builds one via the reduced path (see `parser::parse_rational`),
+    /// so a `Value::Rational` is never seen with denominator == 1: that
+    /// case normalizes down to `Value::Integer`/`Value::BigInt` before
+    /// the `Value` is built (clj-parity: `4/2` reads as the Long `2`,
+    /// not a Ratio).
+    Rational(Box<BigRational>),
     /// String body. Borrowed (`Cow::Borrowed`) when the lexer's
     /// fast path produced no escapes — zero-copy slice into the
     /// input buffer. Owned (`Cow::Owned`) when escapes forced
@@ -74,6 +86,7 @@ impl<'a> PartialEq for Value<'a> {
                 }
             }
             (BigDec(a), BigDec(b)) => a == b,
+            (Rational(a), Rational(b)) => a == b,
             (String(a), String(b)) => a == b,
             (Char(a), Char(b)) => a == b,
             (Symbol(a), Symbol(b)) => a == b,
@@ -152,6 +165,7 @@ impl<'a> Value<'a> {
             Value::BigInt(n) => Value::BigInt(n),
             Value::Float(f) => Value::Float(f),
             Value::BigDec(n) => Value::BigDec(n),
+            Value::Rational(n) => Value::Rational(n),
             Value::String(s) => Value::String(Cow::Owned(s.into_owned())),
             Value::Char(c) => Value::Char(c),
             Value::Symbol(s) => Value::Symbol(s),
@@ -468,6 +482,7 @@ impl<'a> Value<'a> {
             Value::BigInt(_) => "bigint",
             Value::Float(_) => "float",
             Value::BigDec(_) => "bigdec",
+            Value::Rational(_) => "rational",
             Value::String(_) => "string",
             Value::Char(_) => "char",
             Value::Symbol(_) => "symbol",

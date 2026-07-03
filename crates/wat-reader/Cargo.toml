@@ -16,3 +16,8 @@ wat-edn = { path = "../wat-edn" }
 # That code is compiled in this crate's context, so inventory must be a
 # direct dependency here so `::inventory` resolves.
 inventory = "0.3"
+# Arc 300 stone B — rational literals (`1/2`) in wat SOURCE. Same workspace
+# version as wat-edn's Stone A `Value::Rational` (arc 300 stone A); no
+# version drift between the two layers.
+num-rational.workspace = true
+num-bigint.workspace = true

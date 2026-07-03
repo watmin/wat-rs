@@ -155,7 +155,10 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
     match ast {
         WatAST::List(items, _) => lower_call(items),
         // Pattern B — ast.span() is the form's own span
-        WatAST::IntLit(_, span) | WatAST::FloatLit(_, span) | WatAST::BoolLit(_, span)
+        // Arc 300 stone B — RationalLit joins the bare-literal group (no
+        // algebra-core lowering, same as its IntLit/FloatLit siblings).
+        WatAST::IntLit(_, span) | WatAST::FloatLit(_, span) | WatAST::RationalLit(_, span)
+        | WatAST::BoolLit(_, span)
         | WatAST::StringLit(_, span) | WatAST::Keyword(_, span) => Err(LowerError { span: span.clone(), kind: LowerErrorKind::UnsupportedForm("bare literal outside of an (:wat::holon::...) call".into()) }),
         // Arc 244 — NilLit: bare nil literal has no algebra-core lowering (like its literal siblings).
         WatAST::NilLit(span) => Err(LowerError { span: span.clone(), kind: LowerErrorKind::UnsupportedForm("bare `nil` literal outside of an (:wat::holon::...) call".into()) }),

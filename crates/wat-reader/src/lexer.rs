@@ -56,6 +56,7 @@
 //! - **Block comments** — not yet implemented.
 
 use crate::span::Span;
+use num_rational::BigRational;
 use std::fmt;
 use std::sync::Arc;
 
@@ -138,6 +139,14 @@ pub enum Token {
     /// `\space` (space), `\tab` (tab), `\return` (carriage return),
     /// `\uNNNN` (Unicode BMP escape). BMP-only (U+0000–U+FFFF).
     Char(char),
+    /// Rational literal — `<int>/<int>` form (arc 300 stone B). Always a
+    /// GENUINE ratio, already reduced to lowest terms with the sign on the
+    /// numerator and denominator > 0 — mirrors Stone A's `wat-edn`
+    /// normalization exactly (`crates/wat-edn/src/lexer.rs::lex_number`).
+    /// A literal whose denominator reduces to 1 (`4/2`) becomes
+    /// [`Token::Int`] instead, never this variant — so a `Rational` here
+    /// never holds an integer-valued ratio.
+    Rational(BigRational),
 }
 
 /// Byte offset into the source string. Used by [`LexError`] variants
@@ -843,6 +852,48 @@ fn lex_numeric_or_symbol(src: &str, start: usize) -> Result<(Token, usize), LexE
     // Try integer first.
     if let Ok(n) = raw.parse::<i64>() {
         return Ok((Token::Int(n), i));
+    }
+    // Rational literal: `<int>/<int>` (arc 300 stone B). `raw` is already
+    // the whole `"1/2"` span (the scan above stopped at a symbol-break
+    // char, and `/` is not one — see `is_symbol_break`). Mirrors Stone A's
+    // DONE normalization at the data layer (`wat-edn`'s `lex_number` +
+    // parser): split on `/`, parse both sides as `BigInt`, reduce via
+    // `BigRational`, den==1 reduces to an Integer (clj Long), `/0` is a
+    // clean error, never a panic.
+    if let Some(slash) = raw.find('/') {
+        let (numer_s, rest) = raw.split_at(slash);
+        let denom_s = &rest[1..];
+        if !numer_s.is_empty()
+            && !denom_s.is_empty()
+            && numer_s.bytes().all(|b| b.is_ascii_digit() || b == b'-' || b == b'+')
+            && denom_s.bytes().all(|b| b.is_ascii_digit())
+        {
+            if let (Ok(numer), Ok(denom)) =
+                (numer_s.parse::<num_bigint::BigInt>(), denom_s.parse::<num_bigint::BigInt>())
+            {
+                if denom == num_bigint::BigInt::from(0) {
+                    return Err(LexError {
+                        position: start,
+                        kind: LexErrorKind::InvalidNumber("divide by zero".to_string()),
+                    });
+                }
+                let ratio = BigRational::new(numer, denom);
+                if ratio.is_integer() {
+                    let n = ratio.numer();
+                    return match n.to_string().parse::<i64>() {
+                        Ok(v) => Ok((Token::Int(v), i)),
+                        Err(_) => Err(LexError {
+                            position: start,
+                            kind: LexErrorKind::InvalidNumber(format!(
+                                "{} exceeds i64 (runtime BigInt out of scope)",
+                                n
+                            )),
+                        }),
+                    };
+                }
+                return Ok((Token::Rational(ratio), i));
+            }
+        }
     }
     // Then float.
     if let Ok(x) = raw.parse::<f64>() {

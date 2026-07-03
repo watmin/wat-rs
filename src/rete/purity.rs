@@ -242,6 +242,8 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // Non-list forms are pure, deterministic data.
         WatAST::IntLit(_, _)
         | WatAST::FloatLit(_, _)
+        // Arc 300 stone B — rational literal is pure, deterministic data.
+        | WatAST::RationalLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         | WatAST::NilLit(_)

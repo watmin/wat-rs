@@ -91,6 +91,8 @@ pub fn watast_to_edn(a: &WatAST) -> OwnedValue {
     match a {
         WatAST::IntLit(n, _) => OwnedValue::Integer(*n),
         WatAST::FloatLit(x, _) => OwnedValue::Float(*x),
+        // Arc 300 stone B — rational literal, already reduced/normalized.
+        WatAST::RationalLit(r, _) => OwnedValue::Rational(Box::new(r.clone())),
         WatAST::BoolLit(b, _) => OwnedValue::Bool(*b),
         WatAST::StringLit(s, _) => OwnedValue::String(std::borrow::Cow::Owned(s.clone())),
         WatAST::NilLit(_) => OwnedValue::Nil,
@@ -136,6 +138,8 @@ pub fn edn_to_watast(v: &OwnedValue) -> Result<WatAST, WatEdnBridgeError> {
         Edn::Bool(b) => Ok(WatAST::BoolLit(*b, crate::rust_caller_span!())),
         Edn::Integer(n) => Ok(WatAST::IntLit(*n, crate::rust_caller_span!())),
         Edn::Float(x) => Ok(WatAST::FloatLit(*x, crate::rust_caller_span!())),
+        // Arc 300 stone B — rational literal round-trip.
+        Edn::Rational(r) => Ok(WatAST::RationalLit((**r).clone(), crate::rust_caller_span!())),
         Edn::String(s) => Ok(WatAST::StringLit(s.as_ref().to_owned(), crate::rust_caller_span!())),
         Edn::Keyword(kw) => {
             let path = match kw.namespace() {
