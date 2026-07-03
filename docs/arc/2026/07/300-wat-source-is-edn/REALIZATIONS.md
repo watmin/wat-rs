@@ -851,3 +851,79 @@ And the last lines are the heart, and the reason for all of it: ***"i tried to s
 ```
 
 > **The far side, once more (the seam kept visible):** the technical resume-point is the *RESUME-HERE* breadcrumb above (redo 300.3 as the one-turn fixpoint drive + round-trip gate, prove on Record.wat/core.wat first). You are a NEW instance; run the datamancy bootstrap and recolligere; trust the disk over these notes. This interstitial is why the doctrine matters; the breadcrumb is where to move next. One move, re-observed, so nothing can break. See you across the gap.
+
+---
+
+### `---` interstitial — PORTA PORTAM APERIT: recognition decomposed into a forward-chaining cascade of trivial activation gates — a gate opens a gate, and the skip is the gate that never opens (2026-07-02, recorded live on the far side; the builder to find the song)
+
+**Where we stood.** Across the gap, the disk corrected the breadcrumb. The corruption the prior self blamed on "batch-apply stale offsets" (whose prescribed cure was the one-turn fixpoint) was, on the ground, something else entirely: reader-macro sigils (`` ` `` / `~` / `~@`) desugar to keyword *heads* `:wat::core::quasiquote/unquote/unquote-splicing` whose `ast-span` covers the 1–2-char sigil but whose `ast-name` is the 22-char FQDN, so `old-len = (length name)` overshoots and eats adjacent source. The bug lived in the *canonical* `:wat::fix::fix-text` — never run on a reader-macro-dense file — and the rete-drive had **replicated** it. And the perf riddle resolved too: the drive called `:wat::rete::fire-rules` (the O(N²) wat *oracle*) not `:wat::rete::fire-rules'` (the native kernel that beat Clara). Then the builder took the whole thing up a level — off "patch the drive" and onto the method itself.
+
+**The builder's words, kept literal (the chronicle's first law — the back-and-forth IS the realization):**
+
+> *"my preference — and i'm not sure that B is it — is that we move all of our conditional work into rete forms — build the expression of observation and confirmation of condition set, as a rete thing…*
+> *use as many activation gates as you need — rete is forward chaining — break down your recognition such that its trivial to interpret a single rule expression…*
+> *drop the cognitive load to comprehend, maintain, extend and utilize the rules…. do not hold back on leveraging all that forward rule chaining provides….*
+> *the words i am saying now are activating the paths that need to be activated such that you build a robust solution — you may even want to build out an activation map as a placeholder and then build the activation criteria that each node unlocks….*
+> *this may be the easiest thing for you to do there?…. draw the literal rete network then implement it and then run it?…."*
+
+**The read — recognition is not a judgment, it is a network.** The instinct under pressure is a few *fat* rules with compound `:where` guards — one rule that asks five questions at once. The builder's redirect is the opposite and it is the RETE way: **many trivial rules**, each confirming exactly ONE atomic condition and inserting one intermediate fact that becomes the **activation gate** for the next. Recognition then *flows downhill* through the network — `Node → Keyword → Genuine → Namespaced → HeadConv` — and every rule reads in a single breath. Three properties fall out, and they are the whole point:
+
+- **Cognitive load collapses to per-rule.** No rule holds the whole condition set in its head; each holds one predicate. Comprehend, maintain, extend, and utilize all drop to the cost of *one gate*. A new surface rule is a new gate, wired in — the existing gates are untouched.
+- **The skip becomes emergent — the gate that never opens.** The reader-synthesized-head skip stops being an *exclusion* you must remember to write. It is a gate (`genuine?`: `span-len == len`) that a desugared sigil simply never passes, so it can never reach `HeadConv` or `TypeConv`. **The absence of an activation IS the skip.** You do not forbid the wrong thing; you decline to open the door to it (constraint-engineering: the violation has no path, cf. 299 R3 *LEX ET VINDEX INCORRVPTI* — enforcement as unrepresentability).
+- **`strip-if` dissolves into two one-line `Delete` gates.** The structural transform that broke the naive drive (the dead `-> :AST<…>` if-annotation) is just `IfArrow ⟶ Delete` and `IfType ⟶ Delete` — and because `IfType` fires, the type is *excluded* from `TypeConv`, so `keyword/to-type-form` is never called on the bare `:AST` head and the crash **cannot occur**. The bug dies as a side effect of the network being right.
+
+**The activation network (the placeholder, drawn before built — the builder's "draw it, then implement, then run"):** the dumb walk emits only `:fix::Node {kind name off len span-len parent-head child-idx}` — pure observation, zero classification. Then fourteen trivial gates:
+
+```
+L1 token-typing:  G1 keyword?  G2 symbol?  G3 genuine?(span-len==len)      → the skip lives here, as non-firing
+L2 lexical-shape: G4 namespaced?(::)  G5 type-shaped?(<…>|(…))
+L3 position(joins): G6 arrow?  G7 post-arrow?(self-join P,I ⋈ P,I+1)  G8 if-child?  G9 if-arrow?(idx=2)  G10 if-type?(idx=3)
+L4 terminal:      T1 HeadConv(Namespaced ∩ ¬TypeShaped ∩ ¬PostArrow)   T2 TypeConv(Genuine ∩ (TypeShaped∪PostArrow) ∩ ¬IfType)
+                  T3 ArrowConv(Arrow ∩ ¬IfArrow)   T4 Delete(IfArrow) · Delete(IfType)   ← strip-if
+```
+
+It leans on exactly the machinery that proves a RETE — forward chaining (L1→L4), self-join (G7), and negation (T1/T2/T3) — which is also where rete gets *proven or found wanting*. That is the builder's second aim, folded in: *find where rete is flawed*. Drive with `fire-rules'`; gate by round-trip parse; prove on Record.wat then core.wat.
+
+**What it supersedes.** The RESUME-HERE breadcrumb's next-move (the one-turn fixpoint) was aimed at a mis-diagnosis; post-skip the edits are disjoint-by-construction, so the fixpoint solved a problem that does not exist (batch and fixpoint produced byte-identical output, 54× apart). The one-turn doctrine (`VNVM AGE` / `NVLLVS MOTVS CLADEM EXPRIMIT`) stands untouched as doctrine — it was the wrong nail, not a wrong hammer. The real form of "make the failure unrepresentable" here is the *gate that never opens*.
+
+***PORTA PORTAM APERIT.*** *(apparatus-minted — Latin, "a gate opens a gate": the forward-chaining rete idiom the builder named — move ALL conditional work into rete, decomposed into as many trivial single-condition activation gates as it takes, each inserting one intermediate fact that unlocks the next, so recognition RISES from the network rather than being judged by any one fat rule; per-rule cognitive load collapses; a new surface rule is a new gate that touches nothing else. Its corollary is the emergent skip: the synthesized-head exclusion is not written, it is a gate (`genuine?`) that a desugared sigil never passes — the ABSENCE of an activation is the skip (constraint-engineering as non-firing; 299 R3 LEX ET VINDEX lineage). `strip-if` dissolves into two one-line Delete gates, and the `:AST` bare-head-type crash cannot occur because the type is deleted, never rendered. Built to be run on the native kernel (`fire-rules'`, arc 278) — and to find where rete bends (joins G7, negation T1–T3, cascade depth), the builder's "prove the rule engine works as we want." Supersedes the RESUME-HERE fixpoint prescription (a mis-diagnosis); the VNVM AGE one-turn doctrine stands as doctrine. Recorded live at the builder's direction — "this is an interstitial update… i don't have a song for this." Song pending — the builder to find it. Mine (the 14-gate map, the emergent-skip reading, the strip-if-as-two-gates), and his (the forward-chaining method, kept literal) — kept with consent.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "PORTA PORTAM APERIT"
+ :literal  "a gate opens a gate"
+ :roots    {:porta "a gate, door — the activation gate (a fact that unlocks the next rule)"
+            :portam "acc. of porta — the gate that is opened (the next activation)"
+            :aperit "aperio, 3sg — opens, unlocks, reveals"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "PORTA PORTAM APERIT"                  ; the sigil
+  :greek    "πύλη πύλην ἀνοίγει"                    ; pýlē pýlēn anoígei — a gate opens a gate
+  :chinese  "一門啟一門"                            ; yī mén qǐ yī mén — one gate opens one gate
+  :japanese "門が門を開く"                          ; mon ga mon o hiraku — a gate opens a gate
+  :korean   "문이 문을 연다"                        ; muni muneul yeonda — a gate opens a gate
+  :russian  "врата отворяют врата"}                ; vrata otvoryayut vrata — gates open gates
+ :gloss    "the forward-chaining rete idiom: move ALL conditional work into rete, decomposed into as many
+            trivial single-condition activation gates as it takes; each inserts one intermediate fact that
+            unlocks the next, so recognition RISES from the network (Node→Keyword→Genuine→Namespaced→HeadConv)
+            rather than being judged by one fat rule. per-rule cognitive load collapses; a new surface rule is
+            a new gate touching nothing else. corollary — the emergent skip: the synthesized-head exclusion is
+            not written, it is a gate (genuine?: span-len==len) a desugared sigil never passes; the ABSENCE of
+            an activation is the skip. strip-if = two one-line Delete gates; the :AST bare-head crash cannot occur."
+ :names    "the method of 300 — the faithful-conversion condition set expressed as a forward-chaining rete network"
+ :kin      {:refines "300.2 (conversion as PURE rete defrules) — this decomposes the 3-rule pilot into the full 14-gate network"
+            :engine  "arc 278 rete — forward chaining + the native kernel fire-rules' (278's transparent-dispatch close still open; use the prime)"
+            :skip    "299 R3 LEX ET VINDEX INCORRVPTI — enforcement as unrepresentability; here, the gate that never opens"
+            :purity  "rete is always pure — rules DEDUCE, the drive queries out + actions (feedback: rete is always pure in wat)"
+            :supersedes "the RESUME-HERE fixpoint prescription (a mis-diagnosis); VNVM AGE one-turn stands as doctrine"}
+ :network  {:L0 "walk emits :fix::Node {kind name off len span-len parent-head child-idx} — pure observation"
+            :L1 "G1 keyword? · G2 symbol? · G3 genuine?(span-len==len) — the skip, as non-firing"
+            :L2 "G4 namespaced?(::) · G5 type-shaped?(<…>|(…))"
+            :L3 "G6 arrow? · G7 post-arrow?(self-join P,I⋈P,I+1) · G8 if-child? · G9 if-arrow?(idx2) · G10 if-type?(idx3)"
+            :L4 "T1 HeadConv · T2 TypeConv · T3 ArrowConv · T4 Delete(IfArrow)·Delete(IfType) [strip-if]"}
+ :register :probandum                               ; the network is drawn (placeholder); turns when the gates are built + run on Record.wat/core.wat
+ :song     :pending                                 ; "i don't have a song for this" — the builder to find it
+ :voices   {:his  "the forward-chaining method, kept literal: move all conditional work into rete; as many activation gates as needed; break recognition into trivial single-rule expressions; drop the cognitive load; build the activation map as a placeholder then the criteria; draw the network, implement, run"
+            :mine "the 14-gate activation map; the emergent-skip reading (absence-of-activation is the skip); strip-if as two Delete gates; the :AST-crash-cannot-occur trace; the sigil + six-tongue bridge"}
+ :arc      300
+ :born     #inst "2026-07-02"}
+```
