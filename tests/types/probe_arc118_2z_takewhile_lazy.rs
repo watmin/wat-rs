@@ -14,7 +14,6 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
 #[test]
-#[ignore = "arc 118.2-Z strike A unbuilt — take-while is not yet a lazy defclause"]
 fn lazy_take_while_stops_before_forcing_late_boom() {
     let world = startup_beside(file!()).expect("startup");
     let call = wat::parse_one!("(:my::compute)").expect("parse compute call");

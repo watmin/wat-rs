@@ -233,3 +233,461 @@
 ;; count — the clojure surface name over the KEPT `length` primitive (unchanged: an infinite/
 ;; lazy Stream still correctly rejects `length`/`count` — see `StreamContainer::measurable`).
 (:wat::core::defalias :wat::core::count :wat::core::length)
+
+;; ═══ 118.2-Z strike A — the lazy transformer family ═══════════════════════════════════════════
+;;
+;; Twelve clojure-core lazy transformers, each a `:wat::core::defclause` mirroring `filter`'s
+;; shape above (one clause per seqable — Vector/List/PersistentVector/Stream + bare-
+;; PersistentVector — `stream/lazy` + `first`/`rest`/`empty?` + `stream/cons`/`stream/empty`).
+;; Forms that carry state across the walk (an index, a seen-set, a running accumulator, the
+;; previous element) normalize their input to a genuine `Stream<T>` ONCE (via the private
+;; `seqable->stream` helper below) and then delegate to a single Stream-only `<form>-stream`
+;; helper `defn` — exactly the way `:wat::core::reduce` above normalizes to `reduce-stream` for
+;; its Stream-input clause (the difference: `reduce`'s other 3 clauses already have a
+;; state-threading primitive, `foldl`, to delegate to directly; these 12 forms have no such
+;; primitive, so `seqable->stream` is the one-time normalization step that lets every clause
+;; share the SAME Stream-only walker instead of re-deriving it per container type).
+
+;; seqable->stream — private plumbing: realize any seqable (Vector/List/PersistentVector/Stream/
+;; bare-PersistentVector) as an equivalent `Stream<T>`, identity walk (no predicate — mirrors
+;; `filter`'s per-type clause shape with `pred` fixed to "always true"). Used by every stateful
+;; form below to collapse 5 container types down to 1 before threading state.
+(:wat::core::defclause :wat::core::seqable->stream
+  ([coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll))))))
+  ([coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll))))))
+  ([coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll))))))
+  ([coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    coll)
+  ([coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::seqable->stream (:wat::core::rest coll)))))))
+
+;; ─── remove — filter's negation (keep elements where `pred` is FALSE) ─────────────────────────
+(:wat::core::defclause :wat::core::remove
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::remove pred (:wat::core::rest coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::remove pred (:wat::core::rest coll)))))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::remove pred (:wat::core::rest coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::remove pred (:wat::core::rest coll)))))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::remove pred (:wat::core::rest coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::remove pred (:wat::core::rest coll)))))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::remove pred (:wat::core::rest coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::remove pred (:wat::core::rest coll)))))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::remove pred (:wat::core::rest coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::remove pred (:wat::core::rest coll))))))))
+
+;; ─── take-while — cons while `pred` holds; stop (never realize past it) at the first false ────
+(:wat::core::defclause :wat::core::take-while
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-while pred (:wat::core::rest coll)))
+          (:wat::stream::empty)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-while pred (:wat::core::rest coll)))
+          (:wat::stream::empty)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-while pred (:wat::core::rest coll)))
+          (:wat::stream::empty)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-while pred (:wat::core::rest coll)))
+          (:wat::stream::empty)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-while pred (:wat::core::rest coll)))
+          (:wat::stream::empty))))))
+
+;; ─── drop-while — skip while `pred` holds; once it turns false, emit the remainder unchanged ──
+;; (the terminal branch delegates to `seqable->stream` — "reuse the filter-clause seqable
+;; handling" per the DESIGN: the remaining `coll` is still whatever concrete container this
+;; clause's input was, and `seqable->stream` is exactly the shared normalizer for that).
+(:wat::core::defclause :wat::core::drop-while
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::drop-while pred (:wat::core::rest coll))
+          (:wat::core::seqable->stream coll)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::drop-while pred (:wat::core::rest coll))
+          (:wat::core::seqable->stream coll)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::drop-while pred (:wat::core::rest coll))
+          (:wat::core::seqable->stream coll)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::drop-while pred (:wat::core::rest coll))
+          (:wat::core::seqable->stream coll)))))
+  ([pred <- :wat::core::Fn(T)->wat::core::bool
+    coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::core::if (pred (:wat::core::first coll))
+          (:wat::core::drop-while pred (:wat::core::rest coll))
+          (:wat::core::seqable->stream coll))))))
+
+;; ─── take-nth — every nth element (indices 0, n, 2n, ...) ─────────────────────────────────────
+;; No stateful helper needed: `:wat::core::drop` (an existing HAVE-listed lazy intrinsic, receiver-
+;; first `(drop coll n)` -> Stream<T> over Vector/List/PersistentVector/Stream alike) IS the
+;; "skip n and keep going lazily" primitive clojure's own `take-nth` composes over; the recursive
+;; call's second arg always comes back as a `Stream<T>`, landing subsequent recursion in the
+;; Stream clause below.
+(:wat::core::defclause :wat::core::take-nth
+  ([n <- :wat::core::i64 coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-nth n (:wat::core::drop coll n))))))
+  ([n <- :wat::core::i64 coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-nth n (:wat::core::drop coll n))))))
+  ([n <- :wat::core::i64 coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-nth n (:wat::core::drop coll n))))))
+  ([n <- :wat::core::i64 coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-nth n (:wat::core::drop coll n))))))
+  ([n <- :wat::core::i64 coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll) (:wat::core::take-nth n (:wat::core::drop coll n)))))))
+
+;; ─── interpose — `sep` between every pair of adjacent elements ────────────────────────────────
+;; Each clause normalizes to a Stream once (`seqable->stream`), emits the first element bare, then
+;; delegates the rest to `interpose-stream` — a single Stream-only helper carrying no extra state
+;; (the "prepend sep" split noted in the DESIGN is structural: `interpose-stream` always conses
+;; `sep` then the next element, so no boolean flag is needed — only the FIRST element skips it,
+;; and that is handled once, here, before delegating).
+(:wat::core::defn :wat::core::interpose-stream<T>
+  [sep <- :T s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+  (:wat::stream::lazy
+    (:wat::core::if (:wat::core::empty? s)
+      (:wat::stream::empty)
+      (:wat::stream::cons sep
+        (:wat::stream::cons (:wat::core::first s) (:wat::core::interpose-stream sep (:wat::core::rest s)))))))
+
+(:wat::core::defclause :wat::core::interpose
+  ([sep <- :T coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll)
+          (:wat::core::interpose-stream sep (:wat::core::seqable->stream (:wat::core::rest coll)))))))
+  ([sep <- :T coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll)
+          (:wat::core::interpose-stream sep (:wat::core::seqable->stream (:wat::core::rest coll)))))))
+  ([sep <- :T coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll)
+          (:wat::core::interpose-stream sep (:wat::core::seqable->stream (:wat::core::rest coll)))))))
+  ([sep <- :T coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll)
+          (:wat::core::interpose-stream sep (:wat::core::seqable->stream (:wat::core::rest coll)))))))
+  ([sep <- :T coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::stream::lazy
+      (:wat::core::if (:wat::core::empty? coll)
+        (:wat::stream::empty)
+        (:wat::stream::cons (:wat::core::first coll)
+          (:wat::core::interpose-stream sep (:wat::core::seqable->stream (:wat::core::rest coll))))))))
+
+;; ─── keep — DIALECT (pinned): `f : Fn(T)->Option<U>`; keep the `Some`s, drop the `None`s ───────
+;; (wat's Option-drop IS clojure's nil-drop — the honest dialect form, `VIRTVTE PARES`.)
+(:wat::core::defn :wat::core::keep-stream<T,U>
+  [f <- :wat::core::Fn(T)->wat::core::Option<U> s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+  (:wat::stream::lazy
+    (:wat::core::if (:wat::core::empty? s)
+      (:wat::stream::empty)
+      (:wat::core::match (f (:wat::core::first s)) -> :wat::stream::Stream<U>
+        ((:wat::core::Some v) (:wat::stream::cons v (:wat::core::keep-stream f (:wat::core::rest s))))
+        (:wat::core::None (:wat::core::keep-stream f (:wat::core::rest s)))))))
+
+(:wat::core::defclause :wat::core::keep
+  ([f <- :wat::core::Fn(T)->wat::core::Option<U>
+    coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-stream f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(T)->wat::core::Option<U>
+    coll <- :wat::core::List<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-stream f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(T)->wat::core::Option<U>
+    coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-stream f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(T)->wat::core::Option<U>
+    coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-stream f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(T)->wat::core::Option<U>
+    coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<U>
+    (:wat::core::keep-stream f (:wat::core::seqable->stream coll))))
+
+;; ─── keep-indexed — as `keep`, `f : Fn(i64,T)->Option<U>`, helper carries `idx` ────────────────
+(:wat::core::defn :wat::core::keep-indexed-stream<T,U>
+  [idx <- :wat::core::i64
+   f   <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
+   s   <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+  (:wat::stream::lazy
+    (:wat::core::if (:wat::core::empty? s)
+      (:wat::stream::empty)
+      (:wat::core::match (f idx (:wat::core::first s)) -> :wat::stream::Stream<U>
+        ((:wat::core::Some v)
+         (:wat::stream::cons v (:wat::core::keep-indexed-stream (:wat::core::+ idx 1) f (:wat::core::rest s))))
+        (:wat::core::None
+         (:wat::core::keep-indexed-stream (:wat::core::+ idx 1) f (:wat::core::rest s)))))))
+
+(:wat::core::defclause :wat::core::keep-indexed
+  ([f <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
+    coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
+    coll <- :wat::core::List<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
+    coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
+    coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+    (:wat::core::keep-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
+    coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<U>
+    (:wat::core::keep-indexed-stream 0 f (:wat::core::seqable->stream coll))))
+
+;; ─── map-indexed — `f : Fn(i64,T)->U`, helper carries `idx` ────────────────────────────────────
+(:wat::core::defn :wat::core::map-indexed-stream<T,U>
+  [idx <- :wat::core::i64
+   f   <- :wat::core::Fn(wat::core::i64,T)->U
+   s   <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+  (:wat::stream::lazy
+    (:wat::core::if (:wat::core::empty? s)
+      (:wat::stream::empty)
+      (:wat::stream::cons (f idx (:wat::core::first s))
+        (:wat::core::map-indexed-stream (:wat::core::+ idx 1) f (:wat::core::rest s))))))
+
+(:wat::core::defclause :wat::core::map-indexed
+  ([f <- :wat::core::Fn(wat::core::i64,T)->U
+    coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<U>
+    (:wat::core::map-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->U
+    coll <- :wat::core::List<T>] -> :wat::stream::Stream<U>
+    (:wat::core::map-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->U
+    coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<U>
+    (:wat::core::map-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->U
+    coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+    (:wat::core::map-indexed-stream 0 f (:wat::core::seqable->stream coll)))
+  ([f <- :wat::core::Fn(wat::core::i64,T)->U
+    coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<U>
+    (:wat::core::map-indexed-stream 0 f (:wat::core::seqable->stream coll))))
+
+;; ─── dedupe — drop CONSECUTIVE duplicates; helper carries `prev : Option<T>` ───────────────────
+(:wat::core::defn :wat::core::dedupe-stream<T>
+  [prev <- :wat::core::Option<T> s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+  (:wat::stream::lazy
+    (:wat::core::if (:wat::core::empty? s)
+      (:wat::stream::empty)
+      (:wat::core::let [x (:wat::core::first s)]
+        (:wat::core::match prev -> :wat::stream::Stream<T>
+          (:wat::core::None
+           (:wat::stream::cons x (:wat::core::dedupe-stream (:wat::core::Some x) (:wat::core::rest s))))
+          ((:wat::core::Some p)
+           (:wat::core::if (:wat::core::= p x)
+             (:wat::core::dedupe-stream (:wat::core::Some x) (:wat::core::rest s))
+             (:wat::stream::cons x (:wat::core::dedupe-stream (:wat::core::Some x) (:wat::core::rest s))))))))))
+
+(:wat::core::defclause :wat::core::dedupe
+  ([coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::core::dedupe-stream :wat::core::None (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::core::dedupe-stream :wat::core::None (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::core::dedupe-stream :wat::core::None (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::core::dedupe-stream :wat::core::None (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::core::dedupe-stream :wat::core::None (:wat::core::seqable->stream coll))))
+
+;; ─── distinct — drop ALL duplicates (keep first); helper carries `seen : HashSet<T>` ───────────
+;; STOP-2 check: `(:wat::core::HashSet :T)` — an EMPTY HashSet seeded from the enclosing generic
+;; defn's OWN rigid type parameter `T` — is exactly the same "declared type params are rigid
+;; Path(':T') inside the body" mechanism `check.rs:3119-3122` already uses for every other
+;; generic defn/defclause in this file; it type-checks (confirmed by compiling this addition).
+(:wat::core::defn :wat::core::distinct-stream<T>
+  [seen <- :wat::core::HashSet<T> s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+  (:wat::stream::lazy
+    (:wat::core::if (:wat::core::empty? s)
+      (:wat::stream::empty)
+      (:wat::core::let [x (:wat::core::first s)]
+        (:wat::core::if (:wat::core::contains? seen x)
+          (:wat::core::distinct-stream seen (:wat::core::rest s))
+          (:wat::stream::cons x (:wat::core::distinct-stream (:wat::core::conj seen x) (:wat::core::rest s))))))))
+
+(:wat::core::defclause :wat::core::distinct
+  ([coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::core::distinct-stream (:wat::core::HashSet :T) (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::core::distinct-stream (:wat::core::HashSet :T) (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::core::distinct-stream (:wat::core::HashSet :T) (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::core::distinct-stream (:wat::core::HashSet :T) (:wat::core::seqable->stream coll)))
+  ([coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::core::distinct-stream (:wat::core::HashSet :T) (:wat::core::seqable->stream coll))))
+
+;; ─── reductions — emit `init`, then each successive accumulation ───────────────────────────────
+;; No separate `-stream` helper: `reductions`'s own 3-arity clauses ARE the stateful walker (the
+;; recursive call threads the running accumulation through `init`'s slot directly), exactly
+;; mirroring `filter`'s direct self-recursion shape — the DESIGN's pseudocode already IS the
+;; state-threading step, so no extra `defn` is needed here (unlike map-indexed/keep/dedupe/
+;; distinct, `reductions` has no independent piece of state beyond the arg it already recurses on).
+(:wat::core::defclause :wat::core::reductions
+  ;; 3-arity: explicit init.
+  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<U>
+    (:wat::stream::lazy
+      (:wat::stream::cons init
+        (:wat::core::if (:wat::core::empty? coll)
+          (:wat::stream::empty)
+          (:wat::core::reductions f (f init (:wat::core::first coll)) (:wat::core::rest coll))))))
+  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::List<T>] -> :wat::stream::Stream<U>
+    (:wat::stream::lazy
+      (:wat::stream::cons init
+        (:wat::core::if (:wat::core::empty? coll)
+          (:wat::stream::empty)
+          (:wat::core::reductions f (f init (:wat::core::first coll)) (:wat::core::rest coll))))))
+  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<U>
+    (:wat::stream::lazy
+      (:wat::stream::cons init
+        (:wat::core::if (:wat::core::empty? coll)
+          (:wat::stream::empty)
+          (:wat::core::reductions f (f init (:wat::core::first coll)) (:wat::core::rest coll))))))
+  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+    (:wat::stream::lazy
+      (:wat::stream::cons init
+        (:wat::core::if (:wat::core::empty? coll)
+          (:wat::stream::empty)
+          (:wat::core::reductions f (f init (:wat::core::first coll)) (:wat::core::rest coll))))))
+  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<U>
+    (:wat::stream::lazy
+      (:wat::stream::cons init
+        (:wat::core::if (:wat::core::empty? coll)
+          (:wat::stream::empty)
+          (:wat::core::reductions f (f init (:wat::core::first coll)) (:wat::core::rest coll))))))
+  ;; 2-arity: no init — seeds from `(first coll)`, mirroring `reduce`'s 2-arity: an empty `coll`
+  ;; raises via `first`'s out-of-range failure rather than a silent 0-arity dispatch.
+  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::Vector<T>] -> :wat::stream::Stream<T>
+    (:wat::core::reductions f (:wat::core::first coll) (:wat::core::rest coll)))
+  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::List<T>] -> :wat::stream::Stream<T>
+    (:wat::core::reductions f (:wat::core::first coll) (:wat::core::rest coll)))
+  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::PersistentVector<T>] -> :wat::stream::Stream<T>
+    (:wat::core::reductions f (:wat::core::first coll) (:wat::core::rest coll)))
+  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+    (:wat::core::reductions f (:wat::core::first coll) (:wat::core::rest coll)))
+  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::PersistentVector] -> :wat::stream::Stream<T>
+    (:wat::core::reductions f (:wat::core::first coll) (:wat::core::rest coll))))
+
+;; ─── mapcat — STOP-1 (NOT built) ────────────────────────────────────────────────────────────────
+;; `(mapcat f coll)` needs its concatenation step to be LAZY over `Stream` (never force the
+;; SECOND collection until the first is exhausted — the same property `filter`/`take-while` rely
+;; on). Grounded: `:wat::core::concat` is a `defalias` straight to `:wat::core::Vector/concat`
+;; (`wat/core.wat:44`), and `Vector/concat`'s registered scheme is `∀T. Vec<T> × Vec<T> -> Vec<T>`
+;; (`src/check.rs:19783-19792`) — a Vector-only, fully EAGER binary op with no `Stream` clause at
+;; all (confirmed: no other `wat::core::concat`/`Vector/concat` registration anywhere in
+;; `src/check.rs`). There is no lazy-over-Stream `concat` to compose `mapcat` over. Per the STOP
+;; doctrine this is surfaced, not hand-rolled (a hand-rolled lazy concat would itself need a new
+;; Stream-native primitive — out of this pure-wat, no-new-primitives strike). `mapcat` is NOT
+;; shipped by this strike; a lazy `:wat::core::concat` (or a dedicated lazy-concat primitive) is a
+;; prerequisite, named here for whichever strike picks it up next.
