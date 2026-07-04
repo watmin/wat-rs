@@ -30,6 +30,33 @@ timeframe, filter server-side, paginate." Read `data` back → the record instan
 **Metrics and logs are different shapes → separate tables** (builder ruling). A batch is homogeneous — all metrics OR
 all logs, never mixed — and holds ≥ 1.
 
+## The correlation model — the unit of work (from the `WorkUnit` / `WorkUnitLog` review)
+
+`Metric` and `Log` are not independent rows — they are the output of a **unit of work** (a measurement scope), and
+the whole point is **correlation**. The legacy `WorkUnit` / `WorkUnitLog` had this shape *right* (builder: *"they had
+the shape i wanted, but they were built wrong"*); the rebuild keeps the shape, fixes the carriers.
+
+- **A unit of work** = a scope opened with a `namespace` + `tags`; it mints a **`uuid`** (its identity). Inside it,
+  the body bumps counters (`incr!`) and times sub-blocks (`timed`). At scope-close it ships **metrics**: each counter
+  → ONE `Metric` (final count, `Numeric/i64`, `Unit/Count` — CloudWatch model); each duration → ONE `Metric` PER
+  SAMPLE (`Numeric/f64`, `Unit/Seconds`). Every metric carries the scope's `namespace`, `uuid`, `tags`, and span.
+- **A logger** bound to the scope emits **logs** that pull `namespace` + `uuid` + `tags` from the same scope, plus a
+  `caller` (producer identity), a `level`, and a structured `message` (a pure record).
+- **`uuid` is the correlation key.** A unit-of-work's `Metric`s and `Log`s share it — "everything in this unit of
+  work" is one `uuid`, and metrics ↔ logs join on it. The trace/span observability model — exactly what a **GSI on
+  `uuid`** serves.
+
+**Producer helpers (rebuilt): `WorkUnit'` / `WorkUnitLog'`** — the scope + logger that mint the `uuid`, collect
+counters/durations into `Metric` records and level'd `Log` records, and ship them through `write-metrics` /
+`write-logs`. Same behavior `WorkUnit`/`WorkUnitLog` always had; clean carriers (records not `HolonAST`/`WatAST`;
+`HashMap<Keyword,String>` tags; a `defservice` sink). `[names: PROVISIONAL]`
+
+**The closed-set rule (why `value`/`unit`/`level` are enums).** A field over a **closed set** is an enum whose
+variant name holds the value (`Numeric` i64/f64 · `Unit` Count/Seconds/… · `Level` Debug/Info/Warn/Error) — only valid
+values are representable, and they round-trip through EDN (`wat-tests/edn/roundtrip.wat`). A field that is an **open
+identifier** stays `Keyword`/`String` (`namespace`, `uuid`, `caller`, `name`, tag values). Constraint engineering at
+the field layer.
+
 ## The contractual surface (the source of truth for callers)
 
 ```clojure
@@ -39,26 +66,54 @@ all logs, never mixed — and holds ≥ 1.
 ;; You pass a BATCH (size ≥ 1). A batch is all-metrics OR all-logs — never mixed.
 ;; The service stamps sk (time) on receipt.
 
-(wat.core/typealias wat.telemetry/Tags               ;; imposed on both paths
+;; Metric and Log are the CORRELATED unit-of-work records (see "The correlation model").
+;; Both satisfy wat.query/Record. Their index-key fields (namespace, the time, uuid, caller,
+;; name) get projected to columns; everything else rides in the record's tagged EDN.
+
+(wat.core/typealias wat.query/Tags               ;; imposed on both paths
   (wat.core/HashMap wat.core/Keyword wat.core/String))
 
-;; a metric — a typed, aggregatable shape (own table)                     [names: PROVISIONAL]
-(wat.core/defrecord wat.telemetry/Metric
-  [namespace :- wat.core/String   name  :- wat.core/Keyword
-   value     :- wat.core/f64      unit  :- wat.core/Keyword
-   tags      :- wat.telemetry/Tags])
+;; value's TYPE is held by its own variant NAME — a count is #Numeric/i64 [7], a duration #Numeric/f64 [0.42].
+;; enums round-trip through EDN (wat-tests/edn/roundtrip.wat: #ns/Variant [body] reconstructed from the type registry).
+(wat.core/defenum wat.query/Numeric wat.enum/Pure
+  i64 [val :- wat.core/i64]
+  f64 [val :- wat.core/f64])
+
+;; the metric's SEMANTIC unit — a CLOSED set, so an enum (name holds value); PROVISIONAL variant set
+(wat.core/defenum wat.query/Unit wat.enum/Pure
+  Count Seconds Millis Bytes Percent)
+
+;; a log's level — a CLOSED set, so an enum (same principle as Unit / Numeric)
+(wat.core/defenum wat.query/Level wat.enum/Pure
+  Debug Info Warn Error)
+
+;; a metric — a unit-of-work's counter/duration data point (was Event::Metric)   [names: PROVISIONAL]
+(wat.core/defrecord wat.query/Metric
+  [namespace  :- wat.core/String        ;; pk
+   uuid       :- wat.core/Uuid          ;; unit-of-work correlation id       → GSI
+   start-time :- wat.core/Instant       ;; scope span (start)
+   end-time   :- wat.core/Instant       ;; scope span (end) — sk
+   name       :- wat.core/Keyword       ;; the counter/timer name            → GSI candidate
+   value      :- wat.query/Numeric      ;; the count/duration — variant name (i64/f64) holds the storage type
+   unit       :- wat.query/Unit         ;; the semantic unit — a closed enum, orthogonal to Numeric's storage type
+   tags       :- wat.query/Tags])
 
 ;; a log message — a SURFACE: the caller passes ANY pure record they define
-(wat.core/defsurface wat.telemetry/LogMessage :holder wat.core/Record :features [])
+(wat.core/defsurface wat.query/LogMessage :holder wat.core/Record :features [])
 
-;; a log entry — the envelope around the caller's message record (own table)  [names: PROVISIONAL]
-(wat.core/defrecord wat.telemetry/LogEntry
-  [namespace :- wat.core/String   level :- wat.core/Keyword
-   tags      :- wat.telemetry/Tags  message :- wat.telemetry/LogMessage])
+;; a log — a unit-of-work's structured log line (was Event::Log)                 [names: PROVISIONAL]
+(wat.core/defrecord wat.query/Log
+  [namespace :- wat.core/String         ;; pk
+   uuid      :- wat.core/Uuid           ;; correlation id                    → GSI
+   time      :- wat.core/Instant        ;; emit moment — sk
+   caller    :- wat.core/Keyword        ;; producer identity                 → GSI candidate
+   level     :- wat.query/Level         ;; a closed enum (name holds value)
+   tags      :- wat.query/Tags
+   message   :- wat.query/LogMessage])  ;; a PURE RECORD (was Tagged<HolonAST> over a quoted WatAST)
 
 ;; the write verbs (defservice ops):
-;;   (TelemetryService'/write-metrics conn (…batch of Metric…))    -> #…/WriteResponse {:ok true}
-;;   (TelemetryService'/write-logs    conn (…batch of LogEntry…))  -> #…/WriteResponse {:ok true}
+;;   (TelemetryService'/write-metrics conn (…batch of Metric…))  -> #…/WriteResponse {:ok true}
+;;   (TelemetryService'/write-logs    conn (…batch of Log…))     -> #…/WriteResponse {:ok true}
 
 ;; ─────────────────────────── QUERY ───────────────────────────
 ;; You pass a Query, you get a paginated Result. Server-side filter is rete:
@@ -143,10 +198,18 @@ ranges on. `IndexTarget {name pk sk}` selects a GSI at query time. Both modes th
 ## Open items (flagged, not decided)
 1. **Table selection.** `Query.table :- :metrics | :logs` (one `query` verb) **vs** two verbs
    `query-metrics` / `query-logs` (mirroring the two write verbs). Ratify + (if the field wins) intueri-cast the name.
-2. **Write-side names are provisional** — `Metric` / `LogEntry` / `LogMessage` / `write-metrics` / `write-logs`. Cast
-   intueri before code lands (naming discipline below).
-3. **`Metric.value :- f64`** assumes numeric metrics (counts widen to f64). Decide integer/float split vs one numeric
-   type — grounded against how metrics aggregate.
+2. **Names are provisional** — `Metric` / `Log` / `LogMessage` / `Numeric` / `Unit` / `Level` / `WorkUnit'` /
+   `WorkUnitLog'` / `write-metrics` / `write-logs`, the `Unit`/`Level` variant names, and the namespace (`wat.query`
+   vs `wat.telemetry`). Cast intueri before code lands (naming discipline below).
+3. **Enum variant SETS** — the provisional `Unit` set (`Count Seconds Millis Bytes Percent`), and whether `Numeric`
+   needs more than `i64`/`f64` (e.g. bigint). Finalize against the metric domain.
+4. **The shared correlation core.** `namespace` + `uuid` + `tags` (+ the time) are common to `Metric` and `Log`.
+   Splice a `wat.query/Scope` surface into both (arc-293 `[~@:Scope own…]`) so they DRY-share it, or keep them flat?
+   A real structural choice.
+
+**RESOLVED this session:** `value` is `wat.query/Numeric` (the name-holds-the-type enum, `i64`/`f64`); `unit` is
+`wat.query/Unit`; `level` is `wat.query/Level` — the closed-set rule (a closed enumeration is an enum, name holds
+value; an open identifier stays `Keyword`/`String`).
 
 ## Build implications (for the strike, later)
 - **`crates/wat-telemetry-sqlite` needs updates**: the `(pk, sk, data, …projected-index-columns)` table layout + GSI
