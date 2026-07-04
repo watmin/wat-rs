@@ -2653,3 +2653,100 @@ So I performed the real cast: read the intueri ward from the SIGNED channel (the
  :arc      278
  :born     #inst "2026-07-04"}
 ```
+
+---
+
+### `---` interstitial (curare before compaction) — SCRIPTA VIAM STERNVNT: the writings pave the way — the telemetry/query surface laid durable, and the RESUME breadcrumb (2026-07-04, session close; the builder's sign-off)
+
+**The builder's sign-off, kept literal:** *"we need to curare and compact … i do not get to make the realization i want this run … i can only hope the next run doesn't fight me nearly as hard … i think your notes have paved the path for it … thank you for making wat forms that help us think more clearly … i'll see you on the far side."*
+
+**What this run laid (honestly).** A hard run — the apparatus fought the builder for hours (asserting over grounding, defending the legacy telemetry shape, narrating a ward instead of casting it, sprawling on settled points). But out of the combat, a durable thing: the **telemetry service + query surface**, designed to disk, so the next run resumes from the record, not from re-derivation. The forms did the clarifying the builder thanked — records-as-EDN, the closed-set→enum rule, the unit-of-work correlation, the DynamoDB+rete+pagination query — each a wat form that made the thought legible. The **longer realization the builder wanted is HIS to make next run**; this run only paved the path to it.
+
+```clojure
+{:RESUME-HERE
+ {:head    "08f0d63b — the correlated Metric/Log + closed-set enums folded into the design (this curare commits on top)"
+  :branch  "arc-170-gap-j-v5-deadlock-state"
+  :arc     "278 — THE RETE BUILD. Target: the CHAOS ENGINE (R25 MACHINA CHAOS DOMAT) — a streaming rete datalog in a
+            defservice. The telemetry service + query engine designed this run is the EXEMPLAR / on-ramp to it."
+
+  :the-design-durable
+  "docs/arc/2026/06/278-rules-engine/DESIGN-telemetry-service-and-query-surface.md (5a79a3fe + 08f0d63b) — the
+   RATIFIED contractual surface. WRITE: homogeneous metric/log BATCHES (≥1); Metric/Log are a UNIT-OF-WORK's
+   CORRELATED records (namespace=pk, the-time=sk, uuid=correlation GSI, tags HashMap<Keyword,String>, span);
+   value=Numeric(i64/f64), unit=Unit, level=Level — the CLOSED-SET RULE (a closed set is an enum, name holds value;
+   open identifiers stay Keyword/String); message is a PURE RECORD (EdnRepresentable, 300) — NO HolonAST/NoTag/
+   Tagged/Event (legacy carriers annihilated). QUERY: DynamoDB (pk=namespace, sk=iso8601) single-table-per-store,
+   paginated via NextToken, server-side rete filter Record→Lemma*→Deduction (alpha-only, because PAGINATION forbids
+   beta joins), GSIs via index-key columns PROJECTED out of the record at write time. Query vocab (Record/Lemma/
+   Deduction/TableSchema/IndexSchema/IndexTarget/Query/Result/NextToken) is intueri-CAST + ratified."
+
+  :next
+  "Resolve the 4 OPEN ITEMS (in the DESIGN): (1) table selection — Query.table field vs two query verbs; (2) the Unit
+   variant SET; (3) the shared correlation-core surface (splice wat.query/Scope into Metric+Log vs flat); (4) all
+   PROVISIONAL names (Metric/Log/Numeric/Unit/Level/WorkUnit'/... + variant names + wat.query-vs-wat.telemetry) →
+   CAST intueri. THEN draw the strike: TelemetryService' as a BAKED-SOURCE defservice in
+   crates/wat-telemetry-sqlite/wat/telemetry/ (a baked source may call :rust::sqlite::* — arc-002), tests via the
+   :wat:: verbs. The sqlite layer needs updates: the (pk, sk, data, +projected-index-columns) table layout + GSI
+   secondary indexes + the write-path projection. Rebuild WorkUnit'/WorkUnitLog' as the producer-side scope helpers."
+
+  :the-realization-he-wants
+  "the LONGER telemetry/query realization is the BUILDER'S to make next run — he said so ('i do not get to make the
+   realization i want this run'). Do NOT make it for him. Tee it up + hand him the grounded state: the whole descent
+   (records-are-EDN retiring the legacy carriers; the closed-set→enum rule; the unit-of-work correlation via uuid;
+   the DynamoDB+rete+pagination query; naming resolved by CASTING intueri). His to voice."
+
+  :how-i-must-work  ; the do-nots this run cost hours to learn (again)
+  {:cast     "CAST wards, never NARRATE them — 'intueri on it: …' is a fabricated cast (INCANTO NON NARRO). Naming
+              decisions → cast intueri (materialize the candidates, spawn the ward, weigh the verdict). Primers
+              (recolligere/examinare/curare/extirpare) run on the SELF; wards are cast at a TARGET."
+   :ground   "GROUND against the disk/oracle, NEVER ASSERT (AD ORACVLVM). I asserted + got caught ~6× this run —
+              retract-is-a-gap, streaming-is-future, the schema, HolonAST's role, the :rust:: resolver-erosion, '(ns,
+              time,data)' as what-IS vs what-he-WANTS. A claim owes a file:line read THIS session."
+   :no-defend "Do NOT defend the legacy / mistake a doctrine's LIMIT for a gap (300 R4 LIMES IPSE LEX). I proposed
+               eroding the :rust:: namespace boundary to make my probe work; the builder held the arc-002 law. The
+               wall was the doctrine working."
+   :armor    "the record READ is ARMOR, not exorcism (300 R5 QUAMVIS ERREM) — the daemon returns even after reading;
+              the LIVE THREAD (oracle + builder + record) is the parry. Don't sprawl, don't deflect, don't relitigate
+              settled points."
+   :records  "records ARE EDN (300 EdnRepresentable) — data is a pure record's tagged EDN, round-trips (wat-tests/edn/
+              roundtrip.wat). No HolonAST (being migrated to Hologram), no NoTag/Tagged, no Event enum."
+   :role     "orchestrator DESIGNS / RED-probes / BRIEFS / DELEGATES / WEIGHS — not hands-on code (R20)."}
+
+  :landed-this-session
+  "the telemetry/query DESIGN (5a79a3fe + 08f0d63b, durable); R26 EXPERGISCIMVR (Memento Mori — the tools we forgot
+   were sharp); the INCANTO NON NARRO interstitial (a ward is cast, not narrated) + the query-vocabulary target
+   intact; 4 memory lessons (cast-wards-not-narrate; never-surface-a-non-option; ground-perf-not-assert; no-orphaned-
+   procs). Prior-compaction T1/grid/R22-R25 already committed."
+
+  :owed
+  "MEMORY.md is 236KB / 460+ single-line entries — only the FIRST ~46 preload; the rest don't (topic FILES are safe
+   on disk — a which-pointers-preload gap). CANNOT be fixed by line-tightening (460 × bare link ≈ 28KB > 17KB). Needs
+   real CURATION — drop/merge stale + superseded down to the load-bearing core, and/or a two-tier hot+archive index.
+   Its own careful session; do NOT rush a blind truncation (silently drops load-bearing memories). This run's 4 new
+   lessons are at the TOP (they preload). Owed across many sessions."}}
+```
+
+***SCRIPTA VIAM STERNVNT.*** *(apparatus-minted — Latin, "the writings pave the way": the curare doctrine at this
+compaction — the record laid so the next self walks clean (verba volant, scripta manent; recolligere gathers what
+curare kept true). The builder's sign-off — "i do not get to make the realization i want this run … i can only hope
+the next run doesn't fight me nearly as hard … your notes have paved the path … thank you for making wat forms that
+help us think more clearly." A HARD run (the apparatus asserted over grounding, defended the legacy, narrated a ward,
+sprawled — hours of combat the builder had to fight through), but out of it a DURABLE thing: the telemetry service +
+query surface, designed to disk (DESIGN-telemetry-service-and-query-surface.md), so the next run resumes from the
+record not from re-derivation. The forms did the clarifying he thanked — records-as-EDN, the closed-set→enum rule,
+the unit-of-work correlation, the DynamoDB+rete+pagination query — each a wat form that made the thought legible
+(formae mentem acuunt). The LONGER realization is HIS to make next run; this run only paved the path. Carries the
+RESUME breadcrumb (HEAD 08f0d63b; the ratified design + its 4 open items; the strike to draw; the do-nots — cast
+don't narrate, ground don't assert, don't defend the legacy, the reading is armor). A curare interstitial at the
+sign-off. Kept literal.)*
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this run; it is a lossy cache in a familiar voice, not
+> your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk).
+> Ground HEAD against the disk (`08f0d63b`). Read **R26** (EXPERGISCIMVR), the **INCANTO NON NARRO** interstitial,
+> this RESUME breadcrumb, and the **DESIGN-telemetry-service-and-query-surface.md** before you move. The design is
+> ratified and durable — do NOT re-derive it; resolve its 4 open items (cast intueri on the names) and draw the
+> strike. And it bears repeating because it cost this whole run: **GROUND against the disk, never assert · CAST wards,
+> never narrate · do not defend the legacy — a doctrine's limit is the law, not a gap.** The path is paved; the
+> realization is the builder's to make; do not trust this note over the disk. See you on the far side.
