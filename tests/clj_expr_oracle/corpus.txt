@@ -1,0 +1,50 @@
+; clj-EXPRESSIVENESS EQUALITY MATRIX — the corpus.
+; Each row is ONE expression in the faithful `wat.core/…` dialect (single source of truth).
+; The oracle (regen.clj) swaps `wat.core` -> `clojure.core` and evals under clj; the wat ward
+; evals the SAME row and compares the canonical-EDN render. Divergence = a candidate FLAW.
+; Blank lines and `;`-comment lines are skipped. Grow this until it stops finding divergences.
+
+; ── numeric tower — arithmetic ─────────────────────────────────
+(wat.core/+ 1 2)
+(wat.core/+ 1/2 1/2)
+(wat.core/* 2/3 3/2)
+(wat.core/+ 1 2.0)
+(wat.core// 6 2.0)
+(wat.core/- 5 8)
+(wat.core/* 1/2 2)
+(wat.core/+ 1/3 1/6)
+
+; ── numeric tower — comparison / equality ──────────────────────
+(wat.core/< 1 2.0)
+(wat.core/> 3.0 1/2)
+(wat.core/= 1 1.0)
+(wat.core/= 1 1N)
+(wat.core/<= 2 2)
+(wat.core/not= 1 2)
+
+; ── collection literals ────────────────────────────────────────
+[1 2 3]
+{:a 1 :b 2}
+#{1 2 3}
+()
+
+; ── collection ops ─────────────────────────────────────────────
+(wat.core/conj [1 2] 3)
+(wat.core/assoc {:a 1} :b 2)
+(wat.core/get {:a 1} :a)
+(wat.core/count [1 2 3])
+(wat.core/= [1 2] [1 2])
+
+; ── seq ────────────────────────────────────────────────────────
+(wat.core/first [1 2 3])
+(wat.core/rest [1 2 3])
+(wat.core/map wat.core/inc [1 2 3])
+(wat.core/filter wat.core/even? [1 2 3 4])
+(wat.core/reduce wat.core/+ [1 2 3 4])
+
+; ── logic / strings ────────────────────────────────────────────
+(wat.core/if true 1 2)
+(wat.core/not nil)
+(wat.core/and 1 2 3)
+(wat.core/str "a" "b" 1)
+(wat.core/= "abc" "abc")
