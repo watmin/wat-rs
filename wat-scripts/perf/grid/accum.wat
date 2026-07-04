@@ -1,0 +1,174 @@
+;; wat-scripts/perf/grid/accum.wat — GRID AXIS A5: accumulate / exists, IN WAT.
+;;
+;; The built-in fold library (wat/rete.wat:1989-2213) driven through an AccumulateNode over
+;; matched facts, at scale — count / sum / min / max (the scalar-valued built-ins) plus :exists
+;; (ExistsNode, wat/rete.wat:114-126). This is the R18 accumulate capability
+;; (docs/arc/2026/06/278-rules-engine/DESIGN.md: "8 accumulators … 1:1 with Clara's set"),
+;; stressed G groups wide x W readings deep.
+;;
+;; WHY count/sum/min/max + :exists and NOT distinct/group-by: an accuracy witness for this grid is
+;; a SORTED VECTOR OF i64 compared byte-for-byte against Clara's identical workload
+;; (gen-accum.sh). count/sum/min/max each bind a SCALAR i64 aggregate — it drops straight into a
+;; derived record's i64 field and encodes to one canonical integer. distinct/group-by bind a
+;; COLLECTION (PV<i64> / PM) whose reduction to a scalar (e.g. its cardinality) would require the
+;; rule RHS to COMPUTE over the bound var — the rete action layer only inserts records from bound
+;; vars + literals (no fold in the RHS), so neither engine can canonicalise a collection-valued
+;; fold to an i64 witness without contortion. Both folds are exercised elsewhere (the oracle/native
+;; differential tests/rete/probe_arc278_8*.rs); this axis benches the four scalar folds + :exists,
+;; which is a faithful, byte-comparable slice of the same AccumulateNode machinery.
+;;
+;; Shape (mirrors tests/rete/probe_arc278_8a_accumulate_oracle.rs's Station/Reading/acc rule):
+;;   Group(g)      — G anchor facts, g in [0, G).  The accumulate's LEFT token.
+;;   Reading(g,v)  — W readings per group; v = val(g,j) is deterministic (SAME fn on both sides).
+;;   CountF(g,n) :- Group(g) AND [?n <- (acc::count)   :from Reading(g)]        n = W
+;;   SumF(g,n)   :- Group(g) AND [?n <- (acc::sum ?v)  :from Reading(g,?v)]     n = Σ v
+;;   MinF(g,n)   :- Group(g) AND [?n <- (acc::min ?v)  :from Reading(g,?v)]     n = min v
+;;   MaxF(g,n)   :- Group(g) AND [?n <- (acc::max ?v)  :from Reading(g,?v)]     n = max v
+;;   ExistsF(g)  :- Group(g) AND (exists Reading(g))                            fires (W>=1)
+;; W>=1 always ⇒ min/max (Option folds) are always Some ⇒ every group emits all five derived facts.
+;;
+;; Fires the NATIVE production verb `:wat::rete::fire-rules` (the differential-tested fast path;
+;; NOT the wat oracle `fire-rules-spec`). :derived is the FULL SORTED derived-fact set, each fact
+;; canonicalised to one i64 (kind*1e15 + g*1e9 + val), so it compares byte-for-byte against Clara's
+;; rendering of the identical workload — no record/keyword shape to reconcile.
+;;
+;; Usage (stdin = an i64 vector [groups readings]; stdout = one #grid/Result EDN line):
+;;   echo '[100 200]' | cargo wat ./wat-scripts/perf/grid/accum.wat
+;;   => #grid/Result {:axis "accum" :size [100 200] :derived [...] :native-ns N}
+
+(:wat::core::defrecord :acc::Group   [g <- :wat::core::i64])
+(:wat::core::defrecord :acc::Reading [g <- :wat::core::i64  v <- :wat::core::i64])
+(:wat::core::defrecord :acc::CountF  [g <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :acc::SumF    [g <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :acc::MinF    [g <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :acc::MaxF    [g <- :wat::core::i64  n <- :wat::core::i64])
+(:wat::core::defrecord :acc::ExistsF [g <- :wat::core::i64])
+
+(:wat::core::defrecord :grid::Result
+  [axis      <- :wat::core::String
+   size      <- :wat::core::PersistentVector<wat::core::i64>
+   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   native-ns <- :wat::core::i64])
+
+;; ─── the five accumulate/exists rules (fixed structure; only the FACTS scale) ───
+;; Structure mirrors the 8a/8b probe rule exactly: [anchor] [?n <- (acc) :from …] => insert.
+(:wat::rete::defrule :acc::count-rule
+  :when
+  [(:acc::Group (?g <- :g))
+   (?n <- (:wat::rete::acc::count) :from (:acc::Reading (?g <- :g)))]
+  :then
+  (:wat::rete::insert (:acc::CountF ?g ?n)))
+
+(:wat::rete::defrule :acc::sum-rule
+  :when
+  [(:acc::Group (?g <- :g))
+   (?n <- (:wat::rete::acc::sum ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
+  :then
+  (:wat::rete::insert (:acc::SumF ?g ?n)))
+
+(:wat::rete::defrule :acc::min-rule
+  :when
+  [(:acc::Group (?g <- :g))
+   (?n <- (:wat::rete::acc::min ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
+  :then
+  (:wat::rete::insert (:acc::MinF ?g ?n)))
+
+(:wat::rete::defrule :acc::max-rule
+  :when
+  [(:acc::Group (?g <- :g))
+   (?n <- (:wat::rete::acc::max ?v) :from (:acc::Reading (?g <- :g) (?v <- :v)))]
+  :then
+  (:wat::rete::insert (:acc::MaxF ?g ?n)))
+
+(:wat::rete::defrule :acc::exists-rule
+  :when
+  [(:acc::Group (?g <- :g))
+   (:wat::rete::exists (:acc::Reading (?g <- :g)))]
+  :then
+  (:wat::rete::insert (:acc::ExistsF ?g)))
+
+;; val g j — the deterministic reading value at (group g, index j): (g*31 + j*17) mod 1000.
+;; No i64::mod op exists (only +,-,*,/), so mod is manual: x - (x/1000)*1000 (x>=0, truncating /).
+;; The IDENTICAL fn runs on the Clara side (gen-accum.sh uses (mod (+ (* g 31) (* j 17)) 1000)),
+;; so both engines fold byte-identical Reading facts.
+(:wat::core::defn :acc::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]
+    (:wat::core::i64::- x (:wat::core::i64::* (:wat::core::i64::/ x 1000) 1000))))
+
+;; enc kind g val — canonical single-i64 witness for one derived fact.
+;; kind*1e15 + g*1e9 + val. g < 1e6 and val < ~2e6 at grid scale ⇒ injective, no i64 overflow.
+(:wat::core::defn :acc::enc [kind <- :wat::core::i64  g <- :wat::core::i64  val <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::i64::+
+    (:wat::core::i64::+ (:wat::core::i64::* kind 1000000000000000) (:wat::core::i64::* g 1000000000))
+    val))
+
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64> (mirrors strat-neg.wat:
+;; `into` has no (PV<T>,Vector<T>) clause, so a manual conj-fold is the honest bridge).
+(:wat::core::defn :acc::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
+      -> :wat::core::PersistentVector<wat::core::i64>
+      (:wat::core::PersistentVector/conj acc x))
+    (:wat::core::PersistentVector)
+    v))
+
+;; seed-readings session g W — stage Reading(g, val(g,j)) for j in [0, W), threading the session.
+(:wat::core::defn :acc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
+  (:wat::core::foldl
+    (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session
+      (:wat::rete::insert s (:acc::Reading g (:acc::val g j))))
+    session
+    (:wat::core::range 0 W)))
+
+;; seed session G W — stage Group(g) + its W Readings for every g in [0, G).
+(:wat::core::defn :acc::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
+  (:wat::core::foldl
+    (:wat::core::fn [s <- :wat::rete::Session  g <- :wat::core::i64] -> :wat::rete::Session
+      (:acc::seed-readings (:wat::rete::insert s (:acc::Group g)) g W))
+    session
+    (:wat::core::range 0 G)))
+
+;; codes fired — every derived fact across all five types, canonically encoded, into a Vector<i64>.
+;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.
+(:wat::core::defn :acc::codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+  (:wat::core::let
+    [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
+          (:wat::core::map (:wat::core::fn [f <- :acc::CountF] -> :wat::core::i64 (:acc::enc 0 (:acc::CountF/g f) (:acc::CountF/n f)))
+            (:wat::rete::query-by-type-string fired "acc::CountF")))
+     c1 (:wat::core::into c0
+          (:wat::core::map (:wat::core::fn [f <- :acc::SumF] -> :wat::core::i64 (:acc::enc 1 (:acc::SumF/g f) (:acc::SumF/n f)))
+            (:wat::rete::query-by-type-string fired "acc::SumF")))
+     c2 (:wat::core::into c1
+          (:wat::core::map (:wat::core::fn [f <- :acc::MinF] -> :wat::core::i64 (:acc::enc 2 (:acc::MinF/g f) (:acc::MinF/n f)))
+            (:wat::rete::query-by-type-string fired "acc::MinF")))
+     c3 (:wat::core::into c2
+          (:wat::core::map (:wat::core::fn [f <- :acc::MaxF] -> :wat::core::i64 (:acc::enc 3 (:acc::MaxF/g f) (:acc::MaxF/n f)))
+            (:wat::rete::query-by-type-string fired "acc::MaxF")))
+     c4 (:wat::core::into c3
+          (:wat::core::map (:wat::core::fn [f <- :acc::ExistsF] -> :wat::core::i64 (:acc::enc 4 (:acc::ExistsF/g f) 0))
+            (:wat::rete::query-by-type-string fired "acc::ExistsF")))]
+    c4))
+
+;; derived-vector fired — the sorted i64 accuracy witness (the full set, not a count).
+(:wat::core::defn :acc::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+  (:acc::vec->pvec (:wat::core::sort (:acc::codes fired))))
+
+;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
+(:wat::core::defn :acc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+                    groups  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [groups readings]")
+                    reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [groups readings]")
+                    rules   (:wat::rete::collect-rules :acc)
+                    staged  (:acc::seed (:wat::rete::compile rules) groups reads)
+                    ;; time the NATIVE production verb only (compile + seed are un-timed setup)
+                    n0      (:wat::time::now)
+                    fired   (:wat::rete::fire-rules staged)
+                    n1      (:wat::time::now)
+                    derived (:acc::derived-vector fired)
+                    nat-ns  (:acc::ns-between n0 n1)]
+    (:wat::kernel::println
+      (:grid::Result "accum" (:wat::core::PersistentVector groups reads) derived nat-ns))))

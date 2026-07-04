@@ -1,0 +1,136 @@
+;; wat-scripts/perf/grid/node-share.wat — GRID AXIS A8: node-sharing / rule-count, IN WAT.
+;;
+;; The subtree-reuse axis (docs/arc/2026/06/278-rules-engine/DESIGN-clara-grid.md;
+;; CLARA-TRANSLATIONS.md §A8): MANY rules that all share the SAME leading join-prefix, stressed at
+;; growing rule-count N. wat's compiler dedups a shared prefix structurally —
+;; `find-or-mint-alpha` (wat/rete.wat:422+, dedup key "alpha:<write-forms cond>") collapses the
+;; identical leading condition into ONE AlphaNode, and `find-or-mint-hash-join` (wat/rete.wat:483+,
+;; dedup key "hashjoin:<parent-id>:<cond-text>") collapses the identical join onto ONE beta subtree
+;; (only ProductionNodes are per-rule, wat/rete.wat:781). So N rules sharing [A]⋈[B] compile to one
+;; shared alpha + one shared root-join fanning out to N per-rule continuations.
+;;
+;; CAVEAT (CLARA-TRANSLATIONS.md §A8, load-bearing): this is a SPEED / node-count axis, NOT an
+;; accuracy axis. Both engines are proven by their own compilers' dedup to collapse the shared
+;; prefix into one subtree with an otherwise-identical logical network, so the derived-fact SET is
+;; identical by construction regardless of rule count — there is no scenario where sharing changes
+;; semantics. The :derived vector is therefore a SINGLE derived-set sanity check (there is no
+;; per-size accuracy gate); the real measurement is fire-cost as rule-count N grows with a fixed
+;; shared join-prefix depth.
+;;
+;; Shape (mirrors the A8 benchmark form — N rules with a common leading join-prefix, differentiated
+;; by a per-rule trailing predicate so types stay FIXED while N is a pure runtime rule-count dial,
+;; the same "unquote a bare i64 literal into a predicate" trick min-finding.wat uses for its gate):
+;;   A(k), B(k)                              — M seed facts each, k in [0, items).
+;;   r_i (i in [0, N)):  Out(k) :- A(k) AND B(k) AND (i == k mod N)
+;; The leading [A (?k)]⋈[B (?k)] join-prefix is byte-identical across all N rules (→ shared alpha +
+;; shared hash-join); each rule diverges only at its trailing (:wat::rete::where ...) TestNode,
+;; carrying the per-rule literal i. Since every k in [0, items) satisfies EXACTLY one rule
+;; (i == k mod N), the union of all N rules' output is {Out(k) : k in [0, items)} — one Out per k,
+;; independent of N. That N-invariance is exactly why the derived set is a one-time sanity check.
+;;
+;; size = [rules items]. `rules` (N) is the swept dial (the node-sharing / activation-cost driver);
+;; `items` (M) is the fixed shared-prefix fan-in. There is NO type ceiling here (unlike strat-neg's
+;; static S0..S9) — rules are differentiated by a runtime literal, not by type, so N is unbounded.
+;;
+;; Fires the NATIVE production verb `:wat::rete::fire-rules` (compile + seed are un-timed setup) —
+;; the differential-tested fast path, NOT the wat oracle `fire-rules-spec`.
+;;
+;; :derived is the FULL SORTED derived Out set, each fact canonicalized as its i64 key k, so it
+;; compares byte-for-byte against Clara's rendering of the identical workload (gen-node-share.sh).
+;;
+;; Usage (stdin = an i64 vector [rules items]; stdout = one #grid/Result EDN line):
+;;   echo '[50 200]' | cargo wat ./wat-scripts/perf/grid/node-share.wat
+;;   => #grid/Result {:axis "node-share" :size [50 200] :derived [...] :native-ns N}
+
+(:wat::core::defrecord :nsh::A   [k <- :wat::core::i64])   ;; shared leading condition
+(:wat::core::defrecord :nsh::B   [k <- :wat::core::i64])   ;; shared join partner (prefix = A ⋈ B)
+(:wat::core::defrecord :nsh::Out [k <- :wat::core::i64])   ;; per-rule production (single output type)
+
+(:wat::core::defrecord :grid::Result
+  [axis      <- :wat::core::String
+   size      <- :wat::core::PersistentVector<wat::core::i64>
+   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   native-ns <- :wat::core::i64])
+
+;; build-rule i n — the i-th rule of the N-rule set:
+;;   Out(k) :- A(k) AND B(k) AND (i == k mod N)
+;; The leading [A (?k)] and [B (?k)] conditions are BYTE-IDENTICAL across every i (no i splices into
+;; them) → they compile to the one shared AlphaNode + one shared hash-join (the point of this axis).
+;; The trailing (:wat::rete::where ...) is a per-rule beta TestNode (compile-condition's where-branch,
+;; wat/rete.wat:547+) whose eval-test does a genuine eval_inner — full expressions are fine there.
+;; `i` and `n` splice in as bare i64 LITERALS via unquote (proven — min-finding.wat unquotes its
+;; threshold the same way; deep-cascade embeds `(= ?l (unquote prev))`). There is no native i64 mod
+;; (only + - * /), so `k mod n` is written inline as the truncating-division idiom `k - (k/n)*n`
+;; (k >= 0, n > 0 at every grid size → exact), the same shape strat-neg.wat's even test uses.
+(:wat::core::defn :nsh::build-rule [i <- :wat::core::i64  n <- :wat::core::i64] -> :wat::rete::Rule
+  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k <- :k)))
+                    b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))
+                    where-c (:wat::core::quasiquote
+                              (:wat::rete::where
+                                (:wat::core::= (:wat::core::unquote i)
+                                  (:wat::core::i64::- ?k
+                                    (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
+                    ins     (:wat::core::quasiquote (:wat::rete::insert (:nsh::Out ?k)))]
+    (:wat::rete::Rule (:wat::core::i64::to-string i)
+      (:wat::core::PersistentVector a-c b-c where-c)
+      (:wat::core::PersistentVector ins))))
+
+;; build-rules n — the N-rule set [r0 .. r(n-1)], folding build-rule over (range 0 n). Every rule
+;; shares the leading [A]⋈[B] join-prefix; only the trailing literal differs (mirrors strat-neg's
+;; build-rules fold shape).
+(:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  i <- :wat::core::i64]
+      -> :wat::core::PersistentVector<wat::rete::Rule>
+      (:wat::core::PersistentVector/conj acc (:nsh::build-rule i n)))
+    (:wat::core::PersistentVector)
+    (:wat::core::range 0 n)))
+
+;; seed session items — stage A(i) AND B(i) for i in [0, items), threading the staging session, so
+;; the shared [A]⋈[B] join yields exactly one token per k (fan-in = items).
+(:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+  (:wat::core::foldl
+    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+      (:wat::rete::insert (:wat::rete::insert s (:nsh::A i)) (:nsh::B i)))
+    session
+    (:wat::core::range 0 items)))
+
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64> (no into-clause bridges the
+;; two container kinds; a manual conj-fold is the honest bridge — cf. min-finding.wat/strat-neg.wat).
+(:wat::core::defn :nsh::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
+      -> :wat::core::PersistentVector<wat::core::i64>
+      (:wat::core::PersistentVector/conj acc x))
+    (:wat::core::PersistentVector)
+    v))
+
+;; derived-vector fired — every derived Out fact's key k, sorted ascending. THE (one-time) sanity
+;; witness: the full derived set. Expected = [0 1 .. items-1], independent of rule-count N.
+(:wat::core::defn :nsh::derived-vector
+  [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+  (:nsh::vec->pvec
+    (:wat::core::sort
+      (:wat::core::into (:wat::core::Vector :wat::core::i64)
+        (:wat::core::map
+          (:wat::core::fn [f <- :nsh::Out] -> :wat::core::i64 (:nsh::Out/k f))
+          (:wat::rete::query-by-type-string fired "nsh::Out"))))))
+
+;; ns-between t0 t1 — nanoseconds between two Instants (cf. min-finding.wat).
+(:wat::core::defn :nsh::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+                    rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
+                    items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
+                    rules   (:nsh::build-rules rules-n)
+                    staged  (:nsh::seed (:wat::rete::compile rules) items)
+                    ;; time the NATIVE production verb only (compile + seed are un-timed setup)
+                    n0      (:wat::time::now)
+                    fired   (:wat::rete::fire-rules staged)
+                    n1      (:wat::time::now)
+                    derived (:nsh::derived-vector fired)
+                    nat-ns  (:nsh::ns-between n0 n1)]
+    (:wat::kernel::println
+      (:grid::Result "node-share" (:wat::core::PersistentVector rules-n items) derived nat-ns))))
