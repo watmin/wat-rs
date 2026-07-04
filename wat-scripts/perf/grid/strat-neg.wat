@@ -1,0 +1,246 @@
+;; wat-scripts/perf/grid/strat-neg.wat — GRID AXIS A4: stratified negation, IN WAT.
+;;
+;; The FOUNDATION axis of the Clara grid (docs/arc/2026/06/278-rules-engine/DESIGN-clara-grid.md):
+;; non-monotonic negation over DERIVED facts, at scale — the R18 capability
+;; (wat/rete.wat:1513+ StratifyAcc/fire-stratified), stressed N strata deep x M items wide.
+;;
+;; WHY N DISTINCT record types (S0..S9), NOT deep-cascade.wat's single-type-with-a-level-field
+;; trick: `stratify` (wat/rete.wat:1570 rule-negates + :1598 stratify-sweep) reasons about
+;; dependencies at the TYPE-FQDN level — "rule R negates type T" ⇒ "T's producers must be a
+;; STRICTLY LOWER stratum than R". A single "State{stratum,k}" type would be BOTH produced AND
+;; negated by the SAME type across every level (rule i produces State, rule i+1 negates State)
+;; → the stratifier sees an unresolvable self-cycle ("negation cycle detected — rule set is not
+;; stratifiable"), confirmed empirically before this file settled on 10 distinct types. This is
+;; a real, load-bearing constraint of the stratifier, not a workaround — n3 (the proven 3-strata
+;; fixture at tests/rete/probe_arc278_7strat_native_differential.wat) already uses 3 distinct
+;; types (Bad/Warn/Safe) for exactly this reason; S0..S9 is that same shape generalized to 10.
+;;
+;; Shape (mirrors n3's Bad/Warn/Safe chain, generalized):
+;;   Item(k)  — M seed facts, k in [0, items).
+;;   S0(k)    :- Item(k) AND (k mod 2 == 0)     [stratum 0: the base marking rule]
+;;   Si(k)    :- Item(k) AND NOT S(i-1)(k)      [stratum i>0: negation over the PRIOR
+;;                                                stratum's derived facts — only correct if
+;;                                                S(i-1)'s closure is known first]
+;; MAX_STRATA = 10 (S0..S9) is a static ceiling from the pre-declared types; `items` (M) is the
+;; free scale dial (the derived-set-size driver), `strata` (N) proves genuine chain depth up to
+;; the ceiling — matching the axis note "N strata x M items so the derived set is large".
+;;
+;; Fires the NATIVE production verb `:wat::rete::fire-rules` (delegates to `fire-rules'`, which
+;; gained native stratification natively per arc278 stone 7-strat-native — the differential-tested
+;; fast path; NOT the wat oracle `fire-rules-spec`).
+;;
+;; :derived is the FULL SORTED derived-fact set, canonicalized as a single i64 per fact
+;; (stratum * 1,000,000 + k) so it can be compared byte-for-byte against Clara's rendering of the
+;; identical workload (gen-strat-neg.sh) — no record/keyword shape to reconcile, just a sorted
+;; vector of integers on both sides.
+;;
+;; Usage (stdin = an i64 vector [strata items]; stdout = one #grid/Result EDN line):
+;;   echo '[6 2000]' | cargo wat ./wat-scripts/perf/grid/strat-neg.wat
+;;   => #grid/Result {:axis "strat-neg" :size [6 2000] :derived [...] :native-ns N}
+
+(:wat::core::defrecord :strat::Item [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S0 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S1 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S2 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S3 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S4 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S5 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S6 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S7 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S8 [k <- :wat::core::i64])
+(:wat::core::defrecord :strat::S9 [k <- :wat::core::i64])
+
+(:wat::core::defrecord :grid::Result
+  [axis      <- :wat::core::String
+   size      <- :wat::core::PersistentVector<wat::core::i64>
+   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   native-ns <- :wat::core::i64])
+
+;; encode stratum k — canonical single-i64 witness for one derived S<n> fact.
+;; items is always far below 1,000,000 in every size this axis is run at (grid scale, not
+;; production scale), so the encoding is injective for the sizes this ward ever sees.
+(:wat::core::defn :strat::encode [stratum <- :wat::core::i64  k <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::+ (:wat::core::i64::* stratum 1000000) k))
+
+;; insert-form lvl — the full (:wat::rete::insert (:strat::S<lvl> ?k)) action form for stratum
+;; lvl. Each branch is a LITERAL nested quasiquote (no cross-boundary AST splicing of a computed
+;; sub-form into a type-name position — that path is unproven/risky); this dispatch is the one
+;; place the MAX_STRATA=10 ceiling is enforced (the :else branch raises).
+(:wat::core::defn :strat::insert-form [lvl <- :wat::core::i64] -> :wat::WatAST
+  (:wat::core::cond
+    ((:wat::core::= lvl 0) (:wat::core::quasiquote (:wat::rete::insert (:strat::S0 ?k))))
+    ((:wat::core::= lvl 1) (:wat::core::quasiquote (:wat::rete::insert (:strat::S1 ?k))))
+    ((:wat::core::= lvl 2) (:wat::core::quasiquote (:wat::rete::insert (:strat::S2 ?k))))
+    ((:wat::core::= lvl 3) (:wat::core::quasiquote (:wat::rete::insert (:strat::S3 ?k))))
+    ((:wat::core::= lvl 4) (:wat::core::quasiquote (:wat::rete::insert (:strat::S4 ?k))))
+    ((:wat::core::= lvl 5) (:wat::core::quasiquote (:wat::rete::insert (:strat::S5 ?k))))
+    ((:wat::core::= lvl 6) (:wat::core::quasiquote (:wat::rete::insert (:strat::S6 ?k))))
+    ((:wat::core::= lvl 7) (:wat::core::quasiquote (:wat::rete::insert (:strat::S7 ?k))))
+    ((:wat::core::= lvl 8) (:wat::core::quasiquote (:wat::rete::insert (:strat::S8 ?k))))
+    ((:wat::core::= lvl 9) (:wat::core::quasiquote (:wat::rete::insert (:strat::S9 ?k))))
+    (:else (:wat::core::Option/expect  :wat::core::None
+             (:wat::core::string::interpolate
+               "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
+               :lvl-s (:wat::core::i64::to-string lvl))))))
+
+;; not-pattern prev — the full (:wat::rete::not (:strat::S<prev> (?k <- :k))) condition form,
+;; negating stratum `prev`'s derived facts. Same literal-dispatch shape as insert-form.
+(:wat::core::defn :strat::not-pattern [prev <- :wat::core::i64] -> :wat::WatAST
+  (:wat::core::cond
+    ((:wat::core::= prev 0) (:wat::core::quasiquote (:wat::rete::not (:strat::S0 (?k <- :k)))))
+    ((:wat::core::= prev 1) (:wat::core::quasiquote (:wat::rete::not (:strat::S1 (?k <- :k)))))
+    ((:wat::core::= prev 2) (:wat::core::quasiquote (:wat::rete::not (:strat::S2 (?k <- :k)))))
+    ((:wat::core::= prev 3) (:wat::core::quasiquote (:wat::rete::not (:strat::S3 (?k <- :k)))))
+    ((:wat::core::= prev 4) (:wat::core::quasiquote (:wat::rete::not (:strat::S4 (?k <- :k)))))
+    ((:wat::core::= prev 5) (:wat::core::quasiquote (:wat::rete::not (:strat::S5 (?k <- :k)))))
+    ((:wat::core::= prev 6) (:wat::core::quasiquote (:wat::rete::not (:strat::S6 (?k <- :k)))))
+    ((:wat::core::= prev 7) (:wat::core::quasiquote (:wat::rete::not (:strat::S7 (?k <- :k)))))
+    ((:wat::core::= prev 8) (:wat::core::quasiquote (:wat::rete::not (:strat::S8 (?k <- :k)))))
+    ((:wat::core::= prev 9) (:wat::core::quasiquote (:wat::rete::not (:strat::S9 (?k <- :k)))))
+    (:else (:wat::core::Option/expect  :wat::core::None
+             (:wat::core::string::interpolate
+               "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {prev-s}"
+               :prev-s (:wat::core::i64::to-string prev))))))
+
+;; build-rule lvl — the lvl-th stratum's rule.
+;;   lvl == 0: S0(k) :- Item(k) AND (k mod 2 == 0)     [2 conditions: bind, then a :where test]
+;;   lvl >  0: Slvl(k) :- Item(k) AND NOT S(lvl-1)(k)  [2 conditions: bind + negate]
+;; WHY the mod-2 test is a SEPARATE (:wat::rete::where <expr>) condition, NOT embedded as an
+;; extra child of the Item fact pattern (as deep-cascade.wat embeds its level-equality test):
+;; alpha-level tests (matcher.rs `eval_clause`/`resolve_binary_operands`) resolve operands ONLY
+;; from {bindings, fact-field, bare-literal} — NEVER by evaluating a compound expression. Deep-
+;; cascade's embedded `(= ?l (unquote prev))` works because `prev` splices to a bare i64
+;; LITERAL; `(i64::* (i64::/ ?k 2) 2)` is a compound expression, which resolve_operand cannot
+;; resolve — embedding it silently made the alpha test unsatisfiable for every fact (found
+;; empirically: S0 came back EMPTY). `:wat::rete::where` compiles to a beta-level TestNode
+;; (compile-condition's where-branch, wat/rete.wat:547+) whose `eval-test` does a genuine
+;; `eval_inner` with the bound vars in a child Environment — full expressions are fine there.
+;; NOTE: not-pattern is only ever CALLED inside the else-branch of the `if` below (`if` branches
+;; are lazily evaluated — the untaken branch never runs), NOT hoisted into a `let` binding —
+;; a `let` binding evaluates eagerly regardless of which branch of `conds` gets picked, which
+;; would call `(not-pattern -1)` for lvl=0 and panic on the MAX_STRATA guard.
+(:wat::core::defn :strat::build-rule [lvl <- :wat::core::i64] -> :wat::rete::Rule
+  (:wat::core::let [item-c  (:wat::core::quasiquote (:strat::Item (?k <- :k)))
+                    where-c (:wat::core::quasiquote
+                              (:wat::rete::where
+                                (:wat::core::= ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2))))
+                    ins     (:strat::insert-form lvl)
+                    conds   (:wat::core::if (:wat::core::= lvl 0)
+                              (:wat::core::PersistentVector item-c where-c)
+                              (:wat::core::PersistentVector item-c (:strat::not-pattern (:wat::core::i64::- lvl 1))))]
+    (:wat::rete::Rule (:wat::core::i64::to-string lvl) conds (:wat::core::PersistentVector ins))))
+
+;; build-rules strata — the rule set [rule0 .. rule(strata-1)], folding build-rule over
+;; (range 1 strata) atop a seeded rule0 (mirrors deep-cascade.wat's build-rules exactly).
+(:wat::core::defn :strat::build-rules [strata <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  lvl <- :wat::core::i64]
+      -> :wat::core::PersistentVector<wat::rete::Rule>
+      (:wat::core::PersistentVector/conj acc (:strat::build-rule lvl)))
+    (:wat::core::PersistentVector (:strat::build-rule 0))
+    (:wat::core::range 1 strata)))
+
+;; seed-items session items — stage Item(i) for i in [0, items), threading the staging session.
+(:wat::core::defn :strat::seed-items [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
+  (:wat::core::foldl
+    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+      (:wat::rete::insert s (:strat::Item i)))
+    session
+    (:wat::core::range 0 items)))
+
+;; codes-for-level fired lvl — every derived fact of stratum lvl's type, canonically encoded.
+;; Same literal-dispatch shape as insert-form/not-pattern (the type-qualified accessor
+;; `:strat::S<n>/k` needs a literal symbol, same reason the other two dispatches are literal);
+;; mirrors deep-cascade.wat's count-at-level (typed lambda directly over query-by-type-string).
+(:wat::core::defn :strat::codes-for-level
+  [fired <- :wat::rete::Session  lvl <- :wat::core::i64]
+  -> :wat::core::Vector<wat::core::i64>
+  (:wat::core::cond
+    ((:wat::core::= lvl 0)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S0] -> :wat::core::i64 (:strat::encode 0 (:strat::S0/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S0"))))
+    ((:wat::core::= lvl 1)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S1] -> :wat::core::i64 (:strat::encode 1 (:strat::S1/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S1"))))
+    ((:wat::core::= lvl 2)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S2] -> :wat::core::i64 (:strat::encode 2 (:strat::S2/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S2"))))
+    ((:wat::core::= lvl 3)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S3] -> :wat::core::i64 (:strat::encode 3 (:strat::S3/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S3"))))
+    ((:wat::core::= lvl 4)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S4] -> :wat::core::i64 (:strat::encode 4 (:strat::S4/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S4"))))
+    ((:wat::core::= lvl 5)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S5] -> :wat::core::i64 (:strat::encode 5 (:strat::S5/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S5"))))
+    ((:wat::core::= lvl 6)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S6] -> :wat::core::i64 (:strat::encode 6 (:strat::S6/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S6"))))
+    ((:wat::core::= lvl 7)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S7] -> :wat::core::i64 (:strat::encode 7 (:strat::S7/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S7"))))
+    ((:wat::core::= lvl 8)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S8] -> :wat::core::i64 (:strat::encode 8 (:strat::S8/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S8"))))
+    ((:wat::core::= lvl 9)
+     (:wat::core::into (:wat::core::Vector :wat::core::i64)
+       (:wat::core::map (:wat::core::fn [f <- :strat::S9] -> :wat::core::i64 (:strat::encode 9 (:strat::S9/k f)))
+         (:wat::rete::query-by-type-string fired "strat::S9"))))
+    (:else (:wat::core::Option/expect  :wat::core::None
+             (:wat::core::string::interpolate
+               "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
+               :lvl-s (:wat::core::i64::to-string lvl))))))
+
+;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. `into` has no
+;; (PersistentVector<T>, Vector<T>) clause (wat/seq.wat only defines Vector,Vector and the two
+;; Stream-seeded forms) — a manual conj-fold is the honest bridge between the two container kinds.
+(:wat::core::defn :strat::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
+      -> :wat::core::PersistentVector<wat::core::i64>
+      (:wat::core::PersistentVector/conj acc x))
+    (:wat::core::PersistentVector)
+    v))
+
+;; derived-vector fired strata — every derived fact across all `strata` levels, canonically
+;; encoded and sorted ascending. This IS the accuracy witness: the full set, not a count — a
+;; mismatch anywhere (missing/extra fact at any stratum) shows up.
+(:wat::core::defn :strat::derived-vector
+  [fired <- :wat::rete::Session  strata <- :wat::core::i64]
+  -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::let [all (:wat::core::foldl
+                          (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64>  lvl <- :wat::core::i64]
+                            -> :wat::core::Vector<wat::core::i64>
+                            (:wat::core::into acc (:strat::codes-for-level fired lvl)))
+                          (:wat::core::Vector :wat::core::i64)
+                          (:wat::core::range 0 strata))]
+    (:strat::vec->pvec (:wat::core::sort all))))
+
+;; ns-between t0 t1 — nanoseconds between two Instants (mirrors deep-cascade.wat's ns-between).
+(:wat::core::defn :strat::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
+  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+                    strata  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [strata items]")
+                    items   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [strata items]")
+                    rules   (:strat::build-rules strata)
+                    staged  (:strat::seed-items (:wat::rete::compile rules) items)
+                    ;; time the NATIVE production verb only (compile + seed are un-timed setup)
+                    n0      (:wat::time::now)
+                    fired   (:wat::rete::fire-rules staged)
+                    n1      (:wat::time::now)
+                    derived (:strat::derived-vector fired strata)
+                    nat-ns  (:strat::ns-between n0 n1)]
+    (:wat::kernel::println
+      (:grid::Result "strat-neg" (:wat::core::PersistentVector strata items) derived nat-ns))))
