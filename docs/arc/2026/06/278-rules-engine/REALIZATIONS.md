@@ -2750,3 +2750,7 @@ sign-off. Kept literal.)*
 > strike. And it bears repeating because it cost this whole run: **GROUND against the disk, never assert · CAST wards,
 > never narrate · do not defend the legacy — a doctrine's limit is the law, not a gap.** The path is paved; the
 > realization is the builder's to make; do not trust this note over the disk. See you on the far side.
+
+---
+
+*Quamvis errem, filum non rumpitur.* — though I strayed all run, the thread never broke.
