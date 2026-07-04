@@ -2283,3 +2283,94 @@ Kept true, and self-implicating. **PROBATVM by demonstration, this session:** th
  :arc      278
  :born     #inst "2026-07-03"}
 ```
+
+---
+
+### `---` interstitial (curare before compaction) — SIGNA PROPIORA: the chevrons are nearer, the chaos engine named — the RESUME breadcrumb for the far side (2026-07-04, session close; the builder's sign-off)
+
+**The builder's sign-off, kept literal:** *"damn — we need to curare and compact … excellent read — phenomenal … i'll see you on the far side."*
+
+**What aligned this session.** We came in to make the rust rete fast and left with the **target named** — the chaos engine (`R25 MACHINA CHAOS DOMAT`). The chevrons that locked: **T1** (native stratified negation fused — the "wall" was a `merge_facts` O(n²), killed); the **Clara measurement grid** (six axes, accuracy `:match` on all, one real speed gap); and the two **corrections** that stripped the target clean (retract-is-not-a-gap; streaming-is-not-future). The stargate positions are getting more correct; the portal is warm.
+
+```clojure
+{:RESUME-HERE
+ {:head    "ce344016 — R25 MACHINA CHAOS DOMAT (this curare interstitial commits on top)"
+  :branch  "arc-170-gap-j-v5-deadlock-state"
+  :arc     "278 — THE RETE BUILD. Target: the CHAOS ENGINE (R25) — a streaming rete datalog held in a defservice,
+            a rules engine over a LIVE working memory taming the flood of facts at LINE RATE, incrementally, O(delta).
+            NOT a new thing — zero new substrate, a COMPOSITION of every prior arc. The oracles guide us."
+
+  :landed-this-session
+  {:T1        "0a87b83f — native stratified negation FUSED (oracle UNMOVED). Killed: merge_facts O(n²) linear-scan
+               (the [7,3000] hang) → HashSet; per-stratum recompile → reuse+slice the one network; shared-alpha 6x
+               root-join fan-out → deduped. Differentials 44/44 native==oracle; whole workspace floor-0; [6,1000]
+               210→83ms; strat-neg vs Clara :match :winner :us (~1.5–2x, HOLDING, no crossover — 'shrinking lead'
+               was JVM warmup noise)."
+   :grid      "87b062b4 + cefc371f (DESIGN-clara-grid) — the Clara meet-or-exceed harness (run-axis.sh: derived-SET
+               accuracy differential + speed ratio → #grid/Verdict) + 6 measured axes, ALL accuracy :match (native==
+               Clara): negation/accum/asym-join/user-reduce(the 118 interlock, matches the peer)/min-finding = :us;
+               node-share = CLARA 57x (a REAL gap). CLARA-TRANSLATIONS.md = the grounded Clara-0.24.0 forms."
+   :chronicle "R22 Eyeless (OCVLI NOVI ORACVLVM IMMOTVM) · R23 Spaceman (RVINA CHOREAM NON SISTIT — the crash was a
+               non-event, the record held) · R24 B.M.F. (NON MVRVS SED VITIVM — the wall was a flaw) · R25 Prequel
+               (MACHINA CHAOS DOMAT — the target). + PVRITAS VERVM NON CELERITATEM + ANCORAM NON AMITTIMVS. All pushed."}
+
+  :FIRST-MOVE
+  {:what "the TELEMETRY INSTRUMENT — MEASURE-FIRST (the harness was theater; we build blind without real per-op
+          telemetry). Grounded: the write path is BUILT (hand-rolled Service + sqlite sink, auto-derived schema per
+          Event variant); the QUERY-BACK is STUBBED (crates/wat-telemetry-sqlite/wat/telemetry/Reader.wat — LogQuery/
+          MetricQuery are empty slice-1 stubs, full-table-scan only; cursor.rs streams). BUILD the query-back (real
+          LogQuery/MetricQuery filter/aggregate over sqlite + a wat query surface)."
+   :leans-UNRATIFIED "surface these to the builder before drawing: (1) query-back FIRST (the instrument gap),
+          service-rewrite (hand-rolled→defservice) SECOND (cleaner, non-blocking, doubles as the defservice dogfood
+          exemplar); (2) TRADITIONAL query tooling first, fold onto rete-as-datalog AFTER (same discipline as the
+          linter: build it, then flip to rete rules)."}
+
+  :THEN "the RETE STREAMING SERVICE (a defservice whose state IS a Session; incremental insert/retract, O(delta), the
+         WM persisted across messages; guided message-for-message by the batch oracle — OCVLI NOVI ORACVLVM IMMOTVM,
+         the dual-impl). THEN fold the telemetry query onto rete (datalog, the dogfood loop closes). Refs:
+         NEXT-ANGLES.md ⑥ (the persistent-WM deductive db), DESIGN-STONE-S (snapshot/revive/explain), NOTE-overlay-
+         read-path (the COW what-if read path), DESIGN-clara-grid.md."
+
+  :perf-frontier "T1 DONE. T4 = node-share (Clara 57x — we share ALPHA nodes but NOT beta/join-prefix subtrees; N
+                  rules → N× join work — the biggest MEASURED gap). T3 = per-element incremental insert (the deep-
+                  cascade width crossover). T2/retract is NOT a gap (see :do-not). Task #3 (grid synthesis) = the
+                  meet-or-exceed verdict at scale."
+
+  :do-not
+  {:retract "retract is NOT a gap — it is engine-agnostic (edits Session.facts) + TM falls out of REPLAY (P4b linear;
+             probe_arc278_P4c_native_retraction.rs). Do NOT 'build incremental retract' for the value-semantics
+             engine; O(delta) support-store retract is the STREAMING engine's job (I asserted it was a gap — WRONG,
+             corrected by grounding)."
+   :streaming "the streaming engine is NOT a 'future optimization' — it is THE POINT (line-rate; Clara@Shield → eBPF
+               → this). Do not defer it (I called it future — WRONG, the builder's 'wut' corrected it)."
+   :oracle "the wat oracle (wat/rete.wat) does NOT move. ALL speedup on the RUST kernel, differential-tested
+            native==oracle (OCVLI NOVI ORACVLVM IMMOTVM)."
+   :procs "do NOT leave orphaned background benchmark runs — cargo-wat children reparent to init (PPID 1) at 100% CPU
+           when the wrapper is killed; the builder swept them 3x this session. The strat-neg harness is O(n²)
+           INTERPRETED (seed one-at-a-time + query-and-sort derive) — big runs are HARNESS-THEATER, not fire cost.
+           If we ever need scale numbers, FIX THE HARNESS (batch seed/derive), don't babysit a slow run."
+   :ground "GROUND every perf claim against the disk (AD ORACVLVM) — I asserted retract-is-a-gap AND streaming-is-
+            future this session; both wrong, both caught by reading the code. Assertions about the engine's cost owe
+            a file:line."}
+
+  :owed "MEMORY.md is 240KB / 460 single-line entries, over the ~24KB load ceiling — only the FIRST ~46 entries
+         preload; the other ~414 pointers don't load (the 476 topic FILES are all safe on disk — this is a
+         which-pointers-preload gap, not lost memory). CANNOT be fixed by line-tightening alone: 460 entries × even a
+         bare [title](file) link ≈ 28KB > 17KB target. Needs real CURATION — a deliberate pass: drop/merge stale +
+         superseded entries down to the load-bearing core, and/or a two-tier index (hot MEMORY.md + an archive tier).
+         Do NOT rush this at a sign-off (a blind truncation silently drops load-bearing memories); it is its own
+         careful session. Owed across many sessions."}}
+```
+
+***SIGNA PROPIORA.*** *(apparatus-minted — Latin, "the positions/symbols nearer": the curare breadcrumb before compaction — the stargate chevrons the builder feels aligning ("the positions are getting more correct") drew NEARER this session (SIGNA COMPONIMVS, 300, advanced): T1 landed, the Clara grid measured, the two corrections stripped the target clean, and the CHAOS ENGINE was named (R25 MACHINA CHAOS DOMAT). The portal (the builder's machine) is warm. Carries the RESUME-HERE: HEAD ce344016; the target (the streaming rete datalog); the FIRST MOVE (the telemetry instrument, measure-first — its query-back stubbed) with the unratified leans; the roadmap (instrument → the rete service → rete-as-datalog); the perf frontier (T4 node-share 57x; T3 width; T2/retract-is-NOT-a-gap); the do-nots (retract-not-a-gap, streaming-not-future, oracle-unmoved, no-orphaned-procs, ground-AD-ORACVLVM). A curare interstitial at the builder's sign-off — "we need to curare and compact … i'll see you on the far side." Kept literal.)*
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar voice,
+> not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk).
+> Ground HEAD against the disk (`ce344016`). Read this whole RESUME breadcrumb + **R25 MACHINA CHAOS DOMAT** (the
+> target) and **R22 OCVLI NOVI ORACVLVM IMMOTVM** (the oracle-unmoved doctrine) before you move — and it bears
+> repeating because it bit me twice this session: **GROUND every perf/engine claim against the code; do not assert.**
+> The target is the chaos engine; the first move is the telemetry instrument (measure-first); the oracle does not
+> move; the streaming engine is the point, not a future. The chevrons are nearer; the portal is warm; the gate is
+> not yet open. Do not trust this note over the disk. See you on the far side.
