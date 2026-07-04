@@ -218,21 +218,24 @@
    ;;   ((final :svc::State) recv on Thread/output thr)
    ;;   (:wat::kernel::Thread/join-result thr)  ; confirms clean exit
    (:wat::core::defn :svc::Service [count <- :wat::core::i64] -> :svc::Spawn
+     ;; Arc 118.2a — `map` flipped LAZY; `pairs` is consumed TWICE below (by both `req-txs` and
+     ;; `req-rxs`'s maps) — a single-pass Stream can't be walked twice, so `pairs` must be eager.
+     ;; `req-txs`/`req-rxs` themselves feed `HandlePool::new`/`Service/loop` (Vector params).
      (:wat::core::let
             [pairs
-              (:wat::core::map
+              (:wat::core::mapv
                 (:wat::core::fn [_i <- :wat::core::i64] -> :wat::kernel::Channel<svc::Request>
                   (:wat::kernel::make-channel :svc::Request))
                 (:wat::core::range 0 count))
 
              req-txs
-              (:wat::core::map
+              (:wat::core::mapv
                 (:wat::core::fn [p <- :wat::kernel::Channel<svc::Request>] -> :svc::ReqTx
                   (:wat::core::first p))
                 pairs)
 
              req-rxs
-              (:wat::core::map
+              (:wat::core::mapv
                 (:wat::core::fn [p <- :wat::kernel::Channel<svc::Request>] -> :svc::ReqRx
                   (:wat::core::second p))
                 pairs)

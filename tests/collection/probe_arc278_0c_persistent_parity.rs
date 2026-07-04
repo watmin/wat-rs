@@ -3,8 +3,14 @@
 //! 0a/0b gave PersistentVector the accessor ops (length/get/conj/first/rest/…); PersistentMap is already at
 //! full HashMap parity. The remaining miss: the TRANSFORM + SEQUENCE ops std `Vec` has —
 //! `map`/`filter`/`foldl`/`foldr`/`concat`/`reverse`/`take`/`drop` — are std-`Vec`-only. This probe runs a
-//! PersistentVector through all 8 and asserts each works (type-preserving: a transformed PersistentVector
-//! returns a PersistentVector). RED at HEAD: these don't dispatch on PersistentVector.
+//! PersistentVector through all 8 and asserts each works. RED at HEAD: these don't dispatch on PersistentVector.
+//!
+//! Arc 118.2a note: `map`/`filter`/`take`/`drop` flipped LAZY — they now ALWAYS return a `Stream<T>`
+//! (never container-preserving). The four assertions below that used to check "still a
+//! PersistentVector" directly now materialize via `(:wat::core::into (:wat::core::PersistentVector) …)`
+//! first — the parity this probe proves (PersistentVector is accepted as INPUT to every op) still
+//! holds; only the "and comes back out the same container kind" half is retired by design.
+//! `foldl`/`foldr`/`reverse`/`concat` are untouched by 118.2a and keep their original assertions.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_0c_persistent_parity -- --include-ignored
 
@@ -32,14 +38,15 @@ fn persistent_vector_transform_parity() {
     assert_eq!(ev(&format!("(:wat::core::foldl {sum} 0 {pv})")), Value::i64(6), "foldl over PersistentVector");
     assert_eq!(ev(&format!("(:wat::core::foldr {sum} 0 {pv})")), Value::i64(6), "foldr over PersistentVector");
 
-    // map / filter (fn-first; TYPE-PRESERVING → a PersistentVector, so PersistentVector/length applies)
+    // map / filter (fn-first; arc 118.2a: LAZY, returns Stream<T> — materialize via `into`
+    // (PersistentVector) to prove PersistentVector is accepted as input).
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::map {dbl} {pv}))")),
-        Value::i64(3), "map returns a PersistentVector"
+        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::map {dbl} {pv})))")),
+        Value::i64(3), "map accepts a PersistentVector, materializes back to one"
     );
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::filter {gt1} {pv}))")),
-        Value::i64(2), "filter returns a PersistentVector"
+        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter {gt1} {pv})))")),
+        Value::i64(2), "filter accepts a PersistentVector, materializes back to one"
     );
 
     // reverse (type-preserving; head after reverse == 3 — get returns Option<T>)
@@ -48,14 +55,14 @@ fn persistent_vector_transform_parity() {
         Value::Option(Arc::new(Some(Value::i64(3)))), "reverse a PersistentVector"
     );
 
-    // take / drop (coll-first; type-preserving)
+    // take / drop (coll-first; arc 118.2a: LAZY, returns Stream<T> — materialize via `into`).
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::take {pv} 2))")),
-        Value::i64(2), "take n from a PersistentVector"
+        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::take {pv} 2)))")),
+        Value::i64(2), "take n accepts a PersistentVector, materializes back to one"
     );
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::drop {pv} 1))")),
-        Value::i64(2), "drop n from a PersistentVector"
+        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::drop {pv} 1)))")),
+        Value::i64(2), "drop n accepts a PersistentVector, materializes back to one"
     );
 
     // concat (two PersistentVectors → a PersistentVector)

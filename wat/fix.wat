@@ -76,10 +76,12 @@
 
 ;; strip-if — rebuild the bare `(if cond then else)` from `(if cond -> :T then else)`,
 ;; dropping children [2] (`->`) and [3] (the type).
+;; Arc 118.2a — `take`/`drop` flipped LAZY (return Stream); `concat` (unchanged, Vector/
+;; PersistentVector/List-only) needs both sides eager.
 (:wat::core::defn :wat::fix::strip-if [node <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::with-children node
-    (:wat::core::concat (:wat::core::take (:wat::core::ast->children node) 2)
-                        (:wat::core::drop (:wat::core::ast->children node) 4))))
+    (:wat::core::concat (:wat::core::into [] (:wat::core::take (:wat::core::ast->children node) 2))
+                        (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children node) 4)))))
 
 ;; head-keyword? — a `::`-namespaced keyword: a rust-scheme call head / reference, the kind
 ;; `keyword/to-symbol` converts. Bare data keywords (`:else`) have no `::` and are left alone.
@@ -297,7 +299,9 @@
                         c1       (:wat::core::first (:wat::core::rest ch))
                         c2       (:wat::core::first (:wat::core::drop ch 2))
                         c3       (:wat::core::first (:wat::core::drop ch 3))
-                        branches (:wat::core::drop ch 4)]
+                        ;; Arc 118.2a — `drop` flipped LAZY; `branches` feeds
+                        ;; `fix-text-seq-edits`, which declares a `Vector<WatAST>` param.
+                        branches (:wat::core::into [] (:wat::core::drop ch 4))]
         ;; edits in ascending text order: head, cond, arrow-del, type-del, branches
         (:wat::core::concat
           (:wat::fix::fix-text-leaf-edits head false lines)

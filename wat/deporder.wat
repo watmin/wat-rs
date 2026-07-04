@@ -151,7 +151,8 @@
                                   (:wat::deporder::collect-kwds
                                     (:wat::core::first ch)))
                       ;; skip child[1] (the defined name); collect from child[2..] (the body)
-                      body-ch (:wat::core::drop ch 2)
+                      ;; Arc 118.2a — `drop` flipped LAZY; `foldl` below (unchanged) needs it eager.
+                      body-ch (:wat::core::into [] (:wat::core::drop ch 2))
                       body-refs (:wat::core::foldl
                                   (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
                                                    c <- :wat::WatAST]

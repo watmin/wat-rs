@@ -67,10 +67,11 @@
 (:wat::core::defn :user::wat-grep
   [src  <- :wat::core::String
    pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
+  ;; Arc 118.2a — `filter` flipped LAZY; this fn's declared return type is `Vector<WatAST>`, so `filterv`.
   -> :wat::core::Vector<wat::WatAST>
   (:wat::core::let [tree  (:wat::core::read-string src)
                     forms (:wat::core::ast->children tree)]
-    (:wat::core::filter pred forms)))
+    (:wat::core::filterv pred forms)))
 
 ;; ── Public: delete top-level matching forms ───────────────────────────────────────────
 ;;
@@ -84,7 +85,9 @@
   (:wat::core::let [lines     (:wat::core::string::split src "\n")
                     tree      (:wat::core::read-string src)
                     forms     (:wat::core::ast->children tree)
-                    matches   (:wat::core::filter pred forms)
+                    ;; Arc 118.2a — `filter` flipped LAZY; `matches` feeds `wat-grep-strip-edits`
+                    ;; (Vector<WatAST> param), so `filterv`.
+                    matches   (:wat::core::filterv pred forms)
                     all-edits (:user::wat-grep-strip-edits matches src lines)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))

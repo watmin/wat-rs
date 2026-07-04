@@ -3121,7 +3121,7 @@ pub fn value_to_edn_with(
                         Box::new(value_to_edn_with(head, types)),
                     )
                 }
-                Stream::Thunk(_) => opaque_nil("wat-edn.opaque", "lazy-seq"),
+                Stream::Thunk(_) | Stream::NativeThunk(_) => opaque_nil("wat-edn.opaque", "lazy-seq"),
             }
         }
         // Stone 237.2 — wat__core__clauses: opaque (multi-arity dispatcher;

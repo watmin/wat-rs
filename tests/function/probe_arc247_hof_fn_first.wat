@@ -7,17 +7,20 @@
 (:wat::core::defn :user::regression-plus [] -> :wat::core::bool
   (:wat::core::= (:wat::core::+ 1 2 3 4) 10))
 
-;; MINT-CONFIRMERS — fn-first order (map f xs)
+;; MINT-CONFIRMERS — fn-first order (map f xs).
+;; Arc 118.2a — `map` flipped LAZY (returns Stream); this probe's intent (fn-first ARGUMENT
+;; ORDER, unchanged by the flip) still holds — force via `mapv` before the equality check
+;; so the comparison is against a concrete Vector, same as before.
 (:wat::core::defn :user::mint-map-fn-first [] -> :wat::core::bool
-  (:wat::core::= (:wat::core::map
+  (:wat::core::= (:wat::core::mapv
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
                      (:wat::core::i64::+ x 1))
                    [1 2 3])
                  [2 3 4]))
 
-;; MINT-CONFIRMERS — fn-first order (filter pred xs)
+;; MINT-CONFIRMERS — fn-first order (filter pred xs). Arc 118.2a — same note as map above.
 (:wat::core::defn :user::mint-filter-fn-first [] -> :wat::core::bool
-  (:wat::core::= (:wat::core::filter
+  (:wat::core::= (:wat::core::filterv
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
                      (:wat::core::i64::> x 1))
                    [1 2 3])

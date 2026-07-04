@@ -21,12 +21,16 @@
 ;; Callers either match explicitly or propagate with
 ;; `:wat::core::Result/try`.
 
+;; Arc 118.2a — `map` flipped LAZY (returns Stream); `Bundle` needs a concrete
+;; `Vector<HolonAST>` eagerly, so the EXPANDED code uses `mapv` here. (This is a template
+;; spliced into ordinary caller code, evaluated at normal runtime — not a macro-expansion-
+;; time bootstrap site, so `mapv` is safe to reference directly.)
 (:wat::core::defmacro :wat::holon::Ngram
   [n  <- :wat::WatAST
    xs <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::holon::Bundle
-     (:wat::core::map
+     (:wat::core::mapv
        (:wat::core::fn [window <- :wat::holon::Holons] -> :wat::holon::HolonAST
          (:wat::holon::Sequential window))
        (:wat::std::list::window ~xs ~n))))

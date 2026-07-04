@@ -31,8 +31,10 @@
 (:wat::core::defn :wat::core::string::kebab->pascal
   [s <- :wat::core::String]
   -> :wat::core::String
+  ;; Arc 118.2a — `map` flipped LAZY (returns Stream); `string::join` needs a Vector eagerly
+  ;; (this string is fully materialized either way — no lazy pipeline benefit here).
   (:wat::core::string::join ""
-    (:wat::core::map :wat::core::string::capitalize
+    (:wat::core::mapv :wat::core::string::capitalize
       (:wat::core::string::split s "-"))))
 
 ;; :wat::core::string::strip-leading-colon — strip a leading ":" from s if present; else s unchanged.

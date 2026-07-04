@@ -616,10 +616,43 @@ fn seq_ty(coll_head: &str, elem_ty: TypeExpr) -> TypeExpr {
     }
 }
 
-/// Type-check `(:wat::core::map f xs)` — arc 278 stone 0d.
+/// Arc 118.2a — shared input classification for the now-LAZY `map`/`take`/`drop` (the Rust
+/// intrinsics that stay native for the bootstrap-circularity reason documented on
+/// `crate::stream::NativeLazyCell` / `eval_vec_map`). Accepts `Vector<T>` | `List<T>` |
+/// `PersistentVector<T>` | `Stream<T>` — a FIXED set, independent of the `mappable()`/
+/// `ordered()` capability tables (those stay exactly as they were, still gating `foldl`/
+/// `foldr`/`reverse`/`concat`, which this arc does not touch).
 ///
-/// Projective: `C<T> × fn(T)->U → C<U>` where `C ∈ {Vector, PersistentVector}`.
-/// The container kind is preserved; the element type changes from T to U.
+/// Returns `None` for a `Var` (caller defers to the runtime backstop, same policy as
+/// `extract_seq_elem`) or for any other shape (caller emits `TypeMismatch`).
+fn extract_lazyable_elem(reduced: &TypeExpr, subst: &mut Subst, fresh: &mut InferCtx) -> Option<TypeExpr> {
+    match reduced {
+        TypeExpr::Parametric { head, args }
+            if head == "wat::core::Vector"
+                || head == "wat::core::List"
+                || head == "wat::core::PersistentVector"
+                || head == "wat::stream::Stream" =>
+        {
+            Some(args.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| fresh.fresh()))
+        }
+        TypeExpr::Path(p)
+            if p == ":wat::core::Vector"
+                || p == ":wat::core::List"
+                || p == ":wat::core::PersistentVector"
+                || p == ":wat::stream::Stream" =>
+        {
+            Some(fresh.fresh())
+        }
+        _ => None,
+    }
+}
+
+/// Type-check `(:wat::core::map f xs)` — arc 118.2a (was arc 278 stone 0d, eager).
+///
+/// LAZY now: `Seqable<T> × fn(T)->U → Stream<U>`, where `Seqable ∈ {Vector, List,
+/// PersistentVector, Stream}`. The return is ALWAYS a `Stream<U>` — the input container kind
+/// is no longer preserved (that was the eager contract; the lazy one is uniform, matching
+/// `crate::stream::value_as_stream`'s runtime normalization in `eval_vec_map`).
 pub(crate) fn infer_map(
     args: &[WatAST],
     head_span: &Span,
@@ -630,7 +663,7 @@ pub(crate) fn infer_map(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::core::map";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = fresh.fresh();
+    let fallback_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![fresh.fresh()] };
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -643,8 +676,8 @@ pub(crate) fn infer_map(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
-            Some((coll_head, elem_ty)) => {
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
                 // Unify arg[0] against fn(T)->U; U is the fresh output element type.
                 let u_var = fresh.fresh();
                 let expected_fn_ty = TypeExpr::Fn {
@@ -661,8 +694,8 @@ pub(crate) fn infer_map(
                         }});
                     }
                 }
-                // Return C<U> — same container kind, output element type.
-                let ret_ty = seq_ty(coll_head, apply_subst(&u_var, subst));
+                // Return Stream<U> — ALWAYS a Stream now (the lazy flip); U is the fn's output.
+                let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&u_var, subst)] };
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)
                 } else {
@@ -677,73 +710,7 @@ pub(crate) fn infer_map(
                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#2".into(),
-                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
-                    got: format_type(&reduced)
-                }});
-            }
-        }
-    }
-    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
-}
-
-/// Type-check `(:wat::core::filter pred xs)` — arc 278 stone 0d.
-///
-/// Projective: `C<T> × fn(T)->bool → C<T>` — container kind AND element type preserved.
-pub(crate) fn infer_filter(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    const OP: &str = ":wat::core::filter";
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = fresh.fresh();
-    if args.len() != 2 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: OP.into(), expected: 2, got: args.len()
-        }});
-        return CheckResult::partial_with(fallback_ty, local_errors);
-    }
-    // fn-first: arg[0] is the predicate, arg[1] is the collection.
-    let pred_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let coll_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    let bool_ty = TypeExpr::Path(":wat::core::bool".into());
-
-    if let Some(coll_ty) = coll_ty_opt {
-        let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::mappable) {
-            Some((coll_head, elem_ty)) => {
-                // Predicate must be fn(T)->bool.
-                let expected_pred_ty = TypeExpr::Fn {
-                    args: vec![elem_ty.clone()],
-                    ret: Box::new(bool_ty),
-                };
-                if let Some(p_ty) = pred_ty {
-                    if unify(&p_ty, &expected_pred_ty, subst, env.types()).is_err() {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: OP.into(),
-                            param: "#1".into(),
-                            expected: format_type(&expected_pred_ty),
-                            got: format_type(&apply_subst(&p_ty, subst))
-                        }});
-                    }
-                }
-                // Return C<T> — both container kind and element type preserved.
-                let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
-                return if local_errors.is_empty() {
-                    CheckResult::ok(ret_ty)
-                } else {
-                    CheckResult::partial_with(ret_ty, local_errors)
-                };
-            }
-            None if matches!(reduced, TypeExpr::Var(_)) => {}
-            None => {
-                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: OP.into(),
-                    param: "#2".into(),
-                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -959,9 +926,11 @@ pub(crate) fn infer_reverse(
     if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
 }
 
-/// Type-check `(:wat::core::take xs n)` — arc 278 stone 0d.
+/// Type-check `(:wat::core::take xs n)` — arc 118.2a (was arc 278 stone 0d, eager).
 ///
-/// Projective: `C<T> × i64 → C<T>` — takes the first n elements; container preserved.
+/// LAZY now: `Seqable<T> × i64 → Stream<T>` — always returns a `Stream<T>` (see
+/// `extract_lazyable_elem`'s doc for the accepted `Seqable` set and why the input
+/// classification no longer routes through `ordered()`).
 pub(crate) fn infer_take(
     args: &[WatAST],
     head_span: &Span,
@@ -972,7 +941,7 @@ pub(crate) fn infer_take(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::core::take";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = fresh.fresh();
+    let fallback_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![fresh.fresh()] };
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -986,8 +955,8 @@ pub(crate) fn infer_take(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
-            Some((coll_head, elem_ty)) => {
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
                 // Verify the count argument is i64.
                 if let Some(n) = n_ty {
                     if unify(&n, &i64_ty, subst, env.types()).is_err() {
@@ -999,8 +968,8 @@ pub(crate) fn infer_take(
                         }});
                     }
                 }
-                // Return C<T> — container and element type preserved.
-                let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
+                // Return Stream<T> — ALWAYS a Stream now (the lazy flip).
+                let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&elem_ty, subst)] };
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)
                 } else {
@@ -1012,7 +981,7 @@ pub(crate) fn infer_take(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
                     got: format_type(&reduced)
                 }});
             }
@@ -1021,9 +990,10 @@ pub(crate) fn infer_take(
     if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
 }
 
-/// Type-check `(:wat::core::drop xs n)` — arc 278 stone 0d.
+/// Type-check `(:wat::core::drop xs n)` — arc 118.2a (was arc 278 stone 0d, eager).
 ///
-/// Projective: `C<T> × i64 → C<T>` — drops the first n elements; container preserved.
+/// LAZY now: `Seqable<T> × i64 → Stream<T>` — always returns a `Stream<T>`, still lazy
+/// beyond the drop point (see [`crate::collection::transform::eval_vec_drop`]'s doc).
 pub(crate) fn infer_drop(
     args: &[WatAST],
     head_span: &Span,
@@ -1034,7 +1004,7 @@ pub(crate) fn infer_drop(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::core::drop";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let fallback_ty = fresh.fresh();
+    let fallback_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![fresh.fresh()] };
     if args.len() != 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
             callee: OP.into(), expected: 2, got: args.len()
@@ -1048,8 +1018,8 @@ pub(crate) fn infer_drop(
 
     if let Some(coll_ty) = coll_ty_opt {
         let reduced = reduce(&coll_ty, subst, env.types());
-        match extract_seq_elem(&reduced, subst, fresh, crate::collection::seq_container::StreamContainer::ordered) {
-            Some((coll_head, elem_ty)) => {
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
                 // Verify the count argument is i64.
                 if let Some(n) = n_ty {
                     if unify(&n, &i64_ty, subst, env.types()).is_err() {
@@ -1061,8 +1031,8 @@ pub(crate) fn infer_drop(
                         }});
                     }
                 }
-                // Return C<T> — container and element type preserved.
-                let ret_ty = seq_ty(coll_head, apply_subst(&elem_ty, subst));
+                // Return Stream<T> — ALWAYS a Stream now (the lazy flip).
+                let ret_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![apply_subst(&elem_ty, subst)] };
                 return if local_errors.is_empty() {
                     CheckResult::ok(ret_ty)
                 } else {
@@ -1074,7 +1044,7 @@ pub(crate) fn infer_drop(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, PersistentVector<T>, or List<T>".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
                     got: format_type(&reduced)
                 }});
             }

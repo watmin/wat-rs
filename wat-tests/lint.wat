@@ -120,10 +120,11 @@
       (:wat::test::assert-true
         (:wat::core::i64::>= (:wat::core::length findings) 1))
       ;; there must be a finding with rule == "concat-abuse"
+      ;; Arc 118.2a — `filter` flipped LAZY; `length` needs a concrete container, so `filterv`.
       (:wat::test::assert-true
         (:wat::core::i64::>=
           (:wat::core::length
-            (:wat::core::filter
+            (:wat::core::filterv
               (:wat::core::fn [f <- :wat::lint::Finding] -> :wat::core::bool
                 (:wat::core::= (:wat::lint::Finding/rule f) "concat-abuse"))
               findings))

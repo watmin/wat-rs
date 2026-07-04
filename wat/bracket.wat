@@ -107,7 +107,9 @@
     [m  (:wat::core::length items)
      cc (:wat::program::cpu-count)
      n  (:wat::core::if (:wat::core::< cc m) cc m)
-     peers (:wat::core::map
+     ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` (Vector<Thread'<...>> param
+     ;; — repeatedly `select'`-ed, must be eager) and later `sort-by`, so materialize here.
+     peers (:wat::core::mapv
              (:wat::core::fn [i <- :wat::core::i64]
                  -> :wat::kernel::Thread'<(wat::core::i64,I),(wat::core::i64,O)>
                (:wat::core::let
@@ -128,7 +130,8 @@
               (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :wat::core::i64
                 (:wat::core::first pr))
               pairs)]
-    (:wat::core::map
+    ;; Arc 118.2a — `map` flipped LAZY; the function's declared return type is `Vector<O>`.
+    (:wat::core::mapv
       (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :O
         (:wat::core::second pr))
       sorted)))

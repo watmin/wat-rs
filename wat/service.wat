@@ -211,11 +211,22 @@
      init-param     (:wat::core::ast->children init-params-vec)
      ;; init-arg-names: the list of param NAME nodes (tokens at indices 0, 3, 6, …)
      ;; init-param has 3 tokens per binder: [name <- :T]; extract the name at each i*3.
-     init-arg-names (:wat::core::map
-                      (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
-                        (:wat::core::Option/expect
-                          (:wat::core::get init-param (:wat::core::i64::* i 3))
-                          "defservice: init param name out of bounds"))
+     ;; Arc 118.2a — spliced via ~@init-arg-names into quasiquote match arms below (and
+     ;; in start-body/resume-body); unquote-splicing needs a concrete Vec. `mapv` is a
+     ;; wat-level defn (wat/seq.wat) — program-body macro-expand-time eval runs BEFORE
+     ;; any user/stdlib defn registration (see src/macros/eval.rs's load-bearing-invariant
+     ;; doc), so it is UnknownFunction here regardless of the pure-total allow-list.
+     ;; Build the Vec eagerly via foldl + conj instead (both Rust-native, always safe) —
+     ;; same pattern as Record.wat's defrecord / core.wat's format macro fixes.
+     init-arg-names (:wat::core::foldl
+                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                       i <- :wat::core::i64]
+                        -> :wat::core::Vector<wat::WatAST>
+                        (:wat::core::conj acc
+                          (:wat::core::Option/expect
+                            (:wat::core::get init-param (:wat::core::i64::* i 3))
+                            "defservice: init param name out of bounds")))
+                      (:wat::core::Vector :wat::WatAST)
                       (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length init-param) 3)))
      ;; init-name: :<fqdn>::init — the emitted defn's name keyword
      init-name-str  (:wat::core::string::interpolate "{fqdn-str}::init" :fqdn-str fqdn-str)
@@ -487,8 +498,12 @@
                            [ch          (:wat::core::ast->children clause)
                             opkw        (:wat::core::first ch)
                             argvec      (:wat::core::first (:wat::core::drop ch 1))
-                            ;; in-fields = drop the leading s <- :State triple (3 nodes)
-                            in-fieldch  (:wat::core::drop (:wat::core::ast->children argvec) 3)
+                            ;; in-fields = drop the leading s <- :State triple (3 nodes).
+                            ;; Arc 118.2a — `drop` is now lazy (Stream); with-children below needs a
+                            ;; concrete Vec, so drop the fixed 3 leading nodes via 3x `rest` instead
+                            ;; (same trick as :wat::rete::defrule's then-forms).
+                            in-fieldch  (:wat::core::rest (:wat::core::rest (:wat::core::rest
+                                          (:wat::core::ast->children argvec))))
                             op-str      (:wat::core::keyword/to-string opkw)
                             req-name    (:wat::core::keyword/from-string
                                           (:wat::core::string::concat fqdn-str
@@ -591,8 +606,11 @@
                           opkw          (:wat::core::first ch)
                           argvec        (:wat::core::first (:wat::core::drop ch 1))
                           body          (:wat::core::first (:wat::core::drop ch 4))
-                          ;; in-fields MINUS leading s <- :State triple (3 nodes)
-                          fieldch       (:wat::core::drop (:wat::core::ast->children argvec) 3)
+                          ;; in-fields MINUS leading s <- :State triple (3 nodes).
+                          ;; Arc 118.2a — `drop` is now lazy (Stream); length/get below need a
+                          ;; concrete Vec, so drop the fixed 3 leading nodes via 3x `rest` instead.
+                          fieldch       (:wat::core::rest (:wat::core::rest (:wat::core::rest
+                                          (:wat::core::ast->children argvec))))
                           op-str        (:wat::core::keyword/to-string opkw)
                           op-variant-kw (:wat::core::keyword/from-string
                                           (:wat::core::string::concat fqdn-str
@@ -607,32 +625,50 @@
                           ;; Field names at positions 0, 3, 6, … in fieldch.
                           fieldch-len   (:wat::core::length fieldch)
                           n-args        (:wat::core::i64::/ fieldch-len 3)
-                          arg-indices   (:wat::core::map
-                                          (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
-                                            (:wat::core::i64::* i 3))
+                          ;; Arc 118.2a — arg-names/arg-accessors below are indexed via `get`
+                          ;; (Vector-only), so arg-indices must stay a concrete Vec. `mapv` is
+                          ;; a wat-level defn (wat/seq.wat), unreachable at macro-expand time
+                          ;; (expand runs before defn registration — src/macros/eval.rs); build
+                          ;; eagerly via foldl + conj instead (both Rust-native, always safe).
+                          arg-indices   (:wat::core::foldl
+                                          (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64>
+                                                           i <- :wat::core::i64]
+                                            -> :wat::core::Vector<wat::core::i64>
+                                            (:wat::core::conj acc (:wat::core::i64::* i 3)))
+                                          (:wat::core::Vector :wat::core::i64)
                                           (:wat::core::range 0 n-args))
-                          ;; The field name AST nodes (symbols like `n`)
-                          arg-names     (:wat::core::map
-                                          (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
-                                            (:wat::core::Option/expect  
-                                              (:wat::core::get fieldch i)
-                                              "defservice serve-arm: arg name out of bounds"))
+                          ;; The field name AST nodes (symbols like `n`).
+                          ;; Arc 118.2a — consumed via `get` below (Vector-only) → eager foldl+conj.
+                          arg-names     (:wat::core::foldl
+                                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                                           i <- :wat::core::i64]
+                                            -> :wat::core::Vector<wat::WatAST>
+                                            (:wat::core::conj acc
+                                              (:wat::core::Option/expect
+                                                (:wat::core::get fieldch i)
+                                                "defservice serve-arm: arg name out of bounds")))
+                                          (:wat::core::Vector :wat::WatAST)
                                           arg-indices)
                           ;; Accessor keyword nodes: <fqdn>::<Op>Request/<field-name>
                           ;; Field names are Symbol nodes (e.g. `n`), not Keywords.
                           ;; Use ast-name (handles both Symbol and Keyword) to get the text.
-                          arg-accessors (:wat::core::map
-                                          (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
-                                            (:wat::core::let
-                                              [name-node (:wat::core::Option/expect  
-                                                            (:wat::core::get fieldch i)
-                                                            "defservice serve-arm: accessor out of bounds")
-                                               name-str  (:wat::core::ast-name name-node)]
+                          ;; Arc 118.2a — consumed via `get` below (Vector-only) → eager foldl+conj.
+                          arg-accessors (:wat::core::foldl
+                                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                                           i <- :wat::core::i64]
+                                            -> :wat::core::Vector<wat::WatAST>
+                                            (:wat::core::conj acc
+                                              (:wat::core::let
+                                                [name-node (:wat::core::Option/expect
+                                                              (:wat::core::get fieldch i)
+                                                              "defservice serve-arm: accessor out of bounds")
+                                                 name-str  (:wat::core::ast-name name-node)]
                                               (:wat::core::keyword/from-string
                                                 (:wat::core::string::concat fqdn-str
                                                   (:wat::core::string::concat "::" op-str
                                                     (:wat::core::string::concat "Request/"
-                                                      name-str))))))
+                                                      name-str)))))))
+                                          (:wat::core::Vector :wat::WatAST)
                                           arg-indices)
                           ;; `req` symbol node — used as value reference in accessor calls:
                           ;; `(acc-kw req)`. The `req` match-binder in the arm pattern is a
@@ -755,8 +791,11 @@
                          [ch           (:wat::core::ast->children clause)
                           opkw         (:wat::core::first ch)
                           argvec       (:wat::core::first (:wat::core::drop ch 1))
-                          ;; in-fields minus the leading s <- :State triple
-                          in-fieldch   (:wat::core::drop (:wat::core::ast->children argvec) 3)
+                          ;; in-fields minus the leading s <- :State triple.
+                          ;; Arc 118.2a — `drop` is now lazy (Stream); with-children/length/get
+                          ;; below need a concrete Vec, so drop the fixed 3 nodes via 3x `rest`.
+                          in-fieldch   (:wat::core::rest (:wat::core::rest (:wat::core::rest
+                                         (:wat::core::ast->children argvec))))
                           op-str       (:wat::core::keyword/to-string opkw)
                           op-lower     (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
                           ctor-name    (:wat::core::keyword/from-string
@@ -770,15 +809,27 @@
                           ;; Extract field names for the constructor call body
                           fieldch-len  (:wat::core::length in-fieldch)
                           n-args       (:wat::core::i64::/ fieldch-len 3)
-                          arg-indices  (:wat::core::map
-                                         (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
-                                           (:wat::core::i64::* i 3))
+                          ;; Arc 118.2a — arg-names is spliced (~@arg-names) below → needs a
+                          ;; concrete Vec; arg-indices feeds it via `get` too. `mapv` is a
+                          ;; wat-level defn (wat/seq.wat), unreachable at macro-expand time
+                          ;; (expand runs before defn registration); build eagerly via
+                          ;; foldl + conj instead (both Rust-native, always safe).
+                          arg-indices  (:wat::core::foldl
+                                         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64>
+                                                          i <- :wat::core::i64]
+                                           -> :wat::core::Vector<wat::core::i64>
+                                           (:wat::core::conj acc (:wat::core::i64::* i 3)))
+                                         (:wat::core::Vector :wat::core::i64)
                                          (:wat::core::range 0 n-args))
-                          arg-names    (:wat::core::map
-                                         (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
-                                           (:wat::core::Option/expect  
-                                             (:wat::core::get in-fieldch i)
-                                             "defservice constructors: field name out of bounds"))
+                          arg-names    (:wat::core::foldl
+                                         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                                          i <- :wat::core::i64]
+                                           -> :wat::core::Vector<wat::WatAST>
+                                           (:wat::core::conj acc
+                                             (:wat::core::Option/expect
+                                               (:wat::core::get in-fieldch i)
+                                               "defservice constructors: field name out of bounds")))
+                                         (:wat::core::Vector :wat::WatAST)
                                          arg-indices)
                           ;; ctor-body: (~req-ty ~@arg-names) — head is Unquote, so checker
                           ;; doesn't fire on any `let`/`fn` check; arg-names are user symbols.
@@ -950,13 +1001,20 @@
                         (:wat::core::string::interpolate "{fqdn-str}::client-forms" :fqdn-str fqdn-str))
      ;; callee-cf-calls: for each svc keyword in :calls, a 0-arg call `(:<svc>::client-forms)`.
      ;; Used to prepend callee client contracts ahead of this service's own service-forms.
-     callee-cf-calls  (:wat::core::map
-                        (:wat::core::fn [svc-kw <- :wat::WatAST] -> :wat::WatAST
-                          (:wat::core::let
-                            [svc-str (:wat::core::keyword/to-string svc-kw)
-                             cf-kw   (:wat::core::keyword/from-string
-                                       (:wat::core::string::interpolate "{svc-str}::client-forms" :svc-str svc-str))]
-                            `(~cf-kw)))
+     ;; Arc 118.2a — consumed via `length` + `foldr` below (both Vector-only). `mapv` is a
+     ;; wat-level defn (wat/seq.wat), unreachable at macro-expand time (expand runs before
+     ;; defn registration); build eagerly via foldl + conj instead (Rust-native, always safe).
+     callee-cf-calls  (:wat::core::foldl
+                        (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                         svc-kw <- :wat::WatAST]
+                          -> :wat::core::Vector<wat::WatAST>
+                          (:wat::core::conj acc
+                            (:wat::core::let
+                              [svc-str (:wat::core::keyword/to-string svc-kw)
+                               cf-kw   (:wat::core::keyword/from-string
+                                         (:wat::core::string::interpolate "{svc-str}::client-forms" :svc-str svc-str))]
+                              `(~cf-kw))))
+                        (:wat::core::Vector :wat::WatAST)
                         (:wat::core::ast->children calls-svcs))
      ;; The agnostic child :user::main: binds on :wat::spawn::service-locus (a FREE
      ;; name — defservice does NOT define it). The ProcessOpts launch arm prepends

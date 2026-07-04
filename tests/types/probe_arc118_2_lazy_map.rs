@@ -13,8 +13,6 @@ use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
 #[test]
-#[ignore = "RED at HEAD: 118.2a (core::map lazy) unbuilt + 118.2 BLOCKED on 293.4 (Seqable); \
-            un-ignore when core::map is lazy — kept #[ignore]'d so the floor=0 gate stays green"]
 fn lazy_core_map_does_not_force_late_elements() {
     let world = startup_beside(file!()).expect("startup");
     let call = wat::parse_one!("(:my::compute)").expect("parse compute call");

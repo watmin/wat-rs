@@ -5317,14 +5317,10 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::core::filter" => {
-                let (val, mut errs) = crate::collection::infer::infer_filter(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
+            // Arc 118.2a — `:wat::core::filter` retired from this special-case table: no
+            // macro-expansion-time caller depends on it (unlike map/take/drop), so it is now
+            // an ordinary wat `defclause` (`wat/seq.wat`) and falls through to the defclause
+            // call-site dispatch further down in this function.
             ":wat::core::foldl" => {
                 let (val, mut errs) = crate::collection::infer::infer_foldl(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);

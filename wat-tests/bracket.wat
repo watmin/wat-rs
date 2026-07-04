@@ -27,7 +27,10 @@
     (:wat::bracket::map (:wat::spawn::thread)
       (:wat::core::range 0 50)
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))
-    (:wat::core::map
+    ;; Arc 118.2a — `map` is now lazy (Stream); assert-eq's param #2 needs a concrete
+    ;; Vector here (this is ordinary test-body code, not a program-body macro, so the
+    ;; wat-level `mapv` materializer from wat/seq.wat is reachable at runtime).
+    (:wat::core::mapv
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2))
       (:wat::core::range 0 50))))
 

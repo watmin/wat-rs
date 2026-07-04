@@ -3,7 +3,8 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::Vector<wat::core::i64>
    (:wat::bracket::map-worker (:wat::spawn::thread)
-     (:wat::core::map (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ i 1))
+     ;; Arc 118.2a — `map` flipped LAZY; `map-worker` needs `items` eagerly (Vector<I> param).
+     (:wat::core::mapv (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ i 1))
                       (:wat::core::range 0 50))
      (:wat::core::fn [_wid <- :wat::core::i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))))

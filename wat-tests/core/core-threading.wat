@@ -140,14 +140,17 @@
      [a <- :wat::core::i64
       b <- :wat::core::i64] -> :wat::core::i64
      (:wat::core::i64::+ a b)))
+  ;; Arc 118.2a — `map` flipped LAZY (returns Stream); `foldl` stays eager/Vector-only, so the
+  ;; fold step here becomes `:wat::core::reduce` (same 3-arg shape, Stream-aware) instead —
+  ;; `map` stays lazy (consumed exactly once by the fold; no materializer needed).
   (:wat::core::let
     [xs      (:wat::core::Vector :wat::core::i64 1 2 3 4 5)
      threaded
        (:wat::core::->> xs
          (:wat::core::map :wat-tests::core::core-threading::square)
-         (:wat::core::foldl :wat-tests::core::core-threading::add 0))
+         (:wat::core::reduce :wat-tests::core::core-threading::add 0))
      direct
-       (:wat::core::foldl
+       (:wat::core::reduce
          :wat-tests::core::core-threading::add
          0
          (:wat::core::map :wat-tests::core::core-threading::square xs))]

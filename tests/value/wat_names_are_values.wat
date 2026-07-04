@@ -57,10 +57,12 @@
 (:wat::core::defn :t::test5-double [n <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::* n 2))
 
+;; Arc 118.2a — `map` flipped LAZY; `doubled` is consumed TWICE (`first` and `length`) and
+;; `length` needs a concrete container regardless, so `mapv`.
 (:wat::core::defn :t::test5 [] -> :wat::core::i64
   (:wat::core::let
     [source  (:wat::core::Vector :wat::core::i64 1 2 3)
-     doubled (:wat::core::map :t::test5-double source)
+     doubled (:wat::core::mapv :t::test5-double source)
      first   (:wat::core::first doubled)
      len     (:wat::core::length doubled)]
     (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))

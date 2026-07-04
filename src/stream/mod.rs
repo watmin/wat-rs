@@ -42,6 +42,11 @@ pub enum Stream {
     /// Deferred cell — the body of `(:wat::stream::lazy <body>)` has not been forced yet.
     /// `realize` calls the thunk closure and returns the result; nothing is cached (single-pass).
     Thunk(LazyCell),
+    /// Arc 118.2a — a Rust-native deferred cell (see [`NativeLazyCell`]). Forced identically
+    /// to `Thunk` (via `realize`'s loop) but the thunk is a plain Rust closure, not a wat
+    /// `Function`/AST. Backs the lazy `map`/`filter`/`take`/`drop` intrinsics, which stay
+    /// Rust-native for a bootstrap reason (see `NativeLazyCell`'s doc), not a wat closure.
+    NativeThunk(NativeLazyCell),
 }
 
 /// A deferred cell — the unrealized tail of a single-pass stream.
@@ -61,6 +66,50 @@ pub struct LazyCell {
 impl std::fmt::Debug for LazyCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LazyCell").field("thunk", &"<closure>").finish()
+    }
+}
+
+/// Arc 118.2a — a Rust-native deferred cell for `map`/`filter`/`take`/`drop`.
+///
+/// **Why these stay Rust intrinsics instead of wat-over-primitives (the 118.2a DESIGN's
+/// original preference, Decision B):** a sub-agent sweep of every `defmacro` body in the
+/// stdlib found `:wat::core::take`/`drop` called INSIDE `:wat::core::defn`'s own macro body
+/// (`wat/core.wat`, the `kwargs-lower`/argvec-splitting logic) and `:wat::core::map` called
+/// inside `:wat::core::defrecord` / `:wat::holon::defrecord` / `:wat::service::defservice` /
+/// `:wat::rete::defrule`'s macro bodies. Macro expansion (step 4 of the freeze pipeline) runs
+/// BEFORE ordinary `defn`/`defclause` registration (step 6) makes a wat-defined function's REAL
+/// body callable — a defclause only gets a nil-returning CHECKER stub at that point (Stone
+/// 237.8b, `preregister_stdlib_defclause_stub`). Since `:wat::core::defn` itself depends on
+/// `take`/`drop` to expand ANY `defn` — including a hypothetical wat-defined `take`/`drop`
+/// itself — wat-defining them is circular and unbootstrappable, not just awkward. `map` faces
+/// the softer (but still real) version: `defrecord`/`defservice` are invoked ~30+ times across
+/// the stdlib (earliest: `Fault` at `core.wat`), so a wat-defined `map` would be an inert stub
+/// at the exact moment those macros need real behavior.
+///
+/// The resolution: `map`/`take`/`drop` stay Rust intrinsics (bootstrap-safe, unconditionally
+/// callable at every phase, exactly as before this arc) but their IMPLEMENTATION is changed to
+/// build a lazy `Stream` via this native closure, instead of eagerly materializing a `Vec`. The
+/// observable contract (lazy, `:wat::core::`-named, returns `Stream<T>`) is identical to a wat
+/// implementation — only the mechanism differs. `filter` has no such macro-expansion-time
+/// caller anywhere in the stdlib, so it ships as a genuine wat `defclause` (`wat/seq.wat`),
+/// honoring Decision B wherever the bootstrap allows it.
+///
+/// Unlike [`LazyCell`] (a wat closure forced via `apply_function`), this thunk is a plain Rust
+/// closure — no wat AST or `closed_env` involved. It still receives the `SymbolTable` + the
+/// call-site `Span` as PARAMETERS (not captured) purely so it can invoke `apply_function` on a
+/// captured user `Function` (the `f`/`pred` argument to map/filter) — the SymbolTable itself
+/// is never stashed inside the closure.
+#[derive(Clone)]
+pub struct NativeLazyCell {
+    #[allow(clippy::type_complexity)]
+    pub thunk: Arc<
+        dyn Fn(&crate::value::SymbolTable, &Span) -> Result<Arc<Stream>, EvalBreak> + Send + Sync,
+    >,
+}
+
+impl std::fmt::Debug for NativeLazyCell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeLazyCell").field("thunk", &"<native closure>").finish()
     }
 }
 
@@ -111,6 +160,51 @@ pub fn realize(
                     })),
                 };
             }
+            Stream::NativeThunk(cell) => {
+                // Arc 118.2a — same single-pass discipline as `Thunk`, but the closure is a
+                // plain Rust `Fn`, called directly (no `apply_function`/wat AST involved).
+                current = (cell.thunk)(sym, span)?;
+            }
         }
+    }
+}
+
+/// Arc 118.2a — convert an already-resident, eager sequence container (`Vector<T>` /
+/// `List<T>` / `PersistentVector<T>`) into a fully-realized `Stream::Cons` chain (every cell
+/// already `Cons`, no thunks). This is a pure reshape, never a deferred call: the container's
+/// elements are already in memory, so building the chain touches no user code and violates no
+/// laziness guarantee. Iterative (builds tail-to-head) to avoid recursion-depth limits on large
+/// containers. Returns `None` if `v` is not one of the three eager containers — callers that
+/// also want to accept an existing `Stream` should try [`value_as_stream`] instead.
+pub(crate) fn eager_container_to_stream(v: &Value) -> Option<Arc<Stream>> {
+    fn chain_from_slice<'a>(xs: impl DoubleEndedIterator<Item = &'a Value> + ExactSizeIterator) -> Arc<Stream> {
+        let mut tail = Arc::new(Stream::Empty);
+        for x in xs.rev() {
+            tail = Arc::new(Stream::Cons { head: x.clone(), tail });
+        }
+        tail
+    }
+    match v {
+        Value::Vec(xs) => Some(chain_from_slice(xs.iter())),
+        Value::wat__core__List(xs) => {
+            let snapshot: Vec<Value> = xs.iter().cloned().collect();
+            Some(chain_from_slice(snapshot.iter()))
+        }
+        Value::wat__core__PersistentVector(pv) => {
+            let snapshot: Vec<Value> = pv.iter().cloned().collect();
+            Some(chain_from_slice(snapshot.iter()))
+        }
+        _ => None,
+    }
+}
+
+/// Arc 118.2a — the shared "any seqable" normalizer for the lazy `map`/`filter`/`take`/`drop`
+/// intrinsics: a `Value::wat__stream__Stream` is returned as-is (already lazy, `Arc` bump
+/// only); `Vector`/`List`/`PersistentVector` are converted via [`eager_container_to_stream`].
+/// `None` for anything else — the caller raises `TypeMismatch`.
+pub(crate) fn value_as_stream(v: &Value) -> Option<Arc<Stream>> {
+    match v {
+        Value::wat__stream__Stream(s) => Some(Arc::clone(s)),
+        other => eager_container_to_stream(other),
     }
 }

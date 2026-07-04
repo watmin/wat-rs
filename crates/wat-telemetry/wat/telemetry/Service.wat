@@ -277,10 +277,11 @@
 
 
 ;; Extract the wat::core::Vector<ReqRx> half of pairs for the kernel select.
+;; Arc 118.2a — kernel select needs a real eager Vector<ReqRx<E>>, not a Stream.
 (:wat::core::defn :wat::telemetry::pair-rxs<E>
   [pairs <- :wat::core::Vector<wat::telemetry::DriverPair<E>>]
   -> :wat::core::Vector<wat::telemetry::ReqRx<E>>
-  (:wat::core::map
+  (:wat::core::mapv
     (:wat::core::fn
       [p <- :wat::telemetry::DriverPair<E>]
        -> :wat::telemetry::ReqRx<E>
@@ -404,21 +405,26 @@
    stats-translator <- :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>]
   -> :wat::telemetry::Spawn<E>
   (:wat::core::let
-    [req-pairs
-      (:wat::core::map
+    [;; Arc 118.2a — req-pairs feeds :wat::std::list::zip (eager-only) twice
+     ;; below; must materialize eagerly, not stay a Stream.
+     req-pairs
+      (:wat::core::mapv
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::ReqChannel<E>
           (:wat::kernel::make-channel
             :wat::telemetry::Request<E>))
         (:wat::core::range 0 count))
+     ;; Arc 118.2a — same: ack-pairs feeds zip twice below.
      ack-pairs
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::AckChannel
           (:wat::kernel::make-channel :wat::core::nil))
         (:wat::core::range 0 count))
+     ;; Arc 118.2a — handles feeds :wat::kernel::HandlePool::new, which
+     ;; needs a real eager Vector<Handle<E>>.
      handles
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn
           [rp+ap <- :wat::telemetry::Connection<E>]
            -> :wat::telemetry::Handle<E>
@@ -429,8 +435,11 @@
              ack-rx (:wat::core::second ap)]
             (:wat::core::Tuple req-tx ack-rx)))
         (:wat::std::list::zip req-pairs ack-pairs))
+     ;; Arc 118.2a — driver-pairs is closure-captured into the spawned
+     ;; thread and passed to :wat::telemetry::run, which declares
+     ;; Vector<DriverPair<E>>; must be eager.
      driver-pairs
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn
           [rp+ap <- :wat::telemetry::Connection<E>]
            -> :wat::telemetry::DriverPair<E>

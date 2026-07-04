@@ -1668,8 +1668,9 @@ pub(crate) fn eval_rest(
                         crate::stream::Stream::Cons { tail, .. } => {
                             Ok(Value::wat__stream__Stream(Arc::clone(tail)))
                         }
-                        // realize guarantees WHNF (Empty | Cons); Thunk is impossible here.
-                        crate::stream::Stream::Thunk(_) => unreachable!("realize returns WHNF"),
+                        // realize guarantees WHNF (Empty | Cons); Thunk/NativeThunk are impossible here.
+                        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) =>
+                            unreachable!("realize returns WHNF"),
                     }
                 }
                 // has_tail() gate excludes these — named arms, genuinely dead, compiler-forced:

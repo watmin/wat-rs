@@ -102,114 +102,130 @@ pub(crate) fn eval_vec_range(
     Ok(Value::Vec(Arc::new(items)))
 }
 
-/// `(:wat::core::take xs n)` → `C<T>`. First `n` elements; container-preserving.
-/// If `n >= xs.len()`, returns the full container. Negative `n` clamps to 0 (empty).
+/// `(:wat::core::take xs n)` → `Stream<T>`. Lazily yields at most the first `n` elements of
+/// `xs` (any seqable: `Vector<T>` | `List<T>` | `PersistentVector<T>` | `Stream<T>`) — pulling
+/// element `n+1` never happens, so `take` composed with an upstream lazy stage (e.g. `map`)
+/// never forces past what it needs. Negative `n` clamps to 0 (empty).
+///
+/// Arc 118.2a — the FLIP: return is always `Stream<T>` now (was container-preserving eager).
+/// **Stays a Rust intrinsic** — see [`eval_vec_map`]'s doc for the bootstrap-circularity
+/// reason (`:wat::core::defn`'s own macro body calls `take` at macro-expansion time; a
+/// wat-defined `take` would make `defn` itself unbootstrappable). See
+/// [`crate::stream::NativeLazyCell`] for the full writeup.
 pub(crate) fn eval_vec_take(
     args: &[WatAST],
     call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::take";
     if args.len() != 2 {
         return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::take".into(),
+            op: OP.into(),
             expected: 2,
             got: args.len()
         } }.into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
-    let n = require_i64(":wat::core::take", eval_inner(&args[1], env, sym)?.value_owned())?;
-    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&coll) {
-        Some(container) if container.ordered() => match container {
-            StreamContainer::Vector => {
-                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
-                let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-                let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
-                Ok(Value::Vec(Arc::new(out)))
-            }
-            StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
-                let cap = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
-                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-                for elem in pv.iter().take(cap) {
-                    out = out.push_back(elem.clone());
-                }
-                Ok(Value::wat__core__PersistentVector(out))
-            }
-            StreamContainer::List => {
-                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
-                let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-                let out: std::collections::LinkedList<Value> = xs.iter().take(cap).cloned().collect();
-                Ok(Value::wat__core__List(Arc::new(out)))
-            }
-            // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
-                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream"),
+    let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
+    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError {
+        span: args[0].span().clone(),
+        kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
+            got: Box::new(ValueSnapshot::of(&coll)),
         },
-        _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::take".into(),
-            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-            got: Box::new(ValueSnapshot::of(&coll))
-        } }.into()),
-    }
+    }))?;
+    Ok(Value::wat__stream__Stream(lazy_take_stream(source, n)))
 }
 
-/// `(:wat::core::drop xs n)` → `C<T>`. Skip first `n` elements; container-preserving.
-/// If `n >= xs.len()`, returns empty. Negative `n` clamps to 0 (returns the full container).
+/// Build a deferred `take` cell: forcing it realizes `source` one step; if `n` has already
+/// been exhausted or `source` is empty, yields `Empty`; otherwise yields the head and defers
+/// `n - 1` more from the tail.
+fn lazy_take_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::stream::Stream> {
+    use crate::stream::{NativeLazyCell, Stream};
+    if n <= 0 {
+        return Arc::new(Stream::Empty);
+    }
+    Arc::new(Stream::NativeThunk(NativeLazyCell {
+        thunk: Arc::new(move |sym, span| {
+            let realized = crate::stream::realize(&source, sym, span)?;
+            match realized.as_ref() {
+                Stream::Empty => Ok(Arc::new(Stream::Empty)),
+                Stream::Cons { head, tail } => {
+                    let rest = lazy_take_stream(Arc::clone(tail), n - 1);
+                    Ok(Arc::new(Stream::Cons { head: head.clone(), tail: rest }))
+                }
+                Stream::Thunk(_) | Stream::NativeThunk(_) => {
+                    unreachable!("crate::stream::realize always returns Empty|Cons")
+                }
+            }
+        }),
+    }))
+}
+
+/// `(:wat::core::drop xs n)` → `Stream<T>`. Lazily skips the first `n` elements of `xs` (any
+/// seqable), returning the remainder — still lazy beyond the drop point (a further `Stream`
+/// tail stays deferred). Negative `n` clamps to 0 (returns everything).
+///
+/// Arc 118.2a — the FLIP: return is always `Stream<T>` now (was container-preserving eager).
+/// **Stays a Rust intrinsic** — see [`eval_vec_map`]'s doc for the bootstrap-circularity
+/// reason (`:wat::core::defn`'s own macro body calls `drop` at macro-expansion time). See
+/// [`crate::stream::NativeLazyCell`] for the full writeup.
 pub(crate) fn eval_vec_drop(
     args: &[WatAST],
     call_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::drop";
     if args.len() != 2 {
         return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::drop".into(),
+            op: OP.into(),
             expected: 2,
             got: args.len()
         } }.into());
     }
     let coll = eval_inner(&args[0], env, sym)?.value_owned();
-    let n = require_i64(":wat::core::drop", eval_inner(&args[1], env, sym)?.value_owned())?;
-    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&coll) {
-        Some(container) if container.ordered() => match container {
-            StreamContainer::Vector => {
-                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
-                let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-                let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
-                Ok(Value::Vec(Arc::new(out)))
-            }
-            StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
-                let skip = if n <= 0 { 0 } else { (n as usize).min(pv.len()) };
-                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-                for elem in pv.iter().skip(skip) {
-                    out = out.push_back(elem.clone());
-                }
-                Ok(Value::wat__core__PersistentVector(out))
-            }
-            StreamContainer::List => {
-                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
-                let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
-                let out: std::collections::LinkedList<Value> = xs.iter().skip(skip).cloned().collect();
-                Ok(Value::wat__core__List(Arc::new(out)))
-            }
-            // ordered() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
-                unreachable!("ordered() gate excludes Tuple/WatAstList/HashSet/Stream"),
+    let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
+    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError {
+        span: args[0].span().clone(),
+        kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
+            got: Box::new(ValueSnapshot::of(&coll)),
         },
-        _ => Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::drop".into(),
-            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-            got: Box::new(ValueSnapshot::of(&coll))
-        } }.into()),
-    }
+    }))?;
+    Ok(Value::wat__stream__Stream(lazy_drop_stream(source, n)))
+}
+
+/// Build a deferred `drop` cell: forcing it walks (and, when the upstream is itself lazy,
+/// forces) up to `n` cells of `source`, then returns whatever WHNF cell it lands on (`Empty`
+/// or a `Cons` whose OWN tail may still be deferred — laziness continues past the drop point).
+fn lazy_drop_stream(source: Arc<crate::stream::Stream>, n: i64) -> Arc<crate::stream::Stream> {
+    use crate::stream::{NativeLazyCell, Stream};
+    Arc::new(Stream::NativeThunk(NativeLazyCell {
+        thunk: Arc::new(move |sym, span| {
+            let mut cur = Arc::clone(&source);
+            let mut remaining = n;
+            loop {
+                if remaining <= 0 {
+                    return crate::stream::realize(&cur, sym, span);
+                }
+                let realized = crate::stream::realize(&cur, sym, span)?;
+                match realized.as_ref() {
+                    Stream::Empty => return Ok(Arc::new(Stream::Empty)),
+                    Stream::Cons { tail, .. } => {
+                        cur = Arc::clone(tail);
+                        remaining -= 1;
+                    }
+                    Stream::Thunk(_) | Stream::NativeThunk(_) => {
+                        unreachable!("crate::stream::realize always returns Empty|Cons")
+                    }
+                }
+            }
+        }),
+    }))
 }
 
 /// `(:wat::core::sort' less? xs)` → `Vec<T>` — the primitive comparator-sort engine.
@@ -314,8 +330,23 @@ pub(crate) fn eval_vec_sort_by(
     Ok(Value::Vec(Arc::new(sorted)))
 }
 
-/// `(:wat::core::map f xs)` → `C<U>`. Calls `f` on each element; container-preserving.
-/// `f` must be a callable Value (fn or define-registered).
+/// `(:wat::core::map f xs)` → `Stream<U>`. Lazily calls `f` on each element as the result is
+/// pulled; `xs` may be any seqable (`Vector<T>` | `List<T>` | `PersistentVector<T>` |
+/// `Stream<T>`). `f` must be a callable Value (fn or define-registered).
+///
+/// Arc 118.2a — the FLIP: `map` used to be an eager Rust intrinsic (Vec→Vec, container-
+/// preserving). It is now LAZY — the return is always a `Stream<U>`, and `f` is applied one
+/// element at a time, only as far as the caller pulls (`first`/`rest`/`realize`).
+///
+/// **Stays a Rust intrinsic, not wat-over-primitives** (Decision B's original preference):
+/// `:wat::core::defrecord` / `:wat::holon::defrecord` / `:wat::service::defservice` /
+/// `:wat::rete::defrule` all call `:wat::core::map` INSIDE their own macro bodies (macro-
+/// expansion time, step 4 of the freeze pipeline — before a wat-defined `defclause`'s real
+/// clauses exist, step 6). A wat-defined `map` would be an inert nil-returning checker stub at
+/// the exact moment those ~30+ stdlib `defrecord`/`defservice` invocations need real behavior.
+/// See [`crate::stream::NativeLazyCell`] for the full bootstrap-circularity writeup. `filter`
+/// has no such caller and ships as a genuine wat `defclause` instead (`wat/seq.wat`).
+///
 /// Arc 247: fn-first — (map f xs).
 pub(crate) fn eval_vec_map(
     args: &[WatAST],
@@ -323,9 +354,10 @@ pub(crate) fn eval_vec_map(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::map";
     if args.len() != 2 {
         return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::map".into(),
+            op: OP.into(),
             expected: 2,
             got: args.len()
         } }.into());
@@ -337,51 +369,47 @@ pub(crate) fn eval_vec_map(
         Value::wat__core__fn(func) => func.clone(),
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::map".into(),
+                op: OP.into(),
                 expected: "wat::core::fn",
                 got: Box::new(ValueSnapshot::of(other))
             } }.into());
         }
     };
-    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match container {
-            StreamContainer::Vector => {
-                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
-                let mut out = Vec::with_capacity(xs.len());
-                for x in xs.iter() {
-                    out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
-                }
-                Ok(Value::Vec(Arc::new(out)))
-            }
-            StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
-                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-                for x in pv.iter() {
-                    out = out.push_back(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
-                }
-                Ok(Value::wat__core__PersistentVector(out))
-            }
-            StreamContainer::List => {
-                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
-                let mut out = std::collections::LinkedList::new();
-                for x in xs.iter() {
-                    out.push_back(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
-                }
-                Ok(Value::wat__core__List(Arc::new(out)))
-            }
-            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream"),
+    let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError {
+        span: args[1].span().clone(),
+        kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
+            got: Box::new(ValueSnapshot::of(&coll)),
         },
-        _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::map".into(),
-            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-            got: Box::new(ValueSnapshot::of(&coll))
-        } }.into()),
-    }
+    }))?;
+    Ok(Value::wat__stream__Stream(lazy_map_stream(func, source)))
+}
+
+/// Build one deferred `map` cell: forcing it realizes `source` one step, applies `func` to
+/// the head (strictly, at force time — this IS the laziness: `func` runs on element N only
+/// when the caller pulls that far), and defers the rest via a recursive `NativeThunk`.
+fn lazy_map_stream(
+    func: Arc<crate::value::Function>,
+    source: Arc<crate::stream::Stream>,
+) -> Arc<crate::stream::Stream> {
+    use crate::stream::{NativeLazyCell, Stream};
+    Arc::new(Stream::NativeThunk(NativeLazyCell {
+        thunk: Arc::new(move |sym, span| {
+            let realized = crate::stream::realize(&source, sym, span)?;
+            match realized.as_ref() {
+                Stream::Empty => Ok(Arc::new(Stream::Empty)),
+                Stream::Cons { head, tail } => {
+                    let mapped_head = apply_function(func.clone(), vec![head.clone()], sym, span.clone())?;
+                    let mapped_tail = lazy_map_stream(func.clone(), Arc::clone(tail));
+                    Ok(Arc::new(Stream::Cons { head: mapped_head, tail: mapped_tail }))
+                }
+                Stream::Thunk(_) | Stream::NativeThunk(_) => {
+                    unreachable!("crate::stream::realize always returns Empty|Cons")
+                }
+            }
+        }),
+    }))
 }
 
 /// `(:wat::core::foldl f init xs)` → acc. `f : (acc, item) → acc`.
@@ -524,105 +552,12 @@ pub(crate) fn eval_vec_foldr(
     }
 }
 
-/// `(:wat::core::filter pred xs)` → `C<T>`. Keeps elements for which `pred` returns
-/// `:bool true`; container-preserving. `pred` signature: `T -> :bool`.
-/// Arc 247: fn-first — (filter pred xs).
-pub(crate) fn eval_vec_filter(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::filter".into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    // Arc 247: fn-first — (filter pred xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let coll = eval_inner(&args[1], env, sym)?.value_owned();
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::filter".into(),
-                expected: "wat::core::fn",
-                got: Box::new(ValueSnapshot::of(other))
-            } }.into());
-        }
-    };
-    // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + mappable()).
-    // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
-    use crate::collection::seq_container::StreamContainer;
-    match StreamContainer::of_value(&coll) {
-        Some(container) if container.mappable() => match container {
-            StreamContainer::Vector => {
-                let Value::Vec(xs) = coll else { unreachable!("of_value⇒Vector") };
-                let mut out = Vec::with_capacity(xs.len());
-                for x in xs.iter() {
-                    match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
-                        Value::bool(true) => out.push(x.clone()),
-                        Value::bool(false) => {}
-                        other => {
-                            return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                                op: ":wat::core::filter".into(),
-                                expected: "bool",
-                                got: Box::new(ValueSnapshot::of(&other))
-                            } }.into());
-                        }
-                    }
-                }
-                Ok(Value::Vec(Arc::new(out)))
-            }
-            StreamContainer::PersistentVector => {
-                let Value::wat__core__PersistentVector(pv) = coll else { unreachable!("of_value⇒PersistentVector") };
-                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-                for x in pv.iter() {
-                    match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
-                        Value::bool(true) => { out = out.push_back(x.clone()); }
-                        Value::bool(false) => {}
-                        other => {
-                            return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                                op: ":wat::core::filter".into(),
-                                expected: "bool",
-                                got: Box::new(ValueSnapshot::of(&other))
-                            } }.into());
-                        }
-                    }
-                }
-                Ok(Value::wat__core__PersistentVector(out))
-            }
-            StreamContainer::List => {
-                let Value::wat__core__List(xs) = coll else { unreachable!("of_value⇒List") };
-                let mut out = std::collections::LinkedList::new();
-                for x in xs.iter() {
-                    match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
-                        Value::bool(true) => out.push_back(x.clone()),
-                        Value::bool(false) => {}
-                        other => {
-                            return Err(RuntimeError { span: call_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                                op: ":wat::core::filter".into(),
-                                expected: "bool",
-                                got: Box::new(ValueSnapshot::of(&other))
-                            } }.into());
-                        }
-                    }
-                }
-                Ok(Value::wat__core__List(Arc::new(out)))
-            }
-            // mappable() gate excludes these — named arms, genuinely dead, compiler-forced:
-            StreamContainer::Tuple | StreamContainer::WatAstList | StreamContainer::HashSet | StreamContainer::Stream =>
-                unreachable!("mappable() gate excludes Tuple/WatAstList/HashSet/Stream"),
-        },
-        _ => Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: ":wat::core::filter".into(),
-            expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-            got: Box::new(ValueSnapshot::of(&coll))
-        } }.into()),
-    }
-}
+// Arc 118.2a — `eval_vec_filter` RETIRED. `:wat::core::filter` has no macro-expansion-time
+// caller anywhere in the stdlib (unlike map/take/drop), so it ships as a genuine wat
+// `defclause` instead (Vector<T>/List<T>/PersistentVector<T>/Stream<T> clauses, `wat/seq.wat`)
+// — honoring Decision B's self-hosting preference wherever the bootstrap allows it. Its
+// check.rs `infer_filter` special-case arm is retired too (see `src/collection/infer.rs`);
+// `:wat::core::filter` now falls through to ordinary defclause dispatch.
 
 /// `(:wat::std::list::zip xs ys)` → `Vec<(T,U)>`. Short-circuits at
 /// the shorter input's length (matches Rust's `xs.iter().zip(ys)`).

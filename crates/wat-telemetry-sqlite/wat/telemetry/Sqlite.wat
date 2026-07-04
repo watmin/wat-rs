@@ -117,8 +117,10 @@
   -> :wat::telemetry::Spawn<E>
   (:wat::core::let
     [;; N request channels (client write, server read).
+     ;; Arc 118.2a — req-pairs feeds :wat::std::list::zip (eager-only) twice
+     ;; below; must materialize eagerly, not stay a Stream.
      req-pairs
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::ReqChannel<E>
           (:wat::kernel::make-channel
@@ -127,15 +129,18 @@
      ;; N ack channels (server write, client read). Per arc 095:
      ;; client and server hold opposite ends; nothing crosses in
      ;; the request payload.
+     ;; Arc 118.2a — same: ack-pairs feeds zip twice below.
      ack-pairs
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn
           [_i <- :wat::core::i64] -> :wat::telemetry::AckChannel
           (:wat::kernel::make-channel :wat::core::nil))
         (:wat::core::range 0 count))
      ;; Client-side Handles — (req-tx, ack-rx) pairs.
+     ;; Arc 118.2a — handles feeds :wat::kernel::HandlePool::new, which
+     ;; needs a real eager Vector<Handle<E>>.
      handles
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn
           [rp+ap <- :wat::telemetry::Connection<E>]
            -> :wat::telemetry::Handle<E>
@@ -147,8 +152,11 @@
             (:wat::core::Tuple req-tx ack-rx)))
         (:wat::std::list::zip req-pairs ack-pairs))
      ;; Server-side DriverPairs — (req-rx, ack-tx) pairs.
+     ;; Arc 118.2a — driver-pairs is closure-captured into the spawned
+     ;; thread and passed to Sqlite/run, which declares
+     ;; Vector<DriverPair<E>>; must be eager.
      driver-pairs
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn
           [rp+ap <- :wat::telemetry::Connection<E>]
            -> :wat::telemetry::DriverPair<E>

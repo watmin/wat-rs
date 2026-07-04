@@ -62,14 +62,19 @@ const MAIN: &str = "(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
 fn list_hofs_typecheck_parametric() {
     // Each container-producing op collapsed via foldl→i64, so no container-return annotation is needed;
     // the only thing under test is List acceptance by each op. RED at HEAD.
+    // Arc 118.2a: `map`/`filter`/`take`/`drop` now return a lazy `Stream`, not the original
+    // container — `foldl` is container-only (Vector/PersistentVector/List), so those four
+    // HOF-result folds must go through `:wat::core::reduce` (the Stream-aware clojure surface)
+    // instead. `foldl`/`foldr` over the raw List, and `reverse`/`concat` (still eager,
+    // container-preserving — unaffected by the flip) keep the original `foldl`.
     let src = format!(
         "(:wat::core::defn :user::l-foldl  [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 {L123}))\n\
          (:wat::core::defn :user::l-foldr  [] -> :wat::core::i64 (:wat::core::foldr {SUM} 0 {L123}))\n\
-         (:wat::core::defn :user::l-map    [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::map {DBL} {L123})))\n\
-         (:wat::core::defn :user::l-filter [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::filter {GT1} {L123})))\n\
+         (:wat::core::defn :user::l-map    [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} {L123})))\n\
+         (:wat::core::defn :user::l-filter [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::filter {GT1} {L123})))\n\
          (:wat::core::defn :user::l-rev    [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::reverse {L123})))\n\
-         (:wat::core::defn :user::l-take   [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::take {L123} 2)))\n\
-         (:wat::core::defn :user::l-drop   [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::drop {L123} 1)))\n\
+         (:wat::core::defn :user::l-take   [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::take {L123} 2)))\n\
+         (:wat::core::defn :user::l-drop   [] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::drop {L123} 1)))\n\
          (:wat::core::defn :user::l-concat [] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::concat {L123} {L123})))\n\
          {MAIN}"
     );
@@ -80,9 +85,11 @@ fn list_hofs_typecheck_parametric() {
 fn list_hofs_typecheck_bare_param() {
     // BARE `:wat::core::List` param (no <T>) reduces to a Path, not a Parametric — the second representation
     // surface. Must type-check through the HOFs (record fields / un-parameterized params use bare).
+    // Arc 118.2a — map-bare's HOF result is a Stream; fold it via `reduce`, not `foldl`
+    // (fold-bare/rev-bare are unaffected — raw List fold, and reverse stays eager).
     let src = format!(
         "(:wat::core::defn :user::fold-bare [xs <- :wat::core::List] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 xs))\n\
-         (:wat::core::defn :user::map-bare  [xs <- :wat::core::List] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::map {DBL} xs)))\n\
+         (:wat::core::defn :user::map-bare  [xs <- :wat::core::List] -> :wat::core::i64 (:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} xs)))\n\
          (:wat::core::defn :user::rev-bare  [xs <- :wat::core::List] -> :wat::core::i64 (:wat::core::foldl {SUM} 0 (:wat::core::reverse xs)))\n\
          {MAIN}"
     );
@@ -100,12 +107,15 @@ fn wrong_element_rejected() {
 
 // ── Runtime values: each op produces the right elements ──
 
-#[test] fn list_map_sum()   { expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 (:wat::core::map {DBL} {L123}))"), 12); }   // 2+4+6
-#[test] fn list_filter_sum(){ expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 (:wat::core::filter {GT1} {L123}))"), 5); }  // 2+3
+// Arc 118.2a — map/filter/take/drop now return a lazy Stream; fold the HOF result via
+// `reduce` (the Stream-aware clojure surface), not `foldl` (container-only). foldl/foldr
+// over the raw List are unaffected (they test foldl/foldr itself, not a HOF result).
+#[test] fn list_map_sum()   { expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::map {DBL} {L123}))"), 12); }   // 2+4+6
+#[test] fn list_filter_sum(){ expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::filter {GT1} {L123}))"), 5); }  // 2+3
 #[test] fn list_foldl()     { expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 {L123})"), 6); }
 #[test] fn list_foldr()     { expect_i64(MAIN, &format!("(:wat::core::foldr {SUM} 0 {L123})"), 6); }
-#[test] fn list_take_sum()  { expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 (:wat::core::take {L123} 2))"), 3); }   // 1+2
-#[test] fn list_drop_sum()  { expect_i64(MAIN, &format!("(:wat::core::foldl {SUM} 0 (:wat::core::drop {L123} 1))"), 5); }   // 2+3
+#[test] fn list_take_sum()  { expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::take {L123} 2))"), 3); }   // 1+2
+#[test] fn list_drop_sum()  { expect_i64(MAIN, &format!("(:wat::core::reduce {SUM} 0 (:wat::core::drop {L123} 1))"), 5); }   // 2+3
 
 #[test]
 fn list_reverse_order() {
@@ -130,16 +140,21 @@ fn list_concat_nxm() {
 
 #[test]
 fn list_hofs_preserve_container() {
+    // Arc 118.2a: `map`/`filter`/`take`/`drop` flipped LAZY — they no longer preserve the List
+    // container, they universally return a `Stream` (proven here via a `Stream<i64>` return
+    // annotation, which type-checks ONLY because the op's real result type is a Stream — see
+    // `list_map_is_not_vector` below for the complementary negative). `reverse`/`concat` are
+    // untouched by the flip (still eager) and still preserve List — proven unchanged.
     let src = format!(
-        "(:wat::core::defn :user::p-map  [] -> :wat::core::List<wat::core::i64> (:wat::core::map {DBL} {L123}))\n\
-         (:wat::core::defn :user::p-filt [] -> :wat::core::List<wat::core::i64> (:wat::core::filter {GT1} {L123}))\n\
+        "(:wat::core::defn :user::p-map  [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::map {DBL} {L123}))\n\
+         (:wat::core::defn :user::p-filt [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::filter {GT1} {L123}))\n\
          (:wat::core::defn :user::p-rev  [] -> :wat::core::List<wat::core::i64> (:wat::core::reverse {L123}))\n\
-         (:wat::core::defn :user::p-take [] -> :wat::core::List<wat::core::i64> (:wat::core::take {L123} 2))\n\
-         (:wat::core::defn :user::p-drop [] -> :wat::core::List<wat::core::i64> (:wat::core::drop {L123} 1))\n\
+         (:wat::core::defn :user::p-take [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::take {L123} 2))\n\
+         (:wat::core::defn :user::p-drop [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::drop {L123} 1))\n\
          (:wat::core::defn :user::p-cat  [] -> :wat::core::List<wat::core::i64> (:wat::core::concat {L123} {L123}))\n\
          {MAIN}"
     );
-    assert!(check(&src).is_ok(), "List HOFs must preserve the List container (type-check under List<i64> return). Got: {:?}", check(&src));
+    assert!(check(&src).is_ok(), "map/filter/take/drop must yield Stream<i64> (arc 118.2a); reverse/concat must still preserve List<i64>. Got: {:?}", check(&src));
 }
 
 #[test]

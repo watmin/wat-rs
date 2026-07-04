@@ -344,7 +344,10 @@
   [node <- :wat::WatAST]
   -> :(wat::core::i64,wat::core::i64)
   (:wat::core::let [children (:wat::core::ast->children node)
-                    args     (:wat::core::drop children 1)]
+                    ;; Arc 118.2a — `drop` flipped LAZY (returns Stream); `foldl` below is
+                    ;; unchanged (Vector/List/PersistentVector only) and consumes `args` fully,
+                    ;; so force it eager here.
+                    args     (:wat::core::into [] (:wat::core::drop children 1))]
     (:wat::core::foldl
       (:wat::core::fn [acc <- :(wat::core::i64,wat::core::i64)
                        arg <- :wat::WatAST]
@@ -388,7 +391,9 @@
   [form        <- :wat::WatAST
    in-defmacro? <- :wat::core::bool]
   -> :wat::core::Option<wat::lint::FixEdit>
-  (:wat::core::let [args     (:wat::core::drop (:wat::core::ast->children form) 1)
+  (:wat::core::let [;; Arc 118.2a — `drop` flipped LAZY; `args` feeds two `foldl` calls below
+                    ;; (Vector/List/PersistentVector-only, unchanged) — force eager here.
+                    args     (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children form) 1))
                     ;; ── Step 1: eligibility fold ─────────────────────────────
                     ;; acc = bool (still-eligible). Fold args; if any arg fails,
                     ;; propagate false (no early exit — fold goes to the end).

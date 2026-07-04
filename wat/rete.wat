@@ -265,14 +265,17 @@
                          bindings (:wat::rete::Token/bindings tok)
                          rule     (:wat::rete::Support/rule sv)
                          session  (:wat::rete::Explained/session ex)
-                         via      (:wat::core::map
-                                    (:wat::core::fn [m <- :(wat::core::Record,wat::core::i64)]
-                                      -> :wat::rete::DerivationStep
-                                      (:wat::core::let [sfact    (:wat::core::first m)
-                                                        alpha-id (:wat::core::second m)]
-                                        (:wat::rete::step-payload session alpha-id bindings sfact
-                                          (:wat::rete::explain ex sfact))))
-                                    matches)]
+                         ;; Arc 118.2a — `map` flipped LAZY; `DerivationNode`'s 3rd field is
+                         ;; `PersistentVector<DerivationStep>`, so materialize via `into`.
+                         via      (:wat::core::into (:wat::core::PersistentVector)
+                                    (:wat::core::map
+                                      (:wat::core::fn [m <- :(wat::core::Record,wat::core::i64)]
+                                        -> :wat::rete::DerivationStep
+                                        (:wat::core::let [sfact    (:wat::core::first m)
+                                                          alpha-id (:wat::core::second m)]
+                                          (:wat::rete::step-payload session alpha-id bindings sfact
+                                            (:wat::rete::explain ex sfact))))
+                                      matches))]
          (:wat::rete::DerivationNode fact (:wat::core::Some rule) via)))
       (:wat::core::None
        ;; base/asserted fact — leaf node, rule=None, via is empty.
@@ -1731,11 +1734,13 @@
   -> :wat::rete::FireStratAcc
   (:wat::core::if (:wat::core::i64::> current max-s)
     (:wat::rete::FireStratAcc acc-facts acc-derived)
-    (:wat::core::let [;; filter produces PersistentVector<Rule> — type preserved from `rules`
-                      stratum-rules (:wat::core::filter
-                                      (:wat::core::fn [r <- :wat::rete::Rule] -> :wat::core::bool
-                                        (:wat::core::= (:wat::rete::rule-stratum r type-strata) current))
-                                      rules)
+    (:wat::core::let [;; Arc 118.2a — `filter` flipped LAZY; `compile` needs `PersistentVector<Rule>`
+                      ;; eagerly, so materialize via `into` (was container-preserving from `rules`).
+                      stratum-rules (:wat::core::into (:wat::core::PersistentVector)
+                                      (:wat::core::filter
+                                        (:wat::core::fn [r <- :wat::rete::Rule] -> :wat::core::bool
+                                          (:wat::core::= (:wat::rete::rule-stratum r type-strata) current))
+                                        rules))
                       ;; fresh compiled network for this stratum only — no shared-alpha edge
                       sub-sess    (:wat::rete::compile stratum-rules)
                       ;; seed with ALL accumulated facts so negation sees complete prior strata
@@ -1891,10 +1896,13 @@
                            (:wat::core::PersistentVector)
                            (:wat::core::PersistentMap/values
                              (:wat::rete::Session/production-memory session)))]
-    (:wat::core::filter
-      (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool
-        (:wat::core::= (:wat::core::type f) ty-str))
-      all)))
+    ;; Arc 118.2a — `filter` flipped LAZY; the function's declared return type is
+    ;; `PersistentVector`, so materialize via `into`.
+    (:wat::core::into (:wat::core::PersistentVector)
+      (:wat::core::filter
+        (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool
+          (:wat::core::= (:wat::core::type f) ty-str))
+        all))))
 
 ;; query — runtime fn: read derived facts of a type from a fired session.
 ;; ty is the type's Record constructor fn: in the types-as-forms surface a bare type name
@@ -1966,7 +1974,13 @@
                     when-vec  (:wat::core::Option/expect  
                                  (:wat::core::get rest 1)
                                  "defrule: missing :when conditions vector")
-                    then-forms (:wat::core::drop rest 3)]
+                    ;; Arc 118.2a — `drop` flipped LAZY (returns Stream); unquote-splicing needs
+                    ;; a concrete Vec, but `defrule`'s body is a program-body macro, restricted
+                    ;; to the F5 pure-total allow-list (`is_pure_total` in src/macros/eval.rs) —
+                    ;; `to-vec`/`into`/`mapv`/`filterv` are NOT on it, so they can't be used here.
+                    ;; `rest` stays eager/container-preserving on a real Vector and IS allow-listed,
+                    ;; so drop the first 3 elements via 3x `rest` instead of `drop`.
+                    then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest rest)))]
     `(:wat::core::defn ~name [] -> :wat::rete::Rule
        (:wat::rete::make-rule ~name-str
          (:wat::core::quote ~when-vec)

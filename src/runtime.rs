@@ -4639,7 +4639,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
         ":wat::core::foldl" => crate::collection::transform::eval_vec_foldl(args, list_span, env, sym),
         ":wat::core::foldr" => crate::collection::transform::eval_vec_foldr(args, list_span, env, sym),
-        ":wat::core::filter" => crate::collection::transform::eval_vec_filter(args, list_span, env, sym),
+        // Arc 118.2a — `:wat::core::filter` retired from this dispatch table: no
+        // macro-expansion-time caller depends on it, so it is now an ordinary wat
+        // `defclause` (`wat/seq.wat`) and falls through to normal function-call dispatch.
         ":wat::std::list::zip" => crate::collection::transform::eval_vec_zip(args, list_span, env, sym),
         ":wat::std::list::window" => crate::collection::transform::eval_vec_window(args, list_span, env, sym),
         ":wat::std::list::remove-at" => crate::collection::transform::eval_vec_remove_at(args, list_span, env, sym),
@@ -6728,8 +6730,43 @@ fn value_matches_type_by_name(val: &Value, ty: &crate::types::TypeExpr) -> bool 
                 }
             }
         }
-        // For parametric / fn / tuple / var types: accept (permissive fallback,
-        // type-checker already validated; runtime is defensive).
+        // Arc 118.2a — container-polymorphic defclause dispatch (`:wat::core::into`/
+        // `reduce`/`filter`) needs clauses that differ ONLY in a Parametric container head
+        // (Vector<T> vs List<T> vs PersistentVector<T> vs Stream<T>) to actually discriminate
+        // at runtime. Before this arc, EVERY defclause's competing clauses at a shared arity
+        // differed only in bare Path types (i64 vs f64) — a Parametric param was always the
+        // SOLE clause at that position, so the old unconditional `true` never mis-dispatched.
+        // With multiple same-arity clauses differing in container kind, the permissive
+        // fallback made the FIRST declared clause win regardless of the value's real shape
+        // (silently wrong — e.g. a Stream fed to a `Vector<T>` clause "matched" and ran the
+        // Vector body unchanged). Fix: for container heads the seq-container registry knows
+        // about, require the value's ACTUAL classification to agree with the declared head;
+        // every other Parametric shape (HashMap<K,V>, Option<T>, Result<T,E>, etc. — never
+        // multi-clause-competing on container kind) keeps the old permissive behavior.
+        crate::types::TypeExpr::Parametric { head, .. } => {
+            use crate::collection::seq_container::StreamContainer;
+            match StreamContainer::of_value(val) {
+                Some(container) => {
+                    let canonical_head = match container {
+                        StreamContainer::Vector => "wat::core::Vector",
+                        StreamContainer::List => "wat::core::List",
+                        StreamContainer::PersistentVector => "wat::core::PersistentVector",
+                        StreamContainer::Stream => "wat::stream::Stream",
+                        StreamContainer::HashSet => "wat::core::HashSet",
+                        // Tuple/WatAstList aren't declared via a Parametric head with a type
+                        // arg the way the others are (Tuple is structural; WatAstList is the
+                        // bare `:wat::WatAST` Path) — never competes at this arm; permissive.
+                        StreamContainer::Tuple | StreamContainer::WatAstList => return true,
+                    };
+                    head.as_str() == canonical_head
+                }
+                // Not a seq-container value at all (HashMap, Option, Result, a bare fn, …) —
+                // permissive fallback unchanged from before this arc.
+                None => true,
+            }
+        }
+        // For fn / tuple / var types: accept (permissive fallback, type-checker already
+        // validated; runtime is defensive).
         _ => true,
     }
 }
@@ -12084,7 +12121,8 @@ fn eval_positional_accessor(
                         // first of empty → nil (Clojure semantic).
                         crate::stream::Stream::Empty => Ok(Value::Unit),
                         crate::stream::Stream::Cons { head, .. } => Ok(head.clone()),
-                        crate::stream::Stream::Thunk(_) => unreachable!("realize returns WHNF"),
+                        crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) =>
+                            unreachable!("realize returns WHNF"),
                     }
                 }
                 // indexable() gate excludes HashSet — named arm, genuinely dead, compiler-forced:
@@ -30007,9 +30045,14 @@ mod tests {
         }
     }
 
+    // Arc 118.2a — `take`/`drop`/`map` flipped LAZY (return `Value::wat__stream__Stream`, not
+    // `Value::Vec`, directly). These tests still exercise the SAME op + assert the SAME
+    // resulting values; the source string now materializes via `(:wat::core::into [] …)` so
+    // the Rust-side assertion (unchanged: still expects `Value::Vec`) stays meaningful without
+    // needing to hand-walk a `Stream` from this test module.
     #[test]
     fn take_first_n() {
-        match eval_expr("(:wat::core::take (:wat::core::Vector :i64 1 2 3 4 5) 3)").unwrap() {
+        match eval_expr("(:wat::core::into [] (:wat::core::take (:wat::core::Vector :i64 1 2 3 4 5) 3))").unwrap() {
             Value::Vec(items) => assert_eq!(items.len(), 3),
             v => panic!("expected Vec, got {:?}", v),
         }
@@ -30017,7 +30060,7 @@ mod tests {
 
     #[test]
     fn take_more_than_length_returns_full_vec() {
-        match eval_expr("(:wat::core::take (:wat::core::Vector :i64 1 2) 99)").unwrap() {
+        match eval_expr("(:wat::core::into [] (:wat::core::take (:wat::core::Vector :i64 1 2) 99))").unwrap() {
             Value::Vec(items) => assert_eq!(items.len(), 2),
             v => panic!("expected Vec, got {:?}", v),
         }
@@ -30025,7 +30068,7 @@ mod tests {
 
     #[test]
     fn drop_skips_first_n() {
-        match eval_expr("(:wat::core::drop (:wat::core::Vector :i64 1 2 3 4 5) 2)").unwrap() {
+        match eval_expr("(:wat::core::into [] (:wat::core::drop (:wat::core::Vector :i64 1 2 3 4 5) 2))").unwrap() {
             Value::Vec(items) => {
                 assert_eq!(items.len(), 3);
                 match &items[0] {
@@ -30040,9 +30083,10 @@ mod tests {
     #[test]
     fn map_doubles_every_element() {
         let src = r#"
-            (:wat::core::map
-              (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2))
-              (:wat::core::Vector :i64 1 2 3))
+            (:wat::core::into []
+              (:wat::core::map
+                (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2))
+                (:wat::core::Vector :i64 1 2 3)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -31010,14 +31054,18 @@ mod tests {
         }
     }
 
+    // Arc 118.2a — `filter` flipped LAZY (returns a `Stream`, built without validating
+    // pred/coll shape until forced). `filter_keeps_true_predicates` materializes via
+    // `(:wat::core::into [] …)` to get back a `Value::Vec` the same way as before.
     #[test]
     fn filter_keeps_true_predicates() {
         // Stone 237.8b — polymorphic `>` is now a defclause; use per-Type primitive in unit test.
         let src = r#"
-            (:wat::core::filter
-              (:wat::core::fn [x <- :i64] -> :bool
-                (:wat::core::i64::> x 2))
-              (:wat::core::Vector :i64 1 2 3 4 5))
+            (:wat::core::into []
+              (:wat::core::filter
+                (:wat::core::fn [x <- :i64] -> :bool
+                  (:wat::core::i64::> x 2))
+                (:wat::core::Vector :i64 1 2 3 4 5)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -31036,10 +31084,15 @@ mod tests {
 
     #[test]
     fn filter_refuses_non_bool_predicate() {
+        // Arc 118.2a — `filter` is lazy; a bad-shaped call (coll-first order here, predating
+        // the fn-first flip) no longer errors at CONSTRUCTION time (runtime defclause
+        // dispatch is permissive on `Fn`-typed params — nothing to check until forced), so
+        // force via `(:wat::core::into [] …)` to make the shape mismatch surface.
         let src = r#"
-            (:wat::core::filter
-              (:wat::core::Vector :i64 1 2 3)
-              (:wat::core::fn [x <- :i64] -> :i64 x))
+            (:wat::core::into []
+              (:wat::core::filter
+                (:wat::core::Vector :i64 1 2 3)
+                (:wat::core::fn [x <- :i64] -> :i64 x)))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::TypeMismatch { .. }, .. })));

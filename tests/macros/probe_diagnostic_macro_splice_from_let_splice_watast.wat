@@ -4,11 +4,16 @@
   (:wat::core::quasiquote
     (:wat::core::Vector :wat::core::i64
       (:wat::core::unquote-splicing
+        ;; Arc 118.2a — `map` flipped LAZY; `forms` is unquote-spliced (computed unquote-
+        ;; splicing runs through the restricted macro-eval evaluator — wat-defined `mapv` is
+        ;; `UnknownFunction` there), so `foldl`+`conj` (Rust-native) stand in.
         (:wat::core::let
-          [forms (:wat::core::map
-                   (:wat::core::fn [x <- :wat::core::i64] -> :wat::WatAST
-                     (:wat::core::quasiquote
-                       (:wat::core::unquote (:wat::core::i64::* x 10))))
+          [forms (:wat::core::foldl
+                   (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> x <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                     (:wat::core::conj acc
+                       (:wat::core::quasiquote
+                         (:wat::core::unquote (:wat::core::i64::* x 10)))))
+                   (:wat::core::Vector :wat::WatAST)
                    xs)]
           forms)))))
 

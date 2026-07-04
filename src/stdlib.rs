@@ -40,6 +40,17 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
     },
+    // Arc 118.2a — the clojure-named lazy/eager HOF surface (map/filter/take/drop are Rust
+    // intrinsics, unconditionally available; this file adds `filter` [wat-defined], `mapv`/
+    // `filterv`/`into`/`doall`/`dorun`/`reduce`/`count`). Moved here (immediately after
+    // core.wat, before holon/*/string.wat/etc.) — those files call `mapv` et al., and
+    // `:wat::deporder::verify-stdlib` enforces that a referenced name's defining file loads
+    // no later than the referencing file. No eval-deps beyond core.wat's own substrate
+    // (defclause/defalias/defn, `:wat::stream::*` builtins).
+    WatSource {
+        path: "wat/seq.wat",
+        source: include_str!("../wat/seq.wat"),
+    },
     // Arc 255.1b-iv-c — closed-domain enum types for the metadata-of reflection
     // surface: Kind / DefinedIn / Layer. No eval-deps beyond :wat::core::defenum
     // (a builtin), so it may load immediately after core.wat.
@@ -252,15 +263,6 @@ const STDLIB_FILES: &[WatSource] = &[
     WatSource {
         path: "wat/string.wat",
         source: include_str!("../wat/string.wat"),
-    },
-    // Arc 143 slice 7 — :wat::seq::* aliases (was :wat::list::, arc 118).
-    // Stone 241.12 / Arc 118 — uses :wat::core::defalias (native substrate form) to
-    // create :wat::seq::reduce and :wat::seq::fold as aliases for :wat::core::foldl.
-    // (Arc 118: :wat::list::* graduated to :wat::seq::* — the eager world of the
-    // seq/stream split.) Loads after core.wat so all substrate dispatch is in place.
-    WatSource {
-        path: "wat/seq.wat",
-        source: include_str!("../wat/seq.wat"),
     },
     // Arc 251 — fix-source: the wat-to-wat faithful-Clojure converter (the corpus migrator,
     // written IN wat). Loads after core.wat so its substrate verbs (keyword/to-symbol,

@@ -274,13 +274,22 @@
     (:wat::core::match req -> :wat::holon::lru::HologramCacheService::State
       ((:wat::holon::lru::HologramCacheService::Request::Get probes)
         (:wat::core::let
-          [results
-            (:wat::core::map
-              (:wat::core::fn [probe <- :wat::holon::HolonAST] -> :wat::core::Option<wat::holon::HolonAST>
-                (:wat::holon::lru::HologramCache/get cache probe))
+          [;; Arc 118.2a — `HologramCache/get` has a SIDE EFFECT (LRU recency bump); `probes`
+           ;; is already a plain `Vector<HolonAST>` (never lazy), so drive this with `foldl`
+           ;; directly rather than `mapv` (map+into) — a Stream position forced via separate
+           ;; `empty?`/`first`/`rest` calls (no memoization, by single-pass design) re-invokes
+           ;; its thunk once per call, which would call this side-effecting `get` more than
+           ;; once per probe. `foldl` over the real Vector calls `get` exactly once per element.
+           results
+            (:wat::core::foldl
+              (:wat::core::fn [acc <- :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>> probe <- :wat::holon::HolonAST] -> :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>
+                (:wat::core::conj acc (:wat::holon::lru::HologramCache/get cache probe)))
+              (:wat::core::Vector :wat::core::Option<wat::holon::HolonAST>)
               probes)
+           ;; Arc 118.2a — :wat::seq:: retired; its reduce/fold aliases promote to
+           ;; :wat::core::reduce (see wat-scripts/fixes/rename-seq-fold-aliases-to-core-reduce.wat).
            hit-count
-            (:wat::seq::reduce
+            (:wat::core::reduce
               (:wat::core::fn
                 [acc <- :wat::core::i64 slot <- :wat::core::Option<wat::holon::HolonAST>] -> :wat::core::i64
                 (:wat::core::match slot -> :wat::core::i64
@@ -308,9 +317,12 @@
       ((:wat::holon::lru::HologramCacheService::Request::Put entries)
         (:wat::core::let
           [;; HologramCache/put returns :unit (not Option eviction).
-           ;; Map entries, discard results (all units).
+           ;; Arc 118.2a — side-effecting-only pass (result discarded). `dorun (map f coll)`
+           ;; is the clojure lazy-map-side-effect anti-pattern; `run!` is the eager consumer
+           ;; built directly over `foldl` (wat/seq.wat) — calls `HologramCache/put` exactly
+           ;; once per entry, never routes the effect through a lazy Stream stage.
            _
-            (:wat::core::map
+            (:wat::core::run!
               (:wat::core::fn
                 [entry <- :wat::holon::lru::HologramCacheService::Entry] -> :wat::core::nil
                 (:wat::core::let
@@ -454,8 +466,10 @@
   (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
     nil
     (:wat::core::let
-      [req-rxs
-        (:wat::core::map
+      [;; Arc 118.2a — req-rxs feeds :wat::kernel::select, which needs a
+       ;; real eager Vector<ReqRx>, not a Stream.
+       req-rxs
+        (:wat::core::mapv
           (:wat::core::fn
             [p <- :wat::holon::lru::HologramCacheService::DriverPair] -> :wat::holon::lru::HologramCacheService::ReqRx
             (:wat::core::first p))
@@ -568,35 +582,40 @@
     ;; N request pairs and N reply pairs in lock-step. The pair index
     ;; is preserved so Handle[i] and DriverPair[i] correspond to the
     ;; same slot.
-    [req-pairs
-      (:wat::core::map
+    [;; Arc 118.2a — req-pairs feeds two mapv extractions below (handles'
+     ;; and driver-pairs' first-halves); must be eager.
+     req-pairs
+      (:wat::core::mapv
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::holon::lru::HologramCacheService::ReqChannel
           (:wat::kernel::make-channel :wat::holon::lru::HologramCacheService::Request))
         (:wat::core::range 0 count))
+     ;; Arc 118.2a — same: reply-pairs feeds two mapv extractions below.
      reply-pairs
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::holon::lru::HologramCacheService::ReplyChannel
           (:wat::kernel::make-channel :wat::holon::lru::HologramCacheService::Reply))
         (:wat::core::range 0 count))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
+     ;; Arc 118.2a — both branches feed :wat::std::list::zip (eager-only).
      handles
       (:wat::std::list::zip
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReqChannel] -> :wat::holon::lru::HologramCacheService::ReqTx
             (:wat::core::first p))
           req-pairs)
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReplyChannel] -> :wat::holon::lru::HologramCacheService::ReplyRx
             (:wat::core::second p))
           reply-pairs))
      ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
+     ;; Arc 118.2a — driver-pairs is closure-captured + zip-built; eager.
      driver-pairs
       (:wat::std::list::zip
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReqChannel] -> :wat::holon::lru::HologramCacheService::ReqRx
             (:wat::core::second p))
           req-pairs)
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::holon::lru::HologramCacheService::ReplyChannel] -> :wat::holon::lru::HologramCacheService::ReplyTx
             (:wat::core::first p))
           reply-pairs))

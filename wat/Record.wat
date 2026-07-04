@@ -109,16 +109,25 @@
                ;; carry the SAME scope — reuse the original nodes from (quote fields) directly.
                ;; (quote fields) is needed: substitute_bindings replaces `fields` with the raw
                ;; WatAST::Vector node; quote wraps it as Value::wat__WatAST for ast->children.
+               ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY (returns a
+               ;; `Stream`, not a `Vector`) and this `~@`-splice needs a concrete `Vector<WatAST>`
+               ;; RIGHT NOW, at macro-expansion time — this macro is invoked from EVERY
+               ;; `defrecord` call across the stdlib (~30+ sites, earliest `core.wat`'s `Fault`),
+               ;; so it cannot depend on any wat-defined eager materializer either (a wat-defined
+               ;; `vec`/`into` would itself be an untested/unsafe dependency at this exact
+               ;; bootstrap phase — see `crate::stream::NativeLazyCell`'s doc for the full
+               ;; writeup). `foldl` + `conj` stay Rust-native and eager, unaffected by the flip.
                [raw-ch  (:wat::core::ast->children (:wat::core::quote fields))
                 nf      (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
-                syms    (:wat::core::map
-                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
+                syms    (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> fi <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
                              (:wat::core::let
                                [idx   (:wat::core::i64::* fi 3)
                                 var-w (:wat::core::Option/expect
                                          (:wat::core::Vector/get raw-ch idx)
                                          "Record::def: struct_form field name index out of range")]
-                               var-w))
+                               (:wat::core::conj acc var-w)))
+                           (:wat::core::Vector :wat::WatAST)
                            (:wat::core::range 0 nf))]
                syms)))
 ))
@@ -148,16 +157,18 @@
                ;; AST nodes with scope preserved, not the holon round-trip (which strips scope).
                ;; The binders in [~@fields] carry the original scope; the body references must
                ;; carry the SAME scope — reuse the original nodes from (quote fields) directly.
+               ;; Arc 118.2a — see the BASE macro above for why this is `foldl`+`conj`, not `map`.
                [raw-ch  (:wat::core::ast->children (:wat::core::quote fields))
                 nf      (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
-                syms    (:wat::core::map
-                           (:wat::core::fn [fi <- :wat::core::i64] -> :wat::WatAST
+                syms    (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> fi <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
                              (:wat::core::let
                                [idx   (:wat::core::i64::* fi 3)
                                 var-w (:wat::core::Option/expect
                                          (:wat::core::Vector/get raw-ch idx)
                                          "Record::def: struct_form field name index out of range")]
-                               var-w))
+                               (:wat::core::conj acc var-w)))
+                           (:wat::core::Vector :wat::WatAST)
                            (:wat::core::range 0 nf))]
                syms)))
 ))

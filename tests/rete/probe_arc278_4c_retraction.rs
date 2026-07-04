@@ -37,7 +37,7 @@ fn ev(expr: &str) -> Value {
 // length of (derived facts of `type_fqdn`) flattened from production-memory of the bound `fired` session.
 fn derived_of(ty: &str) -> String {
     format!(
-        "(:wat::core::length (:wat::core::filter \
+        "(:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter \
            (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) \"{ty}\")) \
            (:wat::core::foldl \
              (:wat::core::fn [acc <- :wat::core::PersistentVector pv <- :wat::core::PersistentVector] \
@@ -45,16 +45,16 @@ fn derived_of(ty: &str) -> String {
                (:wat::core::foldl (:wat::core::fn [a <- :wat::core::PersistentVector x <- :wat::core::Record] \
                  -> :wat::core::PersistentVector (:wat::core::PersistentVector/conj a x)) acc pv)) \
              (:wat::core::PersistentVector) \
-             (:wat::core::PersistentMap/values (:wat::rete::Session/production-memory fired)))))"
+             (:wat::core::PersistentMap/values (:wat::rete::Session/production-memory fired))))))"
     )
 }
 
 // length of (facts of `type_fqdn`) in the bound `fired` session's INPUT facts.
 fn facts_of(ty: &str) -> String {
     format!(
-        "(:wat::core::length (:wat::core::filter \
+        "(:wat::core::length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter \
            (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool (:wat::core::= (:wat::core::type f) \"{ty}\")) \
-           (:wat::rete::Session/facts fired)))"
+           (:wat::rete::Session/facts fired))))"
     )
 }
 

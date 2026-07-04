@@ -37,12 +37,13 @@ fn setup(wind_loc: &str) -> String {
    pmem  (:wat::rete::Session/production-memory fired)\
    pid   (:wat::core::Option/expect \
             (:wat::core::get \
-              (:wat::core::filter \
-                (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
-                  (:wat::core::= (:wat::rete::node-kind-label \
-                                   (:wat::core::Option/expect (:wat::core::PersistentMap/get network k) \"n\")) \
-                                 \"ProductionNode\")) \
-                (:wat::core::PersistentMap/keys network)) \
+              (:wat::core::into [] \
+                (:wat::core::filter \
+                  (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
+                    (:wat::core::= (:wat::rete::node-kind-label \
+                                     (:wat::core::Option/expect (:wat::core::PersistentMap/get network k) \"n\")) \
+                                   \"ProductionNode\")) \
+                  (:wat::core::PersistentMap/keys network))) \
               0) \"pid\")\
    pfacts (:wat::core::match (:wat::core::PersistentMap/get pmem pid) -> :wat::core::PersistentVector \
             ((:wat::core::Some pv) pv) \
@@ -98,12 +99,13 @@ const SETUP_2X2: &str = "\
    pmem  (:wat::rete::Session/production-memory fired)\
    pid   (:wat::core::Option/expect \
             (:wat::core::get \
-              (:wat::core::filter \
-                (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
-                  (:wat::core::= (:wat::rete::node-kind-label \
-                                   (:wat::core::Option/expect (:wat::core::PersistentMap/get network k) \"n\")) \
-                                 \"ProductionNode\")) \
-                (:wat::core::PersistentMap/keys network)) 0) \"pid\")\
+              (:wat::core::into [] \
+                (:wat::core::filter \
+                  (:wat::core::fn [k <- :wat::core::i64] -> :wat::core::bool \
+                    (:wat::core::= (:wat::rete::node-kind-label \
+                                     (:wat::core::Option/expect (:wat::core::PersistentMap/get network k) \"n\")) \
+                                   \"ProductionNode\")) \
+                  (:wat::core::PersistentMap/keys network))) 0) \"pid\")\
    pfacts (:wat::core::match (:wat::core::PersistentMap/get pmem pid) -> :wat::core::PersistentVector \
             ((:wat::core::Some pv) pv) \
             (:wat::core::None (:wat::core::PersistentVector)))";

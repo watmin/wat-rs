@@ -518,9 +518,24 @@
      fnames     (:wat::core::ast->children field-names)
      nf         (:wat::core::length fnames)
      ns-kw      (:wat::core::keyword/from-string (:wat::core::keyword/to-string ns))
-     ;; Split call-args into positional and tail
-     pos        (:wat::core::take call-args n-pos-int)
-     tail       (:wat::core::drop call-args n-pos-int)
+     ;; Split call-args into positional and tail.
+     ;; Arc 118.2a — was `(:wat::core::take call-args n-pos-int)` / `(:wat::core::drop …)`. Both
+     ;; flipped LAZY; this is `:wat::core::kwargs-lower`, a program-body macro forwarded to from
+     ;; EVERY kwargs-style call site (bootstrap-critical, same wall as `:wat::core::defn`'s own
+     ;; kwargs-form macro above) — `n-pos-int` is a runtime-computed count (not a small fixed
+     ;; literal), so the `rest`×N trick doesn't apply here; `foldl`+`range`+`get`+`conj` (all
+     ;; Rust-native, unaffected by the flip) rebuild both slices eagerly.
+     call-args-len (:wat::core::length call-args)
+     pos        (:wat::core::foldl
+                  (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                    (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: pos index OOB")))
+                  (:wat::core::Vector :wat::WatAST)
+                  (:wat::core::range 0 n-pos-int))
+     tail       (:wat::core::foldl
+                  (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                    (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: tail index OOB")))
+                  (:wat::core::Vector :wat::WatAST)
+                  (:wat::core::range n-pos-int call-args-len))
      tlen       (:wat::core::length tail)
      ;; is-map: tail has exactly 1 element and it is a map literal
      is-map     (:wat::core::if (:wat::core::= tlen 1)
@@ -726,7 +741,16 @@
          kwargs-ty-node  (:wat::core::keyword-node
                             (:wat::core::string::interpolate ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
          ;; Build reshaped params children: drop trailing `& [...]` (last 2), append kw-sym <- kwargs-ty
-         base-ch         (:wat::core::take params-ch (:wat::core::i64::- params-len 2))
+         ;; Arc 118.2a — was `(:wat::core::take ...)`. `take` flipped LAZY (returns Stream); this is
+         ;; `:wat::core::defn`'s OWN macro body — it runs at macro-expansion time, BEFORE any
+         ;; wat-defined helper (`mapv`/`into`/etc.) is resolvable, and even `conj`ing onto a Stream
+         ;; would fail. `foldl`+`get`+`conj` stay Rust-native and eager, unaffected by the flip.
+         base-ch         (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                             (:wat::core::conj acc
+                               (:wat::core::Option/expect (:wat::core::get params-ch i) "defn kwargs: base-ch index")))
+                           (:wat::core::Vector :wat::WatAST)
+                           (:wat::core::range 0 (:wat::core::i64::- params-len 2)))
          arrow-sym       (:wat::core::symbol-node "<-")
          reshaped-ch     (:wat::core::conj
                            (:wat::core::conj
@@ -739,20 +763,26 @@
                             (:wat::core::get rest 2)
                             "defn kwargs: no return type")
          ;; body forms: rest[3..] (everything after params-vec -> ret-type)
-         body-forms      (:wat::core::drop rest 3)
+         ;; Arc 118.2a — was `(:wat::core::drop rest 3)`. `drop` flipped LAZY; this is
+         ;; `:wat::core::defn`'s own macro body (bootstrap-critical — see `base-ch` above) and
+         ;; `body-forms` is unquote-spliced (`~@body-forms`) below, needing a concrete Vec.
+         ;; `rest` stays eager/container-preserving on a real Vector, so drop 3 via 3x `rest`
+         ;; (same trick as `:wat::rete::defrule`'s and `:wat::service::defservice`'s fixes).
+         body-forms      (:wat::core::rest (:wat::core::rest (:wat::core::rest rest)))
          ;; Build destructure let-binder items:
          ;;   [field1-sym (:<name>::Kwargs/field1 __kwargs__)  field2-sym (…) …]
-         ;; field-indices: 0, 3, 6, … (name positions in kw-ch)
-         field-indices   (:wat::core::map
-                           (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
-                             (:wat::core::i64::* i 3))
-                           (:wat::core::range 0 n-kw-fields))
+         ;; Arc 118.2a — `field-indices` (was `(:wat::core::map (fn [i] (* i 3)) (range 0 n-kw-fields))`)
+         ;; is ELIMINATED: `map` flipped LAZY and this is `:wat::core::defn`'s own bootstrap-critical
+         ;; macro body (same wall as `base-ch`/`body-forms` above). Iterate `(range 0 n-kw-fields)`
+         ;; directly (raw positions 0,1,2,…) and multiply by 3 inline instead of pre-computing the
+         ;; 0,3,6,… index Vector — same result, one fewer intermediate, no `map` needed at all.
          let-binder-items (:wat::core::foldl
                             (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                             i   <- :wat::core::i64]
+                                             fi  <- :wat::core::i64]
                               -> :wat::core::Vector<wat::WatAST>
                               (:wat::core::let
-                                [fname-node    (:wat::core::Option/expect  
+                                [i             (:wat::core::i64::* fi 3)
+                                 fname-node    (:wat::core::Option/expect
                                                  (:wat::core::get kw-ch i)
                                                  "defn kwargs let-binder: field name index")
                                  fname-str     (:wat::core::ast-name fname-node)
@@ -776,7 +806,7 @@
                                   (:wat::core::conj acc binder-sym)
                                   accessor-call)))
                             (:wat::core::Vector :wat::WatAST)
-                            field-indices)
+                            (:wat::core::range 0 n-kw-fields))
          ;; Wrap let-binder-items as a WatAST::Vector (kw-argvec is the shape template)
          let-binders-vec (:wat::core::with-children kw-argvec let-binder-items)
          ;; ── Arc 260.1b: companion macro additions ────────────────────────────
@@ -787,12 +817,16 @@
          kwargs-ty-colon-str (:wat::core::string::concat ":" kwargs-ty-str)
          ;; n-pos: count of leading positional params (all params before `& [...]`)
          n-pos               (:wat::core::i64::/ (:wat::core::i64::- params-len 2) 3)
-         ;; fname-nodes: Vector<WatAST> of field-name symbol nodes in declared order
-         fname-nodes         (:wat::core::map
-                               (:wat::core::fn [i <- :wat::core::i64] -> :wat::WatAST
-                                 (:wat::core::Option/expect
-                                   (:wat::core::get kw-ch (:wat::core::i64::* i 3))
-                                   "defn kwargs fname-nodes: index"))
+         ;; fname-nodes: Vector<WatAST> of field-name symbol nodes in declared order.
+         ;; Arc 118.2a — was `map`; same bootstrap wall as `base-ch`/`body-forms`/`let-binder-items`
+         ;; above. `foldl`+`conj` stay Rust-native and eager.
+         fname-nodes         (:wat::core::foldl
+                               (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                                 (:wat::core::conj acc
+                                   (:wat::core::Option/expect
+                                     (:wat::core::get kw-ch (:wat::core::i64::* i 3))
+                                     "defn kwargs fname-nodes: index")))
+                               (:wat::core::Vector :wat::WatAST)
                                (:wat::core::range 0 n-kw-fields))
          ;; field-names-ast-vec: WatAST Vector node of fname symbol nodes
          ;; (baked into the companion macro via (:wat::core::quote ~field-names-ast-vec))
@@ -946,10 +980,14 @@
 (:wat::core::defmacro :wat::core::keyword/of
   [head <- :wat::WatAST & args <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
+  ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY; this macro is a pure-total
+  ;; program-body macro (bootstrap-critical, same wall as `:wat::core::defn`'s kwargs-form and
+  ;; `:wat::core::kwargs-lower` above), so `foldl`+`conj` (Rust-native, eager) stand in.
   (:wat::core::let [head-text (:wat::core::keyword/to-string head)
-                    arg-texts (:wat::core::map
-                                (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String
-                                   (:wat::core::keyword/to-string a))
+                    arg-texts (:wat::core::foldl
+                                (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> a <- :wat::holon::HolonAST] -> :wat::core::Vector<wat::core::String>
+                                  (:wat::core::conj acc (:wat::core::keyword/to-string a)))
+                                (:wat::core::Vector :wat::core::String)
                                 args)
                     joined (:wat::core::string::join "," arg-texts)
                     full (:wat::core::string::concat head-text
@@ -1109,9 +1147,16 @@
      ;; ── 3. Pass 1 — tokenize chars → segment list ───────────────────
      ;; Build char vector: each element is a single-char String.
      tmpl-len    (:wat::core::string::length tmpl-str)
-     chars       (:wat::core::map
-                   (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::String
-                     (:wat::core::string::subs tmpl-str i (:wat::core::i64::+ i 1)))
+     ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY (returns a `Stream`, not
+     ;; a `Vector`); `format` is itself a macro invoked from inside OTHER macros' bodies at
+     ;; macro-expansion time (e.g. `wat/lint.wat`), so `chars` must stay a concrete
+     ;; `Vector<String>` RIGHT NOW, without depending on any wat-defined eager materializer
+     ;; (untested at this bootstrap phase — see `crate::stream::NativeLazyCell`'s doc).
+     ;; `foldl`+`conj` stay Rust-native and eager, unaffected by the flip.
+     chars       (:wat::core::foldl
+                   (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                     (:wat::core::conj acc (:wat::core::string::subs tmpl-str i (:wat::core::i64::+ i 1))))
+                   (:wat::core::Vector :wat::core::String)
                    (:wat::core::range 0 tmpl-len))
 
      ;; Accumulator: Tuple(mode, pending, buf, segments)

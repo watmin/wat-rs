@@ -22,15 +22,18 @@
             false))))
     false))
 
+;; Arc 118.2a — `take`/`drop` flipped LAZY (return Stream); `concat` (unchanged) needs both
+;; sides eager.
 (:wat::core::defn :user::strip-if [node <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::with-children node
-    (:wat::core::concat (:wat::core::take (:wat::core::ast->children node) 2)
-                        (:wat::core::drop (:wat::core::ast->children node) 4))))
+    (:wat::core::concat (:wat::core::into [] (:wat::core::take (:wat::core::ast->children node) 2))
+                        (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children node) 4)))))
 
+;; Arc 118.2a — `map` flipped LAZY; `with-children` needs a concrete `Vector<WatAST>`.
 (:wat::core::defn :user::fix-source [node <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::if (:user::structural? node)
     (:wat::core::let [rebuilt (:wat::core::with-children node
-                                (:wat::core::map
+                                (:wat::core::mapv
                                   (:wat::core::fn [c <- :wat::WatAST] -> :wat::WatAST (:user::fix-source c))
                                   (:wat::core::ast->children node)))]
       (:wat::core::if (:user::annotated-if? rebuilt)

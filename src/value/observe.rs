@@ -430,7 +430,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             match seq.as_ref() {
                 Stream::Empty => "(seq-empty)".to_string(),
                 Stream::Cons { head, .. } => format!("(cons {} …)", render_value(head, depth + 1)),
-                Stream::Thunk(_) => "<lazy-seq>".to_string(),
+                Stream::Thunk(_) | Stream::NativeThunk(_) => "<lazy-seq>".to_string(),
             }
         }
         // Stone 237.2 — defclause renders as `<clauses:name/N>`.

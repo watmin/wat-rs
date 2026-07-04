@@ -55,10 +55,11 @@ fn setup(wind_loc: &str) -> String {
 fn count_of(setup_block: &str, type_fqdn: &str) -> Value {
     ev(&format!("(:wat::core::let [{setup_block}] \
         (:wat::core::length \
-          (:wat::core::filter \
-            (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool \
-              (:wat::core::= (:wat::core::type f) \"{type_fqdn}\")) \
-            derived)))"))
+          (:wat::core::into (:wat::core::PersistentVector) \
+            (:wat::core::filter \
+              (:wat::core::fn [f <- :wat::core::Record] -> :wat::core::bool \
+                (:wat::core::= (:wat::core::type f) \"{type_fqdn}\")) \
+              derived))))"))
 }
 
 fn ev(expr: &str) -> Value {

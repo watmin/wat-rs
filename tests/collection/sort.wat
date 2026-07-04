@@ -11,7 +11,7 @@
           (:wat::core::< a b))
         xs)]
     (:wat::core::string::join ","
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::String
           (:wat::core::i64::to-string n))
         sorted))))
@@ -25,7 +25,7 @@
           (:wat::core::> a b))
         xs)]
     (:wat::core::string::join ","
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn [x <- :wat::core::f64] -> :wat::core::String
           (:wat::core::f64::to-string x))
         sorted))))
@@ -63,7 +63,7 @@
           (:wat::core::< (:wat::core::first a) (:wat::core::first b)))
         xs)]
     (:wat::core::string::join ","
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn [p <- :(wat::core::i64,wat::core::String)] -> :wat::core::String
           (:wat::core::second p))
         sorted))))

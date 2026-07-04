@@ -510,6 +510,30 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::sort'"
         | ":wat::core::find-last-index"
 
+        // ── Arc 118.2a — the clojure-named lazy/eager HOF surface (wat/seq.wat).
+        // `map`/`filter`/`take`/`drop` above now return Stream; these are the pure
+        // eager materializers + reduce built over them. All pure/total (no IO, no
+        // randomness, no channels) — safe at macro-expansion time. Needed by
+        // `:wat::rete::defrule` (arc 278.5) and other program-body macros that
+        // consume the now-lazy HOFs.
+        | ":wat::core::mapv"
+        | ":wat::core::filterv"
+        | ":wat::core::into"
+        | ":wat::core::doall"
+        | ":wat::core::dorun"
+        | ":wat::core::reduce"
+        | ":wat::core::count"
+        | ":wat::core::stream->vec"
+        | ":wat::core::stream->pvec"
+        | ":wat::core::reduce-stream"
+
+        // ── Arc 118.2a — `:wat::stream::*` primitives (type + cons/lazy/empty).
+        // The `filter` defclause + the new materializers above are built on these;
+        // a program-body macro composing a lazy pipeline directly needs them too.
+        | ":wat::stream::cons"
+        | ":wat::stream::lazy"
+        | ":wat::stream::empty"
+
         // ── Option / Result (pure unwrappers, no effects) ────────────
         | ":wat::core::Option/expect"
         | ":wat::core::Option/try"

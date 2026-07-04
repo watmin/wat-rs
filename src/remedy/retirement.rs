@@ -106,9 +106,13 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
         note: Some("projection is ONE-WAY UP (AGGREGATE-MODEL.md § to-record, 2026-06-29): choose :wat::core::to-record for portable EDN or :wat::holon::to-record for EDN + VSA hologram") },
     // Arc 296 remediation collapse — arc 109 / arc 170 prose-hint fns absorbed into the table.
     // Each entry was previously a prose `:hint` emitted by check.rs; now a structured Remedy.
-    // Arc 109 slice 1f — vec retired (verb-equals-type playbook).
+    // Arc 109 slice 1f — vec retired (verb-equals-type playbook). Arc 118.2a note appended:
+    // the CONSTRUCTOR use (`(vec :T 1 2 3)`) still redirects to `Vector`; the newer, more
+    // common reason someone reaches for `vec` post-118.2a is clojure's "coerce a seqable/
+    // Stream into a Vector" idiom — that's `(:wat::core::into [] coll)` (ratified: no new
+    // name; `into []` is clojure's own materializer).
     RetirementEntry { retired: ":wat::core::vec", replacement: ":wat::core::Vector",
-        note: Some("rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value") },
+        note: Some("as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead") },
     // Arc 109 slice 1g — list retired (was a duplicate of vec; both produced Vec<T>).
     RetirementEntry { retired: ":wat::core::list", replacement: ":wat::core::Vector",
         note: Some("rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value") },

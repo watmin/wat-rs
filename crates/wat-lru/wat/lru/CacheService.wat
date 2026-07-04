@@ -208,8 +208,10 @@
     (:wat::core::match req -> :wat::lru::State<K,V>
       ((:wat::lru::Request::Get probes)
         (:wat::core::let
-          [results
-            (:wat::core::map
+          [;; Arc 118.2a — results feeds foldl below AND is sent whole as
+           ;; Reply::GetResult's Vector<Option<V>> payload; must be eager.
+           results
+            (:wat::core::mapv
               (:wat::core::fn [k <- :K] -> :wat::core::Option<V>
                 (:wat::lru::LocalCache::get cache k))
               probes)
@@ -241,8 +243,12 @@
           (:wat::lru::State cache stats')))
       ((:wat::lru::Request::Put entries)
         (:wat::core::let
-          [_
-            (:wat::core::map
+          [;; Arc 118.2a — side-effecting-only pass (result discarded). `dorun (map f coll)`
+           ;; is the clojure lazy-map-side-effect anti-pattern; `run!` is the eager consumer
+           ;; built directly over `foldl` (wat/seq.wat) — calls `LocalCache::put` exactly once
+           ;; per entry, never routes the effect through a lazy Stream stage.
+           _
+            (:wat::core::run!
               (:wat::core::fn
                 [entry <- :wat::lru::Entry<K,V>] -> :wat::core::Option<(K,V)>
                 (:wat::core::let
@@ -374,8 +380,10 @@
   (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
     nil
     (:wat::core::let
-      [req-rxs
-        (:wat::core::map
+      [;; Arc 118.2a — req-rxs feeds :wat::kernel::select, which needs a
+       ;; real eager Vector<ReqRx<K,V>>, not a Stream.
+       req-rxs
+        (:wat::core::mapv
           (:wat::core::fn
             [p <- :wat::lru::DriverPair<K,V>] -> :wat::lru::ReqRx<K,V>
             (:wat::core::first p))
@@ -487,35 +495,40 @@
     ;; N request pairs and N reply pairs in lock-step. The pair index
     ;; is preserved so Handle[i] and DriverPair[i] correspond to the
     ;; same slot.
-    [req-pairs
-      (:wat::core::map
+    [;; Arc 118.2a — req-pairs feeds two mapv extractions below (handles'
+     ;; and driver-pairs' first-halves); must be eager.
+     req-pairs
+      (:wat::core::mapv
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReqChannel<K,V>
           (:wat::kernel::make-channel :wat::lru::Request<K,V>))
         (:wat::core::range 0 count))
+     ;; Arc 118.2a — same: reply-pairs feeds two mapv extractions below.
      reply-pairs
-      (:wat::core::map
+      (:wat::core::mapv
         (:wat::core::fn [_i <- :wat::core::i64] -> :wat::lru::ReplyChannel<V>
           (:wat::kernel::make-channel :wat::lru::Reply<V>))
         (:wat::core::range 0 count))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
+     ;; Arc 118.2a — both branches feed :wat::std::list::zip (eager-only).
      handles
       (:wat::std::list::zip
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::lru::ReqChannel<K,V>] -> :wat::lru::ReqTx<K,V>
             (:wat::core::first p))
           req-pairs)
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::lru::ReplyChannel<V>] -> :wat::lru::ReplyRx<V>
             (:wat::core::second p))
           reply-pairs))
      ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
+     ;; Arc 118.2a — driver-pairs is closure-captured + zip-built; eager.
      driver-pairs
       (:wat::std::list::zip
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::lru::ReqChannel<K,V>] -> :wat::lru::ReqRx<K,V>
             (:wat::core::second p))
           req-pairs)
-        (:wat::core::map
+        (:wat::core::mapv
           (:wat::core::fn [p <- :wat::lru::ReplyChannel<V>] -> :wat::lru::ReplyTx<V>
             (:wat::core::first p))
           reply-pairs))
