@@ -459,6 +459,53 @@ fn node_children(node: &Value) -> Vec<i64> {
     }
 }
 
+/// Rebuild `node`'s own `children` field as a de-duplicated (first-seen order), `keep`-
+/// filtered `PersistentVector<i64>` — every other field cloned as-is. `ProductionNode` (and
+/// any unrecognized kind) has no children field and passes through unchanged.
+///
+/// Used ONLY by `fire_rules_stratified`'s per-stratum network slice (P9): the wat compiler
+/// (`find-or-mint-alpha`/`find-or-mint-root-join`, `wat/rete.wat`) dedups the NODE when two
+/// rules share an identical condition, but the wiring call (`network-add-child`) that follows
+/// is unconditional — so a shared Alpha/RootJoin ends up with one literal duplicate `children`
+/// entry PER RULE sharing that condition (the doc-commented `wat/rete.wat:1772-1775`
+/// shared-alpha hazard). Reusing that one already-compiled network across every stratum (no
+/// recompile) would otherwise replay each token once per duplicate entry — never a WRONG
+/// final fact (production still dedups by value) but a real N× per-round blow-up. This
+/// rewrites only the SLICE's copy of the field; the session's own `network` Value is never
+/// mutated.
+fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -> Value {
+    let (fqdn, sf) = match node_record(node) {
+        Some(x) => x,
+        None => return node.clone(),
+    };
+    let child_idx = match node_kind_label(fqdn) {
+        "AlphaNode" => 2,
+        "RootJoinNode" | "HashJoinNode" => 1,
+        "TestNode" | "NegationNode" | "ExistsNode" => 2,
+        "AccumulateNode" => 4,
+        _ => return node.clone(), // ProductionNode / unrecognized: no children field
+    };
+    let old_pv = match sf.get(child_idx) {
+        Some(Value::wat__core__PersistentVector(v)) => v,
+        _ => return node.clone(),
+    };
+    let mut seen_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    let mut new_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    for c in old_pv.iter() {
+        if let Value::i64(cid) = c {
+            if keep.contains(cid) && seen_ids.insert(*cid) {
+                new_pv = new_pv.push_back(Value::i64(*cid));
+            }
+        }
+    }
+    let mut new_fields = sf.to_vec();
+    new_fields[child_idx] = Value::wat__core__PersistentVector(new_pv);
+    match node {
+        Value::Aggregate(a) => Value::Aggregate(Arc::new(AggregateValue::record(a.class.clone(), Arc::new(new_fields)))),
+        other => other.clone(),
+    }
+}
+
 /// Get all node ids from a network PersistentMap, sorted ascending.
 /// The alpha/root-join/hash-join passes require ascending id order (topological).
 fn sorted_node_ids(network: &Value) -> Vec<i64> {
@@ -1075,16 +1122,24 @@ fn collect_derived(production_pm: &Value) -> Vec<Value> {
 /// derived-fact accumulation MUST value-dedup (mirrors the oracle's `merge-facts`,
 /// `wat/rete.wat:1752`), not concat, or a fact produced by more than one stratum's
 /// query is double-counted.
+///
+/// P9 perf: membership is checked via a `HashSet` mirror of `pv`'s contents, not a linear
+/// `.any()` scan — the former was O(len(pv)) PER derived fact (O(n²) over a stratum-chain
+/// run, since `fire_rules_stratified` calls this once per stratum with `pv` = the whole
+/// accumulated closure so far), the exact quadratic blow-up behind the `[7,3000]`-class hang.
+/// `Value: Hash + Eq` already (the round-loop's own `seen: HashSet<Value>` dedup, above, uses
+/// the same property) — same value-dedup semantics, same push_back order, O(len(pv) +
+/// len(derived)) instead.
 fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
     // Start with a clone of the existing PV.
     let mut pv: rpds::VectorSync<Value> = match facts_pv {
         Value::wat__core__PersistentVector(v) => v.clone(),
         _ => rpds::VectorSync::new_sync(),
     };
+    let mut present: std::collections::HashSet<Value> = pv.iter().cloned().collect();
     for fact in derived {
-        // Conj only if not already present (structural equality).
-        let already = pv.iter().any(|existing| existing == fact);
-        if !already {
+        // Conj only if not already present (structural equality, now O(1) amortized).
+        if present.insert(fact.clone()) {
             pv = pv.push_back(fact.clone());
         }
     }
@@ -2113,40 +2168,36 @@ fn native_rule_stratum(produced: &[String], negated: &[String], type_strata: &Ha
     from_p.max(from_n)
 }
 
-/// Invoke the pure-wat `:wat::rete::compile` verb on a native-built rule subset — there is no
-/// native compiler; `compile` (`wat/rete.wat:793-815`) is the ONE shared front-end both fire
-/// paths already consume. Mirrors the proven native→wat call pattern used by
-/// `accumulate_value`'s 8-custom user-fold-fn dispatch (kernel.rs, `eval_test_core`-style: bind
-/// the runtime `Value` into a fresh child env under a synthetic name, build a two-element call
-/// AST, `eval_inner` it).
-fn invoke_wat_compile(stratum_rules: Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
-    let span = crate::rust_caller_span!();
-    let var_name = "__stratum_rules__".to_string();
-    let base = crate::runtime::Environment::new();
-    let env = base
-        .child()
-        .bind_unknown_span(var_name.clone(), crate::runtime::TrackedValue::from(stratum_rules))
-        .build();
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::rete::compile".to_string(), span.clone()),
-            WatAST::Symbol(crate::scope::Identifier::bare(var_name), span.clone()),
-        ],
-        span,
-    );
-    Ok(crate::runtime::eval_inner(&call, &env, sym)?.value_owned())
-}
-
 /// Native stratified fire drive — port of `fire-stratified-loop` + `fire-stratified`
 /// (`wat/rete.wat:1724-1800`), wrapped the way `fire-rules-spec` wraps `fire-stratified`
 /// (`wat/rete.wat:1808-1820`: reset `facts = input` on the final result).
 ///
-/// Per stratum `[0..=max_s]` ascending: filter the ORIGINAL typed rule set to that stratum,
-/// compile a FRESH sub-session for just those rules (eliminates the shared-alpha
-/// duplicate-edge doubling the oracle's doc comment names, `wat/rete.wat:1767-1770`), seed it
-/// with all facts accumulated from lower strata (so this stratum's `:not` sees the complete
-/// prior derivation), fire it to its own fixpoint, and value-dedup-merge (`merge_facts` — R18,
-/// NOT concat) the newly derived facts into the running accumulator.
+/// P9 — fused network, no per-stratum recompile: `session` is *already* a `compile`d Session
+/// for the FULL rule set (`compile` is called once by the caller — e.g. `strat-neg.wat`'s
+/// `(:wat::rete::compile rules)` — before `fire-rules` ever runs), so its `network`(0)/
+/// `next-id`(6) already contain every stratum's alpha/join/filter/production chain. Per
+/// stratum `[0..=max_s]` ascending, this now reuses THAT SAME network/next-id verbatim
+/// (zero recompiles — was one wat-interpreted `:wat::rete::compile` call per stratum),
+/// varying only `rules`(1) (filtered to this stratum's rule subset) and `facts`(5) (the
+/// accumulated closure from lower strata), fires it to its own fixpoint, and value-dedup-
+/// merges (`merge_facts` — R18, NOT concat) the newly derived facts into the running
+/// accumulator.
+///
+/// Why sharing the full network across strata is still correct (no "shared-alpha
+/// duplicate-edge" regression, `wat/rete.wat:1772-1775`): `fire_fixpoint_delta` gates
+/// PRODUCTION firing by `rule_rhs_cache`, built ONLY from the `rules` field passed in
+/// (kernel.rs `fire_fixpoint_delta`, the `rule_rhs_cache.get(rule_name)` `None => continue`
+/// skip) — a ProductionNode whose owning rule name is absent from this stratum's `rules`
+/// subset can NEVER derive a fact this call, no matter what the shared network's higher-
+/// stratum join/negation chains compute incidentally this round (e.g. a shared `Item` alpha
+/// feeding every stratum's first condition). And no memory persists ACROSS the stratum
+/// boundary either — each call is still a fully FRESH round-loop (`fire_fixpoint_delta`
+/// clears alpha/beta/production at its own top, seeded only from this call's `facts`), so a
+/// higher stratum's `:not` reading its dependency's alpha before that dependency is complete
+/// can only ever reach a name-gated-off production — inert, never observable. The one thing
+/// that must still hold (and does, by construction): strata fire in ascending order, each to
+/// its own fixpoint, before `acc_facts` advances — i.e. exactly the invariant the loop below
+/// already enforced before this change.
 fn fire_rules_stratified(
     session: &Value,
     parts: &[(Value, Vec<String>, Vec<String>)],
@@ -2156,23 +2207,163 @@ fn fire_rules_stratified(
 ) -> Result<Value, EvalBreak> {
     let input_facts = session_facts(session);
 
+    // The already-compiled network + next-id, shared verbatim across every stratum below.
+    let (network, next_id, class) = match session {
+        Value::Aggregate(a) if a.holder != Holder::Struct => {
+            let sf = a.fields.as_slice();
+            (sf[0].clone(), sf[6].clone(), a.class.clone())
+        }
+        _ => (
+            Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+            Value::i64(0),
+            // Unreachable in practice — callers only ever pass a compiled Session — but keep
+            // a harmless placeholder class rather than panicking on a malformed input.
+            "wat::rete::Session".to_string(),
+        ),
+    };
+
+    // ── Precompute (ONCE, not per stratum) the graph indexes needed to SLICE the shared
+    // network down to just one stratum's own rule chain(s) each iteration, native (no
+    // wat-interpretation) and O(network size) total, not O(network size × strata).
+    //
+    // Why slicing is still necessary even though production is already name-gated (see doc
+    // comment above): `fire_fixpoint_delta` tours EVERY node in `sorted_node_ids(&wm.network)`
+    // every round, including every OTHER stratum's Negation/Exists/Accumulate/join nodes, each
+    // doing real work (alpha-memory clones, compatibility scans) regardless of whether its own
+    // production is gated off. Handing it the FULL multi-stratum network on every one of the
+    // `max_s+1` calls turned the per-stratum cost from "this stratum's own tiny chain" (today's
+    // per-stratum-recompile behavior) into "the WHOLE network, every stratum" — an O(strata ×
+    // total-nodes) regression measured directly: `[5,500]` went 44ms → ~180ms before this slice
+    // was added. Slicing restores the "small per-stratum network" cost profile while still
+    // skipping the wat-interpreted recompile.
+    //
+    // `rev_children`: child-id → parent-ids, built by inverting every node's forward
+    // `node_children()` edge once. Lets a backward walk from a stratum's ProductionNode(s)
+    // find every upstream Alpha/Join/Test/Negation/Exists/Accumulate node that feeds it.
+    // `production_id_by_rule`: rule-name → its ProductionNode id (compile mints exactly one
+    // ProductionNode per rule — kernel.rs `rule_produces`/`compile-rule`, wat/rete.wat:781-784).
+    let all_ids = sorted_node_ids(&network);
+    let mut rev_children: HashMap<i64, Vec<i64>> = HashMap::new();
+    let mut production_id_by_rule: HashMap<String, i64> = HashMap::new();
+    for id in &all_ids {
+        let node = match get_node(&network, *id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) == "ProductionNode" {
+            if let Some((_, sf)) = node_record(node) {
+                if let Value::String(rname) = &sf[1] {
+                    production_id_by_rule.insert(rname.to_string(), *id);
+                }
+            }
+        }
+        for child in node_children(node) {
+            rev_children.entry(child).or_default().push(*id);
+        }
+    }
+    // A Negation/Exists/Accumulate node's own tested-fact-type alpha is a REFERENCE field
+    // (`negated-alpha-id` / `exists-alpha-id` / `from-alpha-id`), not a forward `children` edge
+    // — `rev_children` alone never reaches it, so the backward walk below follows this
+    // reference explicitly wherever it meets one of these three node kinds. Missing this would
+    // silently slice the referenced alpha OUT of the sub-network, leaving it permanently empty
+    // and making every negation vacuously pass (STOP-1 class bug — caught before shipping).
+    let ref_alpha_of = |node: &Value| -> Option<i64> {
+        let (fqdn, sf) = node_record(node)?;
+        match node_kind_label(fqdn) {
+            "NegationNode" | "ExistsNode" => match &sf[1] { Value::i64(n) => Some(*n), _ => None },
+            "AccumulateNode" => match &sf[3] { Value::i64(n) => Some(*n), _ => None },
+            _ => None,
+        }
+    };
+
     let mut acc_facts: Value = input_facts.clone();
     let mut acc_derived: Vec<Value> = Vec::new();
 
     for s in 0..=max_s {
         // Filter the original typed rule set to this stratum (same filter the oracle's
-        // fire-stratified-loop applies, `wat/rete.wat:1735-1738`).
+        // fire-stratified-loop applies, `wat/rete.wat:1735-1738`) — this IS the production
+        // gate (see doc comment above): only these rules' ProductionNodes may fire this call.
         let mut stratum_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        let mut active_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
+        let mut frontier: Vec<i64> = Vec::new();
         for ((rule_val, _, _), stratum) in parts.iter().zip(rule_strata.iter()) {
             if *stratum == s {
                 stratum_pv = stratum_pv.push_back(rule_val.clone());
+                if let Some((_, rsf)) = node_record(rule_val) {
+                    if let Value::String(rname) = &rsf[0] {
+                        if let Some(&pid) = production_id_by_rule.get(rname.as_str()) {
+                            if active_ids.insert(pid) {
+                                frontier.push(pid);
+                            }
+                        }
+                    }
+                }
             }
         }
         let stratum_rules = Value::wat__core__PersistentVector(stratum_pv);
 
-        // Fresh compiled network for this stratum only, seeded with the accumulated facts.
-        let sub_sess = invoke_wat_compile(stratum_rules, sym)?;
-        let sub_sess = session_with_facts(&sub_sess, acc_facts.clone());
+        // Backward closure: from this stratum's ProductionNode id(s), follow `rev_children`
+        // (upstream via the forward-graph edges) and `ref_alpha_of` (upstream via a
+        // Negation/Exists/Accumulate node's own tested alpha reference) until no new node
+        // is discovered.
+        while let Some(id) = frontier.pop() {
+            if let Some(parents) = rev_children.get(&id) {
+                for &p in parents {
+                    if active_ids.insert(p) {
+                        frontier.push(p);
+                    }
+                }
+            }
+            if let Some(node) = get_node(&network, id) {
+                if let Some(alpha_id) = ref_alpha_of(node) {
+                    if active_ids.insert(alpha_id) {
+                        frontier.push(alpha_id);
+                    }
+                }
+            }
+        }
+
+        // Slice the shared network down to just `active_ids` — same node Records, no
+        // recompile — EXCEPT each retained node's own `children` field is rewritten
+        // de-duplicated + `active_ids`-filtered (`dedupe_filter_children`): the ORIGINAL
+        // wat-compiled network, built once for every rule together, can carry a shared
+        // Alpha/RootJoin node whose `children` list has ONE entry PER RULE that shares that
+        // first condition (the doc-commented `wat/rete.wat:1772-1775` shared-alpha hazard) —
+        // measured directly: with strat-neg's shared `Item` first condition across 6 rules,
+        // the shared root-join's un-deduped children list produced 6 tokens per fact instead
+        // of 1 (`beta[rootjoin] == 6000` for 1000 facts), a real N× per-round blow-up (never
+        // a WRONG final fact — `seen: HashSet<Value>` still dedups at production — but a
+        // measured perf regression this fix removes). Cured entirely on this native COPY;
+        // the oracle's own `network` Value is never mutated.
+        let sliced_network = match &network {
+            Value::wat__core__PersistentMap(m) => {
+                let mut nm = rpds::HashTrieMapSync::new_sync();
+                for id in &active_ids {
+                    if let Some(v) = m.get(&Value::i64(*id)) {
+                        nm = nm.insert(Value::i64(*id), dedupe_filter_children(v, &active_ids));
+                    }
+                }
+                Value::wat__core__PersistentMap(nm)
+            }
+            other => other.clone(),
+        };
+
+        // Reuse the ALREADY-compiled (now stratum-sliced) network + next-id (no
+        // `invoke_wat_compile` call); fresh empty alpha/beta/production memories (same
+        // "fresh per stratum" semantics as before); facts = the accumulated closure from
+        // lower strata.
+        let sub_sess = Value::Aggregate(Arc::new(AggregateValue::record(
+            class.clone(),
+            Arc::new(vec![
+                sliced_network,
+                stratum_rules,
+                Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+                Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+                Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
+                acc_facts.clone(),
+                next_id.clone(),
+            ]),
+        )));
 
         let fired = fire_fixpoint_delta(&sub_sess, sym, None)?;
 
