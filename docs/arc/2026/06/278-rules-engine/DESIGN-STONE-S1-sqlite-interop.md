@@ -67,8 +67,15 @@ boundary); reusing the OLD `:wat::sqlite::Db` verbs (pre-current-substrate); a S
 
 1. **dep** — add `rusqlite = { version = "0.31", features = ["bundled"] }` to the root `Cargo.toml`.
 2. **shim** — `src/rust_deps/sqlite.rs` (fresh): the `:rust::sqlite'` opaque handles (Connection/ReadConnection via
-   `ThreadOwnedCell`), Param/Cell marshaling, the seven verbs as `RustDispatch` fns returning fault-VALUES; register
-   in `with_wat_rs_defaults` next to `lru`.
+   `ThreadOwnedCell<Connection>` — `Connection` is `Send` not `Sync`, the cell provides the guarded Send+Sync;
+   `make_rust_opaque`), Param/Cell marshaling (`marshal.rs` FromWat/ToWat), the seven verbs as dispatch fns
+   returning fault-VALUES; register it inside **`with_wat_rs_defaults()`** (`src/rust_deps/mod.rs:169`).
+   **GROUNDED (the ruling): sqlite is CORE.** `with_wat_rs_defaults` currently ships ZERO shims (lru was moved to
+   the `wat-lru` crate for leanness); S1 makes `:rust::sqlite'` the **FIRST core default shim** — so the baked
+   `wat/sqlite.wat` surface, `cargo wat`, and the whole test suite all resolve it. rusqlite joins bigint as a hard
+   core dep (`query` is backed by memory OR sqlite, both first-class core; other backends come later as external
+   crates). The SHIM MECHANISM exemplar is `crates/wat-sqlite/src/lib.rs` (the `path = ":rust::sqlite::Db"` opaque +
+   thread-owned Connection pattern) — **study it, never cp**, and supersede its `panic!`-on-error with errors-as-values.
 3. **surface** — `wat/sqlite.wat` (baked, loads after `wat/core.wat`): `:wat::sqlite'::Fault` + `Error` defenum +
    the thin `:wat::sqlite'` wat surface that wraps the `:rust::sqlite'` verbs and lifts fault-values → `Error`.
 4. **gate** — a co-located `deftest'` (mirroring S-mem.gate): `open` in-memory (`":memory:"`) → `execute-ddl` a
