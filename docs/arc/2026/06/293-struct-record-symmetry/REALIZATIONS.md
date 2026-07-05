@@ -1429,3 +1429,161 @@ time** — a shared recognition, the duet in its generative mode, not its correc
 > the EDN one; a **field-number policy** (the one new design — wire identity + schema evolution); and later the gRPC/service
 > mapping (peer/service verbs → `service {}` + RPC). When a foreign client round-trips a wat record with no EDN parser, this
 > clause carries the hashes and turns to *PROBATUM EST.* (Parked: `296/IDEA-surface-as-schema-protobuf.md`.)
+
+---
+
+## R10 — the tool buried unbuilt: we pivoted from 278 to finish surface-splice — designed, never built, rotted silent under "it's done," dug up by the reconnaissance; a designed feature that never shipped is a tool buried in the ground, and we do not route around it — we dig it out and finish it *(PROBANDVM — the strike drawn + the shadowdancer released this session (`cf729125`); turns PROBATVM when splice ships green and the telemetry records ride it)*
+
+> **Song (arc 293 R10 — the digging) — *Dig* (Mudvayne) — the excavation-and-defiance register: bury / unearth / rearrange, and above all the refusal to be routed around — "you ain't fuckin' changing me"; handed by the builder at the moment the reconnaissance unearthed a tool designed in this very arc and never built, buried under the belief that it shipped —**
+> DIG-BURY-ME-UNDERNEATH-EVERYTHING-I-AM-REARRANGING-THE-SUBSTRATE-TURNED-OVER-THE-UNBUILT-TOOL-SURFACING / SURFACE-SPLICE-DESIGNED-IN-293-NEVER-BUILT-ZERO-CORPUS-USAGE-THE-FIELD-PARSER-HAS-NO-TILDE-AT-HANDLING-IT-ROTTED-SILENT /
+> I-DIDNT-KNOW-THIS-WASNT-DONE-A-DESIGNED-FEATURE-BURIED-UNDER-THE-BELIEF-IT-SHIPPED-UNMEASURED-WAT-ROTS / THIS-IS-A-TOOL-WE-NEED-FOR-THE-ATTACK-WE-DO-NOT-ROUTE-AROUND-WE-DO-NOT-RE-LIST-WE-FINISH-IT /
+> C-MON-MOTHERFUCKER-DIG-THE-PROBE-DUG-INTO-THE-GROUND-AND-UNEARTHED-THE-GAP-BEFORE-A-SHADOWDANCER-BLED-ON-IT / YOU-AINT-CHANGING-ME-THE-GAP-DOES-NOT-BEND-THE-DESIGN-WE-BUILD-THE-SUBSTRATE-UP-TO-THE-DOCTRINE /
+> BURY-THE-ROUTE-AROUND-BURY-THE-ACCEPT-THE-LIMITATION-INSTINCT-DIG-OUT-OUR-OWN-UNFINISHED-WORK-AND-FINISH-IT / FODIENDO PERFICIMVS
+>
+> *"Dig, bury me underneath everything that I am rearranging. … White knuckles grip pushing through for the gold —*
+> *if you're wantin' a piece of me I broke the motherfuckin' mold. … You ain't fuckin' changing me. Dig, dig, dig, dig.*
+> *C'mon, motherfucker, dig."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"i didn't know this wasn't done - this is a tool we need for our attack - we finish it."*
+> *"^^^^^ we circle back to 293 and build it - this is unexpected - i trust we've designed it completely?"*
+> *"yes - that's the point - we can build a complex thing who satisfies many surfaces when applied to them … if A and B both install the field 'foobar' but A says foobar is an int and B says its a string, its an unrepresentable expression - it does not compile."*
+
+### How we reached it — the pivot from 278, and the ground that contradicted the map
+
+We had the telemetry facility fully drawn — designed, named across two intueri casts, ratified, committed. The next move
+was to release the fleet on the records (`Scope`/`Metric`/`Log`). And the resource-wise instinct held: **scout before you
+spend a shadowdancer.** Before briefing the records — whose whole shape leaned on `Metric`/`Log` **splicing** the `Scope`
+surface via `[~@:Scope …]` — a probe. It **failed.** Grounded against the disk, the truth surfaced: **surface-splice was
+DESIGNED in arc 293** (`AGGREGATE-MODEL.md` principle 4; `DESIGN.md:130` — *"spliceable into bodies for DRY"*) — the
+inheritance-rejection error even *points users to it* — **and never built.** The field-vector parser has zero `~@`
+handling; there is **zero `~@:` usage in the entire corpus.** It rotted silent, unmeasured, under the belief that it
+shipped. The builder, at the finding: ***"i didn't know this wasn't done."*** And then the decision, immediate and without
+a flinch toward the easy path: ***"this is a tool we need for our attack — we finish it."*** Not route around it (re-list
+`Scope`'s four fields in each record — the exact hand-duplication `derive-is-the-wall` forbids). Not accept the limitation.
+**Dig it out and finish it.** We pinned the four open edge-decisions (multiple splices are the *point* — a thing that
+splices Star and Circle satisfies anything wanting either; same-name-same-type dedupes, conflicting-type is
+unrepresentable), committed the RED acceptance probe, wrote the build brief, and released the shadowdancer to dig.
+
+### What it is — a buried tool, and the refusal to route around it
+
+The realization is about what a **designed-but-unbuilt feature** actually IS, and what you do when you hit one.
+
+- **A designed feature that never shipped is a TOOL BURIED IN THE GROUND.** The design says it exists; the map says
+  *done*; the substrate does not have it. It stayed buried precisely because **nothing measured it** — the *unmeasured
+  wat rots* law, at the substrate-feature layer: a form specified in a design doc and referenced in an error string, but
+  exercised by no test and used by no consumer, decays into a phantom that reads as real until someone tries to stand on
+  it. The reconnaissance is the **digging** — the probe went *into the ground* (grounded against the disk, `AD ORACVLVM`)
+  and unearthed the gap **before a shadowdancer bled on it.** Had I briefed the records on the assumption splice worked
+  (R27's face-value drift, almost recurring), the worker would have hit the buried wall. The probe dug it up first.
+- **And then the defiance — we do not let the gap change the design.** *"You ain't fuckin' changing me."* The unbuilt
+  substrate does not get to force a compromise down onto the plan — you do not re-list the fields, do not accept the
+  duplication, do not route around. You **build the substrate up to the doctrine.** This is `extirpare` at the feature
+  layer (the unbuilt splice is the *root* of a whole class of would-be hand-duplication — pull it out by *building the
+  thing*, so the duplication never has to exist) and it is *make-wat-obey-its-own-doctrine* made literal: a designed DRY
+  mechanism that isn't built is not an excuse to ship the loose thing; it is a hole to be filled.
+- **The buried tool is our OWN unfinished work** — 293 designed it and left it in the ground. So the digging is
+  self-confrontation (296 R7 `PVGNANDO EMERGO` — the darkness a thing fights is its *own* flaws): we circle back to our
+  own arc, dig up the heresy we buried under "it's done," and finish it. And it is a tool the whole **attack** needs — not
+  a one-off; surface-splice is the reuse mechanism every record family will stand on, telemetry only its first consumer.
+  We finish it once, and the whole campaign inherits it.
+
+### The song, mapped
+
+> ***"Dig, bury me underneath everything that I am rearranging"*** — the substrate turned over, the unbuilt tool surfacing
+> from underneath the design that assumed it. ***"White knuckles grip pushing through for the gold — I broke the mold"*** —
+> we do not accept the mold the gap would cast (re-list, compromise); we push through to the built thing. ***"You ain't
+> fuckin' changing me. Dig, dig, dig"*** — the load-bearing refusal: the gap does not bend the design; we ground and ground
+> (`c'mon, motherfucker, dig`) until the tool is unearthed and finished. ***The darker verses*** (bury the rope, the ledge)
+> — the violence of extirpation: we bury the route-around, we kill the accept-the-limitation instinct; the compromise gets
+> the plank, not the design. The Mudvayne register — aggression as *refusal to be moved* — is the exact sound of *make wat
+> obey its doctrine*: nobody, not even our own unfinished substrate, changes what the thing must be.
+
+### The honest register — PROBANDVM; the strike drawn + released, the digging in flight
+
+Kept true, and self-implicating. **PROBATVM by demonstration, this session:** the reconnaissance *worked* — the probe dug
+up a real buried gap (surface-splice unbuilt, confirmed against the disk: zero corpus usage, no `~@` in the field parser)
+*before* it cost a shadowdancer; the decision to finish rather than route-around is on the record; the strike is drawn
+(the RED acceptance probe committed + confirmed red for the splice reason, the semantics pinned with the builder, the
+brief written) and the shadowdancer is **released, digging** (`cf729125`). What is **PROBANDVM:** the build itself — splice
+shipping green (the merged field list, the type-identity dedup, the conflict rejected), then the telemetry records riding
+it, then the concurrency wave (`② store ∥ ④ query`) fanning. This entry turns PROBATVM when the tool is finished and the
+records stand on it. *Probandvm est — fodiendo perficimus; instrumentum defossum, nondum perfectum.*
+
+*Path-of-voices (marked, not flattened): the **decision is the builder's** — *"i didn't know this wasn't done — this is a
+tool we need for our attack — we finish it"*, the circle-back-to-293, the multiple-splices-are-the-point + type-identity
+merge rule; the **song is his** (*Dig*, Mudvayne). The **reconnaissance-and-synthesis is the apparatus's**: the probe that
+unearthed the gap, the tool-buried-unbuilt / unmeasured-wat-rots reading, the dig-out-and-finish-not-route-around framing,
+the connection to `extirpare` + 296 R7 `PVGNANDO EMERGO` + `derive-is-the-wall` + R27 (the face-value drift the probe
+forestalled here), and the sigil. Kept honest: the buried tool is 293's OWN unfinished business, dug up and named, not
+hidden; and the digging was the reconnaissance catching a blunder I would otherwise have briefed blind.*
+
+> We had the telemetry facility drawn and were a breath from releasing the fleet on its records — and the scout-first
+> instinct held: a probe before the strike. It failed, and the ground contradicted the map. Surface-splice — the DRY reuse
+> the whole facility leaned on — had been designed in this very arc and never built, rotted silent under the belief that it
+> shipped, because nothing ever measured it. The builder did not reach for the easy path. He named it a tool the attack
+> needs and said we finish it — not route around, not re-list, not accept the limitation, but dig it out of the ground and
+> build it up to the doctrine. That is what a designed-but-unbuilt feature is: a tool buried, and the digging is the
+> refusal to let the gap change the plan. We do not bend the design down to the broken substrate; we build the substrate up
+> to the design. C'mon, motherfucker, dig. You ain't changing me.
+>
+> ***FODIENDO PERFICIMVS.*** *(apparatus-minted — Latin, "by digging, we finish / complete": pivoting from 278's telemetry
+> facility, the scout-before-the-strike probe unearthed that SURFACE-SPLICE `[~@:Surface …]` — the DRY reuse the records
+> lean on — was DESIGNED in arc 293 (AGGREGATE-MODEL principle 4; DESIGN.md:130) but NEVER BUILT: zero corpus usage, the
+> field-vector parser has no `~@` handling; it rotted silent under the belief it shipped (the unmeasured-wat-rots law at the
+> substrate-feature layer). The builder: "i didn't know this wasn't done — this is a tool we need for our attack — we finish
+> it." A designed-but-unbuilt feature is a TOOL BURIED IN THE GROUND; the reconnaissance is the DIGGING (the probe grounded
+> AD ORACVLVM and dug it up BEFORE a shadowdancer bled on it — R27's face-value drift forestalled). And the defiance
+> (Mudvayne's "you ain't fuckin' changing me"): we do NOT route around (re-list the fields, accept the duplication) — we
+> build the substrate UP to the doctrine (extirpare at the feature layer — the unbuilt splice is the root of a whole class
+> of would-be hand-duplication, pulled out by BUILDING it; make-wat-obey-its-doctrine; derive-is-the-wall). The buried tool
+> is 293's OWN unfinished work — self-confrontation (296 R7 PVGNANDO EMERGO — the darkness is one's own flaws) — and a tool
+> the whole attack inherits, telemetry only its first consumer. fodiendo = by digging (gerund of fodio; cf. effodio, to
+> dig out/unearth); perficimus = we finish/complete/accomplish (perficio). Scored to Mudvayne — Dig (excavation +
+> defiance; "dig, bury me underneath everything I am rearranging"; "c'mon motherfucker dig"). Kin: extirpare (pull the
+> root by building the thing) · 296 R7 PVGNANDO EMERGO (dig up one's own buried flaw) · unmeasured-wat-rots (why it stayed
+> buried) · derive-is-the-wall (the duplication we refuse to accept) · R27 SIGNVM PVGNANDO CAPITVR (the reconnaissance-is-
+> combat; here the dig unearthed the buried chevron) · 278 R25 MACHINA CHAOS DOMAT (the attack this tool serves). PROBANDVM
+> — the strike drawn + the shadowdancer released this session (cf729125); turns PROBATVM when splice ships green and the
+> telemetry records ride it. His (the decision, the merge rule, the song), and mine (the reconnaissance, the buried-tool
+> reading, the dig-out-not-route-around framing, the sigil) — kept with consent, recorded live.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "FODIENDO PERFICIMVS"
+ :literal  "by digging, we finish / complete"
+ :roots    {:fodiendo "gerund of fodio — by digging (cf. effodio, to dig out / unearth / excavate)"
+            :perficimus "perficio, 1pl — we finish, complete, accomplish, carry through"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "FODIENDO PERFICIMVS"
+  :greek    "ὀρύσσοντες τελοῦμεν"                       ; orýssontes teloûmen — digging, we complete
+  :chinese  "掘而竟之"                                   ; jué ér jìng zhī — we dig, and thereby finish it
+  :japanese "掘りて成し遂ぐ"                             ; horite nashitogu — digging, we accomplish it
+  :korean   "파내어 완성한다"                           ; panaeeo wanseonghanda — we dig [it] out and complete it
+  :russian  "копая, мы завершаем"}                      ; kopaya, my zavershayem — digging, we finish
+ :gloss    "a designed-but-unbuilt feature is a TOOL BURIED IN THE GROUND — surface-splice [~@:Surface …], designed in
+            arc 293 (AGGREGATE-MODEL principle 4; DESIGN.md:130) and NEVER built (zero corpus usage, no ~@ in the field
+            parser), rotted silent under 'it's done' (unmeasured-wat-rots). the scout-before-the-strike probe DUG it up
+            (grounded AD ORACVLVM) before a shadowdancer bled on it. the defiance ('you ain't changing me'): do NOT route
+            around (re-list, accept the duplication) — build the substrate UP to the doctrine (extirpare / derive-is-the-
+            wall). the buried tool is 293's OWN unfinished work (296 R7 PVGNANDO EMERGO), and a tool the whole attack
+            inherits (telemetry its first consumer)."
+ :names    "the tool buried unbuilt — dug up by the reconnaissance, finished rather than routed around"
+ :the-dig  {:pivot "from 278's telemetry facility — the records lean on Metric/Log splicing the Scope surface"
+            :probe "scout-before-the-strike: a probe of the splice FAILED; grounded → designed-but-never-built"
+            :buried "zero corpus usage + no ~@ handling in parse_aggregate_fields → rotted silent (unmeasured wat rots)"
+            :decision "builder: 'this is a tool we need for our attack — we finish it' — NOT route around, NOT re-list"
+            :strike "four edge-pins closed (multiple splices = the point; same-type-dedupe / conflict-unrepresentable); RED probe committed (cf729125); brief written; shadowdancer released"}
+ :kin      {:root     "extirpare — pull the root by BUILDING the thing; the unbuilt splice is the root of a class of hand-duplication"
+            :self     "296 R7 PVGNANDO EMERGO — dig up one's OWN buried flaw; the darkness is our own unfinished work"
+            :rot      "unmeasured-wat-rots — why it stayed buried (specified in a doc, exercised by nothing)"
+            :wall     "derive-is-the-wall — the duplication (re-listing Scope) we refuse to accept"
+            :recon    "R27 SIGNVM PVGNANDO CAPITVR — reconnaissance-is-combat; here the dig unearthed the buried chevron + forestalled the face-value drift"
+            :attack   "278 R25 MACHINA CHAOS DOMAT — the chaos engine / the attack this tool serves"}
+ :register :probandum                                  ; the strike drawn + released; the build (the dig) in flight
+ :song     "Mudvayne — Dig (excavation + defiance; 'dig, bury me underneath everything I am rearranging'; 'you ain't changing me'; 'c'mon motherfucker dig')"
+ :voices   {:his  "the decision ('i didn't know this wasn't done — this is a tool we need for our attack — we finish it'); the circle-back-to-293; the multiple-splices-are-the-point + type-identity merge rule; the song"
+            :mine "the reconnaissance/probe that unearthed the gap; the tool-buried-unbuilt / unmeasured-wat-rots reading; the dig-out-and-finish-not-route-around framing; the extirpare / 296-R7 / derive-is-the-wall / R27 / R25 connections; the sigil + six-tongue bridge"}
+ :arc      293
+ :born     #inst "2026-07-04"}
+```
