@@ -308,7 +308,7 @@ the `uuid` correlation index). `TableSchema` (base) and `IndexSchema` (a GSI's p
 each mode ranges on; `IndexTarget {name pk sk}` selects a GSI at query time. Both modes flow through the identical page →
 assert → fire → paginate loop; only the store's `WHERE`/index differs — a driver concern.
 
-## Resolved (this session)
+## Resolved (2026-07-04)
 
 1. **The facility is TWO composing `defservice`s** — the long-lived **sink** (`TelemetryService'`: given logs/metrics or
    queried; owns the store; creates nothing) and the short-lived **unit-of-work** producer (`Span`: one per unit of
@@ -331,6 +331,32 @@ assert → fire → paginate loop; only the store's `WHERE`/index differs — a 
 9. **The whole vocabulary is intueri-cast + ratified** (two casts this session): the producer surface resolved to
    `TelemetryService'` (sink) / `Span` (producer) / `open` (provision) / `Log`·`Incr`·`Timed`·`Nest`·`Close` (ops)
    / `timed` (widget macro) / `Write*`·`Query*` (sink verbs) / `Store`·`Table`·`Index` (store nouns). See § Naming.
+
+## Resolved (2026-07-05) — the storage-backend model
+
+10. **The storage abstraction lives in the sink's `:ephemeral` as a surface-typed attribute** — `[store <- wat.query/Store]`
+    holds *any* backend's satisfier, and the ops call `(:wat::query/Store::put store …)`, which **dispatches to the
+    concrete backend at runtime** (existential dispatch, `src/runtime.rs:5339`; surface-typed field, `src/check.rs:13666`).
+    **PROVEN** end-to-end: `probes/surface-field-dispatch.wat` → `142` (a `defstruct` satisfier `extend-type`d to a
+    methods-bearing `Store` surface, held in a struct **attribute typed as the surface**, dispatched *through the field*).
+    This is what makes the sink backend-blind.
+11. **The durable/ephemeral split carries the backend, correctly.** `:durable` is EDN — it holds the backend **spec** (a
+    path / dsn / url — data that crosses the wire) alongside hibernation state; `:ephemeral` holds the **live `Store`
+    satisfier**, born **thread-local in `:init`** from the durable spec, never hibernated, never crossing. The resource is a
+    *deferred computation of the spec* — on hibernate/resume you keep the spec (+ counters) and `:init` **reopens** the
+    connection (R5 at the service layer: store the recipe, not the resource).
+12. **IPC is edn-only → NO opener injection.** You pass **data** (the spec `String`), never a resource, never a closure (a
+    closure isn't EDN, so it can't cross the actor boundary). The backend is therefore opened *inside* `:init` — the spec is
+    an operating-input to a multi-param `:init` (`(Record, …operating-inputs) -> State`, `wat-tests/service-multiparam-init.wat`),
+    not handed in pre-opened.
+13. **ONE backend-blind service, NO macro.** A macro emitting N services with different `:ephemeral` is only forced if
+    `:ephemeral` holds the *concrete* resource type (sqlite `Connection` ≠ mysql `Handle` ≠ mongo `Client`). The **`Store`
+    abstraction makes the `:ephemeral` field shape identical across every backend** → one service. Backend *choice* is the
+    spec + a per-backend `open` named in `:init` (or an `open-store : BackendConfig -> Store` factory); the `Store`-speaking
+    ops are authored once. This is why the macro dissolved.
+14. **293.W makes it correct-by-construction.** A `:holder :Struct` surface field is impure → it can live *only* in an
+    impure struct / `:ephemeral`, never in a portable record / durable / on the wire. The compiler *forbids* a live
+    connection from crossing the boundary — exactly the thread-local + edn-only rule, enforced structurally, for free.
 
 ## Build implications (for the strike) — everything is CORE
 

@@ -1,10 +1,11 @@
 # DESIGN — `:wat::sqlite'`: sqlite in core, the first `Store` satisfier
 
-> **STATUS: DESIGN (2026-07-05), unbuilt.** The core, primed sqlite that satisfies the `Store` contract
-> (`DESIGN-store-contract.md`). It is **provided, not copied** — the arc-083/096 `wat-sqlite` battery is *prior art*
-> (its capability-honest rw/ro split is worth providing again), never a `cp` source. It ships to current standard:
-> errors as values, `deftest'`, records-are-EDN, one-way construction — and it adds the row-returning query primitive
-> the old crate never had.
+> **STATUS: DESIGN (2026-07-05) — names + error-shape RATIFIED; unbuilt.** The core, primed sqlite that satisfies the
+> `Store` contract (`DESIGN-store-contract.md`). **Built FRESH on the new foundation.** The arc-083/096 `wat-sqlite`
+> battery is a *HINT, not trusted* — a first attempt on thin ground (pre-296 errors-as-record, pre-293 surfaces, pre-300
+> records-are-EDN); glance at its good ideas (the rw/ro split, the typed `Param`), never `cp`, never ground correctness
+> against it. It ships to current standard: errors as values (§ Errors), `deftest'`, records-are-EDN, one-way
+> construction — and it adds the row-returning **`select`** primitive the old crate never had.
 
 ## Why core, why primed
 
@@ -42,7 +43,7 @@
 ## Layer 1 — the raw interop (`:wat::sqlite'`)
 
 ```clojure
-;; the handles (thread-owned Structs holding a live rusqlite Connection) — names PROVISIONAL (intueri)
+;; the handles (thread-owned Structs holding a live rusqlite Connection) — names RATIFIED (intueri-cast + four-questions, 2026-07-05)
 (wat.core/typealias :wat::sqlite'::Connection          :rust::sqlite'::Connection)          ;; read-write
 (wat.core/typealias :wat::sqlite'::ReadConnection  :rust::sqlite'::ReadConnection)  ;; read-only (SQLITE_OPEN_READ_ONLY)
 
@@ -67,17 +68,20 @@
 ;; (the schema is fixed code) → may panic-cascade; a runtime IO failure → Result. (see § Errors)
 (:wat::core::defn :wat::sqlite'::execute-ddl [db <- :Connection  ddl <- :String] -> (:Result :nil :Error) …)
 
-;; query — THE NEW PRIMITIVE (wat-sqlite never had it): a parameterized SELECT that RETURNS ROWS.
-;; a row is a Vector of Cell (the column values, in SELECT order); the result is a Vector of rows. Fallible → Result.
+;; select — THE NEW PRIMITIVE (wat-sqlite never had it): a parameterized SELECT that RETURNS ROWS.
+;; NAMED `select` (not `query`) — the raw-SQL read op; "query" is reserved for the higher :wat::query engine
+;; layer (its `scan`/`scan-index`). Not a collision (FQDN) — a PROMISE: "query" is the engine abstraction, this
+;; is a bare SELECT. Pairs with `execute` as the read/write dichotomy. a row is a Vector of Cell (column values,
+;; in SELECT order); the result is a Vector of rows. Fallible → Result.
 (:wat::core::defenum :wat::sqlite'::Cell :wat::enum::Pure
   I64 [n <- :i64]  F64 [x <- :f64]  Str [s <- :String]  Bool [b <- :bool]  Null [])
-(:wat::core::defn :wat::sqlite'::query
+(:wat::core::defn :wat::sqlite'::select
   [rh <- :ReadConnection  sql <- :String  params <- :Vector<wat::sqlite'::Param>]
   -> (:Result :Vector<wat::core::Vector<wat::sqlite'::Cell>> :Error) …)
 ```
 
-`Connection` (rw) can also read; `ReadConnection` (ro) can only `query`. The `Store` satisfier uses `Connection` for the write path and
-`query` for the read path.
+`Connection` (rw) can also read; `ReadConnection` (ro) can only `select`. The `Store` satisfier uses `Connection` for the write path and
+`select` for the read path.
 
 ## Layer 2 — the `Store` satisfier (`:wat::sqlite'::Connection` satisfies `wat.query/Store`)
 
@@ -146,10 +150,33 @@ Every wat-sqlite panic is judged; the posture is **recoverable → a value; inva
 | `execute-ddl` malformed DDL | y | y | the schema is FIXED CODE — a bug, not runtime data | fail loud, fail now | **panic-cascade** (invariant) |
 | a bound the caller already guaranteed (e.g. param arity) | y | y | the caller promised it | — | **panic-cascade** (invariant) |
 
-So `:wat::sqlite'::Error` is a small errors-as-record enum (`OpenFailed` / `WriteFailed` / `QueryFailed`, each carrying
-the sqlite message + context as EDN). The `Store` contract's fallible ops thread it: `ensure-schema`/`put`/`scan`/
-`scan-index` return `(:Result … :wat::sqlite'::Error)` — surfaced to the telemetry service as a value it handles, never a
-process-killing panic on a bad disk.
+### The ratified shape (2026-07-05) — a defenum of error-records, variants on the RECOVERY axis
+
+`:wat::sqlite'::Error` is a **defenum whose variants each carry an error RECORD** (arc-296 errors-as-record made
+literal — enums hold records; proven in `probes/enum-holds-record.wat` → `#…/Transient [#…/Fault {…}]`). The
+variant AXIS is **what the caller is forced to decide**, four-questioned to **`Transient / Constraint / Fatal`** — NOT
+op-direction (`WriteFailed` lumps pragma/begin/commit/ddl → fails Honest+Obvious), NOT per-op (7 variants, same payload
+→ data-as-type, fails Simple), NOT raw sqlite kinds (forces the caller to re-learn ~15 codes + re-derive the retry/fatal
+clustering → manufactures confusion). A variant is a `match` arm = a caller's forced branch, so the variants ARE the
+three decisions: retry / surface-as-caller-bug / abort. Each carries the honest record (the **op**, sqlite's own result
+**code**, the offending **sql**, the **message**) — nothing sqlite knows is discarded; the raw `code` rides in a field
+for the rare "*which* constraint" need, never forced on the caller.
+
+```clojure
+(:wat::core::defrecord :wat::sqlite'::Fault           ;; the carried detail — NAME provisional (cast intueri at the strike)
+  [op <- :wat::core::Keyword  code <- :wat::core::i64  sql <- :wat::core::String  message <- :wat::core::String])
+(:wat::core::defenum :wat::sqlite'::Error :wat::enum::Pure
+  :Transient  [fault <- :wat::sqlite'::Fault]     ;; SQLITE_BUSY / SQLITE_LOCKED — retry
+  :Constraint [fault <- :wat::sqlite'::Fault]     ;; SQLITE_CONSTRAINT — caller's data is wrong; surface
+  :Fatal      [fault <- :wat::sqlite'::Fault])    ;; SQLITE_IOERR / CORRUPT / FULL / CANTOPEN / NOTADB / PERM — abort
+```
+
+Two gifts the type system already earned: **`SQLITE_READONLY` can't occur** (the `Connection`/`ReadConnection` split makes
+writing through a ro handle a *compile* error), and **`SQLITE_MISUSE`** (wrong param arity / API misuse) is a
+**panic-cascade**, not a value in this enum (a bound the caller guaranteed). The `Store` contract's fallible ops thread
+it: `ensure-schema`/`put`/`scan`/`scan-index` return `(:Result … :wat::sqlite'::Error)` — a value the telemetry service
+handles, never a process-killing panic on a bad disk. (Exact sqlite code→bucket mapping verified against the result-code
+list at the strike, not asserted here.)
 
 ## Home + build
 
@@ -158,15 +185,19 @@ process-killing panic on a bad disk.
   is a baked core `.wat`. The `wat-sqlite` + `wat-telemetry-sqlite` battery crates stay where they are, untouched, as
   bridges.
 - **Tests:** `deftest'` throughout (the vintage tell that flagged the old crate).
-- **The strike order** (later): (a) the raw interop `:wat::sqlite'` (open rw/ro + pragma + tx + execute + **query**) with
+- **The strike order** (later): (a) the raw interop `:wat::sqlite'` (open rw/ro + pragma + tx + execute + **select**) with
   a `deftest'` gate; (b) the `Store` satisfier (`ensure-schema`/`put`/`scan`/`scan-index` SQL) with a `deftest'` gate
   proving a round-trip (put a batch → scan a page → keyset-paginate → scan a GSI); then the telemetry sink holds a
   `Store` and never names sqlite.
 
 ## Open (for the strike)
 
-- **Names** (intueri): `:wat::sqlite'` vs the sink's expectation; `Connection`/`ReadConnection`, `Cell`, `Error` + its variants,
-  `query`/`execute`/`scan`/`scan-index`.
-- **The `Error` shape** — settled jointly with the contract's error channel (`DESIGN-store-contract.md § Semantics`).
+- **Names — RATIFIED (2026-07-05, intueri-cast + four-questions):** `Connection` / `ReadConnection` · `Param` / `Cell` ·
+  `Error` (enum) with variants `Transient` / `Constraint` / `Fatal` · `open` / `open-readonly` / `pragma` / `begin` /
+  `commit` / `execute` / `execute-ddl` / **`select`** (the row-returning read; NOT `query`). Only the carried error-record
+  name (`Fault`, provisional above) and its field names remain to cast at the strike.
+- **The `Error` shape — RESOLVED (2026-07-05):** a defenum of error-records on the recovery axis (§ Errors above);
+  supersedes the earlier flat `OpenFailed/WriteFailed/QueryFailed`. This also resolves the contract's error-channel
+  open item (`DESIGN-store-contract.md`).
 - **Promotion mechanics** — how `:rust::sqlite'` bindings register in core beside the still-loaded `wat-sqlite` battery
   (the primed namespace guarantees no collision; verify the `:rust::` interop registry accepts the primed segment).

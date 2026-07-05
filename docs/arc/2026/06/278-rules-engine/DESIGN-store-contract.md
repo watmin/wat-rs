@@ -135,7 +135,9 @@ surface's `:holder` bound is `:wat::core::Struct` (widest: accepts struct/record
   with a new GSI is out of scope for v1 (declare indexes up front).
 - **Errors are VALUES, not panics** (per `DESIGN-sqlite-core.md § errors`): a recoverable condition (store unreachable,
   constraint violation) returns a typed error; only an invariant violation the caller already guaranteed may panic.
-  The contract's return types carry the error channel (the exact shape is settled with the sqlite design).
+  The error channel is **RESOLVED (2026-07-05)**: an errors-as-record **defenum on the recovery axis** — the satisfier's
+  `…::Error` with variants the caller is forced to branch on (sqlite's: `Transient` / `Constraint` / `Fatal`), each
+  carrying a fault record (op / code / sql / message). See `DESIGN-sqlite-core.md § Errors`.
 
 ## The abstraction measure — sqlite, mysql, mongo (the proof the contract is right)
 
@@ -169,8 +171,19 @@ backend's private business.)
 — the `…Query`/`Scan` suffix sits too close to the taken rete `wat.query/Query`/`Result`; `Row`/`IndexRow` are the
 backend-agnostic result records the sqlite driver *produces*.)
 
+## Resolved (2026-07-05)
+
+- **The error channel shape — RESOLVED:** an errors-as-record defenum on the recovery axis (`Transient`/`Constraint`/
+  `Fatal`, each carrying a fault record). See `DESIGN-sqlite-core.md § Errors`.
+- **A satisfier held behind the surface type WORKS — proven** (`probes/surface-field-dispatch.wat` → `142`): a
+  methods-bearing `defsurface` (`Store`), a `defstruct` satisfier `extend-type`d to it, held in a struct **attribute
+  typed as the surface** (`[store <- :wat::query/Store]`), dispatches its methods (`put`/`scan`) to the concrete
+  backend at runtime (`src/runtime.rs:5339` existential dispatch; `src/check.rs:13666` surface-typed field). This is
+  what lets a consumer (the telemetry service) hold a `Store` attribute and never name a backend. The 293.W containment
+  rule makes it correct-by-construction: a `:holder :Struct` surface field is impure → it can only live in a struct /
+  `:ephemeral`, never in a portable record / durable / on the wire (a live connection *cannot* cross the boundary).
+
 ## Open (for the strike)
 
-- **The error channel shape** — settled jointly with `DESIGN-sqlite-core.md § errors` (typed error vs errors-as-record).
 - **Home/namespace** — the contract lives in `:wat::query` (the general engine's vocabulary, net-new, unprimed), core,
   adjacent to rete; a satisfier lives in its backend's namespace (`:wat::sqlite'`).
