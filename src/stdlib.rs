@@ -336,6 +336,30 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/rete.wat",
         source: include_str!("../wat/rete.wat"),
     },
+    // Arc 278 stone S0 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
+    // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings). Pure
+    // declarations: the Store/ReadStore methods-bearing surfaces, the Error recovery-axis enum
+    // + Fault record, and the plain records every satisfier speaks (StoredRow/IndexKey/Row/
+    // IndexRow/ScanRequest/IndexScanRequest/Page/IndexPage/TableSchema/IndexSchema). NO backend,
+    // NO logic (a satisfier — :wat::sqlite'::* — is a later stone, S2).
+    // Loads AFTER wat/core.wat (defrecord/defenum/defsurface + Result/Option/Vector/HashMap/
+    // keyword primitives); placed beside wat/rete.wat — this is the query engine's vocabulary.
+    // `:wat::query::` is net-new + unprimed (no battery collides); a baked core source may
+    // define under `:wat::` (stdlib bypasses the reserved-prefix gate — RegistrationPrivilege::
+    // Stdlib in src/types.rs).
+    WatSource {
+        path: "wat/query.wat",
+        source: include_str!("../wat/query.wat"),
+    },
+    // wat/query/mem.wat (:wat::query::MemStore — the first Store/ReadStore satisfier, a
+    // :wat::service::defservice) is on disk but NOT YET REGISTERED. The reserved-prefix gap
+    // that first blocked it — a baked :wat:: defservice's expansion-born `…/start` companion
+    // hitting MacroErrorKind::ReservedPrefix during stdlib expansion — is now FIXED:
+    // expand_all is stdlib-privileged (MacroRegistry::stdlib_privilege, set around the stdlib
+    // pass in src/freeze/env.rs; a permanent unit test guards it in src/macros/tests.rs).
+    // mem.wat stays unwired pending the NEXT stone: body-only `extend-type` does not inherit
+    // a parametric `Result<T,E>` return type from a surface method, so MemStore's Store impls
+    // (which all return `Result<…,wat::query::Error>`) fail type-check. Bake it once that lands.
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

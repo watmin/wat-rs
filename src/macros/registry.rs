@@ -33,11 +33,26 @@ pub struct MacroDef {
 #[derive(Debug, Default, Clone)]
 pub struct MacroRegistry {
     pub(super) macros: HashMap<String, MacroDef>,
+    /// When true, [`register`](Self::register) bypasses the reserved-prefix gate.
+    /// Set only while expanding the BAKED STDLIB (see `freeze/env.rs`), so a
+    /// `:wat::` macro-generating-macro's expansion-born companion (e.g. a
+    /// `defservice`'s `…/start`) registers with the same privilege the literal
+    /// top-level path ([`register_stdlib`](Self::register_stdlib)) already grants.
+    /// Cleared for user expansion, so mis-namespaced user macros still halt.
+    /// Defaults false (unprivileged) — existing behavior is untouched unless set.
+    stdlib_privilege: bool,
 }
 
 impl MacroRegistry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set whether [`register`](Self::register) is privileged (bypasses the
+    /// reserved-prefix gate). The freeze pipeline sets this true around stdlib
+    /// expansion and false for user expansion.
+    pub fn set_stdlib_privilege(&mut self, on: bool) {
+        self.stdlib_privilege = on;
     }
 
     pub fn contains(&self, name: &str) -> bool {
@@ -54,7 +69,7 @@ impl MacroRegistry {
     /// re-registration remains an error. Two `defmacro` forms with
     /// matching params + rest_param + body AST count as equivalent.
     pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
-        if crate::resolve::is_reserved_prefix(&def.name) {
+        if !self.stdlib_privilege && crate::resolve::is_reserved_prefix(&def.name) {
             return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::ReservedPrefix(def.name) });
         }
         if let Some(existing) = self.macros.get(&def.name) {

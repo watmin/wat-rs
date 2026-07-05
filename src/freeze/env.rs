@@ -105,12 +105,19 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
                 "interpreter bug: eval-loop control signal escaped to freeze layer"
             ),
         })?;
+    // Expansion-born stdlib defmacros (e.g. a `defservice`'s `…/start` companion,
+    // emitted by a macro-generating-macro) register through `expand_all` ->
+    // `MacroRegistry::register`. Grant them the same reserved-prefix bypass the
+    // literal top-level path (`register_stdlib`) already has — STDLIB ONLY. User
+    // expansion below stays gated, so a mis-namespaced user macro still halts.
+    macros.set_stdlib_privilege(true);
     let expanded_stdlib = expand_all(
         stdlib_post_macros,
         &mut macros,
         &Environment::default(),
         &macro_sym,
     )?;
+    macros.set_stdlib_privilege(false);
     let expanded_user = expand_all(
         post_macro_reg,
         &mut macros,

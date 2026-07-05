@@ -40,6 +40,35 @@ fn expand_keeping_defmacros(src: &str) -> super::ExpandBatch {
     Ok(out)
 }
 
+// ─── Arc 278: stdlib registration privilege (expansion-born :wat:: macros) ───
+
+/// The `expand_all` stdlib privilege: a `:wat::`-prefixed defmacro — what a baked
+/// `defservice`'s expansion-born `…/start` companion looks like — registers via
+/// `register` ONLY when the registry is stdlib-privileged (set around the stdlib
+/// expansion pass in `freeze/env.rs`). User expansion stays gated, so a mis-namespaced
+/// user macro still halts. Before this, a baked `:wat::` defservice broke stdlib load.
+#[test]
+fn stdlib_privilege_bypasses_reserved_prefix_on_register() {
+    let forms = crate::parse_all!(
+        "(:wat::core::defmacro :wat::query::probe-privilege [] -> :wat::WatAST (:wat::core::quasiquote :ok))"
+    )
+    .expect("parse ok");
+    let def = crate::macros::parse::parse_defmacro_form(forms.into_iter().next().unwrap())
+        .expect("parse defmacro");
+
+    // Unprivileged (the user-expansion path): a :wat:: macro still halts — the gate holds.
+    let mut reg = MacroRegistry::new();
+    match reg.register(def.clone()) {
+        Err(MacroError { kind: MacroErrorKind::ReservedPrefix(_), .. }) => {}
+        other => panic!("expected ReservedPrefix without privilege; got {other:?}"),
+    }
+
+    // Privileged (the stdlib-expansion path): the same :wat:: macro registers — the fix.
+    reg.set_stdlib_privilege(true);
+    reg.register(def)
+        .expect("a :wat:: macro must register when the registry is stdlib-privileged");
+}
+
 // ─── Quasiquote discriminant regression (item 1) ───────────────────
 
 /// A defmacro whose body is `(:wat::core::quasiquote a b)` (quasiquote head
