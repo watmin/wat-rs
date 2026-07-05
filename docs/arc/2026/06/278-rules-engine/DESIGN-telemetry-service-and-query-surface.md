@@ -1,4 +1,4 @@
-# DESIGN — the wat telemetry facility (`TelemetryService'` sink + `UnitOfWork` producers + the query surface)
+# DESIGN — the wat telemetry facility (`TelemetryService'` sink + `Span` producers + the query surface)
 
 > **STATUS: DESIGN — shape ratified + names intueri-cast (2026-07-04), unbuilt; build order next.** This is **what wat's
 > logging + metrics facility will be.**
@@ -58,14 +58,16 @@ never in a cell.
   (`WriteMetrics`/`QueryMetrics`/`WriteLogs`/`QueryLogs`). One op at a time — the serialization is the mutex over the
   shared store handle.
 
-- **`UnitOfWork` — THE PRODUCER** (short-lived, one instance per unit of work). It is **its own service**, holding the
-  accumulating `Scope` state (counters + durations), threading it forward each op. It **closes over a ref to the sink**
-  as an **injected, explicit dependency** (`:calls`) — *where it writes is not the caller's concern.* The caller
-  provisions a unit of work from a sink ref, does work through it (log / count / time), and closes it. On close, the
-  accumulated metrics are emitted to the sink. **Nesting:** a unit of work can spawn a **sub** unit of work — its own
-  instance space, its own `uuid`, the same sink.
+- **`Span` — THE PRODUCER** (short-lived, one instance per unit of work). A `Span` in the observability sense: an
+  open/close interval that carries events (logs) + attributes (tags) and **nests** (child spans) — which is exactly a
+  unit of work. It is **its own service**, holding the accumulating state (counters + durations) plus the **`Scope`** it
+  stamps on every record it emits (`Span` *carries* a `Scope`; they are distinct — the live producer vs. the correlation
+  record). It threads its state forward each op, and **closes over a ref to the sink** as an **injected, explicit
+  dependency** (`:calls`) — *where it writes is not the caller's concern.* The caller opens a `Span` from a sink ref,
+  works through it (log / count / time), and closes it; on close the accumulated metrics emit to the sink. **Nesting:** a
+  `Span` can open a **child** `Span` — its own instance, its own `uuid`, the same sink.
 
-The dependency flow, made explicit: `sink-ref → provision → UnitOfWork (closes over sink-ref) → caller logs/counts/times
+The dependency flow, made explicit: `sink-ref → provision → Span (closes over sink-ref) → caller logs/counts/times
 → on close, metrics emitted to the sink.` The caller sees only units of work and log/emit; the sink is injected.
 
 ## The data model — `(namespace, time, data)`, DynamoDB-shaped, storage swappable
@@ -181,10 +183,10 @@ wat.query/Record        open surface   — anything the query engine matches (a 
 ;;  defservice SERIALIZES — one op at a time (the actor IS the mutex over the store handle).
 ;;  the kind rides the VERB (no `table` field on Query).
 
-;; ═══ UnitOfWork — THE PRODUCER. its own service; state threads via the actor. closes over a ref to the
+;; ═══ Span — THE PRODUCER. its own service; state threads via the actor. closes over a ref to the
 ;;     sink (:calls — the injected dep). logs write NOW; metrics fire on Close. nests via Sub. ═══
 ;;   [uow name + provisioning verb: PROVISIONAL — intueri]
-(wat.service/defservice wat.telemetry/UnitOfWork
+(wat.service/defservice wat.telemetry/Span
   :calls   [sink <- wat.telemetry/TelemetryService']                    ;; injected dependency, made explicit
   :durable [scope     <- wat.telemetry/Scope                            ;; namespace/uuid/tags/start-time-ns
             counters  <- (wat.core/HashMap wat.core/Keyword wat.core/i64)
@@ -195,13 +197,13 @@ wat.query/Record        open surface   — anything the query engine matches (a 
         (Timed [name <- wat.core/Keyword  nanos <- wat.core/i64] -> Ok)
         ;;   PURE op: find-or-create durations[name], state' durations[name] ++ nanos. NOT a closure — the
         ;;   timing widget (below) already measured. does NOT touch counters (count = (len durations[name])).
-        (Nest  [namespace <- wat.core/String  tags <- wat.telemetry/Tags] -> wat.telemetry/UnitOfWork)
+        (Nest  [namespace <- wat.core/String  tags <- wat.telemetry/Tags] -> wat.telemetry/Span)
         ;;   a NESTED unit of work — its own instance/uuid, same injected sink; its own Close emits its own metrics
         (Close [] -> Done)])
 ;;   Close: counters + durations → Metric rows → (sink WriteMetrics batch). See § Emission.
 
-;; provisioning `open` (intueri-ratified): from a sink ref + namespace + tags → a UnitOfWork instance that closes
-;; over the sink (mints uuid, stamps start-time-ns). e.g. (UnitOfWork::open sink :market-eval {…}). Pairs with Close.
+;; provisioning `open` (intueri-ratified): from a sink ref + namespace + tags → a Span instance that closes
+;; over the sink (mints uuid, stamps start-time-ns). e.g. (Span::open sink :market-eval {…}). Pairs with Close.
 
 ;; the TIMING WIDGET `timed` — a MACRO at the call site (the Clojure `time` idiom: wrap the body form, no thunk).
 ;; the impure edge: reads the clock, runs the (impure) body, feeds name+nanos to the pure Timed op, returns the ret.
@@ -218,7 +220,7 @@ wat.query/Record        open surface   — anything the query engine matches (a 
 
 ```clojure
 (:let [sink (… a ref to wat.telemetry/TelemetryService' …)
-       u    (wat.telemetry/UnitOfWork::open sink :market-eval {:asset :BTC})]  ;; provision: inject sink, mint uuid
+       u    (wat.telemetry/Span::open sink :market-eval {:asset :BTC})]  ;; provision: inject sink, mint uuid
   (u/Log :fetcher :info (:MyEvent …))               ;; a Log written NOW, correlated by u's uuid
   (u/Incr :requests)                                ;; a pure counter
   (wat.telemetry/timed u :fetch (do-fetch))         ;; WIDGET: times (do-fetch), records nanos via u/Timed, returns its value
@@ -288,7 +290,7 @@ assert → fire → paginate loop; only the store's `WHERE`/index differs — a 
 ## Resolved (this session)
 
 1. **The facility is TWO composing `defservice`s** — the long-lived **sink** (`TelemetryService'`: given logs/metrics or
-   queried; owns the store; creates nothing) and the short-lived **unit-of-work** producer (`UnitOfWork`: one per unit of
+   queried; owns the store; creates nothing) and the short-lived **unit-of-work** producer (`Span`: one per unit of
    work, closes over a ref to the sink as an injected dep, threads its accumulating state, emits metrics on close).
 2. **Nothing is mutable.** `incr!`/append return new holders; state that persists across calls lives in the actor and
    threads forward (the serialization is the mutex). The legacy `ThreadOwnedCell` `WorkUnit` is gone.
@@ -306,7 +308,7 @@ assert → fire → paginate loop; only the store's `WHERE`/index differs — a 
 8. **FQDN → no collisions.** Names are judged on clarity within `:wat::telemetry::` alone. (Retained from the query
    layer: kind rides the verb; enums grow-as-needed; the store is swappable, sqlite one driver.)
 9. **The whole vocabulary is intueri-cast + ratified** (two casts this session): the producer surface resolved to
-   `TelemetryService'` (sink) / `UnitOfWork` (producer) / `open` (provision) / `Log`·`Incr`·`Timed`·`Nest`·`Close` (ops)
+   `TelemetryService'` (sink) / `Span` (producer) / `open` (provision) / `Log`·`Incr`·`Timed`·`Nest`·`Close` (ops)
    / `timed` (widget macro) / `Write*`·`Query*` (sink verbs) / `Store`·`Table`·`Index` (store nouns). See § Naming.
 
 ## Build implications (for the strike, later)
@@ -314,7 +316,7 @@ assert → fire → paginate loop; only the store's `WHERE`/index differs — a 
 - **The store layer** (`crates/wat-telemetry-sqlite`) needs the `(pk, sk, data, …projected-index-columns)` layout + GSI
   secondary indexes + write-path projection + a range-scan/page read-path — all behind the **swappable store
   abstraction** (name: intueri). (The arc-085 `auto-*` enum-derive is NOT the fit — this is a fixed layout.)
-- **`TelemetryService'` and `UnitOfWork` are `defservice`s** (baked source in `crates/…/wat/telemetry/`), the sink holding
+- **`TelemetryService'` and `Span` are `defservice`s** (baked source in `crates/…/wat/telemetry/`), the sink holding
   the store handle in `:ephemeral`, the unit-of-work calling the sink via `:calls`. A baked source may use
   `:rust::sqlite::*`; consumers use `:wat::` verbs (arc-002 `NAMESPACE-PRINCIPLE`).
 - **The query engine is a `wat.query` rete consumer** — alpha-only, `fire-rules'` (native), `Record → Lemma* →
@@ -331,7 +333,7 @@ The **whole vocabulary is intueri-cast + ratified** (2026-07-04, two casts weigh
 - **records + enums** — `Scope` / `Metric` / `Log` / `LogMessage` / `Numeric` / `Unit` / `Level` / `Tags` (settled on
   clarity — FQDN means no collision axis).
 - **producer surface** — the **sink** `TelemetryService'` (the prime replaces the legacy `Service<E,G>`; `Service` is the
-  essential nature — remote/local/N-host, mutex-free), the **producer** `UnitOfWork`, provisioning `open` (pairs with
+  essential nature — remote/local/N-host, mutex-free), the **producer** `Span`, provisioning `open` (pairs with
   `Close`), ops `Log` / `Incr` / `Timed` / `Nest` / `Close`, the timing-widget macro `timed`, sink verbs `Write*` /
   `Query*`, and the store nouns `Store` / `Table` / `Index` (mirroring `wat.query/{TableSchema, IndexSchema}`).
 
