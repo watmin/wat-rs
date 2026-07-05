@@ -105,6 +105,11 @@ inventory = "0.3"
 # Arc 211a — auto-install panic_hook at library load time via #[ctor::ctor];
 # impossible-to-forget by construction.
 ctor = "1"
+# Arc 278 stone S1 — `:rust::sqlite'` (src/rust_deps/sqlite.rs), the FIRST
+# core default `:rust::` shim. rusqlite joins bigint as a hard core dep:
+# `:wat::query` is backed by memory OR sqlite, both first-class core.
+# `bundled` vendors sqlite itself — no system libsqlite3 dependency.
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 [dev-dependencies]
 

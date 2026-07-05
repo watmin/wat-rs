@@ -40,6 +40,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
     },
+    // Arc 278 stone S1 — :wat::sqlite'::* — the RAW sqlite interop surface over the fresh
+    // `:rust::sqlite'` shim (src/rust_deps/sqlite.rs, core's FIRST default :rust:: shim).
+    // Below the backend-agnostic :wat::query::Store contract (wat/query.wat, S2 satisfies it
+    // with this). No eval-deps beyond wat/core.wat's builtins (defrecord/defenum/defclause/
+    // typealias/Result/Option/Vector/keyword) — loads immediately after core.wat.
+    WatSource {
+        path: "wat/sqlite.wat",
+        source: include_str!("../wat/sqlite.wat"),
+    },
     // Arc 118.2a — the clojure-named lazy/eager HOF surface (map/filter/take/drop are Rust
     // intrinsics, unconditionally available; this file adds `filter` [wat-defined], `mapv`/
     // `filterv`/`into`/`doall`/`dorun`/`reduce`/`count`). Moved here (immediately after

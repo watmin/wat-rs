@@ -23,14 +23,15 @@
 //!
 //! # Transitivity
 //!
-//! wat-rs ships with its own set of default shims (lru for caching).
+//! wat-rs ships with its own set of default shims (`:rust::sqlite'` — arc
+//! 278 stone S1, a fresh errors-as-values rusqlite binding; sqlite is CORE).
 //! Consumer crates (e.g., holon-lab-trading) depend on wat-rs, inherit
-//! those defaults via Cargo, and add their own shims (rusqlite, aya, …)
-//! via the [`RustDepsBuilder`] pattern:
+//! those defaults via Cargo, and add their own shims (aya, …) via the
+//! [`RustDepsBuilder`] pattern:
 //!
 //! ```text
 //! let mut deps = wat::rust_deps::RustDepsBuilder::with_wat_rs_defaults();
-//! rusqlite_shim::register(&mut deps);   // consumer's shim
+//! my_shim::register(&mut deps);   // consumer's own shim
 //! wat::run_with(deps);
 //! ```
 //!
@@ -56,6 +57,7 @@ use crate::span::Span;
 
 pub mod custodia;
 pub mod marshal;
+mod sqlite;
 
 pub use custodia::{OwnedMoveCell, ThreadOwnedCell};
 pub use marshal::{
@@ -162,12 +164,19 @@ impl RustDepsBuilder {
 
     /// Start a builder pre-loaded with wat-rs's default shims.
     ///
-    /// Currently a no-op alias for `new()` — wat-rs ships zero default
-    /// shims (LRU moved to the sibling `wat-lru` crate). This method
-    /// remains for API continuity: `compose_and_run` and `Harness` call
-    /// it before layering dep registrars on top.
+    /// Arc 278 stone S1 — `:rust::sqlite'` (`sqlite.rs`, a fresh
+    /// errors-as-values rusqlite binding) is the FIRST core default shim.
+    /// Prior to this, `with_wat_rs_defaults` was a no-op alias for `new()`
+    /// (LRU moved OUT to the sibling `wat-lru` crate for leanness); sqlite
+    /// is CORE per the arc-278 ruling — `:wat::query` is backed by memory OR
+    /// sqlite, both first-class core, so the baked `wat/sqlite.wat` surface,
+    /// `cargo wat`, and the whole test suite must all resolve it without a
+    /// consumer crate registering anything extra. `compose_and_run` and
+    /// `Harness` call this before layering their own dep registrars on top.
     pub fn with_wat_rs_defaults() -> Self {
-        Self::new()
+        let mut builder = Self::new();
+        sqlite::register(&mut builder);
+        builder
     }
 
     /// Register a Rust symbol (one method path). Later calls with the
