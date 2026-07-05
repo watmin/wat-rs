@@ -162,10 +162,15 @@ backend's private business.)
 - **sqlite is the first satisfier — a bridge to its own demise.** We have it now and make progress with it; the day
   sqlite is the bottleneck, the contract is already the seam that lets us replace it.
 
+## Naming (intueri-cast + ratified, 2026-07-05)
+
+`Store` / `ReadStore` · `ensure-schema` / `put` / `scan` / `scan-index` · `StoredRow` / `IndexKey` · `Row` / `IndexRow` ·
+`ScanRequest` / `IndexScanRequest` · `Page` / `IndexPage`. (`ScanRequest`/`IndexScanRequest` over `ScanQuery`/`IndexScan`
+— the `…Query`/`Scan` suffix sits too close to the taken rete `wat.query/Query`/`Result`; `Row`/`IndexRow` are the
+backend-agnostic result records the sqlite driver *produces*.)
+
 ## Open (for the strike)
 
-- **Names** (intueri): `Store` / `ReadStore` / `ensure-schema` / `put` / `scan` / `scan-index` / `StoredRow` /
-  `IndexKey` / `ScanQuery` / `IndexScan` / `Page`. Cast once against the real forms.
 - **The error channel shape** — settled jointly with `DESIGN-sqlite-core.md § errors` (typed error vs errors-as-record).
 - **Home/namespace** — the contract lives in `:wat::query` (the general engine's vocabulary, net-new, unprimed), core,
   adjacent to rete; a satisfier lives in its backend's namespace (`:wat::sqlite'`).
