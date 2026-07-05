@@ -65,6 +65,23 @@ check to `Infer`/`Any` for impl returns — that ships the lie.
 
 No new params threaded through call sites (STOP-CASCADE). No change to `parse_extend_type_form`'s arity.
 
+## Landed
+
+The strike surfaced a **THIRD** drifting copy of "inherit sigs from the surface" — worse than the two mapped
+above. `collect_splice_defs_ctx` (check.rs:8912) re-registered each `:<T>/<method>` as a **nil**-typed
+`TypeScheme` in the sequential form loop, which runs *after* `CheckEnv::from_symbols` already populated the same
+key with the correct surface-inherited scheme — so it **overwrote correct-with-nil**. Inert before this stone (user
+impls weren't in `sym.functions` yet, so nothing to clobber); step 7.7 made `sym.functions` correct for the first
+time, exposing the clobber (`query_contract` went red: *"signature declares nil"*). Fixed: the check.rs surface
+branch is now a no-op (defers to the single source `sym.functions`); the protocol edge is unchanged. So the fix
+collapses THREE copies to one routine — the doctrine landing exactly: one source of truth, the rest yield.
+
+Verdict (weighed by the orchestrator's own re-run): the RED gate is GREEN (`bad.wat` → `ReturnTypeMismatch`
+i64/String at check); `query_contract` green; whole floor `4115 run: 4114 passed, 1 failed` — the one failure the
+pre-existing `no_inlined_wat_in_tests` reminder (baseline 4113→4114; the +1 is exactly the un-ignored gate; zero
+new failures). Files: `src/runtime.rs` (the shared routine + two arms), `src/freeze/env.rs` (step 7.7),
+`src/check.rs` (the third copy → no-op), the un-ignored gate.
+
 ## The cascade is expected (FM 15)
 
 ~20 existing **user** extend-type fixtures (`tests/types/probe_arc293_*`, `probe_arc267_*`,

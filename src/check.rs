@@ -8911,26 +8911,24 @@ fn collect_splice_defs_ctx(
         }
         // Arc 232 Stone 232.1 — extend-type registration into extend_registrations.
         // Arc 293.4c — branch on surface vs. protocol target (parse errors silently skipped).
+        // Arc 278 BRIEF-STONE-extend-user-checked — the surface branch USED to re-register
+        // each impl as a nil-typed TypeScheme here (a SECOND, independently-drifting copy of
+        // "inherit sigs from SurfaceMember::Method", built from the raw nil-placeholder clause
+        // rather than the surface's real member sig). That registration ran in this sequential
+        // `for form in forms` loop, which executes AFTER `CheckEnv::from_symbols` (check_program
+        // top) already populated the SAME `<type_name>/<method>` key with the REAL
+        // surface-inherited scheme from `sym.functions` (build_env step 7.6 for stdlib, step 7.7
+        // for user — see `register_extend_type_surface_impls`, runtime.rs) — so it OVERWROTE the
+        // correct scheme with nil, corrupting both the later body-check sweep (check.rs:826,
+        // "signature declares nil") and (structurally) `resolve_method`'s satisfaction check.
+        // Now a no-op for the surface case: `from_symbols` already carries the right scheme;
+        // this loop only needs to register the PROTOCOL edge (unchanged).
         ":wat::core::extend-type" if is_top => {
             if let Ok((_key, ed)) = crate::runtime::parse_extend_type_form(form) {
                 let is_surface = env.types().get(&ed.protocol_name)
                     .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
                     .unwrap_or(false);
-                if is_surface {
-                    // Surface path: register each impl as a TypeScheme under `<type_name>/<method>`.
-                    // This is the SAME key the `resolve_method` closure in `assignable` uses, so
-                    // a non-aggregate foreign type T can satisfy the surface iff all methods resolve.
-                    for (method_name, clause) in &ed.impl_clauses {
-                        let key = format!("{}/{}", ed.type_name, method_name);
-                        let scheme = TypeScheme {
-                            type_params: vec![],
-                            params: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
-                            ret: clause.return_type.clone(),
-                            rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
-                        };
-                        env.register(key, scheme);
-                    }
-                } else {
+                if !is_surface {
                     // Protocol path: keep existing behavior.
                     let method_names: Vec<String> = ed.impl_clauses.keys().cloned().collect();
                     env.register_extend(ed.protocol_name.clone(), ed.type_name.clone(), method_names);

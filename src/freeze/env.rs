@@ -266,6 +266,27 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     register_stdlib_runtime_defs(&stdlib_runtime_def_forms, &mut symbols)
         .map_err(|e| StartupError::Runtime(Box::new(e)))?;
 
+    // 7.7. Arc 278 BRIEF-STONE-extend-user-checked — pre-register USER extend-type
+    //      SURFACE impls into sym.functions with their REAL inherited sig (mirrors
+    //      the stdlib step 7.6 call above via the SAME shared routine), BEFORE
+    //      check_program's body-check sweep (check.rs:826) runs. Without this, a
+    //      user satisfier's impl body is never type-checked against the surface it
+    //      claims to satisfy (it only lands in sym.functions at freeze step 9,
+    //      AFTER check_program already ran). Protocol-target extend-type forms are
+    //      a no-op here (handled unchanged at freeze step 9,
+    //      `register_runtime_defs_form`). This is the FIRST registration for these
+    //      forms, so a colliding key is a genuine DuplicateDefine
+    //      (skip_if_present=false).
+    for form in &residue {
+        if let WatAST::List(items, _) = form {
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::extend-type")
+            {
+                crate::runtime::register_extend_type_surface_impls(form, &mut symbols, false)
+                    .map_err(|e| StartupError::Runtime(Box::new(e)))?;
+            }
+        }
+    }
+
     Ok(EnvBundle {
         types,
         macros,

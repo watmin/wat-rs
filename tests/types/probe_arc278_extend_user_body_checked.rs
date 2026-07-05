@@ -17,9 +17,6 @@ use wat::freeze::startup_from_file;
 
 /// A user extend-type impl whose body returns `String` against a surface method declaring
 /// `-> :i64` MUST be rejected at type-check. If freeze succeeds, the impl body was never checked.
-// ⛔ IGNORE-LEDGER(278): RED at HEAD (the flaw). UNLOCK — un-ignore when the "user extend-type
-//    impl bodies are checked" strike lands; must be GREEN before the strike closes.
-#[ignore = "RED gate for arc-278 user-extend-type-checked strike; un-ignore + green when the fix lands"]
 #[test]
 fn user_extend_type_wrong_return_rejected() {
     match startup_from_file("tests/types/probe_arc278_extend_user_body_checked_bad.wat") {
