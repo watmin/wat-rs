@@ -11,7 +11,7 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use std::collections::HashMap;
 
-use super::{AggregateDef, Holder, StructRestrictions, TypeDef, TypeExpr, TypeError, TypeErrorKind};
+use super::{AggregateDef, Holder, StructRestrictions, SurfaceMember, TypeDef, TypeEnv, TypeExpr, TypeError, TypeErrorKind};
 
 const HEAD: &str = ":wat::core::defstruct";
 
@@ -320,6 +320,179 @@ pub(super) fn parse_aggregate_fields(
     Ok(argspec.fixed_params.into_iter().map(|(id, ty)| (id.as_str().to_owned(), ty)).collect())
 }
 
+/// Arc 293 surface-splice — match `(:wat::core::unquote-splicing :Surface)`, the reader's
+/// `~@:Surface` node (`crates/wat-reader/src/parser.rs:353`). Returns the surface keyword
+/// when `item` is that exact shape; `None` otherwise (an ordinary field-triple element).
+fn splice_target(item: &WatAST) -> Option<String> {
+    if let WatAST::List(items, _) = item {
+        if items.len() == 2 {
+            if let (WatAST::Keyword(head_kw, _), WatAST::Keyword(surface_kw, _)) =
+                (&items[0], &items[1])
+            {
+                if head_kw == ":wat::core::unquote-splicing" {
+                    return Some(surface_kw.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Parse the field-vector node, expanding any `~@:Surface` splice elements against the
+/// (partially built) type registry BEFORE running the plain triple parser.
+///
+/// Arc 293 surface-splice (`BRIEF-293-surface-splice-build.md`). THE CRUX: this function
+/// is called from the type-registration pass (`register_types_impl` / `splice_type_decls`
+/// in `types.rs`), the one layer where both the record decl form AND the registry-so-far
+/// (`env`) are available together — `parse_aggregate_fields` itself stays registry-free
+/// and UNCHANGED; callers that have no splice elements pay zero extra cost (this function
+/// delegates straight to `parse_aggregate_fields` when no `~@:Surface` is present).
+///
+/// Semantics (pinned with the builder, 2026-07-04):
+/// - each `~@:Surface` expands to that surface's `Field` members ONLY (Method members are
+///   skipped — a record cannot hold a function; methods are `extend-surface`'s concern);
+/// - the merge is a union in first-occurrence order (splices in written order, then own
+///   fields, each contributing its members/fields in declared order);
+/// - a field name repeated at an IDENTICAL type dedupes to one; at a CONFLICTING type it is
+///   a compile-time `MalformedDecl` ("if A says int, B says string, it does not compile").
+/// - an unresolved splice target (surface not yet registered — forward reference, or not a
+///   surface at all) is a clean `MalformedDecl`, not a two-pass build (out of scope, brief
+///   STOP-FORWARD-REF).
+pub(super) fn parse_aggregate_fields_with_splices(
+    fields_node: WatAST,
+    head: &str,
+    env: &TypeEnv,
+) -> Result<Vec<(String, TypeExpr)>, TypeError> {
+    let (field_items, field_span) = match &fields_node {
+        WatAST::Vector(items, span) => (items, span.clone()),
+        _ => {
+            // Not a Vector at all — let the existing parser produce its own,
+            // already-established error for this shape.
+            return parse_aggregate_fields(fields_node, head);
+        }
+    };
+
+    // Fast path: no splice elements at all — identical to pre-splice behavior.
+    if !field_items.iter().any(|item| splice_target(item).is_some()) {
+        return parse_aggregate_fields(fields_node, head);
+    }
+
+    // Walk the vector, accumulating ordered (name, TypeExpr) entries: either parsed from a
+    // contiguous non-splice run (via the existing triple parser) or expanded from a spliced
+    // surface's Field members (in the surface's declared order).
+    let mut raw: Vec<(String, TypeExpr)> = Vec::new();
+    let mut run: Vec<WatAST> = Vec::new();
+
+    let field_items = match fields_node {
+        WatAST::Vector(items, _) => items,
+        _ => unreachable!("matched WatAST::Vector above"),
+    };
+
+    for item in field_items {
+        match splice_target(&item) {
+            Some(surface_kw) => {
+                if !run.is_empty() {
+                    flush_field_run(&run, head, &field_span, &mut raw)?;
+                    run.clear();
+                }
+                let item_span = item.span().clone();
+                match env.get(&surface_kw) {
+                    Some(TypeDef::Surface(surf)) => {
+                        for member in &surf.members {
+                            if let SurfaceMember::Field { name, ty } = member {
+                                raw.push((name.clone(), ty.clone()));
+                            }
+                            // Method members are skipped (brief STOP-METHOD-SPLICE resolved:
+                            // a record cannot hold a function; extend-surface installs methods).
+                        }
+                    }
+                    Some(_) => {
+                        return Err(TypeError {
+                            span: item_span,
+                            kind: TypeErrorKind::MalformedDecl {
+                                head: head.into(),
+                                reason: format!(
+                                    "surface-splice `~@{}` target is registered but is not a \
+                                     `defsurface`",
+                                    surface_kw
+                                ),
+                            },
+                        });
+                    }
+                    None => {
+                        return Err(TypeError {
+                            span: item_span,
+                            kind: TypeErrorKind::MalformedDecl {
+                                head: head.into(),
+                                reason: format!(
+                                    "surface-splice `~@{}` refers to an unknown surface — it must \
+                                     be `defsurface`-declared BEFORE the splicing record (forward \
+                                     references are out of scope)",
+                                    surface_kw
+                                ),
+                            },
+                        });
+                    }
+                }
+            }
+            None => run.push(item),
+        }
+    }
+    if !run.is_empty() {
+        flush_field_run(&run, head, &field_span, &mut raw)?;
+    }
+
+    // Merge = union, first-occurrence order. Dedup by identical type; conflicting type → error.
+    let mut merged: Vec<(String, TypeExpr)> = Vec::new();
+    for (name, ty) in raw {
+        match merged.iter().find(|(n, _)| *n == name) {
+            Some((_, existing_ty)) if existing_ty == &ty => {
+                // Same name, identical type — dedupes to the first occurrence; drop this one.
+            }
+            Some((_, existing_ty)) => {
+                return Err(TypeError {
+                    span: field_span.clone(),
+                    kind: TypeErrorKind::MalformedDecl {
+                        head: head.into(),
+                        reason: format!(
+                            "surface-splice conflict: field `{}` is installed at conflicting \
+                             types ({:?} vs {:?}) by two splices (or a splice and an own field) \
+                             — a field repeated across splices must carry an identical type",
+                            name, existing_ty, ty
+                        ),
+                    },
+                });
+            }
+            None => merged.push((name, ty)),
+        }
+    }
+    Ok(merged)
+}
+
+/// Run a contiguous non-splice sub-slice through the existing triple parser and append its
+/// `(name, TypeExpr)` pairs to `raw`, in order.
+fn flush_field_run(
+    run: &[WatAST],
+    head: &str,
+    field_span: &Span,
+    raw: &mut Vec<(String, TypeExpr)>,
+) -> Result<(), TypeError> {
+    let argspec = crate::argspec::parse_argspec_triples(
+        run,
+        head,
+        field_span,
+        crate::argspec::ParseOptions { allow_rest_binder: false },
+    )
+    .map_err(TypeError::from)?;
+    raw.extend(
+        argspec
+            .fixed_params
+            .into_iter()
+            .map(|(id, ty)| (id.as_str().to_owned(), ty)),
+    );
+    Ok(())
+}
+
 /// Stone 241.8 — parse a `(:wat::core::defstruct :Name [...fields...])` or
 /// `(:wat::core::defstruct :Name {metadata} [...fields...])` declaration.
 ///
@@ -337,7 +510,7 @@ pub(super) fn parse_aggregate_fields(
 /// Empty `{}` is REJECTED per FORM-COLLAPSE-NOTES (divide-by-zero principle).
 /// Field-vector is parsed by `parse_argspec_triples` with
 /// `ParseOptions { allow_rest_binder: false }`.
-pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
+pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result<TypeDef, TypeError> {
     validate_defstruct_arity(args.len(), &decl_span)?;
 
     let mut iter = args.into_iter();
@@ -364,8 +537,8 @@ pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span) -> Result<Type
         (Vec::new(), HashMap::new())
     };
 
-    // Parse field-vector via the ONE canonical field parser.
-    let fields = parse_aggregate_fields(fields_node, HEAD)?;
+    // Parse field-vector via the ONE canonical field parser (splice-aware — Arc 293).
+    let fields = parse_aggregate_fields_with_splices(fields_node, HEAD, env)?;
 
     // Build restrictions: None if no whitelist + no field restrictions; Some(_) otherwise.
     let restrictions = if ctor_whitelist.is_empty() && field_restrictions.is_empty() {

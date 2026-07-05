@@ -927,7 +927,6 @@ pub fn register_struct_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
 ) -> Result<(), RuntimeError> {
-    use crate::scope::Identifier;
     use crate::types::TypeDef;
 
     for (_name, def) in types.iter() {
@@ -937,58 +936,10 @@ pub fn register_struct_methods(
             _ => continue,
         };
 
-        // Arc 071 — parametric structs need their constructor /
-        // accessor signatures to reference the type as
-        // `:Foo<A,B>`, not bare `:Foo`. Without this the call site
-        // can't bind the type parameters and the checker rejects
-        // the body's apparent type as different from the
-        // signature's declared type. (No parametric built-in
-        // structs exist today, but user-declared parametrics get
-        // synthesized through the same machinery.)
-        let struct_type = parametric_decl_type(&struct_def.name, &struct_def.type_params);
-
-        // Constructor — bare `<struct>` (parity with records; arc 293.R2.3:
-        // every type-name is its own constructor, `/new` annihilated).
-        // One param per field, same order as declaration. Body invokes
-        // `:wat::core::struct-new` with the struct's type-name keyword
-        // and the params as symbols.
-        let constructor_path = struct_def.name.clone();
-        let param_names: Vec<String> =
-            struct_def.fields.iter().map(|(n, _)| n.clone()).collect();
-        let param_types: Vec<crate::types::TypeExpr> = struct_def
-            .fields
-            .iter()
-            .map(|(_, t)| t.clone())
-            .collect();
-        // Arc 294.c.2a — emit aggregate-new (the ONE holder-dispatched ctor)
-        // instead of struct-new. struct-new stays registered for 294.c.2b.
-        let mut new_body_items = Vec::with_capacity(2 + struct_def.fields.len());
-        new_body_items.push(WatAST::Keyword(":wat::core::aggregate-new".into(), crate::rust_caller_span!()));
-        new_body_items.push(WatAST::Keyword(struct_def.name.clone(), crate::rust_caller_span!()));
-        for param_name in &param_names {
-            new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), crate::rust_caller_span!()));
-        }
-        let new_func = Function {
-            name: Some(constructor_path.clone()),
-            params: param_names.clone(),
-            type_params: struct_def.type_params.clone(),
-            param_types: param_types.clone(),
-            ret_type: struct_type.clone(),
-            rest_param: None,
-            rest_param_type: None,
-            body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, crate::rust_caller_span!()))),
-            closed_env: None,
-        };
-        if sym.functions.contains_key(&constructor_path) {
-            // arc 138: no span — synthesized struct constructor; collision
-            // surfaces at type-registry walk time, no source form available.
-            return Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::DuplicateDefine(constructor_path) }.into());
-        }
-        sym.functions.insert(constructor_path, Arc::new(new_func));
-
-        // Arc 293.R2.2 — accessor loop extracted to register_aggregate_methods
-        // (unified for all holders). Ctor stays here; restrictions stay here
-        // since they are struct-only.
+        // Arc 293 surface-splice — the struct CONSTRUCTOR mint moved to
+        // `register_aggregate_methods` (THE ONE ctor source for every holder). This loop
+        // now handles ONLY the struct-only restriction metadata below. Minting the ctor
+        // here too would DuplicateDefine against the unified mint.
 
         // Arc 203 / Stone 241.14 — if the struct carries restriction metadata
         // (from `struct-restricted`, now HARD CUT per Stone 241.8), write the
@@ -1072,58 +1023,54 @@ pub fn register_aggregate_methods(
 
         // Arc 293 inheritance annihilation: all types are flat; field index == own enumeration index.
 
-        // Arc 293.R2.2 — constructor fallback for raw `recordtype` declarations.
+        // Arc 293 surface-splice — THE ONE aggregate constructor mint (all holders).
         //
-        // `defrecord`/`defholon::defrecord` macro expansions emit a `defn` for the
-        // constructor, which is registered by `register_defines` (step 6) BEFORE this
-        // step.  Raw `recordtype` declarations have no matching `defn`, so their
-        // constructor path is absent from `sym.functions`.  We fill the gap here —
-        // exactly what the deleted `register_record_methods` did — so that existing
-        // code using raw `recordtype` (e.g. `tests/program/probe_arc258_*`) continues
-        // to resolve the constructor at the resolve step.
+        // Before this arc there were TWO ways to construct an aggregate: `register_struct_methods`
+        // minted the struct ctor in Rust (from registered fields → splice-aware), while
+        // `defrecord`/`holon::defrecord` hand-built a ctor `defn` in the wat macro at expand-time
+        // (Record.wat's `raw-ch/nf/syms` groups-of-3 walk → registry-BLIND, so `~@:Surface`
+        // splices choked there). 293.R2.2 already unified the ACCESSORS here for every holder;
+        // this unifies the CTOR the same way. Now that the macro no longer emits a ctor `defn`
+        // and `register_struct_methods` no longer mints one, THIS is the sole ctor source for
+        // Struct + Record + HolonRecord alike.
         //
-        // Skipped for Struct (ctor registered by `register_struct_methods`) and for
-        // any Record/HolonRecord whose ctor is already present (macro already did it).
-        if matches!(agg.holder, crate::types::Holder::Record | crate::types::Holder::HolonRecord)
-            && !sym.functions.contains_key(&agg.name)
+        // Body is `(:wat::core::aggregate-new :T field-syms…)` — `eval_aggregate_new` is already
+        // holder-blind (it dispatches Struct/Record/HolonRecord internally, incl. the holon
+        // hologram), so the body is identical for every holder. Because it reads the REGISTERED
+        // fields (splice already expanded by `parse_aggregate_fields_with_splices` at
+        // registration), surface-splice works for records for free.
+        //
+        // ret_type = the parametric self-type (specific type, not the root `:wat::core::Record`)
+        // so a constructed value flows where the specific type is required — matching both the old
+        // struct ctor and the old record `defn`'s `-> ~fqdn`.
         {
-            let name_str = agg.name.trim_start_matches(':').to_string();
-            // Arc 293 annihilation: no inherited fields; own fields are the complete set.
             let all_param_names: Vec<String> = agg.fields.iter().map(|(n, _)| n.clone()).collect();
             let all_param_types: Vec<crate::types::TypeExpr> =
                 agg.fields.iter().map(|(_, t)| t.clone()).collect();
-            let field_asts: Vec<WatAST> = all_param_names
-                .iter()
-                .map(|n| WatAST::Symbol(Identifier::bare(n.clone()), crate::rust_caller_span!()))
-                .collect();
-            let kw_from_str_call = WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::keyword/from-string".into(), crate::rust_caller_span!()),
-                    WatAST::StringLit(name_str, crate::rust_caller_span!()),
-                ],
-                crate::rust_caller_span!(),
-            );
-            let ctor_body = WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::Record::of".into(), crate::rust_caller_span!()),
-                    kw_from_str_call,
-                    WatAST::Vector(field_asts, crate::rust_caller_span!()),
-                ],
-                crate::rust_caller_span!(),
-            );
+            let mut new_body_items = Vec::with_capacity(2 + agg.fields.len());
+            new_body_items.push(WatAST::Keyword(":wat::core::aggregate-new".into(), crate::rust_caller_span!()));
+            new_body_items.push(WatAST::Keyword(agg.name.clone(), crate::rust_caller_span!()));
+            for param_name in &all_param_names {
+                new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), crate::rust_caller_span!()));
+            }
             let ctor_func = Function {
                 name: Some(agg.name.clone()),
                 params: all_param_names,
-                type_params: vec![],
+                type_params: agg.type_params.clone(),
                 param_types: all_param_types,
-                // Return the specific record type (not the root :wat::core::Record) so the
-                // type checker lets the value flow where the specific type is required.
-                ret_type: crate::types::TypeExpr::Path(agg.name.clone()),
+                ret_type: aggregate_type.clone(),
                 rest_param: None,
                 rest_param_type: None,
-                body: FunctionBody::Wat(Arc::new(ctor_body)),
+                body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, crate::rust_caller_span!()))),
                 closed_env: None,
             };
+            if sym.functions.contains_key(&agg.name) {
+                return Err(RuntimeError {
+                    span: crate::rust_caller_span!(),
+                    kind: RuntimeErrorKind::DuplicateDefine(agg.name.clone()),
+                }
+                .into());
+            }
             sym.functions.insert(agg.name.clone(), Arc::new(ctor_func));
         }
 

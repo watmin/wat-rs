@@ -1664,7 +1664,7 @@ fn register_types_impl(
                 // is consumed by `parse_type_decl`. Threaded through
                 // every emission site for source-coordinate prefixes.
                 let decl_span = form.span().clone();
-                let def = parse_type_decl(head, form, decl_span.clone())?;
+                let def = parse_type_decl(head, form, decl_span.clone(), env)?;
                 // Arc 293 K3-revise — when a surface is registered, derive and register the
                 // PAIR of backing aggregates (`:S$core-record`, `:S$holon-record`).
                 // Field members only; methods are behavior. The `register` closure is re-used
@@ -1766,7 +1766,7 @@ fn splice_type_decls(
                 match classify_type_decl(&child) {
                     Some(head) => {
                         let decl_span = child.span().clone();
-                        let def = parse_type_decl(head, child, decl_span.clone())?;
+                        let def = parse_type_decl(head, child, decl_span.clone(), env)?;
                         register(env, def, decl_span)?;
                     }
                     None => {
@@ -1787,7 +1787,7 @@ fn splice_type_decls(
                 match classify_type_decl(&child) {
                     Some(head) => {
                         let decl_span = child.span().clone();
-                        let def = parse_type_decl(head, child, decl_span.clone())?;
+                        let def = parse_type_decl(head, child, decl_span.clone(), env)?;
                         register(env, def, decl_span)?;
                     }
                     None => {
@@ -1906,6 +1906,7 @@ fn parse_type_decl(
     head: &str,
     form: WatAST,
     decl_span: Span,
+    env: &TypeEnv,
 ) -> Result<TypeDef, TypeError> {
     let items = match form {
         WatAST::List(items, _) => items,
@@ -1923,9 +1924,9 @@ fn parse_type_decl(
     let _head_kw = iter.next();
     match head {
         // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
-        "defstruct" => parse_defstruct(iter.collect(), decl_span),
+        "defstruct" => parse_defstruct(iter.collect(), decl_span, env),
         // Arc 293.2-parity — structtype: thin alias → parse_aggregate with injected :wat::core::Struct parent.
-        "structtype" => parse_structtype(iter.collect(), decl_span),
+        "structtype" => parse_structtype(iter.collect(), decl_span, env),
         // Stone 241.9 — defenum replaces enum (HARD CUT).
         "defenum" => parse_defenum(iter.collect(), decl_span),
         "newtype" => parse_newtype(iter.collect(), decl_span),
@@ -1933,9 +1934,9 @@ fn parse_type_decl(
         // Stone 237.1 — named bounded set of types.
         "typeunion" => parse_typeunion(iter.collect(), decl_span),
         // Stone S-B.1 — record class as a real TypeDef; thin alias → parse_aggregate.
-        "recordtype" => parse_aggregate(iter.collect(), decl_span, "recordtype"),
+        "recordtype" => parse_aggregate(iter.collect(), decl_span, "recordtype", env),
         // Arc 293 decl-a — ONE type-reg primitive; holder derived from parent root.
-        "aggregatetype" => parse_aggregate(iter.collect(), decl_span, "aggregatetype"),
+        "aggregatetype" => parse_aggregate(iter.collect(), decl_span, "aggregatetype", env),
         // Arc 293.3-core — structural surface.
         "defsurface" => parse_defsurface(iter.collect(), decl_span),
         _ => unreachable!(),
@@ -2316,7 +2317,7 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
 ///
 /// `structtype` args (from `parse_type_decl`): `[name_kw, {meta_node}?, fields_node]` (2 or 3 items).
 /// Injects `:wat::core::Struct` as `parent` at position [1] and delegates to `parse_aggregate`.
-fn parse_structtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
+fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result<TypeDef, TypeError> {
     let mut new_args = Vec::with_capacity(args.len() + 1);
     let mut iter = args.into_iter();
     // name kw at [0] stays first.
@@ -2327,7 +2328,7 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
     new_args.push(WatAST::Keyword(":wat::core::Struct".to_string(), crate::rust_caller_span!()));
     // Remaining args (optional metadata + fields).
     new_args.extend(iter);
-    parse_aggregate(new_args, decl_span, "structtype")
+    parse_aggregate(new_args, decl_span, "structtype", env)
 }
 
 /// Arc 293 decl-a — ONE parse fn for ALL aggregate type declarations.
@@ -2352,7 +2353,7 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeE
 ///
 /// `head` is the caller-supplied surface form name used in error messages ("aggregatetype",
 /// "structtype", "recordtype") — preserves existing error text for each alias.
-fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str) -> Result<TypeDef, TypeError> {
+fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: &TypeEnv) -> Result<TypeDef, TypeError> {
     if args.len() < 3 || args.len() > 4 {
         return Err(TypeError {
             span: decl_span,
@@ -2416,8 +2417,8 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str) -> Re
         (Vec::new(), std::collections::HashMap::new())
     };
 
-    // Parse field-vector via the ONE canonical field parser (parse_argspec_triples).
-    let fields = defstruct::parse_aggregate_fields(fields_node, head)?;
+    // Parse field-vector via the ONE canonical field parser (splice-aware — Arc 293).
+    let fields = defstruct::parse_aggregate_fields_with_splices(fields_node, head, env)?;
 
     let restrictions = if ctor_whitelist.is_empty() && field_restrictions.is_empty() {
         None

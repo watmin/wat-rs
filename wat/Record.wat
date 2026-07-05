@@ -96,41 +96,18 @@
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::do
-     (:wat::core::recordtype ~fqdn :wat::core::Record
-       [~@fields])
-     (:wat::core::defn ~fqdn [~@fields] -> ~fqdn
-       (:wat::core::aggregate-new ~fqdn
-         ~@(:wat::core::let
-               ;; Arc 291 hygiene fix: use (ast->children (quote fields)) to get the original
-               ;; AST nodes with scope preserved, not the holon round-trip (which strips scope).
-               ;; The binders in [~@fields] carry the original scope (e.g. scope 433 when this
-               ;; defn is emitted inside another macro's quasiquote); the body references must
-               ;; carry the SAME scope — reuse the original nodes from (quote fields) directly.
-               ;; (quote fields) is needed: substitute_bindings replaces `fields` with the raw
-               ;; WatAST::Vector node; quote wraps it as Value::wat__WatAST for ast->children.
-               ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY (returns a
-               ;; `Stream`, not a `Vector`) and this `~@`-splice needs a concrete `Vector<WatAST>`
-               ;; RIGHT NOW, at macro-expansion time — this macro is invoked from EVERY
-               ;; `defrecord` call across the stdlib (~30+ sites, earliest `core.wat`'s `Fault`),
-               ;; so it cannot depend on any wat-defined eager materializer either (a wat-defined
-               ;; `vec`/`into` would itself be an untested/unsafe dependency at this exact
-               ;; bootstrap phase — see `crate::stream::NativeLazyCell`'s doc for the full
-               ;; writeup). `foldl` + `conj` stay Rust-native and eager, unaffected by the flip.
-               [raw-ch  (:wat::core::ast->children (:wat::core::quote fields))
-                nf      (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
-                syms    (:wat::core::foldl
-                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> fi <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
-                             (:wat::core::let
-                               [idx   (:wat::core::i64::* fi 3)
-                                var-w (:wat::core::Option/expect
-                                         (:wat::core::Vector/get raw-ch idx)
-                                         "Record::def: struct_form field name index out of range")]
-                               (:wat::core::conj acc var-w)))
-                           (:wat::core::Vector :wat::WatAST)
-                           (:wat::core::range 0 nf))]
-               syms)))
-))
+  ;; Arc 293 surface-splice — the constructor `defn` is DELETED from this macro. The ctor
+  ;; is now minted (for EVERY aggregate holder) in `register_aggregate_methods` (runtime.rs)
+  ;; from the REGISTERED fields — so `~@:Surface` splices in the field vector are expanded
+  ;; (at type registration) BEFORE the ctor is built, and records get splice for free.
+  ;; The old expand-time `raw-ch/nf/syms` groups-of-3 walk (registry-blind, choked on `~@`)
+  ;; is gone along with the whole lazy-seq / arc-118 concern.
+  ;;
+  ;; The macro now expands to the bare `recordtype` decl — NO `do` wrapper. A `do` wrapping
+  ;; only a type decl would be emptied by `register_types` (which strips type decls from a
+  ;; `do` body), leaving `(:wat::core::do)` → "do requires at least one form".
+  `(:wat::core::recordtype ~fqdn :wat::core::Record
+     [~@fields]))
 
 ;; Arc 293.R2.2 — accessor emission removed from BASE macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for
@@ -147,31 +124,12 @@
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::do
-     (:wat::core::recordtype ~fqdn :wat::holon::Record
-       [~@fields])
-     (:wat::core::defn ~fqdn [~@fields] -> ~fqdn
-       (:wat::core::aggregate-new ~fqdn
-         ~@(:wat::core::let
-               ;; Arc 291 hygiene fix: use (ast->children (quote fields)) to get the original
-               ;; AST nodes with scope preserved, not the holon round-trip (which strips scope).
-               ;; The binders in [~@fields] carry the original scope; the body references must
-               ;; carry the SAME scope — reuse the original nodes from (quote fields) directly.
-               ;; Arc 118.2a — see the BASE macro above for why this is `foldl`+`conj`, not `map`.
-               [raw-ch  (:wat::core::ast->children (:wat::core::quote fields))
-                nf      (:wat::core::i64::/ (:wat::core::length raw-ch) 3)
-                syms    (:wat::core::foldl
-                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> fi <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
-                             (:wat::core::let
-                               [idx   (:wat::core::i64::* fi 3)
-                                var-w (:wat::core::Option/expect
-                                         (:wat::core::Vector/get raw-ch idx)
-                                         "Record::def: struct_form field name index out of range")]
-                               (:wat::core::conj acc var-w)))
-                           (:wat::core::Vector :wat::WatAST)
-                           (:wat::core::range 0 nf))]
-               syms)))
-))
+  ;; Arc 293 surface-splice — constructor `defn` DELETED (see the BASE macro above). The
+  ;; holon ctor is minted in `register_aggregate_methods` from the registered fields; the
+  ;; `aggregate-new` body is holder-blind and derives the hologram internally for HolonRecord.
+  ;; Bare `recordtype` decl — NO `do` wrapper (see the BASE macro's note).
+  `(:wat::core::recordtype ~fqdn :wat::holon::Record
+     [~@fields]))
 
 ;; Arc 293.R2.2 — accessor emission removed from HOLONIC macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for

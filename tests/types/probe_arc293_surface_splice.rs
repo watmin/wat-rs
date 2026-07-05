@@ -23,7 +23,6 @@ use wat::freeze::{startup_beside, startup_from_file};
 /// must parse, construct positionally over the merged field list, and expose a `:Rec/field`
 /// accessor for each spliced field. RED at HEAD (splice unbuilt); GREEN when the build ships.
 #[test]
-#[ignore = "IGNORE-LEDGER(293-surface-splice): un-ignore as the final green step of the splice build"]
 fn surface_splice_merges_and_constructs() {
     let world = startup_beside(file!());
     assert!(
@@ -39,7 +38,6 @@ fn surface_splice_merges_and_constructs() {
 /// Not a clean gate at HEAD (splice unbuilt → also errors), so it is the build's own
 /// correctness check, verified once the positive is green.
 #[test]
-#[ignore = "IGNORE-LEDGER(293-surface-splice): un-ignore alongside the positive; verifies conflict rejection"]
 fn surface_splice_conflicting_field_types_rejected() {
     let world = startup_from_file("tests/types/probe_arc293_surface_splice_bad.wat");
     assert!(
