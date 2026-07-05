@@ -66,8 +66,10 @@ identity), bumps counters (`incr!`), times sub-blocks (`timed`), and emits its m
 Metrics ↔ logs join on it — the trace/span observability model, served by a **GSI on `uuid`**.
 
 The four fields common to both — `namespace`, `uuid`, `tags`, `time` — are lifted into **`Scope`**, an **exact
-surface** that both `Metric` and `Log` satisfy. This makes "same unit of work" a **structural fact** (a shared
-constraint), carries the correlation key by construction, and DRYs the common shape. `[name: PROVISIONAL — intueri]`
+surface** that `Metric` and `Log` each **splice in** via the arc-293 **surface-splice** `[~@wat.telemetry/Scope
+own…]` — *not* re-listed. This makes "same unit of work" a **structural fact** (a shared constraint), carries the
+correlation key by construction, and keeps the common shape from a **single source** (the *derive-is-the-wall*
+doctrine — composed in, never re-implemented and hoped). `[name: PROVISIONAL — intueri]`
 
 ## The surface architecture (structural, all the way down)
 
@@ -85,9 +87,13 @@ wat.query/Record        open surface   — anything the query engine matches (a 
             └─ LogMessage   open surface — any pure record the caller defines
 ```
 
-`Metric` is exact all the way down (closed `Numeric` payload); `Log` is exact-around-an-open-message. Both carry
-Scope's four fields (so both satisfy `Scope` by structural satisfaction — the DRY splice `[~@Scope own…]` is a
-nicety, not a requirement), and both satisfy `wat.query/Record`.
+`Metric` is exact all the way down (closed `Numeric` payload); `Log` is exact-around-an-open-message. Both **splice
+`Scope` in** — the arc-293 **surface-splice** `[~@wat.telemetry/Scope own-fields…]` (flat; NOT inheritance; the
+293.4c surface-extend path lets a surface's `:features` splice another surface's members). So `Scope` is the
+**single source** of the correlation core and its fields **cannot drift**: re-listing them in each would be
+hand-authored duplication that rots — the *derive-is-the-wall* doctrine at the field layer, the shared constraint
+**composed in, never re-implemented and hoped.** Both therefore satisfy `Scope` by construction, and both satisfy
+`wat.query/Record`.
 
 ## The contractual surface (the source of truth for callers)
 
@@ -145,11 +151,9 @@ nicety, not a requirement), and both satisfy `wat.query/Record`.
              time      :- wat.core/Instant])     ;; the sk
 
 ;; a metric — EXACT surface: Scope ⊕ span-start ⊕ name ⊕ value ⊕ unit.
+;; SPLICE Scope in (surface-splice) — do NOT re-list its fields; Scope is the single source (derive-is-the-wall).
 (wat.core/defsurface wat.telemetry/Metric :holder wat.core/Record
-  :features [namespace  :- wat.core/String       ;; ⎫
-             uuid       :- wat.core/Uuid          ;; ⎬ Scope  (structurally; DRY-splice [~@Scope …] optional)
-             tags       :- wat.telemetry/Tags     ;; ⎪
-             time       :- wat.core/Instant       ;; ⎭ = end-time, the sk
+  :features [~@wat.telemetry/Scope                ;; splice the correlation core: namespace, uuid, tags, time(=end-time,the sk)
              start-time :- wat.core/Instant       ;; the scope span (start)
              name       :- wat.core/Keyword       ;; the counter/timer name          → GSI candidate
              value      :- wat.telemetry/Numeric  ;; the count/duration — variant name holds the storage type
@@ -159,11 +163,9 @@ nicety, not a requirement), and both satisfy `wat.query/Record`.
 (wat.core/defsurface wat.telemetry/LogMessage :holder wat.core/Record :features [])
 
 ;; a log — EXACT surface (exact envelope, open payload): Scope ⊕ caller ⊕ level ⊕ message.
+;; SPLICE Scope in (surface-splice) — the same single source as Metric; the correlation core cannot drift.
 (wat.core/defsurface wat.telemetry/Log :holder wat.core/Record
-  :features [namespace :- wat.core/String        ;; ⎫
-             uuid      :- wat.core/Uuid           ;; ⎬ Scope
-             tags      :- wat.telemetry/Tags      ;; ⎪
-             time      :- wat.core/Instant        ;; ⎭ = emit moment, the sk
+  :features [~@wat.telemetry/Scope                ;; splice the correlation core: namespace, uuid, tags, time(=emit moment,the sk)
              caller    :- wat.core/Keyword        ;; producer identity                → GSI candidate
              level     :- wat.telemetry/Level     ;; a closed enum
              message   :- wat.telemetry/LogMessage]) ;; a PURE RECORD (open surface)
@@ -233,8 +235,9 @@ differs — and the store is the swap point, so this is a driver concern.
 3. **Enums grow-as-needed.** `Numeric` = `i64` + `f64` to launch (the rest of Rust's/wat's numbers, incl. BigInt/
    BigRational, added later as chosen); `Unit` = the current set, grown as it must. The closed-set→enum rule holds;
    the *set* is open to growth, not frozen.
-4. **The correlation core is a shared surface.** `Scope` (exact surface: `namespace`/`uuid`/`tags`/`time`) — a
-   shared constraint both `Metric` and `Log` satisfy structurally.
+4. **The correlation core is a shared surface, spliced in.** `Scope` (exact surface: `namespace`/`uuid`/`tags`/
+   `time`) — a shared constraint both `Metric` and `Log` **splice** via arc-293 surface-splice `[~@Scope own…]`
+   (the single source; NOT re-listed — derive-is-the-wall at the field layer).
 
 Plus, ruled this session:
 - **The service serves read AND write** (four ops; `defservice` serializes one-op-at-a-time; one process serves both).
