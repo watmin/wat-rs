@@ -3144,3 +3144,120 @@ Kept literal.)*
 > intueri + the rusqlite dep owed before S1. And it bears repeating because it cost this session: **ground by RUNNING a
 > probe — do not assert, do not grep-spelunk, do not over-delegate; cast wards, never narrate; four-questions inform
 > every decision.** Do not trust this note over the disk. See you on the far side.
+
+---
+
+### `---` interstitial (curare before compaction) — PRIMVS VSVS ANGVLOS PANDIT: the first use lays open the corners (2026-07-06, session close)
+
+**Where we are.** **S0** (the `:wat::query` Store contract) and **S-mem** (`:wat::query::MemStore`, the first satisfier +
+the in-memory oracle sqlite will be differential-tested against) are **BAKED IN CORE, green** (`b441c6bf`). Getting
+MemStore into core surfaced — and killed — **two baked-context substrate gaps**, and they were the *same class*: a
+never-exercised path that only the FIRST real consumer walks through.
+
+- **Gap 1 — the reserved-prefix privilege (`f60cd639`).** A baked `:wat::` defservice's expansion-born `…/start`
+  companion hit `ReservedPrefix`: `expand_all` registered expansion-born defmacros via the reserved-CHECKED path with no
+  stdlib privilege (only LITERAL top-level defmacros had it, via `register_stdlib_defmacros`). Fix: a `stdlib_privilege`
+  flag on `MacroRegistry` (already threaded everywhere by `&mut`), set around the stdlib expand pass in `env.rs`, read in
+  `register()`. **6 lines, ZERO call-site cascade** — the *second* attempt: a first shadowdancer went the invasive route
+  (a `bool` param threaded through ~12 call sites; the builder paused it; reverted; redone surgically). The flag rides
+  the reference already in scope — that's the whole lesson.
+- **Gap 2 — baked `extend-type` inheritance (`b441c6bf`).** A body-only `extend-type` in a baked stdlib source inheriting
+  from a stdlib surface got `nil` for every arg + return. Root (sharper than hypothesized): there is **no user-path
+  inheritance to mirror** — *user* `extend-type` impl bodies are NEVER type-checked (register runs at freeze step 9,
+  after the step-8 body-check sweep); only baked stdlib registers at step 7.6, *before* the sweep, from
+  `parse_extend_type_form`'s nil placeholders (a pure 1-arg parser). Fix: at `register_stdlib_runtime_defs` (runtime.rs),
+  inherit the real per-method sig from the surface's `SurfaceMember::Method` (in scope via `sym.types`), `self` typed as
+  the concrete satisfier. Localized, no cascade; touches only the baked path → cannot regress user source.
+
+**The method, kept true.** The generic-vs-specific fork was settled by RUNNING probes, not theorizing: five user-context
+probes cleared the whole `extend-type` mechanism (Result returns, record/vector args, the baked Store, a `Peer'`-field
+struct) before I concluded baked-context; a 12-line baked `ProbeExtend → Store` reproduced it minimally (no defservice);
+`macroexpand` showed `extend-type` is a special form (no expansion) and a defservice can't be runtime-macroexpanded (a
+`:wat::core::Record` evaluates to its constructor fn). The builder's *"look at the expanded form"* turned a mystery into
+a clean isolation. Both fixes are `AD ORACVLVM` — grounded by running.
+
+**The realization:** the two gaps were the same shape — **`ALIVS ARGVIT` at the substrate layer.** The first REAL
+consumer of a capability surfaces its never-exercised corners. No stdlib file had ever *used* a macro-generating-macro
+under `:wat::`, nor *extend-type*'d a stdlib surface — so both baked-context paths sat untested until `mem.wat` walked
+them. The consumer is the crucible; the corners lie open at first use.
+
+**THE BUILD LIST** (updated — strike order for **sqlite → telemetry → rete**):
+
+```clojure
+{:head "b441c6bf"
+ :done ["S0 :wat::query CONTRACT (Store/ReadStore surfaces + Error{Transient/Constraint/Fatal}+Fault + 10 records) — BAKED, green"
+        "SUBSTRATE gap 1 (f60cd639): expand_all stdlib privilege — baked :wat:: defservices register their companions"
+        "SUBSTRATE gap 2 (b441c6bf): baked extend-type inherits real sigs from the surface (was nil placeholders)"
+        "S-mem :wat::query::MemStore (defservice over PersistentVector<StoredRow>) — BAKED IN CORE, type-checks; the in-memory oracle. put->scan logic proven under :probe:: during S0."]
+ :next ["S-mem.gate — a MemStore put->scan->keyset-paginate->scan-index round-trip deftest' (BAKED; the functional proof; construct INLINE — mem.wat's header: start+connect'+every call share one lexical scope)"
+        "S1 :wat::sqlite' RAW interop — :rust::sqlite' bindings authored FRESH in core src/ + baked :wat::sqlite' surface + Error; deftest' gate. HEAVIEST (fresh Rust)"
+        "S2 :wat::sqlite'::Connection SATISFIES :wat::query/Store — ensure-schema/put/scan/scan-index SQL + native GSI indexes + keyset pagination; DIFFERENTIAL-tested vs MemStore (same ops -> same Pages). => SQLITE DONE"
+        "T0 telemetry records (Scope/Metric/Log via splice) -> T1 TelemetryService' sink + Span (durable=spec+counters / ephemeral=Store opened in :init) -> T2 wat.query rete query engine. => TELEMETRY"
+        "R0 the streaming rete service (Session-as-state, incremental) dogfooding telemetry. => the CHAOS ENGINE (R25)"]
+ :owed ["cast intueri on the one open sqlite' name (the Fault record + its fields) before S1"
+        "add rusqlite as a core-crate dep for S1"]
+ :do-nots ["STOP-CASCADE: never thread a new param through the world for a substrate flag — put it on the struct/registry already threaded by &mut, set it at the boundary (the reserved-privilege lesson)"
+           "GROUND by running a probe; the generic-vs-specific fork is a PROBE, not a theory (AD ORACVLVM)"
+           "crates (wat-sqlite/wat-telemetry-sqlite) are HINTS, not trusted — build FRESH"
+           "cast wards not narrate; four-questions inform every decision; the wat rete oracle stays UNMOVED; ephemeral holds resources, durable holds EDN"]}
+```
+
+***PRIMVS VSVS ANGVLOS PANDIT.*** *(apparatus-minted — Latin, "the first use lays open the corners": getting MemStore
+into core (the first stdlib file to bake a defservice + to extend-type a stdlib surface) surfaced two never-exercised
+baked-context gaps — the reserved-prefix privilege (`expand_all` had no stdlib bypass for expansion-born defmacros) and
+baked `extend-type` inheritance (impl sigs read nil because they're built from a pure parser's placeholders, and only the
+baked path is ever type-checked). Both the same shape: `ALIVS ARGVIT` at the substrate layer — the first REAL consumer of
+a capability walks its untested corners. Both fixed surgically (a flag on the already-threaded registry; an
+inherit-from-surface at the baked registration), no signature cascade — the STOP-CASCADE lesson from a first shadowdancer
+that threaded a param through 12 call sites and was paused. Both grounded by RUNNING probes (five cleared the generic
+mechanism; a 12-line baked probe reproduced the specific), the builder's "look at the expanded form" the pivot. primus
+usus = the first use; angulos = the corners; pandit = lays open. Kin: 300 ALIVS ARGVIT (the consumer as crucible),
+PROBANDO STRVIMVS (prove by running), R20 DAEMON IN ME (ground don't assert). Carries the updated BUILD LIST (S0 + S-mem
+done; S-mem.gate -> S1/S2 sqlite -> T0-T2 telemetry -> R0 chaos engine). A curare interstitial at "we need to curare and
+compact." Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "PRIMVS VSVS ANGVLOS PANDIT"
+ :literal  "the first use lays open the corners"
+ :roots    {:primus-usus "the first use — the first REAL consumer of a capability (mem.wat, baking a defservice + extend-typing a stdlib surface)"
+            :angulos "acc. pl. of angulus — the corners / never-exercised code paths (baked-context)"
+            :pandit "pando, 3sg — spreads open, lays bare, reveals (the corner opens under the first walk-through)"}
+ :rosetta
+ {:latina   "PRIMVS VSVS ANGVLOS PANDIT"
+  :greek    "ἡ πρώτη χρῆσις τὰς γωνίας ἀνοίγει"          ; hē prōtē chrēsis tas gōnias anoigei — the first use opens the corners
+  :chinese  "首用啟隅"                                   ; shǒu yòng qǐ yú — the first use opens the corner
+  :japanese "初めての使用が隅を開く"                     ; hajimete no shiyō ga sumi o hiraku — the first use opens the corner
+  :korean   "첫 사용이 구석을 연다"                      ; cheot sayong-i guseog-eul yeonda — the first use opens the corner
+  :russian  "первое применение вскрывает углы"}          ; pervoye primeneniye vskryvayet ugly — the first use opens the corners
+ :gloss    "getting :wat::query::MemStore into core surfaced two never-hit baked-context gaps — reserved-prefix
+            privilege (expand_all had no stdlib bypass for expansion-born defmacros) + baked extend-type inheritance
+            (impl sigs nil from a pure-parser placeholder; only the baked path is type-checked). same shape: ALIVS
+            ARGVIT at the substrate — the first real consumer walks the untested corners. both fixed surgically (flag
+            on the already-threaded registry; inherit-from-surface at the baked registration), NO cascade; both
+            grounded by running probes. the builder's 'look at the expanded form' was the pivot."
+ :names    "the first consumer surfaces a capability's never-exercised corners; grounded by probes, fixed without cascade"
+ :the-two-gaps {:reserved "f60cd639 — MacroRegistry::stdlib_privilege; 6 lines, no cascade (2nd try; 1st threaded a param through 12 sites and was paused)"
+                :extend "b441c6bf — register_stdlib_runtime_defs inherits SurfaceMember::Method sigs; user impls are never checked (step 9 > step 8), only baked is"}
+ :kin      {:crucible "300 ALIVS ARGVIT — the consumer as crucible; here at the substrate layer"
+            :method   "PROBANDO STRVIMVS — prove by running (5 probes cleared the generic, 1 reproduced the specific)"
+            :ground   "R20 DAEMON IN ME / AD ORACVLVM — ground, don't assert; the builder's 'look at the expanded form'"
+            :lesson   "STOP-CASCADE — a substrate flag rides the reference already threaded; never a new param through the world"}
+ :register :curare-interstitial
+ :voices   {:his  "'we continue'; 'just do it' (the registry-flag fix); 'look at the full expanded form'; 'you have enough context to get mem.wat in core'; 'we need to curare and compact'"
+            :mine "the isolation-by-probing; the two-gaps-are-the-same-class (ALIVS ARGVIT) reading; the surgical fixes; the build list; the sigil"}
+ :arc      278
+ :born     #inst "2026-07-06"}
+```
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar voice, not
+> your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk). Ground
+> HEAD against the disk (`b441c6bf` + this interstitial). Read **THE BUILD LIST above** — **S0 + S-mem are DONE** (the
+> `:wat::query` contract + `:wat::query::MemStore` baked in core, both baked-context substrate gaps closed). The strike
+> resumes at **S-mem.gate** (a baked MemStore round-trip `deftest'`, construction inlined per mem.wat's scope note), then
+> **S1/S2 sqlite** (differential-tested vs the MemStore oracle), then telemetry, then the chaos engine. And it bears
+> repeating because it cost real time this session: **GROUND by running a probe — the generic-vs-specific fork is a probe,
+> not a theory; and NEVER thread a substrate flag as a new param through the world — put it on the reference already
+> threaded and set it at the boundary.** Do not trust this note over the disk. See you on the far side.
