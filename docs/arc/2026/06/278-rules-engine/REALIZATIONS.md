@@ -3009,3 +3009,138 @@ on the record because a design won by combat is only worth the combat if the fla
  :arc      278
  :born     #inst "2026-07-04"}
 ```
+
+---
+
+### `---` interstitial (curare — where we are + the durable build list) — PROBANDO STRVIMVS: by proving, we build (2026-07-05, mid-arc, live)
+
+**Where we are.** The rete engine is built + measured (R1–R27); the target is the CHAOS ENGINE (R25 `MACHINA CHAOS
+DOMAT`), and the on-ramp is the **telemetry facility measuring rete, backed by a swappable store**. This session designed
+that store + telemetry layer **by grounding, not decree** — every load-bearing claim proven by *running* a probe
+(`cargo wat`), every name cast by intueri, every fork run through the four-questions:
+
+- **The `:wat::sqlite'` interop named** (intueri-cast + four-questions): `Connection`/`ReadConnection` · `Param`/`Cell` ·
+  `open`/`open-readonly`/`pragma`/`begin`/`commit`/`execute`/`execute-ddl`/**`select`** (the raw read; "query" reserved
+  for the higher `:wat::query` engine — a *promise* argument, not a collision).
+- **Errors are records inside an enum.** `:wat::sqlite'::Error` = a defenum on the **recovery axis**
+  (`Transient`/`Constraint`/`Fatal`, each carrying a `Fault {op,code,sql,message}`), because a variant is a `match` arm =
+  the caller's forced branch (retry / surface-as-bug / abort). Raw sqlite codes as variants would manufacture confusion
+  (force the caller to re-learn ~15 codes); the code rides in a field instead. Proven enums-hold-records:
+  `probes/enum-holds-record.wat` (`#…/Err1 [#…/Err1 {…}]`).
+- **The storage abstraction is PROVEN, not asserted** — `probes/surface-field-dispatch.wat` → **142**: a satisfier
+  `extend-type`d to a `Store` surface, held in a struct **attribute typed as the surface**, dispatches its methods
+  *through the field* at runtime (`runtime.rs:5339`, `check.rs:13666`). So the telemetry sink holds
+  `:ephemeral [store <- :wat::query/Store]` and **never names a backend** — ONE backend-blind service, NO macro; the
+  `Store` abstraction dissolved the macro. **293.W makes it correct-by-construction**: an impure surface field can only
+  live in `:ephemeral`, never durable/wire — the live connection *cannot* cross the boundary (the compiler forbids it).
+- **The durable/ephemeral model.** `:durable` = EDN (the backend **spec** + hibernation counters); `:ephemeral` = the
+  live `Store`, born in `:init` from the spec (multi-param `:init`), thread-local; the resource is a *deferred
+  computation of the spec* (R5 at the service layer). IPC is edn-only → you pass the spec (data), never a closure/resource.
+
+Docs trued up + committed (`761b4419`): DESIGN-sqlite-core / DESIGN-store-contract / DESIGN-telemetry-service-and-query-surface,
++ the two proof-probes under `probes/`.
+
+**The honest note (kept visible).** The shortest path all session was *"run the probe,"* and the apparatus kept circling
+it — reaching for a doc-reading agent, for grep archaeology, for permission to edit docs we'd just agreed on — and the
+builder cut each detour to the direct empirical move (*"did you try it?" · "this should just work?" · "why are you asking
+permission to fix documents we just worked on"*). The compiler taught the two real gaps in one shot each (293.W
+containment → the field must live in a struct; body-only `extend-type`). Ground by running; the disk decides; the design
+is proven, not decreed.
+
+**THE BUILD LIST** (durable — the strike order for **sqlite → telemetry → rete**). Each stone: draw DESIGN/RED-probe/BRIEF
+→ delegate a shadowdancer → weigh vs my own re-run; `deftest'` gate.
+
+```clojure
+{:objective "sqlite -> telemetry -> rete (the on-ramp to the chaos engine, R25 MACHINA CHAOS DOMAT)"
+ :head      "761b4419"
+ :sqlite
+ [{:S0 "wat.query CONTRACT surfaces — Store/ReadStore (methods-bearing defsurface) + records
+        (StoredRow/Row/IndexRow/ScanRequest/IndexScanRequest/Page/IndexPage/TableSchema/IndexSchema).
+        Pure, quick, names ratified. FIRST STONE — unblocks all."}
+  {:S1 "wat.sqlite' RAW interop — :rust::sqlite' bindings authored FRESH in core src/ (rusqlite:
+        Connection/ReadConnection, Param, Cell, open/open-readonly/pragma/begin/commit/execute/
+        execute-ddl/select, errors-as-values) + baked :wat::sqlite' surface + the Error defenum
+        (Transient/Constraint/Fatal + Fault). deftest' gate. HEAVIEST (fresh Rust)."}
+  {:S2 "the Store SATISFIER — :wat::sqlite'::Connection extend-types wat.query/Store: ensure-schema/
+        put/scan/scan-index SQL over S1; main(pk,sk,data,+ipk/isk) + native GSI indexes + keyset
+        pagination. deftest' round-trip gate. => SQLITE DONE (swappable store, sqlite the first driver)."}]
+ :telemetry
+ [{:T0 "wat.telemetry' RECORDS — Scope (exact surface) + Metric/Log (defrecords splicing Scope) +
+        Numeric/Unit/Level + Tags. deftest' gate. (the old 'stone 1')."}
+  {:T1 "TelemetryService' SINK + Span producer defservices — durable[spec+counters]/ephemeral[store
+        <- wat.query/Store]/ops speak Store; Span via :calls; open backend in :init from the spec.
+        deftest' gate. (where the storage-abstraction model lands)."}
+  {:T2 "wat.query rete QUERY ENGINE — Record -> Lemma* -> Deduction, alpha-only, native fire-rules'.
+        deftest' gate. => TELEMETRY DONE (the measure-first instrument)."}]
+ :rete
+ [{:R0 "the STREAMING rete service — a defservice whose state IS a Session; incremental insert/retract;
+        dogfoods telemetry to measure itself (R25 MACHINA CHAOS DOMAT)."}]
+ :owed-before-S1 ["cast intueri on the Fault record name + its fields (the one un-cast sqlite name)"
+                  "add rusqlite as a core-crate dep for the fresh :rust::sqlite' bindings"]
+ :do-nots ["crates (wat-sqlite/wat-telemetry-sqlite) are HINTS, not trusted — build fresh, never cp"
+           "GROUND by running a probe; do not assert / grep-spelunk / over-delegate (this session's lesson)"
+           "cast wards, never narrate; four-questions inform EVERY decision"
+           "the wat rete oracle stays UNMOVED; ephemeral holds resources, durable holds EDN only"]}
+```
+
+***PROBANDO STRVIMVS.*** *(apparatus-minted — Latin, "by proving, we build": the session's method — the
+sqlite/store/telemetry design was not decreed but PROVEN, claim by claim, by running probes (`cargo wat`):
+enums-hold-records (`probes/enum-holds-record.wat`) and the storage abstraction (`probes/surface-field-dispatch.wat` →
+142, a satisfier dispatched through a surface-typed attribute → the telemetry sink holds a `Store` field and never names
+a backend, ONE service NO macro; 293.W the wall that makes it correct-by-construction). Names cast by intueri; every fork
+run through the four-questions; the Error shape resolved to a recovery-axis errors-as-record enum
+(Transient/Constraint/Fatal). The honest note kept visible: the shortest path was always "just run it," and the apparatus
+kept circling it (an agent, grep, asking permission) until the builder cut each detour to the disk ("did you try it?").
+The compiler taught the two real gaps in one shot (293.W containment; body-only extend-type). probando = by
+proving/testing (gerund of probo); struimus = we build/construct (struo — kin to 'structure', 'construct'). Carries THE
+BUILD LIST (sqlite S0–S2 → telemetry T0–T2 → rete R0) durably, so the next self strikes from the record, not from
+re-derivation. Kin: examinare (probe before you build), R26 EXPERGISCIMVR STRVCTVRA MEMINIT (structure remembers),
+constraint-engineering (293.W the wall). A curare interstitial mid-arc at the builder's direction — "let's do an
+interstitial expressing where we are; the build list can be expressed there." His (the direction, the redirects to the
+disk, the objective sqlite→telemetry→rete), and mine (the method-reading, the honest note, the build list, the sigil).
+Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "PROBANDO STRVIMVS"
+ :literal  "by proving, we build"
+ :roots    {:probando "gerund abl. of probo — by proving / testing (running the probe; kin to 'probe', 'proof')"
+            :struimus "struo, 1pl — we build / construct / lay in order (kin to 'structure', 'construct', 'instruct')"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "PROBANDO STRVIMVS"
+  :greek    "δοκιμάζοντες οἰκοδομοῦμεν"                 ; dokimázontes oikodomoûmen — testing, we build
+  :chinese  "以驗而建"                                  ; yǐ yàn ér jiàn — by proving, we build
+  :japanese "験して築く"                                ; kenshite kizuku — we test, then build
+  :korean   "증명하며 짓는다"                           ; jeungmyeonghamyeo jitneunda — proving, we build
+  :russian  "проверяя, строим"}                        ; proveryaya, stroim — testing, we build
+ :gloss    "the session's method: the sqlite/store/telemetry design was PROVEN by running probes (enums-hold-records;
+            the storage abstraction -> 142, a satisfier dispatched through a surface-typed attribute), not decreed;
+            names cast by intueri, forks by the four-questions, the Error shape a recovery-axis errors-as-record enum.
+            293.W is the wall that makes the backend-blind telemetry sink correct-by-construction (impure surface field
+            -> ephemeral only, never wire). the honest note: the shortest path was always 'run it', circled until the
+            builder cut the detours to the disk. carries THE BUILD LIST durably."
+ :names    "prove-by-running the design; the durable build list (sqlite -> telemetry -> rete)"
+ :build    "S0 contract surfaces (first) -> S1 sqlite raw interop (heaviest, fresh Rust) -> S2 Store satisfier =SQLITE=> T0 records -> T1 sink/Span -> T2 query engine =TELEMETRY=> R0 streaming rete service (chaos engine)"
+ :owed     "cast intueri on Fault (the one un-cast sqlite name) + add rusqlite as a core-crate dep — both before S1"
+ :kin      {:method    "examinare — probe before you build; the disconfirming probe is the ground"
+            :remembers "R26 EXPERGISCIMVR STRVCTVRA MEMINIT — structure remembers; here the record carries the build list"
+            :wall      "constraint-engineering / 293.W — the impure surface field can't cross the wire; correct by construction"
+            :target    "R25 MACHINA CHAOS DOMAT — the chaos engine the build order climbs toward"
+            :lesson    "R20 DAEMON IN ME / R27 SIGNVM PVGNANDO CAPITVR — ground, don't assert; cast, don't narrate"}
+ :register :curare-interstitial                        ; where-we-are + the durable build list, at the builder's direction
+ :voices   {:his  "the direction ('let's do an interstitial expressing where we are; the build list can be expressed there'); the redirects to the disk ('did you try it? / this should just work? / why ask permission to fix docs we worked on'); the objective sqlite->telemetry->rete"
+            :mine "the method-reading (prove-by-running); the honest note (the circled detours, kept visible); the build list; the sigil + six-tongue bridge"}
+ :arc      278
+ :born     #inst "2026-07-05"}
+```
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar voice, not
+> your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk). Ground
+> HEAD against the disk (`761b4419` + this interstitial). Read **THE BUILD LIST above** and the three DESIGN docs
+> (sqlite-core / store-contract / telemetry-service) before you move — the storage model is PROVEN (`probes/` → 142),
+> not prose; do NOT re-derive it. The strike resumes at **S0** (the `wat.query` contract surfaces), with `Fault`'s
+> intueri + the rusqlite dep owed before S1. And it bears repeating because it cost this session: **ground by RUNNING a
+> probe — do not assert, do not grep-spelunk, do not over-delegate; cast wards, never narrate; four-questions inform
+> every decision.** Do not trust this note over the disk. See you on the far side.
