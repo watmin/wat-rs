@@ -1,230 +1,270 @@
 # DESIGN — `TelemetryService'` + the query surface (rete-as-datalog, paginated)
 
-> **STATUS: DESIGN RATIFIED (2026-07-04), unbuilt.** The contractual surface below is settled through the
-> session's casts + rulings (recorded in `278/REALIZATIONS.md` R26 `EXPERGISCIMVR` + the `INCANTO NON NARRO`
-> interstitial). The **query vocabulary names are intueri-cast + ratified**; the **write-side type/op names are
-> provisional** (they get their own intueri cast before code lands). This doc is the durable record so the next
-> self resumes from it, not from re-derivation.
+> **STATUS: DESIGN RATIFIED + REFINED (2026-07-04), unbuilt.** The contractual surface below is settled through
+> the session's rulings. The **query vocabulary is intueri-cast + ratified**; the **write-side names are provisional**
+> (`wat.telemetry/*`, the enums, the producers, the verbs, the store abstraction) — they get a single intueri cast
+> before code lands. This doc is the durable record so the next self resumes from it, not from re-derivation.
+>
+> Refined this session: the **two-layer split** (`wat.query` = the general engine, `wat.telemetry` = its consumer);
+> the **surface architecture** (`Scope`/`Metric`/`Log` exact surfaces, `Record`/`LogMessage` open surfaces —
+> mechanism grounded, below); the **service serves read AND write** (four ops, `defservice` serializes); the
+> **enums grow-as-needed**; the **store is swappable**. All four prior open items are resolved (see § Resolved).
 
-## Why — the tool, rebuilt correctly
+## Why — the interrogation, rebuilt correctly
 
-We are rebuilding the telemetry service as a **`defservice`** — an arc-170 item ("make IPC sane; replace hand-rolled
-services with `defservice`") done *right*. It is also the **exemplar for the rete streaming service** (the chaos
-engine, R25 `MACHINA CHAOS DOMAT`): a `defservice` that persists records and serves a **rete-filtered, paginated
-query** is the shape the streaming datalog inherits.
+*"I cannot diagnose a system I cannot interrogate — we are building the interrogation."* This is the interface the
+builder wanted from **Elasticsearch, CloudWatch, Nagios, Grafana** — not to *be* them, but because he needs
+high-fidelity metrics and logs so **the machines speak and we read them, and rapidly find the next attack** (the
+DDoS/anomaly lineage; the chaos engine, R25 `MACHINA CHAOS DOMAT`). It is *the database is the debugger* made a
+service.
 
-The legacy telemetry stack (`crates/wat-telemetry*`, `Event`/`WorkUnit`/`WorkUnitLog`, arc 085/091) is **annihilated,
-not preserved** (builder: *"we are annihilating what exists — we will not keep any contract that exists"*). Its
-carriers — `HolonAST`, the `:wat::edn::NoTag`/`Tagged` write-strategy newtypes, the `Event` sum type — were the
-**pre-`EdnRepresentable`** way to make structured data round-trip. Arc **300** ("wat source IS EDN") retired the need:
-**records ARE EDN by construction** — a record writes as `#wat.ns/Name {…}` (tagged, round-trip-safe) and decodes
-straight back to the populated record instance. So the data carrier is now the **record itself**, and `HolonAST` /
-`NoTag` / `Tagged` / `Event` do not appear.
+The filter is **reasoning over data, via data — and that is the rete we built.** Pure rules cascading rules at the
+line as server-side filter expressions (`PORTA PORTAM APERIT`): slurp a page of records into working memory,
+alpha-filter, serve the `Deduction`s; want more, resume from the offset (`NextToken`). An assault on the query
+surfaces of Mongo/DDB/the lot — because their filter is not *reasoning*; ours is. **Logs are data here** (pure
+records, EDN — never strings), so the same rete reasons over logs and metrics alike.
 
-## The data model — `(namespace, time, data)`, DynamoDB-shaped
+It is also the **exemplar for `defservice`** (arc-170: "replace the hand-rolled services with defservice," done
+right) **and the instrument the rete streaming service dogfoods to measure itself** — measure-first (R25/R26): the
+rete-as-a-service emits telemetry to the telemetry service to measure its own behavior, and the telemetry service's
+own query-back *is* a datalog which *is* rete. The loop closes; the measurer and the measured are the same substrate
+turned on itself. This lands the assault toward the north star: **`wat-mcp`** — the wat REPL (arc 118 `DVO MVNDI VNA
+LINGVA`) plugged into the machine, usable by any instance.
+
+The legacy telemetry stack is **annihilated, not preserved** (the bridge that got us here — built in Rust once, in
+an early wat once; the shape is what we kept, not the code). Records-are-EDN (arc 300) retired the old carriers
+(`HolonAST`/`NoTag`/`Tagged`/`Event`): a record writes as `#wat.ns/Name {…}` (tagged, round-trip-safe) and decodes
+straight back to the populated instance, so the data carrier is the record itself.
+
+## The two layers — the general engine, and its consumer
+
+- **`wat.query`** — the **general-purpose rete-as-datalog / rete-as-filter.** Domain-blind: it filters *anything*
+  satisfying `wat.query/Record`. The query vocabulary (`Record`/`Lemma`/`Deduction`/`TableSchema`/`IndexSchema`/
+  `IndexTarget`/`Query`/`Result`/`NextToken`) lives here and is ratified. Anyone can write records satisfying the
+  query interface and use the rete-filter to read them back.
+- **`wat.telemetry`** — a **consumer** of `wat.query`. Its `Metric` and `Log` satisfy `wat.query/Record`; the
+  telemetry service writes them and queries them back through the shared engine.
+
+## The data model — `(namespace, time, data)`, DynamoDB-shaped, storage swappable
 
 A DynamoDB single-table design **per store**: primary key `(pk, sk)` = `(namespace, iso8601-nanos)`; `data` is the
-stored record's **tagged EDN**. Rows are time-sorted within a namespace. The query is "select from a namespace over a
-timeframe, filter server-side, paginate." Read `data` back → the record instance → rete matches on it.
+stored record's **tagged EDN**. Rows are time-sorted within a namespace; a query selects a namespace over a
+timeframe, filters server-side (rete), paginates.
 
-**Metrics and logs are different shapes → separate tables** (builder ruling). A batch is homogeneous — all metrics OR
-all logs, never mixed — and holds ≥ 1.
+**The store is swappable.** What we depend on is *"a thing that holds records indexed and sorted by `(pk, sk)`"* —
+that abstraction is the swap point at scale. `sqlite` is **one driver** (the local default); DDB, Mongo, whatever,
+slot in behind the same shape. `sqlite` is *not* the requirement, only the current holder-of-records-by-`(pk,sk)`.
 
-## The correlation model — the unit of work (from the `WorkUnit` / `WorkUnitLog` review)
+**Metrics and logs are different shapes → separate stores** (per kind). A batch is homogeneous — all metrics OR all
+logs, never mixed — and holds ≥ 1.
+
+## The correlation model — the unit of work; `Scope` the shared constraint
 
 `Metric` and `Log` are not independent rows — they are the output of a **unit of work** (a measurement scope), and
-the whole point is **correlation**. The legacy `WorkUnit` / `WorkUnitLog` had this shape *right* (builder: *"they had
-the shape i wanted, but they were built wrong"*); the rebuild keeps the shape, fixes the carriers.
+the whole point is **correlation**. A unit of work opens with a `namespace` + `tags`, mints a **`uuid`** (its
+identity), bumps counters (`incr!`), times sub-blocks (`timed`), and emits its metrics and logs sharing that `uuid`.
+Metrics ↔ logs join on it — the trace/span observability model, served by a **GSI on `uuid`**.
 
-- **A unit of work** = a scope opened with a `namespace` + `tags`; it mints a **`uuid`** (its identity). Inside it,
-  the body bumps counters (`incr!`) and times sub-blocks (`timed`). At scope-close it ships **metrics**: each counter
-  → ONE `Metric` (final count, `Numeric/i64`, `Unit/Count` — CloudWatch model); each duration → ONE `Metric` PER
-  SAMPLE (`Numeric/f64`, `Unit/Seconds`). Every metric carries the scope's `namespace`, `uuid`, `tags`, and span.
-- **A logger** bound to the scope emits **logs** that pull `namespace` + `uuid` + `tags` from the same scope, plus a
-  `caller` (producer identity), a `level`, and a structured `message` (a pure record).
-- **`uuid` is the correlation key.** A unit-of-work's `Metric`s and `Log`s share it — "everything in this unit of
-  work" is one `uuid`, and metrics ↔ logs join on it. The trace/span observability model — exactly what a **GSI on
-  `uuid`** serves.
+The four fields common to both — `namespace`, `uuid`, `tags`, `time` — are lifted into **`Scope`**, an **exact
+surface** that both `Metric` and `Log` satisfy. This makes "same unit of work" a **structural fact** (a shared
+constraint), carries the correlation key by construction, and DRYs the common shape. `[name: PROVISIONAL — intueri]`
 
-**Producer helpers (rebuilt): `WorkUnit'` / `WorkUnitLog'`** — the scope + logger that mint the `uuid`, collect
-counters/durations into `Metric` records and level'd `Log` records, and ship them through `write-metrics` /
-`write-logs`. Same behavior `WorkUnit`/`WorkUnitLog` always had; clean carriers (records not `HolonAST`/`WatAST`;
-`HashMap<Keyword,String>` tags; a `defservice` sink). `[names: PROVISIONAL]`
+## The surface architecture (structural, all the way down)
 
-**The closed-set rule (why `value`/`unit`/`level` are enums).** A field over a **closed set** is an enum whose
-variant name holds the value (`Numeric` i64/f64 · `Unit` Count/Seconds/… · `Level` Debug/Info/Warn/Error) — only valid
-values are representable, and they round-trip through EDN (`wat-tests/edn/roundtrip.wat`). A field that is an **open
-identifier** stays `Keyword`/`String` (`namespace`, `uuid`, `caller`, `name`, tag values). Constraint engineering at
-the field layer.
+`defsurface` with `:features [field :- Type …]` is an **exact surface** (required typed fields); `:features []` is an
+**open surface** (any record with the right holder satisfies it). A concrete record **structurally satisfies** a
+surface when it carries all the floor fields at those types (grounded: `wat/core.wat` `:wat::core::Error`/`Fault`,
+arc 296 S1/S2). So the whole contract is imposed structurally — a record that isn't the right shape *cannot be
+written* (constraint engineering: no form for the wrong thing).
+
+```
+wat.query/Record        open surface   — anything the query engine matches (a stored row → WM fact)
+  └─ Scope              exact surface  — the correlation core (namespace, uuid, tags, time); the shared constraint
+       ├─ Metric        exact surface  — Scope ⊕ start-time ⊕ name ⊕ (value :- Numeric) ⊕ (unit :- Unit)
+       └─ Log           exact surface  — Scope ⊕ caller ⊕ (level :- Level) ⊕ (message :- LogMessage)
+            └─ LogMessage   open surface — any pure record the caller defines
+```
+
+`Metric` is exact all the way down (closed `Numeric` payload); `Log` is exact-around-an-open-message. Both carry
+Scope's four fields (so both satisfy `Scope` by structural satisfaction — the DRY splice `[~@Scope own…]` is a
+nicety, not a requirement), and both satisfy `wat.query/Record`.
 
 ## The contractual surface (the source of truth for callers)
 
 ```clojure
-;; ═══ TelemetryService' — the contractual surface ═══════════════════════════════════════
+;; ═══ wat.query — the general rete-as-datalog (domain-blind, ratified) ═════════
 
-;; ─────────────────────────── WRITE ───────────────────────────
-;; You pass a BATCH (size ≥ 1). A batch is all-metrics OR all-logs — never mixed.
-;; The service stamps sk (time) on receipt.
+(wat.core/defsurface wat.query/Record   :holder wat.core/Record :features [])   ;; open: a stored row asserted into WM
+(wat.core/defrecord  wat.query/Lemma     [])                                     ;; intermediate stepping-stone fact
+(wat.core/defrecord  wat.query/Deduction [record :- wat.query/Record])           ;; terminal; the only fact queried out
 
-;; Metric and Log are the CORRELATED unit-of-work records (see "The correlation model").
-;; Both satisfy wat.query/Record. Their index-key fields (namespace, the time, uuid, caller,
-;; name) get projected to columns; everything else rides in the record's tagged EDN.
-
-(wat.core/typealias wat.query/Tags               ;; imposed on both paths
-  (wat.core/HashMap wat.core/Keyword wat.core/String))
-
-;; value's TYPE is held by its own variant NAME — a count is #Numeric/i64 [7], a duration #Numeric/f64 [0.42].
-;; enums round-trip through EDN (wat-tests/edn/roundtrip.wat: #ns/Variant [body] reconstructed from the type registry).
-(wat.core/defenum wat.query/Numeric wat.enum/Pure
-  i64 [val :- wat.core/i64]
-  f64 [val :- wat.core/f64])
-
-;; the metric's SEMANTIC unit — a CLOSED set, so an enum (name holds value); PROVISIONAL variant set
-(wat.core/defenum wat.query/Unit wat.enum/Pure
-  Count Seconds Millis Bytes Percent)
-
-;; a log's level — a CLOSED set, so an enum (same principle as Unit / Numeric)
-(wat.core/defenum wat.query/Level wat.enum/Pure
-  Debug Info Warn Error)
-
-;; a metric — a unit-of-work's counter/duration data point (was Event::Metric)   [names: PROVISIONAL]
-(wat.core/defrecord wat.query/Metric
-  [namespace  :- wat.core/String        ;; pk
-   uuid       :- wat.core/Uuid          ;; unit-of-work correlation id       → GSI
-   start-time :- wat.core/Instant       ;; scope span (start)
-   end-time   :- wat.core/Instant       ;; scope span (end) — sk
-   name       :- wat.core/Keyword       ;; the counter/timer name            → GSI candidate
-   value      :- wat.query/Numeric      ;; the count/duration — variant name (i64/f64) holds the storage type
-   unit       :- wat.query/Unit         ;; the semantic unit — a closed enum, orthogonal to Numeric's storage type
-   tags       :- wat.query/Tags])
-
-;; a log message — a SURFACE: the caller passes ANY pure record they define
-(wat.core/defsurface wat.query/LogMessage :holder wat.core/Record :features [])
-
-;; a log — a unit-of-work's structured log line (was Event::Log)                 [names: PROVISIONAL]
-(wat.core/defrecord wat.query/Log
-  [namespace :- wat.core/String         ;; pk
-   uuid      :- wat.core/Uuid           ;; correlation id                    → GSI
-   time      :- wat.core/Instant        ;; emit moment — sk
-   caller    :- wat.core/Keyword        ;; producer identity                 → GSI candidate
-   level     :- wat.query/Level         ;; a closed enum (name holds value)
-   tags      :- wat.query/Tags
-   message   :- wat.query/LogMessage])  ;; a PURE RECORD (was Tagged<HolonAST> over a quoted WatAST)
-
-;; the write verbs (defservice ops):
-;;   (TelemetryService'/write-metrics conn (…batch of Metric…))  -> #…/WriteResponse {:ok true}
-;;   (TelemetryService'/write-logs    conn (…batch of Log…))     -> #…/WriteResponse {:ok true}
-
-;; ─────────────────────────── QUERY ───────────────────────────
-;; You pass a Query, you get a paginated Result. Server-side filter is rete:
-;;   each row → Record fact → user rules fire → deduce Lemma* → Deduction* → returned.
-
-;; stored key-layouts (declared at creation) — "Schema", the definition:
+;; stored key-layouts (declared at creation):
 (wat.core/defrecord wat.query/TableSchema [pk :- :String  sk :- :String])              ;; base: pk=namespace sk=iso8601
 (wat.core/defrecord wat.query/IndexSchema [pk :- :String  sk :- :String
                                            ipk :- :String isk :- :String])             ;; a GSI's projected key columns
-
-;; the runtime selectors + envelopes:
+;; runtime selectors + envelopes:
 (wat.core/defrecord wat.query/IndexTarget [name :- :String  pk :- :String  sk :- :String]) ;; which GSI + its key-values
 (wat.core/defrecord wat.query/NextToken   [resume-time :- wat.core/Instant])               ;; the sk we stopped at
 
 (wat.core/defrecord wat.query/Query
-  [table      :- wat.core/Keyword                        ;; :metrics | :logs  ← OPEN: field vs two verbs (see below)
-   namespace  :- wat.core/String                         ;; the pk
+  [namespace  :- wat.core/String                        ;; the pk
    start-time :- wat.core/Instant                        ;; sk range lo
    end-time   :- wat.core/Instant                        ;; sk range hi
    index      :- (wat.core/Option wat.query/IndexTarget) ;; None = base table; Some = a GSI
    rules      :- (wat.core/Vector wat.rete/Rule)         ;; caller's filter rules — may deduce ONLY Lemma / Deduction
    next-token :- (wat.core/Option wat.query/NextToken)]) ;; resume cursor
+;;  NB: NO `table` field — the kind rides the VERB (QueryMetrics / QueryLogs), not a field.
 
-;; the fact ladder the rules work over (server-side, per page):
-;;   Record  →  Lemma*  →  Deduction   (Deduction wraps the matched Record; the ONLY fact queried out)
-
-(wat.core/defsurface wat.query/Record   :holder wat.core/Record :features [])   ;; a stored row asserted into WM
-(wat.core/defrecord  wat.query/Lemma     [])                                     ;; intermediate stepping-stone fact
-(wat.core/defrecord  wat.query/Deduction [record :- wat.query/Record])           ;; terminal; the only fact queried out
-(wat.core/defrecord  wat.query/Result
+(wat.core/defrecord wat.query/Result
   [deductions :- (wat.core/Vector wat.query/Deduction)   ;; the matches this page
-   next-token :- (wat.core/Option wat.query/NextToken)]) ;; Some = call again to continue; None = done
+   next-token :- (wat.core/Option wat.query/NextToken)]) ;; Some = call again; None = done
 
-;; the query verb:
-;;   (TelemetryService'/query conn a-Query)  ->  a-Result
+;; ═══ wat.telemetry — a consumer of wat.query [names: PROVISIONAL, intueri] ════
+
+(wat.core/typealias wat.telemetry/Tags (wat.core/HashMap wat.core/Keyword wat.core/String))
+
+;; value's storage-type held by its variant NAME. GROWS AS WE CHOOSE — i64/f64 to launch,
+;; the rest of Rust's/wat's numbers (incl. the arc-300 BigInt/BigRational tower) added later, as cases demand.
+(wat.core/defenum wat.telemetry/Numeric wat.enum/Pure
+  i64 [val :- wat.core/i64]
+  f64 [val :- wat.core/f64])
+
+;; the metric's semantic unit — a closed enum (name holds value); GROWS AS IT MUST.
+(wat.core/defenum wat.telemetry/Unit wat.enum/Pure
+  Count Seconds Millis Bytes Percent)
+
+;; a log's level — a closed enum (same principle).
+(wat.core/defenum wat.telemetry/Level wat.enum/Pure
+  Debug Info Warn Error)
+
+;; the correlation core — the shared constraint both Metric and Log satisfy (exact surface).
+(wat.core/defsurface wat.telemetry/Scope :holder wat.core/Record
+  :features [namespace :- wat.core/String       ;; pk
+             uuid      :- wat.core/Uuid          ;; unit-of-work correlation id  → GSI
+             tags      :- wat.telemetry/Tags     ;; dimensions
+             time      :- wat.core/Instant])     ;; the sk
+
+;; a metric — EXACT surface: Scope ⊕ span-start ⊕ name ⊕ value ⊕ unit.
+(wat.core/defsurface wat.telemetry/Metric :holder wat.core/Record
+  :features [namespace  :- wat.core/String       ;; ⎫
+             uuid       :- wat.core/Uuid          ;; ⎬ Scope  (structurally; DRY-splice [~@Scope …] optional)
+             tags       :- wat.telemetry/Tags     ;; ⎪
+             time       :- wat.core/Instant       ;; ⎭ = end-time, the sk
+             start-time :- wat.core/Instant       ;; the scope span (start)
+             name       :- wat.core/Keyword       ;; the counter/timer name          → GSI candidate
+             value      :- wat.telemetry/Numeric  ;; the count/duration — variant name holds the storage type
+             unit       :- wat.telemetry/Unit])   ;; the semantic unit — orthogonal to Numeric's storage type
+
+;; a log message — OPEN surface: the caller passes ANY pure record they define (no field/method requirements).
+(wat.core/defsurface wat.telemetry/LogMessage :holder wat.core/Record :features [])
+
+;; a log — EXACT surface (exact envelope, open payload): Scope ⊕ caller ⊕ level ⊕ message.
+(wat.core/defsurface wat.telemetry/Log :holder wat.core/Record
+  :features [namespace :- wat.core/String        ;; ⎫
+             uuid      :- wat.core/Uuid           ;; ⎬ Scope
+             tags      :- wat.telemetry/Tags      ;; ⎪
+             time      :- wat.core/Instant        ;; ⎭ = emit moment, the sk
+             caller    :- wat.core/Keyword        ;; producer identity                → GSI candidate
+             level     :- wat.telemetry/Level     ;; a closed enum
+             message   :- wat.telemetry/LogMessage]) ;; a PURE RECORD (open surface)
+
+;; the producers — the unit-of-work SCOPE (mints uuid, incr!/timed → Metric-shaped rows at close)
+;; and the LOGGER (pulls namespace+uuid+tags from the scope, + caller + level + message → Log-shaped rows).
+;; They are named in the Metric/Log FAMILIES (WorkUnit'/WorkUnitLog' were bridge placeholders — the shape kept,
+;; the name retired). One intueri cast per family names the record AND its producer. [names: PROVISIONAL]
+
+;; ═══ TelemetryService' — the defservice: read AND write, one op at a time ═════
+;;   (TelemetryService'/WriteMetrics conn (…batch of Metric…))  -> #…/WriteResponse {:ok true}
+;;   (TelemetryService'/QueryMetrics conn a-Query)              -> a-Result
+;;   (TelemetryService'/WriteLogs    conn (…batch of Log…))     -> #…/WriteResponse {:ok true}
+;;   (TelemetryService'/QueryLogs    conn a-Query)              -> a-Result
+;; defservice SERIALIZES — one op at a time (the actor IS the synchronization; the sqlite handle in :ephemeral,
+;; never crossing a thread). So ONE process serves both: write during a run, then diagnose after the fact on the
+;; same db — or serve both live, the actor serializing. [service name + verb names: PROVISIONAL, intueri]
 ```
 
 ## Semantics
 
 ### Write
-- Two homogeneous batch paths (`write-metrics` / `write-logs`), each ≥ 1. The service stamps `sk` (iso8601-nanos) on
-  receipt. Each record is written as its **tagged EDN** into the `data` column of its table, plus the projected
+- Two homogeneous batch paths (`WriteMetrics` / `WriteLogs`), each ≥ 1. The service stamps `sk` (iso8601-nanos) on
+  receipt. Each record is written as its **tagged EDN** into the `data` column of its store, plus the projected
   key/index columns (below).
 
 ### Query — the rete filter, per page
-Server-side filtering is **rete-as-datalog**, run **one page at a time**:
+Server-side filtering is **rete-as-datalog** (`wat.query`), run **one page at a time**:
 1. Range-scan a page of rows by `(pk, sk)` (or the GSI's projected columns if `index` is `Some`).
 2. Assert each row as a **`Record`** fact into working memory.
-3. Fire the caller's `rules`. Rules cascade forward (`PORTA PORTAM APERIT`): a rule deduces a **`Lemma`** (a
-   stepping-stone), a downstream rule stands on it, until a terminal rule deduces a **`Deduction`** wrapping the
-   matched `Record`.
+3. Fire the caller's `rules`. Rules cascade forward (`PORTA PORTAM APERIT`): deduce a **`Lemma`** (stepping-stone),
+   a downstream rule stands on it, until a terminal rule deduces a **`Deduction`** wrapping the matched `Record`.
 4. **Query out only `Deduction`s.** Return them + the `sk` we stopped at as the `next-token`.
 
-**The wall — rules may deduce ONLY `Lemma` or `Deduction`.** A closed set; a rule that deduces anything else has no
-form. So "the results" is unambiguously "every `Deduction` after the fire."
+**The wall — rules may deduce ONLY `Lemma` or `Deduction`.** A closed set; anything else has no form. **No beta tree
+— pagination imposes it:** a join partner may be on an unfetched or evicted page, so every rule is **per-record
+(alpha-only) by construction**, which is exactly what makes the query **streamable**. (Rete terms: *alpha* = one
+fact matches one pattern; *beta* = different facts join; *production* = all conditions satisfied → fire → insert a
+fact. The query path needs only alpha + production.)
 
-**There is NO beta tree — pagination imposes it, precisely.** A beta (join) node correlates facts co-resident in
-working memory, but a paginated query never holds the whole dataset — a join partner may be on a page not yet fetched
-or already evicted. So a cross-record rule *cannot fire*: the join has no form. Every rule is **per-record (alpha-only)
-by construction**, which is exactly what makes the query **streamable** — window the store, alpha-filter each page in
-isolation, emit deductions + resume token, never hold the full dataset.
-
-Rete-term note (for the record, since it recurs): **alpha** = "does THIS one fact match THIS pattern?" (all constraints
-on one record — `form::matches?`). **beta** = "do these DIFFERENT facts join?" (a `?var` shared across conditions,
-across records). **production/deduction** = "all conditions satisfied → fire → insert a fact." The query path needs
-only alpha matching + production firing.
+### Read AND write in one service (`defservice` serializes)
+The service exposes all four ops. `defservice` is an actor — `handle(msg, state) → (reply, state')`, **one op at a
+time** — so `WriteMetrics`/`QueryMetrics`/`WriteLogs`/`QueryLogs` never race over the shared `sqlite` handle; the
+one-op-at-a-time *is* the mutex we don't write (zero-mutex / CSP). Pop up a `TelemetryService'` in a fresh process
+with a db handle and it serves whatever it's asked — write live, diagnose after, or both.
 
 ### Pagination (DynamoDB-style)
-`NextToken {resume-time}` is the `sk` the scan stopped at. Fetch a full page (say 10 rows), the rules deduce M matches
-(M ≤ page), return the M `Deduction`s + `NextToken{last-sk}`. The client re-calls with the token to continue. A page
-that reaches the end with no deductions returns empty `deductions` + `next-token None` (done).
+`NextToken {resume-time}` is the `sk` the scan stopped at. Fetch a page, the rules deduce M matches, return the M
+`Deduction`s + `NextToken{last-sk}`; the client re-calls with the token to continue. A page that reaches the end
+with no deductions returns empty `deductions` + `next-token None` (done).
 
-### GSIs — the crux, and why sqlite needs updates
-**SQL cannot index into the opaque `data` EDN.** A base-table query ranges on `(pk, sk)` — columns we have. A GSI
-query needs `(pk, sk, ipk, isk)`, and `ipk`/`isk` live *inside* the record's EDN, invisible to SQL. So supporting GSIs
-requires the **write path to project the index-key attributes out of the record into real, indexed columns** at write
-time — one materialized secondary index per GSI. `TableSchema` (base `pk`/`sk`) and `IndexSchema` (a GSI's projected
-`pk`/`sk`/`ipk`/`isk`) are distinct types precisely because they declare which materialized columns each query mode
-ranges on. `IndexTarget {name pk sk}` selects a GSI at query time. Both modes then flow through the identical
-**page → assert → fire → paginate** loop; only the SQL `WHERE`/index differs.
+### GSIs — the crux, and why the store needs projection
+SQL cannot index into the opaque `data` EDN. A base-table query ranges on `(pk, sk)`; a GSI query needs
+`(pk, sk, ipk, isk)`, and `ipk`/`isk` live *inside* the record's EDN. So supporting GSIs requires the **write path
+to project the index-key attributes out of the record into real, indexed columns** at write time — one materialized
+secondary index per GSI (e.g. the `uuid` correlation index). `TableSchema` (base) and `IndexSchema` (a GSI's
+projected columns) declare which columns each mode ranges on; `IndexTarget {name pk sk}` selects a GSI at query
+time. Both modes flow through the identical page → assert → fire → paginate loop; only the store's `WHERE`/index
+differs — and the store is the swap point, so this is a driver concern.
 
-## Open items (flagged, not decided)
-1. **Table selection.** `Query.table :- :metrics | :logs` (one `query` verb) **vs** two verbs
-   `query-metrics` / `query-logs` (mirroring the two write verbs). Ratify + (if the field wins) intueri-cast the name.
-2. **Names are provisional** — `Metric` / `Log` / `LogMessage` / `Numeric` / `Unit` / `Level` / `WorkUnit'` /
-   `WorkUnitLog'` / `write-metrics` / `write-logs`, the `Unit`/`Level` variant names, and the namespace (`wat.query`
-   vs `wat.telemetry`). Cast intueri before code lands (naming discipline below).
-3. **Enum variant SETS** — the provisional `Unit` set (`Count Seconds Millis Bytes Percent`), and whether `Numeric`
-   needs more than `i64`/`f64` (e.g. bigint). Finalize against the metric domain.
-4. **The shared correlation core.** `namespace` + `uuid` + `tags` (+ the time) are common to `Metric` and `Log`.
-   Splice a `wat.query/Scope` surface into both (arc-293 `[~@:Scope own…]`) so they DRY-share it, or keep them flat?
-   A real structural choice.
+## Resolved (this session — the four open items closed)
 
-**RESOLVED this session:** `value` is `wat.query/Numeric` (the name-holds-the-type enum, `i64`/`f64`); `unit` is
-`wat.query/Unit`; `level` is `wat.query/Level` — the closed-set rule (a closed enumeration is an enum, name holds
-value; an open identifier stays `Keyword`/`String`).
+1. **Table selection** → **the kind rides the verb.** Four ops (`WriteMetrics`/`QueryMetrics`/`WriteLogs`/
+   `QueryLogs`); `Query` **drops its `table` field** — the verb already knows the store.
+2. **Namespace** → **two layers.** `wat.query` = the general rete-as-datalog engine (domain-blind); `wat.telemetry`
+   = the consumer holding `Metric`/`Log`/`Scope`/the enums/the service.
+3. **Enums grow-as-needed.** `Numeric` = `i64` + `f64` to launch (the rest of Rust's/wat's numbers, incl. BigInt/
+   BigRational, added later as chosen); `Unit` = the current set, grown as it must. The closed-set→enum rule holds;
+   the *set* is open to growth, not frozen.
+4. **The correlation core is a shared surface.** `Scope` (exact surface: `namespace`/`uuid`/`tags`/`time`) — a
+   shared constraint both `Metric` and `Log` satisfy structurally.
+
+Plus, ruled this session:
+- **The service serves read AND write** (four ops; `defservice` serializes one-op-at-a-time; one process serves both).
+- **`Metric`/`Log`/`Scope` are exact surfaces; `LogMessage`/`Record` are open surfaces** (mechanism grounded:
+  `defsurface :features [typed fields]` + structural satisfaction).
+- **The store is swappable** (`sqlite` is one driver behind the holds-records-by-`(pk,sk)` abstraction).
+- **The producers fold into the `Metric`/`Log` families** (`WorkUnit'`/`WorkUnitLog'` retired as names; shapes kept).
 
 ## Build implications (for the strike, later)
-- **`crates/wat-telemetry-sqlite` needs updates**: the `(pk, sk, data, …projected-index-columns)` table layout + GSI
-  secondary indexes + the write-path projection of index-key attributes out of the record; and a range-scan/page
-  read-path keyed on `(pk, sk)` / the GSI columns. (The current arc-085 `auto-*` enum-derive is NOT the fit — this is a
-  fixed `(pk, sk, data, …)` layout, not a per-variant derive.)
-- **`TelemetryService'` is a `defservice`** (baked source in `crates/wat-telemetry-sqlite/wat/telemetry/`), holding the
-  sqlite handle in `:ephemeral`, with the write + query ops. It internally uses the `:rust::sqlite::*` interop (a
-  baked source may; consumers use the `:wat::` verbs — arc-002 `NAMESPACE-PRINCIPLE`).
-- **The query engine is a rete consumer** — alpha-only, `fire-rules'` (native), Record→Lemma→Deduction. It exercises
-  the smallest slice of the engine (no beta), and is the on-ramp to the streaming rete service (R25).
+
+- **The store layer** (currently `crates/wat-telemetry-sqlite`) needs the `(pk, sk, data, …projected-index-columns)`
+  table layout + GSI secondary indexes + the write-path projection of index-key attributes out of the record; and a
+  range-scan/page read-path keyed on `(pk, sk)` / the GSI columns — all behind the **swappable store abstraction**
+  (name: intueri territory). (The arc-085 `auto-*` enum-derive is NOT the fit — this is a fixed
+  `(pk, sk, data, …)` layout, not a per-variant derive.)
+- **`TelemetryService'` is a `defservice`** (baked source in `crates/wat-telemetry-sqlite/wat/telemetry/`), holding
+  the store handle in `:ephemeral`, with the four ops. It uses `:rust::sqlite::*` interop (a baked source may;
+  consumers use the `:wat::` verbs — arc-002 `NAMESPACE-PRINCIPLE`).
+- **The query engine is a `wat.query` rete consumer** — alpha-only, `fire-rules'` (native), `Record → Lemma* →
+  Deduction`. The smallest slice of the engine (no beta), and the on-ramp to the streaming rete service (R25), which
+  will **dogfood this telemetry service to measure itself.**
+- **Names**: draw the whole `wat.telemetry` + store vocabulary as a candidate artifact and **cast intueri once**
+  before code lands (naming discipline below).
 
 ## Naming discipline
+
 The query vocabulary (`Record` / `Lemma` / `Deduction` / `TableSchema` / `IndexSchema` / `IndexTarget` / `Query` /
-`Result` / `NextToken`) is **intueri-cast + ratified** this session. Standing rule (builder): **every naming decision
-is resolved by CASTING intueri** — materialize the candidates as an artifact, spawn the ward, weigh its verdict,
-ratify — never by narrating the ward. (`feedback_cast_wards_never_narrate_naming_via_intueri`; 278 interstitial
-`INCANTO NON NARRO`.)
+`Result` / `NextToken`) is **intueri-cast + ratified**. The **write-side vocabulary is provisional** — the
+`wat.telemetry` namespace, `Scope` / `Metric` / `Log` / `LogMessage`, `Numeric` / `Unit` / `Level`, the producers
+(the metric-scope + logger), the four verbs, and the **store abstraction** + runtime `table`/`index` nouns. Standing
+rule (builder): **every naming decision is resolved by CASTING intueri** — materialize the candidates as an
+artifact, spawn the ward, weigh its verdict, ratify — never by narrating the ward.
+(`feedback_cast_wards_never_narrate_naming_via_intueri`; 278 interstitial `INCANTO NON NARRO`.)
