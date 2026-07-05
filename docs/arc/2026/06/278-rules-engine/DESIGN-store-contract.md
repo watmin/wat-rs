@@ -17,21 +17,37 @@ So the design is not "the sqlite driver." It is **the contract** — and the mea
 that sqlite, mysql, and mongo can each satisfy it while sharing *nothing* internally (see § The abstraction measure).
 Exploiting a backend's features (native indexes, WAL, keyset pagination) is a **private driver detail the contract hides.**
 
-## The data model — DynamoDB as the narrow waist
+## The data model — DynamoDB as the narrow waist; `(pk, sk, data)` all EDN
 
-A record is **`(pk, sk, data)`**:
-- **`pk`** — partition key (a string): *which namespace* the record belongs to.
-- **`sk`** — sort key (an **orderable** string): time-ordering within the partition (iso8601-nanos for telemetry).
-- **`data`** — an **OPAQUE payload the backend NEVER parses.** It is the record's tagged EDN; only the consumer + rete
-  decode it. The backend stores bytes and returns bytes.
+A record is **`(pk, sk, data)`** — **all three are EDN forms**, and the backend **parses none of them**:
+- **`pk`** — the partition key: *just enough EDN to name a partition* (a namespace, an entity kind, …).
+- **`sk`** — the sort key: *just enough EDN to sort within the partition.* An **orderable** string; NOT assumed to be
+  time (time is one consumer's choice).
+- **`data`** — the record's full tagged EDN (the most robust form). Opaque to the backend; only the consumer + rete
+  decode it.
 
-A **named GSI** (global secondary index) is an independent access path defined by two **projected keys `(ipk, isk)`**.
-Because `data` is opaque, **the backend cannot derive the index keys from it** — so the **consumer supplies `(ipk, isk)`
-per index at write time** (the write path knows the record's shape; the backend does not). A GSI query selects by `ipk`
-and ranges/sorts by `isk`, returning the same opaque `data`.
+The store keys and orders on `pk`/`sk` and returns `data`; it stores serialized strings and **never inspects their
+structure.**
+
+**Keys are strings that are EDN/s-expr data forms** — this is the load-bearing convention. A key like
+`#wat.telemetry'/sk {:kind :metric :name "requests" :time #inst "…"}` serializes to the sort string, and the *same
+string* **hydrates back into a domain object** (`read-string` → a record) in the consumer's hand — copy a key out of a
+log, parse it into existence, hand it to a func. The **consumer owns key structure and order-preservation** (ISO-8601
+time sorts lexicographically; the consumer builds sensible keys); the store **never policies them** — a nonsense key
+just yields a nonsense query result. One partition holds **unboundedly many sort-key shapes** (`{:kind :metric …}`,
+`{:kind :log …}`, `{:uow …}`); you slice with a **prefix/range query on `sk`** — the exact single-table-design power,
+but over **typed, hydratable EDN forms**, not Rick-Houlihan `TYPE#id#TYPE#id` term-octothorpe strings (no delimiter
+grammar to escape or collide with).
+
+A **named GSI** is an independent access path defined by two **projected keys `(ipk, isk)`** (also EDN-form strings).
+Because `data` is opaque, **the backend cannot derive the index keys from it** — the **consumer supplies `(ipk, isk)`
+per index at write time.** A GSI query selects by `ipk`, prefix/range-scans by `isk`, returns the same opaque `data`.
 
 This is DynamoDB's model used deliberately as the **narrow waist** ([[project_wat_is_linux_best_of_breed]]): the minimal
-key-value+index shape every real store can express, so a consumer written to it ports across backends unchanged.
+key-value+index shape every real store expresses, so a consumer written to it ports across backends unchanged. **The
+store hosts data; the consumer sets the rules** — how records map to `(pk,sk)`, what the sort-key shapes mean, which GSIs
+to project, and (for telemetry) that a metrics `sk` is time so the prefix/range *is* the time slice. The store is dumb
+and general; the intelligence lives in the consumer.
 
 ## The contract — the `Store` surface
 
@@ -45,7 +61,7 @@ surface's `:holder` bound is `:wat::core::Struct` (widest: accepts struct/record
 ;; open / open-readonly are per-BACKEND free functions (a constructor, not a Store method) — each backend
 ;; provides its own, returning a value that satisfies Store / ReadStore.
 
-;; ═══ the contract — names PROVISIONAL (intueri) ══════════════════════════════════════════════
+;; ═══ the contract — names intueri-cast + ratified (2026-07-05) ═════════════════════════════════
 (wat.core/defsurface wat.query/Store :holder wat.core/Struct
   :features
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at consumer init.
@@ -55,42 +71,51 @@ surface's `:holder` bound is `:wat::core::Struct` (widest: accepts struct/record
    ;; to for each declared GSI (supplied by the consumer's write path — the backend cannot read `data`).
    (put [self <- :Store  rows <- (wat.core/Vector wat.query/StoredRow)] -> wat.query/Ok)
 
-   ;; range-scan a PAGE on the base key: pk fixed, sk in [lo,hi], ordered by sk ASC, after `cursor`.
-   ;; returns up to `limit` rows (sk, data) + a next-cursor (the last sk) iff more remain.
-   (scan [self <- :Store  q <- wat.query/ScanQuery] -> wat.query/Page)
+   ;; a PAGE on the base key: pk fixed, sk in a prefix/range, ordered ASC, after `cursor`.  → Page of Row.
+   (scan [self <- :Store  q <- wat.query/ScanRequest] -> wat.query/Page)
 
-   ;; range-scan a PAGE on a named GSI: ipk fixed, isk in [lo,hi], ordered by isk ASC, after `cursor`.
-   (scan-index [self <- :Store  q <- wat.query/IndexScan] -> wat.query/Page)])
+   ;; a PAGE on a named GSI: ipk fixed, isk in a prefix/range, ordered ASC, after `cursor`.  → IndexPage of IndexRow.
+   (scan-index [self <- :Store  q <- wat.query/IndexScanRequest] -> wat.query/IndexPage)])
 
 ;; a read-only satisfier — the capability-honest half (the type is the proof a reader cannot write).
-;; carries only the read half of Store.
 (wat.core/defsurface wat.query/ReadStore :holder wat.core/Struct
-  :features [(scan       [self <- :ReadStore  q <- wat.query/ScanQuery]  -> wat.query/Page)
-             (scan-index [self <- :ReadStore  q <- wat.query/IndexScan]  -> wat.query/Page)])
+  :features [(scan       [self <- :ReadStore  q <- wat.query/ScanRequest]      -> wat.query/Page)
+             (scan-index [self <- :ReadStore  q <- wat.query/IndexScanRequest] -> wat.query/IndexPage)])
 
-;; ═══ the value shapes the contract speaks (records; some already ratified in wat.query) ═══════
+;; ═══ the value shapes the contract speaks — keys are EDN-form STRINGS (see § data model) ═══════
 ;; already ratified: TableSchema [pk sk] · IndexSchema [pk sk ipk isk] · NextToken [resume-time]
+
+;; — the WRITE input —
 (wat.core/defrecord wat.query/StoredRow                       ;; one record to put
-  [pk       :- wat.core/String
-   sk       :- wat.core/String
-   data     :- wat.core/String                                ;; the tagged EDN, opaque to the backend
+  [pk         :- wat.core/String                              ;; EDN-form key string; the consumer serializes ↔ hydrates
+   sk         :- wat.core/String
+   data       :- wat.core/String                              ;; the record's tagged EDN, opaque to the backend
    index-keys :- (wat.core/HashMap wat.core/String wat.query/IndexKey)])  ;; index-name → (ipk, isk)
 (wat.core/defrecord wat.query/IndexKey  [ipk :- wat.core/String  isk :- wat.core/String])
 
-(wat.core/defrecord wat.query/ScanQuery                       ;; a base-table page request
+;; — the READ results (what scan / scan-index hand back; the consumer HYDRATES `data` + works the keys) —
+(wat.core/defrecord wat.query/Row      [pk :- wat.core/String  sk :- wat.core/String  data :- wat.core/String])
+(wat.core/defrecord wat.query/IndexRow                        ;; the 4-keyed index row
+  [pk :- wat.core/String  sk :- wat.core/String               ;; the base keys
+   ipk :- wat.core/String isk :- wat.core/String              ;; the GSI's OWN keys
+   data :- wat.core/String])
+
+;; — the PAGE requests (a prefix/range on the sort key; range subsumes prefix: begins_with p = [p, p+sentinel]) —
+(wat.core/defrecord wat.query/ScanRequest                     ;; a base-table page request
   [pk     :- wat.core/String
-   sk-lo  :- wat.core/String  sk-hi :- wat.core/String
+   sk-lo  :- wat.core/String  sk-hi :- wat.core/String        ;; the sort-key prefix/range slice (the consumer's time slice, etc.)
    limit  :- wat.core/i64
-   cursor :- (wat.core/Option wat.core/String)])              ;; None = first page; Some sk = resume after
-(wat.core/defrecord wat.query/IndexScan                       ;; a GSI page request
+   cursor :- (wat.core/Option wat.core/String)])              ;; None = first page; Some sk = resume after (keyset)
+(wat.core/defrecord wat.query/IndexScanRequest                ;; a GSI page request
   [index  :- wat.core/String
    ipk    :- wat.core/String
    isk-lo :- wat.core/String  isk-hi :- wat.core/String
    limit  :- wat.core/i64
    cursor :- (wat.core/Option wat.core/String)])
-(wat.core/defrecord wat.query/Page                            ;; a page of opaque rows + the resume cursor
-  [rows        :- (wat.core/Vector wat.query/StoredRow)       ;; (pk, sk, data) — data still opaque
-   next-cursor :- (wat.core/Option wat.core/String)])         ;; Some sk = call again; None = done
+
+;; — the PAGES (the results + the keyset resume cursor) —
+(wat.core/defrecord wat.query/Page       [rows :- (wat.core/Vector wat.query/Row)       next-cursor :- (wat.core/Option wat.core/String)])
+(wat.core/defrecord wat.query/IndexPage  [rows :- (wat.core/Vector wat.query/IndexRow)  next-cursor :- (wat.core/Option wat.core/String)])
 ```
 
 ## Semantics (the contract's promises)

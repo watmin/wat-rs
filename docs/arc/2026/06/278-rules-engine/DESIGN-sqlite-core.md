@@ -36,88 +36,102 @@
 
 1. **The raw `:wat::sqlite'` interop** — general sqlite primitives (open, ddl, write, **row-returning query**, tx,
    pragma). Backend-neutral SQL plumbing; usable by anything, not telemetry-specific.
-2. **The `Store` satisfier** — `:wat::sqlite'::Db` supplies the `wat.query/Store` method impls (`ensure-schema`/`put`/
+2. **The `Store` satisfier** — `:wat::sqlite'::Connection` supplies the `wat.query/Store` method impls (`ensure-schema`/`put`/
    `scan`/`scan-index`) *over* the raw interop, using native indexes + keyset pagination. This is what the sink holds.
 
 ## Layer 1 — the raw interop (`:wat::sqlite'`)
 
 ```clojure
 ;; the handles (thread-owned Structs holding a live rusqlite Connection) — names PROVISIONAL (intueri)
-(wat.core/typealias :wat::sqlite'::Db          :rust::sqlite'::Db)          ;; read-write
-(wat.core/typealias :wat::sqlite'::ReadHandle  :rust::sqlite'::ReadHandle)  ;; read-only (SQLITE_OPEN_READ_ONLY)
+(wat.core/typealias :wat::sqlite'::Connection          :rust::sqlite'::Connection)          ;; read-write
+(wat.core/typealias :wat::sqlite'::ReadConnection  :rust::sqlite'::ReadConnection)  ;; read-only (SQLITE_OPEN_READ_ONLY)
 
 (wat.core/defenum :wat::sqlite'::Param :wat::enum::Pure       ;; a bound value with its SQLite affinity
   I64 [n <- :wat::core::i64]  F64 [x <- :wat::core::f64]  Str [s <- :wat::core::String]  Bool [b <- :wat::core::bool]
   Null [])                                                     ;; + Null (NULL-able projected columns)
 
 ;; open — fallible (bad path / permission / not-a-db) → a VALUE (Result), never a panic.
-(:wat::core::defn :wat::sqlite'::open           [path <- :String] -> (:Result :wat::sqlite'::Db          :wat::sqlite'::Error) …)
-(:wat::core::defn :wat::sqlite'::open-readonly  [path <- :String] -> (:Result :wat::sqlite'::ReadHandle  :wat::sqlite'::Error) …)
+(:wat::core::defn :wat::sqlite'::open           [path <- :String] -> (:Result :wat::sqlite'::Connection          :wat::sqlite'::Error) …)
+(:wat::core::defn :wat::sqlite'::open-readonly  [path <- :String] -> (:Result :wat::sqlite'::ReadConnection  :wat::sqlite'::Error) …)
 
 ;; pragma / transaction control — set WAL + synchronous at open; begin/commit wrap a batch.
-(:wat::core::defn :wat::sqlite'::pragma  [db <- :Db  name <- :String  value <- :String] -> (:Result :nil :Error) …)
-(:wat::core::defn :wat::sqlite'::begin   [db <- :Db] -> (:Result :nil :Error) …)
-(:wat::core::defn :wat::sqlite'::commit  [db <- :Db] -> (:Result :nil :Error) …)
+(:wat::core::defn :wat::sqlite'::pragma  [db <- :Connection  name <- :String  value <- :String] -> (:Result :nil :Error) …)
+(:wat::core::defn :wat::sqlite'::begin   [db <- :Connection] -> (:Result :nil :Error) …)
+(:wat::core::defn :wat::sqlite'::commit  [db <- :Connection] -> (:Result :nil :Error) …)
 
 ;; execute — a write (INSERT/DELETE/UPDATE). Returns ROWS-AFFECTED (i64), not nil. Fallible → Result.
 (:wat::core::defn :wat::sqlite'::execute
-  [db <- :Db  sql <- :String  params <- :Vector<wat::sqlite'::Param>] -> (:Result :wat::core::i64 :Error) …)
+  [db <- :Connection  sql <- :String  params <- :Vector<wat::sqlite'::Param>] -> (:Result :wat::core::i64 :Error) …)
 
 ;; execute-ddl — CREATE TABLE/INDEX (idempotent, IF NOT EXISTS). A malformed DDL is a PROGRAMMER error
 ;; (the schema is fixed code) → may panic-cascade; a runtime IO failure → Result. (see § Errors)
-(:wat::core::defn :wat::sqlite'::execute-ddl [db <- :Db  ddl <- :String] -> (:Result :nil :Error) …)
+(:wat::core::defn :wat::sqlite'::execute-ddl [db <- :Connection  ddl <- :String] -> (:Result :nil :Error) …)
 
 ;; query — THE NEW PRIMITIVE (wat-sqlite never had it): a parameterized SELECT that RETURNS ROWS.
 ;; a row is a Vector of Cell (the column values, in SELECT order); the result is a Vector of rows. Fallible → Result.
 (:wat::core::defenum :wat::sqlite'::Cell :wat::enum::Pure
   I64 [n <- :i64]  F64 [x <- :f64]  Str [s <- :String]  Bool [b <- :bool]  Null [])
 (:wat::core::defn :wat::sqlite'::query
-  [rh <- :ReadHandle  sql <- :String  params <- :Vector<wat::sqlite'::Param>]
+  [rh <- :ReadConnection  sql <- :String  params <- :Vector<wat::sqlite'::Param>]
   -> (:Result :Vector<wat::core::Vector<wat::sqlite'::Cell>> :Error) …)
 ```
 
-`Db` (rw) can also read; `ReadHandle` (ro) can only `query`. The `Store` satisfier uses `Db` for the write path and
+`Connection` (rw) can also read; `ReadConnection` (ro) can only `query`. The `Store` satisfier uses `Connection` for the write path and
 `query` for the read path.
 
-## Layer 2 — the `Store` satisfier (`:wat::sqlite'::Db` satisfies `wat.query/Store`)
+## Layer 2 — the `Store` satisfier (`:wat::sqlite'::Connection` satisfies `wat.query/Store`)
 
 The concrete SQL that satisfies the contract. **One `main` table; GSIs are native sqlite indexes on projected columns
 — NOT separate tables** (that was a DynamoDB necessity; sqlite has native B-trees, so we use them — a private detail the
 contract hides).
 
+**Keys are EDN-form strings — opaque to sqlite, never assumed to be time.** `pk`/`sk` (and a GSI's `ipk`/`isk`) are the
+serialized EDN the **consumer** builds and hydrates; sqlite only orders and prefix/range-scans the string, never parsing
+it. Real single-table design slices one partition's *unboundedly many* sort-key shapes with a prefix/range query — the
+same power, but over **typed, hydratable EDN forms** (`#wat.telemetry'/sk {:kind :metric :name "requests" :time #inst
+"…"}` serialized), **not** Rick-Houlihan `TYPE#id#TYPE#id` term-octothorpe strings (no delimiter grammar to escape).
+Baking "sk = time" would throw the whole design space away — so the telemetry key-schema (how `Metric`/`Log` map to
+`(pk,sk)`, which GSIs they project) is a **consumer** design (deferred to the telemetry build), not the store's; the
+store hosts, the consumer sets the rules. A GSI has its **OWN** `(ipk, isk)` — a *separate* projected sort key `isk`,
+not the base `sk`. (The rows come back as `wat.query/Row [pk sk data]` / `wat.query/IndexRow [pk sk ipk isk data]` — the
+contract's result records; sqlite produces them, the consumer hydrates `data`.)
+
 ```sql
 -- ensure-schema(table, [index…]) — idempotent. WAL + synchronous set at open, not here.
 CREATE TABLE IF NOT EXISTS main (
-  pk    TEXT NOT NULL,        -- partition key (namespace)
-  sk    TEXT NOT NULL,        -- sort key (iso8601-nanos)
+  pk    TEXT NOT NULL,        -- partition key (an opaque, orderable string — the consumer structures it)
+  sk    TEXT NOT NULL,        -- sort key      (an opaque, orderable string; NOT assumed to be time)
   data  TEXT NOT NULL,        -- the record's tagged EDN — OPAQUE (never parsed by sqlite)
-  <ipk_col> TEXT,             -- one projected column per GSI's ipk (NULL-able)
+  <ipk_col> TEXT,             -- per GSI: the projected partition key (NULL-able)
+  <isk_col> TEXT,             -- per GSI: the projected SORT key — the GSI's OWN isk (NULL-able)
   PRIMARY KEY (pk, sk)        -- the base access path is already a B-tree
 );
-CREATE INDEX IF NOT EXISTS idx_<name> ON main (<ipk_col>, sk);   -- the GSI: (ipk, isk=sk)
+CREATE INDEX IF NOT EXISTS idx_<name> ON main (<ipk_col>, <isk_col>);   -- the GSI: (ipk, isk) — its OWN keys
 
--- put(rows) — one transaction; a prepared INSERT reused per row. sk is unique nanos → pure INSERT.
+-- put(rows) — one transaction; a prepared INSERT reused per row. (unique sk → pure INSERT; OR REPLACE if upsert wanted)
 BEGIN;
-  INSERT INTO main (pk, sk, data, <ipk_col>…) VALUES (?, ?, ?, ?…);   -- projected ipk supplied by the consumer
-  …                                                                    -- (INSERT OR REPLACE available if upsert wanted)
+  INSERT INTO main (pk, sk, data, <ipk_col>, <isk_col> …) VALUES (?, ?, ?, ?, ? …);  -- ipk/isk supplied by the consumer
+  …
 COMMIT;
 
--- scan(pk, sk-lo, sk-hi, limit, cursor) — KEYSET pagination; rides PK(pk,sk); O(log n) per page.
-SELECT sk, data FROM main
+-- scan(pk, sk-lo, sk-hi, limit, cursor) — KEYSET on the base key; rides PK(pk,sk); O(log n) per page.
+SELECT pk, sk, data FROM main
  WHERE pk = ?1 AND sk >= ?2 AND sk <= ?3 AND (?cursor IS NULL OR sk > ?cursor)
  ORDER BY sk ASC LIMIT ?limit;
 --  next-cursor = the last sk returned iff `limit` rows came back, else None.
 
--- scan-index(name, ipk, isk-lo, isk-hi, limit, cursor) — same, riding idx_<name>.
-SELECT sk, data FROM main
- WHERE <ipk_col> = ?1 AND sk >= ?2 AND sk <= ?3 AND (?cursor IS NULL OR sk > ?cursor)
- ORDER BY sk ASC LIMIT ?limit;
+-- scan-index(name, ipk, isk-lo, isk-hi, limit, cursor) — KEYSET on the GSI's OWN isk; rides idx_<name>.
+SELECT pk, sk, data FROM main
+ WHERE <ipk_col> = ?1 AND <isk_col> >= ?2 AND <isk_col> <= ?3 AND (?cursor IS NULL OR <isk_col> > ?cursor)
+ ORDER BY <isk_col> ASC LIMIT ?limit;
+--  next-cursor = the last ISK returned (the GSI's sort key), not the base sk.
 ```
 
 - **Open pragmas** — `PRAGMA journal_mode=WAL` (concurrent read while writing; crash-safe) + `PRAGMA synchronous=NORMAL`
   (throughput without durability loss on WAL). Set once at `open`.
 - **`data` stays `TEXT`** (tagged EDN), opaque — sqlite never reads it; the rete filter decodes it in the consumer.
-- **Keyset, not offset** — the cursor is the last `sk`; the next page is `sk > cursor`. No `OFFSET` re-scan.
+- **Keyset, not offset** — the cursor is the last sort-key returned (`sk` for `scan`, `isk` for `scan-index`); the next
+  page is `> cursor`. No `OFFSET` re-scan.
 
 ## Errors — the panics, four-questioned (panics come out on the way to core)
 
@@ -151,7 +165,7 @@ process-killing panic on a bad disk.
 
 ## Open (for the strike)
 
-- **Names** (intueri): `:wat::sqlite'` vs the sink's expectation; `Db`/`ReadHandle`, `Cell`, `Error` + its variants,
+- **Names** (intueri): `:wat::sqlite'` vs the sink's expectation; `Connection`/`ReadConnection`, `Cell`, `Error` + its variants,
   `query`/`execute`/`scan`/`scan-index`.
 - **The `Error` shape** — settled jointly with the contract's error channel (`DESIGN-store-contract.md § Semantics`).
 - **Promotion mechanics** — how `:rust::sqlite'` bindings register in core beside the still-loaded `wat-sqlite` battery
