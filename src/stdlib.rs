@@ -351,15 +351,21 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query.wat",
         source: include_str!("../wat/query.wat"),
     },
-    // wat/query/mem.wat (:wat::query::MemStore — the first Store/ReadStore satisfier, a
-    // :wat::service::defservice) is on disk but NOT YET REGISTERED. The reserved-prefix gap
-    // that first blocked it — a baked :wat:: defservice's expansion-born `…/start` companion
-    // hitting MacroErrorKind::ReservedPrefix during stdlib expansion — is now FIXED:
-    // expand_all is stdlib-privileged (MacroRegistry::stdlib_privilege, set around the stdlib
-    // pass in src/freeze/env.rs; a permanent unit test guards it in src/macros/tests.rs).
-    // mem.wat stays unwired pending the NEXT stone: body-only `extend-type` does not inherit
-    // a parametric `Result<T,E>` return type from a surface method, so MemStore's Store impls
-    // (which all return `Result<…,wat::query::Error>`) fail type-check. Bake it once that lands.
+    // wat/query/mem.wat — :wat::query::MemStore, the FIRST :wat::query::Store/ReadStore satisfier
+    // (a :wat::service::defservice holding a PersistentVector<StoredRow>; a real in-memory backend
+    // AND the oracle sqlite will be differential-tested against). Baked in CORE. Both baked-context
+    // gaps that first blocked a stdlib defservice extend-typing a stdlib surface are FIXED:
+    //   (1) expand_all is stdlib-privileged, so a defservice's expansion-born `…/start` companion
+    //       registers instead of hitting ReservedPrefix (MacroRegistry::stdlib_privilege, set in
+    //       src/freeze/env.rs; gated by macros/tests.rs::stdlib_privilege_bypasses_reserved_prefix).
+    //   (2) a baked body-only extend-type inherits its impl signatures from the surface's
+    //       SurfaceMember::Method (register_stdlib_runtime_defs, src/runtime.rs) instead of the nil
+    //       placeholders parse_extend_type_form emits — otherwise every method's sig reads nil.
+    // Loads after wat/query.wat (the Store contract) and wat/service.wat (defservice).
+    WatSource {
+        path: "wat/query/mem.wat",
+        source: include_str!("../wat/query/mem.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

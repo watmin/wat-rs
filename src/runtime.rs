@@ -676,11 +676,13 @@ pub fn register_stdlib_runtime_defs(
             // Arc 293.4c — stdlib extend-type: branch on surface vs. protocol (mirrors user path).
             ":wat::core::extend-type" => {
                 let (canonical_key, ed) = parse_extend_type_form(form)?;
-                let is_surface = sym.types.as_deref()
+                let surface_members = sym.types.as_deref()
                     .and_then(|t| t.get(&ed.protocol_name))
-                    .map(|td| matches!(td, crate::types::TypeDef::Surface(_)))
-                    .unwrap_or(false);
-                if is_surface {
+                    .and_then(|td| match td {
+                        crate::types::TypeDef::Surface(s) => Some(s.members.clone()),
+                        _ => None,
+                    });
+                if let Some(members) = surface_members {
                     for (method_name, clause) in &ed.impl_clauses {
                         let method_key = format!("{}/{}", ed.type_name, method_name);
                         if sym.functions.contains_key(&method_key) {
@@ -689,12 +691,62 @@ pub fn register_stdlib_runtime_defs(
                                 kind: RuntimeErrorKind::DuplicateDefine(method_key),
                             }.into());
                         }
+                        // Arc 278 BRIEF-STONE-extend-baked-inheritance — `parse_extend_type_form`
+                        // is a pure one-arg parser: every arg is a NIL placeholder (no env/surface
+                        // in scope to inherit from) and the return type is nil unless the impl
+                        // wrote an explicit `-> :T`. That's harmless for the PROTOCOL path (this
+                        // impl is never itself type-checked — see the user-source equivalent in
+                        // `register_runtime_defs_form`, whose Functions only reach `sym.functions`
+                        // at freeze time, AFTER `check_program` already ran). But for a BAKED
+                        // stdlib SURFACE impl, `register_stdlib_runtime_defs` runs at build_env
+                        // step 7.6 — BEFORE `check_program` (step 8) — so these nil-typed
+                        // Functions land in `sym.functions` in time for `check_function_body`'s
+                        // sweep (check.rs:826) to check them, and it checked them against nil.
+                        // Inherit the REAL per-method signature from the surface's own
+                        // `SurfaceMember::Method { args, ret, .. }` (already in scope via
+                        // `sym.types`) so the impl body is checked against the surface's actual
+                        // declared contract instead of the nil placeholder. `self`
+                        // (fixed_params[0]) is typed as the CONCRETE satisfier (`ed.type_name`),
+                        // never the surface's own self-type — impl bodies access concrete fields
+                        // (e.g. `(:wat::query::MemStore/peer self)`) that the structural surface
+                        // type does not carry.
+                        let member = members.iter().find(|m| match m {
+                            crate::types::SurfaceMember::Method { name, .. } => name == method_name,
+                            crate::types::SurfaceMember::Field { name, .. } => name == method_name,
+                        });
+                        let (param_types, ret_type) = match member {
+                            Some(crate::types::SurfaceMember::Method { args: member_args, ret, .. }) => {
+                                let pts: Vec<crate::types::TypeExpr> = clause.args.fixed_params.iter()
+                                    .enumerate()
+                                    .map(|(i, _)| {
+                                        if i == 0 {
+                                            crate::types::TypeExpr::Path(ed.type_name.clone())
+                                        } else {
+                                            member_args.fixed_params.get(i)
+                                                .map(|(_, t)| t.clone())
+                                                .unwrap_or_else(|| crate::types::TypeExpr::Path(":wat::core::nil".into()))
+                                        }
+                                    })
+                                    .collect();
+                                (pts, ret.clone())
+                            }
+                            Some(crate::types::SurfaceMember::Field { ty, .. }) => {
+                                (vec![crate::types::TypeExpr::Path(ed.type_name.clone())], ty.clone())
+                            }
+                            // No matching surface member — shouldn't happen for a valid
+                            // extend-type, but fall back to the prior (nil placeholder)
+                            // behavior rather than fabricate a signature.
+                            None => (
+                                clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
+                                clause.return_type.clone(),
+                            ),
+                        };
                         let func = Arc::new(Function {
                             name: Some(method_key.clone()),
                             params: clause.args.fixed_params.iter().map(|(n, _)| crate::scope::env_key(n).into_owned()).collect(),
                             type_params: vec![],
-                            param_types: clause.args.fixed_params.iter().map(|(_, t)| t.clone()).collect(),
-                            ret_type: clause.return_type.clone(),
+                            param_types,
+                            ret_type,
                             rest_param: clause.args.rest_param.as_ref().map(|(n, _)| crate::scope::env_key(n).into_owned()),
                             rest_param_type: clause.args.rest_param.as_ref().map(|(_, t)| t.clone()),
                             body: FunctionBody::Wat(clause.body.clone()),
