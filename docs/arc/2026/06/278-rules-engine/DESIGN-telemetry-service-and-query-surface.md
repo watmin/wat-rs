@@ -1,11 +1,16 @@
 # DESIGN — the wat telemetry facility (`TelemetryService'` sink + `Span` producers + the query surface)
 
-> **STATUS: DESIGN — shape ratified + names intueri-cast (2026-07-04), unbuilt; build order next.** This is **what wat's
-> logging + metrics facility will be.**
-> The **whole vocabulary is now intueri-cast + ratified** (2026-07-04): `wat.query/*` (query layer), the
-> `wat.telemetry/*` records + enums, and the producer surface — the two service names, the ops, the provisioning verb
-> (`open`), the timing-widget macro (`timed`), the store nouns (`Store`/`Table`/`Index`). This doc is the durable record
-> so the next self resumes from it, not from re-derivation.
+> **STATUS: DESIGN ratified + names intueri-cast; TOOLING BUILT — 278 unblocked (2026-07-04).** This is **what wat's
+> logging + metrics facility will be.** The door we thought open was closed — **surface-splice was designed-but-unbuilt**;
+> it is **open now**: surface-splice + one-way aggregate construction shipped (arc-293, `4c98b2ef`), so the records are
+> buildable. `Metric`/`Log` are **`defrecord`s** splicing the `Scope` surface (NOT surfaces themselves — a surface is a
+> constraint, a record is the concrete data).
+> **Home: CORE** — the facility diagnoses rete, and rete is core, so it lives in the **substrate adjacent to the rete
+> tooling**, NOT a battery crate; the legacy `wat-telemetry` crate stays where it is as a bridge, untouched.
+> **Namespace: `:wat::telemetry'`** (primed — staged to replace the `:wat::telemetry` bridge) for the write-side;
+> `:wat::query` (net-new, unprimed) for the engine.
+> The **whole vocabulary is intueri-cast + ratified**: the two service names, the ops, `open`/`timed`, the store nouns.
+> This doc is the durable record so the next self resumes from it, not from re-derivation.
 >
 > **Settled this session (shape, pending the builder's assessment):** the facility is **two composing `defservice`s** —
 > a long-lived **sink** (given logs/metrics, or queried) and a short-lived **unit-of-work** producer (one per unit of
@@ -88,10 +93,12 @@ logs, never mixed — and holds ≥ 1.
 counts (`Incr`), times sub-blocks (`Timed`), logs statements (`Log`), and on close emits its metrics — all sharing that
 `uuid`. Metrics ↔ logs join on it — the trace/span observability model, served by a **GSI on `uuid`**.
 
-The four common fields — `namespace`, `uuid`, `tags`, `time-ns` — are lifted into **`Scope`**, an **exact surface** that
-`Metric` and `Log` each **splice in** via the arc-293 **surface-splice** `[~@wat.telemetry/Scope own…]` — *not* re-listed.
-This makes "same unit of work" a **structural fact** (a shared constraint), carries the correlation key by construction,
-and keeps the common shape from a **single source** (*derive-is-the-wall* — composed in, never re-implemented and hoped).
+The four common fields — `namespace`, `uuid`, `tags`, `time-ns` — are lifted into **`Scope`**, an **exact surface**. The
+`Metric` and `Log` **`defrecord`s** each **splice `Scope` in** via `[~@wat.telemetry'/Scope own…]` in their field vector —
+*not* re-listed. This makes "same unit of work" a **structural fact**, carries the correlation key by construction, and
+keeps the common shape from a **single source** (*derive-is-the-wall* — composed in, never re-implemented and hoped). The
+splice mechanism is built (arc-293, 2026-07-04): it lives in the **aggregate field vector** (`defrecord`/`defstruct`/
+`defholon`), not in a surface's `:features`.
 
 ## The surface architecture (structural, all the way down)
 
@@ -102,13 +109,26 @@ The whole contract is imposed structurally — a record that isn't the right sha
 engineering: no form for the wrong thing). **FQDN disambiguates always** — `:wat::telemetry::Unit` never collides with
 anything; names are judged on one axis only: *does the name say what it is inside `:wat::telemetry::`.*
 
+arc-293's model is sharp: **a `defsurface` is a CONSTRAINT** (satisfied, never constructed); **a `defrecord` is the
+concrete data** that structurally satisfies it. So the correlation core and the payload are **surfaces**; the stored rows
+are **records** that satisfy them:
+
 ```
-wat.query/Record        open surface   — anything the query engine matches (a stored row → WM fact)
-  └─ Scope              exact surface  — the correlation core (namespace, uuid, tags, time-ns); the shared constraint
-       ├─ Metric        exact surface  — Scope ⊕ start-time-ns ⊕ name ⊕ (value :- Numeric) ⊕ (unit :- Unit)
-       └─ Log           exact surface  — Scope ⊕ caller ⊕ (level :- Level) ⊕ (message :- LogMessage)
-            └─ LogMessage   open surface — any pure record the caller defines
+SURFACES (constraints — satisfied, never constructed):
+  wat.query/Record    open   — anything the query engine matches (a stored row → WM fact)   [wat.query: net-new, unprimed]
+  Scope               exact  — the correlation core: namespace, uuid, tags, time-ns
+  LogMessage          open   — any pure record the caller defines (a Log's payload)
+
+RECORDS (concrete data — constructed + stored; each SPLICES Scope, thereby satisfying Scope + wat.query/Record):
+  Metric = defrecord [~@Scope  start-time-ns  name  (value :- Numeric)  (unit :- Unit)]
+  Log    = defrecord [~@Scope  caller  (level :- Level)  (message :- LogMessage)]
 ```
+
+Surface-splice is now **built** (arc-293, 2026-07-04): `~@:Surface` in a `defrecord` field vector expands to the surface's
+`Field` members, merged flat before the own fields; a name repeated at a conflicting type is a compile error. And
+construction is **unified** — one `aggregate-new` path mints every holder's ctor from the registered (splice-expanded)
+fields, so struct / core-record / holon-record construct identically. A `Metric`/`Log` carrying
+`namespace/uuid/tags/time-ns` therefore satisfies the `Scope` surface structurally, and the open `wat.query/Record`.
 
 ## The contractual surface (the source of truth for callers)
 
@@ -131,54 +151,55 @@ wat.query/Record        open surface   — anything the query engine matches (a 
 
 ;; ═══ wat.telemetry — the records [names settled on clarity; FQDN → no collisions] ═════════════
 
-(wat.core/typealias wat.telemetry/Tags (wat.core/HashMap wat.core/Keyword wat.core/String))
+(wat.core/typealias wat.telemetry'/Tags (wat.core/HashMap wat.core/Keyword wat.core/String))
 
 ;; a metric value's storage type, by variant NAME. GROWS — i64/f64 to launch (the rest of wat's number
 ;; tower, incl. the arc-300 BigInt/BigRational, added later as cases demand).
-(wat.core/defenum wat.telemetry/Numeric wat.enum/Pure
+(wat.core/defenum wat.telemetry'/Numeric wat.enum/Pure
   i64 [val :- wat.core/i64]
   f64 [val :- wat.core/f64])
 
 ;; the metric's semantic unit — a closed enum (name holds value); GROWS AS IT MUST (Nanos added this session).
-(wat.core/defenum wat.telemetry/Unit wat.enum/Pure
+(wat.core/defenum wat.telemetry'/Unit wat.enum/Pure
   Count Nanos Millis Bytes Percent)
 
 ;; a log's level — a closed enum.
-(wat.core/defenum wat.telemetry/Level wat.enum/Pure
+(wat.core/defenum wat.telemetry'/Level wat.enum/Pure
   Debug Info Warn Error)
 
 ;; the correlation core — the shared constraint both Metric and Log satisfy (exact surface).
-(wat.core/defsurface wat.telemetry/Scope :holder wat.core/Record
+(wat.core/defsurface wat.telemetry'/Scope :holder wat.core/Record
   :features [namespace :- wat.core/String    ;; pk
              uuid      :- wat.core/Uuid       ;; unit-of-work correlation id → GSI
-             tags      :- wat.telemetry/Tags  ;; dimensions
+             tags      :- wat.telemetry'/Tags  ;; dimensions
              time-ns   :- wat.core/i64])      ;; epoch nanos — the sk
 
-;; a metric — EXACT surface: Scope ⊕ span-start ⊕ name ⊕ value ⊕ unit. SPLICE Scope (single source).
-(wat.core/defsurface wat.telemetry/Metric :holder wat.core/Record
-  :features [~@wat.telemetry/Scope                ;; namespace, uuid, tags, time-ns (= the span END, the sk)
-             start-time-ns :- wat.core/i64         ;; the span START (epoch nanos)
-             name          :- wat.core/Keyword     ;; the counter/timer name → GSI candidate
-             value         :- wat.telemetry/Numeric ;; count / len / sum — variant name holds the storage type
-             unit          :- wat.telemetry/Unit])  ;; :Count / :Nanos / … — orthogonal to Numeric's storage type
+;; a metric — a defRECORD (concrete data): SPLICE the Scope surface's attributes, then own fields. The splice inlines
+;; Scope's namespace/uuid/tags/time-ns; a Metric carrying them satisfies the Scope surface + the open wat.query/Record.
+(wat.core/defrecord wat.telemetry'/Metric
+  [~@wat.telemetry'/Scope                          ;; namespace, uuid, tags, time-ns (= the span END, the sk)
+   start-time-ns :- wat.core/i64                  ;; the span START (epoch nanos)
+   name          :- wat.core/Keyword              ;; the counter/timer name → GSI candidate
+   value         :- wat.telemetry'/Numeric         ;; count / len / sum — variant name holds the storage type
+   unit          :- wat.telemetry'/Unit])          ;; :Count / :Nanos / … — orthogonal to Numeric's storage type
 
-;; a log message — OPEN surface: the caller passes ANY pure record they define.
-(wat.core/defsurface wat.telemetry/LogMessage :holder wat.core/Record :features [])
+;; a log message — an OPEN surface (the constraint the payload satisfies): any pure record the caller defines.
+(wat.core/defsurface wat.telemetry'/LogMessage :holder wat.core/Record :features [])
 
-;; a log — EXACT surface (exact envelope, open payload): Scope ⊕ caller ⊕ level ⊕ message. SPLICE Scope.
-(wat.core/defsurface wat.telemetry/Log :holder wat.core/Record
-  :features [~@wat.telemetry/Scope                ;; namespace, uuid, tags, time-ns (= the emit moment, the sk)
-             caller  :- wat.core/Keyword          ;; producer identity → GSI candidate
-             level   :- wat.telemetry/Level        ;; a closed enum
-             message :- wat.telemetry/LogMessage]) ;; a PURE RECORD (open surface)
+;; a log — a defRECORD: SPLICE Scope, then own fields (exact envelope, open payload).
+(wat.core/defrecord wat.telemetry'/Log
+  [~@wat.telemetry'/Scope                          ;; namespace, uuid, tags, time-ns (= the emit moment, the sk)
+   caller  :- wat.core/Keyword                    ;; producer identity → GSI candidate
+   level   :- wat.telemetry'/Level                 ;; a closed enum
+   message :- wat.telemetry'/LogMessage])          ;; a PURE RECORD satisfying the open LogMessage surface
 
 ;; ═══ TelemetryService' — THE SINK. given logs/metrics, or queried. owns the store. creates nothing. ═══
 ;;   [sink name: PROVISIONAL — intueri]
-(wat.service/defservice wat.telemetry/TelemetryService'
-  :ephemeral [store <- wat.telemetry/Store]                             ;; sqlite = one driver behind (pk,sk) holder
-  :ops [(WriteMetrics [batch <- (wat.core/Vector wat.telemetry/Metric)] -> Ok)
+(wat.service/defservice wat.telemetry'/TelemetryService'
+  :ephemeral [store <- wat.telemetry'/Store]                             ;; sqlite = one driver behind (pk,sk) holder
+  :ops [(WriteMetrics [batch <- (wat.core/Vector wat.telemetry'/Metric)] -> Ok)
         (QueryMetrics  [q     <- wat.query/Query]                       -> wat.query/Result)
-        (WriteLogs     [batch <- (wat.core/Vector wat.telemetry/Log)]   -> Ok)
+        (WriteLogs     [batch <- (wat.core/Vector wat.telemetry'/Log)]   -> Ok)
         (QueryLogs     [q     <- wat.query/Query]                       -> wat.query/Result)])
 ;;  defservice SERIALIZES — one op at a time (the actor IS the mutex over the store handle).
 ;;  the kind rides the VERB (no `table` field on Query).
@@ -186,18 +207,18 @@ wat.query/Record        open surface   — anything the query engine matches (a 
 ;; ═══ Span — THE PRODUCER. its own service; state threads via the actor. closes over a ref to the
 ;;     sink (:calls — the injected dep). logs write NOW; metrics fire on Close. nests via Sub. ═══
 ;;   [uow name + provisioning verb: PROVISIONAL — intueri]
-(wat.service/defservice wat.telemetry/Span
-  :calls   [sink <- wat.telemetry/TelemetryService']                    ;; injected dependency, made explicit
-  :durable [scope     <- wat.telemetry/Scope                            ;; namespace/uuid/tags/start-time-ns
+(wat.service/defservice wat.telemetry'/Span
+  :calls   [sink <- wat.telemetry'/TelemetryService']                    ;; injected dependency, made explicit
+  :durable [scope     <- wat.telemetry'/Scope                            ;; namespace/uuid/tags/start-time-ns
             counters  <- (wat.core/HashMap wat.core/Keyword wat.core/i64)
             durations <- (wat.core/HashMap wat.core/Keyword (wat.core/Vector wat.core/i64))]  ;; nanos samples
-  :ops [(Log   [caller <- wat.core/Keyword  level <- wat.telemetry/Level  message <- wat.telemetry/LogMessage] -> Ok)
+  :ops [(Log   [caller <- wat.core/Keyword  level <- wat.telemetry'/Level  message <- wat.telemetry'/LogMessage] -> Ok)
         ;;   build (Log scope caller level message); (sink WriteLogs [it]) NOW; state unchanged
         (Incr  [name <- wat.core/Keyword]                    -> Ok)  ;; state' counters[name] + 1
         (Timed [name <- wat.core/Keyword  nanos <- wat.core/i64] -> Ok)
         ;;   PURE op: find-or-create durations[name], state' durations[name] ++ nanos. NOT a closure — the
         ;;   timing widget (below) already measured. does NOT touch counters (count = (len durations[name])).
-        (Nest  [namespace <- wat.core/String  tags <- wat.telemetry/Tags] -> wat.telemetry/Span)
+        (Nest  [namespace <- wat.core/String  tags <- wat.telemetry'/Tags] -> wat.telemetry'/Span)
         ;;   a NESTED unit of work — its own instance/uuid, same injected sink; its own Close emits its own metrics
         (Close [] -> Done)])
 ;;   Close: counters + durations → Metric rows → (sink WriteMetrics batch). See § Emission.
@@ -208,7 +229,7 @@ wat.query/Record        open surface   — anything the query engine matches (a 
 ;; the TIMING WIDGET `timed` — a MACRO at the call site (the Clojure `time` idiom: wrap the body form, no thunk).
 ;; the impure edge: reads the clock, runs the (impure) body, feeds name+nanos to the pure Timed op, returns the ret.
 ;; closures never enter the actor → survives a remote sink boundary. (intueri-ratified.)
-(wat.core/defmacro wat.telemetry/timed [uow name & body]
+(wat.core/defmacro wat.telemetry'/timed [uow name & body]
   `(:let [start#   (wat.time/epoch-nanos (wat.time/now))
           ret#     (wat.core/do ~@body)
           elapsed# (wat.core/- (wat.time/epoch-nanos (wat.time/now)) start#)]
@@ -219,11 +240,11 @@ wat.query/Record        open surface   — anything the query engine matches (a 
 ## Recording work — the UX
 
 ```clojure
-(:let [sink (… a ref to wat.telemetry/TelemetryService' …)
-       u    (wat.telemetry/Span::open sink :market-eval {:asset :BTC})]  ;; provision: inject sink, mint uuid
+(:let [sink (… a ref to wat.telemetry'/TelemetryService' …)
+       u    (wat.telemetry'/Span::open sink :market-eval {:asset :BTC})]  ;; provision: inject sink, mint uuid
   (u/Log :fetcher :info (:MyEvent …))               ;; a Log written NOW, correlated by u's uuid
   (u/Incr :requests)                                ;; a pure counter
-  (wat.telemetry/timed u :fetch (do-fetch))         ;; WIDGET: times (do-fetch), records nanos via u/Timed, returns its value
+  (wat.telemetry'/timed u :fetch (do-fetch))         ;; WIDGET: times (do-fetch), records nanos via u/Timed, returns its value
   (:let [inner (u/Nest :fetch-detail {:host :h1})]  ;; a nested unit — its own uuid, same sink
     (inner/Incr :retries)
     (inner/Close))                                  ;; inner's metrics emitted
@@ -311,18 +332,25 @@ assert → fire → paginate loop; only the store's `WHERE`/index differs — a 
    `TelemetryService'` (sink) / `Span` (producer) / `open` (provision) / `Log`·`Incr`·`Timed`·`Nest`·`Close` (ops)
    / `timed` (widget macro) / `Write*`·`Query*` (sink verbs) / `Store`·`Table`·`Index` (store nouns). See § Naming.
 
-## Build implications (for the strike, later)
+## Build implications (for the strike) — everything is CORE
 
-- **The store layer** (`crates/wat-telemetry-sqlite`) needs the `(pk, sk, data, …projected-index-columns)` layout + GSI
-  secondary indexes + write-path projection + a range-scan/page read-path — all behind the **swappable store
-  abstraction** (name: intueri). (The arc-085 `auto-*` enum-derive is NOT the fit — this is a fixed layout.)
-- **`TelemetryService'` and `Span` are `defservice`s** (baked source in `crates/…/wat/telemetry/`), the sink holding
-  the store handle in `:ephemeral`, the unit-of-work calling the sink via `:calls`. A baked source may use
-  `:rust::sqlite::*`; consumers use `:wat::` verbs (arc-002 `NAMESPACE-PRINCIPLE`).
-- **The query engine is a `wat.query` rete consumer** — alpha-only, `fire-rules'` (native), `Record → Lemma* →
-  Deduction`. The smallest slice of the engine (no beta), and the on-ramp to the streaming rete service (R25), which will
-  **dogfood this telemetry facility to measure itself.**
-- **Names**: draw the producer + store vocabulary as a candidate artifact and **cast intueri once** before code lands.
+- **Home: the CORE substrate** (`wat/`), adjacent to the rete tooling — NOT a battery crate. The facility diagnoses rete,
+  and rete is core, so the facility is core. The legacy `wat-telemetry` / `wat-telemetry-sqlite` crates stay where they
+  are as **bridges**, untouched.
+- **sqlite becomes CORE too — and PRIMED (`:wat::sqlite'` / `:rust::sqlite'`).** Because the core facility depends on the
+  store, the store — **sqlite included** — is core. But the `wat-sqlite` battery is *loaded* and defines a full
+  `:wat::sqlite::*` namespace (`open`/`begin`/`commit`/`execute`/`Db`/`ReadHandle`) + `:rust::sqlite::*`; leaving that
+  bridge untouched means a core sqlite would collide. So the core sqlite is **`:wat::sqlite'`** (wat surface) +
+  **`:rust::sqlite'`** (Rust bindings) — **primed, staged to replace the `:wat::sqlite` battery bridge, coexisting with
+  it** (exactly the `:wat::telemetry'` pattern). It carries the `(pk, sk, data, …projected-index-columns)` layout + GSI
+  secondary indexes + write-path projection + range-scan/page read-path, all behind the **swappable store abstraction**
+  (`Store`) — sqlite is **one driver**; the abstraction is the swap point. (arc-085 `auto-*` enum-derive is NOT the fit.)
+- **`TelemetryService'` and `Span` are core `defservice`s** (in `wat/`, adjacent to rete), the sink holding the store
+  handle in `:ephemeral`, `Span` calling the sink via `:calls`. Core substrate may use the `:rust::sqlite'::*` interop
+  directly; ordinary consumers use `:wat::` verbs (arc-002 `NAMESPACE-PRINCIPLE`).
+- **The query engine is a `wat.query` rete consumer** — alpha-only, native `fire-rules'`, `Record → Lemma* → Deduction`.
+  The smallest slice of the engine (no beta), the on-ramp to the streaming rete service (R25), which **dogfoods this
+  facility to measure itself.**
 
 ## Naming discipline
 
