@@ -23,7 +23,8 @@
 (:wat::core::defrecord :wat::query::Fault
   [op      <- :wat::core::keyword                          ;; which contract method faulted
    code    <- :wat::core::i64                               ;; backend-native error code (0 if n/a)
-   sql     <- :wat::core::String                            ;; the statement/operation text (opaque diagnostic)
+   diagnostic <- :wat::core::String                         ;; opaque backend-native diagnostic text (SQL text,
+                                                            ;; command trace, key — driver-supplied; NOT SQL-specific)
    message <- :wat::core::String])                          ;; human-readable detail
 
 (:wat::core::defenum :wat::query::Error :wat::enum::Pure
