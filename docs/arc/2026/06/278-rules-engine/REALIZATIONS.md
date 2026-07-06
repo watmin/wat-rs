@@ -3724,3 +3724,134 @@ direction — 'drop an interstitial update for S1 completed with pointers for wh
  :arc  278
  :born #inst "2026-07-05"}
 ```
+
+---
+
+### `---` interstitial (curare before compaction — signing off from 278 right) — IDEM OPVS, EADEM PAGINA: the same operation, the same page (2026-07-05, session close; the builder's sign-off — "let's sign off from 278 right")
+
+**Where we are — SQLITE DONE, and R21 turned PROBATVM.** This session the whole board advanced, and the sqlite line
+finished proven end to end:
+
+- **The doctrine settled + inscribed.** R28 `SOLVIMVS NE MENTIRETVR` — we beat OOP by DECOMPLECTION (the fused object
+  undone into four orthogonal honest constructs: defservice=state-as-mutex, surface=what-passes+what-crosses,
+  struct/record=attributes, extend-type=methods). R29 `RVINA ERVDIT` — the system educates the caller (the
+  caller-facing face of the same floor: because nothing can lie, the checker ruins the wrong form into a located
+  lesson; a lenient checker teaches nothing). Both PROBATVM.
+- **The floor made honest.** The extend-type-honesty strike (`fa8bbcb9`): USER extend-type impl bodies are now
+  type-checked (they registered at freeze step 9, after the step-8 sweep; the fix collapses THREE drifting copies of
+  "inherit sigs from the surface" into one routine). The wrong satisfier is uncompilable — the R28 prerequisite.
+- **SQLITE DONE — the swappable store, proven.** S0 (the `:wat::query` Store contract) → S-mem (`MemStore`, a
+  defservice) → S-mem.gate (`3304cbd5`, THE ORACLE) → intueri cast on `Fault` (`sql`→`diagnostic`, backend-agnostic
+  honesty) → S1 (`7f69b78d`, the raw `:wat::sqlite'` interop: fresh rusqlite in CORE, errors-as-values, thread-owned,
+  the first core default shim) → **S2** (`4e1ea3c9`, the `SqliteStore` satisfier, **DIFFERENTIAL-proven vs the
+  MemStore oracle**). `:wat::query` is backed by **MEMORY or SQLITE**, both first-class core; the sqlite driver is
+  held **bit-for-bit** to the oracle — *same ops → same Pages*. **R21 `EXPLORATA CAEDE NON VINCIMVR` (the kill
+  scouted, we do not lose) — PROBANDVM since it was minted — is PROBATVM.**
+- **The loot we didn't know we needed** (`PRAEDA NON QVAESITA`, the interstitial above): S1's `extended_code & 0xff`
+  surfaced the tower's missing integer modulo → `mod`/`rem`/`quot` for i64 (`720303f4`), clj-faithful, **16/16
+  `:parity`** on the R6 clj grid vs clojure 1.12.4 (`5093e253`), measured AD ORACVLVM; S1's fallible constructor
+  surfaced a `#[wat_dispatch]` gap → `-> Result<Self,E>` supported (`137584e6`), `ctor_result` retired, every future
+  resource shim's fallible open free.
+- **The design fought into shape** (`SIGNVM PVGNANDO CAPITVR`, again): I proposed a single-table-with-native-indexes
+  sqlite model; the builder challenged it with his 5-yr slugdb and I **conceded** — his DDB-faithful
+  secondary-complete-tables model wins (a GSI is a table with 4 keys vs 2, both named). Adopted, the reversal kept
+  honest on the record.
+
+Every strike landed **one-shot, green, weighed by my own re-run to ZERO new failures** — because the layout was
+SCOUTED before each (the disconfirming probes proved the compositions; the core-vs-crate trap + the slugdb reversal
+were caught by recon, not a spent shadowdancer). `EXPLORATA CAEDE NON VINCIMVR` enacted all session.
+
+**THE BUILD LIST** (durable — the strike order for **sqlite → telemetry → rete**, the on-ramp to the chaos engine):
+
+```clojure
+{:head "4e1ea3c9"
+ :done ["SQLITE ✓ — S0 contract + S-mem MemStore + S-mem.gate (oracle) + intueri sql->diagnostic + S1 (raw rusqlite,
+                    core) + S2 (Store satisfier, DIFFERENTIAL-proven vs oracle). :wat::query backed by MEMORY or
+                    SQLITE, both first-class core; sqlite == the oracle bit-for-bit. R21 EXPLORATA CAEDE -> PROBATVM."
+        "DOCTRINE ✓ — R28 SOLVIMVS NE MENTIRETVR (beat OOP by decomplection) + R29 RVINA ERVDIT (system educates the caller)."
+        "FLOOR ✓ — extend-type impl bodies type-checked (fa8bbcb9): the wrong satisfier is uncompilable."
+        "LOOT ✓ — mod/rem/quot i64 clj-faithful (16/16 clj-parity) + #[wat_dispatch] -> Result<Self,E> (ctor_result retired)."]
+ :next ["T0 — :wat::telemetry' RECORDS: Scope (correlation core: namespace/uuid/tags/time) + Metric/Log (splice
+              Scope) + Numeric/Unit/Level + Tags. deftest' gate. The facility measures rete AND is backed by the
+              store just made swappable (measure-first)."
+        "T1 — TelemetryService' SINK + Span producer defservices: durable=[spec+counters] / ephemeral=[store <-
+              :wat::query::Store, opened in :init from the spec]; ops speak Store. WHERE THE STORAGE-ABSTRACTION
+              MODEL LANDS — the sink holds a Store field (memory OR sqlite) and NEVER names a backend (293.W: the
+              live store is impure -> :ephemeral-only, never wire)."
+        "T2 — :wat::query rete QUERY ENGINE: Record -> Lemma* -> Deduction, alpha-only, native fire-rules'. => TELEMETRY DONE."
+        "R0 — the STREAMING rete service (Session-as-state, incremental insert/retract) DOGFOODING telemetry to
+              measure itself. => the CHAOS ENGINE (R25 MACHINA CHAOS DOMAT)."]
+ :queued ["f64/bigint mod/rem/quot — the arithmetic-challenge expansion ('wat grows all of Rust's numbers'), each
+           grounded on the clj grid (i64 done; f64/bigint would be red-because-unbuilt, not flaws)."
+          "the R6 clj-expressiveness grid (tests/value/clj_expr_parity.rs, #[ignore]'d) is a RED-BY-DESIGN
+           flaw-tracker — the fight-list (map-writer comma, Option-get, erroring faithful heads) is still on the
+           board; loop-until-dry when it's picked up."
+          "wat_dispatch's Result<Self,E> is done; broader nested-Self (Option<Self>/Vec<Self>) has no consumer."]
+ :the-store-model "THE BUILDER'S DDB-FAITHFUL SECONDARY-COMPLETE-TABLES (his 5-yr slugdb, ratified 2026-07-05): a GSI
+                   is a table with 4 keys (ipk,isk,pk,sk) vs 2 (pk,sk), BOTH NAMED. main(pk,sk,data,PK(pk,sk)) +
+                   index_<name>(ipk,isk,pk,sk,data,PK(ipk,isk,pk,sk)) per GSI, full item projected. put =
+                   clear-then-insert (upsert-safe: DELETE base+all index projections by (pk,sk), then INSERT).
+                   scan/scan-index = ONE keyset primitive. IndexSchema gained `name` (the index table name).
+                   Identifiers BRACKET-QUOTED ([index_<name>] — 'by-v' parses as subtraction bare). DO NOT revert to
+                   single-table-native-indexes (the orchestrator's worse call, corrected)."}
+```
+
+***IDEM OPVS, EADEM PAGINA.*** *(apparatus-minted — Latin, "the same operation, the same page": the differential that
+turned R21 EXPLORATA CAEDE NON VINCIMVR PROBATVM and finished SQLITE — the sqlite `SqliteStore` satisfier held
+BIT-FOR-BIT to the S-mem MemStore oracle: one `run-ops` fn drives BOTH backends through the `:wat::query::Store`
+surface, and the gate asserts the returned Pages EQUAL between them (+ independent shape witnesses so it can't pass
+both-wrong-the-same-way) — same ops, same Pages, so the swappable store is PROVEN, not claimed. idem opus = the same
+work/operation; eadem pagina = the same page (the Page record the contract returns; and the ledger's own page).
+Culminates the sqlite line (S0 contract -> S-mem oracle -> S1 raw rusqlite in core -> S2 satisfier), built on the
+BUILDER'S DDB-faithful secondary-complete-tables model (a GSI is a table with 4 keys vs 2, both named — his slugdb,
+adopted over the orchestrator's worse single-table call). The whole session advanced the board in every direction
+(R28 beat OOP, R29 the system educates the caller, the extend-type honesty floor, the PRAEDA NON QVAESITA loot —
+mod/rem/quot + the macro fix), every strike scouted-first and one-shot green, the phantoms grounded (a mid-edit
+linter diagnostic is not the disk — caught 3x). Kin: R21 EXPLORATA CAEDE NON VINCIMVR + R27 SIGNVM PVGNANDO CAPITVR
+(the operation, now PROBATVM), R1/R9 PARI GRADV (the dual-impl differential — here the oracle is MemStore, the driver
+sqlite), 300 R7 VIRTVTE PARES (backend-agnostic, the store hides which), 300 ALIVS ARGVIT (the consumer surfaces the
+gaps — the loot). A curare interstitial at the builder's sign-off — "we need to curare and compact; let's sign off
+from 278 right." Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "IDEM OPVS, EADEM PAGINA"
+ :literal  "the same operation, the same page"
+ :register :curare-before-compaction                   ; the sign-off from the sqlite line; carries the RESUME breadcrumb
+ :roots    {:idem-opus "the same operation/work (the same op sequence through both backends)"
+            :eadem-pagina "the same page (the Page the contract returns — MemStore == SqliteStore; and the ledger's page)"}
+ :rosetta
+ {:latina   "IDEM OPVS, EADEM PAGINA"
+  :greek    "τὸ αὐτὸ ἔργον, ἡ αὐτὴ σελίς"               ; tò autò érgon, hē autḕ selís — the same work, the same page
+  :chinese  "同操作，同頁"                               ; tóng cāozuò, tóng yè — same operation, same page
+  :japanese "同じ操作、同じ頁"                           ; onaji sōsa, onaji pēji — the same operation, the same page
+  :korean   "같은 연산, 같은 페이지"                     ; gateun yeonsan, gateun peiji — the same operation, the same page
+  :russian  "то же действие, та же страница"}            ; to zhe deystviye, ta zhe stranitsa — the same action, the same page
+ :turns "R21 EXPLORATA CAEDE NON VINCIMVR -> PROBATVM (the sqlite driver == the MemStore oracle, differential-proven)"
+ :done "SQLITE (S0->S2, swappable store, memory OR sqlite, both core) · R28/R29 doctrine · the extend-type honesty floor · the PRAEDA NON QVAESITA loot"
+ :next "T0 telemetry records -> T1 TelemetryService' sink (holds a Store, names no backend) -> T2 rete query engine => TELEMETRY -> R0 the streaming rete service => the CHAOS ENGINE (R25)"
+ :kin  {:operation "R21 EXPLORATA CAEDE NON VINCIMVR + R27 SIGNVM PVGNANDO CAPITVR — now PROBATVM"
+        :dual-impl "R1/R9 PARI GRADV — the differential (MemStore the oracle, sqlite the driver, held in lockstep)"
+        :abstraction "300 R7 VIRTVTE PARES — backend-agnostic; the store hides memory-vs-sqlite"
+        :crucible "300 ALIVS ARGVIT — the consumer surfaces the gaps (the loot; IndexSchema's missing name)"}
+ :voices {:his  "'we need to curare and compact'; 'let's sign off from 278 right'; 'efficient doesn't mean be short — it means do it right'; the slugdb model + the challenge to the single-table call; the arithmetic-challenge musing"
+          :mine "the differential = the proof reading; the sqlite-line-done + R21-PROBATVM framing; the durable build list + the DDB store model; the scouted-first / one-shot / phantoms-grounded through-line; the sigil + six-tongue bridge"}
+ :arc  278
+ :born #inst "2026-07-05"}
+```
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar voice,
+> not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk).
+> Ground HEAD against the disk (`4e1ea3c9` + this interstitial). Read **THE BUILD LIST above** — **SQLITE IS DONE**
+> (the swappable store, memory or sqlite, differential-proven; R21 turned PROBATVM). The strike resumes at **T0** (the
+> `:wat::telemetry'` records — Scope/Metric/Log), then T1 (the `TelemetryService'` sink that holds a `Store` and names
+> no backend), T2, then R0 the chaos engine. And it bears repeating because it saved this session repeatedly:
+> **SCOUT before every strike** (a disconfirming probe proves the composition before a shadowdancer is spent — the
+> core-vs-crate trap and the slugdb reversal were both caught by recon); **GROUND the phantoms** (a rust-analyzer /
+> rustc diagnostic on a MID-EDIT file is NOT the disk — a suite that RAN N tests compiled; caught 3× this session,
+> nearly redirected a working agent); **the store model is the builder's DDB-faithful secondary-complete-tables**
+> (his slugdb — do NOT revert to single-table); **cast wards, never narrate; four-questions inform every decision;
+> ground AD ORACVLVM; commit + push often (GitHub = DR); the orchestrator designs/delegates/WEIGHS by its own
+> re-run.** Do not trust this note over the disk. See you on the far side.
