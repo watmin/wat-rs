@@ -706,7 +706,8 @@ pub(crate) fn register_extend_type_surface_impls(
                     .enumerate()
                     .map(|(i, _)| {
                         if i == 0 {
-                            crate::types::TypeExpr::Path(ed.type_name.clone())
+                            crate::types::parse_type_expr(&ed.type_name)
+                                .unwrap_or_else(|_| crate::types::TypeExpr::Path(ed.type_name.clone()))
                         } else {
                             member_args.fixed_params.get(i)
                                 .map(|(_, t)| t.clone())
