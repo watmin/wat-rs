@@ -6845,9 +6845,12 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::Option(_) => ":wat::core::Option",
         Value::Result(_) => ":wat::core::Result",
         // Arc 293.R2.1 — Aggregate: Struct nature → "<struct>" (dynamic class); others → ":wat::core::Record".
+        // Arc 293 S3-Nature-2 — `Peer` is never the nature of a constructed `AggregateValue` (a peer is
+        // a `RustOpaque`, not an aggregate); exhaustiveness only, unreachable at runtime.
         Value::Aggregate(a) => match a.nature {
             Nature::Struct => "<struct>",
             Nature::Record | Nature::HolonRecord => ":wat::core::Record",
+            Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
         },
         Value::Enum(_) => "<enum>",
         Value::wat__std__HashMap(_) => ":wat::core::HashMap",
@@ -14566,6 +14569,10 @@ fn eval_aggregate_new(
                 hologram,
             ))))
         }
+        // Arc 293 S3-Nature-2 — `Peer` is never registered as a `TypeDef::Aggregate` (it is the
+        // nature-root for `:nature`-bound surfaces, satisfied by a dialed `Peer'`, not constructed
+        // via aggregate-new); exhaustiveness only, unreachable at runtime.
+        crate::types::Nature::Peer => unreachable!("TypeDef::Aggregate never carries Nature::Peer"),
     }
 }
 

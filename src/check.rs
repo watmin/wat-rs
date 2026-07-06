@@ -14858,6 +14858,13 @@ fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
             return agg.nature;
         }
     }
+    // Arc 293 S3-Nature-2 — a dialed `Peer'<S::Op,S::Reply>` derives `Nature::Peer` exactly; it must
+    // not fall through to the `Struct` default below (a peer is not a plain foreign struct).
+    if let TypeExpr::Parametric { head, .. } = t {
+        if head == "wat::kernel::Peer'" {
+            return Nature::Peer;
+        }
+    }
     if is_holon_or_vector(t, types) {
         Nature::HolonRecord
     } else if is_pure_type(t, types) {
@@ -14875,7 +14882,16 @@ fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
 fn nature_floor_ok(actual: &TypeExpr, surface_path: &str, types: &TypeEnv) -> bool {
     if let Some(crate::types::TypeDef::Surface(surf)) = types.get(surface_path) {
         if let Some(req) = surf.nature {
-            return derived_nature(actual, types).rank() >= req.rank();
+            // Arc 293 S3-Nature-2 — `:Peer` is off the aggregate rank ladder: a `:nature :Peer`
+            // surface requires the candidate's derived nature to BE `:Peer` exactly (an aggregate
+            // does not satisfy a peer surface, nor vice-versa). Every other required nature keeps
+            // the unchanged rank-floor check — byte-identical for existing aggregate surfaces.
+            let d = derived_nature(actual, types);
+            return if req == crate::types::Nature::Peer {
+                d == crate::types::Nature::Peer
+            } else {
+                d.rank() >= req.rank()
+            };
         }
     }
     true

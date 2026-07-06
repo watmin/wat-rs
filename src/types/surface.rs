@@ -345,7 +345,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                             kind: TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: format!(
-                                    ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record); got {}",
+                                    ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer'); got {}",
                                     v
                                 ),
                             },

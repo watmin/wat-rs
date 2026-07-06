@@ -1150,9 +1150,12 @@ impl Value {
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
             // Arc 293.R2.1 — Aggregate: nature gates the kind-string.
             // Struct nature → "wat::core::Struct"; Record/HolonRecord → "wat::core::Record".
+            // Arc 293 S3-Nature-2 — `Peer` is never the nature of a constructed `AggregateValue`
+            // (a peer is a `RustOpaque`, not an aggregate); exhaustiveness only, unreachable at runtime.
             Value::Aggregate(a) => match a.nature {
                 Nature::Struct => "wat::core::Struct",
                 Nature::Record | Nature::HolonRecord => "wat::core::Record",
+                Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
             },
             Value::Enum(_) => "wat::core::Enum",
             Value::Vector(_) => "wat::holon::Vector",

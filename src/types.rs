@@ -126,27 +126,39 @@ pub struct StructRestrictions {
 ///   Struct      = named product type (stays in process, never crosses the wire)
 ///   Record      = base record (`:wat::core::Record` hierarchy, wire-portable)
 ///   HolonRecord = holonic record (`:wat::holon::Record` hierarchy, wire-portable + holon_form)
+/// Arc 293 S3-Nature-2 — a fourth variant, `Peer`, joins the axis but sits OFF the aggregate
+/// contravariant ladder: a `:nature :Peer` surface requires an EXACT match (a dialed
+/// `Peer'<S::Op,S::Reply>`), not a floor. See `rank()` for why it carries the sentinel `i8::MIN`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Nature {
     Struct,
     Record,
     HolonRecord,
+    Peer,
 }
 
 impl Nature {
     /// The purity wall: `Struct` permits impurity (holds resources); `Record`/`HolonRecord` guarantee purity.
     /// Arc 293.W.2b — the purity predicate (was renamed from the symptom-name to the cause-name).
-    pub fn is_pure(&self) -> bool { !matches!(self, Nature::Struct) }
+    /// Arc 293 S3-Nature-2 — `Peer` joins `Struct` on the impure side: a peer holds a live channel
+    /// (crosses no comms; only its address does — the circuit / 293.W `:ephemeral`-only rule).
+    pub fn is_pure(&self) -> bool { !matches!(self, Nature::Struct | Nature::Peer) }
 
     /// Arc 293 K1a — the capability-ladder rank (the balanced trit). A required `:nature` on a surface
     /// is a FLOOR, not an exact kind: a candidate satisfies it iff `candidate.rank() >= required.rank()`.
     /// So `:nature :Struct` (-1) accepts struct+record+holon, `:nature :Record` (0) accepts record+holon,
     /// `:nature :HolonRecord` (+1) accepts holon only — the contravariant ladder of AGGREGATE-MODEL § principle 6.
+    /// Arc 293 S3-Nature-2 — `Peer => i8::MIN` is an OFF-LADDER sentinel: `:Peer` does not participate
+    /// in the aggregate rank floor at all — the exact-match branch in `nature_floor_ok` handles `:Peer`
+    /// surfaces directly, and `MIN` merely guarantees a peer candidate can never clear an *aggregate*
+    /// surface's rank floor (`MIN >= any aggregate rank` is false). This value is never the deciding
+    /// one for a `:Peer` surface — that path branches before rank is ever consulted.
     pub fn rank(&self) -> i8 {
         match self {
             Nature::Struct => -1,
             Nature::Record => 0,
             Nature::HolonRecord => 1,
+            Nature::Peer => i8::MIN,
         }
     }
 
@@ -157,6 +169,7 @@ impl Nature {
             Nature::Struct => ":wat::core::Struct",
             Nature::Record => ":wat::core::Record",
             Nature::HolonRecord => ":wat::holon::Record",
+            Nature::Peer => ":wat::kernel::Peer'",
         }
     }
 
@@ -168,6 +181,7 @@ impl Nature {
             ":wat::core::Struct"  => Some(Nature::Struct),
             ":wat::core::Record"        => Some(Nature::Record),
             ":wat::holon::Record" => Some(Nature::HolonRecord),
+            ":wat::kernel::Peer'" => Some(Nature::Peer),
             _                     => None,
         }
     }
