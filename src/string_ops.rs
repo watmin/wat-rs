@@ -333,7 +333,7 @@ pub fn eval_string_kebab_to_pascal_in(
 /// Splits on `-`; each segment matching a registered acronym (case-insensitive)
 /// → the canonical form (e.g. `"acl"` → `"ACL"`); else capitalize (first char
 /// upper, rest as-is). Empty acronym set → plain `kebab->pascal` behavior.
-fn kebab_to_pascal_with_acronyms(s: &str, acronyms: &[String]) -> String {
+pub(crate) fn kebab_to_pascal_with_acronyms(s: &str, acronyms: &[String]) -> String {
     let mut result = String::with_capacity(s.len());
     for segment in s.split('-') {
         // Check if this segment (case-insensitive) matches a known acronym.

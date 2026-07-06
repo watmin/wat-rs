@@ -1646,6 +1646,109 @@ fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
     ]
 }
 
+/// Arc 293 S1 — synthesize a surface's wire-protocol enums (`<S>::Op` / `<S>::Reply`).
+///
+/// When a `defsurface` carries METHOD members whose request AND response sigs are all
+/// **pure** (`is_pure_type` — EDN-crossable), the surface names a serviceable wire
+/// protocol: it emits two `Pure` enums, one variant per method —
+/// `<S>::Op::<Method> [req <- <request>]` and `<S>::Reply::<Method> [resp <- <response>]`.
+/// These shared enums are what every `:satisfies` service speaks and every `:calls`
+/// client dials (later 293 stones), so they are built **structurally IDENTICAL** to
+/// what a hand-written `defenum` registers (downstream cannot tell they were synthesized).
+///
+/// The purity gate is DERIVED, not a marker: a surface is loci-agnostic by nature, so it
+/// is always dialable *unless* its sigs can't cross. Impure sigs (a method holding a live
+/// `Peer'`/`Connection`) → 293.W already rejects such an enum → the surface is in-thread-only
+/// and we synthesize NOTHING for it (silent, correct; the surface still registers + works
+/// for extend-type / width-subtyping).
+///
+/// Returns `vec![]` (synthesize nothing) when:
+///   - the surface has **no** method members (a pure data surface — not a service);
+///   - any method lacks a request arg (`args[1]`, the payload after `self`);
+///   - any method's request or response type is **impure** (STOP-IMPURE);
+///   - `<S>::Op` or `<S>::Reply` **already exists** (a user hand-declared protocol wins —
+///     never overwrite; STOP-COLLISION).
+///
+/// Mirrors `derive_surface_backing_records`: called inline in `register_types_impl` using
+/// the SAME `register` closure, so the synthesized enums inherit the surface's registration
+/// privilege (stdlib surface → `register_stdlib`, user surface → `register`).
+///
+/// Purity is judged against `env`, which — by source order — already holds the request/
+/// response records declared before the surface. (A request/response record declared AFTER
+/// the surface is an unknown path to `is_pure_type` → treated as pure-by-convention; if it
+/// is in fact impure, the post-registration containment pass `validate_aggregate_containment`
+/// catches the synthesized `Pure` enum's impure field, exactly as it backstops the backing
+/// records above.)
+fn synthesize_surface_protocol(surface: &SurfaceDef, env: &TypeEnv) -> Vec<TypeDef> {
+    let mut op_variants: Vec<EnumVariant> = Vec::new();
+    let mut reply_variants: Vec<EnumVariant> = Vec::new();
+    let mut saw_method = false;
+
+    for member in &surface.members {
+        let SurfaceMember::Method { name, args, ret, .. } = member else {
+            continue; // Field members are data, not operations.
+        };
+        saw_method = true;
+
+        // Request payload = the arg AFTER `self` (`args[1]`). A method with no request arg
+        // carries no wire payload → this surface is not a clean protocol; synthesize nothing.
+        let request_ty = match args.fixed_params.get(1) {
+            Some((_, ty)) => ty.clone(),
+            None => return vec![],
+        };
+
+        // The purity gate: BOTH request and response must cross (EDN-serializable). Any impure
+        // sig → in-thread-only surface → synthesize nothing (293.W would reject an impure enum).
+        if !crate::check::is_pure_type(&request_ty, env)
+            || !crate::check::is_pure_type(ret, env)
+        {
+            return vec![];
+        }
+
+        // Variant name = PascalCase(method-name) via the EXISTING kebab→pascal conversion
+        // (`put` → `Put`, `scan-index` → `ScanIndex`). Empty acronym set = plain conversion.
+        let variant = crate::string_ops::kebab_to_pascal_with_acronyms(name, &[]);
+        op_variants.push(EnumVariant::Tagged {
+            name: variant.clone(),
+            fields: vec![("req".to_string(), request_ty)],
+        });
+        reply_variants.push(EnumVariant::Tagged {
+            name: variant,
+            fields: vec![("resp".to_string(), ret.clone())],
+        });
+    }
+
+    if !saw_method {
+        return vec![]; // pure data surface (fields only) — not a service.
+    }
+
+    // Protocol enums live under the surface's own namespace: `:S::Op` / `:S::Reply`
+    // (`surface.name` keeps the leading colon, e.g. `:probe::Kv`).
+    let op_name = format!("{}::Op", surface.name);
+    let reply_name = format!("{}::Reply", surface.name);
+
+    // STOP-COLLISION — never overwrite a user hand-declared protocol enum. If either name is
+    // already registered, yield to the user's declaration (do not synthesize, do not error).
+    if env.contains(&op_name) || env.contains(&reply_name) {
+        return vec![];
+    }
+
+    vec![
+        TypeDef::Enum(EnumDef {
+            name: op_name,
+            type_params: vec![],
+            purity: Purity::Pure,
+            variants: op_variants,
+        }),
+        TypeDef::Enum(EnumDef {
+            name: reply_name,
+            type_params: vec![],
+            purity: Purity::Pure,
+            variants: reply_variants,
+        }),
+    ]
+}
+
 /// Shared loop body for [`register_types`] and [`register_stdlib_types`].
 /// Differs only in which `env` registration method is called — passed as
 /// `register`. Non-type-decl forms are spliced via `splice` (handles
@@ -1673,7 +1776,12 @@ fn register_types_impl(
                 // `$core-record`/`$holon-record` names are in the same non-reserved namespace).
                 // RETIRED 293 K3-revise: `:S$struct` — see retirement.rs.
                 let derived = if let TypeDef::Surface(ref surf) = def {
-                    derive_surface_backing_records(surf)
+                    // Arc 293 K3-revise — the backing record PAIR ($core-record / $holon-record).
+                    let mut d = derive_surface_backing_records(surf);
+                    // Arc 293 S1 — the wire-protocol enums (`::Op` / `::Reply`) when the method
+                    // sigs are pure. Same `register` closure → same privilege as the surface.
+                    d.extend(synthesize_surface_protocol(surf, env));
+                    d
                 } else {
                     vec![]
                 };
