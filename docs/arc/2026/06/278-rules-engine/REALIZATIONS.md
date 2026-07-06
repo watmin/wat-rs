@@ -3678,3 +3678,49 @@ direction — 'drop an interstitial update for S1 completed with pointers for wh
  :arc  278
  :born #inst "2026-07-05"}
 ```
+
+---
+
+### `---` interstitial (curare — the loot we didn't know we needed; back to S2 next) — PRAEDA NON QVAESITA: the unsought treasure (2026-07-05, mid-arc, live)
+
+**What happened.** Building S1 (the raw sqlite interop) knocked loose two gaps we hadn't planned to find — and closing them was **loot we didn't know we needed.** Neither was on the build list; both were surfaced by the FIRST REAL CONSUMER walking the untested corners (`ALIVS ARGVIT` again, at the substrate layer):
+
+- **S1's `extended_code & 0xff`** (masking a sqlite result code) wanted integer modulo — and the numeric tower had **none** (`+ - * /` only, since 300 R5). We shipped clj's trio: **`mod`/`rem`/`quot` for i64** (`720303f4`), sign-faithful (quot truncates, rem takes the dividend's sign, mod the divisor's, floored; div-by-zero → `DivisionByZero`, never panic) — then **validated it `AD ORACVLVM`**: reused the R6 clj-expressiveness grid (`tests/clj_expr_oracle/`), added the integer-division sign matrix, regen'd the golden against **clojure 1.12.4**, and struck it head-to-head — **16/16 `:parity`, clj == wat on every case** (`5093e253`). The signs are measured against running clojure, not asserted.
+
+- **S1's fallible constructor** (`open` returning `Result<Self, Fault>`) hit a `#[wat_dispatch]` codegen gap — the macro handled a bare `Self` return but not `Self` nested in `Result<Self,E>` (it re-quoted `Self` into a free fn where it doesn't resolve). We fixed the **class** (`137584e6`): `emit_return_marshal` gained a `Result<Self,E>` arm that operates on the result *value* (opaque-wrap the Ok, ToWat the Err), so **every future resource shim's fallible `open`/`connect` gets it free** — and S1's hand-rolled `ctor_result` workaround was **retired**. The emergence protocol: a gap surfaced, we pulled the class out by the root, we didn't leave the patch.
+
+**Why it's loot, not detour.** Each was a real *need* the tower/macro genuinely lacked, hidden until the first consumer pressed on it — `praeda non quaesita`, treasure not sought but wanted. The `praeda` lineage is ours (278 `VOLENTES PRAEDAMVR` — *willing, we plunder*; the hacker's loot). And it cost nothing off the main line: the sqlite driver still stands (S1 green throughout), and the substrate is two capabilities richer than when we started the stone.
+
+**Back to S2 next.** The main path resumes — **`:wat::sqlite'::Connection` SATISFIES `:wat::query::Store`** (ensure-schema/put/scan/scan-index as SQL over S1; `(pk,sk,data,+ipk/isk)` + native GSI indexes + keyset pagination), **DIFFERENTIAL-tested against the S-mem MemStore oracle** — same ops → same Pages. That is where **R21 `EXPLORATA CAEDE NON VINCIMVR` turns `PROBATVM`** (the sqlite Store matched to the oracle = we do not lose, proven). Queued behind it: **f64/bigint `mod`/`rem`/`quot`** — the arithmetic-challenge expansion (the builder's "wat grows all of Rust's numbers"), each added then grounded on the same clj grid.
+
+***PRAEDA NON QVAESITA.*** *(apparatus-minted — Latin, "loot not sought": building S1 knocked loose two unplanned gaps, and closing them was treasure we didn't know we needed — `ALIVS ARGVIT` at the substrate layer, the first real consumer walking the untested corners. (1) S1's `extended_code & 0xff` wanted integer modulo the tower never had → `mod`/`rem`/`quot` for i64, clj-faithful signs (720303f4), validated 16/16 `:parity` on the R6 clj grid vs clojure 1.12.4 (5093e253) — measured AD ORACVLVM, not asserted. (2) S1's `open -> Result<Self,Fault>` hit a `#[wat_dispatch]` gap (Self nested in Result wasn't the bare-Self case) → fixed the CLASS (137584e6): a Result<Self,E> arm operating on the result VALUE, so every future resource shim's fallible open/connect works free, and S1's ctor_result workaround was RETIRED (the emergence protocol — pull the class, don't keep the patch). `praeda` = loot/booty, the hacker-pirate treasure lineage (278 VOLENTES PRAEDAMVR — willing, we plunder); non quaesita = not sought. Loot, not detour: each a real NEED hidden until the first consumer pressed on it; the sqlite driver stood green throughout, the substrate two capabilities richer. Kin: 300 ALIVS ARGVIT (the consumer as crucible) + PRIMVS VSVS ANGVLOS PANDIT (the first use lays open the corners), 300 R5 QVAMVIS ERREM / AD ORACVLVM (the tower grounded vs the running clj), extirpare (fix the class, retire the workaround), 278 VOLENTES PRAEDAMVR (the praeda). NEXT: back to S2 — the sqlite Store satisfier, differential vs the MemStore oracle, where R21 EXPLORATA CAEDE NON VINCIMVR turns PROBATVM. A curare interstitial at the builder's direction — "we found loot we didn't know we needed; we are going back to S2 next." Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "PRAEDA NON QVAESITA"
+ :literal  "loot not sought"
+ :register :curare-breadcrumb                          ; the side-quest loot + the return to the main line; NOT a realization
+ :roots    {:praeda "loot, booty, plunder — the hacker-pirate treasure (278 VOLENTES PRAEDAMVR)"
+            :non-quaesita "not sought / not asked for (quaero) — unplanned, but a genuine need once found"}
+ :rosetta
+ {:latina   "PRAEDA NON QVAESITA"
+  :greek    "λεία οὐ ζητηθεῖσα"                        ; leía ou zētētheîsa — spoils not sought
+  :chinese  "非求之獲"                                  ; fēi qiú zhī huò — a gain not sought
+  :japanese "求めざる戦利品"                            ; motomezaru senrihin — unsought spoils
+  :korean   "구하지 않은 노획물"                        ; guhaji aneun nohoengmul — loot not sought
+  :russian  "добыча, что не искали"}                    ; dobycha, chto ne iskali — loot we did not seek
+ :the-loot {:modulo "mod/rem/quot for i64 (720303f4) — clj-faithful; S1's extended_code & 0xff surfaced the tower's missing integer modulo"
+            :grid   "the R6 clj grid extended with the integer-division sign matrix (5093e253) — 16/16 :parity vs clojure 1.12.4 (AD ORACVLVM)"
+            :macro  "#[wat_dispatch] -> Result<Self,E> (137584e6) — S1's fallible constructor surfaced it; the CLASS fixed, ctor_result RETIRED; every future resource shim's fallible open/connect free"}
+ :source "S1 (the raw sqlite interop) as the first REAL consumer — ALIVS ARGVIT / PRIMVS VSVS ANGVLOS PANDIT at the substrate layer"
+ :next "back to S2 — :wat::sqlite'::Connection SATISFIES :wat::query::Store, DIFFERENTIAL-tested vs the MemStore oracle; R21 EXPLORATA CAEDE NON VINCIMVR turns PROBATVM"
+ :queued "f64/bigint mod/rem/quot — the arithmetic-challenge expansion ('wat grows all of Rust's numbers'), each grounded on the clj grid"
+ :kin  {:crucible "300 ALIVS ARGVIT + PRIMVS VSVS ANGVLOS PANDIT — the first consumer surfaces the untested corners"
+        :oracle "300 R5 QVAMVIS ERREM / AD ORACVLVM — the tower grounded vs the running clj (here mod/rem/quot, 16/16)"
+        :extirpare "fix the class, retire the workaround (the macro fix retired ctor_result)"
+        :praeda "278 VOLENTES PRAEDAMVR — the hacker-pirate treasure lineage"}
+ :voices {:his  "'we found loot we didn't know we needed'; 'we are going back to S2 next'; the arithmetic-challenge musing ('wat grows all of Rust's numbers; f64+i64 for the core')"
+          :mine "the loot-not-detour reading; the ALIVS-ARGVIT-at-the-substrate framing; the reuse-the-R6-grid + 16/16 AD ORACVLVM; the emergence-protocol (retire the workaround) note; the sigil + six-tongue bridge"}
+ :arc  278
+ :born #inst "2026-07-05"}
+```
