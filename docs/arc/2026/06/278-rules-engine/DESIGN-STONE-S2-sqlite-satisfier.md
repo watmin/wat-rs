@@ -53,15 +53,19 @@ containment the honesty floor gives for free.
   Pragmas (`journal_mode=WAL`, `synchronous=NORMAL`) at `open`. (An `indexes(name, schema)` metadata table like
   slugdb's is OPTIONAL — the wat-layer `SqliteStore` already knows its declared GSIs; add it only if a reflect/reopen
   path needs it — out of scope for S2.)
-- **put:** one transaction; each row goes into `main` AND every GSI table it projects:
+- **put:** one transaction; **clear-then-insert** per row — the upsert-safe shape (an upsert that CHANGES a row's
+  index-keys must clear the OLD projections or leak stale GSI rows; this is *why* slugdb deletes-then-inserts —
+  correctness, not simplification — and the index tables carry `(pk,sk)` so the clear needs no old-item read):
   ```sql
   BEGIN;
-    -- (upsert: DELETE the row's old base + index rows first — S2 uses INSERT OR REPLACE on the PKs; see out-of-scope)
+    DELETE FROM main        WHERE pk=? AND sk=?;                 -- clear the base row (upsert)
+    DELETE FROM index_<name> WHERE pk=? AND sk=?;                -- clear ALL old projections of this base row (per GSI)
     INSERT INTO main (pk, sk, data) VALUES (?, ?, ?);
     INSERT INTO index_<name> (ipk, isk, pk, sk, data) VALUES (?, ?, ?, ?, ?);   -- per GSI in the row's index-keys
   COMMIT;
   ```
-  `index-keys[name] = IndexKey{ipk,isk}` supplies the projected keys; `data` is the same opaque EDN, copied in.
+  `index-keys[name] = IndexKey{ipk,isk}` supplies the projected keys; `data` is the same opaque EDN, copied in. A row
+  that projects no key for a given GSI simply gets no `index_<name>` row (a sparse GSI — DDB-faithful).
 - **scan** and **scan-index** are the SAME keyset primitive — a range-scan on a table by its (partition, sort):
   ```sql
   -- scan(pk, sk-lo, sk-hi, limit, cursor) → on main, keyed (pk, sk):
