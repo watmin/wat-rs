@@ -480,6 +480,26 @@
     y <- :wat::core::bigint] -> :wat::core::f64
     (:wat::core::f64::/ x (:wat::core::bigint::to-f64 y))))
 
+;; ─── mod / rem / quot — clj's integer-division trio (i64 only) ──────────────
+;;
+;; Arc 278 numeric-tower increment. Scope: i64 only this stone — bigint/rational
+;; mod/rem/quot is a tracked tower-contagion follow-on (named out-of-scope, not
+;; deferred). Unlike +/-/*// above, these are 2-ARY ONLY: clj's `mod`/`rem`/
+;; `quot` take exactly 2 args (no 0-ary identity, no 1-ary, no N-ary fold, no
+;; cross-type contagion arms) — CLAUSE ABSENCE rejects anything else, same
+;; no-privacy doctrine as the rest of this file.
+(:wat::core::defclause :wat::core::quot
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::quot x y)))
+
+(:wat::core::defclause :wat::core::rem
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::rem x y)))
+
+(:wat::core::defclause :wat::core::mod
+  ([x <- :wat::core::i64
+    y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::mod x y)))
+
 ;; ─── kwargs-lower — shared kwargs lowering macro (Arc 260.1b Part B) ─────────
 ;;
 ;; Extracted from the inlined companion macro body inside `defn`'s kwargs branch.

@@ -15854,6 +15854,11 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::i64::-",
         ":wat::core::i64::*",
         ":wat::core::i64::/",
+        // Arc 278 numeric-tower increment — clj's mod/rem/quot trio for i64
+        // (i64 only this stone). Same (i64,i64)->i64 shape as +/-/*//.
+        ":wat::core::i64::mod",
+        ":wat::core::i64::rem",
+        ":wat::core::i64::quot",
     ] {
         env.register(
             op.to_string(),

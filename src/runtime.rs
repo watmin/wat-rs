@@ -4329,6 +4329,43 @@ fn dispatch_keyword_head_value(
                 a.checked_div(b).ok_or_else(|| RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b } }.into())
             }
         }),
+        // Arc 278 numeric-tower increment — clj's mod/rem/quot trio for i64
+        // (i64 only this stone; bigint/rational is a named out-of-scope
+        // follow-on). Mirrors i64::/'s div-by-zero + MIN/-1 overflow
+        // structure exactly. The three differ ONLY by sign:
+        //   quot — truncate toward zero (`checked_div`, same as `/`).
+        //   rem  — sign of the DIVIDEND (`checked_rem`).
+        //   mod  — sign of the DIVISOR, floored (adjust `rem`'s result by
+        //          `+ b` when the remainder is nonzero and disagrees in
+        //          sign with the divisor).
+        ":wat::core::i64::quot" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+            if b == 0 {
+                Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
+            } else {
+                // i64::MIN quot -1 is the one division overflow edge, same as `/`.
+                a.checked_div(b).ok_or_else(|| RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b } }.into())
+            }
+        }),
+        ":wat::core::i64::rem" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+            if b == 0 {
+                Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
+            } else {
+                // i64::MIN rem -1 is mathematically 0 but `checked_rem` returns
+                // `None` (would need the same overflowing quotient as `/`) —
+                // clj-faithful special-case rather than IntegerOverflow (`rem`
+                // itself never overflows: |remainder| < |divisor|).
+                Ok(a.checked_rem(b).unwrap_or(0))
+            }
+        }),
+        ":wat::core::i64::mod" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+            if b == 0 {
+                Err(RuntimeError { span: b_span.clone(), kind: RuntimeErrorKind::DivisionByZero }.into())
+            } else {
+                // Same MIN/-1 special-case as `rem` above (mod(MIN,-1) = 0).
+                let r = a.checked_rem(b).unwrap_or(0);
+                Ok(if r != 0 && (r < 0) != (b < 0) { r + b } else { r })
+            }
+        }),
         // Arc 300 stone C1 — bigint arithmetic. Arbitrary precision — NO
         // wrapping/overflow branch (contrast i64 above); `+ - *` always
         // succeed. `/` collapses to bigint (divisible) or rational (else),
@@ -9328,6 +9365,34 @@ pub(crate) fn dispatch_substrate_impl(
                 // i64::MIN / -1 is the one division overflow edge (checked_div
                 // returns None here since b != 0 was already ruled out above).
                 a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
+            }
+        })),
+        // Arc 278 numeric-tower increment — clj's mod/rem/quot trio for i64,
+        // this tower's per-type intrinsic path (the surface defclause folds
+        // through here). Mirrors i64::/ above; see the primary dispatch arm's
+        // comment for the sign-rule rationale.
+        ":wat::core::i64::quot" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
+            if b == 0 {
+                Err(I64ArithErr::DivByZero)
+            } else {
+                a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
+            }
+        })),
+        ":wat::core::i64::rem" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
+            if b == 0 {
+                Err(I64ArithErr::DivByZero)
+            } else {
+                // MIN rem -1 = 0 (clj-faithful special-case; checked_rem's
+                // None here never signals a real overflow — |rem| < |b|).
+                Ok(a.checked_rem(b).unwrap_or(0))
+            }
+        })),
+        ":wat::core::i64::mod" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
+            if b == 0 {
+                Err(I64ArithErr::DivByZero)
+            } else {
+                let r = a.checked_rem(b).unwrap_or(0);
+                Ok(if r != 0 && (r < 0) != (b < 0) { r + b } else { r })
             }
         })),
         ":wat::core::f64::+" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
