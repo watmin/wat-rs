@@ -23,7 +23,7 @@
                 (:wat::query::StoredRow "u#1" "e" "{:v 5}" empty-ik))
      _es      (:wat::core::Result/expect
                 (:wat::query::Store/ensure-schema store (:wat::query::TableSchema "pk" "sk")
-                  (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema "pk" "sk" "ipk" "isk")))
+                  (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema "by-v" "pk" "sk" "ipk" "isk")))
                 "ensure-schema failed")
      _p       (:wat::core::Result/expect (:wat::query::Store/put store rows) "put failed")
 

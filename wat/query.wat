@@ -13,7 +13,7 @@
 ;;     `:wat::core::Result<T,wat::query::Error>` — never a bare success type.
 ;;   - the error channel is an errors-as-record `defenum` on the RECOVERY axis (the caller's
 ;;     forced branch: retry / surface / abort) — `:Transient` / `:Constraint` / `:Fatal`, each
-;;     carrying a `Fault` (op / code / sql / message).
+;;     carrying a `Fault` (op / code / diagnostic / message).
 ;;
 ;; Only outward refs: `:wat::core::*` (String/i64/keyword/nil/Vector/Option/HashMap/Struct/
 ;; Result) + `:wat::enum::Pure`. Loads after `wat/core.wat` (defrecord/defenum/defsurface + those
@@ -87,7 +87,9 @@
    sk <- :wat::core::String])
 
 (:wat::core::defrecord :wat::query::IndexSchema
-  [pk  <- :wat::core::String
+  [name <- :wat::core::String                                ;; the GSI's name — S2's secondary-complete-tables
+                                                              ;; model makes this the table name (`index_<name>`)
+   pk  <- :wat::core::String
    sk  <- :wat::core::String
    ipk <- :wat::core::String
    isk <- :wat::core::String])

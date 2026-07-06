@@ -375,6 +375,16 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query/mem.wat",
         source: include_str!("../wat/query/mem.wat"),
     },
+    // wat/query/sqlite-store.wat — arc 278 stone S2: `:wat::sqlite'::SqliteStore`, the sqlite
+    // `:wat::query::Store`/`ReadStore` satisfier (SQL over S1's `:wat::sqlite'` verbs,
+    // DDB-faithful secondary-complete-tables GSIs, clear-then-insert `put`). Differential-tested
+    // against `:wat::query::MemStore` (this file's sibling above). Loads after wat/sqlite.wat (S1
+    // verbs), wat/query.wat (the Store contract + records), and wat/query/mem.wat (no eval-dep on
+    // mem.wat, but grouped beside it as the query engine's second Store satisfier).
+    WatSource {
+        path: "wat/query/sqlite-store.wat",
+        source: include_str!("../wat/query/sqlite-store.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
