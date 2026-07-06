@@ -385,6 +385,20 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query/sqlite-store.wat",
         source: include_str!("../wat/query/sqlite-store.wat"),
     },
+    // wat/telemetry.wat — arc 278 stone ①: the `:wat::telemetry'` DATA VOCABULARY. The 8 pure
+    // declarations (Tags/Numeric/Unit/Level/Scope/LogMessage/Metric/Log) the telemetry sink +
+    // producer services (later stones) build on. Metric/Log are `defrecord`s that SPLICE the Scope
+    // surface via `~@:wat::telemetry'::Scope` (arc-293 surface-splice) — spliced fields inline
+    // first, then own; the unified aggregate ctor + register_aggregate_methods mint the spliced
+    // accessors. Namespace is PRIMED (`:wat::telemetry'`, staged to replace the loaded
+    // wat-telemetry battery bridge — no collision); a baked core source may declare under `:wat::`
+    // (stdlib bypasses the reserved-prefix gate). Loads AFTER wat/core.wat (defrecord/defenum/
+    // defsurface/typealias + splice); depends only on core + :wat::core::Uuid (arc-207 primitive,
+    // always available), so last is a clean position.
+    WatSource {
+        path: "wat/telemetry.wat",
+        source: include_str!("../wat/telemetry.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

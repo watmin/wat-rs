@@ -10,7 +10,6 @@
 use wat::freeze::startup_beside;
 
 #[test]
-#[ignore = "IGNORE-LEDGER(278-telemetry-records): un-ignore as the final green step of the records strike"]
 fn telemetry_records_exist_and_splice_scope() {
     let world = startup_beside(file!());
     assert!(
