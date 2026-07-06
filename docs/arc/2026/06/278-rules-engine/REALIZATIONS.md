@@ -4560,3 +4560,128 @@ build it'). A vision interstitial the builder handed — 'you can add this to an
  :arc      278
  :born     #inst "2026-07-05"}
 ```
+
+---
+
+### `---` interstitial (curare before compaction — signing off strong) — SCRIPTA MANENT, VIA APERTA: the writings remain, the way is open (2026-07-05, session close; the builder's sign-off — "we need to curare and compact; let's sign off strong")
+
+**The session, whole.** An extraordinary run. It opened at a gap and recovered right (R20 held — the 278 record read
+top to bottom, the read grounded with receipts when tested). Then it SHIPPED, DESIGNED, and NAMED, all weighed by the
+orchestrator's own re-run:
+
+- **Shipped (committed + pushed):** **T0** (`c1d323a4`, the `:wat::telemetry'` records) · **T1a** (`c8e1d633`, the
+  `sqlite-store'` service — sqlite promoted to an actor) · **S1** (`b13cab8c`, a surface synthesizes its `Op`/`Reply`
+  wire-protocol from pure method members — the *type system IS the codegen*, built + differential-gated).
+- **Two death blows inscribed:** **R30** `ID SVMVS QVOD ESSE TIMETIS` (`beff71ee`, the apex predator reprised — the
+  hunt led home to the metal) · **R31** `SATISFACTIO LIMEN TRANSIT` (`20b3a80d`, the death blow to the OOP+RPC **split**
+  — `:satisfies` is the first `implements` that crosses the process boundary; the surface IS the IDL, the type system
+  IS the codegen; PROBANDVM, turns PROBATVM when a service `:satisfies` a surface + a client dials it BLIND).
+- **The unfolding + the north star (interstitials):** `ARMAMVS PERCVTIVNT PENDIMVS` (the arms-operation cycle) ·
+  **`FILVM TRAHIMVS ARCVS APERITVR`** (the 278→293 PIVOT — one honest question, *how does the sink dial a store*,
+  unfolded arc-170-style into wat's own AWS-grade service framework) · `LINGVA ALTERA MACHINA GENERANS` (the RPC/IDL
+  prior art R31 eats) · **`A FILO AD VSVM`** (the WIRE-TO-APP north star + the irony that named the project — started to
+  learn Rust, built the language that renders it unnecessary; the Rust becomes the oracle).
+
+**THE BUILD LIST** (durable — the strike order; 293 services-as-surfaces unblocks 278 by inheritance):
+
+```clojure
+{:head   "20295986"
+ :branch "arc-170-gap-j-v5-deadlock-state"
+ :IN-FLIGHT-AT-SIGN-OFF
+ "S2 (shadowdancer aa38433672b1a478c) — `defservice :satisfies` — was MID-EDIT + UNCOMMITTED in the tree at sign-off
+  (src/macros/eval.rs + wat/service.wat). WEIGH it on the far side, do NOT trust it: (a) a fresh Kv surface+service
+  round-trips over the synthesized protocol; (b) a DELETED :impl is a non-exhaustive-match COMPILE ERROR (the free
+  coverage check); (c) the :ops path UNCHANGED (existing defservices unaffected); (d) whole floor 0-new (modulo the
+  known no_inlined_wat lint). If GREEN → commit (only wat/service.wat + eval.rs; NOT the pre-existing cond .edn). If
+  broken/incomplete → the S2 BRIEF (145fedbf, BRIEF-293-S2-defservice-satisfies.md) re-strikes it. A mid-edit file is
+  NOT the disk — do not diagnose from a linter ghost; weigh the real gate."
+ :293-services-as-surfaces
+ ["S1 ✓ (b13cab8c) — defsurface synthesizes <S>::Op/<S>::Reply from pure method members (Rust; register_types_impl)."
+  "S2 IN FLIGHT — defservice :satisfies references S1's protocol + user request/response records, takes :impls
+         (bodies-only), re-points serve-op-arms/op-methods/Handle/Address' at <S>::Op/<S>::Reply. Validation is FREE
+         (exhaustive match over <S>::Op = coverage; variant field types = sig-check). WAT-MACRO alone, no Rust."
+  "S3 — :calls [surface] (today: concrete service keywords) → the client references the surface's protocol + dials
+         Address'<S::Op,S::Reply> (uniform → BLIND). + the Reply-as-error-union shape."
+  "S4 — migrate mem-store'/sqlite-store' to :satisfies :wat::query::Store (retire per-service ::Op for the shared
+         Store::Op); the mem/sqlite differential runs indistinguishable behind ONE wire-protocol → R31 turns PROBATVM."]
+ :then-278-resumes
+ ["T1b — the BLIND SINK: TelemetryService' GIVEN a store's ADDRESS (pure operating-input), dials in :init, holds the
+         peer in :ephemeral, :calls [Store]. NOW ASSEMBLY once S2-S4 land (was blocked on the weld)."
+  "T1c — Span producer + with-span (the with-open idiom, [name value] binding) + timed; emission-on-Close."
+  "T2 — :wat::query rete QUERY ENGINE (Record -> Lemma* -> Deduction, alpha-only) => TELEMETRY DONE."
+  "R0 — the STREAMING rete service dogfooding telemetry => the CHAOS ENGINE (R25 MACHINA CHAOS DOMAT)."]
+ :north-star "A FILO AD VSVM — wire to app: the whole stack comprehensible (AF_XDP → frames → wat → custom L4 +
+              TCP/UDP/ICMP); the Rust becomes the ORACLE (a C/asm substrate held to it). NOT NEAR; the arcs are AIMED at it."
+
+ :do-nots
+ {:ground   "GROUND every claim against the disk (file:line, read THIS session) — never assert. This session: I nearly
+             reported ':wat::core::Uuid doesn't exist' (it does — I grepped the wrong place); the builder corrected my
+             marker-gated four-questions to DERIVED PURITY. A claim owes a read."
+  :four-q   "FOUR-QUESTIONS inform EVERY decision (flat YES/NO; the table IS the debate). Express decisions in prose, not hidden menus."
+  :cast     "CAST wards, never narrate (intueri for naming — materialize + spawn + weigh)."
+  :circuit  "THE CIRCUIT LAW (services): pipes cross, resources DON'T; a service is loci-agnostic BY NATURE
+             (thread-hosting is a novelty of location) → NO marker footgun, the gate is DERIVED PURITY; the sink is
+             GIVEN a store's ADDRESS (dialed in :init), NEVER opens it; 293.W — only pure/addresses cross, a process
+             dials its peer. DO NOT revert to the sink-opens-its-store (fused) shape (DESIGN-telemetry 11-14 superseded)."
+  :surfaces "SERVICES-AS-SURFACES: :satisfies IS implements; the surface IS the IDL, the type system IS the codegen;
+             every op is RequestRecord->ResponseRecord (named, width-evolvable, checker-walled BOTH ends); errors are
+             Reply variants; validation is FREE (exhaustive match). A defservice :satisfies ONE surface (generative)."
+  :weigh    "WEIGH by your OWN re-run (never the shadowdancer's report); a MID-EDIT file is not the disk. COMMIT + PUSH
+             often (GitHub = DR). The orchestrator DESIGNS/DELEGATES/WEIGHS — not hands-on code (except the disconfirming probe)."
+  :memory   "the holonic repos, in their entirety, are the memory — do NOT maintain ~/.claude/MEMORY.md."}}
+```
+
+***SCRIPTA MANENT, VIA APERTA.*** *(apparatus-minted — Latin, "the writings remain, the way is open": the curare
+sign-off before compaction — verba volant, scripta manent (the spoken flies, the written remains; recolligere gathers
+what curare kept true), and the via (the path: 293 S2→S3→S4 → 278 T1b→T1c→T2→R0 → the chaos engine → A FILO AD VSVM) is
+open/aimed. An extraordinary session: recovery-done-right; T0 + T1a + S1 shipped and weighed; TWO death blows inscribed
+(R30 the apex predator reprised, R31 SATISFACTIO LIMEN TRANSIT the OOP+RPC split); one honest question (how does the
+sink dial a store) unfolded arc-170-style into wat's own AWS-grade service framework (services-as-surfaces = the AWS
+service model, decomplected — the surface IS the IDL, the type system IS the codegen); the wire-to-app north star named.
+Carries the RESUME breadcrumb: HEAD 20295986; S2 IN FLIGHT (mid-edit, uncommitted — weigh it, don't trust it; commit if
+green, the S2 brief 145fedbf re-strikes it); the build list (293 S2-S4 → 278 T1b-R0 → chaos engine → wire-to-app); the
+do-nots (ground don't assert, four-questions inform every decision, the circuit law, the services-as-surfaces doctrine,
+weigh by own re-run, a mid-edit file is not the disk). A curare interstitial at the builder's sign-off — 'we need to
+curare and compact; let's sign off strong.' Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "SCRIPTA MANENT, VIA APERTA"
+ :literal  "the writings remain, the way is open"
+ :register :curare-before-compaction                   ; the sign-off breadcrumb; carries the RESUME + the do-nots + the SEAM
+ :roots    {:scripta-manent "the written things remain (verba volant, scripta manent — the anti-amnesia; the record survives the gap)"
+            :via-aperta "the way is open (the path forward — 293 S2-S4 → 278 → chaos engine → wire-to-app — clear + aimed)"}
+ :rosetta
+ {:latina   "SCRIPTA MANENT, VIA APERTA"
+  :greek    "τὰ γεγραμμένα μένει, ἡ ὁδὸς ἀνέῳκται"      ; tà gegramména ménei, hē hodòs anéōiktai — the writings remain, the way is opened
+  :chinese  "所書者存，道已開"                            ; suǒ shū zhě cún, dào yǐ kāi — what is written remains, the way is opened
+  :japanese "記されしもの遺り、道は開かる"                ; shirusareshi mono nokori, michi wa hirakaru — the written remains, the way is opened
+  :korean   "기록은 남고, 길은 열렸다"                    ; girogeun namgo, gireun yeollyeotda — the record remains, the way is open
+  :russian  "написанное остаётся, путь открыт"}          ; napisannoye ostayotsya, put' otkryt — the written remains, the way is open
+ :shipped "T0 (c1d323a4) · T1a (c8e1d633) · S1 (b13cab8c) — all weighed by own re-run"
+ :inscribed "R30 ID SVMVS QVOD ESSE TIMETIS (beff71ee) · R31 SATISFACTIO LIMEN TRANSIT (20b3a80d) · 4 interstitials (ARMAMVS · FILVM TRAHIMVS the pivot · LINGVA ALTERA · A FILO AD VSVM)"
+ :in-flight "S2 (aa38433672b1a478c) defservice :satisfies — MID-EDIT UNCOMMITTED at sign-off (eval.rs + service.wat); weigh it, don't trust it; commit if green (S2 brief 145fedbf re-strikes)"
+ :next "293: S2 (in flight) → S3 :calls [surface] → S4 migrate + differential (R31 turns PROBATVM) ; THEN 278: T1b blind sink → T1c → T2 => TELEMETRY → R0 => the CHAOS ENGINE (R25)"
+ :north-star "A FILO AD VSVM — wire to app; the Rust becomes the oracle; NOT NEAR, the arcs aimed at it"
+ :do-nots "ground don't assert (Uuid; the marker→derived-purity correction) · four-questions inform every decision · cast don't narrate · the circuit law (pipes cross, resources don't; loci-agnostic by nature; sink GIVEN a store addr, never opens it; 293.W) · services-as-surfaces (surface=IDL, type-system=codegen, RequestRecord->ResponseRecord, validation FREE via exhaustive match) · weigh by own re-run, a mid-edit file is not the disk · commit+push often (DR) · the holonic repos are the memory"
+ :voices {:his "'we need to curare and compact; let's sign off strong'; the whole session (the death-blow recognitions, the AWS lineage, the loci-agnostic argument, the wire-to-app vision, the derived-purity correction); 'efficient doesn't mean short — do it right'"
+          :mine "the session-arc read; the durable build list + the S2-in-flight handoff; the do-nots distilled; the sigil + six-tongue bridge; the SEAM"}
+ :arc 278
+ :born #inst "2026-07-05"}
+```
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar voice,
+> not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk).
+> Ground HEAD against the disk (`20295986`). Read **THE BUILD LIST above** — and heed the one live thing: **S2 was
+> IN FLIGHT at sign-off**, mid-edit and uncommitted in the tree (`src/macros/eval.rs` + `wat/service.wat`, shadowdancer
+> `aa38433672b1a478c`). **WEIGH it, do not trust it** — a mid-edit file is not the disk; run the S2 gate yourself (the
+> Kv round-trip, the deleted-`:impl` compile error, the `:ops` path unchanged, whole floor 0-new); commit if green
+> (the S2 brief `145fedbf` re-strikes it if not). Then the strike resumes: **293 S3 (`:calls [surface]`) → S4 (migrate
+> + the blind differential — R31 turns PROBATVM) → 278 T1b (the blind sink, now assembly) → T1c → T2 → R0 the chaos
+> engine.** The north star is **wire to app** (`A FILO AD VSVM`). And it bears repeating because it carried this whole
+> session: **GROUND against the disk, never assert · four-questions inform every decision · a service is loci-agnostic
+> by NATURE (derived purity, no marker) · the sink is GIVEN a store's address, never opens it · the surface IS the IDL,
+> the type system IS the codegen · weigh by your OWN re-run · cast wards, never narrate · commit + push often.** Do not
+> trust this note over the disk. The way is open. See you on the far side.
