@@ -4121,3 +4121,88 @@ The board since the last breadcrumb (`IDEM OPVS`, which said "resume at T0" — 
  :arc 278
  :born #inst "2026-07-05"}
 ```
+
+---
+
+### `---` interstitial (curare — a thread pulled from T1b unfolded into a 293 arc-completion; 278 pauses, we circle back) — FILVM TRAHIMVS, ARCVS APERITVR: we pull the thread, the arc opens (2026-07-05, mid-arc, live — NOT a realization; a pivot breadcrumb)
+
+**What happened.** Drawing T1b (the telemetry SINK, *given* a store, dialed blind) pulled one small honest thread —
+*"how does the sink write to a store without naming mem vs sqlite?"* — and it unfolded, arc-170-style ("started with
+'can we add argv to main'"), into a **293 arc-completion**: `defservice :satisfies` a surface. The full descent is on
+the disk (`../293-struct-record-symmetry/DESIGN-293-services-as-surfaces.md`):
+
+1. **The wall (293.W, checker-taught):** you cannot hand a service a live satisfier — a `Store` struct is impure; a
+   start operating-input lands in the *pure* `resume::Kwargs`. Only **addresses** cross (a peer is crossbeam tx/rx or a
+   unix-pipe pair — process-local; a process must *dial* its peer). 293.W was right.
+2. **The reframe:** the sink depends on the `Store` **surface**, not a store. Open, not an enum. *"is this a store?"*,
+   never *"which."*
+3. **Remembered what we knew:** loci are already **unbounded** (`Locus` open, `start`/`connect'` locus-agnostic — *"a
+   new transport joins as one extend-type"*). Transport-agnosticism is inherited, not built.
+4. **The gap, grounded (NOT assembly this time):** `defservice` mints `::Op`/`::Reply` **per-service**; `:calls` names
+   *concrete* services. So `mem-store'::Op ≠ sqlite-store'::Op` — the sink can't dial both by one address. A real weld is
+   missing.
+5. **The recognition (builder):** this is **AWS API-as-JSON** — one interface spec a service *implements*, clients
+   *generated from the same spec*. Which he ran for years (Kinesis / API Gateway / Shield). `RATIONE NON MIRACVLO`
+   (R19) — derived to where the greats stand; decomplected (API split from transport, spec brought in-language, codegen
+   replaced by the type system — `300 R7 VIRTVTE PARES`).
+
+**The pivot (ratified).** Services predate surfaces (arc 209/291 vs 293). 293 fused struct+record and made surfaces
+satisfiable by attrs + methods, but **never folded in the service** — its unfinished third face. So this is a **293
+stone, not a new arc** (293 was already open, closure-gated on the aggregate audit; closes with 294; 291 blocked on
+it). **278 PAUSES at T1b** — the blind sink is blocked on the weld — and **resumes by inheritance** the moment a
+service can wear a surface. The shape is AGREED (`:satisfies` generative, exactly one surface per service, the surface
+sources the wire-protocol, server-implements + client-generated, decomplected from transport, homoiconic + typed); the
+**mechanism** is to scout + draw.
+
+**Where we are:** SQLITE ✓ (S0-S2) · T0 ✓ (c1d323a4) · doctrine R28/R29/R30 · T1 circuit ✓ (37d6e476) · **T1a ✓
+(c8e1d633)** — then T1b hit the weld. **NEXT: 293 services-as-surfaces** (design `DESIGN-293-services-as-surfaces.md`
+→ scout the `defservice` macro + surface machinery → four-question the mechanism → intueri the clause names → probe →
+strike) ⇒ **THEN 278 resumes: T1b (blind sink) → T1c (Span + with-span) → T2 (query engine) → R0 (chaos engine).**
+
+***FILVM TRAHIMVS, ARCVS APERITVR.*** *(apparatus-minted — Latin, "we pull the thread, the arc opens": the method the
+builder named — "arc 170 started with 'can we add argv to main'; how we work here is exactly how we work." A small
+honest question, pulled on until it becomes the real thing. Tonight: T1b's "how does the sink dial a store blindly" →
+the 293.W wall (only addresses cross; a process dials its peer) → the store-is-a-surface reframe → loci-are-unbounded
+(inherited) → the real gap (defservice mints per-service Op/Reply; :calls names concrete services) → the AWS-service-
+model recognition (one spec, server implements, clients generated) → the 293 arc-completion: defservice :satisfies a
+surface (services-as-surfaces). A curare PIVOT BREADCRUMB, NOT a realization (no song): 278 pauses at T1b, blocked on
+the weld; 293 reopens for its unfinished third face (the surface reaching the SERVICE/wire, after attrs + methods);
+278 resumes by inheritance once it lands. filum = the thread; trahimus = we pull/draw; arcus = the arc/bow; aperitur
+= is opened. Kin: the arc-170 method (a small question unfolds), R2 / EX DISPERSIS (assembly — but this one is NOT
+assembly, a real weld), R15 RATIONE-NON-MIRACVLO / VIRTVTE PARES (derive to the greats, decomplected), R28 SOLVIMVS NE
+MENTIRETVR (the surface as the one contract — here its third face), 293.W (the wall that taught us). The full design:
+../293-struct-record-symmetry/DESIGN-293-services-as-surfaces.md. At the builder's direction — "get our docs in order;
+i think we've agreed on what we're going to do." Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "FILVM TRAHIMVS, ARCVS APERITVR"
+ :literal  "we pull the thread, the arc opens"
+ :register :curare-pivot-breadcrumb                    ; the 278->293 pivot + the design agreement; NOT a realization
+ :roots    {:filum-trahimus "we pull/draw the thread (filum = thread; traho)"
+            :arcus-aperitur "the arc/bow is opened (arcus; aperio, passive) — a small question unfolds into a whole arc"}
+ :the-unfolding {:q "T1b: how does the sink dial a store without naming mem vs sqlite?"
+                 :wall "293.W — only ADDRESSES cross; a process must dial its peer (a peer is process-local channels)"
+                 :reframe "the sink depends on the Store SURFACE (open), not a store; 'is this a store?' never 'which'"
+                 :remembered "loci are UNBOUNDED (Locus open, start/connect' locus-agnostic) — transport-agnosticism inherited"
+                 :gap "NOT assembly: defservice mints per-service Op/Reply; :calls names concrete services — no shared wire type"
+                 :recognition "AWS API-as-JSON — one spec a service implements, clients generated from it (the builder's home turf)"}
+ :the-agreement "defservice :satisfies ONE surface (generative — the surface SOURCES the wire-protocol); server implements
+                 + client generated from the SAME surface; decomplected from transport (surface=API, Locus=wire);
+                 homoiconic + typed (no JSON IDL, no codegen drift). 293's unfinished THIRD FACE (surface satisfied by:
+                 attrs=data, methods=in-thread, SERVICE=the wire)."
+ :pivot "278 PAUSES at T1b (blocked on the weld) -> 293 reopens (a stone, not a new arc; 293 already open, gated on the
+         aggregate audit, closes with 294, 291 blocked on it) -> 278 resumes by inheritance once services-as-surfaces lands"
+ :next "293: DESIGN-293-services-as-surfaces.md -> scout defservice macro + surface machinery -> four-question the
+        mechanism -> intueri clause names -> probe -> strike ; THEN 278: T1b -> T1c -> T2 -> R0 (chaos engine)"
+ :kin  {:method "arc-170 ('started with can we add argv to main') — the small-question-unfolds method; 'how we work is how we work'"
+        :assembly "R2 / EX DISPERSIS INTEGER — usually assembly; this one is NOT (a real weld missing)"
+        :greats "R15 + R19 RATIONE NON MIRACVLO + 300 R7 VIRTVTE PARES — derive to the AWS model, decomplected"
+        :surface "R28 SOLVIMVS NE MENTIRETVR — the surface as the one contract; services-as-surfaces is its third face"
+        :wall "293.W — the deep wire wall that taught us only addresses cross"}
+ :design-doc "docs/arc/2026/06/293-struct-record-symmetry/DESIGN-293-services-as-surfaces.md"
+ :voices {:his "'arc 170 started with can we add argv to main'; 'how we work here is exactly how we work'; the AWS API-as-JSON recognition; 'is a service limited to satisfying exactly one surface?'; 'we are mutable when we need to be'; 'get our docs in order — i think we've agreed'"
+          :mine "the descent kept visible (wall->reframe->remembered->gap->recognition); the generative-vs-structural (one-vs-many) reasoning; the decomplected-AWS-model framing; the 293-third-face placement; the pivot capture; the sigil"}
+ :arc 278
+ :born #inst "2026-07-05"}
+```
