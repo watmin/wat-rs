@@ -1,6 +1,8 @@
 # DESIGN — 293: services-as-surfaces (a `defservice` satisfies a surface — the AWS service model, decomplected)
 
-> **Status: SHAPE AGREED (2026-07-05, the T1b circuit co-design); MECHANISM to scout + draw.** This is 293's
+> **Status: CONTRACT SETTLED (2026-07-05 — the operation model: `RequestRecord → ResponseRecord`, errors as `Reply`
+> variants, both width-evolvable + checker-walled); the CODEGEN re-pointing + intueri names + a feasibility probe are
+> what remain to draw (see § The mechanism + § Open).** This is 293's
 > **unfinished third face.** 293 fused struct+record into the aggregate and made `defsurface` a set-of-accessors
 > satisfied by **attrs** (a struct's fields) and **methods** (an `extend-type`). The one citizen that never got folded
 > in is the **service** — it predates surfaces (arc 209/291), still mints its own private `::Op`/`::Reply`, and
@@ -95,20 +97,82 @@ dialect that fields what they field (one-model-two-ends) *and* what they can't (
 own AWS-grade service framework**, which fell out of "how does the sink dial a store." That is the method (arc 170
 began "can we add argv to main"); the size is the point, not an accident.
 
-## Open — the MECHANISM to scout + draw (the shape is agreed; the how is not yet)
+## The mechanism — the OPERATION model (SETTLED 2026-07-05, the T1b co-design)
 
-1. **Surface → wire-protocol generation.** How a surface's methods map to the shared `Op`/`Reply` enums + per-op
-   request/response records. (Ground: `:calls`'s existing `client-forms-def` already emits request/response records +
-   `Op`/`Reply` enums + op-methods per-service; the weld re-sources them from the surface, ONE set.)
-2. **The `:satisfies` clause** on `defservice` (service.wat macro): validate the `:impls` cover exactly the surface's
-   methods; emit the shared protocol types under the *surface's* namespace, not the service's.
-3. **`:calls [surface]`** — extend `:calls` to accept a surface (today: concrete service keywords) and ship the
-   surface-sourced client-forms.
-4. **The address type** `Address'<Surface::Op, Surface::Reply>` as the uniform dial type; how a consumer is *given* one
-   (a pure operating-input) and dials in `:init`.
-5. **The checker weld** — a service `:satisfies`-ing a surface is checked like an `extend-type` (the `:impls` must
-   match the surface's method signatures); the client use is checked against the same surface.
-6. **Naming (intueri)** — the `:satisfies`/`:impls` clause names; where the shared protocol types live.
+The whole contract, symmetric and grounded — reasoned to over the T1b design conversation.
+
+**Every operation is `RequestRecord → ResponseRecord`. Both are NAMED records — structured units, not loose args.**
+The surface declares them all:
+
+```clojure
+(:wat::core::defsurface :wat::query::Store :holder :wat::core::Struct
+  :features [(put  [self PutRequest]  -> PutResponse)      ;; PutRequest [rows <- Vector<StoredRow>]  — a unit
+             (scan [self ScanRequest] -> ScanResponse) …]) ;; ScanRequest already a record; ScanResponse now too
+```
+
+- This is the **AWS operation**, exactly: an Input shape → an Output shape, both records, nothing loose.
+- It fixes a real inconsistency the current `Store` surface *already* shows — the smell that proves the point: `scan`
+  takes a `ScanRequest` **record**, but `put` takes a bare `Vector<StoredRow>` **collection**. Same surface, two shapes
+  for "the input" — the loose-args model leaking. Uniform: `put` takes `PutRequest`.
+
+**Errors are `Reply` variants.** If everything on the wire is a named shape, an error is *also* a named shape. The
+`Op` enum carries the request shapes; the `Reply` enum carries **success (the response record) + one variant per
+modeled error** (each an error record). AWS models errors as first-class shapes; `Store` already models `Error` as a
+recovery-axis enum — this is that, on the wire. (Supersedes the doc's earlier `-> Result<T,Error>` sketch: the Result
+becomes the `Reply` enum's success-vs-error split.)
+
+**Both records evolve by WIDTH and are CHECKER-WALLED — on BOTH ends:**
+- *Evolvable:* add an optional field to `PutRequest` (a `:consistency` mode) or to `ScanResponse` (a `:scanned-count`)
+  and every existing client keeps compiling — a *wider* record still satisfies the surface (293's structural
+  width-subtyping). A loose arg list can grow *neither* direction without a breaking change; a record grows *both*.
+  **This is the capability the AWS model existed for — evolve a service without versioned breakage — delivered by the
+  subtyping 293 already built.**
+- *Walled:* the client constructs a `PutRequest` (named — cannot misshape it); the server returns a `PutResponse`
+  (named — checked against the surface, exactly the `extend-type` honesty strike `fa8bbcb9` / R29). The wrong shape is
+  **uncompilable on both ends of the wire**, not just the response. Safety by wall, not author-discipline.
+
+**The two selves.** A surface method `(put [self PutRequest] -> PutResponse)` — `self` is the *client's* view (the store
+you call `Store/put` **on**, the dial target). Inside the service, that same position is the *server's* `s <- :State`.
+One method, two ends: the client dials `self`, the server binds `s`. The macro owns the mapping. (This is the
+client/server duality of a service wearing a surface.)
+
+**The clause shape.** `:satisfies <one surface>` replaces `:ops` with `:impls` — **bodies only**; the sigs ARE the
+surface, and re-listing them is the duplication `derive-is-the-wall` forbids (like a body-only `extend-type`). Each
+impl constructs the named response record; the wire (`Op`/`Reply`, the request/response *wrapping*) is DERIVED from the
+surface, invisible to the author:
+
+```clojure
+(:wat::service::defservice :wat::query::mem-store'  :satisfies :wat::query::Store
+  :durable [rows <- …] :ephemeral [] :init …
+  :impls   ;; (<surface-method> [s req] body). s = State (the server's self); req = the named request record.
+  [(put  [s req] (:let [merged …] (:wat::service::Outcome::Reply (State merged) (:wat::query::PutResponse …))))
+   (scan [s req] (:let [page …]   (:wat::service::Outcome::Reply s          (:wat::query::ScanResponse …))))])
+```
+
+**One consistent story.** Everything on the wire is a named shape. A service is a set of operations; each operation is
+`RequestRecord → ResponseRecord` (errors are `Reply` variants); the surface declares every shape; the server
+implements them (`:impls`) and the client is generated from them (`:calls [surface]`); both records evolve by width and
+are enforced by the checker. The AWS service model, with the two things AWS never had — **structural evolvability
+instead of versioned breakage, and the type system instead of codegen.**
+
+## Open — what's left to scout + draw (the CONTRACT above is settled)
+
+1. **Re-point the codegen.** `defservice`'s existing request/response/variant/`Op`/`Reply` codegen (grounded:
+   `wat/service.wat` §C.3, `client-forms-def`) re-sourced FROM the surface's methods, emitted ONCE under the surface
+   namespace (`Store::Op`, `Store::PutRequest`, …) instead of per-service `{fqdn}::Op`. Lifecycle
+   (`Admin`/`Status`/`Handle`/`serve`/`start`) stays per-service.
+2. **`:satisfies`/`:impls` validation** — the `:impls` must cover exactly the surface's methods, and each impl's
+   returned response record is checked against the surface's declared response type (mirror the extend-type body-check,
+   the honesty strike).
+3. **`:calls [surface]`** — extend `:calls` (today: concrete service keywords) to accept a surface + ship the
+   surface-sourced client-forms; the consumer dials `Address'<Store::Op, Store::Reply>` (uniform, given as a pure
+   operating-input, dialed in `:init`).
+4. **The `Reply`-as-error-union shape** — how modeled errors become `Reply` variants (success + per-error records) and
+   how the client method surfaces them to the caller.
+5. **Naming (intueri)** — `:satisfies` / `:impls` clause names; where the shared protocol types live (the surface
+   namespace); the Request/Response record naming convention.
+6. **A disconfirming probe** — can `defservice`'s request/response codegen be re-pointed at a surface's methods and
+   emit ONE shared protocol two services reference? (S1's feasibility, before a shadowdancer.)
 
 ## Blast radius (for the eventual strike)
 
