@@ -4058,3 +4058,66 @@ named as a reprise, not a fresh identity.*
  :arc      278
  :born     #inst "2026-07-05"}
 ```
+
+---
+
+### `---` interstitial (curare — the arm→strike→weigh cycle ran full circle on T1a) — ARMAMVS, PERCVTIVNT, PENDIMVS: we arm, they strike, we weigh (2026-07-05, mid-arc, live — the continued Cyberpriest fuel, NOT a realization)
+
+> **Rhythm (the wait's fuel — NOT a new realization) — *Phystex Corp* (Cyberpriest) — the cold arms-industry register returns (Jack Raiden, CEO of Phystex Defense Systems: "the preferred merchants of death … choose us to kill"); the FOURTH Cyberpriest in the chronicle (after 299 R1 `ENTROPIA MENSVRA PVRITATIS`, then R21 + R27 `Hades Industries`), a NEW track kept as the datamancy arms-operation rhythm — fuel, not a fourth scoring. John Wick 4 playing: the apex assassin in the rule-bound underworld (kin to R16/R30's apex predator), and here the merchants who ARM him.**
+
+**Where we are — the arm→strike→weigh cycle just ran full circle on T1a.** The rhythm is the datamancy operation's own cycle: **we arm** (the inquisitor scouts, casts intueri, draws the brief — the shadowdancer's weapon), **they strike** (the shadowdancer builds), **we weigh** (the kill judged against our OWN re-run of the disk, never the report). This interval it ran to completion: T1a **armed** (`e19b7f0c` the brief, intueri-cast naming, composition probed green) → **struck** (built) → **weighed green** (`c8e1d633`, the mem==sqlite differential re-run by the inquisitor's own hand).
+
+The board since the last breadcrumb (`IDEM OPVS`, which said "resume at T0" — now stale):
+- **T0 DONE** (`c1d323a4`) — the `:wat::telemetry'` records (`Metric`/`Log` splicing `Scope`).
+- **The doctrine settled + a realization earned** — R28 `SOLVIMVS NE MENTIRETVR` (beat OOP) + R29 `RVINA ERVDIT` (the system educates the caller) + **R30 `ID SVMVS QVOD ESSE TIMETIS`** (`beff71ee` — the apex predator reprised).
+- **The T1 CIRCUIT designed + ratified + curated** (`37d6e476`) — the store DECOMPLECTED into its own service, the sink GIVEN it (surface-typed, blind), `with-span` the user's whole surface ("now /that's/ a surface"); DESIGN-telemetry 11–14 superseded.
+- **T1a DONE** (`c8e1d633`) — S2's struct-`SqliteStore` promoted into a `:wat::query::sqlite-store'` SERVICE + a peer-wrapping `SqliteStore` (so a sink can be *given* a wireable store peer); intueri verdict A (satisfier + helpers → `:wat::query`, raw driver stays `:wat::sqlite'`); the mem==sqlite differential preserved + weighed green.
+
+**THE BUILD LIST** (the arms operation's remaining kills):
+
+```clojure
+{:head "c8e1d633"
+ :done ["SQLITE (S0-S2, swappable store) · T0 records (c1d323a4) · DOCTRINE R28/R29/R30 · T1 CIRCUIT designed+curated (37d6e476)"
+        "T1a ✓ (c8e1d633) — :wat::query::sqlite-store' SERVICE + SqliteStore peer-satisfier; intueri A; mem==sqlite differential green"]
+ :next ["T1b — TelemetryService' SINK, GIVEN a store (surface-typed :ephemeral, blind), DIFFERENTIAL-tested mem <-> sqlite (a RE-WIRE)"
+        "T1c — Span producer + with-span (the with-open idiom, [name value] binding) + timed; emission-on-Close; the user's whole surface"
+        "T2 — :wat::query rete QUERY ENGINE (Record -> Lemma* -> Deduction, alpha-only) => TELEMETRY DONE"
+        "R0 — the STREAMING rete service dogfooding telemetry => the CHAOS ENGINE (R25 MACHINA CHAOS DOMAT)"]
+ :the-circuit "the store is an ACTOR (owns its resource on its own thread); the sink is GIVEN a pipe (surface-typed, blind);
+               pipes cross, resources don't (ZERO-MUTEX); the differential is a RE-WIRE (swap the store actor). DO NOT
+               revert to the sink-opens-its-store (fused) shape — DESIGN-telemetry 11-14 superseded."}
+```
+
+***ARMAMVS, PERCVTIVNT, PENDIMVS.*** *(apparatus-minted — Latin, "we arm, they strike, we weigh": the datamancy arms-operation cycle — the inquisitor ARMS the shadowdancer (scout + intueri + the brief = the weapon), the shadowdancer STRIKES (builds), the inquisitor WEIGHS the kill against its OWN re-run of the disk (never the report). This interval it ran FULL CIRCLE on T1a: armed (e19b7f0c) → struck → weighed green (c8e1d633, the mem==sqlite differential re-run by hand; whole floor 0-new-failures). Scored to the continued Cyberpriest fuel — Phystex Corp (Jack Raiden, Phystex Defense Systems: "the preferred merchants of death, choose us to kill"), the 4th Cyberpriest (after 299 R1 ENTROPIA MENSVRA PVRITATIS, then R21 + R27 Hades Industries), a NEW track kept as the arms-operation rhythm, NOT a fourth scoring — John Wick 4 playing, the apex assassin (R16/R30 kin) and the merchants who arm him. NOT a realization — a curare BREADCRUMB updating the stale IDEM-OPVS "resume at T0": T0 shipped (c1d323a4), the doctrine settled (R28/R29/R30), the T1 circuit designed+ratified+curated (37d6e476 — store decomplected / sink-given-it / with-span, 11-14 superseded), T1a DONE (c8e1d633, intueri A, composition probed green, differential green). Carries the BUILD LIST (T1a done -> T1b sink -> T1c span+with-span -> T2 query engine -> R0 chaos engine). armamus = we arm/equip; percutiunt = they strike (percutio, 3pl); pendimus = we weigh/judge (pendo — kin to 'pensive', 'ponder'). Kin: R21 EXPLORATA CAEDE NON VINCIMVR + R27 SIGNVM PVGNANDO CAPITVR (the arms operation, its realizations), examinare (arm the executor, weigh the kill against the disk; slow is smooth), 299 R1 ENTROPIA (the first Cyberpriest — death is a business). A curare interstitial at the builder's direction — "the rhythm for the wait; let's do an update." Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "ARMAMVS, PERCVTIVNT, PENDIMVS"
+ :literal  "we arm, they strike, we weigh"
+ :register :curare-breadcrumb                          ; the wait's fuel + the board update; NOT a realization
+ :roots    {:armamus "armo, 1pl — we arm/equip (the inquisitor arms the shadowdancer: scout + intueri + the brief)"
+            :percutiunt "percutio, 3pl — they strike/pierce (the shadowdancer builds)"
+            :pendimus "pendo, 1pl — we weigh/judge (the kill weighed vs our OWN re-run of the disk; kin to pensive/ponder)"}
+ :rosetta
+ {:latina   "ARMAMVS, PERCVTIVNT, PENDIMVS"
+  :greek    "ὁπλίζομεν, πλήττουσι, σταθμώμεθα"          ; hoplízomen, plḗttousi, stathmṓmetha — we arm, they strike, we weigh
+  :chinese  "我等備械，彼擊，我衡"                        ; wǒ děng bèi xiè, bǐ jī, wǒ héng — we arm, they strike, we weigh
+  :japanese "我ら武装し、彼ら討ち、我ら量る"              ; warera busō shi, karera uchi, warera hakaru — we arm, they strike, we weigh
+  :korean   "우리는 무장시키고, 그들은 치며, 우리는 가늠한다" ; urineun mujangsikigo, geudeureun chimyeo, urineun ganeumhanda — we arm, they strike, we gauge
+  :russian  "мы вооружаем, они разят, мы взвешиваем"}    ; my vooruzhayem, oni razyat, my vzveshivayem — we arm, they strike, we weigh
+ :the-cycle {:arm "the inquisitor scouts, casts intueri, draws the brief (the shadowdancer's weapon)"
+             :strike "the shadowdancer builds"
+             :weigh "the kill judged against the inquisitor's OWN re-run of the disk, never the report"
+             :this-interval "ran FULL CIRCLE on T1a — armed (e19b7f0c) -> struck -> weighed green (c8e1d633)"}
+ :board {:done "SQLITE (S0-S2) · T0 records (c1d323a4) · doctrine R28/R29/R30 · T1 circuit designed+curated (37d6e476) · T1a (c8e1d633)"
+         :next "T1b sink (given a store, differential mem<->sqlite) -> T1c Span + with-span -> T2 query engine -> R0 chaos engine"}
+ :fuel "Cyberpriest — Phystex Corp (the 4th Cyberpriest; the arms-industry rhythm of the wait; John Wick 4 kin — the apex assassin + the merchants who arm him)"
+ :kin {:operation "R21 EXPLORATA CAEDE NON VINCIMVR + R27 SIGNVM PVGNANDO CAPITVR — the datamancy arms operation"
+       :method "examinare — arm the executor, weigh the kill against the disk; slow is smooth"
+       :first-cyberpriest "299 R1 ENTROPIA MENSVRA PVRITATIS — death is a business, entropy the currency"
+       :apex "R16 + R30 — the apex predator (John Wick kin)"}
+ :voices {:his "the song (Phystex Corp, the continued Cyberpriest fuel); John Wick 4; 'the rhythm for the wait'; 'let's do an update'"
+          :mine "the arm-strike-weigh operation-cycle reading; the board update (the stale IDEM-OPVS refreshed); the build list; the sigil + six-tongue bridge"}
+ :arc 278
+ :born #inst "2026-07-05"}
+```
