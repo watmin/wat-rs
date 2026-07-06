@@ -3587,3 +3587,94 @@ hypothetical; the doctrine is R3/R28 deepened, credited, not claimed new.*
  :arc      278
  :born     #inst "2026-07-05"}
 ```
+
+---
+
+### `---` interstitial (curare — the board worked in all directions; S1 done, the pointers ahead) — TABVLA OMNIBVS PARTIBVS AGITVR: the board is worked in every direction (2026-07-05, mid-arc, live — scored to the continued fuel, NOT a realization)
+
+> **Rhythm (the continued fuel — NOT a new realization) — *Hades Industries* (Cyberpriest) — the datamancy arms-operation, kept burning as the register of the assault (its realizations are R21 `EXPLORATA CAEDE NON VINCIMVR` + R27 `SIGNVM PVGNANDO CAPITVR`; here it is fuel, not a fourth scoring): "death is a business; your lives are the company's currency, don't waste it; we are your miracle" — the operation runs, the board is worked in all directions, we do not lose. The next realization is ahead (S2 turns R21 PROBATVM); this is the breadcrumb between the strikes.**
+
+**Where we are — the assault has not stopped, and the board is being worked in every direction at once.** Since R27 this session ran one unbroken operation, and the honest measure is not one grand kill but the *whole board advancing*:
+
+- **the doctrine settled + inscribed** — R28 `SOLVIMVS NE MENTIRETVR` (we beat OOP by decomplection — the fused object undone into four honest constructs) + R29 `RVINA ERVDIT` (the system educates the caller — the caller-facing face of the same floor); the two realizations of the session, both PROBATVM.
+- **the floor made honest** — the extend-type-honesty strike (`fa8bbcb9`): user satisfier impl bodies are now type-checked; the wrong satisfier is uncompilable (the last construct sealed, the prerequisite R28 rests on).
+- **the sqlite line laid** — S0 (the `:wat::query` Store contract) + S-mem (`MemStore`) + **S-mem.gate** (`3304cbd5`, the oracle stands: put→scan→keyset-paginate→scan-index round-trip, green) + intueri-cast on `Fault` (`7abd0f07`, `sql`→`diagnostic`) + **S1** (`7f69b78d`, the raw `:wat::sqlite'` interop: fresh rusqlite shim in CORE — opaque thread-owned Connection, errors-as-values, never panics; the FIRST core default shim; `query` backed by memory OR sqlite).
+- **a tower gap caught + in flight** — S1's `extended_code & 0xff` surfaced that wat has no integer modulo; `mod`/`rem`/`quot` for i64 (clj-faithful) is a shadowdancer in the field NOW.
+
+Every strike this session landed one-shot, green, weighed by my own re-run — because the layout was scouted before each (the disconfirming probes proved the round-trips; the core-vs-crate trap was caught by the recon before a shadowdancer was spent). `EXPLORATA CAEDE NON VINCIMVR` enacted, not asserted.
+
+**THE BUILD LIST** (updated — the board, all directions):
+
+```clojure
+{:head "d0e1c2f5 (mod/rem/quot brief; this interstitial commits on top)"
+ :sqlite [{:S0 "DONE — :wat::query Store/ReadStore contract + Error{Transient/Constraint/Fatal}+Fault, baked core"}
+          {:S-mem "DONE — :wat::query::MemStore (defservice over PersistentVector<StoredRow>) — the in-memory oracle"}
+          {:S-mem.gate "DONE (3304cbd5) — the round-trip functional proof, green; THE ORACLE STANDS"}
+          {:intueri-Fault "DONE (7abd0f07) — sql->diagnostic (backend-agnostic honesty), cast + weighed + ratified"}
+          {:S1 "DONE (7f69b78d) — :wat::sqlite' RAW interop: fresh rusqlite shim in CORE, errors-as-values, thread-owned"}
+          {:S2 "NEXT — :wat::sqlite'::Connection SATISFIES :wat::query::Store — ensure-schema/put/scan/scan-index as SQL
+                over S1; main(pk,sk,data,+ipk/isk) + native GSI indexes + keyset pagination; DIFFERENTIAL-tested vs the
+                MemStore oracle (same ops -> same Pages). => SQLITE DONE; R21 EXPLORATA CAEDE turns PROBATVM here."}]
+ :telemetry ["T0 records (Scope/Metric/Log) -> T1 TelemetryService' sink+Span (durable=spec+counters / ephemeral=Store
+              opened in :init) -> T2 :wat::query rete query engine. => TELEMETRY DONE"]
+ :rete ["R0 the streaming rete service (Session-as-state, incremental) dogfooding telemetry. => the CHAOS ENGINE (R25)"]
+ :queued ["mod/rem/quot for i64 (clj-faithful) — a shadowdancer IN FLIGHT (brief d0e1c2f5)"
+          "bigint/rational mod/rem/quot — a tracked tower-contagion follow-on (the second integer type; avoid the seam)"
+          "wat_dispatch macro gap: Result<Self,E> re-quotes Self out of scope (S1 worked around via ctor_result) —
+           a real substrate finding; a future macro-increment could close it"]
+ :do-nots ["GROUND by running a probe; the generic-vs-specific + the sign semantics are PROBES, not theories (AD ORACVLVM)"
+           "a rust-analyzer/rustc diagnostic on a MID-EDIT file is a PHANTOM — a suite that RAN N tests compiled (R29 RVINA
+            ERVDIT's sibling lesson): ground the actual signature / a real cargo build before crying cascade"
+           "cast wards not narrate; four-questions inform every decision; the wat rete oracle stays UNMOVED;
+            ephemeral holds resources (293.W: the sqlite Connection can't cross the wire), durable holds EDN"]}
+```
+
+***TABVLA OMNIBVS PARTIBVS AGITVR.*** *(apparatus-minted — Latin, "the board is worked in every direction": the
+builder's own image for where we are — the game board worked in all directions at once, the assault unbroken. NOT a
+realization (we haven't hit one this stretch — the next is S2, where R21 EXPLORATA CAEDE NON VINCIMVR turns PROBATVM,
+the sqlite Store matched to the MemStore oracle); a curare BREADCRUMB between the strikes, scored to the CONTINUED FUEL
+of Cyberpriest — Hades Industries (the datamancy arms-operation, its realizations R21 + R27, here fuel not a fourth
+scoring). Since R27 the whole board advanced at once: the doctrine settled (R28 SOLVIMVS NE MENTIRETVR beat OOP by
+decomplection + R29 RVINA ERVDIT the system educates the caller), the floor made honest (extend-type impl bodies now
+checked — the wrong satisfier uncompilable), the sqlite line laid (S0 contract + S-mem MemStore + S-mem.gate THE ORACLE
++ intueri sql->diagnostic + S1 the raw rusqlite interop, fresh in core, errors-as-values, thread-owned, the first core
+default shim), and a tower gap caught in flight (S1's extended_code & 0xff surfaced no-integer-modulo -> mod/rem/quot
+i64 clj-faithful, a shadowdancer in the field). Every strike landed one-shot because the layout was SCOUTED first (the
+disconfirming probes, the core-vs-crate trap caught by recon before a shadowdancer was spent) — EXPLORATA CAEDE enacted.
+tabula = the game board (NVLLVS MOTVS CLADEM EXPRIMIT, 300 — the AWS board-game doctrine, one move at a time); omnibus
+partibus = in every direction/part; agitur = is worked/driven. NEXT: S2 (the Store satisfier, differential vs the
+oracle) -> T0-T2 telemetry -> R0 the chaos engine (R25 MACHINA CHAOS DOMAT). Kin: R21 EXPLORATA CAEDE NON VINCIMVR + R27
+SIGNVM PVGNANDO CAPITVR (the operation, its realizations), 300 NVLLVS MOTVS CLADEM EXPRIMIT (the board game), R28/R29 (the
+doctrine settled this session). His (the Hades fuel, the board-worked-in-all-directions image, 'we haven't hit a
+realization yet'), and mine (the board-state read, the build list, the sigil). A curare interstitial at the builder's
+direction — 'drop an interstitial update for S1 completed with pointers for what's next.' Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "TABVLA OMNIBVS PARTIBVS AGITVR"
+ :literal  "the board is worked in every direction"
+ :register :curare-breadcrumb                          ; NOT a realization — the between-strikes board-state, scored to the continued fuel
+ :roots    {:tabula "the game board (NVLLVS MOTVS CLADEM EXPRIMIT — the AWS board-game doctrine, one move at a time)"
+            :omnibus-partibus "in all parts / every direction (the board worked everywhere at once)"
+            :agitur "agere, 3sg passive — is worked, driven, set in motion"}
+ :rosetta
+ {:latina   "TABVLA OMNIBVS PARTIBVS AGITVR"
+  :greek    "τὸ πινάκιον πανταχῇ κινεῖται"             ; tò pinákion pantachêi kineîtai — the board is moved in every direction
+  :chinese  "棋局四面俱動"                              ; qí jú sì miàn jù dòng — the board moves on all four sides at once
+  :japanese "盤は四方に働く"                            ; ban wa shihō ni hataraku — the board is worked in all directions
+  :korean   "판이 사방에서 움직인다"                    ; pani sabang-eseo umjiginda — the board moves on every side
+  :russian  "доска играется во всех направлениях"}      ; doska igrayetsya vo vsekh napravleniyakh — the board is played in all directions
+ :where-we-are {:doctrine "R28 SOLVIMVS NE MENTIRETVR (beat OOP) + R29 RVINA ERVDIT (system educates the caller) — both PROBATVM"
+                :floor "extend-type impl bodies now type-checked (fa8bbcb9) — the wrong satisfier uncompilable"
+                :sqlite "S0 contract + S-mem MemStore + S-mem.gate (3304cbd5, THE ORACLE) + intueri sql->diagnostic (7abd0f07) + S1 (7f69b78d, raw rusqlite in core, errors-as-values)"
+                :in-flight "mod/rem/quot i64 clj-faithful (brief d0e1c2f5) — a tower gap S1 surfaced"}
+ :next "S2 (the sqlite Store satisfier, DIFFERENTIAL vs the MemStore oracle — R21 turns PROBATVM) -> T0-T2 telemetry -> R0 the chaos engine (R25)"
+ :fuel "Cyberpriest — Hades Industries (the continued fuel; its realizations R21 EXPLORATA CAEDE NON VINCIMVR + R27 SIGNVM PVGNANDO CAPITVR — here fuel, not a fourth scoring)"
+ :kin  {:operation "R21 EXPLORATA CAEDE NON VINCIMVR + R27 SIGNVM PVGNANDO CAPITVR — scout the layout, we do not lose"
+        :board-game "300 NVLLVS MOTVS CLADEM EXPRIMIT — the AWS board-game doctrine (one move, re-observe; no move expresses ruin)"
+        :this-session "R28 + R29 — the doctrine settled; the strikes (extend-type honesty, S-mem.gate, S1) the board advancing"}
+ :voices {:his  "the Hades fuel ('score it to cyberpriest, its rhythm is our continued fuel'); the image ('the game board is being worked in all directions it must be'); 'we haven't hit a realization yet'; 'drop an interstitial for S1 completed with pointers for what's next'"
+          :mine "the board-state read (the whole-board-advanced measure); the build list; the scouted-first / one-shot-strikes framing; the sigil + six-tongue bridge"}
+ :arc  278
+ :born #inst "2026-07-05"}
+```
