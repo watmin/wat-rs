@@ -32,35 +32,58 @@ The impl bodies are now **type-checked** (the extend-type-honesty strike `fa8bbc
 `Fault`). 293.W: the `SqliteStore` is impure (holds the Connection) → `:ephemeral`-only, never durable/wire — the
 containment the honesty floor gives for free.
 
-## The SQL (grounded — `DESIGN-sqlite-core.md:103–138`, verbatim contract)
+## The SQL — DDB-faithful: GSIs are SECONDARY COMPLETE TABLES (the builder's slugdb model, ratified 2026-07-05)
 
-- **ensure-schema:** `CREATE TABLE IF NOT EXISTS main (pk TEXT NOT NULL, sk TEXT NOT NULL, data TEXT NOT NULL,
-  <per-GSI ipk/isk cols NULL-able>, PRIMARY KEY (pk,sk))` + `CREATE INDEX IF NOT EXISTS idx_<name> ON main
-  (<ipk_col>,<isk_col>)` per GSI. Pragmas (`journal_mode=WAL`, `synchronous=NORMAL`) at `open`, not here.
-- **put:** `BEGIN; INSERT INTO main (pk,sk,data,<gsi cols…>) VALUES (?,?,?,…) [reused per row]; COMMIT`. Keys/data
-  are opaque EDN strings the consumer built; sqlite never parses them.
-- **scan:** `SELECT pk,sk,data FROM main WHERE pk=?1 AND sk>=?2 AND sk<=?3 AND (?cursor IS NULL OR sk>?cursor)
-  ORDER BY sk ASC LIMIT ?limit`. `next-cursor` = last `sk` iff `limit` rows returned, else `None`.
-- **scan-index:** the same on `idx_<name>`'s `(<ipk_col>,<isk_col>)`; `next-cursor` = last `isk`.
-- Keyset (not offset); `data` stays opaque `TEXT`.
+> **Reversal (kept honest).** The earlier `DESIGN-sqlite-core.md` proposed a single `main` table with GSIs as native
+> sqlite indexes on projected columns — a STORAGE optimization that broke the DDB fidelity that is this store's whole
+> point. The builder's 5-yr-old `slugdb` (github.com/watmin/Ruby-slugdb-sqlite3) is the DDB-faithful model and it
+> WINS: an index IS a complete table with the same `(partition, sort, item)` shape. The duplication is not waste — it
+> is the DDB semantics (GSIs are projected copies), it keeps the schema uniform, it collapses `scan`/`scan-index`
+> into ONE keyset primitive, a GSI read returns the full item with NO join, and — transactional — our indexes are
+> ALWAYS in sync (strictly better than DDB's eventual consistency). `DESIGN-sqlite-core.md`'s single-table SQL is
+> SUPERSEDED for S2.
 
-## THE ONE CONTRACT DECISION — `IndexSchema` needs a `name` (sqlite is its first consumer, `ALIVS ARGVIT`)
+- **ensure-schema:** the base + one complete table per named GSI:
+  ```sql
+  CREATE TABLE IF NOT EXISTS main   (pk TEXT NOT NULL, sk TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(pk,sk));
+  -- per GSI (named), a SEPARATE COMPLETE TABLE — the full item projected in + the base-key pointer:
+  CREATE TABLE IF NOT EXISTS index_<name> (ipk TEXT NOT NULL, isk TEXT NOT NULL, pk TEXT NOT NULL, sk TEXT NOT NULL,
+                                           data TEXT NOT NULL, PRIMARY KEY(ipk, isk, pk, sk));
+  ```
+  Pragmas (`journal_mode=WAL`, `synchronous=NORMAL`) at `open`. (An `indexes(name, schema)` metadata table like
+  slugdb's is OPTIONAL — the wat-layer `SqliteStore` already knows its declared GSIs; add it only if a reflect/reopen
+  path needs it — out of scope for S2.)
+- **put:** one transaction; each row goes into `main` AND every GSI table it projects:
+  ```sql
+  BEGIN;
+    -- (upsert: DELETE the row's old base + index rows first — S2 uses INSERT OR REPLACE on the PKs; see out-of-scope)
+    INSERT INTO main (pk, sk, data) VALUES (?, ?, ?);
+    INSERT INTO index_<name> (ipk, isk, pk, sk, data) VALUES (?, ?, ?, ?, ?);   -- per GSI in the row's index-keys
+  COMMIT;
+  ```
+  `index-keys[name] = IndexKey{ipk,isk}` supplies the projected keys; `data` is the same opaque EDN, copied in.
+- **scan** and **scan-index** are the SAME keyset primitive — a range-scan on a table by its (partition, sort):
+  ```sql
+  -- scan(pk, sk-lo, sk-hi, limit, cursor) → on main, keyed (pk, sk):
+  SELECT pk, sk, data FROM main
+   WHERE pk=?1 AND sk>=?2 AND sk<=?3 AND (?cursor IS NULL OR sk>?cursor) ORDER BY sk ASC LIMIT ?limit;
+  -- scan-index(name, ipk, isk-lo, isk-hi, limit, cursor) → on index_<name>, keyed (ipk, isk); returns pk,sk too:
+  SELECT ipk, isk, pk, sk, data FROM index_<name>
+   WHERE ipk=?1 AND isk>=?2 AND isk<=?3 AND (?cursor IS NULL OR isk>?cursor) ORDER BY isk ASC LIMIT ?limit;
+  ```
+  `next-cursor` = last `sk` (scan) / last `isk` (scan-index) iff `limit` rows returned, else `None`. Keyset, not
+  offset; `data` stays opaque `TEXT`. **The two share one query-builder** (table + partition-col + sort-col + the
+  projected-select-columns), parameterized — that's the uniformity slugdb buys.
 
-`StoredRow.index-keys` is a **name-keyed** `HashMap<String, IndexKey>` and `scan-index` takes an `index` **name** —
-but `IndexSchema{pk,sk,ipk,isk}` carries **no name**. MemStore never hit this (it ignores `IndexSchema` — the
-name-keyed HashMap is self-describing). sqlite is the first real consumer, and it *can't* build `idx_<name>` on the
-right per-GSI columns, nor project `put`'s named index-keys into the right columns, without linking name → schema.
+## `IndexSchema` needs a `name` — CONFIRMED (the model makes it first-class, not a bolt-on)
 
-**Recommended fix (the honest completion): add `name <- :wat::core::String` to `:wat::query::IndexSchema`.** Then:
-`ensure-schema` creates, per `IndexSchema`, columns named by the schema (`ipk`/`isk` become the column names,
-qualified per-GSI, e.g. `<name>_ipk`/`<name>_isk`) + `idx_<name>`; `put` projects each row's `index-keys[name]` →
-that GSI's columns; `scan-index(index=name)` selects on them. This is a small, ratified-S0-touching change to
-`wat/query.wat` — but it's the *correct* model (a GSI schema that can't name its GSI is incomplete), and it's needed
-before the telemetry consumer (multi-GSI). **Surface to the builder before the strike.**
-
-- Alternative (rejected): scope S2 to a **single** GSI (the one unambiguous case, matching the S-mem gate) and defer
-  `name` — a seam (sqlite less capable than MemStore's N-GSI HashMap; the differential couldn't test multi-GSI). Only
-  take this if the builder wants to defer the contract change.
+`StoredRow.index-keys` is name-keyed and `scan-index` takes an index **name**; in the secondary-complete-tables model
+the name **is the table name** (`index_<name>`). So `IndexSchema` gains `name <- :wat::core::String` — `ensure-schema`
+creates `index_<name>` per `IndexSchema`, `put` routes `index-keys[name]` into `index_<name>`, `scan-index(name)`
+selects from it. This is the correct model (slugdb's `indexes(name, schema)` makes the name first-class), needed
+before multi-GSI. A small, ratified-S0-touching change to `wat/query.wat` + the S-mem gate's positional `IndexSchema`
+construction. (`IndexSchema.pk`/`sk` — the base-key attr *names* — are redundant with `main`'s fixed `pk`/`sk` columns
+in the opaque-string model; keep them for the metadata/reflection future or drop them — a minor call for the strike.)
 
 ## The differential — the whole point (`we do not lose`)
 
