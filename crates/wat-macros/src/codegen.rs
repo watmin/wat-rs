@@ -346,10 +346,15 @@ fn classify_receiver(r: &Receiver) -> syn::Result<ReceiverKind> {
 /// Given the method's return type, emit code that turns a local `result`
 /// binding into a wat Value.
 ///
-///   Return = ()         → Ok(::wat::runtime::Value::Unit)
-///   Return = Self       → Ok(make_rust_opaque(TYPE_PATH, <wrapped>))
-///                         where <wrapped> depends on scope.
-///   Return = anything   → Ok(<T as ToWat>::to_wat(result))
+///   Return = ()               → Ok(::wat::runtime::Value::Unit)
+///   Return = Self              → Ok(make_rust_opaque(TYPE_PATH, <wrapped>))
+///                                where <wrapped> depends on scope.
+///   Return = Result<Self, E>   → Ok(Value::Result(Arc::new(Ok/Err(..)))),
+///                                opaque-wrapping the `Ok` payload the SAME
+///                                way a bare `Self` return does, `ToWat`-ing
+///                                the `Err` payload — never naming `Self` as
+///                                a TYPE in the generated free fn.
+///   Return = anything          → Ok(<T as ToWat>::to_wat(result))
 ///
 /// Under `scope = "thread_owned"`, a `Self` return is wrapped in a
 /// `ThreadOwnedCell<Self>` before the opaque payload — matches the
@@ -359,25 +364,33 @@ fn emit_return_marshal(
     attr: &WatDispatchAttr,
     output: &ReturnType,
 ) -> syn::Result<TokenStream> {
-    let wrap_self_return = |inner: TokenStream| -> TokenStream {
+    // The bare opaque-value expression (no outer `Ok(..)`) — reusable both
+    // for a bare-`Self` return (wrapped in `Ok` by the caller) and for the
+    // `Ok(inner)` arm of a `Result<Self, E>` return.
+    let opaque_self_value = |inner: TokenStream| -> TokenStream {
         match attr.scope {
             Scope::ThreadOwned => quote! {
-                Ok(::wat::rust_deps::make_rust_opaque(
+                ::wat::rust_deps::make_rust_opaque(
                     TYPE_PATH,
                     ::wat::rust_deps::ThreadOwnedCell::new(#inner),
-                ))
+                )
             },
             Scope::Shared => quote! {
-                Ok(::wat::rust_deps::make_rust_opaque(TYPE_PATH, #inner))
+                ::wat::rust_deps::make_rust_opaque(TYPE_PATH, #inner)
             },
             Scope::OwnedMove => quote! {
-                Ok(::wat::rust_deps::make_rust_opaque(
+                ::wat::rust_deps::make_rust_opaque(
                     TYPE_PATH,
                     ::wat::rust_deps::OwnedMoveCell::new(#inner),
-                ))
+                )
             },
         }
     };
+    let wrap_self_return =
+        |inner: TokenStream| -> TokenStream {
+            let opaque = opaque_self_value(inner);
+            quote! { Ok(#opaque) }
+        };
 
     match output {
         ReturnType::Default => Ok(quote! {
@@ -388,10 +401,47 @@ fn emit_return_marshal(
             if type_is_self(ty) || types_equal(ty, self_type) {
                 return Ok(wrap_self_return(quote! { result }));
             }
+            if let Some(err_ty) = result_ok_is_self(ty, self_type) {
+                let opaque_inner = opaque_self_value(quote! { inner });
+                return Ok(quote! {
+                    match result {
+                        Ok(inner) => Ok(::wat::runtime::Value::Result(::std::sync::Arc::new(
+                            Ok(#opaque_inner)))),
+                        Err(e) => Ok(::wat::runtime::Value::Result(::std::sync::Arc::new(
+                            Err(<#err_ty as ::wat::rust_deps::ToWat>::to_wat(e))))),
+                    }
+                });
+            }
             Ok(quote! {
                 Ok(<#ty as ::wat::rust_deps::ToWat>::to_wat(result))
             })
         }
+    }
+}
+
+/// If `ty` is `Result<T, E>` where `T` is `Self` (or the concrete
+/// `self_type`, for a constructor spelled in another impl's own return
+/// position — see `open_readonly`), return `Some(E)`. Else `None`. Only
+/// matches a TWO-argument `Result` (arity already enforced by
+/// `rust_type_to_type_expr_tokens`'s sibling handling of `Result<T,E>`).
+fn result_ok_is_self(ty: &Type, self_type: &Type) -> Option<Type> {
+    let Type::Path(p) = ty else { return None };
+    let last = p.path.segments.last()?;
+    if last.ident != "Result" {
+        return None;
+    }
+    let PathArguments::AngleBracketed(ab) = &last.arguments else {
+        return None;
+    };
+    let mut generics = ab.args.iter().filter_map(|a| match a {
+        GenericArgument::Type(t) => Some(t),
+        _ => None,
+    });
+    let (ok_ty, err_ty) = (generics.next()?, generics.next()?);
+    if type_is_self(ok_ty) || types_equal(ok_ty, self_type) {
+        Some(err_ty.clone())
+    } else {
+        None
     }
 }
 

@@ -16,30 +16,23 @@
 //! (`src/rust_deps/marshal.rs`), and `#[wat_dispatch]`'s codegen
 //! (`crates/wat-macros/src/codegen.rs::rust_type_to_type_expr_tokens`)
 //! recognizes `Result<T,E>` and tuple-of-known-primitives natively — so this
-//! shim needs ZERO macro changes for every verb EXCEPT the two constructors
-//! (`open`/`open_readonly`, below).
+//! shim needs ZERO macro changes for any verb, including the two
+//! constructors (`open`/`open_readonly`, below), which return plain
+//! `Result<Self, RawFault>` / `Result<WatSqliteReadConnection, RawFault>`.
 //!
-//! **`open`/`open_readonly` are the one exception**, and it's a genuine
-//! codegen limitation, grounded empirically (not assumed): the macro's
-//! return-marshal codegen only special-cases a `Self`-wrapping return when
-//! the WHOLE return type is literally `Self` — `Result<Self, RawFault>` is
-//! NOT recognized as that case, so it falls through to the generic
-//! `<#ty as ToWat>::to_wat(result)` path, which re-quotes `Self` verbatim
+//! `open`/`open_readonly` USED to be the one exception (a hand-built
+//! `Value::Result` returning plain `wat::runtime::Value`) because the
+//! macro's return-marshal codegen only special-cased a `Self`-wrapping
+//! return when the WHOLE return type was literally `Self` —
+//! `Result<Self, RawFault>` fell through to the generic
+//! `<#ty as ToWat>::to_wat(result)` path, which re-quoted `Self` verbatim
 //! into a plain `fn` INSIDE the generated `mod __wat_dispatch_*` (not an
-//! impl block) — `Self` doesn't resolve there (`cannot find type Self in
-//! this scope`, confirmed by attempting exactly this first). Substituting
-//! the concrete struct name for `Self` fixes the Rust-side error but then
-//! fails the SEPARATE scheme-fn codegen (`rust_type_to_type_expr_tokens`
-//! only maps `Self` / i64 / f64 / bool / String / Value / Option<T> / Vec<T>
-//! / Result<T,E> / tuples — an arbitrary opaque struct name isn't in that
-//! list, so it hits `unsupported argument/return type`). Both paths are
-//! genuinely closed without touching wat-macros (out of this stone's
-//! scope). So `open`/`open_readonly` return plain `wat::runtime::Value`
-//! (the one type the macro DOES treat generically, mapping to
-//! `ctx.fresh_var()`) and hand-build the `Value::Result(Ok(..)/Err(..))`
-//! themselves — the connection wraps via the SAME manual `ToWat` impl the
-//! other verbs' self-argument downcasting expects, so the two paths still
-//! agree on the wire shape.
+//! impl block), where `Self` doesn't resolve. Fixed at the root (arc 278,
+//! the macro-result-self stone): `emit_return_marshal` now has a dedicated
+//! `Result<Self, E>` arm (`result_ok_is_self`) that opaque-wraps the `Ok`
+//! payload the same way a bare `Self` return does, and `ToWat`s the `Err`
+//! payload — never naming `Self` as a type in the generated free fn. So
+//! this constructor pair is now a plain dispatch method like any other.
 //!
 //! `code` is the sqlite **primary** result code (`extended_code & 0xff`,
 //! computed here in Rust via `ErrorCode`/`ffi::Error` — the same masking
@@ -68,15 +61,14 @@
 //! `rusqlite::Connection` is `Send` but not `Sync`. `WatSqliteConnection`
 //! (RW) and `WatSqliteReadConnection` (RO — the capability-honest half; it
 //! exposes `select` only, not `execute`/`execute-ddl`/`pragma`/`begin`/
-//! `commit`) each wrap one `Connection` and hand-implement [`ToWat`] to wrap
-//! themselves in a [`ThreadOwnedCell`] before opaquing — the SAME wrapping
-//! `#[wat_dispatch(scope = "thread_owned")]` applies automatically for a
-//! bare `Self` return, done by hand here because `open`/`open-readonly`
-//! return `Result<Self, RawFault>`, not bare `Self` (the macro's automatic
-//! self-wrap only fires when the return type IS literally `Self`).
-//! Downstream `&self` methods (`execute`, `select`, …) still go through the
-//! macro's generated `ThreadOwnedCell::with_ref` dispatch, so the two halves
-//! agree on the wrapper shape.
+//! `commit`) each wrap one `Connection` and hand-implement [`ToWat`] for
+//! non-macro callers, but `open`/`open_readonly` themselves now go through
+//! `#[wat_dispatch(scope = "thread_owned")]`'s automatic `Result<Self, E>`
+//! marshaling — the macro wraps the `Ok` payload in a [`ThreadOwnedCell`]
+//! before opaquing, identically to a bare `Self` return. Downstream `&self`
+//! methods (`execute`, `select`, …) go through the same macro-generated
+//! `ThreadOwnedCell::with_ref` dispatch, so both halves agree on the wrapper
+//! shape.
 
 use std::sync::Arc;
 
@@ -214,26 +206,6 @@ fn cell_to_wat(v: ValueRef) -> Value {
     }))
 }
 
-/// Hand-build a `Value::Result` for the two constructors (`open`/
-/// `open_readonly`) — see the module doc for exactly why they can't go
-/// through the macro's automatic `Result<T,E>` marshaling. `ok` is already a
-/// wat `Value` (the caller's own `ToWat::to_wat()` on the freshly-opened
-/// connection); `err`, if present, is the raw fault flattened into the same
-/// `(code, diagnostic, message)` `Value::Tuple` every other verb's Err
-/// carries, so `wat/sqlite.wat::classify` handles both uniformly.
-fn ctor_result(ok_or_err: Result<Value, RawFault>) -> Value {
-    match ok_or_err {
-        Ok(v) => Value::Result(Arc::new(Ok(v))),
-        Err((code, diagnostic, message)) => Value::Result(Arc::new(Err(Value::Tuple(Arc::new(
-            vec![
-                Value::i64(code),
-                Value::String(Arc::new(diagnostic)),
-                Value::String(Arc::new(message)),
-            ],
-        ))))),
-    }
-}
-
 fn execute_impl(conn: &Connection, sql: &str, params: &[Value]) -> Result<i64, RawFault> {
     let bound = bind_params(params)?;
     let mut stmt = conn
@@ -281,20 +253,19 @@ impl WatSqliteConnection {
     /// `pragma`); no schema install (the consumer calls `execute-ddl`). A
     /// bad path (e.g. a nonexistent directory) yields `Err(RawFault)`, never
     /// a panic — the errors-as-values mechanism proven on this verb first.
-    /// Returns a plain `Value` (a hand-built `Value::Result`), NOT
-    /// `Result<Self, RawFault>` — see the module doc for exactly why the
-    /// macro can't marshal that shape for a Self-returning constructor.
+    /// `Result<Self, (i64, String, String)>` now marshals automatically
+    /// (arc 278 macro-result-self stone): the macro opaque-wraps the `Ok`
+    /// payload exactly as a bare `Self` return would, and `ToWat`s the `Err`
+    /// tuple.
     //
     // `#[wat_dispatch]`'s codegen inspects the SYNTACTIC return type (a `syn::Type`), not the
-    // resolved type — a `RawFault` type-alias name isn't in its known-type list, so every OTHER
-    // method below spells the literal tuple `(i64, String, String)` instead of the `RawFault`
-    // alias (kept for the internal helper fns above, which the macro never sees).
-    pub fn open(path: String) -> Value {
-        ctor_result(
-            Connection::open(&path)
-                .map(|conn| WatSqliteConnection { conn }.to_wat())
-                .map_err(|e| fault_from_rusqlite(&e)),
-        )
+    // resolved type — a `RawFault` type-alias name isn't in its known-type list, so every method
+    // below spells the literal tuple `(i64, String, String)` instead of the `RawFault` alias
+    // (kept for the internal helper fns above, which the macro never sees).
+    pub fn open(path: String) -> Result<Self, (i64, String, String)> {
+        Connection::open(&path)
+            .map(|conn| WatSqliteConnection { conn })
+            .map_err(|e| fault_from_rusqlite(&e))
     }
 
     /// `:rust::sqlite'::Connection::execute_ddl conn ddl` — run a DDL string
@@ -353,13 +324,13 @@ impl WatSqliteConnection {
 impl WatSqliteReadConnection {
     /// `:rust::sqlite'::ReadConnection::open_readonly path` — open an
     /// EXISTING sqlite file read-only (`SQLITE_OPEN_READ_ONLY`); a missing
-    /// file or permission failure yields `Err(RawFault)`, never a panic.
-    pub fn open_readonly(path: String) -> Value {
-        ctor_result(
-            Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-                .map(|conn| WatSqliteReadConnection { conn }.to_wat())
-                .map_err(|e| fault_from_rusqlite(&e)),
-        )
+    /// file or permission failure yields `Err((i64, String, String))`, never
+    /// a panic. `Result<Self, (i64, String, String)>` marshals automatically
+    /// (arc 278 macro-result-self stone) — see `open`'s doc above.
+    pub fn open_readonly(path: String) -> Result<Self, (i64, String, String)> {
+        Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map(|conn| WatSqliteReadConnection { conn })
+            .map_err(|e| fault_from_rusqlite(&e))
     }
 
     /// `:rust::sqlite'::ReadConnection::select conn sql params` — the raw
