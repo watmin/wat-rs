@@ -439,9 +439,11 @@ fn is_pure_total(head: &str) -> bool {
         // calls it at expand time to derive fn names). to-uppercase is NOT here (no macro needs it).
         // Arc 265 — pascal->kebab-in (namespace-scoped) is also on is_pure_total: the defservice
         // macro calls it at expand time to derive fn names using the namespace's declared acronyms.
-        // kebab->pascal-in is NOT here (no macro needs the reverse direction).
+        // Arc 293 S2 — kebab->pascal-in joins it: `defservice … :satisfies` derives the surface's
+        // PascalCase Op/Reply variant names from the kebab :impls op names at expand time.
         | ":wat::core::string::pascal->kebab"
         | ":wat::core::string::pascal->kebab-in"
+        | ":wat::core::string::kebab->pascal-in"
         | ":wat::core::string::split"
         | ":wat::core::string::join"
         | ":wat::core::String/empty?"

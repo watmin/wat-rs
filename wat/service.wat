@@ -78,6 +78,8 @@
      ;; clauses is the rest param: a flat [:key val :key val …] list. We fold it into a
      ;; HashMap ONCE, rejecting any key not in `known-clauses` DIRECTLY — named.
      ;; known-clauses: durable, ephemeral, ops (REQUIRED), init, hibernate, stop, durable-parent.
+     ;; Arc 293 S2: :satisfies (name a surface — reference its S1-synthesized protocol) and
+     ;; :impls (bodies-only op implementations, in place of :ops) join the recognized clauses.
      known-clauses  (:wat::core::HashMap/assoc
                       (:wat::core::HashMap/assoc
                         (:wat::core::HashMap/assoc
@@ -86,15 +88,19 @@
                               (:wat::core::HashMap/assoc
                                 (:wat::core::HashMap/assoc
                                   (:wat::core::HashMap/assoc
-                                    (:wat::core::HashMap :wat::core::String :wat::core::bool)
-                                    "durable" true)
-                                  "ephemeral" true)
-                                "ops" true)
-                              "init" true)
-                            "hibernate" true)
-                          "stop" true)
-                        "durable-parent" true)
-                      "calls" true)
+                                    (:wat::core::HashMap/assoc
+                                      (:wat::core::HashMap/assoc
+                                        (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                                        "durable" true)
+                                      "ephemeral" true)
+                                    "ops" true)
+                                  "init" true)
+                                "hibernate" true)
+                              "stop" true)
+                            "durable-parent" true)
+                          "calls" true)
+                        "satisfies" true)
+                      "impls" true)
      clauses-len    (:wat::core::length clauses)
      n-clause-pairs (:wat::core::i64::/ clauses-len 2)
      ;; even-length guard
@@ -126,14 +132,47 @@
                                   " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :calls"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-clause-pairs))
-     ;; :ops is REQUIRED
-     _ops-required  (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "ops")
+     ;; ── Arc 293 S2: :ops vs :satisfies mode ────────────────────────────────────
+     ;; A service EITHER mints its own protocol (:ops) OR wears a surface's (:satisfies +
+     ;; :impls). Exactly one of {:ops, :satisfies}; :impls iff :satisfies; :ops iff not.
+     satisfies?     (:wat::core::HashMap/contains-key? clause-map "satisfies")
+     has-ops?       (:wat::core::HashMap/contains-key? clause-map "ops")
+     has-impls?     (:wat::core::HashMap/contains-key? clause-map "impls")
+     _mode-check    (:wat::core::if satisfies?
                       -> :wat::core::nil
-                      nil
-                      (:wat::core::macro-error "defservice: :ops clause is required"))
-     ops            (:wat::core::Option/expect
-                      (:wat::core::HashMap/get clause-map "ops")
-                      "defservice: :ops clause missing value")
+                      (:wat::core::if has-impls?
+                        -> :wat::core::nil
+                        (:wat::core::if has-ops?
+                          -> :wat::core::nil
+                          (:wat::core::macro-error "defservice: :satisfies takes :impls (bodies only), not :ops")
+                          nil)
+                        (:wat::core::macro-error "defservice: :satisfies requires :impls (the op bodies)"))
+                      (:wat::core::if has-ops?
+                        -> :wat::core::nil
+                        (:wat::core::if has-impls?
+                          -> :wat::core::nil
+                          (:wat::core::macro-error "defservice: :impls requires :satisfies (name the surface it satisfies)")
+                          nil)
+                        (:wat::core::macro-error "defservice: :ops clause is required (or :satisfies a surface)")))
+     ;; ops := the op-bearing clause value — :impls when satisfies, else :ops.
+     ops            (:wat::core::if satisfies?
+                      -> :wat::WatAST
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get clause-map "impls")
+                        "defservice: :impls clause missing value")
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get clause-map "ops")
+                        "defservice: :ops clause missing value"))
+     ;; The protocol namespace: the surface's when :satisfies (its S1 ::Op/::Reply +
+     ;; user-declared request/response records), else the service's own fqdn.
+     surface-node   (:wat::core::if satisfies?
+                      -> :wat::WatAST
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get clause-map "satisfies")
+                        "defservice: :satisfies needs a surface")
+                      fqdn)
+     proto-str      (:wat::core::keyword/to-string surface-node)
+     surface-kw     (:wat::core::keyword/from-string proto-str)
 
      ;; :durable [fields] — optional, default empty vector node []
      ;; The empty vector node is built by using with-children on a fresh Vector.
@@ -318,10 +357,12 @@
      state-field-vec (:wat::core::with-children empty-vec state-field-items)
      state-def    `(:wat::core::defstruct ~state-ty ~state-field-vec)
 
+     ;; Arc 293 S2 — Op/Reply live under the PROTOCOL namespace (proto-str): the surface's
+     ;; when :satisfies, else this service's own fqdn (identical to pre-S2 for the :ops path).
      enum-name     (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{fqdn-str}::Op" :fqdn-str fqdn-str))
+                     (:wat::core::string::interpolate "{proto-str}::Op" :proto-str proto-str))
      reply-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{fqdn-str}::Reply" :fqdn-str fqdn-str))
+                     (:wat::core::string::interpolate "{proto-str}::Reply" :proto-str proto-str))
      serve-name    (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{fqdn-str}::serve" :fqdn-str fqdn-str))
      ;; Arc 209 host-parity-4a — the serve fqdn as a STRING, spliced into start's
@@ -332,39 +373,41 @@
                      (:wat::core::string::interpolate "{fqdn-str}/start" :fqdn-str fqdn-str))
      handle-name   (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{fqdn-str}::Handle" :fqdn-str fqdn-str))
-     ;; Parametric type keywords for serve's typed params.
-     ;; Peer'<fqdn::Reply,fqdn::Op>
+     ;; Parametric type keywords for serve's typed params. Arc 293 S2 — Op/Reply are the
+     ;; PROTOCOL's (proto-str), so a :satisfies service's serve/client peers share the
+     ;; surface's uniform Address'<S::Op,S::Reply>. (proto-str = fqdn-str for the :ops path.)
+     ;; Peer'<proto::Reply,proto::Op>
      peer-ty       (:wat::core::keyword/from-string
                      (:wat::core::string::concat "wat::kernel::Peer'<"
-                       (:wat::core::string::concat fqdn-str
+                       (:wat::core::string::concat proto-str
                          (:wat::core::string::concat "::Reply,"
-                           (:wat::core::string::concat fqdn-str "::Op>")))))
-     ;; Listener'<fqdn::Op,fqdn::Reply>
+                           (:wat::core::string::concat proto-str "::Op>")))))
+     ;; Listener'<proto::Op,proto::Reply>
      listener-ty   (:wat::core::keyword/from-string
                      (:wat::core::string::concat "wat::kernel::Listener'<"
-                       (:wat::core::string::concat fqdn-str
+                       (:wat::core::string::concat proto-str
                          (:wat::core::string::concat "::Op,"
-                           (:wat::core::string::concat fqdn-str "::Reply>")))))
-     ;; Vector<Peer'<fqdn::Reply,fqdn::Op>>
+                           (:wat::core::string::concat proto-str "::Reply>")))))
+     ;; Vector<Peer'<proto::Reply,proto::Op>>
      vector-ty     (:wat::core::keyword/from-string
                      (:wat::core::string::concat "wat::core::Vector<wat::kernel::Peer'<"
-                       (:wat::core::string::concat fqdn-str
+                       (:wat::core::string::concat proto-str
                          (:wat::core::string::concat "::Reply,"
-                           (:wat::core::string::concat fqdn-str "::Op>>")))))
-     ;; Address'<fqdn::Op,fqdn::Reply>
+                           (:wat::core::string::concat proto-str "::Op>>")))))
+     ;; Address'<proto::Op,proto::Reply>
      addr-ty       (:wat::core::keyword/from-string
                      (:wat::core::string::concat "wat::kernel::Address'<"
-                       (:wat::core::string::concat fqdn-str
+                       (:wat::core::string::concat proto-str
                          (:wat::core::string::concat "::Op,"
-                           (:wat::core::string::concat fqdn-str "::Reply>")))))
-     ;; Client Peer'<fqdn::Op,fqdn::Reply> — connect'(Address'<Op,Reply>) → Peer'<Op,Reply>.
+                           (:wat::core::string::concat proto-str "::Reply>")))))
+     ;; Client Peer'<proto::Op,proto::Reply> — connect'(Address'<Op,Reply>) → Peer'<Op,Reply>.
      ;; This is the client-side peer (sends Op, receives Reply); distinct from
      ;; peer-ty (Peer'<Reply,Op>) which is the server-side peer (accepts via listener').
      client-peer-ty (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::kernel::Peer'<"
-                        (:wat::core::string::concat fqdn-str
+                        (:wat::core::string::concat proto-str
                           (:wat::core::string::concat "::Op,"
-                            (:wat::core::string::concat fqdn-str "::Reply>")))))
+                            (:wat::core::string::concat proto-str "::Reply>")))))
 
      ;; ── arc 291 3a-ii-α: lineage protocol types ──────────────────────────────
      ;; Admin enum:     :<fqdn>::Admin  — what the owner sends DOWN the lineage peer.
@@ -486,6 +529,18 @@
                                          :wat::core::None))))
 
      clauses       (:wat::core::ast->children ops)            ;; list of op-List nodes
+     ;; Arc 293 S2 — split by mode so the :ops-shaped foldls (request/response records, Op/Reply
+     ;; variants, constructors) run ONLY on :ops clauses (empty when :satisfies), and the
+     ;; :impls-shaped foldls run ONLY on :impls clauses. Exactly one is non-empty; the other's
+     ;; foldls collapse to empty vectors, keeping the :ops path byte-identical to pre-S2.
+     ops-clauses   (:wat::core::if satisfies?
+                     -> :wat::core::Vector<wat::WatAST>
+                     (:wat::core::Vector :wat::WatAST)
+                     clauses)
+     impl-clauses  (:wat::core::if satisfies?
+                     -> :wat::core::Vector<wat::WatAST>
+                     clauses
+                     (:wat::core::Vector :wat::WatAST))
 
      ;; ── C.3: per-op Request records ───────────────────────────────────────────────
      ;; Request = Record::def with the in-fields MINUS the leading s <- :State triple.
@@ -513,7 +568,7 @@
                            (:wat::core::conj acc
                              `(:wat::core::defrecord ~req-name ~req-fieldvec))))
                        (:wat::core::Vector :wat::WatAST)
-                       clauses)
+                       ops-clauses)
 
      ;; ── C.3: per-op Response records ──────────────────────────────────────────────
      ;; Response = Record::def with the out-fields (ch[3] verbatim).
@@ -535,7 +590,7 @@
                             (:wat::core::conj acc
                               `(:wat::core::defrecord ~resp-name ~resp-fieldvec))))
                         (:wat::core::Vector :wat::WatAST)
-                        clauses)
+                        ops-clauses)
 
      ;; ── C.3: Op variants — each WRAPS the Request record (one field: req) ─────────
      ;; variant: <opkw> [req <- :<fqdn>::<Op>Request]
@@ -559,7 +614,7 @@
                          (:wat::core::conj (:wat::core::conj acc opkw)
                                            req-field-vec)))
                      (:wat::core::Vector :wat::WatAST)
-                     clauses)
+                     ops-clauses)
 
      ;; ── C.3: Reply variants — each WRAPS the Response record (one field: resp) ────
      ;; variant: <opkw> [resp <- :<fqdn>::<Op>Response]
@@ -580,7 +635,21 @@
                           (:wat::core::conj (:wat::core::conj acc opkw)
                                             resp-field-vec)))
                       (:wat::core::Vector :wat::WatAST)
-                      clauses)
+                      ops-clauses)
+
+     ;; ── Arc 293 S2: the protocol enum defs — emitted ONLY when the service MINTS its own
+     ;; protocol (:ops). When :satisfies, ::Op/::Reply belong to the surface (S1-synthesized at
+     ;; defsurface time); re-emitting them here would duplicate-define, so proto-enum-defs is
+     ;; empty and the three emission sites splice nothing. (variants/reply-variants are empty in
+     ;; :satisfies mode anyway — ops-clauses is empty — so these defs would be vacuous regardless.)
+     op-enum-def    `(:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
+     reply-enum-def `(:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
+     proto-enum-defs (:wat::core::if satisfies?
+                       -> :wat::core::Vector<wat::WatAST>
+                       (:wat::core::Vector :wat::WatAST)
+                       (:wat::core::conj
+                         (:wat::core::conj (:wat::core::Vector :wat::WatAST) op-enum-def)
+                         reply-enum-def))
 
      ;; ── C.3: serve op-arms ───────────────────────────────────────────────────────
      ;; Each arm:
@@ -597,7 +666,7 @@
      ;;   req in Op match pattern → match-arm binder (not let/fn) → fine as literal.
      ;;   new-state, resp in Outcome match pattern → match-arm binders → fine as literal.
      ;;   self, l, clients, idx in value positions → fine as literals.
-     serve-op-arms (:wat::core::foldl
+     serve-op-arms-ops (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
                                       clause <- :wat::WatAST]
                        -> :wat::core::Vector<wat::WatAST>
@@ -722,7 +791,72 @@
                          (:wat::core::conj acc
                            `((~op-variant-kw req) ~outcome-match))))
                      (:wat::core::Vector :wat::WatAST)
-                     clauses)
+                     ops-clauses)
+
+     ;; ── Arc 293 S2: serve op-arms for :impls (bodies-only over the surface's protocol) ──
+     ;; Each impl is `(<op> [s req] body)` — `s` = the :State (server self), `req` = the WHOLE
+     ;; request record (bound straight from the <S>::Op::<Op> variant's `req` field). The arm:
+     ;;   ((<S>::Op::<Op> req) (match (let [s state] body) -> nil
+     ;;      ((Outcome::Reply new-state resp) (do (send' … (<S>::Reply::<Op> resp)) (serve …)))
+     ;;      ((Outcome::Stop  final    resp) (do (send' … (<S>::Reply::<Op> resp)) nil))))
+     ;; COVERAGE IS FREE: this match is over <S>::Op (S1's enum); a missing :impl leaves a
+     ;; variant unhandled → non-exhaustive match → compile error (no coverage check to write).
+     ;; Hygiene: `req` in the pattern comes from ~req-binder (the impl's own binder, unquoted →
+     ;; Unquote node → checker skips); let-bindings [s state] built via with-children → ~-spliced.
+     serve-op-arms-impls (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                      clause <- :wat::WatAST]
+                       -> :wat::core::Vector<wat::WatAST>
+                       (:wat::core::let
+                         [ch            (:wat::core::ast->children clause)
+                          op-node       (:wat::core::first ch)
+                          param-vec     (:wat::core::first (:wat::core::drop ch 1))
+                          body          (:wat::core::first (:wat::core::drop ch 2))
+                          param-ch      (:wat::core::ast->children param-vec)
+                          s-binder      (:wat::core::first param-ch)
+                          req-binder    (:wat::core::first (:wat::core::rest param-ch))
+                          op-str        (:wat::core::ast-name op-node)
+                          op-pascal     (:wat::core::string::kebab->pascal-in surface-kw op-str)
+                          op-variant-kw (:wat::core::keyword/from-string
+                                          (:wat::core::string::concat proto-str
+                                            (:wat::core::string::interpolate "::Op::{op-pascal}" :op-pascal op-pascal)))
+                          reply-variant-kw (:wat::core::keyword/from-string
+                                             (:wat::core::string::concat proto-str
+                                               (:wat::core::string::interpolate "::Reply::{op-pascal}" :op-pascal op-pascal)))
+                          state-sym     (:wat::core::symbol-node "state")
+                          ;; let-bindings [s-binder state] — bind the impl's state param to serve's `state`.
+                          binding-items (:wat::core::conj
+                                          (:wat::core::conj
+                                            (:wat::core::Vector :wat::WatAST)
+                                            s-binder)
+                                          state-sym)
+                          let-bindings  (:wat::core::with-children param-vec binding-items)
+                          outcome-match `(:wat::core::match
+                                              (:wat::core::let ~let-bindings ~body)
+                                              -> :wat::core::nil
+                                            ((:wat::service::Outcome::Reply new-state resp)
+                                              (:wat::core::do
+                                                (:wat::kernel::send'
+                                                  (:wat::core::nth clients idx)
+                                                  (~reply-variant-kw resp))
+                                                (~serve-name self l clients new-state)))
+                                            ((:wat::service::Outcome::Stop final-state resp)
+                                              (:wat::core::do
+                                                (:wat::kernel::send'
+                                                  (:wat::core::nth clients idx)
+                                                  (~reply-variant-kw resp))
+                                                nil)))]
+                         (:wat::core::conj acc
+                           `((~op-variant-kw ~req-binder) ~outcome-match))))
+                     (:wat::core::Vector :wat::WatAST)
+                     impl-clauses)
+     ;; Combine: exactly one source is non-empty (mode-gated), so this is the mode's arms.
+     serve-op-arms (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> x <- :wat::WatAST]
+                       -> :wat::core::Vector<wat::WatAST>
+                       (:wat::core::conj acc x))
+                     serve-op-arms-ops
+                     serve-op-arms-impls)
 
      ;; ── serve params argvec ───────────────────────────────────────────────────────
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
@@ -837,7 +971,7 @@
                          (:wat::core::conj acc
                            `(:wat::core::defn ~ctor-name ~req-fieldvec -> ~req-ty ~ctor-body))))
                      (:wat::core::Vector :wat::WatAST)
-                     clauses)
+                     ops-clauses)
 
      ;; ── C.3: methods ─────────────────────────────────────────────────────────────
      ;; For each op:
@@ -853,7 +987,7 @@
      ;; method-params `[c <- ~peer-ty req <- ~req-ty]` is a Vector → checker skips it.
      ;; `resp` in the match arm is a match-pattern binder (not let/fn) → fine as literal.
      ;; op-methods = per-op client methods only (no stop/hibernate); used for client-forms-def.
-     op-methods    (:wat::core::foldl
+     op-methods-ops (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
                                       clause <- :wat::WatAST]
                        -> :wat::core::Vector<wat::WatAST>
@@ -898,7 +1032,65 @@
                          (:wat::core::conj acc
                            `(:wat::core::defn ~method-name ~method-params -> ~resp-ty ~method-body))))
                      (:wat::core::Vector :wat::WatAST)
-                     clauses)
+                     ops-clauses)
+
+     ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
+     ;; `(defn <fqdn>/<op> [c <- Peer'<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
+     ;;    (let [_ (send' c (<S>::Op::<Op> req))  r (recv' c)]
+     ;;      (match r ((<S>::Reply::<Op> resp) resp) …)))
+     ;; The client fn is SERVICE-namespaced (<fqdn>/<op>) — the SURFACE-namespaced name <S>/<op>
+     ;; is already the surface's method-dispatch stub (defsurface registers it; receiver = a Store
+     ;; satisfier). The blind/uniform side is the shared Op/Reply protocol + Address'<S::Op,S::Reply>
+     ;; type; the surface method <S>/<op> becomes the blind entry once a satisfier extend-type wires
+     ;; it to this concrete client fn (S4). Request/response records are the surface's own
+     ;; (user-declared `<S>::<Op>Request` / `<S>::<Op>Response` — the S1/gRPC naming convention).
+     op-methods-impls (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                      clause <- :wat::WatAST]
+                       -> :wat::core::Vector<wat::WatAST>
+                       (:wat::core::let
+                         [ch              (:wat::core::ast->children clause)
+                          op-node         (:wat::core::first ch)
+                          op-str          (:wat::core::ast-name op-node)
+                          op-pascal       (:wat::core::string::kebab->pascal-in surface-kw op-str)
+                          method-name     (:wat::core::keyword/from-string
+                                            (:wat::core::string::concat fqdn-str
+                                              (:wat::core::string::interpolate "/{op-str}" :op-str op-str)))
+                          req-ty          (:wat::core::keyword/from-string
+                                            (:wat::core::string::concat proto-str
+                                              (:wat::core::string::interpolate "::{op-pascal}Request" :op-pascal op-pascal)))
+                          resp-ty         (:wat::core::keyword/from-string
+                                            (:wat::core::string::concat proto-str
+                                              (:wat::core::string::interpolate "::{op-pascal}Response" :op-pascal op-pascal)))
+                          op-variant-kw   (:wat::core::keyword/from-string
+                                            (:wat::core::string::concat proto-str
+                                              (:wat::core::string::interpolate "::Op::{op-pascal}" :op-pascal op-pascal)))
+                          reply-variant-kw (:wat::core::keyword/from-string
+                                             (:wat::core::string::concat proto-str
+                                               (:wat::core::string::interpolate "::Reply::{op-pascal}" :op-pascal op-pascal)))
+                          method-params   `[c <- ~client-peer-ty req <- ~req-ty]
+                          discard-sym     (:wat::core::symbol-node "_")
+                          r-sym           (:wat::core::symbol-node "r")
+                          method-body     `(:wat::core::let
+                                             [~discard-sym (:wat::kernel::send' c (~op-variant-kw req))
+                                              ~r-sym (:wat::kernel::recv' c)]
+                                             (:wat::core::match ~r-sym -> ~resp-ty
+                                               ((~reply-variant-kw resp) resp)
+                                               (_ (:wat::kernel::assertion-failed!
+                                                    "defservice method: misrouted reply variant (protocol violation)"
+                                                    :wat::core::None
+                                                    :wat::core::None))))]
+                         (:wat::core::conj acc
+                           `(:wat::core::defn ~method-name ~method-params -> ~resp-ty ~method-body))))
+                     (:wat::core::Vector :wat::WatAST)
+                     impl-clauses)
+     ;; Combine (exactly one non-empty, mode-gated).
+     op-methods    (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> x <- :wat::WatAST]
+                       -> :wat::core::Vector<wat::WatAST>
+                       (:wat::core::conj acc x))
+                     op-methods-ops
+                     op-methods-impls)
 
      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
      ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)
@@ -979,11 +1171,12 @@
      ;; share the same scope node — avoids HygieneScopeDivergence when kwargs-defn rebuilds $impl.
      locus-sym     (:wat::core::symbol-node "locus")
      ;; arc 291 3a-ii-β: launch<Op,Reply,State,Admin,Status> — Sh=Admin (ship), Lu=Status.
+     ;; Arc 293 S2 — Op/Reply are the protocol's (proto-str); State/Admin/Status stay per-service.
      launch-head-kw (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::spawn::Locus/launch<"
-                        (:wat::core::string::concat fqdn-str
+                        (:wat::core::string::concat proto-str
                           (:wat::core::string::concat "::Op,"
-                            (:wat::core::string::concat fqdn-str
+                            (:wat::core::string::concat proto-str
                               (:wat::core::string::concat "::Reply,"
                                 (:wat::core::string::concat fqdn-str
                                   (:wat::core::string::concat "::State,"
@@ -1068,8 +1261,7 @@
                         ~state-def
                         ~@request-records
                         ~@response-records
-                        (:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
-                        (:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
+                        ~@proto-enum-defs
                         (:wat::core::defn ~serve-name ~serve-params
                           -> :wat::core::nil ~serve-body)
                         ~init-def
@@ -1103,8 +1295,7 @@
                          (:wat::core::forms
                            ~@request-records
                            ~@response-records
-                           (:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
-                           (:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
+                           ~@proto-enum-defs
                            ~@constructors
                            ~@op-methods))
 
@@ -1183,8 +1374,7 @@
        ~state-def
        ~@request-records
        ~@response-records
-       (:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
-       (:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
+       ~@proto-enum-defs
        ~admin-enum-def
        ~status-enum-def
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
