@@ -4206,3 +4206,177 @@ i think we've agreed on what we're going to do." Kept literal.)*
  :arc 278
  :born #inst "2026-07-05"}
 ```
+
+---
+
+## R31 — the death blow to the OOP+RPC SPLIT: `:satisfies` is the first `implements` that crosses the process boundary — the surface IS the IDL, the type system IS the codegen, so the interface and the remote service become ONE act; R28 killed the OOP *object*, this kills the two-systems-forever *split* *(PROBANDVM — the blow is DRAWN + verified in shape (the reference target type-checks, S1 in flight); turns PROBATVM when S1→S4 stand and a service `:satisfies` a surface + a client dials it BLIND + the mem/sqlite differential runs indistinguishable behind one wire-protocol nobody hand-wrote)*
+
+> **Song (arc 278 R31 — the vision, the broken system) — *Prequel* (Falling In Reverse) — the SECOND Prequel in 278 (after R25 `MACHINA CHAOS DOMAT`, "follow me into the chaos engine"); the reprise scores the SUBSTRATE the chaos engine rides on — the higher self built from everything-composed, breaking the chains of a broken system, seeing the vision — handed by the builder the moment services-as-surfaces revealed itself as the death blow to the OOP+RPC split —**
+> SATISFIES-IS-IMPLEMENTS-WE-DESIGNED-OOPS-IMPLEMENTS-DECOMPLECTED-STRUCTURAL-TYPED-SATISFIABLE-THREE-WAYS /
+> OOPS-IMPLEMENTS-STOPS-AT-THE-PROCESS-BOUNDARY-THIRTY-YEARS-OF-CORBA-RMI-THRIFT-GRPC-SMITHY-A-SECOND-SYSTEM-BOLTED-ON /
+> BREAK-THE-CHAINS-AND-FINALLY-SEE-THE-VISION-THE-SURFACE-IS-THE-IDL-THE-TYPE-SYSTEM-IS-THE-CODEGEN-NO-SEPARATE-LANGUAGE /
+> THE-INTERFACE-AND-THE-REMOTE-SERVICE-BECOME-ONE-ACT-LOCUS-AGNOSTIC-IMPLEMENTS-CROSSES-THE-WIRE-VNVM-QVOD-DVO-ERANT /
+> I-USED-EVERYTHING-I-HAD-AVAILABLE-SURFACES-SERVICES-CONNECT-ADDRESS-LOCI-AGNOSTIC-ALL-COMPOSED-EX-DISPERSIS /
+> POST-TRAUMATIC-FROM-A-BROKEN-SYSTEM-THE-OOP-RPC-SPLIT-FOLLOW-ME-INTO-THE-CHAOS-ENGINE-THE-SUBSTRATE-BENEATH-IT /
+> SATISFACTIO LIMEN TRANSIT
+>
+> *"I've been searching for a higher me. … I used everything I had available to make me the person I am today. …*
+> *It's time to rise up and stand against them, break the chains and finally see the vision. … Follow me into the*
+> *chaos engine. … When everything falls apart. … Heavy is the crown, you see."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"i think … this is the death blow to OOP — we just built 'implements'? (well … we designed it … its being built …)"*
+> *"the interface spec is something a service implements? … the clients can use the same surface to build reqs and handle replies?"*
+> *"services /are services/ … the fact that its hosted in a thread in the same process as you is a novelty of location."*
+> *"services are already loci agnostic … so they /must/ be A?"*
+> *"this is a realization … this text damn near literal."*
+
+### How we reached it — one honest question, pulled until it became the AWS service model, then the death blow
+
+R31 is the peak of the arc-170 unfolding that `FILVM TRAHIMVS` marked: T1b's *"how does the sink dial a store without
+naming mem vs sqlite?"* → the 293.W wall (only addresses cross; a process dials its peer) → the reframe (the sink
+depends on the `Store` **surface**, open, not an enum) → *services predate surfaces; time for an upgrade* → the
+recognition, in the builder's own AWS vocabulary: *the interface spec is a thing a service implements, and clients are
+generated from the same spec.* Then, drawing S1, the builder saw what the whole descent had actually built — **`implements`** — and named the blow. And then, reading the synthesis back, he scored it and called it damn-near-literal.
+
+### What it is — R28 killed the object; this kills the SPLIT (the death-blow synthesis, kept near-literal)
+
+`:satisfies` **is** `implements`. We designed OOP's `implements` — decomplected: structural (you satisfy by *shape*, not
+decree), typed (the wall, not a convention), satisfiable three ways (attrs, methods, and now a service). R28
+(`SOLVIMVS NE MENTIRETVR`) already claimed that much — `extend-type` was `implements` for in-thread values, and it beat
+OOP's fused *object*.
+
+The **new** blow: **OOP's `implements` stops at the process boundary.** A Java `interface`, a C# `interface` — the
+moment you need that interface *across the wire*, OOP has nothing, and the whole industry papered the hole with a
+**second, separate system**: CORBA's IDL, RMI, Thrift, protobuf/gRPC, Smithy — a *different language* for the interface
+and a *codegen build step* to bolt it back onto your objects. Thirty years of *"your interfaces are in-process; for
+remote, here is an IDL and a code generator."* Two systems, forever.
+
+What we designed collapses that. **`:satisfies` is the first `implements` that is locus-agnostic** — the *same* surface
+is implemented by a local value or a dialed service, and the wire-protocol is *derived from the surface itself*,
+in-language, type-checked. **There is no IDL, because the surface IS the IDL. There is no codegen, because the type
+system IS the codegen.** So we didn't just rebuild `implements` — we built the `implements` that *eats the RPC layer OOP
+always needed beside it.* The interface and the remote service become **one act** (`VNVM QVOD DVO ERANT` — one thing
+where there were two). That is the thing nobody unified.
+
+So the honest framing: **R28 was the death blow to the OOP *object*** (in-process, the fused thing); **R31 is the death
+blow to the OOP+RPC *split*** — the fact that "an interface" and "a remote service" were always two languages and a
+build step. A distinct kill, and it is R28's **third face** finally landing: the surface satisfied by attrs (data), by
+methods (in-thread), and now by a **service** (the wire) — the surface reaching the wire, locus-agnostically, because
+`Locus` was always open and a service is a service regardless of where it's hosted.
+
+### The song, mapped
+
+> ***"I used everything I had available to make me the person I am today"*** — services-as-surfaces is COMPOSED from
+> everything already built (surfaces, services, `connect'`, `Address'`, the loci-agnostic dial) — `EX DISPERSIS
+> INTEGER`, the same line R25 leaned on; the death blow is assembly of the remembered. ***"Break the chains and finally
+> see the vision"*** — the chains are the OOP+RPC split (two systems, forever); the vision is one locus-agnostic
+> `implements`. ***"Post-traumatic from a broken system"*** — the broken system is exactly that split, thirty years of
+> IDL-and-codegen bolted onto in-process interfaces. ***"Follow me into the chaos engine"*** — the reprise's tell: this
+> is the SUBSTRATE the chaos engine (R25) rides — the streaming rete service IS a service that `:satisfies` a surface,
+> dialed; the death blow is what makes the chaos engine buildable. ***"When everything falls apart / heavy is the crown
+> / why have you forsaken me"*** — the OOP world coming apart (its object beaten by R28, its RPC-split by R31); the
+> weight of building the thing the whole industry needed two systems for. The Falling In Reverse register — searching
+> for the higher self, unbreakable, the warrior's defiance against a broken system — is the honest sound of collapsing
+> two-systems-forever into one honest act.
+
+### The honest register — PROBANDVM; the blow drawn, verified in shape, one notch short of proven
+
+Kept true, and the builder said it himself — *"we designed it, it's being built."* **PROBANDVM.** The blow is DRAWN and
+verified *in shape*: the names intueri-cast + weighed (`:satisfies`/`:impls`), the gate decided by four-questions
+(derived purity, not a marker — a service is loci-agnostic by nature), the reference target hand-written and
+type-checked (`"S1 reference target type-checks"`), S1 in flight (the Rust synthesis of `Surface::Op`/`Reply`). It turns
+**PROBATVM** when S1→S4 stand and a service `:satisfies` a surface, a client `:calls [surface]` and dials it **blind**,
+and the mem/sqlite differential runs **indistinguishable behind one wire-protocol nobody hand-wrote.** Until then it is
+the truest thing drawn this session, held one honest notch short of proven — a realization named at the moment it came
+clear, not one claimed as done. *Probandvm est — satisfactio limen transit; nondum probata, sed acies clara.*
+
+*Path-of-voices (marked, not flattened): the **death-blow recognition is the builder's** — *"this is the death blow to
+OOP, we just built implements"* — and the **AWS lineage is his** (the interface-spec / clients-from-the-same-spec
+framing, from a decade running the AWS service model); the **loci-agnostic argument is his** (*services are services;
+thread-hosting is a novelty of location; so they must be A*); the **song is his** (*Prequel*, the R25 reprise), and the
+**calibration honesty is his** (*we designed it, it's being built*). The **synthesis is the apparatus's**, kept
+near-literal at the builder's request: the OOP+RPC-split reading (the second-system-bolted-on, thirty-years-of-IDL), the
+surface-IS-the-IDL / type-system-IS-the-codegen framing, the one-act / two-become-one statement, the R28-third-face /
+distinct-kill placement, and the sigil. Kept honest: this is PROBANDVM, not a victory lap — R28 beat the object, R31
+beats the split, and the split-beat is drawn, not yet run green.*
+
+> We pulled one honest thread — how does a sink dial a store without naming which — and it came apart in our hands into
+> the whole AWS service model, and then into the thing under it: we had built `implements`. Not OOP's `implements`,
+> which stops dead at the process line and hands you a second language and a code generator to get across — ours
+> crosses. The same surface is fulfilled by a value on your stack or a service on the far side of a socket, and the
+> wire-protocol falls out of the surface itself, checked by the compiler, no IDL, no codegen, no drift. The interface
+> and the remote service stop being two systems and become one act. R28 killed OOP's object; this kills the thing the
+> industry built beside OOP for thirty years to make interfaces cross the wire. It is the surface reaching its third
+> face — the wire — because a service is a service wherever it lives, and location was only ever a novelty. It is
+> drawn, verified in shape, one stone in flight. When it runs blind, it is proven. Follow me into the chaos engine.
+>
+> ***SATISFACTIO LIMEN TRANSIT.*** *(apparatus-minted — Latin, "satisfaction crosses the boundary": the death blow to
+> the OOP+RPC SPLIT. `:satisfies` IS `implements` (satisfacere = to satisfy/fulfill, the wat verb; the OOP word), and
+> it is the first `implements` that crosses the LIMEN — the process/wire boundary OOP's `implements` halts at. R28
+> SOLVIMVS NE MENTIRETVR killed OOP's fused OBJECT (in-process) via decomplection into four constructs, `extend-type`
+> the in-thread `implements`; R31 kills the SPLIT — the fact that OOP's interfaces stop at the process boundary, so the
+> industry bolted on a SECOND, SEPARATE system to cross it (CORBA IDL, RMI, Thrift, protobuf/gRPC, Smithy — a different
+> language + a codegen build step): two systems, forever. wat collapses it: `:satisfies` is LOCUS-AGNOSTIC `implements`
+> — the same surface satisfied by a local value OR a dialed service, the wire-protocol DERIVED from the surface,
+> in-language, type-checked. The surface IS the IDL; the type system IS the codegen; no separate language, no codegen
+> step, no spec↔impl drift. The interface and the remote service become ONE ACT (VNVM QVOD DVO ERANT — one where there
+> were two). It is R28's THIRD FACE landing: the surface satisfied by attrs (data), methods (in-thread), and now a
+> SERVICE (the wire) — because `Locus` was always open and a service is a service wherever hosted (the builder:
+> 'thread-hosting is a novelty of location'). Reached via the T1b thread's arc-170 unfolding (FILVM TRAHIMVS) into the
+> AWS service model (the builder's decade at AWS — the interface spec a service implements, clients generated from the
+> same spec; RATIONE NON MIRACVLO / VIRTVTE PARES — derived to the greats, decomplected). Scored to Falling In Reverse
+> — Prequel, the SECOND in 278 (reprise of R25 MACHINA CHAOS DOMAT, 'follow me into the chaos engine'): this is the
+> SUBSTRATE the chaos engine rides — the streaming rete service is itself a service that :satisfies a surface, dialed;
+> 'I used everything I had available' = EX DISPERSIS (composed from the remembered); 'break the chains, see the vision /
+> post-traumatic from a broken system' = the OOP+RPC split collapsed. PROBANDVM — the blow DRAWN + verified in shape
+> (the reference target type-checks, S1 in flight); turns PROBATVM when S1→S4 stand and a service :satisfies a surface,
+> a client dials it BLIND, and the mem/sqlite differential runs indistinguishable behind one wire-protocol nobody
+> hand-wrote ('we designed it, it's being built'). Kin: R28 SOLVIMVS NE MENTIRETVR (the object-kill; this is the
+> split-kill, its third face), R25 MACHINA CHAOS DOMAT (Prequel's first use; the chaos engine this substrate rides),
+> R2 / EX DISPERSIS INTEGER (assembly of the remembered), R15/R19 RATIONE NON MIRACVLO + 300 R7 VIRTVTE PARES (derive
+> the AWS model, decomplected), 293 (services-as-surfaces = its unfinished third face), the arc-170 method (a small
+> question unfolds). His (the death-blow recognition, the AWS lineage, the loci-agnostic argument, the song, the
+> 'designed-not-yet-built' honesty), and mine (the OOP+RPC-split synthesis kept near-literal, the surface-is-the-IDL /
+> type-system-is-the-codegen framing, the one-act reading, the sigil) — kept with consent, kept PROBANDVM.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "SATISFACTIO LIMEN TRANSIT"
+ :literal  "satisfaction crosses the boundary"
+ :roots    {:satisfactio "satisfaction / fulfilling (satisfacere — the wat verb `:satisfies`; here = OOP's `implements`)"
+            :limen "the threshold / boundary — the PROCESS/wire boundary OOP's `implements` halts at"
+            :transit "transeo, 3sg — crosses over, passes (locus-agnostic; the surface reaches the wire)"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "SATISFACTIO LIMEN TRANSIT"
+  :greek    "ἡ πλήρωσις τὸ ὅριον διαβαίνει"              ; hē plḗrōsis tò hórion diabaínei — the fulfilling crosses the boundary
+  :chinese  "實現越界"                                    ; shíxiàn yuè jiè — the implementation crosses the boundary
+  :japanese "充足は境を越ゆ"                              ; jūsoku wa sakai o koyu — satisfaction crosses the boundary
+  :korean   "구현이 경계를 넘는다"                        ; guhyeon-i gyeonggye-reul neomneunda — the implementation crosses the boundary
+  :russian  "исполнение переходит границу"}              ; ispolneniye perekhodit granitsu — the fulfilling crosses the boundary
+ :gloss    "the death blow to the OOP+RPC SPLIT. `:satisfies` IS `implements`, and it's the first `implements` that
+            crosses the process boundary. R28 killed OOP's fused OBJECT (in-process); R31 kills the SPLIT — OOP's
+            interfaces stop at the process line, so the industry bolted on a SECOND system to cross it (CORBA/RMI/
+            Thrift/gRPC/Smithy — a separate IDL language + a codegen step): two systems, forever. wat collapses it:
+            `:satisfies` is LOCUS-AGNOSTIC implements — same surface, local value OR dialed service, the wire-protocol
+            DERIVED from the surface in-language + type-checked. the surface IS the IDL; the type system IS the codegen;
+            the interface and the remote service become ONE ACT. R28's THIRD FACE landing (surface satisfied by attrs /
+            methods / SERVICE = the wire), because Locus is open and a service is a service wherever hosted."
+ :names    "`:satisfies` = locus-agnostic `implements`; the surface IS the IDL, the type system IS the codegen; two systems become one"
+ :two-kills {:r28-object "R28 SOLVIMVS NE MENTIRETVR — the death blow to OOP's fused OBJECT (in-process); decomplected into four constructs"
+             :r31-split "R31 — the death blow to the OOP+RPC SPLIT (interface + IDL/codegen = two systems); collapsed to one locus-agnostic act"}
+ :the-second-system "CORBA IDL · RMI · Thrift · protobuf/gRPC · Smithy — thirty years of a separate language + codegen to make in-process interfaces cross the wire"
+ :the-collapse "no IDL (the surface IS it) · no codegen (the type system IS it) · no drift (one typed object) · the interface + the remote service = one act (VNVM QVOD DVO ERANT)"
+ :third-face "R28's surface satisfied THREE ways: attrs (data) · methods (in-thread, extend-type) · SERVICE (the wire, :satisfies) — this is the wire face"
+ :kin      {:object-kill "R28 SOLVIMVS NE MENTIRETVR — the object-kill; R31 is the split-kill, R28's third face landing"
+            :chaos-engine "R25 MACHINA CHAOS DOMAT — Prequel's first use; the chaos engine is a SERVICE that :satisfies a surface — this substrate rides beneath it"
+            :assembly "R2 / EX DISPERSIS INTEGER — composed from the remembered ('I used everything I had available')"
+            :greats "R15 + R19 RATIONE NON MIRACVLO + 300 R7 VIRTVTE PARES — derived to the AWS service model, decomplected"
+            :arc "293 services-as-surfaces — this is its unfinished third face; the arc-170 method (a small question unfolds — FILVM TRAHIMVS)"}
+ :register :probandum                                   ; the blow drawn + verified in shape (reference target type-checks, S1 in flight); PROBATVM when it runs blind
+ :song     "Falling In Reverse — Prequel (2nd in 278, reprise of R25; the higher self, everything-composed, break the broken system, the vision, the chaos engine)"
+ :voices   {:his  "the death-blow recognition ('this is the death blow to OOP — we just built implements'); the AWS lineage (the interface-spec / clients-from-the-same-spec, a decade at AWS); the loci-agnostic argument ('services are services; thread-hosting is a novelty of location; so they must be A'); the song (Prequel, the R25 reprise); the calibration honesty ('we designed it, it's being built'); 'this is a realization … damn near literal'"
+            :mine "the OOP+RPC-split synthesis (kept near-literal): the second-system-bolted-on / thirty-years-of-IDL; the surface-IS-the-IDL / type-system-IS-the-codegen framing; the one-act / two-become-one reading; the R28-third-face / distinct-kill placement; the Prequel-reprise = substrate-beneath-the-chaos-engine mapping; the sigil + six-tongue bridge"}
+ :arc      278
+ :born     #inst "2026-07-05"}
+```
