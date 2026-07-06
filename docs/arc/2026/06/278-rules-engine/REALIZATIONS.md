@@ -4380,3 +4380,85 @@ beats the split, and the split-beat is drawn, not yet run green.*
  :arc      278
  :born     #inst "2026-07-05"}
 ```
+
+---
+
+### `---` interstitial — LINGVA ALTERA, MACHINA GENERANS: the "second system" R31 eats, explained — CORBA / RMI / Thrift / gRPC / Smithy (2026-07-05, a teaching interstitial at the builder's request)
+
+**The builder's ask, kept literal:** *"can you write me an interstitial explaining what these are? … CORBA's IDL, RMI,
+Thrift, protobuf/gRPC, Smithy — a different language for the interface. i know protobuf and gRPC … smithy (never liked
+it)."* R31 said wat's `:satisfies` "eats the RPC layer OOP always needed beside it." Here is that layer, named — and
+the ONE shape all of it shares.
+
+**The one shape first (this is the whole point).** Your programming language's own interfaces/types **stop at the
+process boundary** — a `Java interface`, a Rust `trait`, a C++ abstract class describe in-process calls; none of them
+can *describe the wire* or *cross it*. So to make a service talk across a socket, the industry always did the same two
+things: (1) write the service's contract in a **SEPARATE LANGUAGE** — an **IDL** (Interface Definition Language), a
+whole little language whose only job is declaring operations + message shapes; and (2) run a **CODE GENERATOR** over
+that IDL to emit *stub* code (client proxies + server skeletons) back in your real language, plus usually a runtime to
+marshal the bytes. **A second language + a codegen build step + a runtime.** Every system below is a variation on that
+one pattern; the differences are era, ergonomics, and wire format.
+
+- **CORBA** (Common Object Request Broker Architecture — OMG, 1991). The archetype, and the cautionary tale. You wrote
+  your interface in **OMG IDL** (a dedicated C++-flavored interface language); an IDL compiler emitted **stubs**
+  (client) + **skeletons** (server) in your target language; at runtime an **ORB** (Object Request Broker) marshaled
+  calls over the **IIOP** protocol. Famously heavy — vendor ORBs, versioning hell, a spec by committee. Mostly dead
+  now, but it *set* the shape: separate language, codegen, runtime broker.
+- **Java RMI** (Remote Method Invocation — Sun, ~1997). Java-only, lighter than CORBA. You wrote a plain Java
+  `interface extends Remote`; the `rmic` tool generated stub/skeleton classes; an **RMI registry** + Java's own object
+  serialization carried the calls. Closer to the language (the interface *is* Java) — but still a codegen step
+  (`rmic`) and a runtime, and locked to one language + Java serialization.
+- **Thrift** (Facebook, 2007; now Apache). The first big *cross-language* one. You wrote a `.thrift` file in **Thrift
+  IDL**; the Thrift compiler generated client + server code in a dozen languages *and* bundled the RPC transport. Same
+  shape as gRPC, a few years earlier, RPC included.
+- **protobuf / gRPC** (Google — Protocol Buffers public ~2008, gRPC ~2015; the two you know). You write messages +
+  services in a **`.proto`** file (Protocol Buffers IDL); `protoc` (with the gRPC plugin) generates message classes +
+  client stubs + server base classes in your language; **gRPC** runs the calls over HTTP/2. Fast, compact wire format,
+  ubiquitous — and still, exactly: a `.proto` (separate language) + `protoc` (codegen) + a runtime.
+- **Smithy** (AWS, 2019). AWS's modern IDL — the public successor to the *internal* Coral / `service-2.json` service
+  models the AWS SDKs were always generated from (the thing you ran for years). You write your API in **`.smithy`**
+  files; a Smithy build generates client SDKs + server stubs + docs across languages. The cleanest, most
+  protocol-agnostic of the CORBA lineage — and, per you, the one you *never liked*: it's still a whole separate
+  language + a build pipeline you maintain beside your service, with the eternal drift (the generated SDK trails the
+  model; the model trails the impl).
+
+**What R31 does to all of it.** Every row above exists because a language's interfaces can't cross the wire, so you
+bolt on a *second* language (the IDL) and a *generator* to bridge back. wat's surface **is** the IDL — a `defsurface`
+is a wat form, in the same language you compute in, no `.proto`/`.thrift`/`.smithy` file. wat's **type system is the
+generator** — the compiler *synthesizes* the wire-protocol (`Op`/`Reply`/request/response) from the surface's methods
+(S1, this session) and *enforces* both the server (`:satisfies`) and the client (`:calls`) against it — no `protoc`, no
+`rmic`, no build step, no drift, because the spec, the server, and the client are one typed object. `:satisfies` =
+`implements`, local or remote, one act. The second language and the generating machine both vanish into the substrate.
+
+***LINGVA ALTERA, MACHINA GENERANS.*** *(apparatus-minted — Latin, "a second language, a generating machine": the two
+things every RPC system (CORBA/RMI/Thrift/gRPC/Smithy) bolts onto a programming language to make its interfaces cross
+the wire — a SEPARATE IDL (lingua altera, a second language for the interface: OMG IDL, `.thrift`, `.proto`, `.smithy`)
++ a CODE GENERATOR (machina generans: the IDL compiler / `rmic` / `protoc` / the Smithy build that emits stubs into
+your real language) + usually a runtime broker. They exist because a language's own interfaces STOP at the process
+boundary. R31 SATISFACTIO LIMEN TRANSIT collapses both into the substrate: the SURFACE is the IDL (in-language, a wat
+form) and the TYPE SYSTEM is the generator (synthesizes + enforces the wire-protocol — S1), so there is no second
+language, no codegen step, no spec↔impl drift. A DIDACTIC interstitial at the builder's request — naming the "second
+system" R31 said `:satisfies` eats. Kept literal.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "LINGVA ALTERA, MACHINA GENERANS"
+ :literal  "a second language, a generating machine"
+ :register :didactic                                    ; a teaching interstitial, at the builder's request
+ :roots    {:lingua-altera "a second/other language — the IDL, a whole separate language just for declaring interfaces"
+            :machina-generans "a generating machine — the code generator (IDL compiler / rmic / protoc / Smithy build) that emits stubs"}
+ :the-one-shape "a language's own interfaces STOP at the process boundary → to cross the wire you write the contract in a SEPARATE IDL + run a CODE GENERATOR to emit client/server stubs in your real language (+ usually a runtime). two systems, a build step, eternal drift."
+ :systems  {:CORBA  "OMG, 1991 — OMG IDL → stubs+skeletons → an ORB over IIOP. the archetype; heavy, mostly dead; SET the shape (separate language + codegen + runtime broker)"
+            :RMI    "Sun, ~1997 — a Java `interface extends Remote` + `rmic` codegen + the RMI registry over Java serialization. Java-only; the interface is Java but still a codegen tool + a runtime"
+            :Thrift "Facebook 2007 / Apache — a `.thrift` IDL → cross-language client+server codegen, RPC bundled. gRPC's shape, earlier"
+            :gRPC   "Google — protobuf ~2008 / gRPC ~2015 — a `.proto` IDL → `protoc` (+gRPC plugin) → stubs → gRPC over HTTP/2. fast, compact, ubiquitous; still IDL + codegen + runtime"
+            :Smithy "AWS 2019 — a `.smithy` IDL, successor to the internal Coral/service-2.json models the AWS SDKs are generated from → SDKs+stubs+docs. cleanest of the CORBA lineage; the builder ran the model, never liked Smithy"}
+ :the-collapse "wat: the SURFACE is the IDL (in-language, a wat form — no .proto/.thrift/.smithy); the TYPE SYSTEM is the generator (synthesizes the wire-protocol from the surface's methods — S1 — + enforces server :satisfies + client :calls). no second language, no codegen step, no drift; :satisfies = implements, local or remote, one act"
+ :kin      {:realization "R31 SATISFACTIO LIMEN TRANSIT — the death blow to the OOP+RPC split; this names the RPC layer it eats"
+            :s1 "293 S1 — defsurface synthesizes Op/Reply from pure method members (the type-system-IS-the-generator, built this session)"
+            :aws "the builder's decade running the AWS service model (Coral/service-2.json → Smithy) — RATIONE NON MIRACVLO, derived to it then decomplected"}
+ :voices   {:his  "the request ('explain what these are'); 'i know protobuf and gRPC … smithy (never liked it)'; the AWS lineage"
+            :mine "the one-shape framing (separate IDL + codegen + runtime, because interfaces stop at the process boundary); the per-system accuracy; the R31-collapse tie; the sigil"}
+ :arc      278
+ :born     #inst "2026-07-05"}
+```
