@@ -13,7 +13,7 @@ use wat::runtime::Environment;
 #[test]
 fn sqlite_store_differential() {
     let world = startup_beside(file!()).expect(
-        "startup should succeed (:wat::query::MemStore and :wat::sqlite'::SqliteStore must load \
+        "startup should succeed (:wat::query::MemStore and :wat::query::SqliteStore must load \
          from the baked stdlib)",
     );
     let ast = wat::parse_one!("(:user::sqlite_store_differential)").expect("parse test-fn call");

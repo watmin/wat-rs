@@ -53,9 +53,15 @@
                     :record (:wat::query::mem-store'::Record (:wat::core::PersistentVector)))
      c            (:wat::kernel::connect' (:wat::query::mem-store'::Handle/addr h))
      mem-store    (:wat::query::MemStore c)
-     sqlite-store (:wat::core::Result/expect
-                    (:wat::sqlite'::SqliteStore/open ":memory:" (:wat::core::Vector :wat::core::String "by-v"))
-                    "sqlite SqliteStore/open failed")
+
+     ;; T1a: the sqlite backend is now a defservice + peer-wrapping satisfier (mirroring MemStore's
+     ;; construction above) — start the service INLINE (scope law), connect', wrap the peer. The
+     ;; durable Record carries the path (":memory:") + the declared GSI-name set ("by-v").
+     sh           (:wat::query::sqlite-store'/start :locus (:wat::spawn::thread)
+                    :record (:wat::query::sqlite-store'::Record ":memory:"
+                              (:wat::core::Vector :wat::core::String "by-v")))
+     sc           (:wat::kernel::connect' (:wat::query::sqlite-store'::Handle/addr sh))
+     sqlite-store (:wat::query::SqliteStore sc)
 
      mem-result    (:probe::run-ops mem-store)
      sqlite-result (:probe::run-ops sqlite-store)]
