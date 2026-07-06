@@ -233,3 +233,61 @@ one protocol, un-braided; the asymmetry with structs is named, not hidden). **Ho
 here, not the redundant label it would be on a struct; the spec/server/client can't drift because they're one typed
 object). **Good UX** YES (the client dials `Address'<Store::Op>` blind; a new backend is one `defservice :satisfies`,
 a new transport is one `Locus` `extend-type`).
+
+## S3 — DRAWN (2026-07-06): the client side, the Nature model, and "a service is a surface at a coordinate"
+
+**The crystallization (278 R32 `QVANTVMVIS PROCVL, IDEM NEXVS`, the builder's synthesis):**
+**every service is a *surface* whose *nature* is `:Peer`, living at a *coordinate*.** From the caller's side there is
+nothing else — two things: the **surface** (*what* to say — build the request, handle the reply) and the **coordinate**
+(its `Address'` — *where* to dial). The Locus (transport) is orthogonal + unbounded. Because a service is *nothing but*
+`(surface, coordinate)`, the relationship is **distance-invariant** — dial → peer → speak the surface, identical
+in-thread (`ThreadSelfPeer'`) or across the world (`Process'`/mTLS). Distance became a coordinate VALUE, not a wall.
+
+### The client-side names (intueri-cast + weighed + ratified)
+- **peer-as-satisfier — NO NAME.** A dialed `Peer'<S::Op,S::Reply>` **directly satisfies** the surface `:S` (a generated
+  `extend-type` whose bodies `send'`/`recv'` the Op/Reply). A wrapper type re-complects R31 — `Client`/`Remote`/`Proxy`/
+  `Stub` all rejected (role-name / locus-lie / codegen-jargon).
+- **client entry — `:S/<op>`, UNIFORM.** The surface method itself, dispatched through whatever satisfies `:S` (a local
+  struct OR a dialed peer). The wire is invisible in the name; RPC-vs-local is the decomplection, not a distinction.
+  (`:S/<op>!` lies — a bang asserts the wire; `:S::call/<op>` mumbles the mechanism.)
+- **dial — `connect'`.** No surface-specific dial; the `Address'` is already protocol-typed to `:S`.
+- **return — `Result<Response, OpError>`** at the face, **uniform across every satisfier** (the surface method's return
+  becomes this too — else local returns bare `Response`, dialed returns `Result`, and the wire LEAKS through the return
+  type). `Reply` stays the **pure per-op demux** (which op's reply is this); the **outcome** (success vs error) is the
+  `Result`. **This supersedes the earlier "errors are `Reply` variants" sketch** (§ The mechanism) — one axis per enum.
+
+### The Nature model (`Holder` → `Nature`; ratified)
+A `Peer'` **cannot satisfy a holder-bound surface**: the holder (`:Struct`/`:Record`/`:HolonRecord`) is an **aggregate**
+floor, and a peer is no aggregate (the foreign-satisfaction path requires `holder.is_none()`, but `:holder` is mandatory
+— arc 293 K0a). Grounding *why* (`AGGREGATE-AUDIT.md` — the holder is the **capability trit**; `DESIGN-293.W` — mandatory
+because **a default masks intent**) flipped the naive "just relax it" lean: the capability must be **declared, not
+defaulted**. So intueri was cast: **`Holder` LIES** — a peer *holds nothing* (a category pun, the same 293.W cut for
+enums) → **`Nature`**, the satisfier's intrinsic character, from which the boundary trit is *derived*. ONE axis, four
+mutually-exclusive variants (a satisfier is a backed-value **or** a peer, never both):
+
+```clojure
+(:wat::core::defenum :wat::types::Nature :wat::enum::Portable
+  :Struct         ;; stays home — may hold live resources, cannot cross
+  :Record         ;; travels by copy — pure data, crosses as EDN
+  :HolonRecord    ;; travels with VSA — pure data + a hologram
+  :Peer)          ;; IS the door everything else travels through — a live channel endpoint,
+                  ;;   reached only by its coordinate (Address'); never moves. (:Remote LIES — may be same-process.)
+(:wat::core::defsurface :wat::query::Store :nature :Peer   ;; declared, never defaulted (293.W)
+  :features [(put [self <- :Store  req <- :Store::PutRequest] -> :Store::PutResponse) …])
+```
+A `:nature :Peer` surface is **peer-satisfied only** — local = an in-thread peer; there is no coexisting bare-struct
+satisfier (R31's one act). `:Value`/"Any" was explicitly REJECTED (a non-assertion; the builder: *"i'm very hesitant to
+accept an Any"*) in favor of the positive nature `:Peer`.
+
+### The decomposition (updated)
+- **S3a — DONE (`93e936b3`).** A parametric `extend-type` self decomposes to `Parametric` (not a flat `Path`), so
+  `send'`/`recv'` accept a `Peer'` extend-type self (`runtime.rs:709` → `parse_type_expr`). Closed `project_peer_io`;
+  0-new-failures. (Exposed Gap B below.)
+- **S3-Nature — the substrate stone (NEXT).** Rename `Holder` → `Nature` (the `Holder` enum + `:holder`→`:nature` clause
+  + the ~99 `Holder::…` branches + `AGGREGATE-AUDIT.md`); add the `:Peer` nature; **teach the checker that a
+  `Peer'<S::Op,S::Reply>` satisfies a `:nature :Peer` surface** — which *is* the fix for S3's **Gap B** (the call-site
+  `:S/<op>` receiver check rejecting the `Peer'` today).
+- **S3b — the feature (assembly after S3-Nature).** `:calls [surface]` (**surface-only** — ratified; zero current
+  consumers, born surface-only, no retirement sweep; the client mirror of the server-side `:ops`→`:impls` endpoint).
+  Generate the peer-as-satisfier `extend-type` + the surface-sourced `:S/<op>` client-forms returning `Result`; the
+  caller dials `Address'<S::Op,S::Reply>` **blind**. → 278/T1b (the blind sink) is then assembly.
