@@ -174,6 +174,51 @@ instead of versioned breakage, and the type system instead of codegen.**
 6. **A disconfirming probe** — can `defservice`'s request/response codegen be re-pointed at a surface's methods and
    emit ONE shared protocol two services reference? (S1's feasibility, before a shadowdancer.)
 
+## S1 — DRAWN (2026-07-05: intueri weighed, feasibility grounded, A/derived-purity decided, reference verified)
+
+**Names (intueri-cast + weighed):** `:satisfies` (the defservice clause; `:serves` rejected — collides with the
+`{fqdn}::serve` loop fn) · `:impls` (bodies-only, over keep-`:ops` — the grammar genuinely changes) · `<Op>Request` /
+`<Op>Response` (the existing wat/gRPC convention; not AWS `Input`/`Output`) · protocol under the **surface** namespace.
+
+**Gating decision (four-questions; the builder corrected my marker-framing):** NOT a declared marker (that's the footgun —
+build threaded, forget the flag, can't network in prod). **A service is loci-agnostic by nature** — thread-hosting is a
+novelty of location — so it is *always* dialable. The gate is **DERIVED PURITY**, self-applying: a surface emits its
+protocol **iff its method sigs are pure (EDN-crossable)**. Impure sigs (a method taking/returning a live `Peer'`/
+`Connection`) can't cross → 293.W already rejects → not a service, honestly. No new branch; the wire wall applied once more.
+
+**Locus (grounded):** `defsurface` is **Rust-handled** (`src/types/surface.rs` `parse_defsurface`, routed
+`src/types.rs:1941`) — it registers a `TypeDef::Surface`, it is NOT a wat macro. So S1 is a **Rust strike**: in the
+surface-registration path, when the method sigs are pure, **synthesize + register `Surface::Op` and `Surface::Reply`
+`EnumDef`s** from the surface's `SurfaceMember::Method` list (each method → one variant per enum). The request/response
+records are **user-declared** (the method members reference them); S1 emits only the two enums.
+
+**The map (per method):** `(put [self <- :S  req <- :S::PutRequest] -> :S::PutResponse)` ⟶
+`:S::Op::Put [req <- :S::PutRequest]` + `:S::Reply::Put [resp <- :S::PutResponse]` (PascalCase variant per method).
+Error variants in `Reply` are a downstream concern (the `Reply`-as-error-union item below).
+
+**Reference target (VERIFIED — `cargo wat` prints "S1 reference target type-checks"; the codegen is graded against it):**
+
+```clojure
+;; user-declared request/response records + surface (methods reference the records; pure sigs → serviceable):
+(:wat::core::defrecord :probe::Kv::PutRequest  [key <- :wat::core::String  val <- :wat::core::String])
+(:wat::core::defrecord :probe::Kv::PutResponse [ok  <- :wat::core::bool])
+(:wat::core::defrecord :probe::Kv::GetRequest  [key <- :wat::core::String])
+(:wat::core::defrecord :probe::Kv::GetResponse [val <- (:wat::core::Option :wat::core::String)])
+(:wat::core::defsurface :probe::Kv :holder :wat::core::Struct
+  :features [(put [self <- :probe::Kv  req <- :probe::Kv::PutRequest] -> :probe::Kv::PutResponse)
+             (get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse)])
+;; S1 SYNTHESIZES (from the method members) — the target shape:
+(:wat::core::defenum :probe::Kv::Op :wat::enum::Pure
+  :Put [req <- :probe::Kv::PutRequest]  :Get [req <- :probe::Kv::GetRequest])
+(:wat::core::defenum :probe::Kv::Reply :wat::enum::Pure
+  :Put [resp <- :probe::Kv::PutResponse]  :Get [resp <- :probe::Kv::GetResponse])
+```
+(full file: `scratchpad/s1-reference-target.wat`.)
+
+**S1 gate:** a pure-sig surface's synthesized `::Op`/`::Reply` exist + are constructible/matchable (the reference target,
+now produced by the codegen rather than hand-written); an impure-sig surface synthesizes nothing (no regression); whole
+floor 0-new-failures.
+
 ## Blast radius (for the eventual strike)
 
 `wat/service.wat` (the `defservice` macro — the `:satisfies` clause + surface-sourced protocol emission) · the surface
