@@ -332,7 +332,7 @@ assert → fire → paginate loop; only the store's `WHERE`/index differs — a 
    `TelemetryService'` (sink) / `Span` (producer) / `open` (provision) / `Log`·`Incr`·`Timed`·`Nest`·`Close` (ops)
    / `timed` (widget macro) / `Write*`·`Query*` (sink verbs) / `Store`·`Table`·`Index` (store nouns). See § Naming.
 
-## Resolved (2026-07-05) — the storage-backend model
+## Resolved (2026-07-05) — the storage-backend model  ⚠️ items 11–14 SUPERSEDED — see "THE CIRCUIT" below
 
 10. **The storage abstraction lives in the sink's `:ephemeral` as a surface-typed attribute** — `[store <- wat.query/Store]`
     holds *any* backend's satisfier, and the ops call `(:wat::query/Store::put store …)`, which **dispatches to the
@@ -357,6 +357,99 @@ assert → fire → paginate loop; only the store's `WHERE`/index differs — a 
 14. **293.W makes it correct-by-construction.** A `:holder :Struct` surface field is impure → it can live *only* in an
     impure struct / `:ephemeral`, never in a portable record / durable / on the wire. The compiler *forbids* a live
     connection from crossing the boundary — exactly the thread-local + edn-only rule, enforced structurally, for free.
+
+## Resolved (2026-07-05, evening) — THE CIRCUIT: the store is DECOMPLECTED, the sink is GIVEN it (SUPERSEDES 11–14)
+
+> Items 11–14 above describe the **FUSED** shape — the sink *opens* its own store in `:init` from a spec. That is a
+> **sqlite-only** shape, and it is superseded. Grounded against the founding `wat-rs/docs/CIRCUIT.md`, the lineage
+> `holon-lab-trading/docs/CIRCUIT.md`, and book ch097 (*Lingua Ignea* — the FPGA-on-CPU / homoiconic-CGRA facet):
+> the facility is a **sub-circuit of the wat fabric**, and its wiring obeys the fabric's one law.
+
+**The law (this is the fabric's physics, not a design choice).** *Resources are opened by the worker that uses them;
+pipes cross threads, resources don't.* A live resource (a sqlite `Connection`, a `PersistentVector`) is a component's
+**internal state** — it cannot ride a wire. Only **signals** cross: an `addr`, a `Page`, a batch of `Metric`s (all
+EDN). This IS ZERO-MUTEX — each service is a `serve`-loop handling one signal at a time, so mutual exclusion is
+structural (no lock written, none to forget), and *"a lie about state has no metal to live on."*
+
+**Why 11–14 fail the requirement.** The requirement: the store works with **both** mem and sqlite, shown by a
+differential. But "the sink opens the store in `:init`" can only ever open a **`Connection`** (a resource, born on the
+sink's thread). `mem-store'` is a **`defservice`** (a peer), and mem.wat's own scope-NOTE proves a peer opened inside a
+helper fn (`:init` *is* one) is dead on return. So the fused sink structurally **cannot** hold a mem backend. The
+"both backends" requirement is the proof that the store must be **decomplected out of the sink**.
+
+**The corrected circuit (R28 decomplection applied to the old fused Sqlite-driver):**
+
+- **The store is its OWN service** (both backends, uniform): `mem-store'` (owns a `PersistentVector`) and
+  **`sqlite-store'`** (owns a `Connection`) — each opens *its own* resource in *its own* `:init` on *its own* thread
+  (the resource-user opening its resource — founding-legal, no scope trap). This **promotes S2's struct-`SqliteStore`
+  into a `sqlite-store'` service**: S2's SQL hoisted into a `serve`-loop with the `Connection` in its own `:ephemeral`,
+  plus a peer-wrapping `SqliteStore` satisfier — mirroring `mem-store'` almost line-for-line. (S2's struct was correct
+  for the same-thread S2 differential; a `Connection` cannot be *given* across a wire, so for injection it must be a
+  service.)
+- **The sink is GIVEN the store, not opens it.** `:ephemeral [store <- :wat::query::Store]` — a **surface-typed** port
+  (backend-blind, the `surface-field-dispatch → 142` shape); it holds a satisfier wrapping the store service's **peer**.
+  Handed in at `start` (a live operating-input), never opened in `:init`. `:durable` carries the reconnect spec (the
+  store's addr) for hibernate/resume — still R5 (store the recipe, not the resource).
+- **The differential is a RE-WIRE.** Swap the store the sink is given (`mem-store'` ↔ `sqlite-store'`); the sink + Span
+  are **byte-identical**; same ops → same persisted + read-back. That IS "the store works with both, shown" — swapping
+  one component on the breadboard.
+- **293.W holds, more cleanly.** Only the store's **peer/addr** crosses to the sink (portable EDN); the live
+  `Connection`/`PersistentVector` never leaves its own service's thread. Correct by construction.
+
+**`with-span` — the user's whole working surface** (the `with-open` idiom; NOT "bracket" — `wat/bracket.wat` is Ruby's
+`Parallel`). A call-site macro like `timed` (no closure crosses the actor), acquire → use → guaranteed `Close`. The
+binding is a proper `[name value]` pair, the value being the fresh span:
+
+```clojure
+(:wat::core::defmacro :wat::telemetry'::with-span [binding & body]
+  ;; binding = [name (Span/open sink :ns tags)]  — name + its value, like let / with-open
+  (:wat::core::let [name (:wat::core::first binding)  open-expr (:wat::core::second binding)]
+    `(:wat::core::let [~name ~open-expr  result# (:wat::core::do ~@body)  _close# (~name/Close)] result#)))
+```
+
+**Honest seam (kept visible):** `with-span` fires `Close` on **normal completion**. Close-*on-error* (Ruby `ensure`,
+Clojure `finally`) needs a wat unwind/finally primitive — errors here are values (`Result`), not stack-unwinds, so the
+happy path always reaches `Close`; unwind-safety (or an actor-supervisor reaping an orphaned Span) is a **named
+follow-on**, not silently assumed.
+
+**The user-forms UX (ratified — the builder: "now *that's* a surface"):**
+
+```clojure
+;; ── THE EDGE — setup, once ──────────────────────────────────────────────
+(:wat::core::defn :app::main [] -> :wat::core::nil
+  (:wat::core::let
+    [store (:wat::sqlite'::SqliteStore/start :locus (:wat::spawn::thread) :db "runs/market.db")   ;; ↔ MemStore = differential
+     sink  (:wat::telemetry'::TelemetryService'/start :locus (:wat::spawn::thread) :store store)]
+    (:app::evaluate-market sink :BTC)))                        ;; hand `sink` to the work — all it needs
+
+;; ── THE WORK — the user's whole surface: a sink + a fresh span ──────────
+(:wat::core::defn :app::evaluate-market
+  [sink <- :wat::telemetry'::TelemetryService'  asset <- :wat::core::keyword] -> :wat::core::nil
+  (:wat::telemetry'::with-span [span (:wat::telemetry'::Span/open sink :market-eval {:asset asset})]
+    (span/Incr :candles-seen)
+    (:wat::core::let [price (:wat::telemetry'::timed span :fetch-price (:market::fetch-price asset))]
+      (span/Log :evaluator :info (:market::PriceObserved asset price))
+      (:wat::core::if (:wat::core::> price 100000) (span/Incr :above-threshold) (span/Incr :below-threshold))
+      (:wat::telemetry'::with-span [risk (span/Nest :risk-check {:asset asset})]   ;; nested UoW, own uuid
+        (risk/Incr :checks)
+        (:wat::telemetry'::timed risk :score (:risk::score price))))))
+```
+
+The user holds ONE thing — a `sink`. `with-span` does the rest; no `open`/`Close` by hand; the backend is invisible.
+(The exact type of the `sink` handle a worker receives — the connected peer vs the service name — is pinned in the strike.)
+
+**Deferred UX (a NAMED follow-on — AFTER the shapes are in place, per the builder):** restrict what callers can
+*express* so they cannot footgun wrong metric/tag/counter names (constraint-engineering the caller surface — arc-299
+spec-in-wat is the likely tool), and/or **auto-find** the deps (the sink) so they can be omitted. Not built in T1; the
+shapes come first.
+
+**Names to cast intueri before their strikes** (the standing rule — never narrate): **`with-span`** (the macro) and
+**`sqlite-store'`** (the new store service). The rest of the vocabulary is already cast + ratified.
+
+**The strike order (wiring order — each provable alone):**
+1. **`sqlite-store'`** — promote S2's SQL into a service (mirrors `mem-store'`); so a sink can be handed either backend.
+2. **the sink** (`TelemetryService'`) — given a store, **differential-tested mem ↔ sqlite** (same ops → same result).
+3. **the span + `with-span` + `timed`** — the surface; emission-on-`Close`, nesting, the two call-site macros.
 
 ## Build implications (for the strike) — everything is CORE
 
