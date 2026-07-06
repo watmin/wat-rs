@@ -14928,7 +14928,10 @@ pub(crate) fn assignable(
     // extend-types the protocol. Edge keys carry the leading colon (types.rs:1402);
     // Parametric.head does not — reconcile with `format!(":{head}")`.
     if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
-        if crate::types::is_subtype(&format!(":{head}"), ep, types) {
+        // Full-args edge (a full-parametric extend-type, e.g. Peer'<Op,Reply> <: :S — PROTOCOL-SPECIFIC)
+        // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. Vector<T> <: :Proto).
+        if crate::types::is_subtype(&format_type(&a), ep, types)
+            || crate::types::is_subtype(&format!(":{head}"), ep, types) {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
             return nature_floor_ok(&a, ep, types);
         }
