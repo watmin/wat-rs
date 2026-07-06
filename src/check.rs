@@ -5479,7 +5479,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 294.c.2a — holder-dispatched ctor. Returns the SPECIFIC type
+            // Arc 294.c.2a — nature-dispatched ctor. Returns the SPECIFIC type
             // named by args[0] (a direct keyword literal, e.g. `:test::an::HR`)
             // so downstream checks (cosine, accessor param) see the concrete type
             // instead of a fresh TypeVar from the fall-through.
@@ -12234,7 +12234,7 @@ fn process_let_binding(
                     };
                     let struct_def = match env.types().get(&struct_name) {
                         // Arc 293.2b — struct-destructure requires Aggregate with kind==Struct.
-                        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a.clone(),
+                        Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => a.clone(),
                         _ => {
                             binding_errors.push(CheckError { span: rhs.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: form.into(),
@@ -12755,7 +12755,7 @@ fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExp
     let class_name = format!(":{}", bare_str);
     // Arc 293.2b — record aggregates (kind != Struct) are the records.
     let agg = match env.types().get(&class_name) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
         _ => return None,
     };
     // For non-generic records: return the bare path (existing behaviour).
@@ -12775,7 +12775,7 @@ fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExp
 
 /// Arc 294.c.2a — type inference for `:wat::core::aggregate-new`.
 ///
-/// `aggregate-new` is the ONE holder-dispatched constructor. It takes a direct
+/// `aggregate-new` is the ONE nature-dispatched constructor. It takes a direct
 /// keyword literal as args[0] (e.g. `:test::an::HR`) and zero or more field
 /// values. Returns the SPECIFIC aggregate type so downstream checks (cosine,
 /// accessor param unification) see the concrete type instead of a TypeVar.
@@ -13193,7 +13193,7 @@ fn infer_form_matches(
 
     // Resolve struct fields. Arc 293.2b — matches? only works on Struct aggregates.
     let fields: Vec<(String, TypeExpr)> = match env.types().get(type_name) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a.fields.clone(),
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => a.fields.clone(),
         Some(_) => {
             local_errors.push(CheckError { span: pattern_items[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::form::matches?".into(),
@@ -13636,19 +13636,19 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 // the :wat::core::Record umbrella means "any record" — pure;
                 // assignability rejects structs from it (293.W b2).
                 // Must short-circuit BEFORE the types.get(p) aggregate arm, which
-                // sees Record registered as Holder::Struct (opaque umbrella) and
+                // sees Record registered as Nature::Struct (opaque umbrella) and
                 // would return a FALSE POSITIVE impure verdict.
                 | "wat::core::Record" => return true,
                 _ => {}
             }
             // Look up user-defined types.
             match types.get(p) {
-                // Arc 293.2b — Holder::is_pure() encodes the purity wall:
+                // Arc 293.2b — Nature::is_pure() encodes the purity wall:
                 // Record | HolonRecord → pure; Struct → impure.
-                Some(crate::types::TypeDef::Aggregate(a)) => a.holder.is_pure(),
+                Some(crate::types::TypeDef::Aggregate(a)) => a.nature.is_pure(),
                 // Arc 293.W.2b — an enum's purity is DECLARED via its `Purity` marker
                 // (`:wat::enum::Pure` | `:wat::enum::Impure`), read here exactly like the
-                // aggregate's `holder` above. The enum-containment pass
+                // aggregate's `nature` above. The enum-containment pass
                 // (`validate_aggregate_containment`) guarantees a `Pure` enum holds only pure
                 // variant fields, so reading the declaration is total (no recursion through the sum).
                 Some(crate::types::TypeDef::Enum(e)) => e.purity.is_pure(),
@@ -13661,10 +13661,10 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 Some(crate::types::TypeDef::Alias(_)) => true,
                 // Union: conservative — members may include non-portable types.
                 Some(crate::types::TypeDef::Union(_)) => false,
-                // Arc 296 — a surface's purity IS its holder's purity (mirrors the Aggregate arm above).
-                // A `:holder :wat::core::Record` surface admits only pure values, so a field typed by it is pure.
-                // A holderless (abstract) surface's purity is unknown → conservatively impure.
-                Some(crate::types::TypeDef::Surface(s)) => s.holder.as_ref().map(|h| h.is_pure()).unwrap_or(false),
+                // Arc 296 — a surface's purity IS its nature's purity (mirrors the Aggregate arm above).
+                // A `:nature :wat::core::Record` surface admits only pure values, so a field typed by it is pure.
+                // A natureless (abstract) surface's purity is unknown → conservatively impure.
+                Some(crate::types::TypeDef::Surface(s)) => s.nature.as_ref().map(|h| h.is_pure()).unwrap_or(false),
                 // Unknown path — this is a formal type parameter (e.g. `:T`
                 // in a parametric function body). Type parameters are
                 // portable by convention: portability of the concrete type
@@ -13698,7 +13698,7 @@ pub(crate) fn validate_aggregate_containment(
     use crate::types::{TypeDef, EnumVariant};
     for (name, def) in env.iter() {
         match def {
-            TypeDef::Aggregate(a) if a.holder.is_pure() => {
+            TypeDef::Aggregate(a) if a.nature.is_pure() => {
                 for (fname, fty) in &a.fields {
                     if !is_pure_type(fty, env) {
                         return Err(TypeError {
@@ -14848,34 +14848,34 @@ fn unify_union_union(
     Err(UnifyError)
 }
 
-/// Arc 293 K1b — a type's holder for the contravariant satisfaction ladder. An aggregate uses its
-/// DECLARED holder; a foreign type DERIVES one from its capability (holon/vector -> HolonRecord,
-/// edn-repr -> Record, else Struct). Used to gate an `extend-type` satisfaction of a holder-bound surface.
-fn derived_holder(t: &TypeExpr, types: &TypeEnv) -> crate::types::Holder {
-    use crate::types::Holder;
+/// Arc 293 K1b — a type's nature for the contravariant satisfaction ladder. An aggregate uses its
+/// DECLARED nature; a foreign type DERIVES one from its capability (holon/vector -> HolonRecord,
+/// edn-repr -> Record, else Struct). Used to gate an `extend-type` satisfaction of a nature-bound surface.
+fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
+    use crate::types::Nature;
     if let TypeExpr::Path(p) = t {
         if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(p) {
-            return agg.holder;
+            return agg.nature;
         }
     }
     if is_holon_or_vector(t, types) {
-        Holder::HolonRecord
+        Nature::HolonRecord
     } else if is_pure_type(t, types) {
-        Holder::Record
+        Nature::Record
     } else {
-        Holder::Struct
+        Nature::Struct
     }
 }
 
 /// Arc 293 K1b — when `actual` satisfies `surface_path` via an `extend-type` subtype edge, that edge
-/// must still clear the surface's `:holder` FLOOR (the contravariant ladder: `derived_holder(actual)
-/// .rank() >= req.rank()`). A target that is NOT a holder-bound surface (a plain protocol / lattice
+/// must still clear the surface's `:nature` FLOOR (the contravariant ladder: `derived_nature(actual)
+/// .rank() >= req.rank()`). A target that is NOT a nature-bound surface (a plain protocol / lattice
 /// edge) is unaffected — the edge stands as before. This upgrades foreign satisfaction from
-/// holder-exempt (option b) to holder-CHECKED (option b').
-fn holder_floor_ok(actual: &TypeExpr, surface_path: &str, types: &TypeEnv) -> bool {
+/// nature-exempt (option b) to nature-CHECKED (option b').
+fn nature_floor_ok(actual: &TypeExpr, surface_path: &str, types: &TypeEnv) -> bool {
     if let Some(crate::types::TypeDef::Surface(surf)) = types.get(surface_path) {
-        if let Some(req) = surf.holder {
-            return derived_holder(actual, types).rank() >= req.rank();
+        if let Some(req) = surf.nature {
+            return derived_nature(actual, types).rank() >= req.rank();
         }
     }
     true
@@ -14904,8 +14904,8 @@ pub(crate) fn assignable(
     let e = reduce(&walk(expected, subst), subst, types);
     if let (TypeExpr::Path(ap), TypeExpr::Path(ep)) = (&a, &e) {
         if ap != ep && crate::types::is_subtype(ap, ep, types) {
-            // Arc 293 K1b — an extend-type edge to a holder-bound surface must clear the floor.
-            return holder_floor_ok(&a, ep, types);
+            // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
+            return nature_floor_ok(&a, ep, types);
         }
     }
     // Arc 267 — a parametric type satisfies a plain protocol bound iff its CONSTRUCTOR
@@ -14913,8 +14913,8 @@ pub(crate) fn assignable(
     // Parametric.head does not — reconcile with `format!(":{head}")`.
     if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
         if crate::types::is_subtype(&format!(":{head}"), ep, types) {
-            // Arc 293 K1b — an extend-type edge to a holder-bound surface must clear the floor.
-            return holder_floor_ok(&a, ep, types);
+            // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
+            return nature_floor_ok(&a, ep, types);
         }
     }
     // Arc 291 3a-ii-β — a parametric type satisfies a parametric bound iff its head DERIVES
@@ -14940,7 +14940,7 @@ pub(crate) fn assignable(
         }
     }
     // Arc 293.3-core — structural surface satisfaction (row-polymorphic width subtyping).
-    // Arc 293 R3 — plus optional categorical :holder bound (hard rejection).
+    // Arc 293 R3 — plus optional categorical :nature bound (hard rejection).
     // Arc 293.4a — method member satisfaction via resolve_method (env.schemes lookup).
     // Logic lives in `types::surface::struct_satisfies_surface` (homes discipline).
     if let TypeExpr::Path(ep) = &e {
@@ -14951,7 +14951,7 @@ pub(crate) fn assignable(
                 // Arc 293.2b — Struct + Record both satisfy surfaces identically (collapse).
                 if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ap) {
                     let fields_clone = agg.fields.clone();
-                    let agg_holder = agg.holder; // Copy before fields_clone consumes the borrow.
+                    let agg_nature = agg.nature; // Copy before fields_clone consumes the borrow.
                     // Arc 293.4a — build the method resolver: looks up `defn :<T>/<name>` in
                     // env.schemes and returns (arg_types, ret) for the sig check.
                     // The type FQDN (e.g. ":t::Sq") is captured from `ap`; the accessor key
@@ -14967,20 +14967,20 @@ pub(crate) fn assignable(
                             env.get(&key).map(|s| (s.params.clone(), s.ret.clone()))
                         },
                     );
-                    // Arc 293 R3 — categorical holder check (hard, orthogonal to structural).
-                    // Arc 293 K1a — the required holder is a FLOOR, not an exact kind: the contravariant
-                    // ladder (Struct -1 < Record 0 < HolonRecord +1). A holon satisfies a `:holder :Record`
-                    // surface (it has everything a record has); a record satisfies `:holder :Struct`.
-                    let holder_ok = match surf_clone.holder {
-                        Some(req) => agg_holder.rank() >= req.rank(),
+                    // Arc 293 R3 — categorical nature check (hard, orthogonal to structural).
+                    // Arc 293 K1a — the required nature is a FLOOR, not an exact kind: the contravariant
+                    // ladder (Struct -1 < Record 0 < HolonRecord +1). A holon satisfies a `:nature :Record`
+                    // surface (it has everything a record has); a record satisfies `:nature :Struct`.
+                    let nature_ok = match surf_clone.nature {
+                        Some(req) => agg_nature.rank() >= req.rank(),
                         None => true, // no bound → structural-only
                     };
-                    return structural && holder_ok;
+                    return structural && nature_ok;
                 }
                 // Arc 293.4c — foreign type path: `actual` is a non-aggregate type (e.g.
                 // `:wat::core::String`) that may be taught to satisfy the surface via
                 // `extend-type`. A foreign type T satisfies surface S iff:
-                //   (a) S has no holder bound (non-aggregates carry no holder), AND
+                //   (a) S has no nature bound (non-aggregates carry no nature), AND
                 //   (b) every method member in S has a `:<T>/<method>` scheme in env.
                 // Field members in S cannot be satisfied by a foreign type (no struct fields),
                 // so a mixed field+method surface is correctly rejected here.
@@ -14999,9 +14999,9 @@ pub(crate) fn assignable(
                             env.get(&key).map(|s| (s.params.clone(), s.ret.clone()))
                         },
                     );
-                    // Foreign types cannot satisfy a holder-bound surface (no aggregate holder).
-                    let holder_ok = surf_clone.holder.is_none();
-                    if structural && holder_ok {
+                    // Foreign types cannot satisfy a nature-bound surface (no aggregate nature).
+                    let nature_ok = surf_clone.nature.is_none();
+                    if structural && nature_ok {
                         return true;
                     }
                     // Not satisfied via foreign path — fall through to unify.
@@ -20083,7 +20083,7 @@ fn register_builtins(env: &mut CheckEnv) {
     //
     // :wat::core::record? :: ∀T. T -> bool
     // Polymorphic predicate: accepts any value; returns true iff the value is
-    // Value::Aggregate (Record or HolonRecord holder). Mirrors :wat::holon::to-holon's ∀T pattern.
+    // Value::Aggregate (Record or HolonRecord nature). Mirrors :wat::holon::to-holon's ∀T pattern.
     env.register(
         ":wat::core::record?".into(),
         TypeScheme {

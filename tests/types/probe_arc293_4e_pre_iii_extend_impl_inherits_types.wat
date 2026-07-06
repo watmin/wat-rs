@@ -9,7 +9,7 @@
 ;; (:t::Maker/make (:t::Id 7) 42) → (:t::Box 42) → (:t::Box/v …) = 42. The body wraps `x` (42), not the tag.
 
 (:wat::core::defsurface :t::Maker
-  :holder :wat::core::Struct
+  :nature :wat::core::Struct
   :features [(make<T> [self <- :t::Maker  x <- :T] -> :t::Box<T>)])
 
 (:wat::core::defrecord :t::Box<T> [v <- :T])

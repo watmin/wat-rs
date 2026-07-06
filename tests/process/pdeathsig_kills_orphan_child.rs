@@ -86,7 +86,7 @@ const CHILD_PROGRAM_SRC: &str = r#"
 /// always returns Forked (arc 170 Stone C).
 fn grandchild_pid(process: &Value) -> libc::pid_t {
     match process {
-        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => {
+        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => {
             match &s.fields[3] {
                 Value::wat__kernel__ProgramHandle(h) => match h.as_ref() {
                     ProgramHandleInner::Forked(child) => child.child_pid(),

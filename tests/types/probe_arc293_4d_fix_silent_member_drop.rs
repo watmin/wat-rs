@@ -1,7 +1,7 @@
 //! Arc 293.4d-fix — `parse_defsurface` must NOT silently drop members written outside the `[...]` vector.
 //!
 //! The silent-swallow (found at 293.4d): a `defsurface` with 4 args after the head where arg[1] is the member
-//! vector (not `:holder`) — i.e. method members written as separate top-level args (the stale `definterface` shape)
+//! vector (not `:nature`) — i.e. method members written as separate top-level args (the stale `definterface` shape)
 //! — had its trailing members SILENTLY DROPPED. A surface could be declared weaker than written, with no error, so
 //! satisfaction would pass types that don't actually expose the dropped members. extirpare: the parser must reject it.
 //!

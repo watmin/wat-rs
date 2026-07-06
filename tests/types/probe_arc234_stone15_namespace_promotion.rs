@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-use wat::{AggregateValue, Holder};
+use wat::{AggregateValue, Nature};
 use holon::HolonAST;
 
 /// Build a defrecord-instance-shape HolonAST: Bind(Atom(class), Bundle(field-Binds...))
@@ -60,7 +60,7 @@ fn probe_1_variant_compiles_and_constructs() {
         vec![("magnitude", Value::f64(5.0), HolonAST::F64(5.0))],
     );
     match &r {
-        Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
+        Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
             assert_eq!(a.class.as_str(), "myapp::Voltage");
             assert_eq!(a.fields.len(), 1);
         }
@@ -130,7 +130,7 @@ fn probe_5_class_fqdn_extraction_post_rename() {
     );
     assert_eq!(r.type_name(), "wat::core::Record");
     match &r {
-        Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
+        Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
             assert_eq!(
                 a.class.as_str(),
                 "myapp::Voltage",

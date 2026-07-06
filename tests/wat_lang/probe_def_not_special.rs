@@ -41,7 +41,7 @@ fn freeze_ok_file(rel_path: &str) -> wat::freeze::FrozenWorld {
 /// Drain the stderr field (index 2) of a Process Struct value.
 fn drain_stderr(process: &Value) -> String {
     match process {
-        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[2] {
+        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[2] {
             Value::io__IOReader(rdr) => {
                 let mut all = String::new();
                 while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
@@ -69,7 +69,7 @@ fn run_launch(world: &wat::freeze::FrozenWorld) -> (i64, String) {
     let process = wat::runtime::eval(&call, &env, world.symbols())
         .expect("launch should evaluate").value_owned();
     let handle = match &process {
-        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
+        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
             Value::wat__kernel__ProgramHandle(h) => h.clone(),
             other => panic!("expected ProgramHandle field at index 3; got {:?}", other),
         },

@@ -26,7 +26,7 @@ use wat::io::{PipeReader, PipeWriter};
 use wat::runtime::Value;
 use wat::AggregateValue;
 use wat::services::{next_thread_id, spawn_service_peer, ServiceMsg, ThreadIO, install_thread_io};
-use wat::types::{Holder, TypeDef};
+use wat::types::{Nature, TypeDef};
 
 fn freeze_skeleton() -> wat::freeze::FrozenWorld {
     startup_bare().expect("skeleton freeze succeeds")
@@ -50,7 +50,7 @@ fn h1_stdin_req_field_order() {
         .get(":wat::kernel::services::StdInService::Req")
         .expect("StdInService::Req is registered in the type registry");
     let fields = match def {
-        TypeDef::Aggregate(a) if a.holder == Holder::Struct => &a.fields,
+        TypeDef::Aggregate(a) if a.nature == Nature::Struct => &a.fields,
         other => panic!("StdInService::Req must be a Struct TypeDef; got {:?}", other),
     };
     assert_eq!(
@@ -83,7 +83,7 @@ fn h1_stdin_rep_field_order() {
         .get(":wat::kernel::services::StdInService::Rep")
         .expect("StdInService::Rep is registered in the type registry");
     let fields = match def {
-        TypeDef::Aggregate(a) if a.holder == Holder::Struct => &a.fields,
+        TypeDef::Aggregate(a) if a.nature == Nature::Struct => &a.fields,
         other => panic!("StdInService::Rep must be a Struct TypeDef; got {:?}", other),
     };
     assert!(
@@ -113,7 +113,7 @@ fn h1_stdout_req_field_order() {
         .get(":wat::kernel::services::StdOutService::Req")
         .expect("StdOutService::Req is registered in the type registry");
     let fields = match def {
-        TypeDef::Aggregate(a) if a.holder == Holder::Struct => &a.fields,
+        TypeDef::Aggregate(a) if a.nature == Nature::Struct => &a.fields,
         other => panic!("StdOutService::Req must be a Struct TypeDef; got {:?}", other),
     };
     assert!(
@@ -142,7 +142,7 @@ fn h1_stderr_req_field_order() {
         .get(":wat::kernel::services::StdErrService::Req")
         .expect("StdErrService::Req is registered in the type registry");
     let fields = match def {
-        TypeDef::Aggregate(a) if a.holder == Holder::Struct => &a.fields,
+        TypeDef::Aggregate(a) if a.nature == Nature::Struct => &a.fields,
         other => panic!("StdErrService::Req must be a Struct TypeDef; got {:?}", other),
     };
     assert!(

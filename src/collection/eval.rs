@@ -1214,7 +1214,7 @@ pub(crate) fn eval_persistentmap_ctor(
 /// Resolves the keyword key to a field index via `RecordDef.field_names`;
 /// returns `Some(fields[idx])` if the field exists, `None` if the keyword
 /// is not a declared field (not an error — same Option<V> contract as HashMap/get).
-/// Accepts `Value::Aggregate` (Record and HolonRecord holders).
+/// Accepts `Value::Aggregate` (Record and HolonRecord natures).
 pub(crate) fn record_get_inner(
     record: &Value,
     key: &Value,
@@ -1224,7 +1224,7 @@ pub(crate) fn record_get_inner(
     const OP: &str = ":wat::core::Record/get";
     // Arc 293.R2.1 — Aggregate (Record/HolonRecord).
     let agg = match record {
-        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
+        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => a,
         other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record instance",
@@ -1250,7 +1250,7 @@ pub(crate) fn record_get_inner(
         reason: "record get requires the type registry".into()
     } })?;
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
         _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("record class :{} is not registered in the TypeEnv", agg.class)
@@ -1275,7 +1275,7 @@ pub(crate) fn record_contains_field_q_inner(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/contains?";
     let agg = match record {
-        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => a,
+        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => a,
         other => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record instance",
@@ -1299,7 +1299,7 @@ pub(crate) fn record_contains_field_q_inner(
         reason: "record contains? requires the type registry".into()
     } })?;
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
         _ => return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!("record class :{} is not registered in the TypeEnv", agg.class)
@@ -1315,7 +1315,7 @@ pub(crate) fn record_contains_field_q_inner(
 pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/length";
     match record {
-        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::i64(a.fields.len() as i64)),
+        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => Ok(Value::i64(a.fields.len() as i64)),
         other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record instance",
@@ -1331,7 +1331,7 @@ pub(crate) fn record_length_inner(record: &Value) -> Result<Value, EvalBreak> {
 pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Record/empty?";
     match record {
-        Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => Ok(Value::bool(a.fields.is_empty())),
+        Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => Ok(Value::bool(a.fields.is_empty())),
         other => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: ":wat::core::Record instance",

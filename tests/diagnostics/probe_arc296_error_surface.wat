@@ -8,7 +8,7 @@
 ;;
 ;; GREEN after wat/core.wat adds:
 ;;   (:wat::core::defsurface :wat::core::Error
-;;     :holder :wat::core::Record
+;;     :nature :wat::core::Record
 ;;     :features [message  <- :wat::core::String
 ;;                location <- :wat::kernel::Location
 ;;                causes   <- :wat::core::Vector<wat::core::Error>])

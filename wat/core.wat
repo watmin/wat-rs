@@ -1472,18 +1472,18 @@
 ;; a source location (kernel::Location — the call site or origin), and a
 ;; recursive causes chain (Vector<Error> — zero or more contributing errors).
 ;;
-;; :holder :wat::core::Record — pure; the surface and its backing records may
+;; :nature :wat::core::Record — pure; the surface and its backing records may
 ;; appear as field types in other pure aggregates (defrecord, defsurface)
 ;; without ImpureFieldInPureAggregate.
 ;;
 ;; Recursive self-reference in `causes` is unblocked by arc 296 S1 (is_pure_type
-;; for Record-holdered surfaces) + S2 (infer_list_constructor surface path).
+;; for Record-natured surfaces) + S2 (infer_list_constructor surface path).
 ;;
 ;; Load-order: :wat::core::String and :wat::core::Vector are available at the
 ;; top of this file; :wat::kernel::Location is a Rust builtin registered before
 ;; any stdlib wat loads — all three dependencies are satisfied here.
 (:wat::core::defsurface :wat::core::Error
-  :holder :wat::core::Record
+  :nature :wat::core::Record
   :features [message  <- :wat::core::String
              location <- :wat::kernel::Location
              causes   <- :wat::core::Vector<wat::core::Error>])

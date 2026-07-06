@@ -9,7 +9,7 @@
 //!
 //! 294.a widens the surface to accept ANY `EdnRepresentable` value, lifting internally via
 //! `to_holon_inner` — so `(:wat::holon::cosine {:a 1 :b 2} {:a 1 :b 3})` Just Works. The
-//! Holder wall holds: a `Struct` (non-portable) still cannot measure.
+//! Nature wall holds: a `Struct` (non-portable) still cannot measure.
 //!
 //! RED at HEAD: the type-check (`infer_polymorphic_holon_pair_to_f64`, `check.rs:12854`,
 //! gate `is_holon_or_vector`) rejects plain EDN collections — `(cosine {…} {…})` fails with

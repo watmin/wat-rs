@@ -39,7 +39,7 @@ use wat::rust_deps::{
 };
 use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use wat::types::{expand_alias, EnumDef, EnumVariant, TypeDef, TypeEnv, TypeExpr};
-use wat::{AggregateValue, Holder};
+use wat::{AggregateValue, Nature};
 
 use wat_sqlite::WatSqliteDb;
 
@@ -582,7 +582,7 @@ fn value_to_tosql(
         // since the constructor's body builds Struct{type_name: declared-type}).
         // Then extract field[0]; render via the matching write strategy; bind
         // as TEXT.
-        (":wat::edn::Tagged", Value::Aggregate(s)) if s.holder == Holder::Struct && s.class == "wat::edn::Tagged" => {
+        (":wat::edn::Tagged", Value::Aggregate(s)) if s.nature == Nature::Struct && s.class == "wat::edn::Tagged" => {
             let inner = extract_holon_field(s, op, enum_name, variant_name, idx)?;
             let edn = wat::edn_shim::value_to_edn_with(
                 &Value::holon__HolonAST(inner),
@@ -590,7 +590,7 @@ fn value_to_tosql(
             );
             Ok(Box::new(wat_edn::write(&edn)))
         }
-        (":wat::edn::NoTag", Value::Aggregate(s)) if s.holder == Holder::Struct && s.class == "wat::edn::NoTag" => {
+        (":wat::edn::NoTag", Value::Aggregate(s)) if s.nature == Nature::Struct && s.class == "wat::edn::NoTag" => {
             let inner = extract_holon_field(s, op, enum_name, variant_name, idx)?;
             let edn = wat::edn_shim::value_to_edn_notag(
                 &Value::holon__HolonAST(inner),

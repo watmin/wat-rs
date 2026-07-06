@@ -9,7 +9,7 @@
 ;; Both cases must load without error — the Peer'<I,O> well-formedness gate must NOT
 ;; apply to ThreadSelfPeer' (it's in-locus) and make-channel (thread-tier exemption).
 
-;; A struct type — impure (Holder::Struct).
+;; A struct type — impure (Nature::Struct).
 (:wat::core::defstruct :w2d_pos::S [val <- :wat::core::i64])
 
 ;; Positive 1: spawn a thread whose self-peer is ThreadSelfPeer'<S,i64> (impure I).

@@ -83,7 +83,7 @@
                              ":wat::core::extend-type"
                              ":wat::core::derive"
                              ":wat::core::recordtype"
-                             ;; Arc 293 decl-a — ONE type-reg primitive; holder derived from parent root.
+                             ;; Arc 293 decl-a — ONE type-reg primitive; nature derived from parent root.
                              ":wat::core::aggregatetype")]
     (:wat::core::contains? heads nm)))
 

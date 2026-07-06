@@ -5,7 +5,7 @@
 ;;   (:wat::core::to-record  p :S) → :S$core-record   (portable EDN data)
 ;;   (:wat::holon::to-record p :S) → :S$holon-record  (portable EDN data + derived hologram)
 ;;
-;; A surface emits the PAIR of backing records (same fields; holder is the only variance).
+;; A surface emits the PAIR of backing records (same fields; nature is the only variance).
 ;; `$` is a legal keyword char. Each accessor `:S$<tier>/<field>` reads a projected field.
 ;;
 ;; RETIRED 293 K3-revise: `to-struct` + `:S$struct` — projection is ONE-WAY UP; the impure
@@ -15,7 +15,7 @@
 
 (:wat::core::defstruct :k3::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 
-(:wat::core::defsurface :k3::Planar :holder :wat::core::Struct
+(:wat::core::defsurface :k3::Planar :nature :wat::core::Struct
   :features [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :k3::demo [] -> :wat::core::i64

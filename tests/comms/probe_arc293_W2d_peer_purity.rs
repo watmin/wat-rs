@@ -34,7 +34,7 @@ use wat::freeze::{startup_beside, startup_from_file};
 /// on the type args → `startup_beside` returns `Ok`. The `Err` assertion FAILS.
 ///
 /// GREEN after 2d: the `peer-pair'` producer's `is_pure_type` check fires on S
-/// (a struct, `Holder::Struct` → impure) → `startup_beside` returns `Err`.
+/// (a struct, `Nature::Struct` → impure) → `startup_beside` returns `Err`.
 #[test]
 fn impure_type_arg_on_wire_peer_is_check_error() {
     let result = startup_beside(file!());

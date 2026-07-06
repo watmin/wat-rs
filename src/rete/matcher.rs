@@ -42,7 +42,7 @@ use crate::form_match::keyword_payload;
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value, ValueSnapshot};
 use crate::span::Span;
 use crate::value::value::AggregateValue;
-use crate::types::Holder;
+use crate::types::Nature;
 use std::sync::Arc;
 
 // ─── Fact abstraction ─────────────────────────────────────────────────────────
@@ -668,7 +668,7 @@ pub(crate) fn eval_step_payload(
 
     // ── Get Session.network (fields[0]) + look up AlphaNode ─────────────
     let network = match &session_val {
-        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.get(0).cloned(),
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.get(0).cloned(),
         _ => None,
     };
     let network = match network {
@@ -698,7 +698,7 @@ pub(crate) fn eval_step_payload(
     // AlphaNode struct_form: [id(0), tests(1), children(2)].
     // tests is PV<WatAST>; tests[0] is `(:FactType clause…)`.
     let cond_ast: WatAST = match &alpha_node_val {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             match a.fields.get(1) {
                 Some(Value::wat__core__PersistentVector(pv)) => {
                     match pv.first() {

@@ -4,7 +4,7 @@
 
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-use wat::types::Holder;
+use wat::types::Nature;
 
 fn run(fn_name: &str) -> Result<Value, String> {
     let world = startup_beside(file!()).map_err(|e| format!("startup: {:?}", e))?;
@@ -20,7 +20,7 @@ fn run(fn_name: &str) -> Result<Value, String> {
 fn probe_1_single_field_construction() {
     match run(":user::probe-1") {
         Ok(v) => match v {
-            Value::Aggregate(a) if a.holder != Holder::Struct => {
+            Value::Aggregate(a) if a.nature != Nature::Struct => {
                 assert_eq!(
                     a.class.as_str(),
                     "myapp::Voltage",

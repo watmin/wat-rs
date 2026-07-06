@@ -4,7 +4,7 @@
 ;; Arc 293.W.2a — the struct wire-wall (both directions, §7).
 ;;
 ;; INBOUND (recv' backstop, decode_trusted_wire):
-;; probe-struct: child pprintln's a bare Holder::Struct over the process peer's
+;; probe-struct: child pprintln's a bare Nature::Struct over the process peer's
 ;;   stdout; parent recv's it.
 ;;   Before fix: decode succeeds (breach open) → i64(99) returned.
 ;;   After fix:  decode_trusted_wire refuses it (breach closed) → RuntimeError.

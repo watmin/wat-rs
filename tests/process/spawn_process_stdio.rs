@@ -15,7 +15,7 @@ use wat::runtime::{eval, Environment, Value};
 
 fn process_stdout_reader(process: &Value) -> Arc<dyn wat::io::WatReader> {
     match process {
-        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[1] {
+        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[1] {
             Value::io__IOReader(r) => r.clone(),
             other => panic!("expected IOReader at fields[1]; got {:?}", other),
         },
@@ -25,7 +25,7 @@ fn process_stdout_reader(process: &Value) -> Arc<dyn wat::io::WatReader> {
 
 fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
     match process {
-        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
+        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[3] {
             Value::wat__kernel__ProgramHandle(h) => h.clone(),
             other => panic!("expected ProgramHandle at fields[3]; got {:?}", other),
         },

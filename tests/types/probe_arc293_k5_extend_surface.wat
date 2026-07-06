@@ -16,7 +16,7 @@
 
 (:wat::core::defstruct :k5::Pt [x <- :wat::core::i64])
 
-(:wat::core::defsurface :k5::HasX :holder :wat::core::Struct
+(:wat::core::defsurface :k5::HasX :nature :wat::core::Struct
   :features [x <- :wat::core::i64                                       ; attribute (data)
              (dbl [self <- :k5::HasX] -> :wat::core::i64)])             ; method sig — self a normal binder
 

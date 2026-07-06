@@ -76,14 +76,14 @@ pub(crate) enum MapContainer {
 impl MapContainer {
     /// Runtime classifier — the ONLY `Value → MapContainer` map. Pure.
     ///
-    /// Maps `Value::Aggregate` (Record and HolonRecord holders) to
-    /// `MapContainer::Record` (one runtime variant, holder is the only variance — like
+    /// Maps `Value::Aggregate` (Record and HolonRecord natures) to
+    /// `MapContainer::Record` (one runtime variant, nature is the only variance — like
     /// `StreamContainer::WatAstList` mapping `WatAST::List` forms).
     pub(crate) fn of_value(v: &Value) -> Option<MapContainer> {
         match v {
             Value::wat__std__HashMap(_) => Some(MapContainer::HashMap),
             Value::wat__core__PersistentMap(_) => Some(MapContainer::PersistentMap),
-            Value::Aggregate(a) if a.holder != crate::types::Holder::Struct => {
+            Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => {
                 Some(MapContainer::Record)
             }
             _ => None,

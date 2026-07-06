@@ -33,12 +33,12 @@ use wat::runtime::{Environment, Value};
 /// Extract `RunResult.failure.message` from a `Value::Struct` RunResult.
 fn failure_message(v: &Value) -> String {
     let sv = match v {
-        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
+        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult; got {:?}", other),
     };
     match &sv.fields[2] {
         Value::Option(opt) => match opt.as_ref() {
-            Some(Value::Aggregate(f)) if f.holder == wat::Holder::Record && f.class == "wat::kernel::Failure" => {
+            Some(Value::Aggregate(f)) if f.nature == wat::Nature::Record && f.class == "wat::kernel::Failure" => {
                 match &f.fields[0] {
                     Value::String(s) => (**s).clone(),
                     _ => "<missing message>".to_string(),

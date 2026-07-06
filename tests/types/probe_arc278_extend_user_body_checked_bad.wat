@@ -8,7 +8,7 @@
 ;;
 ;; At HEAD this fixture FREEZES CLEAN (the flaw): the wrong-typed satisfier compiles.
 ;; The gate test's `Ok` arm therefore panics at HEAD; the fix turns it GREEN.
-(:wat::core::defsurface :probe::Sink :holder :wat::core::Struct
+(:wat::core::defsurface :probe::Sink :nature :wat::core::Struct
   :features [(emit [self <- :probe::Sink  x <- :wat::core::i64] -> :wat::core::i64)])
 
 (:wat::core::defstruct :probe::Mem [n <- :wat::core::i64])

@@ -45,7 +45,7 @@ fn base_named(class: &str, x: f64, y: f64) -> Value {
     )))
 }
 
-/// A HOLONIC record with the "same" logical data — different holder so never equal to base.
+/// A HOLONIC record with the "same" logical data — different nature so never equal to base.
 fn holonic_pt(x: f64, y: f64) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::holon_record(
         "my::Pt".to_string(),

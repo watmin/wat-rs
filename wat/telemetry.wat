@@ -46,7 +46,7 @@
 ;; namespace (facility), uuid (correlation id), tags (dimensions), time-ns (event time).
 ;; Spliced into Metric/Log via `~@:wat::telemetry'::Scope`.
 (:wat::core::defsurface :wat::telemetry'::Scope
-  :holder :wat::core::Record
+  :nature :wat::core::Record
   :features [namespace <- :wat::core::String
              uuid      <- :wat::core::Uuid
              tags      <- :wat::telemetry'::Tags
@@ -54,7 +54,7 @@
 
 ;; ─── LogMessage — an OPEN surface (any record with a message shape satisfies it). ─
 (:wat::core::defsurface :wat::telemetry'::LogMessage
-  :holder :wat::core::Record
+  :nature :wat::core::Record
   :features [])
 
 ;; ─── Metric — a measurement. Splices Scope (4 fields), then 4 own. ───────────────

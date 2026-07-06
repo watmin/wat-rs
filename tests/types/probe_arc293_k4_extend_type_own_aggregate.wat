@@ -11,7 +11,7 @@
 
 (:wat::core::defrecord :k4::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 
-(:wat::core::defsurface :k4::Located :holder :wat::core::Record
+(:wat::core::defsurface :k4::Located :nature :wat::core::Record
   :features [(mag2 [self <- :k4::Located] -> :wat::core::i64)])   ; a METHOD feature (behavior)
 
 ;; extend-type on :k4::Pt — a type I OWN — to satisfy :k4::Located (impl reads Pt's own fields):

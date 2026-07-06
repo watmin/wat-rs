@@ -197,7 +197,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     register_enum_methods(&types, &mut symbols)?;
     // 6.7. Newtype auto-methods.
     register_newtype_methods(&types, &mut symbols)?;
-    // 6.8a. Arc 293.R2.2 — ONE unified accessor codegen for all Aggregate holders
+    // 6.8a. Arc 293.R2.2 — ONE unified accessor codegen for all Aggregate natures
     // (Struct + Record + HolonRecord). Replaces the deleted register_record_methods
     // + the accessor loop that was in register_struct_methods.
     register_aggregate_methods(&types, &mut symbols)?;

@@ -95,11 +95,11 @@
    isk <- :wat::core::String])
 
 ;; ─── the contract — Store / ReadStore surfaces ──────────────────────────────────────────────
-;; :holder :wat::core::Struct — a satisfier holds a live connection (impure); the 293.W
-;; containment rule forbids a :Struct-holder surface field from crossing into a pure record /
+;; :nature :wat::core::Struct — a satisfier holds a live connection (impure); the 293.W
+;; containment rule forbids a :Struct-nature surface field from crossing into a pure record /
 ;; durable / wire form (a live connection cannot cross that boundary) — correct by construction.
 
-(:wat::core::defsurface :wat::query::Store :holder :wat::core::Struct
+(:wat::core::defsurface :wat::query::Store :nature :wat::core::Struct
   :features
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at
    ;; consumer init.
@@ -122,7 +122,7 @@
      -> :wat::core::Result<wat::query::IndexPage,wat::query::Error>)])
 
 ;; a read-only satisfier — the capability-honest half (the type is the proof a reader cannot write).
-(:wat::core::defsurface :wat::query::ReadStore :holder :wat::core::Struct
+(:wat::core::defsurface :wat::query::ReadStore :nature :wat::core::Struct
   :features
   [(scan [self <- :wat::query::ReadStore  q <- :wat::query::ScanRequest]
      -> :wat::core::Result<wat::query::Page,wat::query::Error>)

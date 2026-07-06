@@ -17,7 +17,7 @@ use crate::hologram::Hologram;
 use crate::io::{WatReader, WatWriter};
 use crate::rust_deps::{RustOpaqueInner, ThreadOwnedCell};
 use crate::channel::{SenderInner, ReceiverInner};
-use crate::types::{Holder, TypeExpr};
+use crate::types::{Nature, TypeExpr};
 use crate::value::Function;
 use crate::stream::Stream;
 use num_bigint::BigInt;
@@ -188,7 +188,7 @@ pub enum Value {
     /// Arc 293.R2.1 — unified aggregate value (replaces the three former variants:
     /// `Value::Struct`, `Value::wat__core__Record`, `Value::wat__holon__Record`).
     ///
-    /// A tagged positional product type. The `holder` field is the ONLY axis of
+    /// A tagged positional product type. The `nature` field is the ONLY axis of
     /// variance: `{Struct, Record, HolonRecord}` — it gates wire portability,
     /// holon identity, and codegen. The `holon` field is `Empty` for Struct/Record
     /// and `Hologram(h)` for HolonRecord.
@@ -352,7 +352,7 @@ pub enum Value {
     /// `(:wat::stream::lazy <body>)`.
     wat__stream__Stream(Arc<Stream>),
     // Arc 293.R2.1: wat__holon__Record and wat__core__Record DELETED.
-    // Both are now represented by Value::Aggregate with holder=HolonRecord/Record.
+    // Both are now represented by Value::Aggregate with nature=HolonRecord/Record.
     // See AggregateValue for the unified repr.
     /// Stone 237.2 — `:wat::core::defclause` multi-arity dispatcher.
     ///
@@ -649,16 +649,16 @@ impl PartialEq for Value {
             (Value::Tuple(a), Value::Tuple(b)) => a == b,
             (Value::Option(a), Value::Option(b)) => a == b,
             (Value::Result(a), Value::Result(b)) => a == b,
-            // Arc 294.c.1 — identity is the EDN data (Q-D): (holder, class, fields).
+            // Arc 294.c.1 — identity is the EDN data (Q-D): (nature, class, fields).
             // The hologram is a DERIVED index, never identity. Collapses flaw #7 — the
             // equality split-brain; aligns with values_equal in runtime.rs.
             // > SUPERSEDED 2026-06-28 by arc 294.c.1: prior contract keyed on hologram
             // > (arc 293.R2.1 "identity lives in hologram") — replaced by data identity.
             (Value::Aggregate(a), Value::Aggregate(b)) => {
-                // Arc 294.c.1 — identity is the EDN data (Q-D): (holder, class, fields).
+                // Arc 294.c.1 — identity is the EDN data (Q-D): (nature, class, fields).
                 // The hologram is a DERIVED index, never identity (collapses flaw #7 — the
                 // equality split-brain; aligns with values_equal in runtime.rs).
-                a.holder == b.holder && a.class == b.class && a.fields == b.fields
+                a.nature == b.nature && a.class == b.class && a.fields == b.fields
             }
             (Value::Enum(a), Value::Enum(b)) => {
                 a.type_path == b.type_path
@@ -850,14 +850,14 @@ impl std::hash::Hash for Value {
                     e.hash(state);
                 }
             },
-            // Arc 294.c.1 — hash on the EDN data (holder, class, fields), matching PartialEq.
+            // Arc 294.c.1 — hash on the EDN data (nature, class, fields), matching PartialEq.
             // The hologram is a derived index and is NOT part of identity (flaw #7 collapse).
             // > SUPERSEDED 2026-06-28 by arc 294.c.1: prior contract hashed the hologram
             // > (arc 293.R2.1 "Hologram → hash on hologram (canonical identity, Stone 234.1)").
             Value::Aggregate(a) => {
-                // Arc 294.c.1 — hash on the EDN data (holder, class, fields), matching PartialEq.
+                // Arc 294.c.1 — hash on the EDN data (nature, class, fields), matching PartialEq.
                 // The hologram is a derived index and is NOT part of identity (flaw #7 collapse).
-                a.holder.hash(state);
+                a.nature.hash(state);
                 a.class.hash(state);
                 a.fields.hash(state);
             }
@@ -976,18 +976,18 @@ impl std::hash::Hash for Value {
 
 /// Arc 293.R2.1 — hologram presence/absence for an aggregate value.
 ///
-/// `Empty` for `Holder::Struct` and `Holder::Record` (no VSA dual-form).
-/// `Hologram(h)` for `Holder::HolonRecord` (the canonical VSA identity form).
+/// `Empty` for `Nature::Struct` and `Nature::Record` (no VSA dual-form).
+/// `Hologram(h)` for `Nature::HolonRecord` (the canonical VSA identity form).
 ///
 /// Named enum (NOT `Option`) per `feedback_option_carrying_semantics_screams_enum`:
 /// `None` would overload "absence" with the identity-gating semantic; `Empty` names
-/// the thing honestly and makes the illegal state (`Hologram` on a non-holon holder)
+/// the thing honestly and makes the illegal state (`Hologram` on a non-holon nature)
 /// representable but policy-rejected at construction time.
 #[derive(Debug, Clone)]
 pub enum HolonForm {
-    /// No hologram — structural identity only (`Holder::Struct` / `Holder::Record`).
+    /// No hologram — structural identity only (`Nature::Struct` / `Nature::Record`).
     Empty,
-    /// VSA canonical form — `Holder::HolonRecord` identity lives here.
+    /// VSA canonical form — `Nature::HolonRecord` identity lives here.
     Hologram(Arc<HolonAST>),
 }
 
@@ -998,7 +998,7 @@ pub enum HolonForm {
 ///
 /// `class` is the COLON-FREE FQDN (e.g. `"myapp::Voltage"` — no leading `:`).
 /// `fields` is the positional field vec in declaration order.
-/// `holder` is the categorical axis (`{Struct, Record, HolonRecord}`).
+/// `nature` is the categorical axis (`{Struct, Record, HolonRecord}`).
 /// `holon` is `Empty` for Struct/Record and `Hologram(h)` for HolonRecord.
 #[derive(Debug, Clone)]
 pub struct AggregateValue {
@@ -1010,24 +1010,24 @@ pub struct AggregateValue {
     /// Was `StructValue.fields` (wrapped in Arc) / the old `struct_form` local name.
     pub fields: Arc<Vec<Value>>,
     /// The categorical label: `{Struct, Record, HolonRecord}`.
-    pub holder: Holder,
+    pub nature: Nature,
     /// `Empty` for Struct/Record; `Hologram(h)` for HolonRecord.
     pub holon: HolonForm,
 }
 
 impl AggregateValue {
-    /// Construct a Struct-holder aggregate (no hologram).
+    /// Construct a Struct-nature aggregate (no hologram).
     /// `class` must be WITHOUT the leading colon.
     pub fn struct_(class: String, fields: Vec<Value>) -> Self {
-        AggregateValue { class, fields: Arc::new(fields), holder: Holder::Struct, holon: HolonForm::Empty }
+        AggregateValue { class, fields: Arc::new(fields), nature: Nature::Struct, holon: HolonForm::Empty }
     }
     /// Construct a base-Record aggregate (no hologram).
     pub fn record(class: String, fields: Arc<Vec<Value>>) -> Self {
-        AggregateValue { class, fields, holder: Holder::Record, holon: HolonForm::Empty }
+        AggregateValue { class, fields, nature: Nature::Record, holon: HolonForm::Empty }
     }
     /// Construct a HolonRecord aggregate (with hologram).
     pub fn holon_record(class: String, fields: Arc<Vec<Value>>, hologram: Arc<HolonAST>) -> Self {
-        AggregateValue { class, fields, holder: Holder::HolonRecord, holon: HolonForm::Hologram(hologram) }
+        AggregateValue { class, fields, nature: Nature::HolonRecord, holon: HolonForm::Hologram(hologram) }
     }
 }
 
@@ -1148,11 +1148,11 @@ impl Value {
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
-            // Arc 293.R2.1 — Aggregate: holder gates the kind-string.
-            // Struct holder → "wat::core::Struct"; Record/HolonRecord → "wat::core::Record".
-            Value::Aggregate(a) => match a.holder {
-                Holder::Struct => "wat::core::Struct",
-                Holder::Record | Holder::HolonRecord => "wat::core::Record",
+            // Arc 293.R2.1 — Aggregate: nature gates the kind-string.
+            // Struct nature → "wat::core::Struct"; Record/HolonRecord → "wat::core::Record".
+            Value::Aggregate(a) => match a.nature {
+                Nature::Struct => "wat::core::Struct",
+                Nature::Record | Nature::HolonRecord => "wat::core::Record",
             },
             Value::Enum(_) => "wat::core::Enum",
             Value::Vector(_) => "wat::holon::Vector",
@@ -1216,8 +1216,8 @@ impl Value {
                 // rune:solvere(historical-shape) — transitional back-arc into the monolith; extract_classifier lifts to its home at the algebra/ migration stone (docs/arc/2026/06/251-types-as-forms/SCOUT-LIFT-MAP.md); the back-arc resolves then.
                 crate::runtime::extract_classifier(h).unwrap_or_else(|| "wat::holon::HolonAST".to_string())
             }
-            // Arc 293.R2.1 — Aggregate: class is already colon-free (all holders).
-            // Struct holder: type_name was `:my::Point` → stripped → stored as `my::Point`.
+            // Arc 293.R2.1 — Aggregate: class is already colon-free (all natures).
+            // Struct nature: type_name was `:my::Point` → stripped → stored as `my::Point`.
             // Record/HolonRecord: class_fqdn was already colon-free.
             Value::Aggregate(a) => a.class.clone(),
             // Enum: type_path is the declared enum FQDN verbatim (e.g.

@@ -8,10 +8,10 @@
 ;; splice is unbuilt — so this arm becomes meaningful only after splice ships; the positive probe is
 ;; the RED gate. This fixture is the build's own correctness check that the conflict is caught.)
 
-(:wat::core::defsurface :probe::HasIntFoobar :holder :wat::core::Record
+(:wat::core::defsurface :probe::HasIntFoobar :nature :wat::core::Record
   :features [foobar <- :wat::core::i64])
 
-(:wat::core::defsurface :probe::HasStrFoobar :holder :wat::core::Record
+(:wat::core::defsurface :probe::HasStrFoobar :nature :wat::core::Record
   :features [foobar <- :wat::core::String])
 
 ;; splices two surfaces that install `foobar` at CONFLICTING types → MUST be rejected.

@@ -27,7 +27,7 @@ use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
 use crate::value::value::AggregateValue;
-use crate::types::Holder;
+use crate::types::Nature;
 
 // ─── Native token (P11) ───────────────────────────────────────────────────────
 
@@ -154,7 +154,7 @@ fn hashmap_to_pm(map: HashMap<i64, Vec<Value>>) -> Value {
 fn value_token_to_native(tok: &Value) -> Result<Token, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (beta decode)";
     let struct_form = match tok {
-        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice(),
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
         other => return Err(RuntimeError {
             span: crate::rust_caller_span!(),
             kind: RuntimeErrorKind::TypeMismatch {
@@ -320,7 +320,7 @@ fn beta_to_pm(beta: HashMap<i64, Vec<Token>>) -> Value {
 pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient";
     let agg = match session {
-        Value::Aggregate(a) if a.holder != Holder::Struct => a,
+        Value::Aggregate(a) if a.nature != Nature::Struct => a,
         other => {
             return Err(RuntimeError {
                 span: crate::rust_caller_span!(),
@@ -416,7 +416,7 @@ fn node_kind_label(class_fqdn: &str) -> &str {
 /// Returns `None` for non-record values (should never happen in a well-formed network).
 fn node_record(node: &Value) -> Option<(&str, &[Value])> {
     match node {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             Some((a.class.as_str(), a.fields.as_slice()))
         }
         _ => None,
@@ -587,7 +587,7 @@ fn make_token(
 /// Group C: returns borrows — no clone of the bindings map per match.
 fn element_fact_bindings(el: &Value) -> (&Value, &rpds::HashTrieMapSync<Value, Value>) {
     match el {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
             let bindings = match &sf[1] {
                 Value::wat__core__PersistentMap(m) => m,
@@ -604,7 +604,7 @@ fn element_fact_bindings(el: &Value) -> (&Value, &rpds::HashTrieMapSync<Value, V
 #[allow(dead_code)]
 fn token_matches_bindings(tok: &Value) -> (&rpds::VectorSync<Value>, &rpds::HashTrieMapSync<Value, Value>) {
     match tok {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
             let matches = match &sf[0] {
                 Value::wat__core__PersistentVector(v) => v,
@@ -660,7 +660,7 @@ fn alpha_pass(
         for fact in &facts {
             // Resolve fact class + fields.
             let (fact_class, fact_fields) = match fact {
-                Value::Aggregate(a) if a.holder != Holder::Struct => {
+                Value::Aggregate(a) if a.nature != Nature::Struct => {
                     (a.class.as_str(), a.fields.as_slice())
                 }
                 _ => continue,
@@ -1153,7 +1153,7 @@ fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
 /// `fire-fixpoint` (`wat/rete.wat:991-998`) and `fire-rules` (`wat/rete.wat:1011-1018`).
 fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
     match fired {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
             Value::Aggregate(Arc::new(AggregateValue::record(
                 a.class.clone(),
@@ -1180,7 +1180,7 @@ fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
 /// current fact set (both the original input session and each stratum's fired sub-session).
 fn session_facts(session: &Value) -> Value {
     match session {
-        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[5].clone(),
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[5].clone(),
         _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
     }
 }
@@ -1192,7 +1192,7 @@ fn session_facts(session: &Value) -> Value {
 /// deciding fast-path vs stratified dispatch.
 fn session_rules(session: &Value) -> Value {
     match session {
-        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[1].clone(),
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[1].clone(),
         _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
     }
 }
@@ -1215,7 +1215,7 @@ fn fire_fixpoint(mut session: Value, sym: &SymbolTable) -> Result<Value, EvalBre
         };
         let fired = fire_once_session(&session, sym)?;
         let production_pm = match &fired {
-            Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[4].clone(),
+            Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[4].clone(),
             _ => Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
         };
         let derived = collect_derived(&production_pm);
@@ -1560,7 +1560,7 @@ fn fire_fixpoint_delta(session: &Value, sym: &SymbolTable, mut support: Option<&
         // ── 1. Alpha delta (type-indexed): each delta fact probes ONLY its type's alphas. ──
         for fact in &delta_facts {
             let (fact_class, fact_fields) = match fact {
-                Value::Aggregate(a) if a.holder != Holder::Struct => {
+                Value::Aggregate(a) if a.nature != Nature::Struct => {
                     (a.class.as_str(), a.fields.as_slice())
                 }
                 _ => continue,
@@ -2209,7 +2209,7 @@ fn fire_rules_stratified(
 
     // The already-compiled network + next-id, shared verbatim across every stratum below.
     let (network, next_id, class) = match session {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
             (sf[0].clone(), sf[6].clone(), a.class.clone())
         }
@@ -2373,7 +2373,7 @@ fn fire_rules_stratified(
         // resets `facts = input` internally (its own fire-rules-shaped contract) — so `fired`'s
         // facts field equals the seed, not the closure. Reconstruct the closure explicitly below.
         let production_pm = match &fired {
-            Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.as_slice()[4].clone(),
+            Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[4].clone(),
             _ => Value::wat__core__PersistentMap(rpds::HashTrieMapSync::new_sync()),
         };
         let new_derived = collect_derived(&production_pm);
@@ -2404,7 +2404,7 @@ fn fire_rules_stratified(
     let prod_pm = rpds::HashTrieMapSync::new_sync().insert(Value::i64(0), Value::wat__core__PersistentVector(prod_pv));
 
     match session {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             let sf = a.fields.as_slice();
             Ok(Value::Aggregate(Arc::new(AggregateValue::record(
                 a.class.clone(),
@@ -2580,7 +2580,7 @@ mod tests {
     use crate::freeze::{eval_in_frozen, startup_from_source};
     use crate::load::InMemoryLoader;
     use crate::runtime::{Environment, Value};
-    use crate::types::Holder;
+    use crate::types::Nature;
     use crate::value::value::AggregateValue;
 
     /// The cold-and-windy world: Temperature + WindSpeed + ColdAndWindy records + the rule.
@@ -2759,7 +2759,7 @@ mod tests {
                 );
                 // The fact must be a Record (Temperature or WindSpeed).
                 match fact {
-                    Value::Aggregate(a) if a.holder != Holder::Struct => {
+                    Value::Aggregate(a) if a.nature != Nature::Struct => {
                         let cls = a.class.as_str();
                         assert!(
                             cls == "weather::Temperature" || cls == "weather::WindSpeed",
@@ -2777,11 +2777,11 @@ mod tests {
 
             // The two facts must be of DIFFERENT types (Temperature != WindSpeed).
             let class0 = match &tok.matches[0].0 {
-                Value::Aggregate(a) if a.holder != Holder::Struct => a.class.clone(),
+                Value::Aggregate(a) if a.nature != Nature::Struct => a.class.clone(),
                 _ => panic!("fact[0] must be a Record"),
             };
             let class1 = match &tok.matches[1].0 {
-                Value::Aggregate(a) if a.holder != Holder::Struct => a.class.clone(),
+                Value::Aggregate(a) if a.nature != Nature::Struct => a.class.clone(),
                 _ => panic!("fact[1] must be a Record"),
             };
             assert_ne!(class0, class1, "the two supporting facts must be of different types");

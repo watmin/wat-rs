@@ -1,7 +1,7 @@
-//! RED probe — arc 294.c.2a: `aggregate-new` is the ONE holder-dispatched constructor.
+//! RED probe — arc 294.c.2a: `aggregate-new` is the ONE nature-dispatched constructor.
 //!
 //! 294 DESIGN:128 — construction collapses to a single varargs primitive
-//! `(:wat::core::aggregate-new :T field…)` that reads `:T`'s holder from the TypeEnv and
+//! `(:wat::core::aggregate-new :T field…)` that reads `:T`'s nature from the TypeEnv and
 //! builds the right `AggregateValue`. For a HolonRecord it derives the hologram INTERNALLY
 //! (the `build_holon_hologram` Rust helper, routed through the one extracted
 //! `bundle_with_capacity` guard) — no precomputed-form arg. `struct-new` / `Record::of` /
@@ -12,7 +12,7 @@
 //!
 //! RED at HEAD: `:wat::core::aggregate-new` is an unknown function → the fixture's defn
 //! bodies don't resolve → `startup_beside` errors (or the eval errors). GREEN after c.2a:
-//! all three holders construct via `aggregate-new`, field accessors read back, and the
+//! all three natures construct via `aggregate-new`, field accessors read back, and the
 //! holon record's DERIVED hologram measures (`cosine h h == 1.0`).
 
 use wat::freeze::{eval_in_frozen, startup_beside};

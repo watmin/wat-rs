@@ -43,4 +43,4 @@ fn c01_base_record_started_at() {
 
 // c02_user_extends_program_env DELETED — arc 293 inheritance annihilation:
 // (:wat::core::recordtype :user::MyEnv :wat::program::Env [...]) is rejected at registration
-// (non-holder-root parent). program::Env is a flat record; user types root at :wat::core::Record.
+// (non-nature-root parent). program::Env is a flat record; user types root at :wat::core::Record.

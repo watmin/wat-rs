@@ -1,12 +1,12 @@
 ;; tests/types/probe_arc294c2a_aggregate_new.wat — co-located fixture (arc 294.c.2a)
 ;;
-;; aggregate-new is the ONE holder-dispatched constructor (294 DESIGN:128). struct /
+;; aggregate-new is the ONE nature-dispatched constructor (294 DESIGN:128). struct /
 ;; base record / holon record ALL construct via (:wat::core::aggregate-new :T field…);
 ;; the holon record's hologram is DERIVED in Rust (build_holon_hologram), no precomputed
 ;; arg. struct-new / Record::of / holon::Record::of die into it (c.2b).
 ;;
 ;; RED at HEAD: :wat::core::aggregate-new is unknown → startup/eval fails.
-;; GREEN after 294.c.2a: all three holders construct + the holon's hologram measures.
+;; GREEN after 294.c.2a: all three natures construct + the holon's hologram measures.
 
 (:wat::core::defstruct  :test::an::ST [a <- :wat::core::i64  b <- :wat::core::i64])
 (:wat::core::defrecord  :test::an::BR [a <- :wat::core::i64  b <- :wat::core::i64])

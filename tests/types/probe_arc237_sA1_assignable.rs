@@ -71,7 +71,7 @@ fn probe_04_exact_match_ok() {
 }
 
 // Probe 5 (transitive :my::Special <: :my::Circle) DELETED — arc 293 inheritance annihilation:
-// a recordtype parent must be a holder-root; :my::Circle is a user type, so
+// a recordtype parent must be a nature-root; :my::Circle is a user type, so
 // (:wat::core::recordtype :my::Special :my::Circle []) is now rejected at registration.
 
 // ─── Probe 6: no-edge rejection — unrelated record (guard) ────────────────────

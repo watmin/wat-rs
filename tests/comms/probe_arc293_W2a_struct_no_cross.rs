@@ -1,12 +1,12 @@
 //! Arc 293.W.2a — the `recv'` struct backstop.
 //!
-//! A bare `Holder::Struct` value must NOT arrive over a comms boundary.
+//! A bare `Nature::Struct` value must NOT arrive over a comms boundary.
 //! The containment rule (293.W.1) prevents a record from *holding* a struct,
 //! but a child can still `pprintln` a bare struct to its stdout and a parent
 //! `recv'` it — the untyped path the declaration gate cannot reach.
 //!
 //! Close it at the wire DECODE door: `decode_trusted_wire` (`src/edn_shim.rs`)
-//! must refuse a top-level `Value::Aggregate` whose `holder == Holder::Struct`.
+//! must refuse a top-level `Value::Aggregate` whose `nature == Nature::Struct`.
 //!
 //! RED at HEAD: the struct crosses — decode succeeds, parent gets the struct
 //! value with no error. The probe asserting an error FAILs at HEAD.

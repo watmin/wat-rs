@@ -21,10 +21,10 @@
 ;; commit / execute / execute-ddl / select. `query` is RESERVED for the higher :wat::query engine.
 ;;
 ;; `select` is the ONE verb both Connection and ReadConnection answer to; wat forbids two `defn`s
-;; sharing one FQDN, and :wat::core::defsurface/extend-type require an Aggregate :holder (Struct/
-;; Record/HolonRecord — src/types.rs's Holder enum), which a :rust:: opaque type never has. The
+;; sharing one FQDN, and :wat::core::defsurface/extend-type require an Aggregate :nature (Struct/
+;; Record/HolonRecord — src/types.rs's Nature enum), which a :rust:: opaque type never has. The
 ;; RATIFIED multi-dispatch mechanism for "one name, arg-type-directed body" that needs no Aggregate
-;; holder at all is `:wat::core::defclause` (wat/core.wat's polymorphic `+`/`-`/`*` — dispatch by
+;; nature at all is `:wat::core::defclause` (wat/core.wat's polymorphic `+`/`-`/`*` — dispatch by
 ;; arity x arg-Type, clause absence rejects the rest) — `select` below is exactly that shape, one
 ;; clause per receiver type.
 ;;

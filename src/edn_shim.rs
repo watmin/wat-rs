@@ -1538,7 +1538,7 @@ fn edn_to_typed_value_inner(
                 })?;
                 match env.get(p) {
                     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-                    Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                    Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
                         coerce_struct_path(p, a, edn, types)
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
@@ -1647,7 +1647,7 @@ fn edn_to_typed_value_inner(
                 let env = types.ok_or_else(|| mismatch(target, edn))?;
                 match env.get(&path) {
                     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-                    Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                    Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
                         coerce_struct_path(&path, a, edn, types)
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
@@ -1914,11 +1914,11 @@ pub fn value_to_edn_notag(
 ) -> OwnedValue {
     match v {
         // ── Struct: drop tag; body is the named-field map ───────
-        Value::Aggregate(sv) if sv.holder == crate::types::Holder::Struct => {
+        Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
             let type_key = format!(":{}", sv.class);
             let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
                     a.fields.iter().map(|(name, _)| name.clone()).collect()
                 }
                 _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
@@ -2042,11 +2042,11 @@ pub fn value_to_json_natural(
         Value::wat__core__keyword(k) => {
             OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
         }
-        Value::Aggregate(sv) if sv.holder == crate::types::Holder::Struct => {
+        Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
             let type_key = format!(":{}", sv.class);
             let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
                     a.fields.iter().map(|(name, _)| name.clone()).collect()
                 }
                 _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
@@ -2322,7 +2322,7 @@ fn tagged_to_value(
         Edn::Map(entries) => {
             let path = ns_to_wat_path(ns, name);
             match types.get(&path) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => {
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
                     reconstruct_record(ns, name, entries, types, allow_caps)
                 }
                 _ => reconstruct_struct(ns, name, entries, types, allow_caps),
@@ -2337,7 +2337,7 @@ fn tagged_to_value(
         Edn::Tagged(inner_tag, _) if inner_tag.namespace() == "wat-edn.holon" => {
             let path = ns_to_wat_path(ns, name);
             match types.get(&path) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => {
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
                     reconstruct_holon_record(ns, name, body, types)
                 }
                 _ => {
@@ -2418,7 +2418,7 @@ fn reconstruct_struct(
     let path = ns_to_wat_path(ns, name);
     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
     let def = match types.get(&path) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => a,
         _ => {
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: name.to_string(), body_shape: "map" } });
@@ -2462,7 +2462,7 @@ fn reconstruct_struct(
     ))))
 }
 
-/// Arc 234 Stone 234.7a — Decode a base-record tagged-map back to `Value::Aggregate(holder=Record)`.
+/// Arc 234 Stone 234.7a — Decode a base-record tagged-map back to `Value::Aggregate(nature=Record)`.
 ///
 /// Arc 293.2b: uses `AggregateDef` (kind=Record|HolonRecord) instead of the annihilated
 /// `RecordDef`. Fields are always-typed (D2), so `rewrap_option_field` applies.
@@ -2476,7 +2476,7 @@ fn reconstruct_record(
     let path = ns_to_wat_path(ns, name);
     // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
     let def = match types.get(&path) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
         _ => {
             return Err(EdnReadError {
                 span: crate::rust_caller_span!(),
@@ -2517,7 +2517,7 @@ fn reconstruct_record(
 }
 
 /// Arc 234 Stone 234.7b — Decode a holon-record tagged body (a `#wat-edn.holon/Bind[…]`
-/// inner value) back to `Value::Aggregate(holder=HolonRecord)`.
+/// inner value) back to `Value::Aggregate(nature=HolonRecord)`.
 ///
 /// Steps:
 /// 1. Reconstruct `hologram` exactly via `edn_to_holon_ast` (the proven round-trip).
@@ -2789,7 +2789,7 @@ pub(crate) fn decode_trusted_wire(
 ) -> Result<Value, EdnReadError> {
     let v = read_edn_caps(s, types, true)?;
     // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────
-    // The §7 runtime backstop that refused a top-level Holder::Struct at the
+    // The §7 runtime backstop that refused a top-level Nature::Struct at the
     // wire-decode door is gone. The compile-time purity wall at wire-peer
     // PRODUCERS (peer-pair', socket-pair', connect', accept', program-self-peer')
     // makes the reachable struct-on-wire case structurally unrepresentable. The
@@ -2810,14 +2810,14 @@ mod cap_decode_boundary {
     const CAP_TAG_GENERAL: &str = "#wat-edn.cap/address #wat.kernel/SocketAddressWire {:minter-pid 1 :name [1 2 3 4 5]}";
 
     fn make_types() -> crate::types::TypeEnv {
-        use crate::types::{AggregateDef, Holder, TypeDef, TypeExpr};
+        use crate::types::{AggregateDef, Nature, TypeDef, TypeExpr};
         // with_builtins seeds :wat::core::Record (required parent for SocketAddressWire).
         let mut env = crate::types::TypeEnv::with_builtins();
-        // Arc 293.2b — use AggregateDef (holder=Record) instead of the annihilated RecordDef.
+        // Arc 293.2b — use AggregateDef (nature=Record) instead of the annihilated RecordDef.
         env.register_stdlib(TypeDef::Aggregate(AggregateDef {
             name: ":wat::kernel::SocketAddressWire".to_string(),
             type_params: vec![],
-            holder: Holder::Record,
+            nature: Nature::Record,
             restrictions: None,
             // minter-pid <- :wat::core::i64
             // name       <- :wat::core::Vector<wat::core::i64>
@@ -2949,12 +2949,12 @@ pub fn value_to_edn_with(
 
         // ── User-declared struct / record / holon-record ─────────
         // Arc 293.R2.1 — all three collapsed into Value::Aggregate.
-        Value::Aggregate(sv) if sv.holder == crate::types::Holder::Struct => {
+        Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             let type_key = format!(":{}", sv.class);
             let tag = tag_from_type_path(&type_key);
             // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
             let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
                     a.fields.iter().map(|(name, _ty)| name.clone()).collect()
                 }
                 _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
@@ -3062,8 +3062,8 @@ pub fn value_to_edn_with(
         // Arc 300 stone C1 — typed BigInt → EDN bigint literal round-trip (mirrors
         // Rational immediately above, one type over).
         Value::wat__core__BigInt(n) => OwnedValue::BigInt(Box::new((**n).clone())),
-        // Arc 293.R2.1 — Record/HolonRecord: Aggregate with holder != Struct.
-        // No guard here — the Struct arm above catches holder==Struct; this arm is reached
+        // Arc 293.R2.1 — Record/HolonRecord: Aggregate with nature != Struct.
+        // No guard here — the Struct arm above catches nature==Struct; this arm is reached
         // only for Record/HolonRecord. Guard dropped so Rust's exhaustiveness checker sees
         // Value::Aggregate(_) as fully covered.
         // Dispatch on holon: Hologram → holon wire form; Empty → base named-field map.
@@ -3084,7 +3084,7 @@ pub fn value_to_edn_with(
                     // Arc 293.2b: use AggregateDef (kind!=Struct) instead of the annihilated RecordDef.
                     // Fallback to field-{i} when no def is found (no-types or unregistered class).
                     let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                        Some(crate::types::TypeDef::Aggregate(def)) if def.holder != crate::types::Holder::Struct => {
+                        Some(crate::types::TypeDef::Aggregate(def)) if def.nature != crate::types::Nature::Struct => {
                             def.field_names().map(|s| s.to_string()).collect()
                         }
                         _ => (0..a.fields.len()).map(|i| format!("field-{}", i)).collect(),

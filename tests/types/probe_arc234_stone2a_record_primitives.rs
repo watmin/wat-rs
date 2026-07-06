@@ -5,7 +5,7 @@
 
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::{Environment, Value};
-use wat::types::Holder;
+use wat::types::Nature;
 
 fn run(fn_name: &str) -> Result<Value, String> {
     let world = startup_beside(file!()).map_err(|e| format!("startup: {:?}", e))?;
@@ -21,7 +21,7 @@ fn run(fn_name: &str) -> Result<Value, String> {
 fn probe_1_construction_returns_wat_record() {
     match run(":user::probe-1") {
         Ok(v) => match v {
-            Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
+            Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
                 assert_eq!(
                     a.class.as_str(),
                     "myapp::Voltage",
@@ -56,7 +56,7 @@ fn probe_2_type_returns_class_fqdn() {
 fn probe_3_struct_form_field_at_zero() {
     match run(":user::probe-3") {
         Ok(v) => match v {
-            Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
+            Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
                 assert_eq!(a.fields.len(), 1);
                 match &a.fields[0] {
                     Value::f64(f) => assert!(
@@ -78,7 +78,7 @@ fn probe_3_struct_form_field_at_zero() {
 fn probe_4_multi_field_construction() {
     match run(":user::probe-4") {
         Ok(v) => match v {
-            Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
+            Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
                 assert_eq!(a.class.as_str(), "myapp::Point");
                 assert_eq!(a.fields.len(), 2);
                 match (&a.fields[0], &a.fields[1]) {

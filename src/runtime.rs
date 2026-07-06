@@ -468,7 +468,7 @@ pub fn trigger_shutdown() {
 // src/value/value.rs. Re-exported here for zero-churn (Value used ×2156 internally).
 pub use crate::value::{Value, AggregateValue, HolonForm, EnumValue, SpawnOutcome, ProgramHandleInner,
     Clause, ClauseSet, ClauseAttempt, ClauseFailureReason};
-use crate::types::Holder;
+use crate::types::Nature;
 
 
 // Stone 251.2c — Function + Environment cluster moved to src/value/environment.rs.
@@ -1016,12 +1016,12 @@ pub fn register_struct_methods(
     for (_name, def) in types.iter() {
         // Arc 293.2b — only Aggregate with kind==Struct gets struct methods.
         let struct_def = match def {
-            TypeDef::Aggregate(a) if a.holder == crate::types::Holder::Struct => a,
+            TypeDef::Aggregate(a) if a.nature == crate::types::Nature::Struct => a,
             _ => continue,
         };
 
         // Arc 293 surface-splice — the struct CONSTRUCTOR mint moved to
-        // `register_aggregate_methods` (THE ONE ctor source for every holder). This loop
+        // `register_aggregate_methods` (THE ONE ctor source for every nature). This loop
         // now handles ONLY the struct-only restriction metadata below. Minting the ctor
         // here too would DuplicateDefine against the unified mint.
 
@@ -1058,10 +1058,10 @@ pub fn register_struct_methods(
 /// (Struct + Record + HolonRecord). The `register_struct_methods` ctor loop
 /// and the deleted `register_record_methods` accessor loop are collapsed here:
 /// same `parametric_decl_type` / `type_params` / `struct-field` body for ALL
-/// holders, bare name guaranteed by the `parse_declared_name` fix in
+/// natures, bare name guaranteed by the `parse_declared_name` fix in
 /// `parse_recordtype`.
 ///
-/// Arc 293 inheritance annihilation: all types are flat (holder + own fields only).
+/// Arc 293 inheritance annihilation: all types are flat (nature + own fields only).
 /// Inherited fields are always 0; field index == own enumeration index.
 ///
 /// **DuplicateDefine is an error** — after the macro's accessor emission was
@@ -1094,8 +1094,8 @@ pub fn register_aggregate_methods(
         //     parametric type so the type checker can bind the type variable at each
         //     call site and infer the correct return type (the probe requires this).
         let aggregate_type = parametric_decl_type(&agg.name, &agg.type_params);
-        let accessor_param_type = match agg.holder {
-            crate::types::Holder::Struct => aggregate_type.clone(),
+        let accessor_param_type = match agg.nature {
+            crate::types::Nature::Struct => aggregate_type.clone(),
             _ => {
                 if agg.type_params.is_empty() {
                     crate::types::TypeExpr::Path(":wat::core::Record".into())
@@ -1107,20 +1107,20 @@ pub fn register_aggregate_methods(
 
         // Arc 293 inheritance annihilation: all types are flat; field index == own enumeration index.
 
-        // Arc 293 surface-splice — THE ONE aggregate constructor mint (all holders).
+        // Arc 293 surface-splice — THE ONE aggregate constructor mint (all natures).
         //
         // Before this arc there were TWO ways to construct an aggregate: `register_struct_methods`
         // minted the struct ctor in Rust (from registered fields → splice-aware), while
         // `defrecord`/`holon::defrecord` hand-built a ctor `defn` in the wat macro at expand-time
         // (Record.wat's `raw-ch/nf/syms` groups-of-3 walk → registry-BLIND, so `~@:Surface`
-        // splices choked there). 293.R2.2 already unified the ACCESSORS here for every holder;
+        // splices choked there). 293.R2.2 already unified the ACCESSORS here for every nature;
         // this unifies the CTOR the same way. Now that the macro no longer emits a ctor `defn`
         // and `register_struct_methods` no longer mints one, THIS is the sole ctor source for
         // Struct + Record + HolonRecord alike.
         //
         // Body is `(:wat::core::aggregate-new :T field-syms…)` — `eval_aggregate_new` is already
-        // holder-blind (it dispatches Struct/Record/HolonRecord internally, incl. the holon
-        // hologram), so the body is identical for every holder. Because it reads the REGISTERED
+        // nature-blind (it dispatches Struct/Record/HolonRecord internally, incl. the holon
+        // hologram), so the body is identical for every nature. Because it reads the REGISTERED
         // fields (splice already expanded by `parse_aggregate_fields_with_splices` at
         // registration), surface-splice works for records for free.
         //
@@ -1169,7 +1169,7 @@ pub fn register_aggregate_methods(
         //     param type is `:wat::core::Record` (backward compat), so the type checker allows ANY
         //     record. The runtime check is the only guard; it mirrors the old macro accessor body
         //     that was removed from wat/Record.wat.
-        let use_class_check = matches!(agg.holder, crate::types::Holder::Record | crate::types::Holder::HolonRecord)
+        let use_class_check = matches!(agg.nature, crate::types::Nature::Record | crate::types::Nature::HolonRecord)
             && agg.type_params.is_empty();
 
         for (own_idx, (field_name, field_type)) in agg.fields.iter().enumerate() {
@@ -1393,7 +1393,7 @@ pub fn register_enum_methods(
 /// a positional constructor + accessor into `sym`. Arc 049. Mirrors
 /// [`register_struct_methods`] for arity-1 tuple structs — newtype's
 /// Rust compilation per 058-030 line 538 IS `struct A(B);`, so the
-/// natural representation is `Value::Aggregate(holder=Struct)` of arity 1 with the
+/// natural representation is `Value::Aggregate(nature=Struct)` of arity 1 with the
 /// inner value at index 0.
 ///
 /// Per newtype `:my::ns::Price` with inner `:f64`:
@@ -1488,8 +1488,8 @@ pub fn register_newtype_methods(
 }
 
 // Arc 293 inheritance annihilation: collect_all_record_fields DELETED.
-// All types are flat (holder + own fields); inherited fields were always 0 after
-// the parse-time holder-root guard. `register_aggregate_methods` uses `agg.fields` directly.
+// All types are flat (nature + own fields); inherited fields were always 0 after
+// the parse-time nature-root guard. `register_aggregate_methods` uses `agg.fields` directly.
 
 // Arc 293.R2.2 — register_record_methods DELETED.
 // Accessor codegen for Record + HolonRecord is now in register_aggregate_methods
@@ -4042,9 +4042,9 @@ fn dispatch_keyword_head_value(
         // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
         // Error contract: well-formed known type names → bool; unknown name → Err.
         ":wat::core::subtype?" => eval_subtype(args, list_span, env, sym),
-        // Arc 294.c.2a — `:wat::core::aggregate-new` is the ONE holder-dispatched constructor.
+        // Arc 294.c.2a — `:wat::core::aggregate-new` is the ONE nature-dispatched constructor.
         // Signature: (:wat::core::aggregate-new :T field…) — varargs; `:T` is the type keyword.
-        // Looks up `:T`'s holder from the TypeEnv and builds the right AggregateValue:
+        // Looks up `:T`'s nature from the TypeEnv and builds the right AggregateValue:
         //   Struct      → AggregateValue::struct_(class, fields)
         //   Record      → AggregateValue::record(class, fields)
         //   HolonRecord → AggregateValue::holon_record(class, fields, hologram)
@@ -4056,7 +4056,7 @@ fn dispatch_keyword_head_value(
         // surface attributes into a new backing record at the pure tier the caller names.
         // Projection is ONE-WAY UP — you never project down to a struct (you already have
         // the struct; an in-locus copy of in-locus data buys nothing).
-        //   (:wat::core::to-record  x :S) → :S$core-record  (portable EDN; Record holder)
+        //   (:wat::core::to-record  x :S) → :S$core-record  (portable EDN; Record nature)
         //   (:wat::holon::to-record x :S) → :S$holon-record (portable EDN + hologram)
         // arg0 `x` is evaluated; arg1 `:S` is a literal surface keyword (NOT evaluated).
         // RETIRED 293 K3-revise: `:wat::core::to-struct` — projection is ONE-WAY UP, never
@@ -4072,7 +4072,7 @@ fn dispatch_keyword_head_value(
         ":wat::holon::Record::of" => eval_holon_record_of(args, list_span, env, sym),
         ":wat::core::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
-        // record?   :: ∀T. T -> bool          — true iff input is Value::Aggregate (Record/HolonRecord holder)
+        // record?   :: ∀T. T -> bool          — true iff input is Value::Aggregate (Record/HolonRecord nature)
         // record->map :: :wat::core::Record -> HashMap<keyword, T> — extract field-name/value map
         ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
         ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
@@ -5597,10 +5597,10 @@ fn dispatch_keyword_head_value(
                         let receiver = eval_inner(&args[0], env, sym)?.value_owned();
                         let bare_name = other.strip_prefix(':').unwrap_or(other);
                         match receiver {
-                            // Arc 293.R2.1 — Aggregate: dispatch on holder.
+                            // Arc 293.R2.1 — Aggregate: dispatch on nature.
                             // Record/HolonRecord → keyword_accessor_record (field_names path).
                             // Struct → keyword_accessor_struct (TypeDef path).
-                            Value::Aggregate(a) if a.holder != Holder::Struct => {
+                            Value::Aggregate(a) if a.nature != Nature::Struct => {
                                 let class_arc = Arc::new(a.class.clone());
                                 return keyword_accessor_record(
                                     bare_name,
@@ -5670,7 +5670,7 @@ fn keyword_accessor_record(
     } })?;
     // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
         _ => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
@@ -5694,7 +5694,7 @@ fn keyword_accessor_record(
 
 /// Look up `bare_name` in `sv`'s TypeDef field list and return the field value.
 /// Miss → `UnknownField`.
-/// Arc 293.R2.1 — `sv` is now `Arc<AggregateValue>` with `holder == Holder::Struct`.
+/// Arc 293.R2.1 — `sv` is now `Arc<AggregateValue>` with `nature == Nature::Struct`.
 fn keyword_accessor_struct(
     bare_name: &str,
     sv: Arc<AggregateValue>,
@@ -5710,7 +5710,7 @@ fn keyword_accessor_struct(
     // class is colon-free; TypeEnv keys have leading ':'.
     let type_key = format!(":{}", sv.class);
     let struct_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => a,
         _ => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
@@ -6844,10 +6844,10 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::Tuple(_) => ":wat::core::Tuple",
         Value::Option(_) => ":wat::core::Option",
         Value::Result(_) => ":wat::core::Result",
-        // Arc 293.R2.1 — Aggregate: Struct holder → "<struct>" (dynamic class); others → ":wat::core::Record".
-        Value::Aggregate(a) => match a.holder {
-            Holder::Struct => "<struct>",
-            Holder::Record | Holder::HolonRecord => ":wat::core::Record",
+        // Arc 293.R2.1 — Aggregate: Struct nature → "<struct>" (dynamic class); others → ":wat::core::Record".
+        Value::Aggregate(a) => match a.nature {
+            Nature::Struct => "<struct>",
+            Nature::Record | Nature::HolonRecord => ":wat::core::Record",
         },
         Value::Enum(_) => "<enum>",
         Value::wat__std__HashMap(_) => ":wat::core::HashMap",
@@ -7022,9 +7022,9 @@ fn bind_let_binding(
         // programs that reach here without having been checked.
         LetBinding::StructDestructure { field_names, rhs } => {
             let value = eval_inner(rhs, scope, sym)?.value_owned();
-            // Arc 293.R2.1 — Aggregate with holder==Struct.
+            // Arc 293.R2.1 — Aggregate with nature==Struct.
             let sv = match &value {
-                Value::Aggregate(a) if a.holder == Holder::Struct => a.clone(),
+                Value::Aggregate(a) if a.nature == Nature::Struct => a.clone(),
                 other => {
                     return Err(RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: ":wat::core::let".into(),
@@ -7043,12 +7043,12 @@ fn bind_let_binding(
             // Arc 293.2b/R2.1 — class is colon-free; TypeEnv keys have leading ':'.
             let type_key = format!(":{}", sv.class);
             let struct_def = match types.get(&type_key) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => a,
+                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => a,
                 _ => {
                     return Err(RuntimeError { span: rhs.span().clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: ":wat::core::let".into(),
                         reason: format!(
-                            "struct destructure: rhs type :{} is not registered as a struct in the TypeEnv (programmer error: a Value::Aggregate{{holder=Struct}} exists at runtime without a corresponding AggregateDef{{kind=Struct}})",
+                            "struct destructure: rhs type :{} is not registered as a struct in the TypeEnv (programmer error: a Value::Aggregate{{nature=Struct}} exists at runtime without a corresponding AggregateDef{{kind=Struct}})",
                             sv.class
                         )
                     } }.into());
@@ -7108,9 +7108,9 @@ fn bind_let_binding(
             let value = eval_inner(rhs, scope, sym)?.value_owned();
             let mut builder = scope.child();
             match &value {
-                // Arc 293.R2.1 — Aggregate: dispatch on holder.
+                // Arc 293.R2.1 — Aggregate: dispatch on nature.
                 // Record/HolonRecord → keyword_accessor_record; Struct → keyword_accessor_struct.
-                Value::Aggregate(a) if a.holder != Holder::Struct => {
+                Value::Aggregate(a) if a.nature != Nature::Struct => {
                     // Record receiver — resolve field names via RecordDef.field_names.
                     for (var_name, bare_field, var_span) in &bindings {
                         let field_val = keyword_accessor_record(
@@ -7277,7 +7277,7 @@ enum LetBinding<'a> {
     },
     /// Arc 234 Stone 234.4 — Clojure-style hash-destructure.
     /// `{var :field  var2 :field2 ...}` in let-binding position.
-    /// Receiver-polymorphic over Value::Aggregate (all holders) and wat__std__HashMap.
+    /// Receiver-polymorphic over Value::Aggregate (all natures) and wat__std__HashMap.
     ///
     /// Each binding carries (var_name, bare_field_name, var_span).
     /// Runtime evaluates the RHS once and dispatches on Value variant
@@ -8818,9 +8818,9 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         // the bit-exact structural predicate, the one a HashMap or a
         // term-store template-key dispatch lookup needs.
         (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => Some(a == b),
-        // Arc 293.R2.1 — Aggregate (all holders). Cross-holder → false (holder check first).
+        // Arc 293.R2.1 — Aggregate (all natures). Cross-nature → false (nature check first).
         (Value::Aggregate(x), Value::Aggregate(y)) => {
-            if x.holder != y.holder { return Some(false); }
+            if x.nature != y.nature { return Some(false); }
             if x.class != y.class { return Some(false); }
             if x.fields.len() != y.fields.len() { return Some(false); }
             for (xf, yf) in x.fields.iter().zip(y.fields.iter()) {
@@ -9658,7 +9658,7 @@ pub fn value_is_key_hashable(v: &Value) -> bool {
 /// Polymorphic write verb spanning two heterogeneous collection families:
 ///
 /// - `Value::wat__std__HashMap(_)` → `hashmap_assoc_inner` (functional clone-insert).
-/// - `Value::Aggregate (Record/HolonRecord holder)` →
+/// - `Value::Aggregate (Record/HolonRecord nature)` →
 ///   `eval_record_assoc` (base early-return rebuilds fields only; holonic fallthrough
 ///   rebuilds BOTH fields + hologram in parity — the PARITY invariant).
 ///   Flavor is preserved: base → base, holonic → holonic.
@@ -10139,7 +10139,7 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
 /// any consumer that wants a WatAST shape.
 ///
 /// Surfaces the inverse of struct construction: where
-/// `(:my::Foo a b)` evaluates to a `Value::Aggregate` (Struct holder), this
+/// `(:my::Foo a b)` evaluates to a `Value::Aggregate` (Struct nature), this
 /// primitive recovers the constructor-call form from a built struct.
 /// Round-trips through `eval-ast!` → re-construction.
 ///
@@ -10164,9 +10164,9 @@ fn eval_struct_to_form(
         } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc 293.R2.1 — Aggregate with holder==Struct.
+    // Arc 293.R2.1 — Aggregate with nature==Struct.
     let s = match v {
-        Value::Aggregate(a) if a.holder == Holder::Struct => a,
+        Value::Aggregate(a) if a.nature == Nature::Struct => a,
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -10508,7 +10508,7 @@ fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
         // Arc 293.2b — Aggregate: record kind has no type params (emit name only);
         // struct kind may have type params (fall through to normal path).
         crate::types::TypeDef::Aggregate(a) => {
-            if a.holder != crate::types::Holder::Struct {
+            if a.nature != crate::types::Nature::Struct {
                 // Record | HolonRecord — no type params.
                 return WatAST::List(
                     vec![WatAST::Keyword(a.name.clone(), span.clone())],
@@ -10550,7 +10550,7 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
     let head_kw = match def {
         // Arc 293.2b — Aggregate branches on kind for the correct declaration head.
         crate::types::TypeDef::Aggregate(a) => {
-            if a.holder == crate::types::Holder::Struct {
+            if a.nature == crate::types::Nature::Struct {
                 // Stone 241.8 — defstruct replaces struct.
                 ":wat::core::defstruct"
             } else {
@@ -10684,7 +10684,7 @@ pub fn lookup_form<'a>(
     if let Some(types) = &sym.types {
         if let Some(def) = types.get(name) {
             let is_auto_ctor = match def {
-                crate::types::TypeDef::Aggregate(a) => a.holder == crate::types::Holder::Struct,
+                crate::types::TypeDef::Aggregate(a) => a.nature == crate::types::Nature::Struct,
                 crate::types::TypeDef::Newtype(_) => true,
                 _ => false,
             };
@@ -11765,10 +11765,10 @@ fn eval_form_matches(
         }
     };
 
-    // Arc 293.R2.1 — Aggregate with holder==Struct; class is colon-free, type_name has ':'.
+    // Arc 293.R2.1 — Aggregate with nature==Struct; class is colon-free, type_name has ':'.
     let bare_type = type_name.strip_prefix(':').unwrap_or(type_name);
     let struct_value = match &subject {
-        Value::Aggregate(a) if a.holder == Holder::Struct && a.class == bare_type => a.clone(),
+        Value::Aggregate(a) if a.nature == Nature::Struct && a.class == bare_type => a.clone(),
         _ => return Ok(Value::bool(false)),
     };
 
@@ -11777,7 +11777,7 @@ fn eval_form_matches(
     let field_names: Vec<String> = sym
         .types()
         .and_then(|t| match t.get(type_name) {
-            Some(crate::types::TypeDef::Aggregate(a)) if a.holder == crate::types::Holder::Struct => {
+            Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
                 Some(a.fields.iter().map(|(n, _)| n.clone()).collect())
             }
             _ => None,
@@ -12688,7 +12688,7 @@ fn eval_kernel_here(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBrea
 /// - First arg is a keyword (the struct's type name).
 /// - Remaining args evaluate; their count becomes the field count.
 ///
-/// Emits `Value::Aggregate(holder=Struct)` with the class FQDN and positional fields.
+/// Emits `Value::Aggregate(nature=Struct)` with the class FQDN and positional fields.
 /// Arity vs field-count mismatch is enforced by the type checker at
 /// the bare `<struct>` ctor scheme — this primitive trusts the caller.
 fn eval_struct_new(
@@ -12807,7 +12807,7 @@ fn eval_variant(
 /// baked in.
 ///
 /// Validates:
-/// - First arg evaluates to a `Value::Aggregate(holder=Struct)`.
+/// - First arg evaluates to a `Value::Aggregate(nature=Struct)`.
 /// - Second arg is an integer literal in range `[0, fields.len())`.
 ///
 /// Returns the field value by position. Bounds and type alignment are
@@ -12829,7 +12829,7 @@ fn eval_struct_field(
     }
     let struct_val = eval_inner(&args[0], env, sym)?.value_owned();
     // Arc 293.R2.2 — accept ANY Value::Aggregate (unified repr post-R2.1;
-    // STOP-3 resolution: the old Holder::Struct guard was a pre-unification
+    // STOP-3 resolution: the old Nature::Struct guard was a pre-unification
     // artifact; record + holon-record field accessors now use this same
     // primitive via register_aggregate_methods).
     let inner = match struct_val {
@@ -13234,7 +13234,7 @@ fn try_match_pattern(
                 // Dispatch on scrutinee receiver type. Arc 293.R2.1 — Aggregate.
                 match value {
                     // Record/HolonRecord → keyword_accessor_record.
-                    Value::Aggregate(a) if a.holder != Holder::Struct => {
+                    Value::Aggregate(a) if a.nature != Nature::Struct => {
                         let mut env = outer.clone();
                         for (var_name, bare_field) in &pairs {
                             let field_val = keyword_accessor_record(
@@ -13972,7 +13972,7 @@ fn conforms_check(
                     if stripped_name == "wat::core::Record" || stripped_name == "wat::holon::Record" {
                         return Ok(matches!(
                             value,
-                            Value::Aggregate(a) if a.holder != Holder::Struct
+                            Value::Aggregate(a) if a.nature != Nature::Struct
                         ));
                     }
                     Ok(concrete_type_name_matches(value, name))
@@ -14275,13 +14275,13 @@ fn eval_subtype(
 /// `(:wat::core::Record::of <class: :wat::core::keyword> <fields: Vector<T>>)`
 /// → `:wat::core::Record` — arc 237 Stone S-C.3 (BASE constructor; no hologram).
 ///
-/// Substrate constructor for `Value::Aggregate(holder=Record)`. Takes two args:
+/// Substrate constructor for `Value::Aggregate(nature=Record)`. Takes two args:
 /// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Pt`); the keyword's stored
 ///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
 ///   `class` field (e.g. `"myapp::Pt"`).
 /// - `fields`: `Vector<T>` of field values in declaration order.
 ///
-/// Returns `Value::Aggregate { class, fields, holder: Record, holon: Empty }`.
+/// Returns `Value::Aggregate { class, fields, nature: Record, holon: Empty }`.
 /// Consumed by the Stone S-C.3 `:wat::core::defrecord` (BASE) macro.
 fn eval_record_of(
     args: &[WatAST],
@@ -14335,14 +14335,14 @@ fn eval_record_of(
 /// `(:wat::holon::Record::of <class: :wat::core::keyword> <fields: Vector<T>> <hologram: HolonAST>)`
 /// → `:wat::holon::Record` — arc 234 Stone 234.2a (renamed from `:wat::core::Record::of` at Stone S-C.3).
 ///
-/// Substrate constructor for `Value::Aggregate(holder=HolonRecord)`. Takes three args:
+/// Substrate constructor for `Value::Aggregate(nature=HolonRecord)`. Takes three args:
 /// - `class`: a `:wat::core::keyword` FQDN (e.g. `:myapp::Voltage`); the keyword's stored
 ///   Arc<String> carries the leading `:` which is stripped to produce the colon-free
 ///   `class` field (e.g. `"myapp::Voltage"`).
 /// - `fields`: `Vector<T>` of field values in declaration order.
 /// - `hologram`: pre-built HolonAST classifier-wrap `Bind(Atom(class), Bundle(field-Binds...))`.
 ///
-/// Returns `Value::Aggregate { class, fields, holder: HolonRecord, holon: Hologram(hologram) }`.
+/// Returns `Value::Aggregate { class, fields, nature: HolonRecord, holon: Hologram(hologram) }`.
 /// Consumed by the Stone S-C.3 `:wat::holon::defrecord` (HOLONIC) macro.
 fn eval_holon_record_of(
     args: &[WatAST],
@@ -14417,7 +14417,7 @@ fn eval_holon_record_of(
 /// Capacity is checked via the shared `bundle_capacity_verdict` guard (Arc 294.c.2a).
 /// Exceeded capacity → loud `RuntimeError` (construction cannot return a Result).
 ///
-/// Called by `eval_aggregate_new` for `Holder::HolonRecord`; the caller already
+/// Called by `eval_aggregate_new` for `Nature::HolonRecord`; the caller already
 /// holds `ctx` from `require_encoding_ctx`.
 fn build_holon_hologram(
     class: &str,
@@ -14465,8 +14465,8 @@ fn build_holon_hologram(
 
 /// Arc 294.c.2a — `(:wat::core::aggregate-new :T field…)`.
 ///
-/// The ONE holder-dispatched aggregate constructor. Looks up `:T`'s `AggregateDef`
-/// in the TypeEnv, reads `a.holder` + field names, validates arity, evaluates each
+/// The ONE nature-dispatched aggregate constructor. Looks up `:T`'s `AggregateDef`
+/// in the TypeEnv, reads `a.nature` + field names, validates arity, evaluates each
 /// field expression, then builds the appropriate `AggregateValue`:
 ///   Struct      → `AggregateValue::struct_(class, fields)`
 ///   Record      → `AggregateValue::record(class, Arc::new(fields))`
@@ -14549,14 +14549,14 @@ fn eval_aggregate_new(
         } }.into());
     }
 
-    match agg.holder {
-        crate::types::Holder::Struct => {
+    match agg.nature {
+        crate::types::Nature::Struct => {
             Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(class, fields))))
         }
-        crate::types::Holder::Record => {
+        crate::types::Nature::Record => {
             Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(fields)))))
         }
-        crate::types::Holder::HolonRecord => {
+        crate::types::Nature::HolonRecord => {
             let field_names: Vec<String> = agg.field_names().map(|s| s.to_string()).collect();
             let ctx = require_encoding_ctx(OP, sym, list_span)?;
             let hologram = build_holon_hologram(&class, &field_names, &fields, ctx, list_span)?;
@@ -14669,7 +14669,7 @@ fn parse_projection_args<'a>(
 // project down to a struct; `$struct` is the impure tier; you already hold the struct in locus.
 // Retirement entry lives in `src/remedy/retirement.rs`.
 
-/// Arc 293 K3-revise — `(:wat::core::to-record x :S)` → `:S$core-record` (Record holder).
+/// Arc 293 K3-revise — `(:wat::core::to-record x :S)` → `:S$core-record` (Record nature).
 fn eval_to_core_record(
     args: &[WatAST],
     list_span: &Span,
@@ -14683,7 +14683,7 @@ fn eval_to_core_record(
     Ok(Value::Aggregate(Arc::new(AggregateValue::record(class, Arc::new(field_values)))))
 }
 
-/// Arc 293 K3 — `(:wat::holon::to-record x :S)` → `:S$holon-record` (HolonRecord holder;
+/// Arc 293 K3 — `(:wat::holon::to-record x :S)` → `:S$holon-record` (HolonRecord nature;
 /// hologram derived internally from the projected field values).
 fn eval_to_holon_record(
     args: &[WatAST],
@@ -14735,7 +14735,7 @@ fn eval_record_field_at(
 
     // Arc 293.R2.1 — Aggregate (Record/HolonRecord): positional field store.
     let fields = match record_val {
-        Value::Aggregate(a) if a.holder != Holder::Struct => a.fields.clone(),
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.clone(),
         other => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -14776,7 +14776,7 @@ fn eval_record_field_at(
 
 /// `(:wat::core::record? v)` — arc 234 Stone 234.3a.
 ///
-/// Polymorphic predicate: true iff `v` is `Value::Aggregate` (Record or HolonRecord holder).
+/// Polymorphic predicate: true iff `v` is `Value::Aggregate` (Record or HolonRecord nature).
 /// Accepts any value (∀T) and returns bool. Mirrors `:wat::core::vector?` / `:wat::core::map?` family.
 fn eval_record_q(
     args: &[WatAST],
@@ -14793,8 +14793,8 @@ fn eval_record_q(
         } }.into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
-    // Arc 293.R2.1 — Aggregate with Record or HolonRecord holder is a record.
-    Ok(Value::bool(matches!(v, Value::Aggregate(ref a) if a.holder != Holder::Struct)))
+    // Arc 293.R2.1 — Aggregate with Record or HolonRecord nature is a record.
+    Ok(Value::bool(matches!(v, Value::Aggregate(ref a) if a.nature != Nature::Struct)))
 }
 
 /// `(:wat::core::List? v)` — arc 249 Stone 249.3a.
@@ -14845,14 +14845,14 @@ fn record_field_map(
 ) -> Result<Value, EvalBreak> {
     // Arc 293.R2.1 — Aggregate (Record/HolonRecord).
     match v {
-        Value::Aggregate(a) if a.holder != Holder::Struct => {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
             let type_key = format!(":{}", a.class);
             let types = sym.types().ok_or_else(|| RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: op.into(),
                 reason: "record->map requires the type registry".into()
             } })?;
             let record_def = match types.get(&type_key) {
-                Some(crate::types::TypeDef::Aggregate(agg)) if agg.holder != crate::types::Holder::Struct => agg,
+                Some(crate::types::TypeDef::Aggregate(agg)) if agg.nature != crate::types::Nature::Struct => agg,
                 _ => {
                     return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                         head: op.into(),
@@ -14942,7 +14942,7 @@ fn eval_record_same_data(
 
 /// `(:wat::core::Record/assoc record key new-value)` — arc 234 Stone 234.3b.
 ///
-/// Write verb in the polymorphic record-y family. Returns a NEW `Value::Aggregate` (same holder)
+/// Write verb in the polymorphic record-y family. Returns a NEW `Value::Aggregate` (same nature)
 /// with the field named by `key` replaced by `new-value`. The original record is
 /// unchanged (immutable; Arc-functional).
 ///
@@ -14968,7 +14968,7 @@ fn record_assoc_inner(
 
     // Arc 293.R2.1 — unified Aggregate path (Record + HolonRecord).
     let agg = match record_val {
-        Value::Aggregate(a) if a.holder != Holder::Struct => a,
+        Value::Aggregate(a) if a.nature != Nature::Struct => a,
         other => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -15000,7 +15000,7 @@ fn record_assoc_inner(
     } })?;
     // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
     let record_def = match types.get(&type_key) {
-        Some(crate::types::TypeDef::Aggregate(a)) if a.holder != crate::types::Holder::Struct => a,
+        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
         _ => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
@@ -15089,7 +15089,7 @@ fn record_assoc_inner(
     Ok(Value::Aggregate(Arc::new(AggregateValue {
         class: agg.class.clone(),
         fields: new_fields_arc,
-        holder: agg.holder,
+        nature: agg.nature,
         holon: new_holon,
     })))
 }
@@ -22672,7 +22672,7 @@ fn thread_died_error_panic(
 /// Convert an [`AssertionPayload`] into a `:wat::kernel::Failure`
 /// `Value::Aggregate(Record)`. Field order mirrors the type registration:
 /// `(message, location, frames, actual, expected)`.
-/// Arc 293.W.2b — Failure is now Holder::Record (pure EDN data; all fields pure).
+/// Arc 293.W.2b — Failure is now Nature::Record (pure EDN data; all fields pure).
 fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
     let crate::assertion::AssertionPayload {
         message,
@@ -22721,7 +22721,7 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
 
 /// Convert a `Span` into a `:wat::kernel::Location` `Value::Aggregate(Record)`.
 /// Field order: `(file, line, col)`.
-/// Arc 293.W.2b — Location is now Holder::Record (pure EDN data).
+/// Arc 293.W.2b — Location is now Nature::Record (pure EDN data).
 fn value_from_span(span: crate::span::Span) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Location".into(),
@@ -22737,7 +22737,7 @@ fn value_from_span(span: crate::span::Span) -> Value {
 /// into a `:wat::kernel::Frame` `Value::Aggregate(Record)`. Field order matches
 /// the arc 016 type registration: `(file, line, symbol)`. The
 /// callee path becomes the `symbol` field.
-/// Arc 293.W.2b — Frame is now Holder::Record (pure EDN data).
+/// Arc 293.W.2b — Frame is now Nature::Record (pure EDN data).
 fn value_from_frame_info(frame: FrameInfo) -> Value {
     let FrameInfo { callee_path, call_span } = frame;
     Value::Aggregate(Arc::new(AggregateValue::record(
@@ -23246,7 +23246,7 @@ fn eval_died_error_to_failure(
 /// Build a `:wat::kernel::Failure` `Value::Aggregate(Record)` with just the
 /// message populated; actual / expected / location are `:wat::core::None`,
 /// frames is empty `Vec<Frame>`.
-/// Arc 293.W.2b — Failure is now Holder::Record (pure EDN data).
+/// Arc 293.W.2b — Failure is now Nature::Record (pure EDN data).
 fn message_only_failure(message: String) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Failure".into(),
@@ -25323,7 +25323,7 @@ fn is_mutation_head(head: &str) -> bool {
 // The Option wrap added in Stone 4.6a-ii lets close' consume the peer and
 // lets send'/recv' detect use-after-close (None → RuntimeError).
 
-/// §7 wire-wall (OUTBOUND): a bare `Holder::Struct` value must not be WRITTEN to a
+/// §7 wire-wall (OUTBOUND): a bare `Nature::Struct` value must not be WRITTEN to a
 // ── RETIRED arc 293.W.2a (deleted by arc 293.W.2d) ───────────────────────────
 // `reject_non_portable_on_wire` — deleted. The §7 runtime send-side guard that
 // refused a bare struct at the wire-serialize step is superseded by the
@@ -28330,7 +28330,7 @@ mod tests {
         match v {
             Value::Result(r) => match &*r {
                 Err(err) => match err {
-                    Value::Aggregate(sv) if sv.holder == Holder::Struct && sv.class == "wat::core::EvalError" => {
+                    Value::Aggregate(sv) if sv.nature == Nature::Struct && sv.class == "wat::core::EvalError" => {
                         let kind = match &sv.fields[0] {
                             Value::String(s) => (**s).clone(),
                             _ => panic!("EvalError.kind not String"),
@@ -28946,7 +28946,7 @@ mod tests {
 
     fn explain_fields(v: &Value) -> &[Value] {
         match v {
-            Value::Aggregate(sv) if sv.holder == Holder::Struct && sv.class == "wat::holon::CoincidentExplanation" => {
+            Value::Aggregate(sv) if sv.nature == Nature::Struct && sv.class == "wat::holon::CoincidentExplanation" => {
                 assert_eq!(sv.fields.len(), 6);
                 sv.fields.as_slice()
             }

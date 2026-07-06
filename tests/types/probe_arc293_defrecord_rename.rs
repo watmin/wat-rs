@@ -9,7 +9,7 @@
 //!
 //! The rename was SURGICAL: only the `::def` macro moved. The sibling names survive untouched —
 //! `:wat::core::Record::of` (the ctor primitive), `:wat::core::Record/field-at` (the accessor), and `:wat::core::Record`
-//! (the holder TYPE / lattice root). The fix-wat `rename-keyword-prefix` is boundary-aware and nothing
+//! (the nature TYPE / lattice root). The fix-wat `rename-keyword-prefix` is boundary-aware and nothing
 //! else started with `:wat::core::Record::def`, so the prefix match was exact.
 //!
 //! RED at the pre-rename HEAD: `:wat::core::defrecord` / `:wat::holon::defrecord` were unknown

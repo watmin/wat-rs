@@ -2,8 +2,8 @@
 //!
 //! Records already construct via the bare type name (`(:Pt 1 2)` — the defrecord macro emits a bare-name `defn`
 //! ctor). Structs and newtypes are the holdouts: they construct only via `:T/new` (`register_struct_methods` /
-//! `register_newtype_methods` mint at `{T}/new`). This breaks "the only variance is the holder" — construction
-//! FORM differs by holder for no reason. 293.R2.3 mints the ctor at the BARE name for structs + newtypes too, and
+//! `register_newtype_methods` mint at `{T}/new`). This breaks "the only variance is the nature" — construction
+//! FORM differs by nature for no reason. 293.R2.3 mints the ctor at the BARE name for structs + newtypes too, and
 //! annihilates `/new` (builder's decided call, NOTE-base-struct-horizon: "every type-name is its own constructor").
 //!
 //! RED at HEAD: `(:b::Pt 3 4)` / `(:b::Price 38)` are unresolved. GREEN after R2.3 — `(:b::probe)` = 41.

@@ -62,7 +62,7 @@ use crate::compose::DepRegistrar;
 use crate::freeze::{startup_from_source, FrozenWorld};
 use crate::load::{FsLoader, SourceLoader};
 use crate::runtime::{apply_function, Function, Value};
-use crate::types::Holder;
+use crate::types::Nature;
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::source::{self, WatSource};
 use crate::types::TypeExpr;
@@ -643,7 +643,7 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
     use wat_edn::{Keyword, OwnedValue, Tag};
 
     let sv = match v {
-        Value::Aggregate(a) if a.holder == Holder::Struct && a.class == "wat::kernel::RunResult" => a,
+        Value::Aggregate(a) if a.nature == Nature::Struct && a.class == "wat::kernel::RunResult" => a,
         _ => {
             return Some(make_simple_edn(
                 "MalformedTestResult",
@@ -668,7 +668,7 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
         None => return None,
     };
     let fv = match failure {
-        Value::Aggregate(a) if a.holder == Holder::Record && a.class == "wat::kernel::Failure" => a,
+        Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Failure" => a,
         _ => {
             return Some(make_simple_edn(
                 "MalformedTestResult",
@@ -886,7 +886,7 @@ fn failure_location(v: &Value) -> Option<String> {
     };
     let inner = opt.as_ref().as_ref()?;
     let loc = match inner {
-        Value::Aggregate(a) if a.holder == Holder::Record && a.class == "wat::kernel::Location" => a,
+        Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Location" => a,
         _ => return None,
     };
     let file = match loc.fields.first()? {
@@ -918,7 +918,7 @@ fn failure_frames_vec(v: &Value) -> Option<Vec<String>> {
     let mut out = Vec::with_capacity(xs.len());
     for frame_v in xs.iter() {
         let f = match frame_v {
-            Value::Aggregate(a) if a.holder == Holder::Record && a.class == "wat::kernel::Frame" => a,
+            Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Frame" => a,
             _ => continue,
         };
         let file = f
@@ -1012,7 +1012,7 @@ mod arc116_diagnostic_tests {
     ) -> Value {
         let location_field = match location {
             Some((file, line, col)) => Value::Option(Arc::new(Some(Value::Aggregate(Arc::new(
-                // Arc 293.W.2b — Location is now Holder::Record (pure EDN data)
+                // Arc 293.W.2b — Location is now Nature::Record (pure EDN data)
                 AggregateValue::record("wat::kernel::Location".into(), Arc::new(vec![
                     Value::String(Arc::new(file.to_string())),
                     Value::i64(line),
@@ -1029,7 +1029,7 @@ mod arc116_diagnostic_tests {
             Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s.to_string()))))),
             None => Value::Option(Arc::new(None)),
         };
-        // Arc 293.W.2b — Failure is now Holder::Record (pure EDN data)
+        // Arc 293.W.2b — Failure is now Nature::Record (pure EDN data)
         Value::Aggregate(Arc::new(AggregateValue::record("wat::kernel::Failure".into(), Arc::new(vec![
             Value::String(Arc::new(message.to_string())),
             location_field,

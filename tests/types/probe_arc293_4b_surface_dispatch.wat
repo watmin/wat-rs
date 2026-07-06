@@ -12,7 +12,7 @@
 ;; `defn :T/method`, NOT an `extend:<P>:<T>` impl).
 
 (:wat::core::defsurface :t::Shape
-  :holder :wat::core::Struct
+  :nature :wat::core::Struct
   :features [(area [self <- :t::Shape] -> :wat::core::f64)])
 
 (:wat::core::defrecord :t::Circle [radius <- :wat::core::f64])

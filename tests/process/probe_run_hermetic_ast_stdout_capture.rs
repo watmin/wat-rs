@@ -53,7 +53,7 @@ fn probe_run_hermetic_ast_child_stdout_captured() {
 
     // result is :wat::kernel::RunResult { stdout stderr failure }
     let sv = match &result {
-        Value::Aggregate(s) if s.holder == wat::Holder::Struct && s.class == "wat::kernel::RunResult" => s,
+        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
         other => panic!("expected RunResult Struct; got {:?}", other),
     };
 

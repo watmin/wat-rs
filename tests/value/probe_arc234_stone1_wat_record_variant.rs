@@ -4,11 +4,11 @@
 //! the substrate scaffolding for the wat-record hologram:
 //!
 //!   - `Value::wat__core__Record { class_fqdn, struct_form, holon_form }` variant exists
-//!   - PartialEq impl keys on (holder, class, fields) — identity is the EDN data,
+//!   - PartialEq impl keys on (nature, class, fields) — identity is the EDN data,
 //!     hologram is a derived index (arc 294.c.1, flaw #7 collapse).
 //!     > SUPERSEDED 2026-06-28 by arc 294.c.1: was "delegates to holon_form (per Stone
 //!     > 221.5 canonical bytes seed + arc 234 DESIGN equality section)".
-//!   - Hash impl keys on (holder, class, fields), consistent with PartialEq (arc 294.c.1).
+//!   - Hash impl keys on (nature, class, fields), consistent with PartialEq (arc 294.c.1).
 //!     > SUPERSEDED 2026-06-28 by arc 294.c.1: was "delegates to holon_form".
 //!   - Display impl renders `<class_fqdn>(<field_1>, <field_2>, ...)`
 //!   - Value::type_name() returns `"wat::core::Record"` (generic kind; Stone 234.1.5 rename)
@@ -46,7 +46,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use wat::runtime::Value;
-use wat::{AggregateValue, Holder};
+use wat::{AggregateValue, Nature};
 use holon::HolonAST;
 
 /// Build a defrecord-instance-shape HolonAST: Bind(Atom(class), Bundle(field-Binds...))
@@ -71,7 +71,7 @@ fn make_holon_form(class: &str, fields: Vec<(&str, HolonAST)>) -> Arc<HolonAST> 
 }
 
 /// Construct a holon_record (Aggregate) fixture for tests.
-/// Arc 293.R2.1: wat__holon__Record collapsed to Value::Aggregate(AggregateValue{holder:HolonRecord}).
+/// Arc 293.R2.1: wat__holon__Record collapsed to Value::Aggregate(AggregateValue{nature:HolonRecord}).
 fn make_record(class: &str, fields: Vec<(&str, Value, HolonAST)>) -> Value {
     let struct_form: Arc<Vec<Value>> = Arc::new(fields.iter().map(|(_, v, _)| v.clone()).collect());
     let holon_field_pairs: Vec<(&str, HolonAST)> = fields
@@ -107,7 +107,7 @@ fn probe_1_variant_construction_compiles() {
     // Stone S-C.3: Value::wat__core__Record is now BASE (no holon_form);
     // the holonic variant is Value::wat__holon__Record.
     match &r {
-        Value::Aggregate(a) if a.holder == Holder::HolonRecord => {
+        Value::Aggregate(a) if a.nature == Nature::HolonRecord => {
             assert_eq!(a.class.as_str(), "myapp::Voltage");
             assert_eq!(a.fields.len(), 1);
             assert!(!format!("{:?}", a.holon).is_empty());
@@ -207,7 +207,7 @@ fn probe_6_debug_contains_class() {
     println!("Probe 6 Debug: {}", rendered);
     assert_eq!(
         rendered,
-        r#"Aggregate(AggregateValue { class: "myapp::Voltage", fields: [f64(5.0)], holder: HolonRecord, holon: Hologram(Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))]))) })"#,
+        r#"Aggregate(AggregateValue { class: "myapp::Voltage", fields: [f64(5.0)], nature: HolonRecord, holon: Hologram(Bind(Atom(String("myapp::Voltage")), Bundle([Bind(Atom(String("magnitude")), Atom(F64(5.0)))]))) })"#,
         "Probe 6: Debug output must match golden"
     );
 }

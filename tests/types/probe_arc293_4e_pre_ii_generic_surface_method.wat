@@ -11,7 +11,7 @@
 ;; `parse_defprotocol_form`), and the call-site check instantiates `T`.
 
 (:wat::core::defsurface :t::Maker
-  :holder :wat::core::Struct
+  :nature :wat::core::Struct
   :features [(make<T> [self <- :t::Maker  x <- :T] -> :T)])
 
 (:wat::core::defrecord :t::Id [tag <- :wat::core::i64])

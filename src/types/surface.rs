@@ -16,7 +16,7 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 
-use super::{Holder, SurfaceDef, SurfaceMember, TypeDef, TypeExpr, TypeError, TypeErrorKind};
+use super::{Nature, SurfaceDef, SurfaceMember, TypeDef, TypeExpr, TypeError, TypeErrorKind};
 
 const HEAD: &str = ":wat::core::defsurface";
 
@@ -305,9 +305,9 @@ fn parse_method_member_sig(
 /// consecutive non-List items as field-triple sub-runs and passes each to
 /// `parse_argspec_triples`; List items are parsed as Method members.
 pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    // Valid shape (arc 293 K0a — `:holder` is MANDATORY; the 3-arg bare-:features form is retired):
-    //   (:wat::core::defsurface :Name :holder :<holder-root> :features [members])  — 5 args only
-    // :holder is mandatory and MUST precede :features.
+    // Valid shape (arc 293 K0a — `:nature` is MANDATORY; the 3-arg bare-:features form is retired):
+    //   (:wat::core::defsurface :Name :nature :<nature-root> :features [members])  — 5 args only
+    // :nature is mandatory and MUST precede :features.
     // :features is MANDATORY — a member vector not introduced by :features is a MalformedDecl.
     if args.len() != 5 {
         return Err(TypeError {
@@ -315,8 +315,8 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             kind: TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
-                    "expected (:wat::core::defsurface :Name :holder :<holder-root> :features [members]); \
-                     :holder is mandatory — the bare :features-only form is retired; \
+                    "expected (:wat::core::defsurface :Name :nature :<nature-root> :features [members]); \
+                     :nature is mandatory — the bare :features-only form is retired; \
                      got {} args after head",
                     args.len()
                 ),
@@ -330,22 +330,22 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
     let name_kw = iter.next().unwrap();
     let (name, _type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
-    // Slot 1 — either `:holder` keyword or `:features` keyword.
+    // Slot 1 — either `:nature` keyword or `:features` keyword.
     let next = iter.next().unwrap();
-    let holder: Option<Holder> = match &next {
-        WatAST::Keyword(k, _) if k == ":holder" => {
-            // Slot 2 — holder-value keyword.
+    let nature: Option<Nature> = match &next {
+        WatAST::Keyword(k, _) if k == ":nature" => {
+            // Slot 2 — nature-value keyword.
             let val_node = iter.next().unwrap();
-            let holder_val = match &val_node {
+            let nature_val = match &val_node {
                 WatAST::Keyword(v, _) => {
-                    match Holder::from_root_keyword(v.as_str()) {
+                    match Nature::from_root_keyword(v.as_str()) {
                         Some(h) => h,
                         None => return Err(TypeError {
                             span: val_node.span().clone(),
                             kind: TypeErrorKind::MalformedDecl {
                                 head: HEAD.into(),
                                 reason: format!(
-                                    ":holder value must be a holder-root symbol (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record); got {}",
+                                    ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record); got {}",
                                     v
                                 ),
                             },
@@ -357,12 +357,12 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                         span: other.span().clone(),
                         kind: TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
-                            reason: ":holder value must be a keyword (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record)".into(),
+                            reason: ":nature value must be a keyword (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record)".into(),
                         },
                     });
                 }
             };
-            // Slot 3 — REQUIRE :features keyword (holder MUST precede features).
+            // Slot 3 — REQUIRE :features keyword (nature MUST precede features).
             let features_kw = iter.next().unwrap();
             match &features_kw {
                 WatAST::Keyword(k, _) if k == ":features" => {}
@@ -371,23 +371,23 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                         span: other.span().clone(),
                         kind: TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
-                            reason: "expected :features clause after :holder value — \
-                                     (:wat::core::defsurface :Name :holder :<kw> :features [members])"
+                            reason: "expected :features clause after :nature value — \
+                                     (:wat::core::defsurface :Name :nature :<kw> :features [members])"
                                 .into(),
                         },
                     });
                 }
             }
-            Some(holder_val)
+            Some(nature_val)
         }
         WatAST::Keyword(k, _) if k == ":features" => {
-            // Arc 293 K0a — :holder is mandatory; the bare :features-only form is retired.
+            // Arc 293 K0a — :nature is mandatory; the bare :features-only form is retired.
             return Err(TypeError {
                 span: next.span().clone(),
                 kind: TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
-                    reason: "`:holder` is mandatory — found `:features` where `:holder` was expected; \
-                             write (:wat::core::defsurface :Name :holder :<holder-root> :features [members])"
+                    reason: "`:nature` is mandatory — found `:features` where `:nature` was expected; \
+                             write (:wat::core::defsurface :Name :nature :<nature-root> :features [members])"
                         .into(),
                 },
             });
@@ -397,7 +397,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 span: other.span().clone(),
                 kind: TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
-                    reason: "expected :features clause (or :holder :<kw> :features) after surface name \
+                    reason: "expected :features clause (or :nature :<kw> :features) after surface name \
                              — (:wat::core::defsurface :Name :features [members]); \
                              a member vector not introduced by :features is a malformed declaration"
                         .into(),
@@ -468,7 +468,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
         name,
         type_params: vec![],
         members,
-        holder,
+        nature,
     }))
 }
 

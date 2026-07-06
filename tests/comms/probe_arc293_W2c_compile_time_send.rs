@@ -40,7 +40,7 @@ use wat::freeze::{startup_beside, startup_from_file};
 ///
 /// Arc 293.W.2d: the purity wall moved from `send'` time (2c, deleted) to wire-peer
 /// PRODUCER time. `peer-pair'<Struct,i64>` is a CHECK error because a struct is
-/// impure (Holder::Struct) and the producer's purity gate fires (§7 purity wall).
+/// impure (Nature::Struct) and the producer's purity gate fires (§7 purity wall).
 ///
 /// GREEN after 2d: `startup_beside` returns `Err` with a check error mentioning
 /// "pure", "struct", or "wire".

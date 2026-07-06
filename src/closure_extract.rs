@@ -35,7 +35,7 @@ use crate::ast::WatAST;
 use crate::scope::Identifier;
 use crate::runtime::{Function, FunctionBody, SymbolTable, Value};
 use crate::value::value::AggregateValue;
-use crate::types::Holder;
+use crate::types::Nature;
 use crate::span::{span_prefix, Span};
 use crate::types::{TypeDef, TypeEnv, TypeExpr};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -1146,7 +1146,7 @@ fn record_dep_dependency(
                     let opt = state.parent_types.get(name)
                         .or_else(|| state.captured_types.get(name));
                     match opt {
-                        Some(TypeDef::Aggregate(a)) => a.holder == crate::types::Holder::Struct,
+                        Some(TypeDef::Aggregate(a)) => a.nature == crate::types::Nature::Struct,
                         Some(TypeDef::Newtype(_)) => true,
                         _ => false,
                     }
@@ -1782,7 +1782,7 @@ fn encode_value_with_path(
                 ))
             }
         },
-        Value::Aggregate(a) if a.holder == Holder::Struct => {
+        Value::Aggregate(a) if a.nature == Nature::Struct => {
             // `(:my::Type/new f1 f2 ...)`. Extract the struct's TypeDef
             // for inclusion in package.forms.
             let type_name_with_colon = format!(":{}", a.class);
@@ -1875,8 +1875,8 @@ fn encode_value_with_path(
         }),
         // Arc 293.R2.1 — Aggregate (Record/HolonRecord): no closure-extract encoding yet.
         // The closure-extract path for records lands when the constructor form is available.
-        // No guard here — the Struct arm above catches holder==Struct, so this arm is
-        // reached only when holder!=Struct (Record/HolonRecord). Guard dropped so Rust's
+        // No guard here — the Struct arm above catches nature==Struct, so this arm is
+        // reached only when nature!=Struct (Record/HolonRecord). Guard dropped so Rust's
         // exhaustiveness checker sees Value::Aggregate(_) as fully covered.
         Value::Aggregate(_) => {
             Err(ExtractionError {
@@ -1938,7 +1938,7 @@ fn encode_struct(
     let type_name_with_colon = format!(":{}", sv.class);
     let field_names: Option<Vec<String>> = state.parent_types.get(&type_name_with_colon).and_then(|td| {
         if let TypeDef::Aggregate(a) = td {
-            if a.holder == crate::types::Holder::Struct {
+            if a.nature == crate::types::Nature::Struct {
                 Some(a.fields.iter().map(|(n, _)| n.clone()).collect())
             } else {
                 None
@@ -2021,7 +2021,7 @@ fn value_static_type_keyword(
             Ok(v) => format!(":wat::core::Result<{},:wat::core::nil>", value_static_type_keyword(v, state)?),
             Err(e) => format!(":wat::core::Result<:wat::core::nil,{}>", value_static_type_keyword(e, state)?),
         },
-        Value::Aggregate(a) if a.holder == Holder::Struct => {
+        Value::Aggregate(a) if a.nature == Nature::Struct => {
             let type_name_with_colon = format!(":{}", a.class);
             ensure_type_extracted(state, &type_name_with_colon);
             type_name_with_colon
@@ -2383,9 +2383,9 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
     // Reconstruct the source-form for a TypeDef.
     let span = crate::rust_caller_span!();
     match def {
-        // Arc 293.2b — Aggregate branches on holder to reconstruct the right source form.
-        TypeDef::Aggregate(a) => match a.holder {
-            crate::types::Holder::Struct => {
+        // Arc 293.2b — Aggregate branches on nature to reconstruct the right source form.
+        TypeDef::Aggregate(a) => match a.nature {
+            crate::types::Nature::Struct => {
                 // Stone 241.8 — emit defstruct triple-form: [field <- :T ...].
                 let mut field_vec_items = Vec::with_capacity(a.fields.len() * 3);
                 for (fname, fty) in &a.fields {
@@ -2404,12 +2404,12 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             }
             _ => {
                 // Stone S-B.1 — reconstruct recordtype form from AggregateDef.
-                // Arc 293 annihilation: parent field deleted; derive from holder.root_keyword().
+                // Arc 293 annihilation: parent field deleted; derive from nature.root_keyword().
                 WatAST::List(
                     vec![
                         WatAST::Keyword(":wat::core::recordtype".into(), span.clone()),
                         WatAST::Keyword(a.name.clone(), span.clone()),
-                        WatAST::Keyword(a.holder.root_keyword().to_string(), span.clone()),
+                        WatAST::Keyword(a.nature.root_keyword().to_string(), span.clone()),
                     ],
                     span,
                 )

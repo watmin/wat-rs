@@ -3,7 +3,7 @@
 //!
 //! THE INVERSION (294 DESIGN flaw #2/#7): `Value::Aggregate`'s Rust `PartialEq`/`Hash`
 //! key a HolonRecord's identity on the stored hologram (`HolonForm::Hologram`), while the
-//! wat-surface `=` (`values_equal`, runtime.rs) already keys on `(holder, class, fields)`.
+//! wat-surface `=` (`values_equal`, runtime.rs) already keys on `(nature, class, fields)`.
 //! Two equality contracts on one type, equivalent only by the construction invariant that
 //! the hologram is a pure function of the fields. 294 makes EDN the identity (Q-D): the
 //! hologram is a DERIVED index, never the identity.
@@ -12,7 +12,7 @@
 //! `(class, fields)` but DIVERGENT holograms.
 //!   - Today (RED): Rust `==` keys on the hologram → the two are UNEQUAL, and their hashes
 //!     differ — yet wat-`=` would call them equal. Split-brain.
-//!   - After 294.c.1 (GREEN): identity is `(holder, class, fields)` → the two are EQUAL and
+//!   - After 294.c.1 (GREEN): identity is `(nature, class, fields)` → the two are EQUAL and
 //!     hash-equal, regardless of hologram. ONE contract, on the data.
 //!
 //! Behaviour for normally-constructed records is unchanged: a derived hologram is a pure
@@ -85,7 +85,7 @@ fn divergent_holograms_over_identical_data_hash_equal() {
         hash_value(&a),
         hash_value(&b),
         "294.c.1: equal HolonRecords must hash equal (Hash/Eq consistency) — both must key \
-         on (holder, class, fields), never the hologram"
+         on (nature, class, fields), never the hologram"
     );
 }
 
@@ -108,8 +108,8 @@ fn different_fields_still_unequal() {
 }
 
 #[test]
-fn different_holder_still_unequal() {
-    // Same class + fields, different holder (Record vs HolonRecord) → unequal.
+fn different_nature_still_unequal() {
+    // Same class + fields, different nature (Record vs HolonRecord) → unequal.
     let class = "myapp::Voltage";
     let fields: Arc<Vec<Value>> = Arc::new(vec![Value::i64(42)]);
     let base = Value::Aggregate(Arc::new(AggregateValue::record(class.to_string(), fields.clone())));
@@ -118,5 +118,5 @@ fn different_holder_still_unequal() {
         fields.clone(),
         holon_form_with(class, "magnitude", 42),
     )));
-    assert_ne!(base, holon, "294.c.1: holder is part of identity — Record != HolonRecord");
+    assert_ne!(base, holon, "294.c.1: nature is part of identity — Record != HolonRecord");
 }

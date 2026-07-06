@@ -328,8 +328,8 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
 
         // ── Arc 293.R2.1 — Aggregate (Struct/Record/HolonRecord) ────
         Value::Aggregate(a) => {
-            let prefix = match a.holder {
-                crate::types::Holder::Struct => format!(":{}", a.class),
+            let prefix = match a.nature {
+                crate::types::Nature::Struct => format!(":{}", a.class),
                 _ => format!("<{}", a.class),
             };
             let mut out = format!("{}{{", prefix);
@@ -347,7 +347,7 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
                 out.push_str(&render_value(fv, depth + 1));
             }
             out.push('}');
-            if matches!(a.holder, crate::types::Holder::Record | crate::types::Holder::HolonRecord) {
+            if matches!(a.nature, crate::types::Nature::Record | crate::types::Nature::HolonRecord) {
                 out.push('>');
             }
             out

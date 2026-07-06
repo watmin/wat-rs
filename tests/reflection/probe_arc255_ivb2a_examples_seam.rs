@@ -23,7 +23,7 @@
 
 use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value};
-use wat::types::Holder;
+use wat::types::Nature;
 
 /// Freeze a bare world and eval `(:wat::intrinsic::examples)`, returning the
 /// value or a rendered error. RED at HEAD = `Err` (no dispatch arm for the seam).
@@ -57,7 +57,7 @@ fn examples_seam_returns_bytes_to_hex_runnable() {
         .iter()
         .filter_map(|e| match e {
             Value::Aggregate(a)
-                if a.holder != Holder::Struct && a.class == "wat::intrinsic::Example" =>
+                if a.nature != Nature::Struct && a.class == "wat::intrinsic::Example" =>
             {
                 Some(&a.fields)
             }

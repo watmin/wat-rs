@@ -1,4 +1,4 @@
-;; 293.R2 parity gate — ONE aggregate toolkit, holder is the only variance.
+;; 293.R2 parity gate — ONE aggregate toolkit, nature is the only variance.
 ;;
 ;; RED at HEAD: a GENERIC core-record (:r2::CR<T>) and a GENERIC holon-record (:r2::HR<T>) each
 ;; declare a field `v`, but their field accessors :r2::CR/v / :r2::HR/v are NEVER REGISTERED —
@@ -7,7 +7,7 @@
 ;; nothing. The GENERIC struct (:r2::ST<T>) works (register_struct_methods carries type_params +
 ;; uses the bare name) — the parity break.
 ;;
-;; GREEN after 293.R2a: one register_aggregate_methods mints accessors for all three holders,
+;; GREEN after 293.R2a: one register_aggregate_methods mints accessors for all three natures,
 ;; generic-aware, bare key — :r2::CR/v and :r2::HR/v resolve. (:r2::probe) => 60.
 ;;
 ;; Guard (must stay green): policy c — a holon record is accepted where a core :wat::core::Record is wanted.

@@ -8,7 +8,7 @@
 ;; wire peer producer is a compile-time check error (§7 purity wall).
 ;;
 ;; This fixture creates peer-pair' with a struct type arg — struct is impure
-;; (Holder::Struct) — the purity check at the producer fires at CHECK TIME.
+;; (Nature::Struct) — the purity check at the producer fires at CHECK TIME.
 ;; The world FAILS TO LOAD (startup_beside returns Err) with a check error
 ;; mentioning "pure", "struct", or "wire".
 ;;

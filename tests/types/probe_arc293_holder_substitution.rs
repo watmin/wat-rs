@@ -1,4 +1,4 @@
-//! Arc 293 — holder-lattice Liskov substitution probe.
+//! Arc 293 — nature-lattice Liskov substitution probe.
 //!
 //! Verifies the lattice rule: `HolonRecord <: Record <: Value`, with `Struct` on a
 //! separate branch.  Widening (holon → record) must be accepted; narrowing (record →
@@ -62,6 +62,6 @@ fn struct_rejected_where_record_wanted() {
     let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c5_bad.wat");
     assert!(
         world.is_err(),
-        "a struct must NOT satisfy :wat::core::Record (struct is a separate branch of the holder lattice)"
+        "a struct must NOT satisfy :wat::core::Record (struct is a separate branch of the nature lattice)"
     );
 }

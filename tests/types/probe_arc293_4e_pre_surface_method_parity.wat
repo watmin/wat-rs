@@ -10,7 +10,7 @@
 ;; right arity (and the generic `make<T>` resolves), at parity with arc-267 generic protocol methods.
 
 (:wat::core::defsurface :t::Maker
-  :holder :wat::core::Struct
+  :nature :wat::core::Struct
   :features [(make [self <- :t::Maker  x <- :wat::core::i64] -> :wat::core::i64)])
 
 (:wat::core::defrecord :t::Id [tag <- :wat::core::i64])

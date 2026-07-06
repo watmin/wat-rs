@@ -89,7 +89,7 @@
 ;; ─── BASE macro (:wat::core::Record::def) ──────────────────────────────────────────
 
 ;; Arc 294.c.2a — base defrecord macro routes through aggregate-new (the ONE
-;; holder-dispatched ctor). Drop the :wat::core::Record::of wrapper + field-extraction
+;; nature-dispatched ctor). Drop the :wat::core::Record::of wrapper + field-extraction
 ;; let; bare field syms splice directly as positional args to aggregate-new.
 ;; Arc 291 hygiene preserved: raw-ch/nf/syms dance keeps scope-tagged AST nodes.
 (:wat::core::defmacro :wat::core::defrecord
@@ -97,7 +97,7 @@
    fields <- :wat::WatAST]
   -> :wat::WatAST
   ;; Arc 293 surface-splice — the constructor `defn` is DELETED from this macro. The ctor
-  ;; is now minted (for EVERY aggregate holder) in `register_aggregate_methods` (runtime.rs)
+  ;; is now minted (for EVERY aggregate nature) in `register_aggregate_methods` (runtime.rs)
   ;; from the REGISTERED fields — so `~@:Surface` splices in the field vector are expanded
   ;; (at type registration) BEFORE the ctor is built, and records get splice for free.
   ;; The old expand-time `raw-ch/nf/syms` groups-of-3 walk (registry-blind, choked on `~@`)
@@ -111,13 +111,13 @@
 
 ;; Arc 293.R2.2 — accessor emission removed from BASE macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for
-;; every Aggregate holder (Struct + Record + HolonRecord): bare name, struct-field
+;; every Aggregate nature (Struct + Record + HolonRecord): bare name, struct-field
 ;; body, type_params-aware.  The ctor defn above stays exactly as-is.
 
 ;; ─── HOLONIC macro (:wat::holon::Record::def) ────────────────────────────────
 
 ;; Arc 294.c.2a — holonic defrecord macro routes through aggregate-new (the ONE
-;; holder-dispatched ctor). The entire hologram quasiquote (former lines ~157-197)
+;; nature-dispatched ctor). The entire hologram quasiquote (former lines ~157-197)
 ;; is DELETED — build_holon_hologram in Rust now derives the hologram internally.
 ;; Arc 291 hygiene preserved: raw-ch/nf/syms dance keeps scope-tagged AST nodes.
 (:wat::core::defmacro :wat::holon::defrecord
@@ -126,12 +126,12 @@
   -> :wat::WatAST
   ;; Arc 293 surface-splice — constructor `defn` DELETED (see the BASE macro above). The
   ;; holon ctor is minted in `register_aggregate_methods` from the registered fields; the
-  ;; `aggregate-new` body is holder-blind and derives the hologram internally for HolonRecord.
+  ;; `aggregate-new` body is nature-blind and derives the hologram internally for HolonRecord.
   ;; Bare `recordtype` decl — NO `do` wrapper (see the BASE macro's note).
   `(:wat::core::recordtype ~fqdn :wat::holon::Record
      [~@fields]))
 
 ;; Arc 293.R2.2 — accessor emission removed from HOLONIC macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for
-;; every Aggregate holder (Struct + Record + HolonRecord): bare name, struct-field
+;; every Aggregate nature (Struct + Record + HolonRecord): bare name, struct-field
 ;; body, type_params-aware.  The ctor defn above stays exactly as-is.

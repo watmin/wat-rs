@@ -121,60 +121,60 @@ pub struct StructRestrictions {
     pub field_restrictions: HashMap<String, Vec<String>>,
 }
 
-/// Arc 293.2b — `Holder` is the one categorical axis for aggregates: the EDN capability trit.
+/// Arc 293.2b — `Nature` is the one categorical axis for aggregates: the EDN capability trit.
 /// Three variants:
 ///   Struct      = named product type (stays in process, never crosses the wire)
 ///   Record      = base record (`:wat::core::Record` hierarchy, wire-portable)
 ///   HolonRecord = holonic record (`:wat::holon::Record` hierarchy, wire-portable + holon_form)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Holder {
+pub enum Nature {
     Struct,
     Record,
     HolonRecord,
 }
 
-impl Holder {
+impl Nature {
     /// The purity wall: `Struct` permits impurity (holds resources); `Record`/`HolonRecord` guarantee purity.
     /// Arc 293.W.2b — the purity predicate (was renamed from the symptom-name to the cause-name).
-    pub fn is_pure(&self) -> bool { !matches!(self, Holder::Struct) }
+    pub fn is_pure(&self) -> bool { !matches!(self, Nature::Struct) }
 
-    /// Arc 293 K1a — the capability-ladder rank (the balanced trit). A required `:holder` on a surface
+    /// Arc 293 K1a — the capability-ladder rank (the balanced trit). A required `:nature` on a surface
     /// is a FLOOR, not an exact kind: a candidate satisfies it iff `candidate.rank() >= required.rank()`.
-    /// So `:holder :Struct` (-1) accepts struct+record+holon, `:holder :Record` (0) accepts record+holon,
-    /// `:holder :HolonRecord` (+1) accepts holon only — the contravariant ladder of AGGREGATE-MODEL § principle 6.
+    /// So `:nature :Struct` (-1) accepts struct+record+holon, `:nature :Record` (0) accepts record+holon,
+    /// `:nature :HolonRecord` (+1) accepts holon only — the contravariant ladder of AGGREGATE-MODEL § principle 6.
     pub fn rank(&self) -> i8 {
         match self {
-            Holder::Struct => -1,
-            Holder::Record => 0,
-            Holder::HolonRecord => 1,
+            Nature::Struct => -1,
+            Nature::Record => 0,
+            Nature::HolonRecord => 1,
         }
     }
 
-    /// Arc 293 inheritance annihilation — the holder-root keyword for subtype edge registration.
+    /// Arc 293 inheritance annihilation — the nature-root keyword for subtype edge registration.
     /// Every parsed aggregate registers `:Name <: root_keyword()`.
     pub fn root_keyword(&self) -> &'static str {
         match self {
-            Holder::Struct => ":wat::core::Struct",
-            Holder::Record => ":wat::core::Record",
-            Holder::HolonRecord => ":wat::holon::Record",
+            Nature::Struct => ":wat::core::Struct",
+            Nature::Record => ":wat::core::Record",
+            Nature::HolonRecord => ":wat::holon::Record",
         }
     }
 
-    /// Strict inverse of `root_keyword` — the single canonical keyword→holder map.
-    /// Called by both the surface `:holder` parser and `parse_aggregate`.
-    /// Returns `None` for anything that is not a holder-root symbol.
-    pub fn from_root_keyword(kw: &str) -> Option<Holder> {
+    /// Strict inverse of `root_keyword` — the single canonical keyword→nature map.
+    /// Called by both the surface `:nature` parser and `parse_aggregate`.
+    /// Returns `None` for anything that is not a nature-root symbol.
+    pub fn from_root_keyword(kw: &str) -> Option<Nature> {
         match kw {
-            ":wat::core::Struct"  => Some(Holder::Struct),
-            ":wat::core::Record"        => Some(Holder::Record),
-            ":wat::holon::Record" => Some(Holder::HolonRecord),
+            ":wat::core::Struct"  => Some(Nature::Struct),
+            ":wat::core::Record"        => Some(Nature::Record),
+            ":wat::holon::Record" => Some(Nature::HolonRecord),
             _                     => None,
         }
     }
 }
 
 /// Arc 293.W.2b — `Purity` is the enum's purity axis, the sum-type counterpart of the aggregate's
-/// `Holder`. An enum has no *backing* (a sum is not "made of" a struct/record), so it declares
+/// `Nature`. An enum has no *backing* (a sum is not "made of" a struct/record), so it declares
 /// PURITY directly — whether its values hold only pure data or may hold live resources:
 ///   Pure   = values hold nothing but data (scalars, records, sums of data; fully EDN-reconstructable
 ///            anywhere); they serialize to EDN and cross an address-space boundary (process / remote).
@@ -192,7 +192,7 @@ pub enum Purity {
 
 impl Purity {
     /// The purity wall for enums: a `Pure` enum's values cross address spaces; an `Impure` enum's never do.
-    /// Read by `is_pure_type`'s enum arm (mirrors `Holder::is_pure`).
+    /// Read by `is_pure_type`'s enum arm (mirrors `Nature::is_pure`).
     pub fn is_pure(&self) -> bool { matches!(self, Purity::Pure) }
 
     /// The single canonical marker-keyword → purity map, for `parse_defenum`'s mandatory marker.
@@ -207,20 +207,20 @@ impl Purity {
 }
 
 /// Arc 293 inheritance annihilation — unified product-type declaration (replaces the annihilated
-/// `StructDef` + `RecordDef`). Carries `holder: Holder` as the sole categorical position. The
-/// `parent` field is DELETED: the holder IS the position; every parsed aggregate registers its
-/// subtype edge via `holder.root_keyword()`. Non-holder-root parents are rejected at parse time.
+/// `StructDef` + `RecordDef`). Carries `nature: Nature` as the sole categorical position. The
+/// `parent` field is DELETED: the nature IS the position; every parsed aggregate registers its
+/// subtype edge via `nature.root_keyword()`. Non-nature-root parents are rejected at parse time.
 ///
 /// Produced by:
-///   - `parse_defstruct` → `holder: Struct, restrictions: Some/None`
-///   - `parse_recordtype` → `holder: Record | HolonRecord, restrictions: None`
-///   - `register_builtin_types` → `holder: Struct` for all builtins
+///   - `parse_defstruct` → `nature: Struct, restrictions: Some/None`
+///   - `parse_recordtype` → `nature: Record | HolonRecord, restrictions: None`
+///   - `register_builtin_types` → `nature: Struct` for all builtins
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AggregateDef {
     pub name: String,
     pub type_params: Vec<String>,         // structs use; records leave empty
     pub fields: Vec<(String, TypeExpr)>,  // always-typed (D2)
-    pub holder: Holder,
+    pub nature: Nature,
     /// Arc 203 — access-control restrictions. Struct-only; always `None` for records.
     pub restrictions: Option<StructRestrictions>,
 }
@@ -243,7 +243,7 @@ pub struct EnumDef {
     pub name: String,
     pub type_params: Vec<String>,
     /// Arc 293.W.2b — the enum's purity, declared via the mandatory `:wat::enum::*` marker
-    /// on `defenum` (the sum-type counterpart of `AggregateDef.holder`).
+    /// on `defenum` (the sum-type counterpart of `AggregateDef.nature`).
     pub purity: Purity,
     pub variants: Vec<EnumVariant>,
 }
@@ -329,9 +329,9 @@ pub struct SurfaceDef {
     pub name: String,
     pub type_params: Vec<String>,
     pub members: Vec<SurfaceMember>,
-    /// Arc 293 R3 — optional categorical holder bound. `None` → pure-structural (today's behavior).
-    /// `Some(h)` → the aggregate's `holder` must equal `h` (enforced in `assignable`).
-    pub holder: Option<Holder>,
+    /// Arc 293 R3 — optional categorical nature bound. `None` → pure-structural (today's behavior).
+    /// `Some(h)` → the aggregate's `nature` must equal `h` (enforced in `assignable`).
+    pub nature: Option<Nature>,
 }
 
 /// One of the declaration variants (arc 293.2b: Struct+Record merged → Aggregate).
@@ -522,12 +522,12 @@ impl TypeEnv {
             validate_union_members(&name, &union.members, &span)?;
             check_union_no_cycle(&name, &union.members, self, &span)?;
         }
-        // Arc 293 inheritance annihilation — wire subtype edge derived from holder.
-        // parse_aggregate rejected any non-holder-root parent, so root_keyword() always
+        // Arc 293 inheritance annihilation — wire subtype edge derived from nature.
+        // parse_aggregate rejected any non-nature-root parent, so root_keyword() always
         // names a registered builtin. No ":wat::core::Value" skip needed: every parsed
-        // aggregate registers :Name <: holder.root_keyword().
+        // aggregate registers :Name <: nature.root_keyword().
         if let TypeDef::Aggregate(agg) = &def {
-            let root = agg.holder.root_keyword();
+            let root = agg.nature.root_keyword();
             self.types.insert(name.clone(), def);
             return self.register_subtype(&name, root, span);
         }
@@ -547,10 +547,10 @@ impl TypeEnv {
             "built-in type {} registered twice",
             name
         );
-        // Arc 293.W.2b — register the holder-root subtype edge for Aggregate builtins,
+        // Arc 293.W.2b — register the nature-root subtype edge for Aggregate builtins,
         // mirroring what `register` does for user-defined aggregates (types.rs:525-532).
         // Without this edge, builtin Record types (e.g. :wat::kernel::Failure after its
-        // Holder::Struct → Holder::Record flip) have no entry in `subtype_edges`, so
+        // Nature::Struct → Nature::Record flip) have no entry in `subtype_edges`, so
         // `is_subtype(":wat::kernel::Failure", ":wat::core::Record")` returns false and
         // the accessor param-type check (accessor param = :wat::core::Record for monomorphic
         // Record types) rejects callers passing the concrete type.
@@ -558,7 +558,7 @@ impl TypeEnv {
         // registering :wat::core::Struct <: :wat::core::Struct is a reflexive cycle).
         // Builtins are registered acyclically (root comes first), so unwrap is safe.
         if let TypeDef::Aggregate(agg) = &def {
-            let root = agg.holder.root_keyword();
+            let root = agg.nature.root_keyword();
             let child = name.clone();
             self.types.insert(name, def);
             if child != root {
@@ -615,15 +615,15 @@ impl TypeEnv {
 /// land here as the algebra grows; each entry documents why the
 /// declaration is `:wat::*`-scoped.
 fn register_builtin_types(env: &mut TypeEnv) {
-    // Arc 293 decl-a — :wat::core::Struct: the holder-root for all struct types.
+    // Arc 293 decl-a — :wat::core::Struct: the nature-root for all struct types.
     //
     // Registered FIRST so every subsequent parsed struct finds it in the registry.
     // Zero-field opaque root: user structs register :Name <: :wat::core::Struct via
-    // holder.root_keyword(). Value-top is an implicit rule in `is_subtype` — no
+    // nature.root_keyword(). Value-top is an implicit rule in `is_subtype` — no
     // lattice edge registered (analogous to :wat::core::Record). The type system synthesizes
     // `:wat::core::is-Struct?` via `register_type_predicates`.
     env.register_builtin(TypeDef::Aggregate(AggregateDef {
-        holder: Holder::Struct,
+        nature: Nature::Struct,
         name: ":wat::core::Struct".into(),
         type_params: vec![],
         fields: vec![],
@@ -636,7 +636,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // budget). The two fields are honest: cost is what the Bundle was
     // asked to hold; budget is what the substrate could hold. Both
     // i64 because wat integer literals are i64.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::holon::CapacityExceeded".into(),
         type_params: vec![],
         fields: vec![
@@ -721,7 +721,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Plus the constructor :wat::core::EvalError/new for cases where
     // user code wants to synthesize one (rare — normally produced by
     // the runtime).
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::core::EvalError".into(),
         type_params: vec![],
         fields: vec![
@@ -1007,7 +1007,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
     // location, and by future assertion primitives whose failure-payload
     // needs to cite file:line:col.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
         name: ":wat::kernel::Location".into(),
         type_params: vec![],
         fields: vec![
@@ -1024,7 +1024,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `RUST_BACKTRACE` is enabled (otherwise the frames vec is empty).
     // Each field is Option because Rust's backtrace symbol resolution
     // can fail per-frame (stripped symbols, jit frames).
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
         name: ":wat::kernel::Frame".into(),
         type_params: vec![],
         fields: vec![
@@ -1062,7 +1062,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Struct → Record. Location and Frame also flipped to Record (pure data, no live resources).
     // This is the 2616-cascade root: ThreadDiedError/ProcessDiedError (Pure enums) carry
     // `failure: Option<Failure>` — containment passes once Failure is a Record.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Record,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
         name: ":wat::kernel::Failure".into(),
         type_params: vec![],
         fields: vec![
@@ -1104,7 +1104,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // everything the sandboxed `:user::main` wrote through its stdio
     // channels, line by line. `failure` is `:None` on success; slice 2b
     // populates it with a `Failure` when `catch_unwind` catches.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::kernel::RunResult".into(),
         type_params: vec![],
         fields: vec![
@@ -1156,7 +1156,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Auto-generated `StartupError/new` + `StartupError/message`
     // accessor land in the symbol table at freeze time via
     // register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::kernel::StartupError".into(),
         type_params: vec![],
         fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
@@ -1198,7 +1198,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Auto-generated `Process/new` + per-field accessors land in the
     // symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::kernel::Process".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1246,7 +1246,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Auto-generated `Thread/new` + per-field accessors (`Thread/input`,
     // `Thread/output`, `Thread/join`) land in the symbol table at
     // freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::kernel::Thread".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1312,7 +1312,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // accessors directly — the substrate verbs reach into the struct
     // by index — but they exist for future stones and for diagnostic
     // introspection.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::kernel::ThreadPeer".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1393,7 +1393,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // behavior-preserving. The dishonest `rust::crossbeam_channel::*`
     // names are retired from the FIELD DECLARATIONS here (Stone C3);
     // the alias registrations in channel.wat remain as the alias target.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::kernel::ProcessPeer".into(),
         type_params: vec!["I".into(), "O".into()],
         fields: vec![
@@ -1455,7 +1455,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Auto-generated `CoincidentExplanation/new` + per-field accessors
     // land in the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::holon::CoincidentExplanation".into(),
         type_params: vec![],
         fields: vec![
@@ -1493,7 +1493,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Auto-generated `RunResultIO/new` + per-field accessors land in
     // the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::test::RunResultIO".into(),
         type_params: vec!["O".into()],
         fields: vec![
@@ -1531,7 +1531,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // contains the path and `env.types().get(":wat::core::Record")` resolves
     // cleanly. Per-class types (`:myapp::Voltage` as `:wat::core::Record` aliases)
     // ship in Stone 234.2b when the defrecord macro lands.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::core::Record".into(),
         type_params: vec![],
         fields: vec![],
@@ -1549,7 +1549,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `register_type_predicates` to synthesize `:wat::holon::is-Record?` for it
     // (same as `:wat::core::Record` already gets `:wat::is-Record?`). This is correct —
     // it is a type. See SCORE-STONE-S-A § Honest deltas.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { holder: Holder::Struct,
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::holon::Record".into(),
         type_params: vec![],
         fields: vec![],
@@ -1590,7 +1590,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
             })
             .collect();
         env.register_builtin(TypeDef::Aggregate(AggregateDef {
-            holder: Holder::Record,
+            nature: Nature::Record,
             name,
             type_params: vec![],
             fields,
@@ -1601,21 +1601,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
 /// Arc 293 K3 — derive the THREE backing aggregates from a surface declaration.
 ///
-/// For every `SurfaceDef` with a `holder`, emits THREE companion `TypeDef::Aggregate` values:
-///   - `<surface-name>$core-record`   (holder = Record)
-///   - `<surface-name>$holon-record`  (holder = HolonRecord)
+/// For every `SurfaceDef` with a `nature`, emits THREE companion `TypeDef::Aggregate` values:
+///   - `<surface-name>$core-record`   (nature = Record)
+///   - `<surface-name>$holon-record`  (nature = HolonRecord)
 /// Both share the same fields (surface's `Field` members only; methods excluded).
-/// The surface's own `:holder` governs satisfaction (who may pass `[x <- :S]` slots);
-/// these two backing types are always emitted regardless of the surface's holder so
+/// The surface's own `:nature` governs satisfaction (who may pass `[x <- :S]` slots);
+/// these two backing types are always emitted regardless of the surface's nature so
 /// callers may project at either pure tier via `to-record` / `:wat::holon::to-record`.
-/// RETIRED 293 K3-revise: `$struct` (Struct-holder backing) — projection is ONE-WAY UP;
+/// RETIRED 293 K3-revise: `$struct` (Struct-nature backing) — projection is ONE-WAY UP;
 /// `$struct` is the impure tier; you already have the struct in locus. See retirement.rs.
 ///
-/// Returns an empty Vec for surfaces without a `:holder` (abstract surfaces; defensive skip).
+/// Returns an empty Vec for surfaces without a `:nature` (abstract surfaces; defensive skip).
 /// Each flows through `register_aggregate_methods` (step 6.8a in freeze/env.rs) to
 /// auto-generate the ctor and per-field accessors — exactly as a hand-written aggregate would.
 fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
-    if surface.holder.is_none() {
+    if surface.nature.is_none() {
         return vec![];
     }
     let fields: Vec<(String, TypeExpr)> = surface
@@ -1626,21 +1626,21 @@ fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
             SurfaceMember::Method { .. } => None,
         })
         .collect();
-    // RETIRED 293 K3-revise: $struct (Struct-holder) removed — see retirement.rs.
+    // RETIRED 293 K3-revise: $struct (Struct-nature) removed — see retirement.rs.
     // A surface emits the PAIR: $core-record (portable EDN) + $holon-record (EDN + VSA).
     vec![
         TypeDef::Aggregate(AggregateDef {
             name: format!("{}$core-record", surface.name),
             type_params: vec![],
             fields: fields.clone(),
-            holder: Holder::Record,
+            nature: Nature::Record,
             restrictions: None,
         }),
         TypeDef::Aggregate(AggregateDef {
             name: format!("{}$holon-record", surface.name),
             type_params: vec![],
             fields,
-            holder: Holder::HolonRecord,
+            nature: Nature::HolonRecord,
             restrictions: None,
         }),
     ]
@@ -1999,7 +1999,7 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
                 ":wat::core::typeunion" => return Some("typeunion"),
                 // Stone S-B.1 — record class as a real TypeDef.
                 ":wat::core::recordtype" => return Some("recordtype"),
-                // Arc 293 decl-a — ONE type-reg primitive; holder derived from parent root.
+                // Arc 293 decl-a — ONE type-reg primitive; nature derived from parent root.
                 ":wat::core::aggregatetype" => return Some("aggregatetype"),
                 // Arc 293.3-core — structural surface.
                 ":wat::core::defsurface" => return Some("defsurface"),
@@ -2043,7 +2043,7 @@ fn parse_type_decl(
         "typeunion" => parse_typeunion(iter.collect(), decl_span),
         // Stone S-B.1 — record class as a real TypeDef; thin alias → parse_aggregate.
         "recordtype" => parse_aggregate(iter.collect(), decl_span, "recordtype", env),
-        // Arc 293 decl-a — ONE type-reg primitive; holder derived from parent root.
+        // Arc 293 decl-a — ONE type-reg primitive; nature derived from parent root.
         "aggregatetype" => parse_aggregate(iter.collect(), decl_span, "aggregatetype", env),
         // Arc 293.3-core — structural surface.
         "defsurface" => parse_defsurface(iter.collect(), decl_span),
@@ -2097,7 +2097,7 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
     // Slot 1 — MANDATORY purity marker (arc 293.W.2b): the enum DECLARES whether its values are pure
     // (hold only data, fully EDN-reconstructable anywhere) or impure (hold live resources, bound to
     // their locus). One of `:wat::enum::Pure` | `:wat::enum::Impure`, positional, immediately after
-    // the name. No default — a default would mask intent (the surface-`:holder`-mandatory rule).
+    // the name. No default — a default would mask intent (the surface-`:nature`-mandatory rule).
     // Being namespaced, it is unmistakable from the bare Capitalized variant keywords that follow.
     let purity = match iter.next() {
         Some(WatAST::Keyword(k, _)) if Purity::from_marker_keyword(&k).is_some() => {
@@ -2447,16 +2447,16 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result
 ///   args[2..N-1]  — optional metadata-map `{...}` (WatAST with `is_metadata_map() == true`)
 ///   args[last]    — field-vector `[field <- :T ...]` (WatAST::Vector)
 ///
-/// holder = `root_holder_of(parent)`:
-///   `:wat::core::Struct`    → `Holder::Struct`
-///   `:wat::core::Record`          → `Holder::Record`
-///   `:wat::holon::Record`   → `Holder::HolonRecord`
-///   (non-root record base)  → `Holder::Record`
+/// nature = `root_nature_of(parent)`:
+///   `:wat::core::Struct`    → `Nature::Struct`
+///   `:wat::core::Record`          → `Nature::Record`
+///   `:wat::holon::Record`   → `Nature::HolonRecord`
+///   (non-root record base)  → `Nature::Record`
 ///
 /// Parent validity (parent must be registered before this type) is enforced at registration
 /// time in `register_with_span` — identical to the existing `recordtype` check.
 ///
-/// Metadata (restrictions) is optional for ANY holder (GAP-5 capability built here, exposed
+/// Metadata (restrictions) is optional for ANY nature (GAP-5 capability built here, exposed
 /// in decl-b). Field parser is `defstruct::parse_aggregate_fields` (via `parse_argspec_triples`).
 ///
 /// `head` is the caller-supplied surface form name used in error messages ("aggregatetype",
@@ -2496,14 +2496,14 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
         }
     };
 
-    // Arc 293 inheritance annihilation — reject any parent that is not a holder-root.
+    // Arc 293 inheritance annihilation — reject any parent that is not a nature-root.
     // Reuse-of-shape is surface-splice (`[~@:Surface own <- :T]`), not nominal inheritance.
-    let holder = Holder::from_root_keyword(&parent).ok_or_else(|| TypeError {
+    let nature = Nature::from_root_keyword(&parent).ok_or_else(|| TypeError {
         span: decl_span.clone(),
         kind: TypeErrorKind::MalformedDecl {
             head: head.into(),
             reason: format!(
-                "parent '{}' is not a holder-root; inheritance is unsupported — reuse a shape via surface-splice `[~@:Surface \u{2026}]`",
+                "parent '{}' is not a nature-root; inheritance is unsupported — reuse a shape via surface-splice `[~@:Surface \u{2026}]`",
                 parent
             ),
         },
@@ -2518,7 +2518,7 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
         (Some(meta_node), fields_node)
     };
 
-    // Parse optional metadata-map (struct restrictions; GAP-5 capability available to any holder).
+    // Parse optional metadata-map (struct restrictions; GAP-5 capability available to any nature).
     let (ctor_whitelist, field_restrictions) = if let Some(meta_node) = metadata_node_opt {
         defstruct::parse_defstruct_metadata(meta_node)?
     } else {
@@ -2534,7 +2534,7 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
         Some(StructRestrictions { ctor_whitelist, field_restrictions })
     };
 
-    Ok(TypeDef::Aggregate(AggregateDef { name, type_params, fields, holder, restrictions }))
+    Ok(TypeDef::Aggregate(AggregateDef { name, type_params, fields, nature, restrictions }))
 }
 
 // Arc 293 decl-a — `parse_recordtype` ABSORBED into `parse_aggregate` (arc 293 decl-a).
@@ -3590,7 +3590,7 @@ mod tests {
     fn collect(src: &str) -> Result<(TypeEnv, Vec<WatAST>), TypeError> {
         let forms = crate::parse_all!(src).expect("parse ok");
         // Arc 293 decl-a — use with_builtins() so :wat::core::Struct (the new struct
-        // holder-root) is in the registry before user structs try to register against it.
+        // nature-root) is in the registry before user structs try to register against it.
         let mut env = TypeEnv::with_builtins();
         let rest = register_types(forms, &mut env)?;
         Ok((env, rest))
