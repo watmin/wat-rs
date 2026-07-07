@@ -1,36 +1,26 @@
-;; wat/query.wat — Arc 278 stone S0: the :wat::query backend-agnostic storage CONTRACT.
+;; wat/query.wat — Arc 278 stone S4: the :wat::query backend-agnostic storage CONTRACT, on the
+;; SERVICES-AS-SURFACES operation model.
 ;;
-;; Ratified in docs/arc/2026/06/278-rules-engine/DESIGN-store-contract.md. PURE DECLARATIONS
-;; ONLY — no backend, no logic. `Store`/`ReadStore` are methods-bearing surfaces (arc-293's
-;; defprotocol-subsuming form); a satisfier (`:wat::sqlite'::*` et al., stone S2) supplies the
-;; impls. The narrow waist is DynamoDB's (pk, sk, data) + named-GSI (ipk, isk) shape: all keys
-;; are EDN-form STRINGS the consumer serializes/hydrates; `data` is opaque EDN the backend never
-;; inspects (§ data model). `wat.query` (the rete-as-datalog filter) reasons over decoded
-;; records in working memory; the backend only ever hands it opaque pages.
+;; Ratified in docs/arc/2026/06/278-rules-engine/DESIGN-store-contract.md (S0), migrated to the
+;; operation model at S4 per arc 293 Path B (`823b20ac`): `Store` is now a `:nature :wat::kernel::Peer'`
+;; surface — a DIALED PEER of a `:satisfies Store` service IS a Store, intrinsically (no wrapper
+;; struct, no `extend-type`). The narrow waist is still DynamoDB's (pk, sk, data) + named-GSI
+;; (ipk, isk) shape: all keys are EDN-form STRINGS the consumer serializes/hydrates; `data` is
+;; opaque EDN the backend never inspects (§ data model). `wat.query` (the rete-as-datalog filter)
+;; reasons over decoded records in working memory; the backend only ever hands it opaque pages.
 ;;
-;; Two pinnings applied over the design doc's prose (`-> Ok` / `-> Page`):
-;;   - errors-are-values: every fallible method returns
-;;     `:wat::core::Result<T,wat::query::Error>` — never a bare success type.
-;;   - the error channel is an errors-as-record `defenum` on the RECOVERY axis (the caller's
-;;     forced branch: retry / surface / abort) — `:Transient` / `:Constraint` / `:Fatal`, each
-;;     carrying a `Fault` (op / code / diagnostic / message).
+;; ─── the operation model (S4) ──────────────────────────────────────────────────────────────────
+;; Every fallible/successful op returns a per-op OUTCOME ENUM named `Store::<Op>Response`
+;; (`:Success` first, then that op's own error variants — never a bare success type, never a
+;; generic `Result<T,Error>`). The error channel is an errors-as-record model on the RECOVERY axis
+;; (the caller's forced branch: retry / surface / abort) — `Transient` / `Constraint` / `Fatal`,
+;; each carrying a `reason <- Reason` (an OPEN surface — any pure record satisfies it; `Fault
+;; [message <- String]` is the concrete default a backend with nothing more structured reaches for).
 ;;
-;; Only outward refs: `:wat::core::*` (String/i64/keyword/nil/Vector/Option/HashMap/Struct/
-;; Result) + `:wat::enum::Pure`. Loads after `wat/core.wat` (defrecord/defenum/defsurface + those
-;; primitives); placed near the rete sources — this is the query engine's vocabulary.
-
-;; ─── the error channel — recovery-axis enum, each variant carrying a Fault ──────────────────
-(:wat::core::defrecord :wat::query::Fault
-  [op      <- :wat::core::keyword                          ;; which contract method faulted
-   code    <- :wat::core::i64                               ;; backend-native error code (0 if n/a)
-   diagnostic <- :wat::core::String                         ;; opaque backend-native diagnostic text (SQL text,
-                                                            ;; command trace, key — driver-supplied; NOT SQL-specific)
-   message <- :wat::core::String])                          ;; human-readable detail
-
-(:wat::core::defenum :wat::query::Error :wat::enum::Pure
-  :Transient  [fault <- :wat::query::Fault]                 ;; retry — the backend is momentarily unavailable
-  :Constraint [fault <- :wat::query::Fault]                 ;; surface — a schema/uniqueness violation
-  :Fatal      [fault <- :wat::query::Fault])                ;; abort — an unrecoverable backend condition
+;; Only outward refs: `:wat::core::*` (String/i64/keyword/nil/Vector/Option/HashMap/Struct) +
+;; `:wat::enum::Pure` + `:wat::kernel::Peer'`. Loads after `wat/core.wat` (defrecord/defenum/
+;; defsurface + those primitives) and `wat/service.wat` (the `Peer'` nature + `:satisfies`
+;; machinery); placed near the rete sources — this is the query engine's vocabulary.
 
 ;; ─── the write input ─────────────────────────────────────────────────────────────────────────
 (:wat::core::defrecord :wat::query::IndexKey                 ;; a named GSI's own projected keys
@@ -56,23 +46,9 @@
    isk  <- :wat::core::String
    data <- :wat::core::String])
 
-;; ─── the page requests — a prefix/range on the sort key (range subsumes prefix) ─────────────
-(:wat::core::defrecord :wat::query::ScanRequest               ;; a base-table page request
-  [pk     <- :wat::core::String
-   sk-lo  <- :wat::core::String
-   sk-hi  <- :wat::core::String
-   limit  <- :wat::core::i64
-   cursor <- (:wat::core::Option :wat::core::String)])       ;; None = first page; Some sk = resume after (keyset)
-
-(:wat::core::defrecord :wat::query::IndexScanRequest           ;; a GSI page request
-  [index  <- :wat::core::String
-   ipk    <- :wat::core::String
-   isk-lo <- :wat::core::String
-   isk-hi <- :wat::core::String
-   limit  <- :wat::core::i64
-   cursor <- (:wat::core::Option :wat::core::String)])
-
-;; ─── the pages — results + the keyset resume cursor ─────────────────────────────────────────
+;; ─── the pages — results + the keyset resume cursor (vocabulary; the operation model's own
+;; `Store::ScanResponse::Success`/`ScanIndexResponse::Success` carry rows+cursor directly rather
+;; than nesting one of these — kept as the shared shape for consumers that want to box a page) ────
 (:wat::core::defrecord :wat::query::Page
   [rows        <- (:wat::core::Vector :wat::query::Row)
    next-cursor <- (:wat::core::Option :wat::core::String)])
@@ -94,37 +70,90 @@
    ipk <- :wat::core::String
    isk <- :wat::core::String])
 
-;; ─── the contract — Store / ReadStore surfaces ──────────────────────────────────────────────
-;; :nature :wat::core::Struct — a satisfier holds a live connection (impure); the 293.W
-;; containment rule forbids a :Struct-nature surface field from crossing into a pure record /
-;; durable / wire form (a live connection cannot cross that boundary) — correct by construction.
+;; ─── the error vocabulary — recovery-axis records over an OPEN Reason surface ───────────────────
+;; `Reason` has zero features: any pure record satisfies it ambiently (mirrors
+;; `:wat::telemetry'::LogMessage`, wat/telemetry.wat) — no `extend-type`/`derive` needed.
+(:wat::core::defsurface :wat::query::Reason :nature :wat::core::Record :features [])
 
-(:wat::core::defsurface :wat::query::Store :nature :wat::core::Struct
+(:wat::core::defrecord :wat::query::Transient  [reason <- :wat::query::Reason]) ;; retry — momentarily unavailable
+(:wat::core::defrecord :wat::query::Constraint [reason <- :wat::query::Reason]) ;; surface — schema/uniqueness violation
+(:wat::core::defrecord :wat::query::Fatal      [reason <- :wat::query::Reason]) ;; abort — unrecoverable
+
+;; a concrete default `Reason` satisfier for a backend with nothing more structured to say.
+(:wat::core::defrecord :wat::query::Fault [message <- :wat::core::String])
+
+;; ─── per-op request/response records — convention-named `Store::<Op>Request`/`Store::<Op>Response`
+;; (the `defservice :satisfies` macro synthesizes req-ty/resp-ty from these exact names —
+;; wat/service.wat:1046-1051) ──────────────────────────────────────────────────────────────────
+
+(:wat::core::defrecord :wat::query::Store::EnsureSchemaRequest
+  [table   <- :wat::query::TableSchema
+   indexes <- (:wat::core::Vector :wat::query::IndexSchema)])
+
+(:wat::core::defenum :wat::query::Store::EnsureSchemaResponse :wat::enum::Pure
+  :Success    []
+  :Constraint [err <- :wat::query::Constraint]
+  :Fatal      [err <- :wat::query::Fatal])
+
+(:wat::core::defrecord :wat::query::Store::PutRequest
+  [rows <- (:wat::core::Vector :wat::query::StoredRow)])
+
+(:wat::core::defenum :wat::query::Store::PutResponse :wat::enum::Pure
+  :Success    []
+  :Constraint [err <- :wat::query::Constraint]
+  :Transient  [err <- :wat::query::Transient]
+  :Fatal      [err <- :wat::query::Fatal])
+
+(:wat::core::defrecord :wat::query::Store::ScanRequest         ;; a base-table page request
+  [pk     <- :wat::core::String
+   sk-lo  <- :wat::core::String
+   sk-hi  <- :wat::core::String
+   limit  <- :wat::core::i64
+   cursor <- (:wat::core::Option :wat::core::String)])        ;; None = first page; Some sk = resume after (keyset)
+
+(:wat::core::defenum :wat::query::Store::ScanResponse :wat::enum::Pure
+  :Success   [rows   <- (:wat::core::Vector :wat::query::Row)
+              cursor <- (:wat::core::Option :wat::core::String)]
+  :Transient [err <- :wat::query::Transient]
+  :Fatal     [err <- :wat::query::Fatal])
+
+(:wat::core::defrecord :wat::query::Store::ScanIndexRequest    ;; a GSI page request
+  [index  <- :wat::core::String
+   ipk    <- :wat::core::String
+   isk-lo <- :wat::core::String
+   isk-hi <- :wat::core::String
+   limit  <- :wat::core::i64
+   cursor <- (:wat::core::Option :wat::core::String)])
+
+(:wat::core::defenum :wat::query::Store::ScanIndexResponse :wat::enum::Pure
+  :Success   [rows   <- (:wat::core::Vector :wat::query::IndexRow)
+              cursor <- (:wat::core::Option :wat::core::String)]
+  :Transient [err <- :wat::query::Transient]
+  :Fatal     [err <- :wat::query::Fatal])
+
+;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
+;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed
+;; `Peer'<Store::Op,Store::Reply>` IS a Store INTRINSICALLY (arc 293 Path B) — no wrapper struct,
+;; no extend-type. `ReadStore` (the S0 read-only narrowing) is DELETED here: no live consumer, and
+;; its only satisfiers were the wrapper structs this stone removes; reintroduce as a Store-peer
+;; read-only narrowing when a real read-only consumer needs it.
+(:wat::core::defsurface :wat::query::Store :nature :wat::kernel::Peer'
   :features
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at
    ;; consumer init.
-   (ensure-schema [self <- :wat::query::Store  table <- :wat::query::TableSchema
-                   indexes <- (:wat::core::Vector :wat::query::IndexSchema)]
-     -> :wat::core::Result<wat::core::nil,wat::query::Error>)
+   (ensure-schema [self <- :wat::query::Store  req <- :wat::query::Store::EnsureSchemaRequest]
+     -> :wat::query::Store::EnsureSchemaResponse)
 
    ;; write a batch ATOMICALLY (one transaction). Each row carries its opaque data + the
    ;; (ipk,isk) it projects to for each declared GSI (supplied by the consumer's write path —
    ;; the backend cannot read `data`).
-   (put [self <- :wat::query::Store  rows <- (:wat::core::Vector :wat::query::StoredRow)]
-     -> :wat::core::Result<wat::core::nil,wat::query::Error>)
+   (put [self <- :wat::query::Store  req <- :wat::query::Store::PutRequest]
+     -> :wat::query::Store::PutResponse)
 
    ;; a PAGE on the base key: pk fixed, sk in a prefix/range, ordered ASC, after `cursor`.
-   (scan [self <- :wat::query::Store  q <- :wat::query::ScanRequest]
-     -> :wat::core::Result<wat::query::Page,wat::query::Error>)
+   (scan [self <- :wat::query::Store  req <- :wat::query::Store::ScanRequest]
+     -> :wat::query::Store::ScanResponse)
 
    ;; a PAGE on a named GSI: ipk fixed, isk in a prefix/range, ordered ASC, after `cursor`.
-   (scan-index [self <- :wat::query::Store  q <- :wat::query::IndexScanRequest]
-     -> :wat::core::Result<wat::query::IndexPage,wat::query::Error>)])
-
-;; a read-only satisfier — the capability-honest half (the type is the proof a reader cannot write).
-(:wat::core::defsurface :wat::query::ReadStore :nature :wat::core::Struct
-  :features
-  [(scan [self <- :wat::query::ReadStore  q <- :wat::query::ScanRequest]
-     -> :wat::core::Result<wat::query::Page,wat::query::Error>)
-   (scan-index [self <- :wat::query::ReadStore  q <- :wat::query::IndexScanRequest]
-     -> :wat::core::Result<wat::query::IndexPage,wat::query::Error>)])
+   (scan-index [self <- :wat::query::Store  req <- :wat::query::Store::ScanIndexRequest]
+     -> :wat::query::Store::ScanIndexResponse)])

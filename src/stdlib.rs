@@ -345,12 +345,16 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/rete.wat",
         source: include_str!("../wat/rete.wat"),
     },
-    // Arc 278 stone S0 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
-    // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings). Pure
-    // declarations: the Store/ReadStore methods-bearing surfaces, the Error recovery-axis enum
-    // + Fault record, and the plain records every satisfier speaks (StoredRow/IndexKey/Row/
-    // IndexRow/ScanRequest/IndexScanRequest/Page/IndexPage/TableSchema/IndexSchema). NO backend,
-    // NO logic (a satisfier — :wat::sqlite'::* — is a later stone, S2).
+    // Arc 278 stone S4 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
+    // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings), on the
+    // services-as-surfaces OPERATION MODEL (arc 293 Path B): `Store` is a `:nature
+    // :wat::kernel::Peer'` surface — a dialed `:satisfies Store` peer IS a Store, intrinsically
+    // (no wrapper struct, no extend-type). Pure declarations: the Store methods-bearing surface,
+    // the Reason open-record error surface + Transient/Constraint/Fatal/Fault records, the
+    // per-op `Store::<Op>Request`/`Store::<Op>Response` (outcome enum) records, and the plain
+    // records every satisfier speaks (StoredRow/IndexKey/Row/IndexRow/Page/IndexPage/
+    // TableSchema/IndexSchema). NO backend, NO logic (a satisfier — `mem-store'`/
+    // `sqlite-store'` — lives in its own sibling file).
     // Loads AFTER wat/core.wat (defrecord/defenum/defsurface + Result/Option/Vector/HashMap/
     // keyword primitives); placed beside wat/rete.wat — this is the query engine's vocabulary.
     // `:wat::query::` is net-new + unprimed (no battery collides); a baked core source may
@@ -360,10 +364,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query.wat",
         source: include_str!("../wat/query.wat"),
     },
-    // wat/query/mem.wat — :wat::query::MemStore, the FIRST :wat::query::Store/ReadStore satisfier
-    // (a :wat::service::defservice holding a PersistentVector<StoredRow>; a real in-memory backend
-    // AND the oracle sqlite will be differential-tested against). Baked in CORE. Both baked-context
-    // gaps that first blocked a stdlib defservice extend-typing a stdlib surface are FIXED:
+    // wat/query/mem.wat — `:wat::query::mem-store'`, the FIRST `:wat::query::Store` satisfier (a
+    // `:wat::service::defservice :satisfies :wat::query::Store` holding a
+    // PersistentVector<StoredRow>; a real in-memory backend AND the oracle sqlite will be
+    // differential-tested against). A dialed peer IS the Store — no wrapper struct. Baked in
+    // CORE. Both baked-context gaps that first blocked a stdlib defservice satisfying a stdlib
+    // surface are FIXED:
     //   (1) expand_all is stdlib-privileged, so a defservice's expansion-born `…/start` companion
     //       registers instead of hitting ReservedPrefix (MacroRegistry::stdlib_privilege, set in
     //       src/freeze/env.rs; gated by macros/tests.rs::stdlib_privilege_bypasses_reserved_prefix).
@@ -375,10 +381,11 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query/mem.wat",
         source: include_str!("../wat/query/mem.wat"),
     },
-    // wat/query/sqlite-store.wat — arc 278 stone S2: `:wat::sqlite'::SqliteStore`, the sqlite
-    // `:wat::query::Store`/`ReadStore` satisfier (SQL over S1's `:wat::sqlite'` verbs,
-    // DDB-faithful secondary-complete-tables GSIs, clear-then-insert `put`). Differential-tested
-    // against `:wat::query::MemStore` (this file's sibling above). Loads after wat/sqlite.wat (S1
+    // wat/query/sqlite-store.wat — arc 278 stone S4: `:wat::query::sqlite-store'`, the sqlite
+    // `:wat::query::Store` satisfier (`:satisfies :wat::query::Store`; SQL over S1's
+    // `:wat::sqlite'` verbs, DDB-faithful secondary-complete-tables GSIs, clear-then-insert
+    // `put`). A dialed peer IS the Store — no wrapper struct. Differential-tested against
+    // `:wat::query::mem-store'` (this file's sibling above). Loads after wat/sqlite.wat (S1
     // verbs), wat/query.wat (the Store contract + records), and wat/query/mem.wat (no eval-dep on
     // mem.wat, but grouped beside it as the query engine's second Store satisfier).
     WatSource {

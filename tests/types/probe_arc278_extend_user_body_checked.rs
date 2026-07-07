@@ -1,7 +1,7 @@
 //! Arc 278 — user `extend-type` impl bodies MUST be type-checked against the surface they satisfy.
 //!
-//! extend-type is THE satisfier construct (arc 232/293) — every `Store`/`ReadStore` impl, every
-//! surface a user implements. Core is truthful by construction; this is the ONE place a user can
+//! extend-type is THE satisfier construct (arc 232/293) — every user-surface impl (e.g. a `Store`
+//! satisfier). Core is truthful by construction; this is the ONE place a user can
 //! still ship a wrong type green. `check_function_body` (check.rs:826) sweeps `sym.functions`, but
 //! USER extend-type impls only enter `sym.functions` at freeze step 9 (`register_runtime_defs_form`,
 //! runtime.rs:1936) — AFTER `check_program` (freeze.rs:816). BAKED impls enter at step 7.6

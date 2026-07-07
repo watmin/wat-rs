@@ -2,16 +2,18 @@
 ;; surface over the fresh `:rust::sqlite'` shim (src/rust_deps/sqlite.rs).
 ;;
 ;; This is the RAW layer BELOW the backend-agnostic :wat::query::Store contract (wat/query.wat);
-;; a later stone (S2) satisfies Store/ReadStore with it, differential-tested against the S-mem.gate
-;; MemStore oracle. Ratified design: DESIGN-STONE-S1-sqlite-interop.md.
+;; a later stone (`sqlite-store'`, wat/query/sqlite-store.wat) satisfies Store with it,
+;; differential-tested against the S-mem.gate mem-store' oracle. Ratified design:
+;; DESIGN-STONE-S1-sqlite-interop.md.
 ;;
 ;; ─── errors are VALUES — never panics, never raise! ───────────────────────────────────────────
 ;; Every `:rust::sqlite'::*` dispatch fn returns a wat Result whose Err payload is a raw
 ;; `(code, diagnostic, message)` 3-tuple (never a panic — see src/rust_deps/sqlite.rs's module
 ;; doc for the exact marshaling mechanism). Every wrapper fn below calls `classify` to lift that
-;; raw tuple into the ratified :wat::sqlite'::Error recovery-axis enum — mirroring
-;; :wat::query::Error exactly (Transient/Constraint/Fatal, each carrying a Fault {op, code,
-;; diagnostic, message} — `diagnostic`, NOT `sql`, arc-278 intueri-ratified).
+;; raw tuple into the ratified :wat::sqlite'::Error recovery-axis enum (Transient/Constraint/
+;; Fatal, each carrying a Fault {op, code, diagnostic, message} — `diagnostic`, NOT `sql`,
+;; arc-278 intueri-ratified). `wat/query/sqlite-store.wat`'s `lift-fault` narrows this down to the
+;; simpler `:wat::query::Fault [message <- String]` at the Store-contract boundary (S4).
 ;;
 ;; ─── the named surface (intueri-cast — do NOT rename or add verbs) ────────────────────────────
 ;; Connection / ReadConnection (opaque, thread-owned; RO is the capability-honest half — no

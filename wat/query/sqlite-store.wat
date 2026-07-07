@@ -1,21 +1,19 @@
-;; wat/query/sqlite-store.wat — Arc 278 stone T1a: `:wat::query::sqlite-store'` (a defservice) +
-;; `:wat::query::SqliteStore` (the satisfier wrapping its peer) — the sqlite `:wat::query::Store` /
-;; `ReadStore` backend, built as SQL over S1's raw `:wat::sqlite'` verbs (wat/sqlite.wat).
-;; Differential-tested against the S-mem MemStore oracle
+;; wat/query/sqlite-store.wat — Arc 278 stone S4: `:wat::query::sqlite-store'` — the sqlite
+;; `:wat::query::Store` backend, migrated to the services-as-surfaces OPERATION MODEL
+;; (`:satisfies :wat::query::Store` + `:impls`), built as SQL over S1's raw `:wat::sqlite'` verbs
+;; (wat/sqlite.wat). Differential-tested against the S-mem mem-store' oracle
 ;; (tests/rete/probe_arc278_sqlite_store_differential.{wat,rs}).
 ;;
-;; ─── T1a: promote the struct-over-Connection satisfier into a SERVICE ───────────────────────────
-;; S2 held a live `:wat::sqlite'::Connection` in a bare `defstruct` — which can never cross the wire,
-;; so a telemetry sink (T1b) could never be GIVEN the store. T1a promotes it into a `sqlite-store'`
-;; defservice (an actor owning the `Connection` on its OWN thread, durable = `path` + `index-names`,
-;; ephemeral = the opened `conn`) plus a `SqliteStore` satisfier that wraps only the service PEER
-;; (a wire-crossable value) — mirroring `mem-store'`/`MemStore` (wat/query/mem.wat) almost
-;; line-for-line. The SQL + pure helpers are UNCHANGED from S2; the 4 Store-method bodies became the
-;; service op bodies, and the satisfier's 4 methods are now client RPCs. Per intueri (verdict A), the
-;; satisfier + its pure helpers moved namespace `:wat::sqlite'` → `:wat::query` (a Store satisfier
-;; lives with the CONTRACT, like MemStore). The RAW DRIVER stays `:wat::sqlite'`
-;; (Connection/open/execute/select/Param/Cell/Error/Fault). S2's `SqliteStore/open` convenience
-;; constructor is RETIRED (the scope-trap in mem.wat's NOTE forbids it — construct inline).
+;; ─── S4: from a peer-wrapping satisfier to an intrinsic peer ────────────────────────────────────
+;; T1a promoted the struct-over-Connection satisfier into a `sqlite-store'` defservice (an actor
+;; owning the `Connection` on its OWN thread, durable = `path` + `index-names`, ephemeral = the
+;; opened `conn`) plus a `SqliteStore` wrapper struct around the connected peer. S4 (arc 293 Path
+;; B) DELETES that wrapper: `sqlite-store'` now `:satisfies :wat::query::Store` directly, so a
+;; dialed peer IS the Store, intrinsically — no `extend-type`. The SQL + pure helpers are
+;; UNCHANGED; the 4 op bodies now read fields off `Store::<Op>Request` and return the per-op
+;; `Store::<Op>Response` OUTCOME ENUM (`:Success` + that op's own error variants) instead of a
+;; generic `Result<_,query::Error>`. S2's `SqliteStore/open` convenience constructor stays RETIRED
+;; (the scope-trap in mem.wat's NOTE forbids it — construct inline).
 ;;
 ;; Ratified design (S2): DESIGN-STONE-S2-sqlite-satisfier.md. DDB-faithful — a GSI is a SEPARATE
 ;; COMPLETE TABLE `index_<name>(ipk,isk,pk,sk,data,PK(ipk,isk,pk,sk))`, not a native sqlite index
@@ -25,21 +23,89 @@
 ;; `index-names` set on its durable Record (an update that STOPS projecting into a GSI must still
 ;; clear its old `index_<name>` row).
 
-;; ─── the error lift — :wat::sqlite'::Error -> :wat::query::Error (both recovery-axis, field-for-
-;; field identical Fault shape: op/code/diagnostic/message) — the satisfier's mechanism, so it lives
-;; in :wat::query with the contract ────────────────────────────────────────────────────────────
+;; ─── the error lift — :wat::sqlite'::Fault -> :wat::query::Fault (message only — the concrete
+;; default `Reason` satisfier; a structured `:wat::sqlite'::Reason` is a later stone) — the
+;; satisfier's mechanism, so it lives in :wat::query with the contract ──────────────────────────
 (:wat::core::defn :wat::query::lift-fault [f <- :wat::sqlite'::Fault] -> :wat::query::Fault
-  (:wat::query::Fault
-    (:wat::sqlite'::Fault/op f)
-    (:wat::sqlite'::Fault/code f)
-    (:wat::sqlite'::Fault/diagnostic f)
-    (:wat::sqlite'::Fault/message f)))
+  (:wat::query::Fault (:wat::sqlite'::Fault/message f)))
 
-(:wat::core::defn :wat::query::lift-error [e <- :wat::sqlite'::Error] -> :wat::query::Error
-  (:wat::core::match e -> :wat::query::Error
-    ((:wat::sqlite'::Error::Transient f)  (:wat::query::Error::Transient  (:wat::query::lift-fault f)))
-    ((:wat::sqlite'::Error::Constraint f) (:wat::query::Error::Constraint (:wat::query::lift-fault f)))
-    ((:wat::sqlite'::Error::Fatal f)      (:wat::query::Error::Fatal      (:wat::query::lift-fault f)))))
+;; ─── per-op response builders — classify a raw sqlite Result into the op's own outcome enum.
+;; Each `Store::<Op>Response` exposes only the error variants that op's surface declares; a sqlite
+;; classification with no matching variant on THIS op folds into `:Fatal` (defensive — never hit
+;; against this store's own schema/queries, documented per fold-site below). ─────────────────────
+(:wat::core::defn :wat::query::ensure-schema-response
+  [r <- :wat::core::Result<wat::core::nil,wat::sqlite'::Error>] -> :wat::query::Store::EnsureSchemaResponse
+  (:wat::core::match r -> :wat::query::Store::EnsureSchemaResponse
+    ((:wat::core::Ok _) (:wat::query::Store::EnsureSchemaResponse::Success))
+    ((:wat::core::Err e)
+      (:wat::core::match e -> :wat::query::Store::EnsureSchemaResponse
+        ((:wat::sqlite'::Error::Constraint f)
+          (:wat::query::Store::EnsureSchemaResponse::Constraint (:wat::query::Constraint (:wat::query::lift-fault f))))
+        ;; EnsureSchemaResponse has no :Transient variant (schema DDL has no meaningful
+        ;; "retry and it'll pass" semantics at this contract layer) — fold into :Fatal.
+        ((:wat::sqlite'::Error::Transient f)
+          (:wat::query::Store::EnsureSchemaResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))
+        ((:wat::sqlite'::Error::Fatal f)
+          (:wat::query::Store::EnsureSchemaResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))))
+
+(:wat::core::defn :wat::query::put-response
+  [r <- :wat::core::Result<wat::core::nil,wat::sqlite'::Error>] -> :wat::query::Store::PutResponse
+  (:wat::core::match r -> :wat::query::Store::PutResponse
+    ((:wat::core::Ok _) (:wat::query::Store::PutResponse::Success))
+    ((:wat::core::Err e)
+      (:wat::core::match e -> :wat::query::Store::PutResponse
+        ((:wat::sqlite'::Error::Transient f)
+          (:wat::query::Store::PutResponse::Transient (:wat::query::Transient (:wat::query::lift-fault f))))
+        ((:wat::sqlite'::Error::Constraint f)
+          (:wat::query::Store::PutResponse::Constraint (:wat::query::Constraint (:wat::query::lift-fault f))))
+        ((:wat::sqlite'::Error::Fatal f)
+          (:wat::query::Store::PutResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))))
+
+(:wat::core::defn :wat::query::scan-response
+  [r <- :wat::core::Result<wat::core::Vector<wat::query::Row>,wat::sqlite'::Error>
+   limit <- :wat::core::i64]
+  -> :wat::query::Store::ScanResponse
+  (:wat::core::match r -> :wat::query::Store::ScanResponse
+    ((:wat::core::Err e)
+      (:wat::core::match e -> :wat::query::Store::ScanResponse
+        ((:wat::sqlite'::Error::Transient f)
+          (:wat::query::Store::ScanResponse::Transient (:wat::query::Transient (:wat::query::lift-fault f))))
+        ;; ScanResponse has no :Constraint variant (a read cannot violate a write constraint) —
+        ;; fold into :Fatal (defensive; never hit against this store's own schema).
+        ((:wat::sqlite'::Error::Constraint f)
+          (:wat::query::Store::ScanResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))
+        ((:wat::sqlite'::Error::Fatal f)
+          (:wat::query::Store::ScanResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))
+    ((:wat::core::Ok rows)
+      (:wat::core::let
+        [full?    (:wat::core::= (:wat::core::count rows) limit)
+         next-cur (:wat::core::if full?
+                    (:wat::core::Some
+                      (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last rows) "scan: rows non-empty when full")))
+                    :wat::core::None)]
+        (:wat::query::Store::ScanResponse::Success rows next-cur)))))
+
+(:wat::core::defn :wat::query::scan-index-response
+  [r <- :wat::core::Result<wat::core::Vector<wat::query::IndexRow>,wat::sqlite'::Error>
+   limit <- :wat::core::i64]
+  -> :wat::query::Store::ScanIndexResponse
+  (:wat::core::match r -> :wat::query::Store::ScanIndexResponse
+    ((:wat::core::Err e)
+      (:wat::core::match e -> :wat::query::Store::ScanIndexResponse
+        ((:wat::sqlite'::Error::Transient f)
+          (:wat::query::Store::ScanIndexResponse::Transient (:wat::query::Transient (:wat::query::lift-fault f))))
+        ((:wat::sqlite'::Error::Constraint f)
+          (:wat::query::Store::ScanIndexResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))
+        ((:wat::sqlite'::Error::Fatal f)
+          (:wat::query::Store::ScanIndexResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))
+    ((:wat::core::Ok rows)
+      (:wat::core::let
+        [full?    (:wat::core::= (:wat::core::count rows) limit)
+         next-cur (:wat::core::if full?
+                    (:wat::core::Some
+                      (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last rows) "scan-index: rows non-empty when full")))
+                    :wat::core::None)]
+        (:wat::query::Store::ScanIndexResponse::Success rows next-cur)))))
 
 ;; ─── Cell -> String unpacking (pk/sk/data/ipk/isk columns are always TEXT NOT NULL, so Str is the
 ;; live path; the other arms are exhaustiveness-only, never hit against this store's own schema) ──
@@ -66,27 +132,6 @@
     (:wat::query::cell->string (:wat::core::nth cells 0))    ;; ipk
     (:wat::query::cell->string (:wat::core::nth cells 1))    ;; isk
     (:wat::query::cell->string (:wat::core::nth cells 4))))  ;; data
-
-;; ─── the keyset page-builders — next-cursor = last row's sort key IFF the page came back full ───
-(:wat::core::defn :wat::query::build-page
-  [rows <- (:wat::core::Vector :wat::query::Row) limit <- :wat::core::i64] -> :wat::query::Page
-  (:wat::core::let
-    [full?    (:wat::core::= (:wat::core::count rows) limit)
-     next-cur (:wat::core::if full?
-                (:wat::core::Some
-                  (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last rows) "scan: rows non-empty when full")))
-                :wat::core::None)]
-    (:wat::query::Page rows next-cur)))
-
-(:wat::core::defn :wat::query::build-index-page
-  [rows <- (:wat::core::Vector :wat::query::IndexRow) limit <- :wat::core::i64] -> :wat::query::IndexPage
-  (:wat::core::let
-    [full?    (:wat::core::= (:wat::core::count rows) limit)
-     next-cur (:wat::core::if full?
-                (:wat::core::Some
-                  (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last rows) "scan-index: rows non-empty when full")))
-                :wat::core::None)]
-    (:wat::query::IndexPage rows next-cur)))
 
 ;; ─── ensure-schema — main + one complete table per named GSI ────────────────────────────────────
 (:wat::core::defn :wat::query::ensure-index-tables
@@ -190,11 +235,13 @@
 ;; ─── the sqlite-store' SERVICE — an actor owning a thread-local Connection ──────────────────────
 ;; durable = `path` + the declared `index-names` (the clear step needs the full GSI set — see the
 ;; header). ephemeral = the live `conn`, opened in :init from `path` + the WAL/NORMAL pragmas S2 set.
-;; The ops are S2's Store-method bodies, calling the raw `:wat::sqlite'` verbs on
-;; `(sqlite-store'::State/conn s)`; each carries its fallible `Result<_,query::Error>` IN its
-;; response (the SQL is fallible; the lift to `query::Error` happens here so the satisfier just
-;; forwards). `s` is UNCHANGED on Reply — the mutation is inside sqlite via the conn, not in State.
+;; `:satisfies :wat::query::Store` puts this on the operation model: each impl is `(<op> [s req]
+;; body)` — `req` is the `Store::<Op>Request` record; the SQL logic is UNCHANGED from T1a, only
+;; rewrapped to read request fields and to classify its raw sqlite `Result` into the op's own
+;; `Store::<Op>Response` outcome enum via the response builders above. `s` is UNCHANGED on Reply —
+;; the mutation is inside sqlite via the conn, not in State.
 (:wat::service::defservice :wat::query::sqlite-store'
+  :satisfies :wat::query::Store
   :durable   [path        <- :wat::core::String
               index-names  <- (:wat::core::Vector :wat::core::String)]
   :ephemeral [conn <- :wat::sqlite'::Connection]
@@ -209,12 +256,12 @@
                _syn (:wat::core::Result/expect (:wat::sqlite'::pragma conn "synchronous" "NORMAL")
                       "sqlite-store': synchronous=NORMAL pragma failed")]
               conn)))
-  :ops
-  [(:EnsureSchema [s <- :State table <- :wat::query::TableSchema
-                   indexes <- (:wat::core::Vector :wat::query::IndexSchema)]
-     -> [result <- :wat::core::Result<wat::core::nil,wat::query::Error>]
+  :impls
+  [(ensure-schema [s req]
      (:wat::core::let
-       [conn (:wat::query::sqlite-store'::State/conn s)
+       [table   (:wat::query::Store::EnsureSchemaRequest/table req)
+        indexes (:wat::query::Store::EnsureSchemaRequest/indexes req)
+        conn (:wat::query::sqlite-store'::State/conn s)
         chained
           (:wat::core::match
             (:wat::sqlite'::execute-ddl conn
@@ -222,16 +269,12 @@
             -> :wat::core::Result<wat::core::nil,wat::sqlite'::Error>
             ((:wat::core::Err e) (:wat::core::Err e))
             ((:wat::core::Ok _) (:wat::query::ensure-index-tables conn indexes)))]
-       (:wat::service::Outcome::Reply s
-         (:wat::query::sqlite-store'::EnsureSchemaResponse
-           (:wat::core::match chained -> :wat::core::Result<wat::core::nil,wat::query::Error>
-             ((:wat::core::Ok _) (:wat::core::Ok nil))
-             ((:wat::core::Err e) (:wat::core::Err (:wat::query::lift-error e))))))))
+       (:wat::service::Outcome::Reply s (:wat::query::ensure-schema-response chained))))
 
-   (:Put [s <- :State new-rows <- (:wat::core::Vector :wat::query::StoredRow)]
-     -> [result <- :wat::core::Result<wat::core::nil,wat::query::Error>]
+   (put [s req]
      (:wat::core::let
-       [conn  (:wat::query::sqlite-store'::State/conn s)
+       [new-rows (:wat::query::Store::PutRequest/rows req)
+        conn  (:wat::query::sqlite-store'::State/conn s)
         names (:wat::query::sqlite-store'::Record/index-names (:wat::query::sqlite-store'::State/durable s))
         chained
           (:wat::core::match (:wat::sqlite'::begin conn)
@@ -242,21 +285,16 @@
                 -> :wat::core::Result<wat::core::nil,wat::sqlite'::Error>
                 ((:wat::core::Err e) (:wat::core::Err e))
                 ((:wat::core::Ok _) (:wat::sqlite'::commit conn)))))]
-       (:wat::service::Outcome::Reply s
-         (:wat::query::sqlite-store'::PutResponse
-           (:wat::core::match chained -> :wat::core::Result<wat::core::nil,wat::query::Error>
-             ((:wat::core::Ok _) (:wat::core::Ok nil))
-             ((:wat::core::Err e) (:wat::core::Err (:wat::query::lift-error e))))))))
+       (:wat::service::Outcome::Reply s (:wat::query::put-response chained))))
 
-   (:Scan [s <- :State q <- :wat::query::ScanRequest]
-     -> [result <- :wat::core::Result<wat::query::Page,wat::query::Error>]
+   (scan [s req]
      (:wat::core::let
        [conn (:wat::query::sqlite-store'::State/conn s)
-        pk   (:wat::query::ScanRequest/pk q)
-        lo   (:wat::query::ScanRequest/sk-lo q)
-        hi   (:wat::query::ScanRequest/sk-hi q)
-        lim  (:wat::query::ScanRequest/limit q)
-        cur  (:wat::query::ScanRequest/cursor q)
+        pk   (:wat::query::Store::ScanRequest/pk req)
+        lo   (:wat::query::Store::ScanRequest/sk-lo req)
+        hi   (:wat::query::Store::ScanRequest/sk-hi req)
+        lim  (:wat::query::Store::ScanRequest/limit req)
+        cur  (:wat::query::Store::ScanRequest/cursor req)
         cur-param (:wat::core::match cur -> :wat::sqlite'::Param
                     (:wat::core::None (:wat::sqlite'::Param::Nil))
                     ((:wat::core::Some c) (:wat::sqlite'::Param::Str c)))
@@ -265,25 +303,21 @@
                  cur-param (:wat::sqlite'::Param::I64 lim))
         res (:wat::sqlite'::select conn
               "SELECT pk, sk, data FROM main WHERE pk=?1 AND sk>=?2 AND sk<=?3 AND (?4 IS NULL OR sk>?4) ORDER BY sk ASC LIMIT ?5"
-              params)]
-       (:wat::service::Outcome::Reply s
-         (:wat::query::sqlite-store'::ScanResponse
-           (:wat::core::match res -> :wat::core::Result<wat::query::Page,wat::query::Error>
-             ((:wat::core::Err e) (:wat::core::Err (:wat::query::lift-error e)))
-             ((:wat::core::Ok cell-rows)
-               (:wat::core::Ok
-                 (:wat::query::build-page (:wat::core::mapv :wat::query::row-from-cells cell-rows) lim))))))))
+              params)
+        rows-res (:wat::core::match res -> :wat::core::Result<wat::core::Vector<wat::query::Row>,wat::sqlite'::Error>
+                   ((:wat::core::Err e) (:wat::core::Err e))
+                   ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::row-from-cells cell-rows))))]
+       (:wat::service::Outcome::Reply s (:wat::query::scan-response rows-res lim))))
 
-   (:ScanIndex [s <- :State q <- :wat::query::IndexScanRequest]
-     -> [result <- :wat::core::Result<wat::query::IndexPage,wat::query::Error>]
+   (scan-index [s req]
      (:wat::core::let
        [conn (:wat::query::sqlite-store'::State/conn s)
-        name (:wat::query::IndexScanRequest/index q)
-        ipk  (:wat::query::IndexScanRequest/ipk q)
-        lo   (:wat::query::IndexScanRequest/isk-lo q)
-        hi   (:wat::query::IndexScanRequest/isk-hi q)
-        lim  (:wat::query::IndexScanRequest/limit q)
-        cur  (:wat::query::IndexScanRequest/cursor q)
+        name (:wat::query::Store::ScanIndexRequest/index req)
+        ipk  (:wat::query::Store::ScanIndexRequest/ipk req)
+        lo   (:wat::query::Store::ScanIndexRequest/isk-lo req)
+        hi   (:wat::query::Store::ScanIndexRequest/isk-hi req)
+        lim  (:wat::query::Store::ScanIndexRequest/limit req)
+        cur  (:wat::query::Store::ScanIndexRequest/cursor req)
         cur-param (:wat::core::match cur -> :wat::sqlite'::Param
                     (:wat::core::None (:wat::sqlite'::Param::Nil))
                     ((:wat::core::Some c) (:wat::sqlite'::Param::Str c)))
@@ -293,44 +327,8 @@
         params (:wat::core::Vector :wat::sqlite'::Param
                  (:wat::sqlite'::Param::Str ipk) (:wat::sqlite'::Param::Str lo) (:wat::sqlite'::Param::Str hi)
                  cur-param (:wat::sqlite'::Param::I64 lim))
-        res (:wat::sqlite'::select conn sql params)]
-       (:wat::service::Outcome::Reply s
-         (:wat::query::sqlite-store'::ScanIndexResponse
-           (:wat::core::match res -> :wat::core::Result<wat::query::IndexPage,wat::query::Error>
-             ((:wat::core::Err e) (:wat::core::Err (:wat::query::lift-error e)))
-             ((:wat::core::Ok cell-rows)
-               (:wat::core::Ok
-                 (:wat::query::build-index-page (:wat::core::mapv :wat::query::index-row-from-cells cell-rows) lim))))))))])
-
-;; ─── the wrapper — extend-types the connected client peer to Store / ReadStore ──────────────
-;; Mirrors MemStore exactly: `self` carries only the connected `Peer'` (constructed once, INLINE per
-;; mem.wat's scope NOTE — no convenience constructor). Each method is a client RPC that forwards the
-;; response's already-lifted `Result<_,query::Error>` straight through as the Store method's result.
-(:wat::core::defstruct :wat::query::SqliteStore
-  [peer <- :wat::kernel::Peer'<wat::query::sqlite-store'::Op,wat::query::sqlite-store'::Reply>])
-
-(:wat::core::extend-type :wat::query::SqliteStore :wat::query::Store
-  (ensure-schema [self table indexes]
-    (:wat::core::let
-      [r (:wat::query::sqlite-store'/ensure-schema (:wat::query::SqliteStore/peer self)
-           (:wat::query::sqlite-store'/ensure-schema-request table indexes))]
-      (:wat::query::sqlite-store'::EnsureSchemaResponse/result r)))
-  (put [self rows]
-    (:wat::core::let
-      [r (:wat::query::sqlite-store'/put (:wat::query::SqliteStore/peer self)
-           (:wat::query::sqlite-store'/put-request rows))]
-      (:wat::query::sqlite-store'::PutResponse/result r)))
-  (scan [self q]
-    (:wat::core::let
-      [r (:wat::query::sqlite-store'/scan (:wat::query::SqliteStore/peer self)
-           (:wat::query::sqlite-store'/scan-request q))]
-      (:wat::query::sqlite-store'::ScanResponse/result r)))
-  (scan-index [self q]
-    (:wat::core::let
-      [r (:wat::query::sqlite-store'/scan-index (:wat::query::SqliteStore/peer self)
-           (:wat::query::sqlite-store'/scan-index-request q))]
-      (:wat::query::sqlite-store'::ScanIndexResponse/result r))))
-
-;; the read-only edge — SqliteStore's scan/scan-index (from the Store impl above) also satisfy
-;; ReadStore, exactly mirroring MemStore's `derive` (extend-type's edge-only half).
-(:wat::core::derive :wat::query::SqliteStore :wat::query::ReadStore)
+        res (:wat::sqlite'::select conn sql params)
+        rows-res (:wat::core::match res -> :wat::core::Result<wat::core::Vector<wat::query::IndexRow>,wat::sqlite'::Error>
+                   ((:wat::core::Err e) (:wat::core::Err e))
+                   ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::index-row-from-cells cell-rows))))]
+       (:wat::service::Outcome::Reply s (:wat::query::scan-index-response rows-res lim))))])

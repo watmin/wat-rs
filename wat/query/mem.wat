@@ -1,5 +1,7 @@
-;; wat/query/mem.wat — Arc 278 stone S0 (scope addition): `:wat::query::MemStore` — the FIRST
-;; real `:wat::query::Store` / `ReadStore` satisfier.
+;; wat/query/mem.wat — Arc 278 stone S4: `:wat::query::mem-store'` — the FIRST real
+;; `:wat::query::Store` satisfier, migrated to the services-as-surfaces OPERATION MODEL
+;; (`:satisfies :wat::query::Store` + `:impls`). A dialed `mem-store'` peer IS the Store
+;; INTRINSICALLY (arc 293 Path B) — no `MemStore` wrapper struct, no `extend-type`.
 ;;
 ;; Dual-purpose per the strike: a genuine in-memory backend AND the oracle sqlite (`:wat::sqlite'`,
 ;; a later stone) will be differential-tested against — correct-by-construction, not a canned stub.
@@ -24,11 +26,11 @@
 ;;
 ;; ── a real substrate finding: `start` cannot be factored into a reusable constructor fn ────────
 ;; `(:wat::spawn::thread)` ties the spawned service thread's lifetime to the LEXICAL SCOPE of the
-;; `start` call — if `start` + `connect'` run inside a separate `MemStore::new`-style helper
-;; function and the wrapper is returned to the caller, the connection is already dead by the time
-;; the caller uses it (`recv'`/`send'` report "channel disconnected"), even though the `Peer'`
-;; value itself is still held (confirmed empirically by isolating the exact reproduction: a bare
-;; `Peer'` returned from a helper function fails identically to the wrapped-struct case; the SAME
+;; `start` call — if `start` + `connect'` run inside a separate constructor-style helper function
+;; and the peer is returned to the caller, the connection is already dead by the time the caller
+;; uses it (`recv'`/`send'` report "channel disconnected"), even though the `Peer'` value itself
+;; is still held (confirmed empirically by isolating the exact reproduction: a bare `Peer'`
+;; returned from a helper function fails identically to the wrapped-struct case; the SAME
 ;; construction inlined in the caller's own `let` succeeds). So: `start` + `connect'` + every call
 ;; through the resulting peer must share one lexical scope (or an ancestor block that outlives all
 ;; of them) — see `probes/../deftest'` gate, which inlines construction for exactly this reason.
@@ -39,7 +41,7 @@
 ;; `scan`/`scan-index` filter + `sort-by` + `take` a plain materialized copy on every read (no
 ;; separate sorted structure — correct, not fast; a later stone may add per-index structures).
 ;; `:wat::spawn::thread` locus only (in-memory; no cross-process EDN encoding of `StoredRow`/HashMap
-;; needed). NAME provisional (`MemStore` / `mem-store'`) — orchestrator casts intueri later.
+;; needed).
 
 ;; ─── small pure helpers — filter/sort predicates shared by scan + scan-index ────────────────
 (:wat::core::defn :wat::query::sk-after-cursor?
@@ -80,26 +82,28 @@
   (:wat::query::IndexRow (:wat::query::StoredRow/pk r) (:wat::query::StoredRow/sk r)
     (:wat::query::IndexKey/ipk ik) (:wat::query::IndexKey/isk ik) (:wat::query::StoredRow/data r)))
 
-;; ─── the MemStore SERVICE — the real, mutating in-memory backend ────────────────────────────
+;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
 ;; durable = one flat PersistentVector<StoredRow>; `put` conj's the batch on (rete-style pure
 ;; threading: the `serve` loop rebinds `state` to the returned new State — see wat/service.wat's
 ;; tail-recursive dispatch, `Outcome::Reply`); `scan`/`scan-index` are pure reads (state
-;; unchanged) that filter+sort+paginate a plain materialized copy.
+;; unchanged) that filter+sort+paginate a plain materialized copy. `:satisfies :wat::query::Store`
+;; puts this on the operation model: each impl is `(<op> [s req] body)` — `req` is the
+;; `Store::<Op>Request` record; the body returns the `Store::<Op>Response` outcome enum via
+;; `Outcome::Reply`. MemStore never errors — always `:Success`.
 (:wat::service::defservice :wat::query::mem-store'
+  :satisfies :wat::query::Store
   :durable [rows <- :wat::core::PersistentVector<wat::query::StoredRow>]
   :ephemeral []
-  :ops
-  [(:EnsureSchema [s <- :State table <- :wat::query::TableSchema
-                   indexes <- (:wat::core::Vector :wat::query::IndexSchema)]
-     -> [ok <- :wat::core::bool]
-     ;; idempotent no-op — MemStore has no physical schema to establish (the contract's promise
-     ;; is satisfied trivially; sqlite's satisfier is where CREATE TABLE/INDEX actually happens).
-     (:wat::service::Outcome::Reply s (:wat::query::mem-store'::EnsureSchemaResponse true)))
+  :impls
+  [(ensure-schema [s req]
+     ;; idempotent no-op — mem-store' has no physical schema to establish (the contract's
+     ;; promise is satisfied trivially; sqlite's satisfier is where CREATE TABLE/INDEX happens).
+     (:wat::service::Outcome::Reply s (:wat::query::Store::EnsureSchemaResponse::Success)))
 
-   (:Put [s <- :State new-rows <- (:wat::core::Vector :wat::query::StoredRow)]
-     -> [ok <- :wat::core::bool]
+   (put [s req]
      (:wat::core::let
-       [merged (:wat::core::foldl
+       [new-rows (:wat::query::Store::PutRequest/rows req)
+        merged (:wat::core::foldl
                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :wat::query::StoredRow)
                                   r   <- :wat::query::StoredRow]
                    -> (:wat::core::PersistentVector :wat::query::StoredRow)
@@ -108,16 +112,15 @@
                  new-rows)]
        (:wat::service::Outcome::Reply
          (:wat::query::mem-store'::State (:wat::query::mem-store'::Record merged))
-         (:wat::query::mem-store'::PutResponse true))))
+         (:wat::query::Store::PutResponse::Success))))
 
-   (:Scan [s <- :State q <- :wat::query::ScanRequest]
-     -> [page <- :wat::query::Page]
+   (scan [s req]
      (:wat::core::let
-       [pk  (:wat::query::ScanRequest/pk q)
-        lo  (:wat::query::ScanRequest/sk-lo q)
-        hi  (:wat::query::ScanRequest/sk-hi q)
-        lim (:wat::query::ScanRequest/limit q)
-        cur (:wat::query::ScanRequest/cursor q)
+       [pk  (:wat::query::Store::ScanRequest/pk req)
+        lo  (:wat::query::Store::ScanRequest/sk-lo req)
+        hi  (:wat::query::Store::ScanRequest/sk-hi req)
+        lim (:wat::query::Store::ScanRequest/limit req)
+        cur (:wat::query::Store::ScanRequest/cursor req)
         matches (:wat::core::foldl
                   (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::Row) r <- :wat::query::StoredRow]
                     -> (:wat::core::Vector :wat::query::Row)
@@ -132,17 +135,16 @@
         next-cur (:wat::core::if full?
                    (:wat::core::Some (:wat::query::Row/sk (:wat::core::Option/expect (:wat::core::last limited) "scan: limited non-empty when full")))
                    :wat::core::None)]
-       (:wat::service::Outcome::Reply s (:wat::query::mem-store'::ScanResponse (:wat::query::Page limited next-cur)))))
+       (:wat::service::Outcome::Reply s (:wat::query::Store::ScanResponse::Success limited next-cur))))
 
-   (:ScanIndex [s <- :State q <- :wat::query::IndexScanRequest]
-     -> [page <- :wat::query::IndexPage]
+   (scan-index [s req]
      (:wat::core::let
-       [index (:wat::query::IndexScanRequest/index q)
-        ipk   (:wat::query::IndexScanRequest/ipk q)
-        lo    (:wat::query::IndexScanRequest/isk-lo q)
-        hi    (:wat::query::IndexScanRequest/isk-hi q)
-        lim   (:wat::query::IndexScanRequest/limit q)
-        cur   (:wat::query::IndexScanRequest/cursor q)
+       [index (:wat::query::Store::ScanIndexRequest/index req)
+        ipk   (:wat::query::Store::ScanIndexRequest/ipk req)
+        lo    (:wat::query::Store::ScanIndexRequest/isk-lo req)
+        hi    (:wat::query::Store::ScanIndexRequest/isk-hi req)
+        lim   (:wat::query::Store::ScanIndexRequest/limit req)
+        cur   (:wat::query::Store::ScanIndexRequest/cursor req)
         matches (:wat::core::foldl
                   (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::IndexRow) r <- :wat::query::StoredRow]
                     -> (:wat::core::Vector :wat::query::IndexRow)
@@ -160,41 +162,4 @@
         next-cur (:wat::core::if full?
                    (:wat::core::Some (:wat::query::IndexRow/isk (:wat::core::Option/expect (:wat::core::last limited) "scan-index: limited non-empty when full")))
                    :wat::core::None)]
-       (:wat::service::Outcome::Reply s (:wat::query::mem-store'::ScanIndexResponse (:wat::query::IndexPage limited next-cur)))))])
-
-;; ─── the wrapper — extend-types the connected client peer to Store / ReadStore ──────────────
-;; A satisfier's `self` must be a value the caller constructs once (with `start`+`connect'`
-;; INLINE, per the NOTE above) and threads through every call; MemStore just carries the peer.
-(:wat::core::defstruct :wat::query::MemStore
-  [peer <- :wat::kernel::Peer'<wat::query::mem-store'::Op,wat::query::mem-store'::Reply>])
-
-(:wat::core::extend-type :wat::query::MemStore :wat::query::Store
-  (ensure-schema [self table indexes]
-    (:wat::core::let
-      [_r (:wat::query::mem-store'/ensure-schema (:wat::query::MemStore/peer self)
-            (:wat::query::mem-store'/ensure-schema-request table indexes))]
-      (:wat::core::Ok nil)))
-  (put [self rows]
-    (:wat::core::let
-      [_r (:wat::query::mem-store'/put (:wat::query::MemStore/peer self)
-            (:wat::query::mem-store'/put-request rows))]
-      (:wat::core::Ok nil)))
-  (scan [self q]
-    (:wat::core::let
-      [r (:wat::query::mem-store'/scan (:wat::query::MemStore/peer self)
-           (:wat::query::mem-store'/scan-request q))]
-      (:wat::core::Ok (:wat::query::mem-store'::ScanResponse/page r))))
-  (scan-index [self q]
-    (:wat::core::let
-      [r (:wat::query::mem-store'/scan-index (:wat::query::MemStore/peer self)
-           (:wat::query::mem-store'/scan-index-request q))]
-      (:wat::core::Ok (:wat::query::mem-store'::ScanIndexResponse/page r)))))
-
-;; `ReadStore`'s `scan`/`scan-index` share the exact same name + shape as `Store`'s — a second
-;; `extend-type :wat::query::MemStore :wat::query::ReadStore` re-declaring them would collide
-;; ("duplicate define: :wat::query::MemStore/scan already registered"; confirmed empirically).
-;; `derive` is extend-type's edge-only half (registers the subtype/satisfaction edge without a
-;; method-impl block) — MemStore already HAS scan/scan-index from the Store impl above; derive
-;; just tells the checker MemStore ALSO satisfies ReadStore, and both `Store/scan` and
-;; `ReadStore/scan` dispatch to the one `:wat::query::MemStore/scan` definition (confirmed).
-(:wat::core::derive :wat::query::MemStore :wat::query::ReadStore)
+       (:wat::service::Outcome::Reply s (:wat::query::Store::ScanIndexResponse::Success limited next-cur))))])
