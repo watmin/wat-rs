@@ -417,6 +417,19 @@ mod tests {
         assert_eq!(write(&Value::Symbol(Symbol::new("foo"))), "foo");
     }
 
+    /// wat is a Clojure dialect: a trailing prime `'` is a legal symbol/keyword
+    /// BODY character (`:wut'`, `x'`, wat's primed service names `echo'`). Such a
+    /// value must survive the process-pipe wire — parse via `parse_owned`, write
+    /// back identically. (Regression for arc 278 s2s: a primed keyword died on the
+    /// wire with "unexpected byte 0x27" until `is_symbol_continue` admitted `'`.)
+    #[test]
+    fn primed_keywords_and_symbols_round_trip() {
+        for src in [":wut'", ":probe/echo'", "x'", "mem-store'", ":a/b'c'"] {
+            let v = crate::parse_owned(src).expect("primed body must parse");
+            assert_eq!(write(&v), src, "round-trip mismatch for {src:?}");
+        }
+    }
+
     #[test]
     fn collections() {
         let v = Value::Vector(vec![

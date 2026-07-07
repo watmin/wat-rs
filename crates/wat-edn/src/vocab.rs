@@ -97,11 +97,17 @@ pub fn is_symbol_start(b: u8) -> bool {
 }
 
 /// True if `b` may continue a symbol body (after the first byte).
-/// Strict EDN character set: alphanumeric + `. * + ! - _ ? $ % & = < > /`.
+/// EDN character set (Clojure dialect): alphanumeric + `. * + ! - _ ? $ % & = < > / '`.
 /// The `:` and `#` bytes are NOT permitted in symbol bodies per EDN spec;
 /// wat-rs uses `::` as its internal namespace separator but the wat-edn
 /// substrate enforces strict-EDN on input. Constructors (`::ns`, `::try_ns`)
 /// translate `::` → `.` at the boundary before storage.
+///
+/// wat is a Clojure dialect, and Clojure legally admits a trailing prime `'`
+/// inside symbol/keyword BODIES (`x'`, `:wut'`) — the primed convention wat uses
+/// for its service names (`echo'`, `mem-store'`). `'` is a legal Clojure body
+/// character (only a LEADING `'` is the quote reader macro — see `is_symbol_start`,
+/// which correctly omits it). So a primed keyword must survive the process-pipe wire.
 #[inline]
 pub fn is_symbol_continue(b: u8) -> bool {
     b.is_ascii_alphanumeric()
@@ -120,6 +126,7 @@ pub fn is_symbol_continue(b: u8) -> bool {
                 | b'<'
                 | b'>'
                 | b'/'
+                | b'\''
         )
 }
 
