@@ -567,6 +567,18 @@
      ;; arc 291 4a: Status::Hibernated — service replies with full state on hibernate.
      status-hibernated-kw (:wat::core::keyword/from-string
                              (:wat::core::string::interpolate "{fqdn-str}::Status::Hibernated" :fqdn-str fqdn-str))
+     ;; arc 278: Admin::AllowPeer[pids] — owner grants a vec of caller pids to the callee's
+     ;; process-tier accept-gate (the circuit builder wiring process peers). Status::PeersAllowed
+     ;; is the request/reply ack — the owner blocks on it so the grant is applied before the
+     ;; caller dials (grant-before-dial ordering). Both cross the owner-only lineage peer.
+     admin-allow-peer-kw (:wat::core::keyword/from-string
+                           (:wat::core::string::interpolate "{fqdn-str}::Admin::AllowPeer" :fqdn-str fqdn-str))
+     status-peers-allowed-kw (:wat::core::keyword/from-string
+                               (:wat::core::string::interpolate "{fqdn-str}::Status::PeersAllowed" :fqdn-str fqdn-str))
+     ;; arc 278: fold binders for the serve AllowPeer arm's (allow' l pid) sweep — synthetic
+     ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
+     allow-acc-sym (:wat::core::symbol-node "acc")
+     allow-pid-sym (:wat::core::symbol-node "pid")
      dispatch-admin-name-str (:wat::core::string::interpolate "{fqdn-str}::dispatch-admin" :fqdn-str fqdn-str)
      dispatch-admin-name (:wat::core::keyword/from-string dispatch-admin-name-str)
      extract-addr-name-str (:wat::core::string::interpolate "{fqdn-str}::extract-addr" :fqdn-str fqdn-str)
@@ -580,16 +592,20 @@
      ;; arc 291 4b-ii: Admin now has four variants:
      ;;   Init (startup seed), Stop (unit), Hibernate (unit), Resume (snapshot).
      ;;   Init and Resume both carry ::Record (not ::State — structs never cross the wire).
+     ;; arc 278: Admin::AllowPeer[pids] — a vec of caller pids to grant to the accept-gate.
      admin-enum-def `(:wat::core::defenum ~admin-ty :wat::enum::Pure
                        :Init     ~init-params-vec
                        :Stop
                        :Hibernate
-                       :Resume   ~init-params-vec)
+                       :Resume   ~init-params-vec
+                       :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)])
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
+     ;; arc 278: Status::PeersAllowed (unit) — the AllowPeer request/reply ack.
      status-enum-def `(:wat::core::defenum ~status-ty :wat::enum::Pure
                              :Started   [addr     <- ~addr-ty]
                              :Stopped     [resp     <- ~resp-ty]
-                             :Hibernated [snapshot <- ~record-ty])
+                             :Hibernated [snapshot <- ~record-ty]
+                             :PeersAllowed)
 
      ;; ── arc 291 3a-ii-α: dispatch-admin defn ────────────────────────────────
      ;; fn [ai <- Admin] -> State
@@ -615,6 +631,11 @@
                               (~admin-hibernate-kw
                                 (:wat::kernel::assertion-failed!
                                   "defservice dispatch-admin: Hibernate received before Init/Resume (protocol error)"
+                                  :wat::core::None
+                                  :wat::core::None))
+                              ((~admin-allow-peer-kw pids)
+                                (:wat::kernel::assertion-failed!
+                                  "defservice dispatch-admin: AllowPeer received before Init/Resume (protocol error)"
                                   :wat::core::None
                                   :wat::core::None))))
 
@@ -730,6 +751,20 @@
                            (:wat::core::do
                              (:wat::kernel::send' self (~status-hibernated-kw (~hibernate-project-name state)))
                              nil))
+                         ;; arc 278: AllowPeer[pids] — fold (allow' l pid) over the vec on the
+                         ;; serve loop's OWN listener l (process-tier gate), ack PeersAllowed up
+                         ;; the lineage peer (request/reply — owner blocks so grant-before-dial
+                         ;; ordering holds), then CONTINUE serving (recur — no state change).
+                         ((~admin-allow-peer-kw pids)
+                           (:wat::core::do
+                             (:wat::core::foldl
+                               (:wat::core::fn [~allow-acc-sym <- :wat::core::nil
+                                                ~allow-pid-sym <- :wat::core::i64] -> :wat::core::nil
+                                 (:wat::kernel::allow' l ~allow-pid-sym))
+                               nil
+                               pids)
+                             (:wat::kernel::send' self ~status-peers-allowed-kw)
+                             (~serve-name self l clients state)))
                          ((~admin-init-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
                              "defservice serve: Admin::Init after startup (protocol error)"
@@ -846,6 +881,31 @@
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
+
+     ;; ── arc 278: owner-only grant method (mirror of stop) ────────────────────────
+     ;; Method: (defn <fqdn>/grant [h <- Handle  pids <- (Vector i64)] -> nil ...)
+     ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
+     ;; Peer', so a client has NO grant path). Sends Admin::AllowPeer[pids] down the lineage
+     ;; peer; recv's Status::PeersAllowed → the grant is applied before this returns (so the
+     ;; circuit builder's post-spawn grant lands before the caller dials). Callable any time,
+     ;; repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote at def time).
+     grant-discard-sym (:wat::core::symbol-node "_")
+     grant-r-sym       (:wat::core::symbol-node "r")
+     grant-method-name (:wat::core::keyword/from-string
+                         (:wat::core::string::interpolate "{fqdn-str}/grant" :fqdn-str fqdn-str))
+     grant-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
+     grant-method-body `(:wat::core::let
+                          [~grant-discard-sym (:wat::kernel::send' (~handle-handle-acc h) (~admin-allow-peer-kw pids))
+                           ~grant-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
+                          (:wat::core::match ~grant-r-sym -> :wat::core::nil
+                            (~status-peers-allowed-kw nil)
+                            (_ (:wat::kernel::assertion-failed!
+                                 "defservice grant: expected Status::PeersAllowed"
+                                 :wat::core::None
+                                 :wat::core::None))))
+     grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
+     ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
+     methods           (:wat::core::conj methods grant-method)
 
      ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
      ;; (defn <fqdn>/start [locus <- :wat::spawn::Locus  state0 <- <state-ty>] -> <fqdn>::Handle
