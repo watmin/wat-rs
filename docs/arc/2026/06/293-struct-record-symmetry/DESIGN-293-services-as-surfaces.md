@@ -1,8 +1,10 @@
 # DESIGN — 293: services-as-surfaces (a `defservice` satisfies a surface — the AWS service model, decomplected)
 
 > **Status: CONTRACT SETTLED (2026-07-05 — the operation model: `RequestRecord → ResponseRecord`, errors as `Reply`
-> variants, both width-evolvable + checker-walled); the CODEGEN re-pointing + intueri names + a feasibility probe are
-> what remain to draw (see § The mechanism + § Open).** This is 293's
+> variants, both width-evolvable + checker-walled). ERROR SHAPE RESOLVED (2026-07-06, open item #4) — every op returns a
+> per-op `*Result` enum (`:Success` first + only that op's error variants; reusable error records; exhaustive-match-walled),
+> and the surface is `:nature :wat::kernel::Peer'` (post `Holder→Nature`). See § The `*Result` shape. The CODEGEN
+> re-pointing + intueri names + a feasibility probe are what remain to draw (see § The mechanism + § Open).** This is 293's
 > **unfinished third face.** 293 fused struct+record into the aggregate and made `defsurface` a set-of-accessors
 > satisfied by **attrs** (a struct's fields) and **methods** (an `extend-type`). The one citizen that never got folded
 > in is the **service** — it predates surfaces (arc 209/291), still mints its own private `::Op`/`::Reply`, and
@@ -155,6 +157,102 @@ implements them (`:impls`) and the client is generated from them (`:calls [surfa
 are enforced by the checker. The AWS service model, with the two things AWS never had — **structural evolvability
 instead of versioned breakage, and the type system instead of codegen.**
 
+## The `*Result` shape — RESOLVED (2026-07-06: the error channel, reasoned to over the S4 co-design)
+
+Open item #4 is closed. The abstract *"errors are `Reply` variants (success + per-error records)"* resolves to one
+concrete, uniform shape — the **per-operation `*Result` enum**, completing the `*Request` / `*Response` trio.
+
+**Every operation returns a per-op `*Result` enum** — NOT a generic `Result<T, SharedError>`. A shared error enum
+over-approximates: it lets *every* op carry *every* error, which is a lie about the op's real contract (`scan` cannot
+raise a uniqueness `Constraint`; `put` cannot return "no such index"). Each op names its own outcome enum:
+
+```clojure
+(:wat::core::defenum :wat::query::PutResult :wat::enum::Pure
+  :Success    [ret <- :wat::query::PutResponse]   ;; ALWAYS the first variant; carries the op's *Response
+  :Constraint [err <- :wat::query::Constraint]    ;; then ONLY the errors PUT can actually emit
+  :Transient  [err <- :wat::query::Transient]
+  :Fatal      [err <- :wat::query::Fatal])
+
+(put [self <- :wat::query::Store  req <- :wat::query::PutRequest] -> :wat::query::PutResult)
+```
+
+Three rules, all load-bearing:
+- **`:Success` is always the first variant**, carrying that op's `*Response` record — a uniform head across every
+  `*Result`, so the caller always knows the success arm.
+- **Error records are a shared, reusable vocabulary**, defined ONCE (`Transient` / `Constraint` / `Fatal`, each carrying
+  a `Fault`). They communicate the *shape of the thing the caller must handle*; each op's `*Result` selects the subset
+  it can produce. The old recovery-axis `Error` *enum* dissolves into these standalone records.
+- **Per-op error selection is the AWS/Smithy operation-error-set model, wat-native** — but enforced by the type system,
+  not docs.
+
+**The wall — the caller can never be surprised (`MVNIRE` on error-handling).** Because `*Result` is an enum, the caller
+must `match` it, and wat's match is *exhaustive*: a modeled error left unhandled is a **compile error** — an unhandled
+error has no representable form. Strictly stronger than a generic `Result` (whose single `Err` a caller can wave away):
+every error an op can produce is a branch the caller is *forced* to write.
+
+**Authoring conventions folded in here:**
+- **`:satisfies` is authored FIRST** — always the leading clause of a `:satisfies` defservice: identity (the surface it
+  *is*) before state (`:durable`/`:ephemeral`) before impl (`:impls`). The macro's clause-map is order-free; this is a
+  presentation law, not a mechanism constraint.
+- **The surface is `:nature :wat::kernel::Peer'`** (post `Holder→Nature`, `4b9a6d7f` + R32 `QVANTVMVIS PROCVL IDEM
+  NEXVS`) — a service is a surface at a coordinate; the peer dispatches intrinsically (Path B, `823b20ac`). The
+  `:holder :Struct` in this doc's other examples predates the rename; migrating `:wat::query::Store` →
+  `:nature :Peer'` **is** stone S4a.
+
+### The reshaped `:wat::query::Store` contract (the S4a target — the worked example)
+
+```clojure
+;; ── shared error-record vocabulary — defined ONCE, reused across ops (the recovery axis) ──
+(:wat::core::defrecord :wat::query::Fault
+  [op <- :wat::core::keyword  code <- :wat::core::i64
+   diagnostic <- :wat::core::String  message <- :wat::core::String])
+(:wat::core::defrecord :wat::query::Transient  [fault <- :wat::query::Fault])   ;; retry — momentarily unavailable
+(:wat::core::defrecord :wat::query::Constraint [fault <- :wat::query::Fault])   ;; surface — schema/uniqueness violation
+(:wat::core::defrecord :wat::query::Fatal      [fault <- :wat::query::Fault])   ;; abort — unrecoverable
+
+;; ── per-op request / response records ──
+(:wat::core::defrecord :wat::query::EnsureSchemaRequest
+  [table <- :wat::query::TableSchema  indexes <- (:wat::core::Vector :wat::query::IndexSchema)])
+(:wat::core::defrecord :wat::query::EnsureSchemaResponse [])
+(:wat::core::defrecord :wat::query::PutRequest  [rows <- (:wat::core::Vector :wat::query::StoredRow)])
+(:wat::core::defrecord :wat::query::PutResponse [])
+;; ScanRequest / IndexScanRequest already conform; the page-bearing responses:
+(:wat::core::defrecord :wat::query::ScanResponse
+  [rows <- (:wat::core::Vector :wat::query::Row)       next-cursor <- (:wat::core::Option :wat::core::String)])
+(:wat::core::defrecord :wat::query::IndexScanResponse
+  [rows <- (:wat::core::Vector :wat::query::IndexRow)  next-cursor <- (:wat::core::Option :wat::core::String)])
+
+;; ── per-op RESULT enums — :Success first, then only that op's errors ──
+(:wat::core::defenum :wat::query::EnsureSchemaResult :wat::enum::Pure
+  :Success [ret <- :wat::query::EnsureSchemaResponse]  :Constraint [err <- :wat::query::Constraint]  :Fatal [err <- :wat::query::Fatal])
+(:wat::core::defenum :wat::query::PutResult :wat::enum::Pure
+  :Success [ret <- :wat::query::PutResponse]  :Constraint [err <- :wat::query::Constraint]  :Transient [err <- :wat::query::Transient]  :Fatal [err <- :wat::query::Fatal])
+(:wat::core::defenum :wat::query::ScanResult :wat::enum::Pure
+  :Success [ret <- :wat::query::ScanResponse]  :Transient [err <- :wat::query::Transient]  :Fatal [err <- :wat::query::Fatal])
+(:wat::core::defenum :wat::query::ScanIndexResult :wat::enum::Pure
+  :Success [ret <- :wat::query::IndexScanResponse]  :Transient [err <- :wat::query::Transient]  :Fatal [err <- :wat::query::Fatal])
+
+;; ── the surface — :satisfies-first authoring, :nature :Peer', success-only sigs; the *Result IS the return ──
+(:wat::core::defsurface :wat::query::Store :nature :wat::kernel::Peer'
+  :features
+  [(ensure-schema [self <- :wat::query::Store  req <- :wat::query::EnsureSchemaRequest] -> :wat::query::EnsureSchemaResult)
+   (put           [self <- :wat::query::Store  req <- :wat::query::PutRequest]          -> :wat::query::PutResult)
+   (scan          [self <- :wat::query::Store  req <- :wat::query::ScanRequest]         -> :wat::query::ScanResult)
+   (scan-index    [self <- :wat::query::Store  req <- :wat::query::IndexScanRequest]    -> :wat::query::ScanIndexResult)])
+;; synthesized wire:  Op::Put [req <- PutRequest]  +  Reply::Put [result <- PutResult]
+;; client-facing:     (:wat::query::Store/put peer req) -> PutResult  ← caller MUST match :Success/:Constraint/:Transient/:Fatal
+```
+
+**Per-op error sets (PROPOSED — modeling, pending final builder confirm):** reads (`scan`/`scan-index`) →
+`Transient`/`Fatal` (a read cannot violate a constraint); `put` → `Constraint`/`Transient`/`Fatal`; `ensure-schema`
+(DDL) → `Constraint`/`Fatal`.
+
+**Provenance (path-of-voices):** the per-op `*Result` shape, `:Success`-always-first, the reusable-error-records
+insight, and the `:satisfies`-first law are the **builder's** — reasoned to over the S4 co-design (*"not all ops can
+toss all errors"*; *"the err records can be reused… they communicate the shape of the thing the user needs to
+handle"*; *"forces the user to always handle all errors — they can never be surprised"*). The materialization (this
+contract), the four-questions grounding, and the `MVNIRE`/Smithy framing are the apparatus's.
+
 ## Open — what's left to scout + draw (the CONTRACT above is settled)
 
 1. **Re-point the codegen.** `defservice`'s existing request/response/variant/`Op`/`Reply` codegen (grounded:
@@ -167,8 +265,9 @@ instead of versioned breakage, and the type system instead of codegen.**
 3. **`:calls [surface]`** — extend `:calls` (today: concrete service keywords) to accept a surface + ship the
    surface-sourced client-forms; the consumer dials `Address'<Store::Op, Store::Reply>` (uniform, given as a pure
    operating-input, dialed in `:init`).
-4. **The `Reply`-as-error-union shape** — how modeled errors become `Reply` variants (success + per-error records) and
-   how the client method surfaces them to the caller.
+4. **The `Reply`-as-error-union shape** — ✅ **RESOLVED 2026-07-06** (see § The `*Result` shape): each op returns a
+   per-op `*Result` enum (`:Success` first + only that op's error variants; reusable error records; exhaustive-match-
+   walled). `Reply::<Op>` carries the `*Result`; the client method returns it; the caller must exhaustively match it.
 5. **Naming (intueri)** — `:satisfies` / `:impls` clause names; where the shared protocol types live (the surface
    namespace); the Request/Response record naming convention.
 6. **A disconfirming probe** — can `defservice`'s request/response codegen be re-pointed at a surface's methods and
