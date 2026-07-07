@@ -55,6 +55,8 @@
   :satisfies :wat-tests::Worker
   :durable   [job-count <- :wat::core::i64]
   :ephemeral [recorder  <- :wat::kernel::Peer'<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
+  ;; arc 278 S4d: worker DIALS recorder (holds its client peer above) — declare the s2s DAG edge.
+  :peers     [:wat-tests::Recorder]
   :init (:wat::core::fn [record        <- :wat-tests::worker::Record
                          recorder-addr <- :wat::kernel::Address'<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
           -> :wat-tests::worker::State

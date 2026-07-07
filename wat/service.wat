@@ -80,6 +80,7 @@
      ;; :impls (bodies-only op implementations, in place of :ops) join the recognized clauses.
      known-clauses  (:wat::core::HashMap/assoc
                       (:wat::core::HashMap/assoc
+                       (:wat::core::HashMap/assoc
                         (:wat::core::HashMap/assoc
                           (:wat::core::HashMap/assoc
                             (:wat::core::HashMap/assoc
@@ -97,6 +98,8 @@
                           "durable-parent" true)
                         "satisfies" true)
                       "impls" true)
+                      ;; Arc 278 S4d: :peers — the explicit s2s dependency DAG (dialed peer surfaces).
+                      "peers" true)
      clauses-len    (:wat::core::length clauses)
      n-clause-pairs (:wat::core::i64::/ clauses-len 2)
      ;; even-length guard
@@ -125,7 +128,7 @@
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown clause :"
                                 (:wat::core::string::concat key
-                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent"))))))
+                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-clause-pairs))
      ;; ── Arc 293 S2: :ops vs :satisfies mode ────────────────────────────────────
@@ -342,6 +345,122 @@
      ;; Build the state field vector as a WatAST::Vector using with-children on empty-vec
      state-field-vec (:wat::core::with-children empty-vec state-field-items)
      state-def    `(:wat::core::defstruct ~state-ty ~state-field-vec)
+
+     ;; ── Arc 278 S4d: :peers — the s2s dependency DAG + cross-fork manifest ──────────
+     ;; A :satisfies service that DIALS another service holds a client Peer'<S::Op,S::Reply>
+     ;; in a ROOT :ephemeral field and calls S's surface methods on it. :peers [:S1 …] is the
+     ;; EXPLICIT declaration of those dialed surfaces.
+     ;;
+     ;; BIJECTION (set equality, by surface): the SET of :peers surfaces MUST EQUAL the SET of
+     ;; root-ephemeral peer-field surfaces. A peer field is any root :ephemeral field whose type
+     ;; is `:wat::kernel::Peer'<S::Op,S::Reply>` — its surface is S (the first type-arg minus the
+     ;; trailing `::Op`). :peers entry with no matching ephemeral peer field → macro-error (missing);
+     ;; ephemeral peer field whose surface is not in :peers → macro-error (extra/undeclared).
+     ;; Two ephemeral peers of the same surface → one :peers entry (set equality). Only ROOT
+     ;; ephemeral fields are walked, so a peer must be a top-level :ephemeral field.
+     ;;
+     ;; MANIFEST: for each :peers surface S, (S::surface-forms) is concatenated into the child
+     ;; bundle (below, in service-forms-def) so a forked child resolves the DIALED surface's
+     ;; Op/Reply/records (else the child StartupErrors on S's types when serve/methods reference them).
+     ;;
+     ;; :peers is OPTIONAL: a service with no dialed peers omits it. But if it has ephemeral peer
+     ;; fields, :peers is REQUIRED to match them (an unmatched ephemeral peer → the "extra" error).
+     peers-node     (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "peers")
+                      -> :wat::WatAST
+                      (:wat::core::Option/expect
+                        (:wat::core::HashMap/get clause-map "peers")
+                        "defservice: :peers needs a value")
+                      empty-vec)
+     peers-children (:wat::core::ast->children peers-node)
+     ;; peers-surfaces: Vector<String> — the declared peer surface fqdns (keyword/to-string each).
+     peers-surfaces (:wat::core::foldl
+                      (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
+                                       pk  <- :wat::WatAST]
+                        -> :wat::core::Vector<wat::core::String>
+                        (:wat::core::conj acc (:wat::core::keyword/to-string pk)))
+                      (:wat::core::Vector :wat::core::String)
+                      peers-children)
+     ;; ephemeral-peer-surfaces: Vector<String> — the surface of each ROOT ephemeral peer field.
+     ;; ephemeral-children is the flat token vec [name <- :Type name <- :Type …]; the type node
+     ;; of field i is at index i*3+2. A peer field's type is a keyword containing `wat::kernel::Peer'<`
+     ;; whose first type-arg ends in `::Op`; the surface is that arg minus `::Op`.
+     ephemeral-peer-surfaces
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
+                                       i   <- :wat::core::i64]
+                        -> :wat::core::Vector<wat::core::String>
+                        (:wat::core::let
+                          [ty-node (:wat::core::Option/expect
+                                     (:wat::core::get ephemeral-children
+                                       (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                     "defservice: ephemeral field type out of bounds")]
+                          (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-node) "keyword")
+                            -> :wat::core::Vector<wat::core::String>
+                            (:wat::core::let
+                              [ty-str (:wat::core::keyword/to-string ty-node)]
+                              (:wat::core::if (:wat::core::string::contains? ty-str "wat::kernel::Peer'<")
+                                -> :wat::core::Vector<wat::core::String>
+                                (:wat::core::let
+                                  ;; tail := everything after the first "Peer'<"; = "S::Op,S::Reply>"
+                                  [tail      (:wat::core::second (:wat::core::string::split ty-str "Peer'<"))
+                                   first-arg (:wat::core::first (:wat::core::string::split tail ","))]
+                                  (:wat::core::if (:wat::core::string::ends-with? first-arg "::Op")
+                                    -> :wat::core::Vector<wat::core::String>
+                                    (:wat::core::conj acc
+                                      (:wat::core::string::subs first-arg 0
+                                        (:wat::core::i64::- (:wat::core::string::length first-arg) 4)))
+                                    acc))
+                                acc))
+                            acc)))
+                      (:wat::core::Vector :wat::core::String)
+                      (:wat::core::range 0 (:wat::core::i64::/ ephemeral-len 3)))
+     ;; BIJECTION check 1 (missing): every :peers surface must have a matching ephemeral peer field.
+     _peers-missing (:wat::core::foldl
+                      (:wat::core::fn [ok <- :wat::core::bool  ps <- :wat::core::String]
+                        -> :wat::core::bool
+                        (:wat::core::if (:wat::core::Vector/contains? ephemeral-peer-surfaces ps)
+                          -> :wat::core::bool
+                          ok
+                          (:wat::core::macro-error
+                            (:wat::core::string::concat fqdn-str
+                              (:wat::core::string::concat ": :peers declares surface :"
+                                (:wat::core::string::concat ps
+                                  (:wat::core::string::concat
+                                    " but no :ephemeral field is typed :wat::kernel::Peer'<"
+                                    (:wat::core::string::concat ps
+                                      "::Op,…::Reply> — add the dialed peer as a root :ephemeral field, or drop it from :peers"))))))))
+                      true
+                      peers-surfaces)
+     ;; BIJECTION check 2 (extra/undeclared): every ephemeral peer field's surface must be in :peers.
+     _peers-extra   (:wat::core::foldl
+                      (:wat::core::fn [ok <- :wat::core::bool  es <- :wat::core::String]
+                        -> :wat::core::bool
+                        (:wat::core::if (:wat::core::Vector/contains? peers-surfaces es)
+                          -> :wat::core::bool
+                          ok
+                          (:wat::core::macro-error
+                            (:wat::core::string::concat fqdn-str
+                              (:wat::core::string::concat ": :ephemeral holds a dialed Peer'<"
+                                (:wat::core::string::concat es
+                                  (:wat::core::string::concat "::Op,…::Reply> but surface :"
+                                    (:wat::core::string::concat es
+                                      (:wat::core::string::concat
+                                        " is not declared in :peers — add :peers [… :"
+                                        (:wat::core::string::concat es " …] (the explicit s2s dependency DAG)"))))))))))
+                      true
+                      ephemeral-peer-surfaces)
+     ;; peer-forms-calls: Vector<WatAST> of `(:S::surface-forms)` call nodes — one per :peers surface.
+     ;; Spliced into the service-forms concat (below) so each dialed surface's forms cross the fork.
+     peer-forms-calls (:wat::core::foldl
+                        (:wat::core::fn [acc   <- :wat::core::Vector<wat::WatAST>
+                                         s-str <- :wat::core::String]
+                          -> :wat::core::Vector<wat::WatAST>
+                          (:wat::core::let
+                            [sf-kw (:wat::core::keyword/from-string
+                                     (:wat::core::string::concat s-str "::surface-forms"))]
+                            (:wat::core::conj acc `(~sf-kw))))
+                        (:wat::core::Vector :wat::WatAST)
+                        peers-surfaces)
 
      ;; Arc 293 S2 — Op/Reply live under the PROTOCOL namespace (proto-str): the surface's
      ;; when :satisfies, else this service's own fqdn (identical to pre-S2 for the :ops path).
@@ -844,9 +963,21 @@
      ;; name is `<surface>::surface-forms`.
      surface-forms-kw (:wat::core::keyword/from-string
                         (:wat::core::string::concat proto-str "::surface-forms"))
+     ;; Arc 278 S4d: concat the OWN surface's forms + every :peers surface's forms + own internals.
+     ;; `concat` is strictly binary, so we build a LEFT-nested chain (order-preserving):
+     ;;   (concat (concat … (concat (OwnSurface::surface-forms) (S1::surface-forms)) …) own-forms-call)
+     ;; peers-forms-node folds each `(:Si::surface-forms)` onto the own-surface call; empty :peers
+     ;; → peers-forms-node is just `(OwnSurface::surface-forms)` (identical to the pre-S4d concat).
+     peers-forms-node (:wat::core::foldl
+                        (:wat::core::fn [acc       <- :wat::WatAST
+                                         call-node <- :wat::WatAST]
+                          -> :wat::WatAST
+                          `(:wat::core::concat ~acc ~call-node))
+                        `(~surface-forms-kw)
+                        peer-forms-calls)
      service-forms-def `(:wat::core::defn ~service-forms-kw
                           [] -> :wat::core::Vector<wat::WatAST>
-                          (:wat::core::concat (~surface-forms-kw) ~own-forms-call))
+                          (:wat::core::concat ~peers-forms-node ~own-forms-call))
 
      ;; arc 291: start-params uses the init fn's single param binder (name <- :T) so start
      ;; takes the EDN seed (or state0 for default) as its 2nd param. ship-ref is the symbol.
