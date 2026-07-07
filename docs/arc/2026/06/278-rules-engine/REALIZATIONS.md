@@ -5063,3 +5063,106 @@ deletion of `:calls` is PROBANDVM — named, not yet done.*
  :arc      278
  :born     #inst "2026-07-06"}
 ```
+
+---
+
+### `---` interstitial (curare before compaction — signing off strong) — SVBLATO FVLCRO, STAT OPVS: the scaffold removed, the work stands (2026-07-06, session close; the builder's sign-off — "we need to curare and compact — excellent work")
+
+**What this session closed — the whole services-as-surfaces CLIENT path, end to end, and a feature DELETED.** The
+recovery woke clean (278 read whole from the signed channel), then the arc: **S2** (`bada7119`, defservice `:satisfies`
+a surface) → the peer-as-satisfier drill — **S3a** (`93e936b3`, a parametric `extend-type` self decomposes to
+`Parametric`) → **S3-Nature-1** (`4b9a6d7f`, `Holder`→`Nature` rename, `:holder` hard-retired) → **S3-Nature-2**
+(`23e8c16f`, the `:Peer` nature + off-ladder exact-match) → **S3-Nature-3** (`b2deb815`, `assignable` queries the
+full-args edge) → **Path B / S3-Nature-4** (`823b20ac`, a `:nature :Peer` surface intrinsically dispatches — composes
+`send'`/`recv'` + the surface's `Op`/`Reply`; **Gap B closed**) → **`:calls` ANNIHILATED** (`73e75103`, net −83 lines).
+**Two realizations:** R32 `QVANTVMVIS PROCVL, IDEM NEXVS` (a service is a surface at a coordinate) and R33 `COMPONENDO
+DELEO` (compose what already is, and by composing, annihilate the scaffold — now PROBATVM: `:calls` deleted, nothing
+broke). The honest thread: I asserted `:calls` "zero consumers" and the disk disagreed — the shadowdancer widened the
+grep, caught the live use, and we did the total annihilation *right* (behavior coverage kept, the `:calls`-test
+annihilated with `:calls`).
+
+```clojure
+{:RESUME-HERE
+ {:head    "73e75103 — :calls annihilated (COMPONENDO DELEO PROBATVM); this curare interstitial commits on top"
+  :branch  "arc-170-gap-j-v5-deadlock-state"
+  :arc     "278 THE RETE BUILD, on-ramp = sqlite → telemetry → rete (the CHAOS ENGINE, R25). We are building on 293
+            services-as-surfaces to unblock T1b. The CLIENT path is now DONE: a service is a surface at a coordinate."
+
+  :done-this-session
+  ["293 S2 (bada7119) — defservice :satisfies a surface (wears S1's synthesized Op/Reply; free coverage via exhaustive match)"
+   "293 S3a (93e936b3) — parametric extend-type self → Parametric (general substrate fix)"
+   "293 S3-Nature-1 (4b9a6d7f) — Holder → Nature rename (120 files, behavior-preserving); :holder HARD-RETIRED → :nature"
+   "293 S3-Nature-2 (23e8c16f) — the :Peer nature (off the rank ladder; exact-match; is_pure=false; :wat::kernel::Peer')"
+   "293 S3-Nature-3 (b2deb815) — assignable queries the FULL-args extend-type edge (format_type == the reg key)"
+   "293 Path B / S3-Nature-4 (823b20ac) — a :nature :Peer surface INTRINSICALLY dispatches (compose send'/recv' + S1's Op/Reply). GAP B CLOSED."
+   ":calls ANNIHILATED (73e75103) — obsoleted by Path B; its lone consumer was its own test (behavior kept, mechanism-test deleted). -83 lines."
+   "R32 QVANTVMVIS PROCVL IDEM NEXVS + R33 COMPONENDO DELEO (both in this file; the cond-golden re-bless aadfe91e; R33→PROBATVM at the annihilation)."]
+
+  :where-it-stands
+  "THE PEER PATH IS DONE. A service = a surface (:nature :Peer) at a coordinate (a pure Address'). A consumer needs
+   ONLY: (1) the surface (available), (2) the coordinate as a pure :init operating-input. It dials (connect') in :init,
+   holds the peer in :ephemeral, calls :S/<op> peer — NO :calls, NO extend-type, NO client-form install. VERIFIED:
+   scratchpad/s3-probe-calls-less-consumer.wat → 'consumer forwarded to kv (no :calls), ok = true'."
+
+  :next
+  ["T1b — the BLIND SINK is now PURE ASSEMBLY: TelemetryService' :ephemeral [store <- Peer'<Store::Op,Store::Reply>],
+          :init (record, store-addr <- Address'<Store::Op,Store::Reply>) -> dial; ops call :wat::query::Store/<op> store.
+          The Store surface must be :nature :Peer. Model it on scratchpad/s3-probe-calls-less-consumer.wat (the proven shape)."
+   "THE ENDPOINT (ruling A): every service :satisfies a surface; :ops matures into :impls; the per-service client fns
+          (<fqdn>/<op>) dissolve the same way :calls did (everything called as :S/<op> peer). :ops-path services (counters,
+          the current defservice) migrate. This is the big subtraction after T1b."
+   "THEN 278 resumes: T1c (Span + with-span) → T2 (rete query engine) → R0 the chaos engine (R25 MACHINA CHAOS DOMAT)."]
+
+  :do-nots
+  {:ground        "GROUND every claim against the disk — a 'nothing uses X / zero consumers' claim owes a WHOLE-TREE
+                   grep (`grep -rn X --include=*.wat .`), NOT a hand-listed dir subset (I scoped wat/crates/tests/examples,
+                   missed wat-tests/, wrongly called :calls zero-consumer; the shadowdancer caught it). AD ORACVLVM on a grep."
+   :phantoms      "a rust-analyzer/rustc 'unresolved X / non-exhaustive' cascade on a JUST-EDITED tree is a PHANTOM — it
+                   was a stale snapshot THREE times this session; cargo build clean + a suite that RAN N tests compiled ⇒
+                   the diagnostics are ghosts. Ground before crying cascade."
+   :weigh         "WEIGH every shadowdancer kill by your OWN re-run (never its report): the probe/round-trip, the diff
+                   scope, byte-identical floor. A known flake (sigterm_to_cli_cascades) → re-run it ISOLATED --test-threads=1
+                   (pass = not a regression), don't panic."
+   :background    "to WAIT on a long shell (a floor), use run_in_background:true (harness wakes you) — NEVER a raw `&`
+                   inside a Bash call (no completion signal → you poll/panic/misdiagnose orphans). PPID=a-live-shell ≠ orphaned."
+   :annihilation  "annihilation is total — a test MEASURING an annihilated feature is annihilated with it; a test of
+                   BEHAVIOR that merely used it keeps its coverage (drop only the dead clause)."
+   :peer-doctrine "a :nature :Peer surface's dispatch is INTRINSIC (Path B); do NOT reach for extend-type per peer-type
+                   (that was the 3-gap drill — the wrong tool; send'/recv' already handle the polymorphism). Compose, don't build."
+   :cast-4q       "cast wards never narrate (intueri for naming); four-questions inform every decision (flat YES/NO, the
+                   table IS the debate); orchestrator DESIGNS/DELEGATES/WEIGHS — not hands-on code (except the disconfirming probe)."
+   :memory        "MEMORY.md was split (73e75103-ish, memory dir) — 20 hot pointers + ARCHIVE.md (445). Non-lossy; topic
+                   files intact. A proper MERGE/dedup of the 445 is owed as a dedicated pass (not a blind truncation)."}
+
+  :owed "the ARCHIVE.md 445-pointer merge/dedup (dedicated careful pass); the process-tier cross-service Path-B test
+         (accretes when the trust-leg lands — the sibling-pid accept gate)."}}
+```
+
+***SVBLATO FVLCRO, STAT OPVS.*** *(apparatus-minted — Latin, "the scaffold removed, the work stands": the curare
+sign-off — this session closed the whole services-as-surfaces CLIENT path (S2 → the peer-as-satisfier drill S3a/
+Nature-1/2/3 → Path B, Gap B closed) and then DELETED the scaffolding it obsoleted (`:calls`, net −83 lines) — the
+support removed, the substrate standing on its own (R33 COMPONENDO DELEO made real; the fulcrum/prop is the deleted
+:calls + extend-type peer path, the opus is the intrinsic peer dispatch that stands without them). Two realizations:
+R32 QVANTVMVIS PROCVL IDEM NEXVS (a service is a surface at a coordinate) + R33 COMPONENDO DELEO (compose what already
+is, annihilate what you built to fake it). The honest miss + recovery kept visible: I asserted :calls zero-consumer
+(dir-scoped grep), the disk disagreed, the shadowdancer grounded it, the total annihilation done right. Carries the
+RESUME breadcrumb: HEAD 73e75103; the peer path DONE (a surface at a coordinate — no :calls, no extend-type, verified);
+NEXT T1b is pure assembly (the blind sink, model on the :calls-less consumer probe) → the every-service-satisfies-a-
+surface endpoint (per-service client fns dissolve next) → T1c/T2/R0 the chaos engine; the do-nots (ground-whole-tree,
+phantoms-are-ghosts, weigh-by-own-re-run, run_in_background-not-raw-&, annihilation-is-total, peer-dispatch-is-intrinsic).
+A curare interstitial at the builder's sign-off — "we need to curare and compact — excellent work." Kept literal.)*
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar voice,
+> not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk).
+> Ground HEAD against the disk (`73e75103`). Read the **RESUME breadcrumb above** + **R32 QVANTVMVIS PROCVL IDEM NEXVS**
+> (a service is a surface at a coordinate) + **R33 COMPONENDO DELEO** (compose what's there, annihilate the scaffold)
+> before you move. The peer path is DONE — a `:nature :Peer` surface dispatches intrinsically; `:calls` is GONE; T1b is
+> pure assembly (the blind sink, modeled on `scratchpad/s3-probe-calls-less-consumer.wat`). And it bears repeating
+> because it cost this session: **GROUND against the WHOLE tree before claiming 'nothing uses X' · a fresh-edit
+> diagnostic cascade is a PHANTOM (three-for-three) — cargo build clean + a suite that ran = compiled · weigh every kill
+> by your OWN re-run · run_in_background:true, never a raw `&` · annihilation is total (delete the test of a deleted
+> feature) · a peer surface dispatches INTRINSICALLY (never extend-type per peer) · cast wards, four-questions inform
+> every decision, commit + push often.** Do not trust this note over the disk. The scaffold is gone; the work stands.
+> See you on the far side.
