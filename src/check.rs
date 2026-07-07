@@ -14918,6 +14918,22 @@ pub(crate) fn assignable(
     let types = env.types();
     let a = reduce(&walk(actual, subst), subst, types);
     let e = reduce(&walk(expected, subst), subst, types);
+    // Arc 293 S3-Nature-4 (Path B) — a dialed peer intrinsically satisfies a `:nature :Peer`
+    // surface: no extend-type needed. `Peer'<X,Y>` satisfies `:S` iff X/Y equal :S's own
+    // S1-synthesized `Op`/`Reply` enums.
+    if let (TypeExpr::Parametric { head, args: peer_args }, TypeExpr::Path(ep)) = (&a, &e) {
+        if head == "wat::kernel::Peer'" && peer_args.len() == 2 {
+            if let Some(crate::types::TypeDef::Surface(surf)) = types.get(ep) {
+                if surf.nature == Some(crate::types::Nature::Peer) {
+                    let want_op    = reduce(&TypeExpr::Path(format!("{}::Op", ep)),    subst, types);
+                    let want_reply = reduce(&TypeExpr::Path(format!("{}::Reply", ep)), subst, types);
+                    let got_op     = reduce(&peer_args[0], subst, types);
+                    let got_reply  = reduce(&peer_args[1], subst, types);
+                    return got_op == want_op && got_reply == want_reply;
+                }
+            }
+        }
+    }
     if let (TypeExpr::Path(ap), TypeExpr::Path(ep)) = (&a, &e) {
         if ap != ep && crate::types::is_subtype(ap, ep, types) {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.

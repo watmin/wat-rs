@@ -5460,10 +5460,87 @@ fn dispatch_keyword_head_value(
                 // so surfaces and protocols cannot conflict.
                 if let Some(types) = sym.types.as_ref() {
                     if let Some(crate::types::TypeDef::Surface(s)) = types.get(protocol_fqdn) {
-                        if s.members.iter().any(|m| match m {
+                        if let Some(member) = s.members.iter().find(|m| match m {
                             crate::types::SurfaceMember::Method { name, .. } => name == method_name,
                             crate::types::SurfaceMember::Field { name, .. } => name == method_name,
                         }) {
+                            // Arc 293 S3-Nature-4 (Path B) — a `:nature :Peer` surface has no
+                            // aggregate satisfier to look up; instead it COMPOSES the generic
+                            // `send'`/`recv'` peer primitives with its own S1-synthesized
+                            // `Op`/`Reply` enums: `(let [__op (:S::Op::<Variant> req) _ (send'
+                            // peer __op) __r (recv' peer)] (match __r -> <ret> ((:S::Reply::
+                            // <Variant> resp) resp)))`. This branch fires ONLY for
+                            // `Nature::Peer` — every other nature (aggregate dispatch) falls
+                            // through to the unchanged `:<T>/<method>` lookup below.
+                            if s.nature == Some(crate::types::Nature::Peer) {
+                                if let crate::types::SurfaceMember::Method { ret, .. } = member {
+                                    use crate::scope::Identifier;
+                                    if args.len() < 2 {
+                                        return Err(RuntimeError {
+                                            span: list_span.clone(),
+                                            kind: RuntimeErrorKind::ArityMismatch {
+                                                op: other.to_string(),
+                                                expected: 2,
+                                                got: args.len(),
+                                            },
+                                        }.into());
+                                    }
+                                    let variant = crate::string_ops::kebab_to_pascal_with_acronyms(method_name, &[]);
+                                    let op_ctor = format!("{}::Op::{}", protocol_fqdn, variant);
+                                    let reply_ctor = format!("{}::Reply::{}", protocol_fqdn, variant);
+                                    let ret_kw = crate::check::format_type(ret);
+                                    let span = list_span.clone();
+
+                                    // Eval the peer + request ONCE (avoids double-evaluating the
+                                    // caller's arg expressions); bind them into a child env that
+                                    // the synthesized forwarding AST references by name.
+                                    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+                                    let req_val = eval_inner(&args[1], env, sym)?.value_owned();
+                                    let call_env = env
+                                        .child()
+                                        .bind_unknown_span("__peer", TrackedValue::from(peer_val))
+                                        .bind_unknown_span("__req", TrackedValue::from(req_val))
+                                        .build();
+
+                                    let forwarding_ast = WatAST::List(vec![
+                                        WatAST::Keyword(":wat::core::let".into(), span.clone()),
+                                        WatAST::Vector(vec![
+                                            WatAST::Symbol(Identifier::bare("__op"), span.clone()),
+                                            WatAST::List(vec![
+                                                WatAST::Keyword(op_ctor, span.clone()),
+                                                WatAST::Symbol(Identifier::bare("__req"), span.clone()),
+                                            ], span.clone()),
+                                            WatAST::Symbol(Identifier::bare("__send"), span.clone()),
+                                            WatAST::List(vec![
+                                                WatAST::Keyword(":wat::kernel::send'".into(), span.clone()),
+                                                WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
+                                                WatAST::Symbol(Identifier::bare("__op"), span.clone()),
+                                            ], span.clone()),
+                                            WatAST::Symbol(Identifier::bare("__r"), span.clone()),
+                                            WatAST::List(vec![
+                                                WatAST::Keyword(":wat::kernel::recv'".into(), span.clone()),
+                                                WatAST::Symbol(Identifier::bare("__peer"), span.clone()),
+                                            ], span.clone()),
+                                        ], span.clone()),
+                                        WatAST::List(vec![
+                                            WatAST::Keyword(":wat::core::match".into(), span.clone()),
+                                            WatAST::Symbol(Identifier::bare("__r"), span.clone()),
+                                            WatAST::Symbol(Identifier::bare("->"), span.clone()),
+                                            WatAST::Keyword(ret_kw, span.clone()),
+                                            WatAST::List(vec![
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(reply_ctor, span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                                ], span.clone()),
+                                                WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                            ], span.clone()),
+                                        ], span.clone()),
+                                    ], span.clone());
+
+                                    return eval_inner(&forwarding_ast, &call_env, sym)
+                                        .map(|tv| tv.value_owned());
+                                }
+                            }
                             // Must have at least 1 arg (the receiver).
                             if args.is_empty() {
                                 return Err(RuntimeError {
