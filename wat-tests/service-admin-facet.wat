@@ -14,18 +14,29 @@
 ;; stop defaults to (fn [s] -> ::Record (State/durable s)) → final is a ::Record.
 ;; Assertion reads Record/count final.
 
+;; ── the surface (the counter protocol, lifted) ───────────────────────────────
+;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
+;; service ships them across a process fork.
+(:wat::core::defsurface :wat-tests::AdminCounter :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::AdminCounter::IncrementRequest  [n <- :wat::core::i64])
+   (:wat::core::defrecord :wat-tests::AdminCounter::IncrementResponse [value <- :wat::core::i64])]
+  :features
+  [(increment [self <- :wat-tests::AdminCounter  req <- :wat-tests::AdminCounter::IncrementRequest] -> :wat-tests::AdminCounter::IncrementResponse)])
+
 ;; ── the service: a counter; Increment is a client (data-plane) op; stop is admin (control-plane) ──
 (:wat::service::defservice :wat-tests::admin-counter
+  :satisfies :wat-tests::AdminCounter
   :durable [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
+  :impls
+  [(increment [s req]
      (:wat::core::let [c (:wat::core::i64::+
-                           (:wat-tests::admin-counter::Record/count (:wat-tests::admin-counter::State/durable s)) n)]
+                           (:wat-tests::admin-counter::Record/count (:wat-tests::admin-counter::State/durable s))
+                           (:wat-tests::AdminCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
          (:wat-tests::admin-counter::State (:wat-tests::admin-counter::Record c))
-         (:wat-tests::admin-counter::IncrementResponse c))))])
+         (:wat-tests::AdminCounter::IncrementResponse c))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.
@@ -37,7 +48,7 @@
     (:wat::core::let
       [h (:wat-tests::admin-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::admin-counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::admin-counter::Handle/addr h))
-       _ (:wat-tests::admin-counter/increment c (:wat-tests::admin-counter/increment-request 7))
+       _ (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest 7))
        final (:wat-tests::admin-counter/stop h)]
       (:wat-tests::admin-counter::Record/count final))
     7))
@@ -49,7 +60,7 @@
     (:wat::core::let
       [h (:wat-tests::admin-counter/start :locus (:wat::spawn::process) :record (:wat-tests::admin-counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::admin-counter::Handle/addr h))
-       _ (:wat-tests::admin-counter/increment c (:wat-tests::admin-counter/increment-request 7))
+       _ (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest 7))
        final (:wat-tests::admin-counter/stop h)]
       (:wat-tests::admin-counter::Record/count final))
     7))

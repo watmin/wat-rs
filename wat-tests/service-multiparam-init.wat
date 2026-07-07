@@ -11,18 +11,28 @@
 ;; GREEN after 4b-iv-a: Admin::Init/Resume carry the WHOLE init-arg tuple; dispatch-admin applies
 ;; init to all of them; start/resume thread all init params.
 
+;; ── the surface (the counter protocol, lifted) ───────────────────────────────
+;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
+;; service ships them across a process fork.
+(:wat::core::defsurface :wat-tests::OffsetCounter :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::OffsetCounter::TotalRequest  [])
+   (:wat::core::defrecord :wat-tests::OffsetCounter::TotalResponse [value <- :wat::core::i64])]
+  :features
+  [(total [self <- :wat-tests::OffsetCounter  req <- :wat-tests::OffsetCounter::TotalRequest] -> :wat-tests::OffsetCounter::TotalResponse)])
+
 (:wat::service::defservice :wat-tests::offset-counter
+  :satisfies :wat-tests::OffsetCounter
   :durable   [count <- :wat::core::i64]
   :ephemeral [base <- :wat::core::i64]
   :init (:wat::core::fn [record <- :wat-tests::offset-counter::Record
                          offset <- :wat::core::i64]
           -> :wat-tests::offset-counter::State
           (:wat-tests::offset-counter::State record offset))
-  :ops
-  [(:Total [s <- :State]
-           -> [value <- :wat::core::i64]
+  :impls
+  [(total [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::offset-counter::TotalResponse
+       (:wat-tests::OffsetCounter::TotalResponse
          (:wat::core::i64::+
            (:wat-tests::offset-counter::Record/count (:wat-tests::offset-counter::State/durable s))
            (:wat-tests::offset-counter::State/base s)))))])
@@ -38,8 +48,8 @@
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::thread)
            :record (:wat-tests::offset-counter::Record 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
-       r (:wat-tests::offset-counter/total c (:wat-tests::offset-counter/total-request))]
-      (:wat-tests::offset-counter::TotalResponse/value r))
+       r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
+      (:wat-tests::OffsetCounter::TotalResponse/value r))
     105))
 
 ;; process tier: identical except the locus — the live offset crosses the wire as EDN in Admin::Init.
@@ -50,6 +60,6 @@
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::process)
            :record (:wat-tests::offset-counter::Record 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
-       r (:wat-tests::offset-counter/total c (:wat-tests::offset-counter/total-request))]
-      (:wat-tests::offset-counter::TotalResponse/value r))
+       r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
+      (:wat-tests::OffsetCounter::TotalResponse/value r))
     105))

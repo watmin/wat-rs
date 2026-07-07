@@ -1,24 +1,37 @@
+;; Arc 278 S4c migration: :ops RETIRED — the service wears a surface (:satisfies + :impls).
+;; The surface (:nature :wat::kernel::Peer') synthesizes the Op/Reply enums from its features;
+;; per-op Request/Response are user-declared records named `<Surface>::<Op>Request/Response`.
+;; This probe still validates the GENERATED op enum (wrapped-record shape): the CAPITALIZED
+;; variant `:my::Counter::Op::Increment` wraps the user-declared `:my::Counter::IncrementRequest`.
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :my::Counter::GetRequest       [])
+   (:wat::core::defrecord :my::Counter::GetResponse       [value <- :wat::core::i64])
+   (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
+   (:wat::core::defrecord :my::Counter::IncrementResponse [value <- :wat::core::i64])]
+  :features
+  [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse)
+   (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse)])
+
 (:wat::service::defservice :my::counter
+  :satisfies :my::Counter
   :durable [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
+  :impls
+  [(get [s req]
+     (:wat::service::Outcome::Reply s (:my::Counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
+   (increment [s req]
+     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) (:my::Counter::IncrementRequest/n req))]
+       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c)) (:my::Counter::IncrementResponse c))))])
 
-   (:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
-
-;; Exercise the GENERATED op enum (wrapped-record C.3 shape):
-;;   1. Build an IncrementRequest via the generated constructor.
-;;   2. Wrap it in the Op::Increment variant.
-;;   3. Match: Get arm returns 0 (proves Get variant exists + wraps GetRequest);
+;; Exercise the surface-synthesized op enum (wrapped-record shape):
+;;   1. Build an IncrementRequest via the user-declared record constructor.
+;;   2. Wrap it in the CAPITALIZED Op::Increment variant.
+;;   3. Match: Get arm returns 0 (proves Op::Get exists wrapping GetRequest);
 ;;      Increment arm extracts n via IncrementRequest/n accessor → 5.
 (:wat::core::defn :user::probe-op [] -> :wat::core::i64
-  (:wat::core::let [req (:my::counter/increment-request 5)
-                    op  (:my::counter::Op::Increment req)]
+  (:wat::core::let [req (:my::Counter::IncrementRequest 5)
+                    op  (:my::Counter::Op::Increment req)]
     (:wat::core::match op -> :wat::core::i64
-      ((:my::counter::Op::Get _r) 0)
-      ((:my::counter::Op::Increment req) (:my::counter::IncrementRequest/n req)))))
+      ((:my::Counter::Op::Get _r) 0)
+      ((:my::Counter::Op::Increment req) (:my::Counter::IncrementRequest/n req)))))

@@ -1,23 +1,38 @@
 ;; tests/process/probe_arc272_rs2_process_stop_returns_final_state.wat — co-located fixture.
-;; startup_beside(file!()) world — counter service on process locus; stop returns final Record.
+;; arc 278 S4c: the counter's protocol is LIFTED into an explicit surface (:my::Counter) the
+;; service WEARS via :satisfies + :impls (the retired :ops clause is gone). counter service on
+;; process locus; stop (per-service, unchanged) returns the final ::Record.
+;; arc 278 S4c — the surface OWNS its protocol messages (:messages), so a :satisfies service
+;; ships them across a process fork. (Was: external top-level defrecords — the forked child
+;; never received them → StartupError. Now the surface's surface-forms carrier crosses them.)
+(:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :my::Counter::GetRequest        [])
+   (:wat::core::defrecord :my::Counter::GetResponse       [value <- :wat::core::i64])
+   (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
+   (:wat::core::defrecord :my::Counter::IncrementResponse [value <- :wat::core::i64])]
+  :features
+  [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse)
+   (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse)])
 
 (:wat::service::defservice :my::counter
-  :durable [count <- :wat::core::i64]
+  :satisfies :my::Counter
+  :durable   [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
-     (:wat::service::Outcome::Reply s (:my::counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
-   (:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) n)]
-       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c)) (:my::counter::IncrementResponse c))))])
+  :impls
+  [(get [s req]
+     (:wat::service::Outcome::Reply s
+       (:my::Counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
+   (increment [s req]
+     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
+                                             (:my::Counter::IncrementRequest/n req))]
+       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c))
+                                      (:my::Counter::IncrementResponse c))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [h     (:my::counter/start :locus (:wat::spawn::process) :record (:my::counter::Record 0))
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
-     _     (:my::counter/increment c (:my::counter/increment-request 5))
+     _     (:my::Counter/increment c (:my::Counter::IncrementRequest 5))
      final (:my::counter/stop h)]
     (:my::counter::Record/count final)))
-

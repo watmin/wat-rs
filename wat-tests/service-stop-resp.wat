@@ -13,18 +13,29 @@
 ;; Op body reads through State/durable. State building uses State/new (Record c).
 ;; :stop projection now reads through State/durable: (Record/count (State/durable s)).
 
+;; ── the surface (the counter protocol, lifted) ───────────────────────────────
+;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
+;; service ships them across a process fork.
+(:wat::core::defsurface :wat-tests::RespCounter :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::RespCounter::IncrementRequest  [n <- :wat::core::i64])
+   (:wat::core::defrecord :wat-tests::RespCounter::IncrementResponse [value <- :wat::core::i64])]
+  :features
+  [(increment [self <- :wat-tests::RespCounter  req <- :wat-tests::RespCounter::IncrementRequest] -> :wat-tests::RespCounter::IncrementResponse)])
+
 ;; ── the service: a counter; :stop projects State → i64 (the count) ──
 (:wat::service::defservice :wat-tests::resp-counter
+  :satisfies :wat-tests::RespCounter
   :durable [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
+  :impls
+  [(increment [s req]
      (:wat::core::let [c (:wat::core::i64::+
-                           (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s)) n)]
+                           (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))
+                           (:wat-tests::RespCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
          (:wat-tests::resp-counter::State (:wat-tests::resp-counter::Record c))
-         (:wat-tests::resp-counter::IncrementResponse c))))  ]
+         (:wat-tests::RespCounter::IncrementResponse c))))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
   ;; decoupled from the ::Record. Read count through State/durable.
   :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> :wat::core::i64
@@ -38,7 +49,7 @@
     (:wat::core::let
       [h (:wat-tests::resp-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::resp-counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::resp-counter::Handle/addr h))
-       _ (:wat-tests::resp-counter/increment c (:wat-tests::resp-counter/increment-request 7))
+       _ (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest 7))
        final (:wat-tests::resp-counter/stop h)]
       final)
     7))
@@ -50,7 +61,7 @@
     (:wat::core::let
       [h (:wat-tests::resp-counter/start :locus (:wat::spawn::process) :record (:wat-tests::resp-counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::resp-counter::Handle/addr h))
-       _ (:wat-tests::resp-counter/increment c (:wat-tests::resp-counter/increment-request 7))
+       _ (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest 7))
        final (:wat-tests::resp-counter/stop h)]
       final)
     7))

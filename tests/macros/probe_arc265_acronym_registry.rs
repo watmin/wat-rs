@@ -37,20 +37,26 @@ fn namespace_scoped_acronym_conversion_restores_casing() {
     assert_eq!(eval_string(&world, r#"(:user::rev-default "create-web-acl")"#), "CreateWebAcl");
 }
 
-// defservice consults its OWN namespace's acronyms at EXPAND time — proves declare-acronyms
-// populated the registry before the macro expanded, and the op-name derivation used pascal->kebab-in.
-// arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; accessors read through durable.
+// The defsurface/defservice pipeline consults its namespace acronyms at EXPAND/REGISTER time —
+// proves declare-acronyms populated the registry before the surface's S1 protocol synthesis and
+// the service's :impls op-name derivation ran, and that BOTH restored the acronym casing.
+// arc 278 S4c: the SVC fixture is now a `:satisfies` service whose Peer surface owns its
+// `:messages` protocol; the kebab method `create-web-acl` must synthesize `::Op::CreateWebACL`
+// (ACL declared for the surface `:my::aws::Waf`) — not `::Op::CreateWebAcl`. `(:user::req-n)`
+// constructs + matches that exact synthesized variant, so it only resolves when the acronym
+// carried through S1's `synthesize_surface_protocol` (mirroring how `:impls` threads the registry).
 #[test]
 fn defservice_consults_its_namespace_acronyms_at_expand_time() {
     let world = startup_from_file("tests/macros/probe_arc265_acronym_registry_svc.wat")
-        .expect("startup (defservice :CreateWebACL with ACL declared -> create-web-acl-request)");
+        .expect("startup (:satisfies surface synthesizes ::Op::CreateWebACL with ACL declared)");
     let ast = wat::parse_one!("(:user::req-n)").expect("parse");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .map(|tv| tv.value_owned())
         .unwrap_or_else(|e| panic!("req-n raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(7)),
-        "expected 7: defservice :CreateWebACL (ACL declared for :my::aws BEFORE the macro expands) \
-         must derive `:my::aws/create-web-acl-request` via pascal->kebab-in; got {got:?}"
+        "expected 7: the surface `:my::aws::Waf` (ACL declared BEFORE it registers) must synthesize \
+         `:my::aws::Waf::Op::CreateWebACL` (acronym-cased) via S1 threading the namespace registry — \
+         constructing + matching that exact variant round-trips 7; got {got:?}"
     );
 }

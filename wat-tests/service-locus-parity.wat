@@ -12,23 +12,36 @@
 ;; arc 291 4b-ii: State is now a defstruct; :durable mints ::Record (the soul); ::State holds it.
 ;; start takes a ::Record (not a pre-built ::State). Accessors read through State/durable.
 
+;; ── the surface (the counter protocol, lifted) ───────────────────────────────
+;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
+;; service ships them across a process fork.
+(:wat::core::defsurface :wat-tests::Counter :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::Counter::GetRequest       [])
+   (:wat::core::defrecord :wat-tests::Counter::GetResponse       [value <- :wat::core::i64])
+   (:wat::core::defrecord :wat-tests::Counter::IncrementRequest  [n <- :wat::core::i64])
+   (:wat::core::defrecord :wat-tests::Counter::IncrementResponse [value <- :wat::core::i64])]
+  :features
+  [(get       [self <- :wat-tests::Counter  req <- :wat-tests::Counter::GetRequest]       -> :wat-tests::Counter::GetResponse)
+   (increment [self <- :wat-tests::Counter  req <- :wat-tests::Counter::IncrementRequest] -> :wat-tests::Counter::IncrementResponse)])
+
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::counter
+  :satisfies :wat-tests::Counter
   :durable [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
+  :impls
+  [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::counter::GetResponse
+       (:wat-tests::Counter::GetResponse
          (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)))))
-   (:Increment [s <- :State n <- :wat::core::i64]
-               -> [value <- :wat::core::i64]
+   (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+
-                           (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)) n)]
+                           (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s))
+                           (:wat-tests::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
          (:wat-tests::counter::State (:wat-tests::counter::Record c))
-         (:wat-tests::counter::IncrementResponse c))))])
+         (:wat-tests::Counter::IncrementResponse c))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::service::counter-on-thread
@@ -37,9 +50,9 @@
     (:wat::core::let
       [h (:wat-tests::counter/start :locus (:wat::spawn::thread) :record (:wat-tests::counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
-       _ (:wat-tests::counter/increment c (:wat-tests::counter/increment-request 5))
-       r (:wat-tests::counter/get c (:wat-tests::counter/get-request))]
-      (:wat-tests::counter::GetResponse/value r))
+       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest 5))
+       r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
+      (:wat-tests::Counter::GetResponse/value r))
     5))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -49,7 +62,7 @@
     (:wat::core::let
       [h (:wat-tests::counter/start :locus (:wat::spawn::process) :record (:wat-tests::counter::Record 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
-       _ (:wat-tests::counter/increment c (:wat-tests::counter/increment-request 5))
-       r (:wat-tests::counter/get c (:wat-tests::counter/get-request))]
-      (:wat-tests::counter::GetResponse/value r))
+       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest 5))
+       r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
+      (:wat-tests::Counter::GetResponse/value r))
     5))

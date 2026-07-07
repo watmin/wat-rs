@@ -14,13 +14,23 @@
 ;; arc 291 4b-ii: State is now a defstruct; :durable [count] mints ::Record; ::State holds it.
 ;; start takes ::Record(0). Op body doesn't read count (only the env-grab matters here).
 
+;; ── the surface (the deadline protocol, lifted) ──────────────────────────────
+;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
+;; service ships them across a process fork.
+(:wat::core::defsurface :wat-tests::Deadline :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::Deadline::WaitTickRequest  [])
+   (:wat::core::defrecord :wat-tests::Deadline::WaitTickResponse [fired <- :wat::core::keyword])]
+  :features
+  [(wait-tick [self <- :wat-tests::Deadline  req <- :wat-tests::Deadline::WaitTickRequest] -> :wat-tests::Deadline::WaitTickResponse)])
+
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::deadline
+  :satisfies :wat-tests::Deadline
   :durable [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:WaitTick [s <- :State]
-              -> [fired <- :wat::core::keyword]
+  :impls
+  [(wait-tick [s req]
      (:wat::core::let
        [m (:wat::core::match
             (:wat::kernel::select'
@@ -32,7 +42,7 @@
             -> :wat::core::keyword
             ((:wat::spawn::ServiceEvent::Message _idx mm) mm)
             (_ :no-tick))]
-       (:wat::service::Outcome::Reply s (:wat-tests::deadline::WaitTickResponse m))))])
+       (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse m))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::timer::env-grab-on-thread
@@ -41,8 +51,8 @@
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
-       r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
-      (:wat-tests::deadline::WaitTickResponse/fired r))
+       r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
+      (:wat-tests::Deadline::WaitTickResponse/fired r))
     :tick))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -52,6 +62,6 @@
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
-       r (:wat-tests::deadline/wait-tick c (:wat-tests::deadline/wait-tick-request))]
-      (:wat-tests::deadline::WaitTickResponse/fired r))
+       r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
+      (:wat-tests::Deadline::WaitTickResponse/fired r))
     :tick))

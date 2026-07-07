@@ -11,16 +11,26 @@
 ;; record: (seeded-counter/start locus (seeded-counter::Record 42)).
 ;; Op body reads count through State/durable.
 
+;; ── the surface (the counter protocol, lifted) ───────────────────────────────
+;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
+;; service ships them across a process fork.
+(:wat::core::defsurface :wat-tests::SeededCounter :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::SeededCounter::GetRequest  [])
+   (:wat::core::defrecord :wat-tests::SeededCounter::GetResponse [value <- :wat::core::i64])]
+  :features
+  [(get [self <- :wat-tests::SeededCounter  req <- :wat-tests::SeededCounter::GetRequest] -> :wat-tests::SeededCounter::GetResponse)])
+
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 ;; :init defaults — pure-data service, ephemeral empty → default init = (fn [d <- ::Record] -> ::State (::State d))
 (:wat::service::defservice :wat-tests::seeded-counter
+  :satisfies :wat-tests::SeededCounter
   :durable [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:Get [s <- :State]
-         -> [value <- :wat::core::i64]
+  :impls
+  [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::seeded-counter::GetResponse
+       (:wat-tests::SeededCounter::GetResponse
          (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
@@ -31,8 +41,8 @@
     (:wat::core::let
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
-       r (:wat-tests::seeded-counter/get c (:wat-tests::seeded-counter/get-request))]
-      (:wat-tests::seeded-counter::GetResponse/value r))
+       r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
+      (:wat-tests::SeededCounter::GetResponse/value r))
     42))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -43,6 +53,6 @@
     (:wat::core::let
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
-       r (:wat-tests::seeded-counter/get c (:wat-tests::seeded-counter/get-request))]
-      (:wat-tests::seeded-counter::GetResponse/value r))
+       r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
+      (:wat-tests::SeededCounter::GetResponse/value r))
     42))

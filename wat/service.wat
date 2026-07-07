@@ -134,22 +134,21 @@
      satisfies?     (:wat::core::HashMap/contains-key? clause-map "satisfies")
      has-ops?       (:wat::core::HashMap/contains-key? clause-map "ops")
      has-impls?     (:wat::core::HashMap/contains-key? clause-map "impls")
-     _mode-check    (:wat::core::if satisfies?
+     ;; ── Arc 278 S4c: :satisfies + :impls MANDATORY; :ops RETIRED (illegal) ─────────
+     ;; Every service declares a surface and wears it (the AWS service model). :ops
+     ;; (mint-your-own-protocol) is annihilated — a heretic screams and migrates.
+     _ops-retired   (:wat::core::if has-ops?
                       -> :wat::core::nil
-                      (:wat::core::if has-impls?
-                        -> :wat::core::nil
-                        (:wat::core::if has-ops?
-                          -> :wat::core::nil
-                          (:wat::core::macro-error "defservice: :satisfies takes :impls (bodies only), not :ops")
-                          nil)
-                        (:wat::core::macro-error "defservice: :satisfies requires :impls (the op bodies)"))
-                      (:wat::core::if has-ops?
-                        -> :wat::core::nil
-                        (:wat::core::if has-impls?
-                          -> :wat::core::nil
-                          (:wat::core::macro-error "defservice: :impls requires :satisfies (name the surface it satisfies)")
-                          nil)
-                        (:wat::core::macro-error "defservice: :ops clause is required (or :satisfies a surface)")))
+                      (:wat::core::macro-error "defservice: :ops is RETIRED — declare a surface (defsurface :nature :wat::kernel::Peer' with method members + per-op Request record and <Op>Response) and :satisfies it with :impls (bodies only). Exemplar: wat/query.wat + wat/query/mem.wat.")
+                      nil)
+     _needs-surface (:wat::core::if satisfies?
+                      -> :wat::core::nil
+                      nil
+                      (:wat::core::macro-error "defservice: :satisfies is required — name the surface this service wears (see wat/query.wat for the exemplar)."))
+     _needs-impls   (:wat::core::if has-impls?
+                      -> :wat::core::nil
+                      nil
+                      (:wat::core::macro-error "defservice: :satisfies requires :impls (the op bodies, bodies-only)."))
      ;; ops := the op-bearing clause value — :impls when satisfies, else :ops.
      ops            (:wat::core::if satisfies?
                       -> :wat::WatAST
@@ -1237,9 +1236,18 @@
                         ~dispatch-admin-def
                         ~extract-addr-def
                         ~child-main-form)
+     ;; ── Arc 278 S4c: the surface OWNS its protocol; SHIP it. ──────────────────────
+     ;; The satisfied surface's `<S>::surface-forms` carrier (emitted by defsurface in Rust) is
+     ;; a Vector<WatAST> of the surface's own forms (its :messages records/enums + the defsurface
+     ;; that re-synthesizes ::Op/::Reply at the child's fresh startup). Concat it AHEAD of this
+     ;; service's own forms so a forked child resolves the protocol its serve loop references.
+     ;; proto-str = the surface fqdn (`:satisfies` is mandatory; `:ops` is retired), so the carrier
+     ;; name is `<surface>::surface-forms`.
+     surface-forms-kw (:wat::core::keyword/from-string
+                        (:wat::core::string::concat proto-str "::surface-forms"))
      service-forms-def `(:wat::core::defn ~service-forms-kw
                           [] -> :wat::core::Vector<wat::WatAST>
-                          ~own-forms-call)
+                          (:wat::core::concat (~surface-forms-kw) ~own-forms-call))
 
      ;; arc 291: start-params uses the init fn's single param binder (name <- :T) so start
      ;; takes the EDN seed (or state0 for default) as its 2nd param. ship-ref is the symbol.

@@ -1693,7 +1693,20 @@ fn derive_surface_backing_records(surface: &SurfaceDef) -> Vec<TypeDef> {
 /// is in fact impure, the post-registration containment pass `validate_aggregate_containment`
 /// catches the synthesized `Pure` enum's impure field, exactly as it backstops the backing
 /// records above.)
-fn synthesize_surface_protocol(surface: &SurfaceDef, env: &TypeEnv) -> Vec<TypeDef> {
+fn synthesize_surface_protocol(
+    surface: &SurfaceDef,
+    env: &TypeEnv,
+    acronyms: &HashMap<String, Vec<String>>,
+) -> Vec<TypeDef> {
+    // Arc 278 S4c — the surface's namespace-scoped acronym set. Keyed by the surface's own
+    // name (with leading colon), EXACTLY as `defservice :impls` keys its lookup on
+    // `proto-str`/`surface-kw` (the satisfied surface's keyword string) — see
+    // `wat/service.wat` `kebab->pascal-in <surface-kw> <op>` at :805/:1041. No registry
+    // entry for this surface → empty set → plain kebab→pascal (the prior behavior).
+    let ns_acronyms: &[String] = acronyms
+        .get(&surface.name)
+        .map(|v| v.as_slice())
+        .unwrap_or(&[]);
     let mut op_variants: Vec<EnumVariant> = Vec::new();
     let mut reply_variants: Vec<EnumVariant> = Vec::new();
     let mut saw_method = false;
@@ -1720,8 +1733,10 @@ fn synthesize_surface_protocol(surface: &SurfaceDef, env: &TypeEnv) -> Vec<TypeD
         }
 
         // Variant name = PascalCase(method-name) via the EXISTING kebab→pascal conversion
-        // (`put` → `Put`, `scan-index` → `ScanIndex`). Empty acronym set = plain conversion.
-        let variant = crate::string_ops::kebab_to_pascal_with_acronyms(name, &[]);
+        // (`put` → `Put`, `scan-index` → `ScanIndex`), threading the surface's namespace
+        // acronyms so `create-web-acl` → `CreateWebACL` when `ACL` is declared — the SAME
+        // registry `defservice :impls` consults, so the two paths agree on casing.
+        let variant = crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms);
         op_variants.push(EnumVariant::Tagged {
             name: variant.clone(),
             fields: vec![("req".to_string(), request_ty)],
@@ -1763,6 +1778,69 @@ fn synthesize_surface_protocol(surface: &SurfaceDef, env: &TypeEnv) -> Vec<TypeD
     ]
 }
 
+/// Arc 278 S4c — extract the `:messages [ … ]` form children of a `defsurface` form.
+/// Post-expansion these are `recordtype`/`defenum` type-decl forms (the `defrecord` macro
+/// has already expanded). Returns empty when the surface carries no `:messages` clause.
+fn extract_surface_message_forms(form: &WatAST) -> Vec<WatAST> {
+    if let WatAST::List(items, _) = form {
+        let mut it = items.iter();
+        while let Some(node) = it.next() {
+            if let WatAST::Keyword(k, _) = node {
+                if k == ":messages" {
+                    if let Some(WatAST::Vector(msgs, _)) = it.next() {
+                        return msgs.clone();
+                    }
+                    return vec![];
+                }
+            }
+        }
+    }
+    vec![]
+}
+
+/// Arc 278 S4c — build the `<S>::surface-forms` carrier: a 0-arg `defn` returning a
+/// `Vector<WatAST>` of the peer surface's own forms (here, the whole post-expansion
+/// `defsurface` form). `defservice` concats `(<S>::surface-forms)` into its shipped
+/// `service-forms` bundle so a forked child re-registers the surface's protocol
+/// (its `:messages` records + the synthesized `::Op`/`::Reply`) at a fresh startup.
+///
+/// Mirrors `wat/service.wat`'s `<fqdn>::service-forms` defn: a 0-arg fn the checker can
+/// type at call sites, whose `(:wat::core::forms …)` body yields the forms as `Vector<WatAST>`.
+///
+/// This is injected AFTER `expand_all` (in `register_types`), so it must be built in the
+/// LOW-LEVEL `(:wat::core::def :name (:wat::core::fn [] -> :ret body))` shape that `defn`
+/// expands to — `register_defines`/`try_parse_fn_shape_def` consume that directly, whereas the
+/// `defn` macro form would never be expanded and would go unregistered.
+fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: Span) -> WatAST {
+    use crate::scope::Identifier;
+    let carrier_name = format!("{}::surface-forms", surface_name);
+    let forms_body = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::forms".into(), span.clone()),
+            surface_form,
+        ],
+        span.clone(),
+    );
+    let fn_form = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::fn".into(), span.clone()),
+            WatAST::Vector(vec![], span.clone()),
+            WatAST::Symbol(Identifier::bare("->"), span.clone()),
+            WatAST::Keyword(":wat::core::Vector<wat::WatAST>".into(), span.clone()),
+            forms_body,
+        ],
+        span.clone(),
+    );
+    WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::def".into(), span.clone()),
+            WatAST::Keyword(carrier_name, span.clone()),
+            fn_form,
+        ],
+        span,
+    )
+}
+
 /// Shared loop body for [`register_types`] and [`register_stdlib_types`].
 /// Differs only in which `env` registration method is called — passed as
 /// `register`. Non-type-decl forms are spliced via `splice` (handles
@@ -1772,6 +1850,7 @@ fn register_types_impl(
     env: &mut TypeEnv,
     register: &dyn Fn(&mut TypeEnv, TypeDef, Span) -> Result<(), TypeError>,
     splice: &dyn Fn(WatAST, &mut TypeEnv) -> Result<WatAST, TypeError>,
+    acronyms: &HashMap<String, Vec<String>>,
 ) -> Result<Vec<WatAST>, TypeError> {
     let mut rest = Vec::with_capacity(forms.len());
     for form in forms {
@@ -1781,6 +1860,12 @@ fn register_types_impl(
                 // is consumed by `parse_type_decl`. Threaded through
                 // every emission site for source-coordinate prefixes.
                 let decl_span = form.span().clone();
+                // Arc 278 S4c — a peer surface OWNS its `:messages` protocol forms and must SHIP
+                // them across a process fork. Clone the raw defsurface form BEFORE it is consumed
+                // so we can (a) register each message type-decl and (b) emit the `<S>::surface-forms`
+                // carrier (a `Vector<WatAST>` of the surface's own forms) that `defservice` concats
+                // into its shipped `service-forms` bundle.
+                let surface_form_clone = if head == "defsurface" { Some(form.clone()) } else { None };
                 let def = parse_type_decl(head, form, decl_span.clone(), env)?;
                 // Arc 293 K3-revise — when a surface is registered, derive and register the
                 // PAIR of backing aggregates (`:S$core-record`, `:S$holon-record`).
@@ -1789,12 +1874,35 @@ fn register_types_impl(
                 // user surfaces go through the reserved-prefix gate automatically (their
                 // `$core-record`/`$holon-record` names are in the same non-reserved namespace).
                 // RETIRED 293 K3-revise: `:S$struct` — see retirement.rs.
+                //
+                // Arc 278 S4c — capture `(surface-name, is-peer)` to emit the `surface-forms`
+                // carrier AFTER the surface + its messages register.
+                let mut surface_carrier: Option<(String, WatAST)> = None;
                 let derived = if let TypeDef::Surface(ref surf) = def {
                     // Arc 293 K3-revise — the backing record PAIR ($core-record / $holon-record).
                     let mut d = derive_surface_backing_records(surf);
+                    // Arc 278 S4c — a peer surface's `:messages` type-decls (`recordtype`/`defenum`,
+                    // post-expansion) register with the SAME privilege as the surface (via the shared
+                    // `register` closure). They are the protocol a `:satisfies` service ships; they
+                    // must exist in BOTH the parent (its client face type-checks against them) and the
+                    // forked child (its serve loop resolves them at a fresh startup).
+                    if surf.nature == Some(crate::types::Nature::Peer) {
+                        if let Some(ref sform) = surface_form_clone {
+                            for msg_form in extract_surface_message_forms(sform) {
+                                if let Some(msg_head) = classify_type_decl(&msg_form) {
+                                    let msg_span = msg_form.span().clone();
+                                    let msg_def = parse_type_decl(msg_head, msg_form, msg_span, env)?;
+                                    d.push(msg_def);
+                                }
+                            }
+                            // The carrier ships the whole (post-expansion) defsurface form; the child
+                            // re-registers messages + re-synthesizes `::Op`/`::Reply` from it identically.
+                            surface_carrier = Some((surf.name.clone(), build_surface_forms_carrier(&surf.name, sform.clone(), decl_span.clone())));
+                        }
+                    }
                     // Arc 293 S1 — the wire-protocol enums (`::Op` / `::Reply`) when the method
                     // sigs are pure. Same `register` closure → same privilege as the surface.
-                    d.extend(synthesize_surface_protocol(surf, env));
+                    d.extend(synthesize_surface_protocol(surf, env, acronyms));
                     d
                 } else {
                     vec![]
@@ -1802,6 +1910,11 @@ fn register_types_impl(
                 register(env, def, decl_span.clone())?;
                 for record_def in derived {
                     register(env, record_def, decl_span.clone())?;
+                }
+                // Arc 278 S4c — the `surface-forms` carrier is a runtime `defn`, not a type decl;
+                // it flows downstream (register_defines) exactly like any user/stdlib fn.
+                if let Some((_name, carrier)) = surface_carrier {
+                    rest.push(carrier);
                 }
             }
             None => {
@@ -1825,11 +1938,28 @@ pub fn register_types(
     forms: Vec<WatAST>,
     env: &mut TypeEnv,
 ) -> Result<Vec<WatAST>, TypeError> {
+    register_types_with_acronyms(forms, env, &HashMap::new())
+}
+
+/// [`register_types`] threading the namespace-scoped acronym registry (from the
+/// macro-expansion `SymbolTable`, populated by `preregister_acronyms`). The registry
+/// lets a surface's S1 protocol synthesis (`synthesize_surface_protocol`) restore
+/// acronym casing on `::Op`/`::Reply` variant names EXACTLY as `defservice :impls`
+/// does at expand time — so `:satisfies` and `:impls` never diverge (e.g. both emit
+/// `CreateWebACL`, never one `CreateWebAcl`). The production startup path
+/// (`freeze::env`) passes `macro_sym.acronym_registry`; callers with no acronyms use
+/// the empty-registry [`register_types`] wrapper.
+pub fn register_types_with_acronyms(
+    forms: Vec<WatAST>,
+    env: &mut TypeEnv,
+    acronyms: &HashMap<String, Vec<String>>,
+) -> Result<Vec<WatAST>, TypeError> {
     register_types_impl(
         forms,
         env,
         &|env, def, span| env.register_with_span(def, span),
         &splice_type_decls_user,
+        acronyms,
     )
 }
 
@@ -1846,11 +1976,14 @@ pub fn register_stdlib_types(
     forms: Vec<WatAST>,
     env: &mut TypeEnv,
 ) -> Result<Vec<WatAST>, TypeError> {
+    // Stdlib surfaces declare no user acronyms (`preregister_acronyms` covers the USER
+    // residue only), so the stdlib path registers against an empty registry.
     register_types_impl(
         forms,
         env,
         &|env, def, span| env.register_stdlib_with_span(def, span),
         &splice_type_decls_stdlib,
+        &HashMap::new(),
     )
 }
 

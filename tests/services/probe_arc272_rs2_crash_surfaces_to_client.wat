@@ -1,11 +1,19 @@
-;; A service with one op whose handler CRASHES (assertion-failed! raises inside the serve loop).
-;; arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
+;; Arc 278 S4c migration: :ops RETIRED — the service wears a surface (:satisfies + :impls).
+;; SUBJECT UNCHANGED: a service with one op whose handler CRASHES (assertion-failed! raises
+;; inside the serve loop). The far-side crash must SURFACE to the client as a raise.
+(:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :my::Svc::BoomRequest  [])
+   (:wat::core::defrecord :my::Svc::BoomResponse [ok <- :wat::core::bool])]
+  :features
+  [(boom [self <- :my::Svc  req <- :my::Svc::BoomRequest] -> :my::Svc::BoomResponse)])
+
 (:wat::service::defservice :my::svc
+  :satisfies :my::Svc
   :durable [count <- :wat::core::i64]
   :ephemeral []
-  :ops
-  [(:Boom [s <- :State]
-          -> [ok <- :wat::core::bool]
+  :impls
+  [(boom [s req]
      (:wat::kernel::assertion-failed!
        "boom — the handler crashed on purpose"
        (:wat::core::Some "boom")
@@ -15,5 +23,5 @@
   (:wat::core::let
     [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record 0))
      c (:wat::kernel::connect' (:my::svc::Handle/addr h))
-     _ (:my::svc/boom c (:my::svc/boom-request))]
+     _ (:my::svc/boom c (:my::Svc::BoomRequest))]
     true))

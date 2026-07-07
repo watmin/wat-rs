@@ -1,41 +1,71 @@
 ;; wat-tests/service-telemetry-bridge.wat — arc 291 4b-iv: the actor-network bridge.
 ;;
 ;; recorder = a telemetry/accumulator service. worker = holds a CLIENT to recorder (:ephemeral), dials it in
-;; :init (address is a live :init arg — NOT durable), and forwards each :Work through the stored client to
-;; recorder/record.
+;; :init (address is a live :init arg — NOT durable), and forwards each `work` through the stored client to
+;; the recorder's `record`.
+;;
+;; Arc 278 S4c: both services wear an explicit SURFACE (:satisfies + :impls). :ops is retired. The worker's
+;; ephemeral peer + :init address are typed on the RECORDER SURFACE's Op/Reply (the uniform wire protocol),
+;; and its `work` body dials the recorder via the surface method `:wat-tests::Recorder/record`.
 
+;; ── the Recorder surface (its protocol + per-op request/response records) ───────────────────────
+;; arc 278 S4c: each surface OWNS its protocol messages (:messages).
+(:wat::core::defsurface :wat-tests::Recorder :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::Recorder::RecordRequest  [n     <- :wat::core::i64])
+   (:wat::core::defrecord :wat-tests::Recorder::RecordResponse [ok    <- :wat::core::bool])
+   (:wat::core::defrecord :wat-tests::Recorder::TotalRequest   [])
+   (:wat::core::defrecord :wat-tests::Recorder::TotalResponse  [value <- :wat::core::i64])]
+  :features
+  [(record [self <- :wat-tests::Recorder req <- :wat-tests::Recorder::RecordRequest]
+           -> :wat-tests::Recorder::RecordResponse)
+   (total  [self <- :wat-tests::Recorder req <- :wat-tests::Recorder::TotalRequest]
+           -> :wat-tests::Recorder::TotalResponse)])
+
+;; ── the Worker surface ──────────────────────────────────────────────────────────────────────────
+(:wat::core::defsurface :wat-tests::Worker :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat-tests::Worker::WorkRequest  [n    <- :wat::core::i64])
+   (:wat::core::defrecord :wat-tests::Worker::WorkResponse [done <- :wat::core::bool])]
+  :features
+  [(work [self <- :wat-tests::Worker req <- :wat-tests::Worker::WorkRequest]
+         -> :wat-tests::Worker::WorkResponse)])
+
+;; ── the recorder service — wears :wat-tests::Recorder ───────────────────────────────────────────
 (:wat::service::defservice :wat-tests::recorder
-  :durable [total <- :wat::core::i64]
-  :ops
-  [(:Record [s <- :State n <- :wat::core::i64]
-            -> [ok <- :wat::core::bool]
+  :satisfies :wat-tests::Recorder
+  :durable   [total <- :wat::core::i64]
+  :ephemeral []
+  :impls
+  [(record [s req]
      (:wat::service::Outcome::Reply
        (:wat-tests::recorder::State
          (:wat-tests::recorder::Record
            (:wat::core::i64::+
-             (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)) n)))
-       (:wat-tests::recorder::RecordResponse true)))
-   (:Total [s <- :State]
-           -> [value <- :wat::core::i64]
+             (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
+             (:wat-tests::Recorder::RecordRequest/n req))))
+       (:wat-tests::Recorder::RecordResponse true)))
+   (total [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::recorder::TotalResponse
+       (:wat-tests::Recorder::TotalResponse
          (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)))))])
 
+;; ── the worker service — wears :wat-tests::Worker, dials a :wat-tests::Recorder peer ─────────────
 (:wat::service::defservice :wat-tests::worker
+  :satisfies :wat-tests::Worker
   :durable   [job-count <- :wat::core::i64]
-  :ephemeral [recorder  <- :wat::kernel::Peer'<wat-tests::recorder::Op,wat-tests::recorder::Reply>]
+  :ephemeral [recorder  <- :wat::kernel::Peer'<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
   :init (:wat::core::fn [record        <- :wat-tests::worker::Record
-                         recorder-addr <- :wat::kernel::Address'<wat-tests::recorder::Op,wat-tests::recorder::Reply>]
+                         recorder-addr <- :wat::kernel::Address'<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
           -> :wat-tests::worker::State
           (:wat-tests::worker::State record (:wat::kernel::connect' recorder-addr)))
-  :ops
-  [(:Work [s <- :State n <- :wat::core::i64]
-          -> [done <- :wat::core::bool]
+  :impls
+  [(work [s req]
      (:wat::core::let
-       [_ (:wat-tests::recorder/record
+       [_ (:wat-tests::Recorder/record
             (:wat-tests::worker::State/recorder s)
-            (:wat-tests::recorder/record-request n))]
-       (:wat::service::Outcome::Reply s (:wat-tests::worker::WorkResponse true))))])
+            (:wat-tests::Recorder::RecordRequest (:wat-tests::Worker::WorkRequest/n req)))]
+       (:wat::service::Outcome::Reply s (:wat-tests::Worker::WorkResponse true))))])
 
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
 ;; start threads the LIVE recorder address as the worker's 2nd start arg (the :init operating-input).
@@ -48,11 +78,11 @@
             :record (:wat-tests::worker::Record 0)
             :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
-       _  (:wat-tests::worker/work wc (:wat-tests::worker/work-request 5))
-       _2 (:wat-tests::worker/work wc (:wat-tests::worker/work-request 3))
+       _  (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest 5))
+       _2 (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest 3))
        rc (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
-       r  (:wat-tests::recorder/total rc (:wat-tests::recorder/total-request))]
-      (:wat-tests::recorder::TotalResponse/value r))
+       r  (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
+      (:wat-tests::Recorder::TotalResponse/value r))
     8))
 
 ;; hibernate -> resume: worker sheds its client + reconnects on resume. resume takes the saved record AND
@@ -66,13 +96,13 @@
               :record (:wat-tests::worker::Record 0)
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc   (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
-       _    (:wat-tests::worker/work wc (:wat-tests::worker/work-request 5))
+       _    (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest 5))
        snap (:wat-tests::worker/hibernate wh)
        wh2  (:wat-tests::worker/resume :locus (:wat::spawn::thread) :record snap
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc2  (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh2))
-       _2   (:wat-tests::worker/work wc2 (:wat-tests::worker/work-request 3))
+       _2   (:wat-tests::Worker/work wc2 (:wat-tests::Worker::WorkRequest 3))
        rc   (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
-       r    (:wat-tests::recorder/total rc (:wat-tests::recorder/total-request))]
-      (:wat-tests::recorder::TotalResponse/value r))
+       r    (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
+      (:wat-tests::Recorder::TotalResponse/value r))
     8))

@@ -29,7 +29,7 @@ use crate::runtime::{
     register_type_predicates, EvalBreak, Environment, SymbolTable,
 };
 use crate::stdlib::stdlib_forms;
-use crate::types::{register_stdlib_types, register_types, TypeEnv};
+use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
 
 /// The output of [`build_env`]: all four build-time registries plus
 /// the post-resolve user residue that the caller will type-check and
@@ -146,7 +146,12 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //    and user source land.
     let mut types = TypeEnv::with_builtins();
     let stdlib_post_types = register_stdlib_types(expanded_stdlib, &mut types)?;
-    let post_types = register_types(expanded_user, &mut types)?;
+    // Thread the namespace-scoped acronym registry (populated by `preregister_acronyms`
+    // above, BEFORE macro expansion) into type registration so a `:satisfies` surface's
+    // S1 protocol synthesis restores acronym casing on its `::Op`/`::Reply` variants
+    // identically to how `defservice :impls` does at expand time.
+    let post_types =
+        register_types_with_acronyms(expanded_user, &mut types, &macro_sym.acronym_registry)?;
     // Arc 293.W — containment rule: after BOTH stdlib and user types are fully
     // registered, verify that no portable aggregate (record/holon) declares a
     // non-portable (struct) field. Forward references are now resolved, so the

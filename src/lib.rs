@@ -268,7 +268,8 @@ pub use runtime::{
 };
 pub use value::{AggregateValue, HolonForm, EncodingCtx, EnvBuilder, Environment, Function, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 pub use types::{
-    parse_type_expr, register_stdlib_types, register_types, AggregateDef, Nature,
+    parse_type_expr, register_stdlib_types, register_types, register_types_with_acronyms,
+    AggregateDef, Nature,
     AliasDef, EnumDef, EnumVariant, NewtypeDef, TypeDef, TypeEnv, TypeError, TypeExpr,
 };
 

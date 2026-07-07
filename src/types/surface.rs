@@ -305,83 +305,40 @@ fn parse_method_member_sig(
 /// consecutive non-List items as field-triple sub-runs and passes each to
 /// `parse_argspec_triples`; List items are parsed as Method members.
 pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    // Valid shape (arc 293 K0a — `:nature` is MANDATORY; the 3-arg bare-:features form is retired):
-    //   (:wat::core::defsurface :Name :nature :<nature-root> :features [members])  — 5 args only
-    // :nature is mandatory and MUST precede :features.
+    // Valid shape (arc 293 K0a + arc 278 S4c):
+    //   (:wat::core::defsurface :Name :nature :<nature-root> [:messages [msgs]] :features [members])
+    // :nature is MANDATORY and MUST precede :messages/:features.
+    // :messages is OPTIONAL and, when present, MUST precede :features. It is FORBIDDEN unless the
+    //   surface's nature is `:wat::kernel::Peer'` — a peer surface OWNS its protocol
+    //   `defrecord`/`defenum` forms so a `:satisfies` service can ship them across a process fork
+    //   (arc 278 S4c). The forms are registered (as external defrecords are) by `register_types`;
+    //   here we only parse the clause, validate it, and validate feature/message completeness.
     // :features is MANDATORY — a member vector not introduced by :features is a MalformedDecl.
-    if args.len() != 5 {
-        return Err(TypeError {
-            span: decl_span.clone(),
-            kind: TypeErrorKind::MalformedDecl {
-                head: HEAD.into(),
-                reason: format!(
-                    "expected (:wat::core::defsurface :Name :nature :<nature-root> :features [members]); \
-                     :nature is mandatory — the bare :features-only form is retired; \
-                     got {} args after head",
-                    args.len()
-                ),
-            },
-        });
-    }
-
-    let mut iter = args.into_iter();
+    let mut iter = args.into_iter().peekable();
 
     // Slot 0 — name keyword.
-    let name_kw = iter.next().unwrap();
+    let name_kw = iter.next().ok_or_else(|| TypeError {
+        span: decl_span.clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: "expected :Name after (:wat::core::defsurface ...)".into(),
+        },
+    })?;
     let (name, _type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
-    // Slot 1 — either `:nature` keyword or `:features` keyword.
-    let next = iter.next().unwrap();
-    let nature: Option<Nature> = match &next {
-        WatAST::Keyword(k, _) if k == ":nature" => {
-            // Slot 2 — nature-value keyword.
-            let val_node = iter.next().unwrap();
-            let nature_val = match &val_node {
-                WatAST::Keyword(v, _) => {
-                    match Nature::from_root_keyword(v.as_str()) {
-                        Some(h) => h,
-                        None => return Err(TypeError {
-                            span: val_node.span().clone(),
-                            kind: TypeErrorKind::MalformedDecl {
-                                head: HEAD.into(),
-                                reason: format!(
-                                    ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer'); got {}",
-                                    v
-                                ),
-                            },
-                        }),
-                    }
-                },
-                other => {
-                    return Err(TypeError {
-                        span: other.span().clone(),
-                        kind: TypeErrorKind::MalformedDecl {
-                            head: HEAD.into(),
-                            reason: ":nature value must be a keyword (:wat::core::Struct, :wat::core::Record, or :wat::holon::Record)".into(),
-                        },
-                    });
-                }
-            };
-            // Slot 3 — REQUIRE :features keyword (nature MUST precede features).
-            let features_kw = iter.next().unwrap();
-            match &features_kw {
-                WatAST::Keyword(k, _) if k == ":features" => {}
-                other => {
-                    return Err(TypeError {
-                        span: other.span().clone(),
-                        kind: TypeErrorKind::MalformedDecl {
-                            head: HEAD.into(),
-                            reason: "expected :features clause after :nature value — \
-                                     (:wat::core::defsurface :Name :nature :<kw> :features [members])"
-                                .into(),
-                        },
-                    });
-                }
-            }
-            Some(nature_val)
-        }
+    // `:nature :<root>` — MANDATORY.
+    let next = iter.next().ok_or_else(|| TypeError {
+        span: decl_span.clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: "`:nature` is mandatory — write \
+                     (:wat::core::defsurface :Name :nature :<nature-root> :features [members])"
+                .into(),
+        },
+    })?;
+    match &next {
+        WatAST::Keyword(k, _) if k == ":nature" => {}
         WatAST::Keyword(k, _) if k == ":features" => {
-            // Arc 293 K0a — :nature is mandatory; the bare :features-only form is retired.
             return Err(TypeError {
                 span: next.span().clone(),
                 kind: TypeErrorKind::MalformedDecl {
@@ -397,17 +354,190 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 span: other.span().clone(),
                 kind: TypeErrorKind::MalformedDecl {
                     head: HEAD.into(),
-                    reason: "expected :features clause (or :nature :<kw> :features) after surface name \
-                             — (:wat::core::defsurface :Name :features [members]); \
-                             a member vector not introduced by :features is a malformed declaration"
-                        .into(),
+                    reason: "expected `:nature :<kw>` after the surface name".into(),
+                },
+            });
+        }
+    }
+    // nature value keyword.
+    let val_node = iter.next().ok_or_else(|| TypeError {
+        span: decl_span.clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: ":nature needs a value keyword".into(),
+        },
+    })?;
+    let nature_val = match &val_node {
+        WatAST::Keyword(v, _) => match Nature::from_root_keyword(v.as_str()) {
+            Some(h) => h,
+            None => return Err(TypeError {
+                span: val_node.span().clone(),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: format!(
+                        ":nature value must be a nature-root symbol (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer'); got {}",
+                        v
+                    ),
+                },
+            }),
+        },
+        other => {
+            return Err(TypeError {
+                span: other.span().clone(),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: ":nature value must be a keyword (:wat::core::Struct, :wat::core::Record, :wat::holon::Record, or :wat::kernel::Peer')".into(),
                 },
             });
         }
     };
 
+    // OPTIONAL `:messages [ <defrecord/defenum forms> ]` — arc 278 S4c.
+    // Collect the declared message TYPE NAMES (form's slot-1 keyword) for the completeness check.
+    let mut message_names: Vec<String> = Vec::new();
+    let mut messages_span: Option<Span> = None;
+    if matches!(iter.peek(), Some(WatAST::Keyword(k, _)) if k == ":messages") {
+        let msg_kw = iter.next().unwrap();
+        messages_span = Some(msg_kw.span().clone());
+        // Arc 278 S4c — `:messages` is ONLY meaningful on a peer surface: it holds the wire
+        // protocol a `:satisfies` service ships across a process fork. On any aggregate nature
+        // (Struct/Record/HolonRecord) there is no protocol to own → FORBIDDEN (located error).
+        if nature_val != Nature::Peer {
+            return Err(TypeError {
+                span: msg_kw.span().clone(),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: format!(
+                        ":messages is permitted ONLY on a :nature :wat::kernel::Peer' surface \
+                         (it holds the peer's own protocol records/enums so a :satisfies service \
+                         ships them across a process fork); surface {} has :nature {} — remove :messages",
+                        name,
+                        nature_val.root_keyword()
+                    ),
+                },
+            });
+        }
+        let msg_vec = iter.next().ok_or_else(|| TypeError {
+            span: decl_span.clone(),
+            kind: TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: ":messages needs a `[ <defrecord/defenum forms> ]` vector".into(),
+            },
+        })?;
+        let msg_items = match msg_vec {
+            WatAST::Vector(items, _) => items,
+            other => {
+                return Err(TypeError {
+                    span: other.span().clone(),
+                    kind: TypeErrorKind::MalformedDecl {
+                        head: HEAD.into(),
+                        reason: ":messages value must be a Vector `[ (defrecord …) (defenum …) … ]`".into(),
+                    },
+                });
+            }
+        };
+        for m in &msg_items {
+            // Each message is a type-decl List `(<head> :Name …)`; its slot-1 keyword is the name.
+            if let WatAST::List(mi, _) = m {
+                if let Some(WatAST::Keyword(mn, _)) = mi.get(1) {
+                    message_names.push(mn.clone());
+                }
+            }
+        }
+
+        // Arc 278 S4c WALL 2 — TRANSITIVE completeness of the `:messages` block itself.
+        // The direct check below verifies a FEATURE's `req <-`/`-> ret` types are declared; this
+        // walks EACH message TypeDef's OWN referenced type paths (a Response enum's variant payload
+        // records, a Request record's non-primitive field types, …) and requires every non-stdlib
+        // reference to ALSO be declared in `:messages`. Because every message form is walked, a
+        // required-membership check on each form's DIRECT refs closes the transitive graph: if A
+        // references B, B must be in `:messages`; B's own refs are checked when B's form is walked.
+        // Without this, a response enum referencing a user error record absent from `:messages` would
+        // fail to resolve at the forked child's fresh startup (the fork-failure class, one level deeper).
+        for m in &msg_items {
+            let mut refs: Vec<String> = Vec::new();
+            collect_message_form_type_refs(m, &mut refs);
+            for r in refs {
+                // Only namespaced user types are protocol messages; skip stdlib + type vars.
+                if !r.contains("::") || r.starts_with(":wat::") {
+                    continue;
+                }
+                if !message_names.iter().any(|mn| mn == &r) {
+                    return Err(TypeError {
+                        span: msg_kw.span().clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "surface {} :messages type references {} which is not declared in \
+                                 this surface's :messages — a peer surface that owns :messages must \
+                                 declare EVERY non-stdlib type reachable from its protocol \
+                                 records/enums (a response enum's variant payload record, a request \
+                                 record's non-primitive field type, …), so a :satisfies service \
+                                 ships them ALL across a process fork (arc 278 S4c). Add a \
+                                 (defrecord {} …) to :messages, or remove the reference.",
+                                name, r, r
+                            ),
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    // Arc 278 S4c WALL 1 — `:messages` is MANDATORY on a peer surface (peer ⇔ has :messages).
+    // A `:nature :wat::kernel::Peer'` surface OWNS its request/response protocol; a `:satisfies`
+    // service ships those `:messages` records/enums across a process fork so the forked child can
+    // resolve them at its fresh startup. A peer surface with NO `:messages` clause has no protocol
+    // to ship → the fork cannot carry a wire vocabulary → located compile error. (Non-peer natures
+    // remain FORBIDDEN from `:messages`, enforced above; together: peer ⇔ has :messages.)
+    if nature_val == Nature::Peer && messages_span.is_none() {
+        return Err(TypeError {
+            span: decl_span.clone(),
+            kind: TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: format!(
+                    "a :nature :Peer' surface must declare :messages (its own request/response \
+                     protocol records/enums) so a :satisfies service ships them across a process \
+                     fork; surface {} has no :messages",
+                    name
+                ),
+            },
+        });
+    }
+
+    // `:features [members]` — MANDATORY.
+    let features_kw = iter.next().ok_or_else(|| TypeError {
+        span: decl_span.clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: "expected :features clause — \
+                     (:wat::core::defsurface :Name :nature :<kw> [:messages [msgs]] :features [members])"
+                .into(),
+        },
+    })?;
+    match &features_kw {
+        WatAST::Keyword(k, _) if k == ":features" => {}
+        other => {
+            return Err(TypeError {
+                span: other.span().clone(),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: HEAD.into(),
+                    reason: "expected :features clause after :nature (and optional :messages) — \
+                             (:wat::core::defsurface :Name :nature :<kw> [:messages [msgs]] :features [members])"
+                        .into(),
+                },
+            });
+        }
+    }
+
     // The member-vector: the next arg after the :features keyword.
-    let members_node = iter.next().unwrap();
+    let members_node = iter.next().ok_or_else(|| TypeError {
+        span: decl_span.clone(),
+        kind: TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: ":features needs a `[members]` vector".into(),
+        },
+    })?;
 
     // Arc 293.4d-fix — STRUCTURAL invariant: the member vector is the LAST arg; nothing follows it.
     if let Some(extra) = iter.next() {
@@ -422,6 +552,8 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             },
         });
     }
+
+    let nature: Option<Nature> = Some(nature_val);
 
     let (member_items, member_span) = match members_node {
         WatAST::Vector(items, span) => (items, span),
@@ -464,12 +596,114 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
         flush_field_items(&field_items, &member_span, &mut members)?;
     }
 
+    // Arc 278 S4c — COMPLETENESS: when a peer surface OWNS its messages (`:messages` present),
+    // every user (non-`:wat::`) protocol type a feature method references — its request payload
+    // (`req <-`, i.e. `args[1]`) and its response (`-> :T`) — MUST be declared in `:messages`.
+    // A feature that names an undeclared, non-stdlib message type is the FORK-FAILURE class made a
+    // located compile error: the forked child boots a universe of stdlib + the shipped `:messages`,
+    // so any protocol type NOT in `:messages` is an unresolved reference at the child's startup.
+    // (Type variables `:T` and stdlib `:wat::…` types are exempt; only namespaced user types are
+    // checked — a message type always carries a `::`.)
+    if let Some(msgs_span) = &messages_span {
+        for m in &members {
+            if let SurfaceMember::Method { name: mname, args, ret, .. } = m {
+                let mut refs: Vec<String> = Vec::new();
+                // request payload is the arg AFTER `self` (args[1]); `self` (args[0]) is the
+                // surface itself and is never a message — exclude it.
+                if let Some((_, req_ty)) = args.fixed_params.get(1) {
+                    collect_user_type_paths(req_ty, &mut refs);
+                }
+                collect_user_type_paths(ret, &mut refs);
+                for r in refs {
+                    // Only namespaced user types are protocol messages; skip stdlib + type vars.
+                    if !r.contains("::") || r.starts_with(":wat::") {
+                        continue;
+                    }
+                    if !message_names.iter().any(|mn| mn == &r) {
+                        return Err(TypeError {
+                            span: msgs_span.clone(),
+                            kind: TypeErrorKind::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    "surface {} feature `{}` references protocol type {} which is not \
+                                     declared in this surface's :messages — a peer surface that owns \
+                                     :messages must declare EVERY non-stdlib request/response type it \
+                                     uses, so a :satisfies service ships them across a process fork \
+                                     (arc 278 S4c). Add a (defrecord {} …) to :messages, or remove the \
+                                     reference.",
+                                    name, mname, r, r
+                                ),
+                            },
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     Ok(TypeDef::Surface(SurfaceDef {
         name,
         type_params: vec![],
         members,
         nature,
     }))
+}
+
+/// Arc 278 S4c WALL 2 — walk a `:messages` type-decl form (`recordtype`/`defenum`, post-expansion)
+/// and collect every type it references in a FIELD position. A field type is written `name <- :Type`
+/// (both record fields and enum tagged-variant fields use this triple), so every `:Type` keyword
+/// IMMEDIATELY following a `<-` symbol is a referenced type. Each is parsed via `parse_type_expr` and
+/// its leaves collected with `collect_user_type_paths` (so `:wat::core::Vector<my::ns::Thing>` yields
+/// both the stdlib head and the user arg). Type NAMES (slot-1 keyword), enum variant keywords, and the
+/// `:wat::enum::*` purity marker are NOT `<-`-preceded, so they are correctly skipped. Recurses into
+/// every nested List/Vector so enum variant vectors are reached.
+fn collect_message_form_type_refs(form: &WatAST, out: &mut Vec<String>) {
+    let children = match form {
+        WatAST::List(items, _) => items,
+        WatAST::Vector(items, _) => items,
+        _ => return,
+    };
+    for (i, child) in children.iter().enumerate() {
+        if let WatAST::Symbol(s, _) = child {
+            if s.as_str() == "<-" {
+                if let Some(WatAST::Keyword(k, _)) = children.get(i + 1) {
+                    if let Ok(te) = super::parse_type_expr(k) {
+                        collect_user_type_paths(&te, out);
+                    }
+                }
+            }
+        }
+        // Recurse into nested collections (enum tagged-variant vectors, etc.).
+        collect_message_form_type_refs(child, out);
+    }
+}
+
+/// Arc 278 S4c — collect the type-path leaves of a `TypeExpr` (for the surface `:messages`
+/// completeness check). `Path` leaves and `Parametric` heads are emitted with a leading `:`
+/// (matching how `:messages` names are written); container args are walked recursively.
+fn collect_user_type_paths(t: &TypeExpr, out: &mut Vec<String>) {
+    match t {
+        TypeExpr::Path(p) => out.push(p.clone()),
+        TypeExpr::Parametric { head, args } => {
+            // Parametric heads are stored without the leading colon; re-add it for a uniform check.
+            out.push(format!(":{}", head));
+            for a in args {
+                collect_user_type_paths(a, out);
+            }
+        }
+        TypeExpr::Tuple(ts) => {
+            for t in ts {
+                collect_user_type_paths(t, out);
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                collect_user_type_paths(a, out);
+            }
+            collect_user_type_paths(ret, out);
+        }
+        TypeExpr::Var(_) => {}
+    }
 }
 
 /// Pass a slice of field-triple items through `parse_argspec_triples` and append
