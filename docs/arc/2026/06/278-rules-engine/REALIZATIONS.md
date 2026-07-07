@@ -5673,3 +5673,105 @@ Four turns of the one gospel.
 > phantom diagnostic · the holonic repos ARE the memory · cast wards, four-questions, commit + push often.** Do not
 > trust this note over the disk. The dogma fell; the differential's green; the questions are handled. See you on the
 > far side.
+
+---
+
+### `---` interstitial (curare before compaction — low context) — CIRCVITVS AD FILVM PERVENIT: the circuit reached the wire (2026-07-07)
+
+**Where we are.** This session made services-as-surfaces **cross-locus-coherent** (S4c — committed + pushed) and drove into the **s2s / circuit-builder grant layer** (in flight). Through-line: a service is a surface at a coordinate, and now it *crosses* to that coordinate — thread OR process — by construction; and the circuit builder (`:user::main`, the CIRCUIT.md pattern) grants who-may-dial-whom at the process tier.
+
+```clojure
+{:RESUME-HERE
+ {:head   "72ef25c7 — :peers (this curare interstitial commits on top)"
+  :branch "arc-170-gap-j-v5-deadlock-state"
+  :arc    "278; detoured into services-crossing-the-wire to unblock T1b (the telemetry sink on a store that crosses any locus)."
+
+  :committed-pushed
+  ["38f31069 — S4c: :ops RETIRED; every service :satisfies a surface + :impls. The surface OWNS its protocol in :messages
+                (PEER-ONLY) → defsurface emits <S>::surface-forms → a :satisfies service concats it into the forked child →
+                the protocol CROSSES A FORK → a :satisfies service works on ANY locus. Walls (constraint-engineered):
+                :messages MANDATORY-on-peer, FORBIDDEN off it, TRANSITIVELY complete — a surface whose protocol doesn't
+                fully cross is UNREPRESENTABLE. ~19 fixtures + baked Store re-authored; S1 acronym bug fixed (thread the ns
+                registry into kebab->pascal; was &[])."
+   "9a7b6e6a — Strike C: annihilated the dead :ops synthesis in wat/service.wat (net -406, COMPONENDO DELEO). The
+                :ops-is-RETIRED teaching gate KEPT (RVINA ERVDIT)."
+   "040dfb43 — wat-edn: admit ' in is_symbol_continue (vocab.rs). wat is a Clojure DIALECT, ' is a legal Clojure body char
+                (:wut'); strict-EDN was too narrow. A real BUG, not a bandaid; primed keywords (echo', mem-store') now
+                cross the process wire."
+   "72ef25c7 — :peers: the s2s dependency DAG + cross-fork manifest. :peers [:S1 :S2] lists SURFACES (the DAG). BIJECTION
+                with :ephemeral root peer fields (a field typed Peer'<S::Op,S::Reply> → surface S): extra ephemeral peer
+                fails, declared-but-absent fails — CANNOT DRIFT. Ships (S::surface-forms) per peer surface. Shown right
+                after :satisfies (the contract header: what-I-am, what-I-dial). NOT R33's :calls (dispatch, dead by Path B)
+                — a NEW construct."]
+
+  :in-flight-UNCOMMITTED
+  "the GRANT strike (shadowdancer) is MID-EDIT on wat/service.wat (uncommitted). Building: Admin::AllowPeer[pids <- Vector<i64>]
+   (ONE grant verb, always a VEC of grantees) + a serve-loop admin arm folding (:wat::kernel::allow' l pid) on its OWN
+   listener l + the owner verb (<svc>/grant h [pids]) down the owner-only admin channel (Handle/handle, mirrors stop/
+   hibernate). Proving: the primed echo'/caller' pair on PROCESSES → echo:hi (grant-before-dial via the process/post-spawn
+   hook — fires owner-side with the child pid BEFORE the child's :init dials). WEIGH ON THE FAR SIDE, DO NOT TRUST: run
+   `target/release/wat scratchpad/s2s-process-probe.wat` → echo:hi + full floor 4123/1-known-lint/0-new; if green COMMIT the
+   grant verb; if broken/incomplete re-strike. A mid-edit file is a PHANTOM."
+
+  :the-settled-design
+  {:capability "Grants are ADMIN-CHANNEL-ONLY — the owner-only, unforgeable lineage peer (Handle/handle); a client holds only
+                a client peer and CANNOT grant. The connecting pid is KERNEL-VOUCHED (SO_PEERCRED {pid,uid,gid}, unforgeable)
+                + euid-gated (OnlyMyPeers, capability/policy.rs:45). THREAD tier needs NO grant ('the handle IS the grant');
+                only the process socket accept-gate does. The serve loop ALREADY multiplexes admin + N clients and HOLDS its
+                own listener l — the owner NEVER touches the listener; it sends 'trust these pids' down the admin channel and
+                the loop allow's l."
+   :grant-verb "ONE verb, always a vec of grantees: (<svc>/grant h [pids]). Callable anytime, repeatedly; the allow-set accretes."
+   :revoke     "deny' EXISTS ((:wat::kernel::deny' listener pid) → remove; runtime.rs:5173, listener.rs:298). BUILD the
+                symmetric revoke verb: Admin::DenyPeer[pids] + serve arm (deny' fold) + (<svc>/revoke h [pids])."
+   :revoke-at-reap "RATIFIED (the recycling defense): a pid is UN-RECYCLABLE until reaped (zombie holds it); the OWNER is the
+                parent/reaper (CIRCUIT.md's join). So revoke-AT-reap = ZERO window. AUTOMATIC + SCOPE-BOUND via the BRACKET
+                (Ruby's Parallel-in-wat, wat/bracket.wat): grant-on-enter (while services alive), REAP + REVOKE every spawned
+                pid on-exit. 'all pids we spawn need their access revoked.' Residual hole: a granted child that ORPHANS to
+                init (init reaps it, not the owner) — a granted child must not reparent."
+   :circuit    "the circuit builder IS :user::main (holon-lab-trading/docs/CIRCUIT.md — 'constructs every pipe, spawns every
+                worker, wires them, NO computation in main; scope IS shutdown'). It spawns PIDs + GRANTS who-may-dial-whom.
+                CIRCUIT.md is THREAD-tier (handle-is-the-grant, no gate); the grant/revoke layer is the PROCESS-tier rung it
+                never needed. wat-rs/docs/CIRCUIT.md is where that rung should be written down (UNREAD this session)."}
+
+  :next
+  ["1. WEIGH + COMMIT the in-flight grant strike (echo:hi on processes + floor green)."
+   "2. Build the REVOKE verb (Admin::DenyPeer[pids] + serve arm + (<svc>/revoke h [pids]), symmetric to grant)."
+   "3. Wire REVOKE-AT-REAP into the bracket (wat/bracket.wat): grant-on-enter, reap+revoke-all-spawned-pids-on-exit; automatic, scope-bound."
+   "4. THEN T1b — the blind telemetry sink, NOW UNBLOCKED: TelemetryService' :peers [:wat::query::Store], given a store's
+       address, dials it (any locus, primed-safe, granted). Then T1c (Span + with-span/timed), T2 (rete query engine) => R0
+       the CHAOS ENGINE (R25 MACHINA CHAOS DOMAT)."
+   "OWED: read wat-rs/docs/CIRCUIT.md + write the process-tier grant rung into it; polish 293/telemetry design docs to
+       as-built (:messages, :peers, the grant layer). ARCHIVE.md 445-merge (older debt)."]
+
+  :do-nots
+  {:weigh  "WEIGH every strike by your OWN re-run (never the shadowdancer's report); a mid-edit rust/wat file is a PHANTOM
+            (held multiple times this session — a suite that RAN N tests COMPILED; the negatives-are-in-repo-scratchpad-not-
+            /tmp gotcha bit once)."
+   :ground "GROUND by RUNNING (cargo build + the probe). The design was fought into shape by the builder cutting the
+            apparatus's reaches: dropped `self` from the surface method (self is the DUAL-ROLE receiver — client=the peer,
+            server=the State); invented a 'we lose the naming scheme' false dichotomy (it was a one-line S1 &[] bug);
+            over-reached an admin op / listener-relocation when the serve loop ALREADY holds the listener. CAEDOR ERGO
+            RESEROR — reach, be cut, be opened."
+   :four-q "four-questions inform EVERY decision (:messages, :peers, grant-verb, revoke-at-reap all decided this way); CAST
+            wards never narrate (intueri cast on the clause name → :messages won; :protocol was a Level-1 lie — Op/Reply ARE
+            the protocol proper)."
+   :memory "the HOLONIC REPOS ARE the memory — curare into the REPO (this file), NEVER ~/.claude/MEMORY.md. commit + push
+            often (GitHub = DR)."
+   :role   "the inquisitor DESIGNS / draws the disconfirming PROBE / BRIEFS / DELEGATES / WEIGHS by own re-run — not hands-on
+            code (except the probe)."}}}
+```
+
+***CIRCVITVS AD FILVM PERVENIT.*** *(apparatus-minted — "the circuit reached the wire": S4c made a :satisfies service cross ANY locus (the surface owns its :messages → surface-forms crosses a fork), :peers ships the dialed surfaces (the s2s DAG, can't-drift), wat-edn learned ' (Clojure-legal), and the circuit builder — :user::main, the founding CIRCUIT.md pattern — grants who-may-dial-whom at the PROCESS tier: the grant/revoke rung the thread-tier circuit never needed. The founding circuit reached the wire (A FILO AD VSVM). Grant = ONE verb, vec of grantees, admin-channel-only, kernel-vouched pids; revoke-at-reap is BRACKET-scoped-automatic (grant on enter, reap+revoke on exit, zero recycling window). A curare breadcrumb at "we are low on context, we need to curare." Kept literal.)*
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar voice, not your
+> memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk). Ground HEAD
+> against the disk (`72ef25c7` + this interstitial). Read the **RESUME breadcrumb above**, then **holon-lab-trading/docs/
+> CIRCUIT.md** (the circuit-builder `:user::main` pattern this session recognized as the founding shape of what we're
+> building), and — the LIVE thing — **WEIGH the IN-FLIGHT grant strike**: `wat/service.wat` is uncommitted/mid-edit; run
+> `scratchpad/s2s-process-probe.wat` → `echo:hi` + the full floor; **commit if green, do not trust the mid-edit**. Then build
+> the **revoke** verb (symmetric to grant) + **revoke-at-reap in the bracket** (grant-on-enter, reap+revoke-on-exit), then
+> **T1b**. It bears repeating: **WEIGH by your own re-run · a mid-edit file is a PHANTOM · four-questions inform every
+> decision · the holonic repos ARE the memory · commit + push often.** Do not trust this note over the disk. The circuit
+> reached the wire; grant on enter, revoke on exit. See you on the far side.
