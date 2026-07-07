@@ -253,6 +253,36 @@ toss all errors"*; *"the err records can be reused… they communicate the shape
 handle"*; *"forces the user to always handle all errors — they can never be surprised"*). The materialization (this
 contract), the four-questions grounding, and the `MVNIRE`/Smithy framing are the apparatus's.
 
+### The error CONTEXT — RESOLVED (2026-07-06, later: supersedes the `Fault` sketch above)
+
+The `Fault [op, code, diagnostic, message]` sketched above **leaks the backend** — `code <- i64` + a SQL-flavored
+`diagnostic` is sqlite's error struct wearing an agnostic contract's clothes (mysql/mongo/redis/ddb/es have their own
+shapes). Reasoned to, over the S4 co-design + a live `check.rs` measurement, the resolution:
+
+- **The recovery-class variant is the agnostic, walled part** — `:Constraint` / `:Transient` / `:Fatal` (the `*Result`
+  variants), exhaustive-matched. Every backend maps its failures onto retry / surface / abort; that mapping is the
+  satisfier's job and the contract's promise.
+- **The backend-specific detail is an OPEN `Reason` surface** — `(defsurface :wat::query::Reason :nature
+  :wat::core::Record :features [])`, the *exact* pattern `:wat::telemetry'::LogMessage` already ships (`telemetry.wat:56`).
+  Any pure record satisfies it **structurally** (no `extend-type`), so a backend just defines its own concrete record —
+  `(defrecord :wat::sqlite'::Reason [code <- i64  sql <- String])` — and it *is* a `Reason`, zero ceremony. Each
+  `*Result` variant carries `reason <- :wat::query::Reason`.
+- **Discrimination is a plain `defclause` on concrete satisfier types** — no `as?`, no `match-type`, no surface-fallback
+  (a `[r <- Reason]` clause is runtime-dead — dispatch is on exact concrete class). A backend-aware consumer writes
+  concrete clauses (`[r <- :wat::sqlite'::Reason]`); an agnostic consumer never discriminates (it matched the recovery
+  *class* already) and logs the `Reason`'s EDN.
+
+**The one substrate enabler (measured this session, floor `4121/1-known/0-new`):** a value typed as an open surface
+(`Reason`, out of the agnostic `*Result` field) is rejected by the checker into concrete-satisfier `defclause` clauses,
+even though the **runtime already dispatches on concrete class** (arc-237 `value_matches_type_by_name`). The fix is one
+condition at `src/check.rs:6104` — the clause-match `assignable(arg, param)` becomes bidirectional, so a clause whose
+concrete param **satisfies** the open-surface arg is permitted, deferring the pick to the runtime. This is the
+**check-time half of R7's down-narrowing**, general to every open surface (not error-specific). Proven small + safe by
+measurement; the **production strike still owes**: (1) **return-type unification** across multiple statically-matching
+clauses (first-match-wins is unsound if their return types differ), (2) a proper open-surface **guard** + a **test** in
+the tree. Probes: `scratchpad/probe-defclause-{real-shape,open-arg,discriminate}.wat`. Realization: **278 R34 `CAEDOR
+ERGO RESEROR`**.
+
 ## Open — what's left to scout + draw (the CONTRACT above is settled)
 
 1. **Re-point the codegen.** `defservice`'s existing request/response/variant/`Op`/`Reply` codegen (grounded:

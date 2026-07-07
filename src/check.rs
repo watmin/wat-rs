@@ -6101,7 +6101,16 @@ fn infer_list(
                 let mut clause_subst = subst.clone();
                 for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(inst_arg_types.iter()) {
                     if let Some(arg_ty) = arg_ty_opt {
-                        if !assignable(arg_ty, expected_ty, &mut clause_subst, env) {
+                        // MEASUREMENT (open-surface dispatch): accept the normal direction (arg
+                        // assignable into the clause param) OR the reverse — the clause's concrete
+                        // param is a SATISFIER of an open-surface arg. In that reverse case the
+                        // static arg type is broader than the clause param, and the runtime
+                        // (value_matches_type_by_name) already discriminates on the value's REAL
+                        // class — so permit the clause statically and let runtime pick. This is what
+                        // lets `(explain r)` where `r : Reason` reach the concrete `SqliteReason`
+                        // clause. (Production: guard to genuinely-open args + unify matching rets.)
+                        if !assignable(arg_ty, expected_ty, &mut clause_subst, env)
+                            && !assignable(expected_ty, arg_ty, &mut clause_subst, env) {
                             continue 'outer;
                         }
                     }
