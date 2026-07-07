@@ -515,269 +515,10 @@
                                          :wat::core::None))))
 
      clauses       (:wat::core::ast->children ops)            ;; list of op-List nodes
-     ;; Arc 293 S2 — split by mode so the :ops-shaped foldls (request/response records, Op/Reply
-     ;; variants, constructors) run ONLY on :ops clauses (empty when :satisfies), and the
-     ;; :impls-shaped foldls run ONLY on :impls clauses. Exactly one is non-empty; the other's
-     ;; foldls collapse to empty vectors, keeping the :ops path byte-identical to pre-S2.
-     ops-clauses   (:wat::core::if satisfies?
-                     -> :wat::core::Vector<wat::WatAST>
-                     (:wat::core::Vector :wat::WatAST)
-                     clauses)
      impl-clauses  (:wat::core::if satisfies?
                      -> :wat::core::Vector<wat::WatAST>
                      clauses
                      (:wat::core::Vector :wat::WatAST))
-
-     ;; ── C.3: per-op Request records ───────────────────────────────────────────────
-     ;; Request = Record::def with the in-fields MINUS the leading s <- :State triple.
-     ;; Emitted BEFORE the enums (record before the enum that references it as a field type).
-     request-records (:wat::core::foldl
-                       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                        clause <- :wat::WatAST]
-                         -> :wat::core::Vector<wat::WatAST>
-                         (:wat::core::let
-                           [ch          (:wat::core::ast->children clause)
-                            opkw        (:wat::core::first ch)
-                            argvec      (:wat::core::first (:wat::core::drop ch 1))
-                            ;; in-fields = drop the leading s <- :State triple (3 nodes).
-                            ;; Arc 118.2a — `drop` is now lazy (Stream); with-children below needs a
-                            ;; concrete Vec, so drop the fixed 3 leading nodes via 3x `rest` instead
-                            ;; (same trick as :wat::rete::defrule's then-forms).
-                            in-fieldch  (:wat::core::rest (:wat::core::rest (:wat::core::rest
-                                          (:wat::core::ast->children argvec))))
-                            op-str      (:wat::core::keyword/to-string opkw)
-                            req-name    (:wat::core::keyword/from-string
-                                          (:wat::core::string::concat fqdn-str
-                                            (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
-                            ;; Reuse argvec as the Vector carrier; with-children replaces children
-                            req-fieldvec (:wat::core::with-children argvec in-fieldch)]
-                           (:wat::core::conj acc
-                             `(:wat::core::defrecord ~req-name ~req-fieldvec))))
-                       (:wat::core::Vector :wat::WatAST)
-                       ops-clauses)
-
-     ;; ── C.3: per-op Response records ──────────────────────────────────────────────
-     ;; Response = Record::def with the out-fields (ch[3] verbatim).
-     response-records (:wat::core::foldl
-                        (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                         clause <- :wat::WatAST]
-                          -> :wat::core::Vector<wat::WatAST>
-                          (:wat::core::let
-                            [ch           (:wat::core::ast->children clause)
-                             opkw         (:wat::core::first ch)
-                             out-fieldvec (:wat::core::first (:wat::core::drop ch 3))
-                             out-fieldch  (:wat::core::ast->children out-fieldvec)
-                             op-str       (:wat::core::keyword/to-string opkw)
-                             resp-name    (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::interpolate "::{op-str}Response" :op-str op-str)))
-                             ;; Reuse out-fieldvec as the Vector carrier
-                             resp-fieldvec (:wat::core::with-children out-fieldvec out-fieldch)]
-                            (:wat::core::conj acc
-                              `(:wat::core::defrecord ~resp-name ~resp-fieldvec))))
-                        (:wat::core::Vector :wat::WatAST)
-                        ops-clauses)
-
-     ;; ── C.3: Op variants — each WRAPS the Request record (one field: req) ─────────
-     ;; variant: <opkw> [req <- :<fqdn>::<Op>Request]
-     ;; `[req <- ~req-ty]` is a Vector quasiquote inner; the checker doesn't recurse into
-     ;; Vector nodes' children, so `req` as a field name label is fine.
-     variants      (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                      clause <- :wat::WatAST]
-                       -> :wat::core::Vector<wat::WatAST>
-                       (:wat::core::let
-                         [ch      (:wat::core::ast->children clause)
-                          opkw    (:wat::core::first ch)
-                          argvec  (:wat::core::first (:wat::core::drop ch 1))
-                          op-str  (:wat::core::keyword/to-string opkw)
-                          req-ty  (:wat::core::keyword/from-string
-                                    (:wat::core::string::concat fqdn-str
-                                      (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
-                          ;; Build [req <- <req-ty>] as a quasiquoted Vector node.
-                          ;; Value::wat__WatAST(WatAST::Vector) — spliced via ~@variants correctly.
-                          req-field-vec `[req <- ~req-ty]]
-                         (:wat::core::conj (:wat::core::conj acc opkw)
-                                           req-field-vec)))
-                     (:wat::core::Vector :wat::WatAST)
-                     ops-clauses)
-
-     ;; ── C.3: Reply variants — each WRAPS the Response record (one field: resp) ────
-     ;; variant: <opkw> [resp <- :<fqdn>::<Op>Response]
-     reply-variants (:wat::core::foldl
-                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                       clause <- :wat::WatAST]
-                        -> :wat::core::Vector<wat::WatAST>
-                        (:wat::core::let
-                          [ch      (:wat::core::ast->children clause)
-                           opkw    (:wat::core::first ch)
-                           out-fieldvec (:wat::core::first (:wat::core::drop ch 3))
-                           op-str  (:wat::core::keyword/to-string opkw)
-                           resp-ty (:wat::core::keyword/from-string
-                                     (:wat::core::string::concat fqdn-str
-                                       (:wat::core::string::interpolate "::{op-str}Response" :op-str op-str)))
-                           ;; Build [resp <- <resp-ty>] as a quasiquoted Vector node.
-                           resp-field-vec `[resp <- ~resp-ty]]
-                          (:wat::core::conj (:wat::core::conj acc opkw)
-                                            resp-field-vec)))
-                      (:wat::core::Vector :wat::WatAST)
-                      ops-clauses)
-
-     ;; ── Arc 293 S2: the protocol enum defs — emitted ONLY when the service MINTS its own
-     ;; protocol (:ops). When :satisfies, ::Op/::Reply belong to the surface (S1-synthesized at
-     ;; defsurface time); re-emitting them here would duplicate-define, so proto-enum-defs is
-     ;; empty and the three emission sites splice nothing. (variants/reply-variants are empty in
-     ;; :satisfies mode anyway — ops-clauses is empty — so these defs would be vacuous regardless.)
-     op-enum-def    `(:wat::core::defenum ~enum-name :wat::enum::Pure ~@variants)
-     reply-enum-def `(:wat::core::defenum ~reply-name :wat::enum::Pure ~@reply-variants)
-     proto-enum-defs (:wat::core::if satisfies?
-                       -> :wat::core::Vector<wat::WatAST>
-                       (:wat::core::Vector :wat::WatAST)
-                       (:wat::core::conj
-                         (:wat::core::conj (:wat::core::Vector :wat::WatAST) op-enum-def)
-                         reply-enum-def))
-
-     ;; ── C.3: serve op-arms ───────────────────────────────────────────────────────
-     ;; Each arm:
-     ;;   ((Op::<Op> req) (match (let ~let-bindings body) -> nil
-     ;;                     ((Outcome::Reply new-state resp)
-     ;;                       (do (send' (nth clients idx) (Reply::<Op> resp)) (serve …)))))
-     ;;
-     ;; let-bindings is built as a WatAST::Vector (via with-children on argvec), so that
-     ;; `~let-bindings` at expansion time uses value_to_watast → Value::wat__WatAST → the
-     ;; Vector node. At definition time it's an Unquote → binder-slot check skipped.
-     ;;
-     ;; Hygiene notes:
-     ;;   state-binder from user's argvec → unquoted (Unquote at def time).
-     ;;   req in Op match pattern → match-arm binder (not let/fn) → fine as literal.
-     ;;   new-state, resp in Outcome match pattern → match-arm binders → fine as literal.
-     ;;   self, l, clients, idx in value positions → fine as literals.
-     serve-op-arms-ops (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                      clause <- :wat::WatAST]
-                       -> :wat::core::Vector<wat::WatAST>
-                       (:wat::core::let
-                         [ch            (:wat::core::ast->children clause)
-                          opkw          (:wat::core::first ch)
-                          argvec        (:wat::core::first (:wat::core::drop ch 1))
-                          body          (:wat::core::first (:wat::core::drop ch 4))
-                          ;; in-fields MINUS leading s <- :State triple (3 nodes).
-                          ;; Arc 118.2a — `drop` is now lazy (Stream); length/get below need a
-                          ;; concrete Vec, so drop the fixed 3 leading nodes via 3x `rest` instead.
-                          fieldch       (:wat::core::rest (:wat::core::rest (:wat::core::rest
-                                          (:wat::core::ast->children argvec))))
-                          op-str        (:wat::core::keyword/to-string opkw)
-                          op-variant-kw (:wat::core::keyword/from-string
-                                          (:wat::core::string::concat fqdn-str
-                                            (:wat::core::string::interpolate "::Op::{op-str}" :op-str op-str)))
-                          reply-variant-kw (:wat::core::keyword/from-string
-                                             (:wat::core::string::concat fqdn-str
-                                               (:wat::core::string::interpolate "::Reply::{op-str}" :op-str op-str)))
-                          ;; Extract state binder (e.g. `s`) from the first triple of argvec.
-                          ;; Unquoted → Unquote node at definition time → passes hygiene check.
-                          state-binder  (:wat::core::first (:wat::core::ast->children argvec))
-                          ;; Build accessor keywords: <fqdn>::<Op>Request/<field-name>
-                          ;; Field names at positions 0, 3, 6, … in fieldch.
-                          fieldch-len   (:wat::core::length fieldch)
-                          n-args        (:wat::core::i64::/ fieldch-len 3)
-                          ;; Arc 118.2a — arg-names/arg-accessors below are indexed via `get`
-                          ;; (Vector-only), so arg-indices must stay a concrete Vec. `mapv` is
-                          ;; a wat-level defn (wat/seq.wat), unreachable at macro-expand time
-                          ;; (expand runs before defn registration — src/macros/eval.rs); build
-                          ;; eagerly via foldl + conj instead (both Rust-native, always safe).
-                          arg-indices   (:wat::core::foldl
-                                          (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64>
-                                                           i <- :wat::core::i64]
-                                            -> :wat::core::Vector<wat::core::i64>
-                                            (:wat::core::conj acc (:wat::core::i64::* i 3)))
-                                          (:wat::core::Vector :wat::core::i64)
-                                          (:wat::core::range 0 n-args))
-                          ;; The field name AST nodes (symbols like `n`).
-                          ;; Arc 118.2a — consumed via `get` below (Vector-only) → eager foldl+conj.
-                          arg-names     (:wat::core::foldl
-                                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                                           i <- :wat::core::i64]
-                                            -> :wat::core::Vector<wat::WatAST>
-                                            (:wat::core::conj acc
-                                              (:wat::core::Option/expect
-                                                (:wat::core::get fieldch i)
-                                                "defservice serve-arm: arg name out of bounds")))
-                                          (:wat::core::Vector :wat::WatAST)
-                                          arg-indices)
-                          ;; Accessor keyword nodes: <fqdn>::<Op>Request/<field-name>
-                          ;; Field names are Symbol nodes (e.g. `n`), not Keywords.
-                          ;; Use ast-name (handles both Symbol and Keyword) to get the text.
-                          ;; Arc 118.2a — consumed via `get` below (Vector-only) → eager foldl+conj.
-                          arg-accessors (:wat::core::foldl
-                                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                                           i <- :wat::core::i64]
-                                            -> :wat::core::Vector<wat::WatAST>
-                                            (:wat::core::conj acc
-                                              (:wat::core::let
-                                                [name-node (:wat::core::Option/expect
-                                                              (:wat::core::get fieldch i)
-                                                              "defservice serve-arm: accessor out of bounds")
-                                                 name-str  (:wat::core::ast-name name-node)]
-                                              (:wat::core::keyword/from-string
-                                                (:wat::core::string::concat fqdn-str
-                                                  (:wat::core::string::concat "::" op-str
-                                                    (:wat::core::string::concat "Request/"
-                                                      name-str)))))))
-                                          (:wat::core::Vector :wat::WatAST)
-                                          arg-indices)
-                          ;; `req` symbol node — used as value reference in accessor calls:
-                          ;; `(acc-kw req)`. The `req` match-binder in the arm pattern is a
-                          ;; literal in the quasiquote, but it's in a match pattern (List whose
-                          ;; head is op-variant-kw, not `let`/`fn`) → the checker skips it.
-                          req-sym       (:wat::core::symbol-node "req")
-                          ;; `state` symbol node — used as value reference in let-bindings:
-                          ;; `[s state ...]` where `state` is the serve param.
-                          state-sym     (:wat::core::symbol-node "state")
-                          ;; Build the let-binding items as a Value::Vec:
-                          ;;   [state-binder, state-sym, arg0, (acc0 req), arg1, (acc1 req), …]
-                          binding-items (:wat::core::foldl
-                                          (:wat::core::fn [bind-acc <- :wat::core::Vector<wat::WatAST>
-                                                           i <- :wat::core::i64]
-                                            -> :wat::core::Vector<wat::WatAST>
-                                            (:wat::core::let
-                                              [arg-name (:wat::core::Option/expect  
-                                                           (:wat::core::get arg-names i)
-                                                           "defservice serve-arm: arg-name index")
-                                               acc-kw   (:wat::core::Option/expect  
-                                                           (:wat::core::get arg-accessors i)
-                                                           "defservice serve-arm: accessor index")]
-                                              (:wat::core::conj
-                                                (:wat::core::conj bind-acc arg-name)
-                                                `(~acc-kw ~req-sym))))
-                                          (:wat::core::conj
-                                            (:wat::core::conj
-                                              (:wat::core::Vector :wat::WatAST)
-                                              state-binder)
-                                            state-sym)
-                                          (:wat::core::range 0 n-args))
-                          ;; Convert binding items to a WatAST::Vector via with-children.
-                          ;; Now let-bindings is Value::wat__WatAST(WatAST::Vector([...])),
-                          ;; so `~let-bindings` in outcome-match uses value_to_watast correctly.
-                          let-bindings  (:wat::core::with-children argvec binding-items)
-                          outcome-match `(:wat::core::match
-                                              (:wat::core::let ~let-bindings ~body)
-                                              -> :wat::core::nil
-                                            ((:wat::service::Outcome::Reply new-state resp)
-                                              (:wat::core::do
-                                                (:wat::kernel::send'
-                                                  (:wat::core::nth clients idx)
-                                                  (~reply-variant-kw resp))
-                                                (~serve-name self l clients new-state)))
-                                            ((:wat::service::Outcome::Stop final-state resp)
-                                              (:wat::core::do
-                                                (:wat::kernel::send'
-                                                  (:wat::core::nth clients idx)
-                                                  (~reply-variant-kw resp))
-                                                nil)))]
-                         (:wat::core::conj acc
-                           `((~op-variant-kw req) ~outcome-match))))
-                     (:wat::core::Vector :wat::WatAST)
-                     ops-clauses)
 
      ;; ── Arc 293 S2: serve op-arms for :impls (bodies-only over the surface's protocol) ──
      ;; Each impl is `(<op> [s req] body)` — `s` = the :State (server self), `req` = the WHOLE
@@ -789,7 +530,7 @@
      ;; variant unhandled → non-exhaustive match → compile error (no coverage check to write).
      ;; Hygiene: `req` in the pattern comes from ~req-binder (the impl's own binder, unquoted →
      ;; Unquote node → checker skips); let-bindings [s state] built via with-children → ~-spliced.
-     serve-op-arms-impls (:wat::core::foldl
+     serve-op-arms (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
                                       clause <- :wat::WatAST]
                        -> :wat::core::Vector<wat::WatAST>
@@ -836,13 +577,6 @@
                            `((~op-variant-kw ~req-binder) ~outcome-match))))
                      (:wat::core::Vector :wat::WatAST)
                      impl-clauses)
-     ;; Combine: exactly one source is non-empty (mode-gated), so this is the mode's arms.
-     serve-op-arms (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> x <- :wat::WatAST]
-                       -> :wat::core::Vector<wat::WatAST>
-                       (:wat::core::conj acc x))
-                     serve-op-arms-ops
-                     serve-op-arms-impls)
 
      ;; ── serve params argvec ───────────────────────────────────────────────────────
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
@@ -895,131 +629,6 @@
                      ((:wat::spawn::ServiceEvent::Lost idx _cause)
                        (~serve-name self l (:wat::std::list::remove-at clients idx) state)))
 
-     ;; ── C.3: request constructors ────────────────────────────────────────────────
-     ;; For each op:
-     ;;   (defn <fqdn>/<op-lower>-request [<in-fields>] -> :<fqdn>::<Op>Request
-     ;;     (<fqdn>::<Op>Request <in-field-names>))
-     ;; Constructor name uses pascal->kebab-in (namespace-aware; Arc 265) so a
-     ;; namespace with declared acronyms gets correct kebab lowering (e.g.
-     ;; :CreateWebACL → "create-web-acl" when "ACL" is declared for the service ns).
-     ;; ctor-body = `(~req-ty ~@arg-names)`: head is Unquote → checker skips let/fn check.
-     constructors  (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                      clause <- :wat::WatAST]
-                       -> :wat::core::Vector<wat::WatAST>
-                       (:wat::core::let
-                         [ch           (:wat::core::ast->children clause)
-                          opkw         (:wat::core::first ch)
-                          argvec       (:wat::core::first (:wat::core::drop ch 1))
-                          ;; in-fields minus the leading s <- :State triple.
-                          ;; Arc 118.2a — `drop` is now lazy (Stream); with-children/length/get
-                          ;; below need a concrete Vec, so drop the fixed 3 nodes via 3x `rest`.
-                          in-fieldch   (:wat::core::rest (:wat::core::rest (:wat::core::rest
-                                         (:wat::core::ast->children argvec))))
-                          op-str       (:wat::core::keyword/to-string opkw)
-                          op-lower     (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
-                          ctor-name    (:wat::core::keyword/from-string
-                                         (:wat::core::string::concat fqdn-str
-                                           (:wat::core::string::interpolate "/{op-lower}-request" :op-lower op-lower)))
-                          req-ty       (:wat::core::keyword/from-string
-                                         (:wat::core::string::concat fqdn-str
-                                           (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
-                          ;; Use argvec as Vector carrier for the parameter list
-                          req-fieldvec  (:wat::core::with-children argvec in-fieldch)
-                          ;; Extract field names for the constructor call body
-                          fieldch-len  (:wat::core::length in-fieldch)
-                          n-args       (:wat::core::i64::/ fieldch-len 3)
-                          ;; Arc 118.2a — arg-names is spliced (~@arg-names) below → needs a
-                          ;; concrete Vec; arg-indices feeds it via `get` too. `mapv` is a
-                          ;; wat-level defn (wat/seq.wat), unreachable at macro-expand time
-                          ;; (expand runs before defn registration); build eagerly via
-                          ;; foldl + conj instead (both Rust-native, always safe).
-                          arg-indices  (:wat::core::foldl
-                                         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64>
-                                                          i <- :wat::core::i64]
-                                           -> :wat::core::Vector<wat::core::i64>
-                                           (:wat::core::conj acc (:wat::core::i64::* i 3)))
-                                         (:wat::core::Vector :wat::core::i64)
-                                         (:wat::core::range 0 n-args))
-                          arg-names    (:wat::core::foldl
-                                         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                                          i <- :wat::core::i64]
-                                           -> :wat::core::Vector<wat::WatAST>
-                                           (:wat::core::conj acc
-                                             (:wat::core::Option/expect
-                                               (:wat::core::get in-fieldch i)
-                                               "defservice constructors: field name out of bounds")))
-                                         (:wat::core::Vector :wat::WatAST)
-                                         arg-indices)
-                          ;; ctor-body: (~req-ty ~@arg-names) — head is Unquote, so checker
-                          ;; doesn't fire on any `let`/`fn` check; arg-names are user symbols.
-                          ctor-body    `(~req-ty ~@arg-names)]
-                         (:wat::core::conj acc
-                           `(:wat::core::defn ~ctor-name ~req-fieldvec -> ~req-ty ~ctor-body))))
-                     (:wat::core::Vector :wat::WatAST)
-                     ops-clauses)
-
-     ;; ── C.3: methods ─────────────────────────────────────────────────────────────
-     ;; For each op:
-     ;;   (defn <fqdn>/<op-lower> [c <- Peer'<Op,Reply>  req <- :<fqdn>::<Op>Request]
-     ;;     -> :<fqdn>::<Op>Response
-     ;;     (let [_ (send' c (Op::<Op> req))  r (recv' c)]
-     ;;       (match r -> <resp-ty> ((Reply::<Op> resp) resp))))
-     ;; Method name uses namespace-aware pascal->kebab-in (Arc 265).
-     ;;
-     ;; Hygiene for method-body: `_` and `r` are let binders inside a nested quasiquote.
-     ;; Fix: `discard-sym` = (symbol-node "_") and `r-sym` = (symbol-node "r") make them
-     ;; Unquote nodes at definition time → checker skips them.
-     ;; method-params `[c <- ~peer-ty req <- ~req-ty]` is a Vector → checker skips it.
-     ;; `resp` in the match arm is a match-pattern binder (not let/fn) → fine as literal.
-     ;; op-methods = per-op client methods only (no stop/hibernate); spliced into ~@methods below.
-     op-methods-ops (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
-                                      clause <- :wat::WatAST]
-                       -> :wat::core::Vector<wat::WatAST>
-                       (:wat::core::let
-                         [ch              (:wat::core::ast->children clause)
-                          opkw            (:wat::core::first ch)
-                          out-fieldvec    (:wat::core::first (:wat::core::drop ch 3))
-                          op-str          (:wat::core::keyword/to-string opkw)
-                          op-lower        (:wat::core::string::pascal->kebab-in fqdn-kw op-str)
-                          method-name     (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::interpolate "/{op-lower}" :op-lower op-lower)))
-                          req-ty          (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::interpolate "::{op-str}Request" :op-str op-str)))
-                          resp-ty         (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::interpolate "::{op-str}Response" :op-str op-str)))
-                          op-variant-kw   (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat fqdn-str
-                                              (:wat::core::string::interpolate "::Op::{op-str}" :op-str op-str)))
-                          reply-variant-kw (:wat::core::keyword/from-string
-                                             (:wat::core::string::concat fqdn-str
-                                               (:wat::core::string::interpolate "::Reply::{op-str}" :op-str op-str)))
-                          ;; method params: [c <- Peer'<Op,Reply>  req <- <req-ty>]
-                          ;; Client peer: connect'(Address'<Op,Reply>) → Peer'<Op,Reply>.
-                          ;; Vector → checker skips Vector children.
-                          method-params   `[c <- ~client-peer-ty req <- ~req-ty]
-                          ;; `_` and `r` let binders in method-body's nested quasiquote:
-                          ;; use symbol-node so they're Unquote nodes at definition time.
-                          discard-sym     (:wat::core::symbol-node "_")
-                          r-sym           (:wat::core::symbol-node "r")
-                          method-body     `(:wat::core::let
-                                             [~discard-sym (:wat::kernel::send' c (~op-variant-kw req))
-                                              ~r-sym (:wat::kernel::recv' c)]
-                                             (:wat::core::match ~r-sym -> ~resp-ty
-                                               ((~reply-variant-kw resp) resp)
-                                               (_ (:wat::kernel::assertion-failed!
-                                                    "defservice method: misrouted reply variant (protocol violation)"
-                                                    :wat::core::None
-                                                    :wat::core::None))))]
-                         (:wat::core::conj acc
-                           `(:wat::core::defn ~method-name ~method-params -> ~resp-ty ~method-body))))
-                     (:wat::core::Vector :wat::WatAST)
-                     ops-clauses)
-
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- Peer'<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
      ;;    (let [_ (send' c (<S>::Op::<Op> req))  r (recv' c)]
@@ -1030,7 +639,7 @@
      ;; type; the surface method <S>/<op> becomes the blind entry once a satisfier extend-type wires
      ;; it to this concrete client fn (S4). Request/response records are the surface's own
      ;; (user-declared `<S>::<Op>Request` / `<S>::<Op>Response` — the S1/gRPC naming convention).
-     op-methods-impls (:wat::core::foldl
+     op-methods    (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
                                       clause <- :wat::WatAST]
                        -> :wat::core::Vector<wat::WatAST>
@@ -1070,13 +679,6 @@
                            `(:wat::core::defn ~method-name ~method-params -> ~resp-ty ~method-body))))
                      (:wat::core::Vector :wat::WatAST)
                      impl-clauses)
-     ;; Combine (exactly one non-empty, mode-gated).
-     op-methods    (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> x <- :wat::WatAST]
-                       -> :wat::core::Vector<wat::WatAST>
-                       (:wat::core::conj acc x))
-                     op-methods-ops
-                     op-methods-impls)
 
      ;; ── arc 291 3a-ii-β: owner-only stop method (replaces the deleted client stop) ───
      ;; Method: (defn <fqdn>/stop [h <- Handle] -> state-ty ...)
@@ -1223,9 +825,6 @@
      own-forms-call  `(:wat::core::forms
                         ~record-def
                         ~state-def
-                        ~@request-records
-                        ~@response-records
-                        ~@proto-enum-defs
                         (:wat::core::defn ~serve-name ~serve-params
                           -> :wat::core::nil ~serve-body)
                         ~init-def
@@ -1308,11 +907,10 @@
      handle-record `(:wat::core::defrecord ~handle-name ~handle-fields)]
 
     ;; Assemble the final `do`:
-    ;;   request + response records (before enums — spliced as type-decls)
-    ;;   Op + Reply enums (wrap the records)
-    ;;   serve defn (the dispatch loop)
-    ;;   constructors (per-op request constructors)
-    ;;   methods (per-op type-safe methods)
+    ;;   record + state defs (durable/ephemeral projections)
+    ;;   Admin + Status enums (the lineage protocol)
+    ;;   serve defn (the dispatch loop over the surface's ::Op)
+    ;;   methods (per-op type-safe client methods, over the surface protocol)
     ;;   start fn (mints listener + spawns serve → Handle)
     ;;   Handle record (start's return type; emitted last)
     ;;   service-forms def (transport-agnostic fragment; emitted last so all
@@ -1322,9 +920,6 @@
     `(:wat::core::do
        ~record-def
        ~state-def
-       ~@request-records
-       ~@response-records
-       ~@proto-enum-defs
        ~admin-enum-def
        ~status-enum-def
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)
@@ -1333,7 +928,6 @@
        ~hibernate-project-def
        ~dispatch-admin-def
        ~extract-addr-def
-       ~@constructors
        ~@methods
        ~service-forms-def
        ~start-fn
