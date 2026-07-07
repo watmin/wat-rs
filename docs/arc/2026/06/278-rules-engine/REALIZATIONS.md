@@ -5105,12 +5105,19 @@ annihilated with `:calls`).
    scratchpad/s3-probe-calls-less-consumer.wat → 'consumer forwarded to kv (no :calls), ok = true'."
 
   :next
-  ["T1b — the BLIND SINK is now PURE ASSEMBLY: TelemetryService' :ephemeral [store <- Peer'<Store::Op,Store::Reply>],
-          :init (record, store-addr <- Address'<Store::Op,Store::Reply>) -> dial; ops call :wat::query::Store/<op> store.
-          The Store surface must be :nature :Peer. Model it on scratchpad/s3-probe-calls-less-consumer.wat (the proven shape)."
-   "THE ENDPOINT (ruling A): every service :satisfies a surface; :ops matures into :impls; the per-service client fns
-          (<fqdn>/<op>) dissolve the same way :calls did (everything called as :S/<op> peer). :ops-path services (counters,
-          the current defservice) migrate. This is the big subtraction after T1b."
+  ["S4 FIRST (before T1b — GROUNDED CORRECTION 2026-07-06): the REAL stores are NOT on Path B yet. :wat::query::Store
+          is :nature :wat::core::Struct (wat/query.wat:102), satisfied via WRAPPER STRUCTS (:wat::query::MemStore /
+          SqliteStore extend-type Store, mem.wat:171 / sqlite-store.wat:312) — the exact wrapper Path B eliminated.
+          S4 = (a) migrate Store/ReadStore → :nature :Peer + DROP the MemStore/SqliteStore wrapper structs (the dialed
+          peer IS the Store, intrinsic dispatch — Path B, 823b20ac); (b) the blind mem↔sqlite differential (R31 →
+          PROBATVM); (c) THE ENDPOINT: :satisfies MANDATORY, :ops → :impls (service.wat:152 still allows :ops — ruling A
+          NOT built). Path B proved the mechanism only with the :probe::Kv probe; S4 puts the REAL stores on it."
+   "T1b — the BLIND SINK, PURE ASSEMBLY ONCE S4 LANDS (else it'd be built on the wrapper pattern we're killing):
+          TelemetryService' :ephemeral [store <- Peer'<Store::Op,Store::Reply>], :init (record, store-addr <-
+          Address'<Store::Op,Store::Reply>) -> dial; ops call :wat::query::Store/<op> store. Model on
+          scratchpad/s3-probe-calls-less-consumer.wat (the proven :nature :Peer shape)."
+   "THE per-service-client-fn dissolution (part of the endpoint): once every service :satisfies a :nature :Peer surface,
+          the <fqdn>/<op> client fns dissolve the same way :calls did (everything called as :S/<op> peer)."
    "THEN 278 resumes: T1c (Span + with-span) → T2 (rete query engine) → R0 the chaos engine (R25 MACHINA CHAOS DOMAT)."]
 
   :do-nots
