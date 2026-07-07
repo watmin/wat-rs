@@ -297,6 +297,18 @@ pub enum CheckErrorKind {
         #[to_edn(via = crate::check::clause_attempts_to_edn)]
         attempted_clauses: Vec<(usize, Vec<String>)>,
     },
+    /// Arc <post-278> — open-surface `defclause` dispatch matched MULTIPLE
+    /// concrete-satisfier ("narrowing") clauses whose declared return types do
+    /// NOT unify. First-match-wins would statically commit to one clause's
+    /// return type while the runtime dispatches on the value's real class to a
+    /// possibly different clause — unsound. `candidate_returns` carries the
+    /// distinct formatted return types found among the matching clauses, in
+    /// first-seen order.
+    AmbiguousClauseReturnAtCallSite {
+        name: String,
+        called_arg_types: Vec<String>,
+        candidate_returns: Vec<String>,
+    },
     /// Stone 237.3 — `:guard` expression not boolean in defclause.
     GuardExprNotBoolean {
         defclause_name: String,
@@ -709,6 +721,22 @@ impl CheckErrorKind {
                     called_arity,
                     called_arg_types.join(", "),
                     if clause_summary.is_empty() { "(none)".into() } else { clause_summary.join("; ") },
+                )
+            }
+            CheckErrorKind::AmbiguousClauseReturnAtCallSite { name, called_arg_types, candidate_returns } => {
+                write!(
+                    f,
+                    "{}open-surface dispatch of `{}` on [{}] matches clauses with incompatible \
+                     return types ({}); a discriminating defclause's matching clauses must share \
+                     a return type",
+                    prefix,
+                    name,
+                    called_arg_types.join(", "),
+                    candidate_returns
+                        .iter()
+                        .map(|t| format!("`{}`", t))
+                        .collect::<Vec<_>>()
+                        .join(" vs "),
                 )
             }
             CheckErrorKind::GuardExprNotBoolean { defclause_name, clause_index, got_type } => {

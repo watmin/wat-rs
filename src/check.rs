@@ -6055,11 +6055,40 @@ fn infer_list(
 
         // Stone 237.2 — defclause call-site dispatch.
         // If the head names a registered defclause, infer arg types,
-        // find the first matching clause (arity + arg-type unification
-        // via Stone 237.1's unify arms), and return that clause's
-        // declared return type.
+        // find the matching clause(s) (arity + arg-type unification
+        // via Stone 237.1's unify arms), and return the resolved
+        // return type.
         // This check BEFORE env.get so defclause-bound names don't fall
         // through to the generic scheme path.
+        //
+        // Arc <post-278> — return-type soundness for open-surface dispatch.
+        // The Stone 237.2 MEASUREMENT (see history below) made per-position
+        // matching bidirectional so an open-surface-typed arg (e.g. a value
+        // typed via a `:nature :Record` surface, read out of an agnostic
+        // field) can reach a `defclause` whose clauses key on CONCRETE
+        // satisfiers of that surface — first-match-wins picked whichever
+        // clause happened to come first. That is sound only when at most one
+        // matching clause exists, or all matching clauses share a return
+        // type. When an open arg matches multiple concrete-satisfier clauses
+        // with DIFFERENT return types, first-match-wins statically commits to
+        // one return type while the runtime (`value_matches_type_by_name`)
+        // dispatches on the value's REAL class to a possibly DIFFERENT clause
+        // — an unsound program that compiles clean and crashes at runtime.
+        //
+        // Fix: classify each candidate clause as either
+        //   - FORWARD match: every arg position is `assignable(arg, param)`
+        //     (the ordinary direction — the value definitely IS the param
+        //     type). Unambiguous; the first forward match wins outright,
+        //     reproducing today's behavior byte-for-byte for every dispatch
+        //     site that never involves an open surface (arithmetic, `into`,
+        //     `reduce`, `select`, ...).
+        //   - NARROWING match: not a forward match, but every position is
+        //     forward-assignable OR `assignable(param, arg)` (reverse — the
+        //     clause's concrete param satisfies the broader open-surface
+        //     arg). Collected in full; their return types are unified. If
+        //     they agree, that's the resolved return type. If they don't,
+        //     that's the soundness hole — emit a located compile error
+        //     instead of silently picking the first one.
         let canonical_k = crate::runtime::canonical_callable_name(k);
         if let Some(clauses) = env.get_defclause_clauses(canonical_k) {
             let clauses = clauses.to_vec();
@@ -6069,10 +6098,18 @@ fn infer_list(
                 .map(|arg| infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors))
                 .collect();
             let called_arity = args.len();
-            // First-match-wins: arity match, then per-position unify.
-            let mut matched_ret: Option<TypeExpr> = None;
             let mut attempted: Vec<(usize, Vec<String>)> = Vec::new();
-            'outer: for (clause_arg_types, clause_ret, clause_has_rest) in &clauses {
+
+            // A forward-matching or narrowing-matching candidate: its instantiated
+            // return type plus the (candidate-local) subst it was resolved under.
+            struct Candidate {
+                inst_ret: TypeExpr,
+                subst: Subst,
+            }
+            let mut forward: Option<Candidate> = None;
+            let mut narrowing: Vec<Candidate> = Vec::new();
+
+            for (clause_arg_types, clause_ret, clause_has_rest) in &clauses {
                 let clause_arity = clause_arg_types.len();
                 attempted.push((
                     clause_arity,
@@ -6098,28 +6135,93 @@ fn infer_list(
                     .map(|t| rename(t, &mapping))
                     .collect();
                 let inst_ret = rename(clause_ret, &mapping);
-                let mut clause_subst = subst.clone();
-                for (arg_ty_opt, expected_ty) in arg_tys.iter().zip(inst_arg_types.iter()) {
-                    if let Some(arg_ty) = arg_ty_opt {
-                        // MEASUREMENT (open-surface dispatch): accept the normal direction (arg
-                        // assignable into the clause param) OR the reverse — the clause's concrete
-                        // param is a SATISFIER of an open-surface arg. In that reverse case the
-                        // static arg type is broader than the clause param, and the runtime
-                        // (value_matches_type_by_name) already discriminates on the value's REAL
-                        // class — so permit the clause statically and let runtime pick. This is what
-                        // lets `(explain r)` where `r : Reason` reach the concrete `SqliteReason`
-                        // clause. (Production: guard to genuinely-open args + unify matching rets.)
-                        if !assignable(arg_ty, expected_ty, &mut clause_subst, env)
-                            && !assignable(expected_ty, arg_ty, &mut clause_subst, env) {
-                            continue 'outer;
+
+                // FORWARD attempt: ordinary direction only, on its own subst so a
+                // failed attempt never leaks speculative bindings into the narrowing
+                // attempt (or into any later clause).
+                let mut fwd_subst = subst.clone();
+                let is_forward = arg_tys.iter().zip(inst_arg_types.iter()).all(|(arg_ty_opt, expected_ty)| {
+                    match arg_ty_opt {
+                        Some(arg_ty) => assignable(arg_ty, expected_ty, &mut fwd_subst, env),
+                        // None means inference failed for that arg; be permissive.
+                        None => true,
+                    }
+                });
+                if is_forward {
+                    forward = Some(Candidate { inst_ret: apply_subst(&inst_ret, &fwd_subst), subst: fwd_subst });
+                    // Rule 1 — first forward match wins outright; stop scanning.
+                    break;
+                }
+
+                // NARROWING attempt: bidirectional (today's MEASUREMENT check), on a
+                // fresh subst of its own.
+                let mut narrow_subst = subst.clone();
+                let is_narrowing = arg_tys.iter().zip(inst_arg_types.iter()).all(|(arg_ty_opt, expected_ty)| {
+                    match arg_ty_opt {
+                        Some(arg_ty) => {
+                            assignable(arg_ty, expected_ty, &mut narrow_subst, env)
+                                || assignable(expected_ty, arg_ty, &mut narrow_subst, env)
+                        }
+                        None => true,
+                    }
+                });
+                if is_narrowing {
+                    narrowing.push(Candidate { inst_ret: apply_subst(&inst_ret, &narrow_subst), subst: narrow_subst });
+                }
+            }
+
+            // Resolve: forward wins outright; else unify all narrowing returns; else
+            // no match. `ambiguous` carries the distinct formatted return types when
+            // the narrowing candidates disagree — a separate error path from
+            // NoMatchingClauseAtCallSite (some clause DID match; the returns don't).
+            let mut matched_ret: Option<TypeExpr> = None;
+            let mut ambiguous: Option<Vec<String>> = None;
+            if let Some(fwd) = forward {
+                *subst = fwd.subst;
+                matched_ret = Some(fwd.inst_ret);
+            } else if !narrowing.is_empty() {
+                let mut candidates = narrowing.into_iter();
+                let first = candidates.next().expect("non-empty");
+                let mut running_ret = first.inst_ret;
+                let mut running_subst = first.subst;
+                let mut rets_fmt: Vec<String> = vec![format_type(&apply_subst(&running_ret, &running_subst))];
+                let mut mismatch = false;
+                for cand in candidates {
+                    rets_fmt.push(format_type(&apply_subst(&cand.inst_ret, &cand.subst)));
+                    if unify(&running_ret, &cand.inst_ret, &mut running_subst, env.types()).is_err() {
+                        mismatch = true;
+                        continue;
+                    }
+                    running_ret = apply_subst(&running_ret, &running_subst);
+                }
+                if mismatch {
+                    // Dedup while preserving first-seen order for a readable message.
+                    let mut distinct: Vec<String> = Vec::new();
+                    for r in rets_fmt {
+                        if !distinct.contains(&r) {
+                            distinct.push(r);
                         }
                     }
-                    // None means inference failed for that arg; be permissive.
+                    ambiguous = Some(distinct);
+                } else {
+                    *subst = running_subst;
+                    matched_ret = Some(apply_subst(&running_ret, subst));
                 }
-                *subst = clause_subst;
-                matched_ret = Some(apply_subst(&inst_ret, subst));
-                break;
             }
+
+            if let Some(candidate_returns) = ambiguous {
+                let called_arg_types: Vec<String> = arg_tys
+                    .iter()
+                    .map(|opt| opt.as_ref().map(format_type).unwrap_or_else(|| "?".into()))
+                    .collect();
+                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::AmbiguousClauseReturnAtCallSite {
+                    name: k.clone(),
+                    called_arg_types,
+                    candidate_returns,
+                } });
+                return CheckResult::errs(local_errors);
+            }
+
             return match matched_ret {
                 Some(ret_ty) => {
                     if local_errors.is_empty() {
