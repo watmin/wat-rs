@@ -14,3 +14,7 @@ Cargo.lock
 *.profraw
 coverage.lcov
 /coverage.lcov
+
+# Scratchpad — disconfirming probes + scratch. Worked-reference probes worth
+# keeping are committed deliberately (git add -f); everything else stays local.
+/scratchpad/
