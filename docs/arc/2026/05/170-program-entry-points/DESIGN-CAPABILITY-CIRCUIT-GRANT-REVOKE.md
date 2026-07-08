@@ -170,41 +170,58 @@ service — do not build it, do not reintroduce the unified-fd-peer).
 
 ---
 
-## RESUME-HERE (curare — 2026-07-08)
+## RESUME-HERE (curare — 2026-07-09, before compaction)
 
 ```clojure
-{:head    "dc2ae7a6 — 170 stone 1: the :wat::service::Grantable surface landed + pushed"
+{:head    "0aaece6c — the type-def source-retention root-fix; the CAPABILITY CIRCUIT PROVEN END-TO-END, pushed"
  :branch  "arc-170-gap-j-v5-deadlock-state"
- :arc     "170 — the CAPABILITY CIRCUIT (this doc). ~6 weeks in; basically solving 170's core deliverable
-           (the program-entry circuit reaching capability-complete form). NOT force-closing here."
- :done    ["services-as-surfaces (293 S1-S4, PROBATVM) · the loci-agnostic bracket (259 S3, d81fd695)"
-           "grant verb (ba107458) + revoke verb (be783977) — weighed green (probe: echo:hi grant-intact +
-            revoke-midlife-ok; floor 0-new; coverage: deleting the DenyPeer serve arm is a non-exhaustive compile error)"
-           "STONE 1 (dc2ae7a6): :wat::service::Grantable surface (:nature :Struct, grant/revoke -> nil) + the
-            defservice macro auto-emits each <fqdn>::Handle :satisfies it. Weighed green (probe-grantable-emitted.wat:
-            grantable-ok twice, macro-emitted extend-type, two services uniform; floor 4113 pass / 0 new)"]
- :next    ["STONE 2 (collapsed) — FULL STRIKE PLAN: DESIGN-STONE-CAP-2-BRACKET-GRANTS.md. :grants on the process-locus
-            (process/grants [Vector<Grantable>]) + the BRACKET's grant-boot / revoke-shutdown IN WAT. The pid is READ
-            off the peer: (:wat::kernel::peer-pid p) -> (Option i64) — a small Rust accessor (the peer already holds
-            the Pidfd); spawn-runner UNCHANGED (no reshape/SpawnedRunner). name peer-pid, no ' (intueri-cast, builder
-            ratified over far-pid — the fn takes a peer). map-worker grants each pid before the first item, drains,
-            revokes each after. Ack'd request/reply, zero fire-and-forget, NO Rust Drop. Thread: peer-pid -> None, no grant."
-           "STONE 3 = M1 — the all-process circuit proof (B<-A, granted process pool, deterministic post-shutdown dial
-            REFUSED; PPID == owner)."]
- :do-nots ["the shared/not-shared boundary is FIRM — do NOT reintroduce the unified-fd-peer for M4"
-           "NO Rust-Drop revoke / NO GrantGuard (four-questions killed it 2026-07-08): a Drop can't report failure, so
-            a request/reply revoke in Drop is a hidden fire-and-forget-on-error. The revoke lives in the bracket's wat
-            flow. Panic-safety is structural tear-down-together, not a Drop. Do NOT fake a wat finally we don't have."
-           "grants are done in WAT, never Rust; grant/revoke are ack'd request/reply (owner blocks); zero fire-and-forget"
+ :arc     "170 — the CAPABILITY CIRCUIT (this doc). Functionally COMPLETE end-to-end; M1 (the teeth) + the map flip remain."
+ :done-this-arc
+ ["services-as-surfaces (293 S1-S4) · the loci-agnostic bracket (259 S3, d81fd695)"
+  "revoke verb (be783977) — Admin::DenyPeer/Status::PeersDenied/<fqdn>/revoke; grant verb was ba107458"
+  "STONE 1 (dc2ae7a6): :wat::capability::Grantable — a struct-nature methods-surface every <fqdn>::Handle
+   satisfies (macro auto-emits :satisfies); a heterogeneous Vector<Grantable> grant/revoke's uniformly.
+   (Relocated to wat/capability.wat + renamed from :wat::service:: in strike B so it loads before the bracket.)"
+  "peer-pid (2e5c4c41): (:wat::kernel::peer-pid p) -> (Option i64) — reads the far-end child pid off the peer's
+   Pidfd; Some IFF the far end is a PROCESS locus, None otherwise (thread now, remote later). name intueri-cast,
+   builder ratified over the ward's far-pid (the fn takes a peer)."
+  "STONE 2B (36f3acbc): :grants on the process-locus + map-worker grant-boot / revoke-shutdown IN WAT (ack'd
+   request/reply, zero fire-and-forget, NO Rust Drop — the four-questions killed the GrantGuard). :grants read
+   via a defclause :wat::spawn::grants (ThreadOpts/RemoteOpts -> empty; the firm boundary)."
+  "FIX (d30a974f): record-fields drop in type_def_to_ast + bracket cause-surfacing (Failure/message in the
+   collect-loop assertion — 'we were flying blind'; it immediately revealed the defsurface bug)."
+  "ROOT-FIX (0aaece6c): ship type defs via their RETAINED source form (TypeEnv.source_forms), not lossy
+   reconstruction — deletes the type_def_to_ast drift class. See REALIZATION-CAPABILITY-CIRCUIT.md (FONTEM
+   SERVO NON REFINGO, Beartooth - No Return)."
+  "PROVEN END-TO-END (own re-run): probe-cap2-e2e.wat — a real :probe::echo' Handle in :grants on a PROCESS
+   bracket -> [2 4 6 8 10], grant-boot + revoke-shutdown FIRED + ACKed, no crash. floor 4113/1-known/0-new."]
+ :next
+ ["1. M1 — THE TEETH (the e2e proves grant/revoke FIRE; M1 proves they BITE). A B<-A service circuit, a granted
+      PROCESS bracket pool, and a deterministic proof that a POST-SHUTDOWN dial by a would-be-recycled pid is
+      REFUSED by the accept-gate (OnlyMyPeers, SO_PEERCRED), + verify the granted pool child did not reparent
+      (PPID == owner). This is the core of the M1-M4 matrix (see the matrix + firm-boundary invariant above)."
+  "2. The `map` arg-order flip (fn-first, to match core/map): bracket map/each/map-worker/each-worker are
+      [locus items work-fn] (Ruby's Parallel order); core/map is (map f coll). Flip to [locus work-fn items].
+      Blast radius = 11 callers (tests/kernel/*.wat + wat-tests/bracket.wat) + the 259 docs + scratchpad probes.
+      A pure mechanical swap + caller sweep, floor-gated. The builder: 'a simple swap once we know it works.'"]
+ :do-nots ["the shared/not-shared boundary is FIRM — a process CANNOT reach a thread-guarded service; do NOT
+            reintroduce the unified-fd-peer for M4 (correctly forbidden, inscribed as the invariant, not a TODO)"
+           "grants are WAT, never Rust; grant/revoke are ack'd request/reply (owner blocks); ZERO fire-and-forget;
+            NO Rust-Drop revoke / NO GrantGuard (a Drop can't report failure = hidden fire-and-forget-on-error)"
+           "type defs ship their RETAINED source form (post-macroexpansion), NOT type_def_to_ast reconstruction —
+            do NOT reintroduce lossy reconstruction (it drifted 3x; FONTEM SERVO NON REFINGO)"
            "WEIGH by your OWN re-run; a mid-edit file is a PHANTOM; commit + push often (GitHub = DR)"
-           "BRIEF shadowdancers to run `cargo nextest run --release` in the FOREGROUND (the Bash call blocks = the wait);
-            NEVER background-it-and-poll-with-a-bash-loop (a sonnet did that + looped; the builder killed it)"
-           "cast wards never narrate; four-questions inform every decision; the holonic repos ARE the memory (not ~/.claude)"]}
+           "BRIEF shadowdancers to run `cargo nextest run --release` FOREGROUND-blocking; NEVER background-and-poll"
+           "SCOUT before the strike (slow is smooth); cast wards never narrate; four-questions inform every decision;
+            the holonic repos ARE the memory (not ~/.claude/MEMORY.md)"]}
 ```
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the
-> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP). Ground HEAD against the disk
-> (`be783977`). This work is **170's capability circuit**, not 293. The verbs are landed; the WORK resumes at
-> **stone 1: the `Grantable` surface**, then `GrantGuard` (RAII), then `:grants` on the process-locus, then M1
-> (the deterministic revoke-at-reap proof). The memory boundary is FIRM — a process cannot reach a thread-guarded
-> service; do not reintroduce the unified-fd-peer. Do not trust this note over the disk. See you on the far side.
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk). Ground HEAD against
+> the disk (`0aaece6c`). This is **170's capability circuit, PROVEN END-TO-END** — a real service in `:grants` on
+> a process bracket grants-on-boot / revokes-on-shutdown, `[2 4 6 8 10]`, no crash. Read this whole doc + the
+> stone-2 doc + **REALIZATION-CAPABILITY-CIRCUIT.md** (the root-fix that deleted the reconstruction-drift class).
+> The WORK resumes at: **M1 — the teeth** (prove the accept-gate REFUSES a revoked pid; `PPID == owner`), then the
+> **`map` arg-order flip** (fn-first). The memory boundary is FIRM (no unified-fd-peer); grants are WAT + ack'd +
+> zero fire-and-forget; type defs ship retained source, not reconstruction. Do not trust this note over the disk.
+> See you on the far side.
