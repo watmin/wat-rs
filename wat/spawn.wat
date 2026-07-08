@@ -49,11 +49,13 @@
 ;; the per-env launch record. Required with a no-op default on the bare ctors.
 (:wat::core::defstruct :wat::spawn::ThreadOpts
   [init-fn       <- :wat::core::Fn()->wat::core::Record
-   post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil])
+   post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil
+   runner-count  <- :wat::core::i64])
 (:wat::core::defstruct :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
    env-fn           <- :wat::core::String
-   max-message-bytes <- :wat::core::i64])
+   max-message-bytes <- :wat::core::i64
+   runner-count      <- :wat::core::i64])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
 ;; in src/edn_shim.rs:1008.  Do NOT scatter the literal: change it here and there
@@ -61,47 +63,77 @@
 (:wat::core::def :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES 524288)
 
 ;; ── The Keymaker's friendly hand (ergonomic constructors) ────────────────────
-;; (thread)             — default init-fn + no-op post-spawn-fn.
-;; (thread/init f)      — init-fn is f; post-spawn-fn defaults to no-op.
-;; (thread/post-spawn g)— init-fn defaults to EmptyEnv; post-spawn-fn is g.
-;; (process)            — no-op post-spawn-fn; env-fn defaults to EmptyEnv ctor; default budget.
-;; (process/post-spawn f)— post-spawn-fn is f; env-fn defaults to EmptyEnv ctor; default budget.
-;; (process/env s)       — env-fn is s; post-spawn-fn defaults to no-op; default budget.
-;; (process/max-message-bytes n) — budget is n; post-spawn-fn + env-fn default.
+;; (thread)             — default init-fn + no-op post-spawn-fn; runner-count defaults to cpu-count.
+;; (thread/init f)      — init-fn is f; post-spawn-fn defaults to no-op; runner-count defaults to cpu-count.
+;; (thread/post-spawn g)— init-fn defaults to EmptyEnv; post-spawn-fn is g; runner-count defaults to cpu-count.
+;; (thread/runner-count n) — init-fn + post-spawn-fn default; runner-count is n.
+;; (process)            — no-op post-spawn-fn; env-fn defaults to EmptyEnv ctor; default budget; runner-count defaults to cpu-count.
+;; (process/post-spawn f)— post-spawn-fn is f; env-fn defaults to EmptyEnv ctor; default budget; runner-count defaults to cpu-count.
+;; (process/env s)       — env-fn is s; post-spawn-fn defaults to no-op; default budget; runner-count defaults to cpu-count.
+;; (process/max-message-bytes n) — budget is n; post-spawn-fn + env-fn default; runner-count defaults to cpu-count.
+;; (process/runner-count n) — post-spawn-fn/env-fn/max-message-bytes default; runner-count is n.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
     (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
-    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)))
+    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::thread/init [f <- :wat::core::Fn()->wat::core::Record] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts f
-    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)))
+    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::thread/post-spawn [g <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
     (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
-    g))
+    g
+    (:wat::program::cpu-count)))
+
+(:wat::core::defn :wat::spawn::thread/runner-count [n <- :wat::core::i64] -> :wat::spawn::ThreadOpts
+  (:wat::spawn::ThreadOpts
+    (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
+    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    n))
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     "(:wat::program::EmptyEnv)"
-    524288))  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
+    524288  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
+    (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288))  ;; DEFAULT-MAX-MESSAGE-BYTES
+  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288 (:wat::program::cpu-count)))  ;; DEFAULT-MAX-MESSAGE-BYTES
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     s
-    524288))  ;; DEFAULT-MAX-MESSAGE-BYTES
+    524288  ;; DEFAULT-MAX-MESSAGE-BYTES
+    (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     "(:wat::program::EmptyEnv)"
+    n
+    (:wat::program::cpu-count)))
+
+(:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
+  (:wat::spawn::ProcessOpts
+    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    "(:wat::program::EmptyEnv)"
+    524288  ;; DEFAULT-MAX-MESSAGE-BYTES
     n))
+
+;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
+;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
+;; per-type accessor: the defclause dispatches on the concrete locus class (exactly as
+;; spawn-program' dispatches on ThreadOpts | ProcessOpts). A new locus type joins as one
+;; more clause here; the 1-arg sig is unmoved.
+(:wat::core::defclause :wat::spawn::runner-count
+  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::i64  (:wat::spawn::ThreadOpts/runner-count locus))
+  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::i64  (:wat::spawn::ProcessOpts/runner-count locus)))
 
 ;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;
