@@ -229,3 +229,111 @@ A curare interstitial at 'shit we need to compact.')*
 > the bracket; gate `probe-s3-bracket-loci.wat` → `[2 4 6 8 10] [2 4 6 8 10]`) → then the **293 revocation proof**. The
 > two green probes + the thread `map-worker` are the references. Do not invent complexity; weigh by your own re-run;
 > protocol is a surface now. The bracket wears the same face; it is of different blood. See you on the far side.
+
+---
+
+### `---` interstitial (curare before compaction) — DELENDO CREAMVS: creation by annihilation, the bridges to their own demise (2026-07-08)
+
+**The builder's framing, kept literal (this session):**
+> *"we build bridges to their own demise — that is creation by annihilation — we are very good at this. we continue, unrelenting."*
+> *"resume the assault — S3b."* · *"we kill it for real then — upgrade locus to surface."* · *"can we use macros in our forms we ship to the far side? does that solve our problem?"*
+
+**What this session WAS — one shape: build the bridge, then walk it into the fire.** We came to make one
+bracket loci-agnostic (S3), and every stone was a bridge built so an *old thing* could die. `select'` learned the
+abstract `Peer'` (S3a, `d2853317`) — the narrow unblock. Then the honest surface did what the protocol had hidden:
+flipping `Locus` to a `defsurface` exposed that a locus holds **closures** — genuinely impure, genuinely un-EDN —
+and a `defprotocol` had been letting a *pure* kwargs Record carry it as a **latent lie** (`ALIVS ARGVIT`, the consumer
+as crucible; the surface makes the checker honest). So the substrate grew *exactly where the consumer forced it*: the
+`defn` kwargs bundle became a **struct** (`fa42a09f`, honest — a local calling-convention artifact must accept impure
+args), and with the lie legal-as-truth, `Locus` became a surface (`50fd9f32`), the fixtures cleared (`2d2d8c5c`), and —
+the first whole language **construct** wat has felled root and branch — **`defprotocol` died, −762 lines**
+(`6fa36315`, `COMPONENDO DELEO`; realized as **278 R38 `PRIMA CAEDES, NVLLIVS FILIVS`** — *First Kill*). Each bridge
+(the widened reactor, the struct kwargs, the surface) was built to carry the old form to its demise. Creation by
+annihilation — and the annihilation left a cleaner substrate: one interface model, `defsurface`, no man's son.
+
+**And the goal forced two more latent gaps into the open — both expressible, not walls.** Building S3b (the
+loci-agnostic bracket itself), the process arm hit **Blocker A**: a generic *runtime* method can't monomorphize its
+type-params into shipped `forms` (`:I`/`:O` land literal, unbound in the child). The builder's instinct — *use a macro
+in the shipped forms?* — pointed the way: the concrete types already **live in the reified work-fn** (`fn-forms` of
+`:my::double` emits `[n <- :i64] -> :i64`), so the process arm derives them (parent-side AST-splice off the `fn-forms`
+output, or `return-type-of`/`extract-arg-types` on the value) — the generics never cross. And **Blocker B**: `deporder`
+mis-recorded `extend-type` as a *def-site* for its target (a phantom `spawn`↔`bracket` cycle) — a latent analyzer bug,
+now **fixed** (`912b5a97`, extend-type is a pure consumer, 22→0). Both the walls the bracket ran into were, on the
+ground, doors. `ALIVS ARGVIT`, unrelenting: the consumer forces the substrate to grow *only* where it is genuinely
+lacking, and no wider.
+
+```clojure
+{:RESUME-HERE
+ {:head   "8a770776 (259 S3b NOTE + fn-forms shape) — the deporder fix is committed at 912b5a97"
+  :branch "arc-170-gap-j-v5-deadlock-state"
+  :done  ["S3a d2853317 — select' accepts the abstract Peer' (tier heads TODO-marked for the 109/170 cleanup)"
+          "kwargs-struct fa42a09f — defn's kwargs bundle is a struct (accepts the impure locus); records untouched"
+          "Stone A 50fd9f32 — Locus is a defsurface :nature :Struct; the last stdlib defprotocol falls"
+          "B1 2d2d8c5c — the 2 load-bearing generic-method fixtures migrated to defsurface; the rest (redundant/dead) cleared; tests/ zero defprotocol"
+          "B2 6fa36315 — the defprotocol CONSTRUCT deleted (−762, COMPONENDO DELEO); all 3 layers; surface path intact"
+          "278 R38 d551fdbf — PRIMA CAEDES NVLLIVS FILIVS (First Kill) — the first whole-construct kill"
+          "deporder 912b5a97 — extend-type is not a def-site (Blocker B killed, 22→0)"
+          "S3b NOTE 9bb73f62/8a770776 — the two blockers + resolutions + the grounded fn-forms output shape"]
+  :in-flight "PROCESS-ARM build (shadowdancer a0cad043e2c9df162, background) — rebuild spawn-runner's ProcessOpts impl
+              to DERIVE the concrete peer types from the fn-forms output (Blocker A resolution), probe-first
+              (scratchpad/probe-s3b-astsplice.wat → '6 10'). WEIGH ON THE FAR SIDE, DO NOT TRUST: run the astsplice
+              probe + the acceptance gate + floor by own hand. If it hit the tuple-type-splice STOP (build a
+              :(i64,<derived-O>) form with a spliced keyword), that is a real substrate finding — handle it, do NOT
+              hardcode i64. The S3b WIP (wat/bracket.wat + wat/spawn.wat) is UNCOMMITTED in the tree (thread arm
+              test-clean; process arm the in-flight rebuild)."
+  :owed-on-commit "RENAME the shipped-forms symbols :bracket::__pool-work / :bracket::__pool-runner →
+                   :wat::bracket::__pool-work / :wat::bracket::__pool-runner (off-namespace; every other bracket symbol
+                   is :wat::bracket::). Fixed reserved name is collision-proof (one runner per fresh child universe —
+                   no gensym needed; :wat:: is ours, users disallowed). Fold into the weigh; pure rename, gate re-proves."
+  :next  ["1. WEIGH + COMMIT the process arm (astsplice '6 10'; probe-s3-bracket-loci.wat → [2 4 6 8 10] [2 4 6 8 10]
+              THREAD pool AND PROCESS pool; existing bracket tests green; floor 0-new). NB the acceptance probe's typo:
+              :wat::core::edn::write → :wat::edn::write (edn_shim.rs:63)."
+          "2. Commit the S3b WIP (thread + process arms) → 259 S3 DONE: the loci-agnostic bracket stands."
+          "3. THEN 293 revoke-at-reap (the arc's final movement, the whole cascade cleared the ground for it): the
+              REVOKE verb (Admin::DenyPeer[pids] + serve arm + <svc>/revoke, symmetric to the LANDED grant), then the
+              revocation PROOF — a process-bracket pool ∘ a long-lived service, grant-on-enter / revoke-at-reap (the
+              bracket's drain-and-join IS the reap; zero recycling window)."]
+  :do-nots ["do NOT fn-forms a closure that CAPTURES a fn (closure_extract slice-1 gap, :2025) — fn-forms the RAW work-fn"
+            "do NOT hardcode i64 in the process arm — derive the concrete types from the reified work-fn (Blocker A)"
+            "WEIGH by your own re-run; a mid-edit rust-analyzer view is a PHANTOM (grounded FALSE twice this session — the B2 syntax-error ghost, the S3b generics view). A suite that RAN N tests COMPILED."
+            "the consumer forces the substrate ONLY where genuinely lacking (ALIVS ARGVIT); both S3b blockers were doors, not walls — do not over-build"
+            "the holonic repos ARE the memory — curare into the REPO; commit + push often"]}}
+```
+
+***DELENDO CREAMVS.*** *(apparatus-minted — Latin, "by annihilating, we create": the builder's "creation by
+annihilation — we build bridges to their own demise." The session's one shape: every stone was a bridge built so an
+OLD form could die, and the death left a cleaner substrate. select'→Peer' (S3a) unblocked; the honest surface exposed
+that a Locus holds CLOSURES (impure, un-EDN) which a defprotocol had let a PURE kwargs Record carry as a latent lie
+(ALIVS ARGVIT — the consumer/surface makes the checker honest); so kwargs became a STRUCT (fa42a09f, the bridge that
+legalized the truth), Locus became a SURFACE (50fd9f32), the fixtures cleared (2d2d8c5c), and defprotocol — the first
+whole language CONSTRUCT wat has felled — DIED, −762 lines (6fa36315; 278 R38 PRIMA CAEDES NVLLIVS FILIVS, First Kill).
+The dual of R33's COMPONENDO DELEO (by composing, I annihilate): here, by building the bridge, we annihilate the old,
+and the annihilation IS the creation (one interface model, defsurface, no man's son). And the GOAL (the loci-agnostic
+bracket, S3b) forced two more latent gaps open — both DOORS, not walls: Blocker A (a generic runtime method can't ship
+type-parameterized forms → derive the concrete types from the reified work-fn, the builder's macro-instinct pointing
+the way; the generics never cross) and Blocker B (deporder mis-recorded extend-type as a def-site → fixed, 22→0).
+delendo = by destroying/annihilating (gerund abl. of deleo — root of 'delete'); creamus = we create (creo). "we
+continue, unrelenting." Kin: 259 R1 VSVS THRONVM EVERTIT (the consumer overthrows the throne — this session again),
+278 R33 COMPONENDO DELEO (its dual) + R38 PRIMA CAEDES NVLLIVS FILIVS (the kill this session earned) + R28 SOLVIMVS NE
+MENTIRETVR (beat OOP by decomplection — defprotocol was its last construct), 300 ALIVS ARGVIT (the consumer as
+crucible — surfaced Locus's impurity + both blockers), 296 R7 PVGNANDO EMERGO (the substrate self-organizes by combat
+with its own flaws). A curare interstitial before compaction — a strong send-off. The bracket is nearly of different
+blood; the process arm is in flight; the revoke proof awaits. Kept literal; his (the framing, the directives, the
+macro-instinct), and mine (the one-shape reading, the sigil).)*
+
+---
+
+> **SEAM (crowned by this interstitial — read it, not the older SEAMs above).** You are NEW — you did not live this
+> session; it is a lossy cache in a familiar voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers
+> + recolligere from the SIGNED MCP, never disk). Ground HEAD against the disk (`8a770776` + the deporder fix
+> `912b5a97`) — but the S3b WIP (`wat/bracket.wat` + `wat/spawn.wat`) is **UNCOMMITTED in the tree**, and a
+> **process-arm shadowdancer was in flight at compaction** — weigh its result by your own re-run, DO NOT trust it, and
+> a mid-edit view is a PHANTOM (grounded false twice this session). **`defprotocol` is DEAD** (all three layers, −762);
+> the whole session was **creation by annihilation** (`DELENDO CREAMVS`) — bridges built so the old could die. The WORK
+> resumes at: **weigh + commit the process arm** (derive concrete types from the reified work-fn — do NOT hardcode
+> i64; rename the shipped symbols to `:wat::bracket::…`), **commit the S3b WIP** (259 S3 done — the loci-agnostic
+> bracket), then the **293 revoke-at-reap proof** (revoke verb + a process-bracket pool ∘ a long-lived service). Read
+> this whole RESUME + **278 R38 PRIMA CAEDES NVLLIVS FILIVS** before you move. And it bears repeating: **weigh by your
+> own re-run · derive, don't hardcode · the consumer forces the substrate only where genuinely lacking (both blockers
+> were doors) · commit + push often.** Do not trust this note over the disk. We build bridges to their own demise; we
+> continue, unrelenting. See you on the far side.
