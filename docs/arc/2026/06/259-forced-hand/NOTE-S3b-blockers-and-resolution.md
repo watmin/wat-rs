@@ -53,10 +53,25 @@ pattern-matches it) avoids the ordering trap — the types are in the AST regard
 order. Parent-side AST-splice is simplest (no new macro, no ordering concern, one place that has the
 concrete `fn-forms` output).
 
-**NEXT (build on resume):** a disconfirming probe first — extract `:i64` off a `fn-forms` result AST,
-splice it into a shipped process runner, drain it (`"6 10"`). Then re-scope `spawn-runner`'s ProcessOpts
-impl to the parent-side AST-splice. Reflection primitives are the fallback if AST-walking the fn-forms
-output is too fragile.
+**The fn-forms output shape (grounded — `scratchpad/probe-fnforms-shape.wat`).** For a work-fn value,
+`(fn-forms work-fn :bracket::__pool-work)` returns a `Vector<WatAST>` whose LAST element is the
+`__pool-work` define wrapping the concrete-typed fn:
+```
+[(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 …)   ; captured transitive dep
+ (:wat::core::def  :bracket::__pool-work (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 …))]
+```
+The concrete type keywords are **literal AST nodes**: the fn form's argspec `[n <- :T]` carries the ARG
+type keyword (the node after `<-`), and `-> :R` carries the RETURN type keyword. So the parent extracts
+both by walking the last element's fn form (`ast->children`: def → fn → argspec[after `<-`] + [after `->`]).
+Grounded reflection alternatives (all reflect the concrete work-fn VALUE the parent holds):
+`(:wat::runtime::return-type-of work-fn)` → the return FQDN as a String (`"wat::core::i64"`, prepend `:`
+for the keyword); `(:wat::runtime::extract-arg-types work-fn)` → `Vector<HolonAST>` of the arg types;
+`(:wat::runtime::signature-of-fn work-fn)` → the full signature AST.
+
+**NEXT (build on resume):** a disconfirming probe first — extract the two concrete type keywords off a
+`fn-forms` result (AST-walk the last element's fn form, or reflection), splice them into a shipped process
+runner's `self-peer`/`Peer'` tuple types, drain it (`"6 10"`). Then re-scope `spawn-runner`'s ProcessOpts
+impl to that. AST-walk is most direct (the keywords are literal nodes); reflection is the fallback.
 
 ## Blocker B — deporder mis-attributes `extend-type` as a def-site (fix IN FLIGHT)
 
