@@ -1,0 +1,37 @@
+;; probe-s1-fn-forms.wat — RED probe / acceptance target for 259 S1 (expose closure_extract as fn-forms).
+;;
+;; CLAIM: (:wat::kernel::fn-forms f name) reifies a fn (anonymous OR named) into self-contained
+;; forms that (def name <the-fn>) + its transitive deps in a FRESH universe, ImpureCapture-gated.
+;; The not-shared bracket path calls this to ship the work-fn across a fork.
+;;
+;; This routes the closure-seam through fn-forms: reify an anon block → ship the forms to a process
+;; worker → stream. RED at HEAD (fn-forms does not exist → UnknownFunction). GREEN once S1 lands: "6 10".
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [;; the work-fn as a runtime anonymous block (Ruby's Parallel { |x| x*2 })
+     work       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+     ;; reify it to shippable forms that define it under :probe::work in the child's fresh universe
+     work-forms (:wat::kernel::fn-forms work :probe::work)
+     ;; assemble the child program: the reified work FIRST (so :probe::work resolves), then the
+     ;; runner + child-main that reference it.
+     w (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::concat
+           work-forms
+           (:wat::core::forms
+             (:wat::core::defn :probe::runner
+               [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+               (:wat::core::let
+                 [item (:wat::kernel::recv' self)
+                  _    (:wat::kernel::send' self (:probe::work item))]
+                 (:probe::runner self)))
+             (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64))))))
+     _ (:wat::kernel::send' w 3)
+     _ (:wat::kernel::send' w 5)
+     a (:wat::kernel::recv' w)
+     b (:wat::kernel::recv' w)]
+    (:wat::kernel::println
+      (:wat::core::string::concat
+        (:wat::core::i64::to-string a)
+        (:wat::core::string::concat " " (:wat::core::i64::to-string b))))))

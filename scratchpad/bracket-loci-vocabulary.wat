@@ -1,0 +1,44 @@
+;; bracket-loci-vocabulary.wat — PROPOSED names for the loci-agnostic bracket work (arc 259).
+;; The naming decision, materialized. intueri: which name KEEPS ITS PROMISE — says what it is —
+;; to a reader with no context, sitting beside the established siblings? Name Level-1 lies + Level-2 mumbles.
+;;
+;; ── ANCHOR VOCABULARY (already spoken; the new names must live beside these) ─────────────────
+;;   :wat::spawn::Locus                    — the protocol (thread | process | remote-later); Locus/launch is its one method
+;;   :wat::spawn::ThreadOpts / ProcessOpts — the per-runner opts structs (already asymmetric per tier)
+;;   thread · thread/init · process · process/env · process/max-message-bytes — the /-suffix ctor family
+;;   spawn-program'                        — the SOLE locus interface (dispatches on the opts TYPE)
+;;   service-forms                         — defservice's shipped forms (Vector<WatAST> the forked child rebuilds from)
+;;   closure_extract (Rust, internal)      — ClosurePackage {prologue, entry}; reifies a fn to shippable forms
+;;   :wat::bracket::map / each / map-worker — Ruby's Parallel (the consumer)
+;;   :wat::program::cpu-count              — the default pool size
+;;
+;; ══ TARGET 1 — the wat verb that reifies a fn to shippable forms (the closure_extract surface) ══
+;; PROMISE it must keep: given a fn value (anonymous OR named), produce the forms that rebuild it in a
+;; FRESH not-shared universe — its define + transitive deps, portability/ImpureCapture-gated. The
+;; not-shared bracket path calls this before shipping. Sibling in spirit to defservice's `service-forms`.
+;;   candidates:  reify · to-forms · portable · ship-forms · extract-fn · forms-of · capture · freeze-fn · export-fn
+(:wat::core::defn :wat::???::??? [f <- :wat::core::Fn] -> :wat::core::Vector<wat::WatAST>
+  ;; the fn's define + deps, ready to cross a byte channel
+  )
+
+;; ══ TARGET 2 — the runner-count field on the opts (the pool size) ═══════════════════════════════
+;; PROMISE: how many runners the bracket spins up (thread/process); default cpu-count. It sits in the
+;; opts STRUCT beside per-runner config (init-fn / env-fn / max-message-bytes). (remote's analog is a
+;; coordinate list, not a count — a different field on RemoteOpts.)
+;;   candidates:  pool-size · size · count · workers · parallelism · fan-out
+(:wat::core::defstruct :wat::spawn::ProcessOpts
+  [;; …existing per-runner fields…
+   ??? <- :wat::core::i64])
+
+;; ══ TARGET 3 — the Locus protocol method the bracket reads the pool through (tier-blind) ════════
+;; PROMISE: the bracket asks the locus "how many runners (and where)" without branching on tier;
+;; thread/process answer with the count, remote answers with per-coordinate targets. Sits on the
+;; :wat::spawn::Locus protocol, right beside `launch`.
+;;   candidates:  runner-count · runners · pool · capacity · width · fan-out · degree
+(??? [self <- :wat::spawn::Locus] -> :wat::core::i64)
+
+;; ══ TARGET 4 — the ctor helper that declares a pool trivially ══════════════════════════════════
+;; PROMISE: build an opts with N runners, the rest default — matching the /-suffix family
+;; (process/env, process/max-message-bytes). The everyday way a user asks for "8 processes".
+;;   candidates:  process/pool · process/size · process/workers · process/n · process/parallel
+(:wat::spawn::process/??? 8)   ;; Ruby: Parallel.map(xs, in_processes: 8)
