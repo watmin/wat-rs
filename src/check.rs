@@ -3710,29 +3710,6 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 232 Stone 232.1 — `:wat::core::defprotocol` type-check arm.
-            // Shape: (:wat::core::defprotocol :P (method-sig ...) ...)
-            // Registry-only stone: parse + register into protocol_registrations.
-            // No assignable edge (232.2) and no method dispatch (232.3) here.
-            // Returns unit type — a declaration, not a value expression.
-            ":wat::core::defprotocol" => {
-                // Delegate shape validation to the runtime parser; surface any
-                // parse error as a check error. Registration happens in
-                // collect_splice_defs_ctx.
-                let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
-                if let Err(e) = crate::runtime::parse_defprotocol_form(&form_as_list) {
-                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
-                        head: k.to_string(),
-                        reason: format!("{e}"),
-                        remedies: vec![],
-                    } });
-                }
-                return if local_errors.is_empty() {
-                    CheckResult::ok(TypeExpr::Tuple(vec![]))
-                } else {
-                    CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
-                };
-            }
             // Arc 232 Stone 232.1 — `:wat::core::extend-type` type-check arm.
             // Shape: (:wat::core::extend-type :T :P (method-impl ...) ...)
             // Registry-only stone: parse + register into extend_registrations.
@@ -5742,184 +5719,26 @@ fn infer_list(
             _ => {}
         }
 
-        // Arc 232 Stone 232.3 — protocol-method call-site check.
-        // A head `:P/method` where `P ∈ protocol_registrations` and `method`
-        // is one of P's sigs is a protocol-method call.  Disambiguate from
-        // Record/Struct accessor heads (which are registered as Function entries
-        // in sym.functions / env schemes) by consulting the protocol registry
-        // FIRST — protocol membership is the authoritative signal.
-        //
-        // STOP-1 guard: if the head has `/` and the stem is in BOTH the protocol
-        // registry and the accessor scheme table at the same time, we still prefer
-        // the protocol registry (a protocol named identically to a Record type
-        // would be a programmer error, not a language ambiguity; protocol lookup
-        // wins because protocols are checked before env.get below).
+        // Arc 293.4b — surface-method call-site check.
+        // A head `:S/method` where `S` is a `TypeDef::Surface` with a member
+        // named `method` is a surface-method call.
         if let Some(slash_pos) = k.rfind('/') {
             let protocol_fqdn = &k[..slash_pos];
             let method_name_raw = &k[slash_pos + 1..];
             // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
-            // so the look-up uses the bare method name registered in the protocol.
+            // so the look-up uses the bare method name registered in the surface member.
             // e.g. `mk<wat::core::i64,wat::core::i64>` → bare=`mk`, suffix=`<wat::core::i64,wat::core::i64>`
             let (method_name_bare, explicit_type_suffix) =
                 crate::runtime::split_type_params_pub(method_name_raw);
             let method_name = method_name_bare;
-            if let Some(methods) = env.get_protocol_methods(protocol_fqdn) {
-                // Head is a protocol-method call.  Find the matching method sig.
-                if let Some(sig) = methods.iter().find(|s| s.name == method_name) {
-                    // sig.arg_types[0] is the receiver type (:P).
-                    // sig.arg_types[1..] are the rest-arg types.
-                    // Total call arity must match the sig arity.
-                    let expected_arity = sig.arg_types.len();
-                    if args.len() != expected_arity {
-                        local_errors.push(CheckError {
-                            span: head_span.clone(),
-                            kind: CheckErrorKind::ArityMismatch {
-                                callee: k.clone(),
-                                expected: expected_arity,
-                                got: args.len(),
-                            },
-                        });
-                        // Still infer args for side-effects.
-                        for arg in args {
-                            let _ = infer(arg, env, locals, fresh, subst)
-                                .drain_errors_into(&mut local_errors);
-                        }
-                        return CheckResult::errs(local_errors);
-                    }
-                    // Arc 232 follow-on (generic methods) — if the method has type params
-                    // (`make<T>` → `sig.type_params = ["T"]`), instantiate them.
-                    //
-                    // Stone 6b-DEP — EXPLICIT binding: when the call site supplied
-                    // `<T1,T2>` type-args (suffix non-empty), parse them and bind each
-                    // `sig.type_params[i]` → parsed[i].  This is required when the
-                    // method's type-params cannot be inferred from value args (e.g. no
-                    // value arg carries S or R).  When no explicit args are present, fall
-                    // back to the existing fresh-var (inference) path.
-                    //
-                    // Monomorphic methods (empty type_params) take the identity path: the
-                    // instantiated slices ARE the original slices (no-op, existing behaviour).
-                    let (inst_rest_arg_types, inst_ret): (Vec<TypeExpr>, TypeExpr) =
-                        if sig.type_params.is_empty() {
-                            // Monomorphic — no-op: clone the existing slices verbatim.
-                            (sig.arg_types[1..].to_vec(), sig.ret.clone())
-                        } else if !explicit_type_suffix.is_empty() {
-                            // Generic with EXPLICIT type-args — parse and bind.
-                            // suffix is `<T1,T2,...>`: strip the enclosing `<` and `>`.
-                            let inner = &explicit_type_suffix[1..explicit_type_suffix.len() - 1];
-                            // Each type-arg in the suffix is a bare fqdn without
-                            // leading colon (e.g. `wat::core::i64`). parse_type_expr
-                            // requires the colon prefix.
-                            let type_strs: Vec<&str> = inner.split(',').collect();
-                            let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
-                            for (i, tp) in sig.type_params.iter().enumerate() {
-                                if let Some(arg_str) = type_strs.get(i) {
-                                    let kw = format!(":{}", arg_str.trim());
-                                    match crate::types::parse_type_expr(&kw) {
-                                        Ok(parsed) => { mapping.insert(tp.clone(), parsed); }
-                                        Err(_) => {
-                                            // Unparseable type-arg: fall back to fresh var for this param.
-                                            mapping.insert(tp.clone(), fresh.fresh());
-                                        }
-                                    }
-                                } else {
-                                    // Fewer explicit args than type params: fresh var.
-                                    mapping.insert(tp.clone(), fresh.fresh());
-                                }
-                            }
-                            let rest: Vec<TypeExpr> = sig.arg_types[1..]
-                                .iter()
-                                .map(|ty| rename(ty, &mapping))
-                                .collect();
-                            let ret = rename(&sig.ret, &mapping);
-                            (rest, ret)
-                        } else {
-                            // Generic — build fresh-var substitution and rename (inference path).
-                            let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
-                            for tp in &sig.type_params {
-                                mapping.insert(tp.clone(), fresh.fresh());
-                            }
-                            let rest: Vec<TypeExpr> = sig.arg_types[1..]
-                                .iter()
-                                .map(|ty| rename(ty, &mapping))
-                                .collect();
-                            let ret = rename(&sig.ret, &mapping);
-                            (rest, ret)
-                        };
-                    // Infer each arg's type.
-                    let arg_tys: Vec<Option<TypeExpr>> = args
-                        .iter()
-                        .map(|arg| {
-                            infer(arg, env, locals, fresh, subst)
-                                .drain_errors_into(&mut local_errors)
-                        })
-                        .collect();
-                    // Check receiver (arg 0) is assignable to :P.
-                    // Receiver check is UNCHANGED — receiver is always :P (the protocol),
-                    // never a type-param, so no instantiation needed here.
-                    if let Some(recv_ty) = &arg_tys[0] {
-                        let receiver_expected = TypeExpr::Path(protocol_fqdn.to_string());
-                        if !assignable(recv_ty, &receiver_expected, subst, env) {
-                            local_errors.push(CheckError {
-                                span: args[0].span().clone(),
-                                kind: CheckErrorKind::TypeMismatch {
-                                    callee: k.clone(),
-                                    param: "#1 (receiver)".into(),
-                                    expected: protocol_fqdn.to_string(),
-                                    got: format_type(&apply_subst(recv_ty, subst)),
-                                },
-                            });
-                        }
-                    }
-                    // Check rest args against INSTANTIATED arg types.
-                    // For monomorphic methods inst_rest_arg_types == sig.arg_types[1..] (clone).
-                    // For generic methods each :T has been replaced by a fresh unification var.
-                    for (i, (arg_ty_opt, expected_ty)) in arg_tys[1..]
-                        .iter()
-                        .zip(inst_rest_arg_types.iter())
-                        .enumerate()
-                    {
-                        if let Some(arg_ty) = arg_ty_opt {
-                            if !assignable(arg_ty, expected_ty, subst, env) {
-                                local_errors.push(CheckError {
-                                    span: args[i + 1].span().clone(),
-                                    kind: CheckErrorKind::TypeMismatch {
-                                        callee: k.clone(),
-                                        param: format!("#{}", i + 2),
-                                        expected: format_type(expected_ty),
-                                        got: format_type(&apply_subst(arg_ty, subst)),
-                                    },
-                                });
-                            }
-                        }
-                    }
-                    // Return the INSTANTIATED return type (for monomorphic: same as sig.ret clone).
-                    // apply_subst resolves any unification vars unified during the assignable calls.
-                    let ret = apply_subst(&inst_ret, subst);
-                    return if local_errors.is_empty() {
-                        CheckResult::ok(ret)
-                    } else {
-                        CheckResult::partial_with(ret, local_errors)
-                    };
-                }
-                // Protocol found but method name not in its sig list.
-                local_errors.push(CheckError {
-                    span: head_span.clone(),
-                    kind: CheckErrorKind::UnknownCallee { callee: k.clone() },
-                });
-                return CheckResult::errs(local_errors);
-            }
-
-            // Arc 293.4b — surface-method call-site check.
             // Arc 293.4d — broadened to Field members too (every surface member is an accessor).
             //
             // A head `:S/name` where `S` is a `TypeDef::Surface` with ANY member named `name`
-            // (Field OR Method). Surfaces are disjoint from protocols (a name is one or the other;
-            // the protocol arm above runs first and returns early if the stem is a protocol).
+            // (Field OR Method).
             //
             // Type rule: receiver (arg 0) must satisfy S; remaining args must match the method's
             // extra param types (empty for a Field member — it is a 1-arg accessor); return type
-            // is the member's declared type. This is a PARALLEL arm to the protocol check —
-            // same checker machinery, different registry.
+            // is the member's declared type.
             if let Some(crate::types::TypeDef::Surface(s)) = env.types().get(protocol_fqdn) {
                 if let Some(member) = s.members.iter().find(|m| match m {
                     crate::types::SurfaceMember::Method { name, .. } => name == method_name,
@@ -9025,13 +8844,6 @@ fn collect_splice_defs_ctx(
             // sequential loop where the most-recently-seen registration wins.
             // Parse errors are silently skipped here (infer_defclause reports them).
             register_defclause_from_form(form, env, false);
-        }
-        // Arc 232 Stone 232.1 — defprotocol registration into protocol_registrations.
-        // Parse errors silently skipped here (infer_list arm reports them).
-        ":wat::core::defprotocol" if is_top => {
-            if let Ok((protocol_name, pd)) = crate::runtime::parse_defprotocol_form(form) {
-                env.register_protocol(protocol_name, pd.methods.clone());
-            }
         }
         // Arc 232 Stone 232.1 — extend-type registration into extend_registrations.
         // Arc 293.4c — branch on surface vs. protocol target (parse errors silently skipped).

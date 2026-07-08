@@ -134,9 +134,7 @@ fn split_method_name_type_params(name: &str, sig_span: &Span) -> Result<(String,
 
 /// Parse a method-member list `(name [args...] -> :RetType)` into a `SurfaceMember::Method`.
 ///
-/// Arc 293.4a — copies the shape of `parse_defprotocol_form`'s per-sig logic but adapted
-/// to `TypeError` (STOP-3 resolution: no shared helper because `defprotocol` returns
-/// `RuntimeError` while `defsurface` returns `TypeError`).
+/// Arc 293.4a — per-sig parsing adapted to `TypeError` (`defsurface` returns `TypeError`).
 ///
 /// Arc 293.4e-pre.ii — method names with type params (`make<T>`) are now split via
 /// `split_method_name_type_params` (a local copy of runtime.rs's `split_name_and_type_params`

@@ -44,4 +44,4 @@ pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;
 pub use value::{Value, AggregateValue, HolonForm, EnumValue, SpawnOutcome, ProgramHandleInner,
     Clause, ClauseSet, ClauseAttempt, ClauseFailureReason,
-    ProtocolMethodSig, ProtocolDef, ExtendDef};
+    ExtendDef};

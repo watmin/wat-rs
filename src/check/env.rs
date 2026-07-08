@@ -18,7 +18,6 @@ use crate::ast::WatAST;
 use crate::runtime::SymbolTable;
 use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};
-use crate::value::ProtocolMethodSig;
 use std::collections::HashMap;
 
 pub use super::TypeScheme;
@@ -101,13 +100,6 @@ pub struct CheckEnv<'a> {
     /// in `infer_list` for call-site dispatch type-checking.
     /// Stone 241.5 — tuple is (fixed_arg_types, return_type, has_rest_binder).
     pub(crate) defclause_registrations: HashMap<String, Vec<(Vec<TypeExpr>, TypeExpr, bool)>>,
-    /// Arc 232 Stone 232.1 — protocol registrations from `defprotocol` forms.
-    ///
-    /// Maps protocol FQDN → method signatures in declaration order.
-    /// Populated by `collect_splice_defs_ctx` / `from_symbols` when a
-    /// `:wat::core::defprotocol` form is encountered. Consumed by 232.2
-    /// (`assignable` edge) and 232.3 (method dispatch).
-    pub(crate) protocol_registrations: HashMap<String, Vec<ProtocolMethodSig>>,
     /// Arc 232 Stone 232.1 — extend-type satisfaction edges.
     ///
     /// Maps `(protocol_fqdn, type_fqdn)` → list of method names that the
@@ -146,8 +138,8 @@ impl<'a> CheckEnv<'a> {
         // can dispatch calls to stdlib defclauses (:wat::core::+, -, *, /, <, >, <=, >=).
         // Previously, stdlib ops were Rust intrinsics (infer_arithmetic etc.); now they
         // are defclauses that live in runtime_def_values after register_stdlib_defclauses.
-        // Arc 232 Stone 232.1 — also load protocol_registrations + extend_registrations
-        // from the protocol-def and extend-def Values in runtime_def_values.
+        // Arc 232 Stone 232.1 — also load extend_registrations
+        // from the extend-def Values in runtime_def_values.
         for (name, value) in &sym.runtime_def_values {
             match value {
                 crate::runtime::Value::wat__core__clauses(cs) => {
@@ -161,9 +153,6 @@ impl<'a> CheckEnv<'a> {
                         })
                         .collect();
                     env.defclause_registrations.insert(name.clone(), clauses);
-                }
-                crate::runtime::Value::wat__core__protocol_def(pd) => {
-                    env.protocol_registrations.insert(pd.name.clone(), pd.methods.clone());
                 }
                 crate::runtime::Value::wat__core__extend_def(ed) => {
                     let method_names: Vec<String> = ed.impl_clauses.keys().cloned().collect();
@@ -215,7 +204,6 @@ impl<'a> CheckEnv<'a> {
             redef_allowed: false,
             defclause_registrations: HashMap::new(),
             defined_value_asts: HashMap::new(),
-            protocol_registrations: HashMap::new(),
             extend_registrations: HashMap::new(),
         }
     }
@@ -337,24 +325,6 @@ impl<'a> CheckEnv<'a> {
         self.defclause_registrations.get(name).map(|v| v.as_slice())
     }
 
-    /// Arc 232 Stone 232.1 — register a `defprotocol` declaration into the
-    /// check env. Called from `collect_splice_defs_ctx` when it encounters a
-    /// `:wat::core::defprotocol` top-level form. Re-registration replaces
-    /// the prior entry (unconditional, like `register_defclause`).
-    pub fn register_protocol(
-        &mut self,
-        protocol_name: String,
-        methods: Vec<ProtocolMethodSig>,
-    ) {
-        self.protocol_registrations.insert(protocol_name, methods);
-    }
-
-    /// Arc 232 Stone 232.1 — look up a protocol's method signatures by FQDN.
-    /// Returns `None` if the protocol has not been declared via `defprotocol`.
-    pub fn get_protocol_methods(&self, protocol_name: &str) -> Option<&[ProtocolMethodSig]> {
-        self.protocol_registrations.get(protocol_name).map(|v| v.as_slice())
-    }
-
     /// Arc 232 Stone 232.1 — register a `(protocol, type)` satisfaction edge.
     /// Called from `collect_splice_defs_ctx` when it encounters a
     /// `:wat::core::extend-type` top-level form.
@@ -388,8 +358,7 @@ mod tests {
     use super::*;
     use crate::runtime::{SymbolTable, Value};
     use crate::types::{TypeEnv, TypeExpr};
-    use crate::value::{ClauseSet, Clause, ProtocolDef, ProtocolMethodSig, ExtendDef};
-    use std::collections::HashMap;
+    use crate::value::{ClauseSet, Clause};
     use std::sync::Arc;
 
     /// Line 146: `from_symbols` inserts defclause registrations from
@@ -430,83 +399,4 @@ mod tests {
         assert!(!has_rest, "expected has_rest=false for zero-rest clause");
     }
 
-    /// Arc 232 Stone 232.1 — anti-fake: `from_symbols` must populate
-    /// `protocol_registrations` and `extend_registrations` from the two new
-    /// Value carriers in `runtime_def_values`. This prevents parse-but-drop
-    /// no-ops from silently passing the probe.
-    ///
-    /// Mirrors `from_symbols_loads_defclause_from_runtime_def_values` above.
-    #[test]
-    fn from_symbols_loads_protocol_and_extend_from_runtime_def_values() {
-        // --- Build a ProtocolDef for :t::Greeter with one method: greet ------
-        // greet(self: :t::Greeter, loudness: :wat::core::i64) -> :wat::core::String
-        let greet_sig = ProtocolMethodSig {
-            name: "greet".to_string(),
-            arg_types: vec![
-                TypeExpr::Path(":t::Greeter".into()),
-                TypeExpr::Path(":wat::core::i64".into()),
-            ],
-            ret: TypeExpr::Path(":wat::core::String".into()),
-            type_params: vec![],
-        };
-        let pd = Arc::new(ProtocolDef {
-            name: ":t::Greeter".to_string(),
-            methods: vec![greet_sig],
-        });
-
-        // --- Build an ExtendDef for (:t::Robot implements :t::Greeter) -------
-        let nil_body = crate::ast::WatAST::nil();
-        let impl_clause = Clause {
-            args: crate::argspec::ArgSpec {
-                fixed_params: vec![
-                    (crate::scope::Identifier::bare("self"), TypeExpr::Path(":wat::core::nil".into())),
-                    (crate::scope::Identifier::bare("loudness"), TypeExpr::Path(":wat::core::nil".into())),
-                ],
-                rest_param: None,
-            },
-            return_type: TypeExpr::Path(":wat::core::nil".into()),
-            guard: None,
-            ensure_fn: None,
-            body: Arc::new(nil_body),
-        };
-        let mut impl_clauses = HashMap::new();
-        impl_clauses.insert("greet".to_string(), impl_clause);
-        let ed = Arc::new(ExtendDef {
-            type_name: ":t::Robot".to_string(),
-            protocol_name: ":t::Greeter".to_string(),
-            impl_clauses,
-        });
-
-        // --- Populate SymbolTable.runtime_def_values --------------------------
-        let mut sym = SymbolTable::new();
-        sym.runtime_def_values.insert(
-            ":t::Greeter".to_string(),
-            Value::wat__core__protocol_def(pd),
-        );
-        sym.runtime_def_values.insert(
-            "extend::t::Greeter::t::Robot".to_string(),
-            Value::wat__core__extend_def(ed),
-        );
-
-        let types = TypeEnv::default();
-        let env = CheckEnv::from_symbols(&sym, &types);
-
-        // --- Assert protocol_registrations holds the greet sig ----------------
-        let methods = env.get_protocol_methods(":t::Greeter")
-            .expect("protocol_registrations must be populated by from_symbols");
-        assert_eq!(methods.len(), 1, "expected 1 method sig; got {}", methods.len());
-        let sig = &methods[0];
-        assert_eq!(sig.name, "greet", "expected method name 'greet'; got '{}'", sig.name);
-        assert_eq!(sig.arg_types.len(), 2, "greet must have 2 args (receiver + loudness)");
-        assert!(
-            matches!(&sig.arg_types[0], TypeExpr::Path(p) if p.as_str() == ":t::Greeter"),
-            "arg 0 must be receiver :t::Greeter; got {:?}", sig.arg_types[0]
-        );
-
-        // --- Assert extend_registrations holds the (:t::Greeter, :t::Robot) edge ---
-        let method_names = env.get_extend_methods(":t::Greeter", ":t::Robot")
-            .expect("extend_registrations must be populated by from_symbols");
-        assert_eq!(method_names.len(), 1, "expected 1 method name; got {:?}", method_names);
-        assert_eq!(method_names[0], "greet", "expected method name 'greet'; got '{}'", method_names[0]);
-    }
 }

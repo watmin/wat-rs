@@ -766,13 +766,6 @@ pub fn register_stdlib_runtime_defs(
                 sym.functions.remove(&name); // remove stub if pre-registered
                 sym.runtime_def_values.insert(name, value);
             }
-            // Arc 209 host-parity-4a — stdlib protocol/impl registration (mirrors the
-            // user-source path, register_runtime_defs_form runtime.rs:1812/1820), so
-            // a stdlib `:P/method` dispatches to its stdlib `extend-type` impl.
-            ":wat::core::defprotocol" => {
-                let (name, pd) = parse_defprotocol_form(form)?;
-                sym.runtime_def_values.insert(name, Value::wat__core__protocol_def(pd));
-            }
             // Arc 293.4c — stdlib extend-type: branch on surface vs. protocol (mirrors user path).
             // Arc 278 BRIEF-STONE-extend-user-checked — the surface-inheriting registration
             // itself is now the SHARED routine (`register_extend_type_surface_impls`), also
@@ -1590,49 +1583,6 @@ pub fn register_type_predicates(
     Ok(())
 }
 
-/// Arc 232 Stone 232.3 — pre-register protocol names from `defprotocol` forms
-/// into `sym.runtime_def_values` BEFORE the resolve pass.
-///
-/// The resolve pass (`is_resolvable_call_head`) needs to see protocol FQDNs as
-/// `Value::wat__core__protocol_def` entries in `runtime_def_values` so it can
-/// accept `:P/method` call heads.  Full `register_runtime_defs` runs at
-/// `FrozenWorld::freeze` (step 9), AFTER the resolve pass (step 7).  This
-/// lightweight pre-pass covers ONLY `defprotocol` forms so the resolve pass can
-/// look up the stem before the last `/` and confirm it is a protocol.
-///
-/// Idempotent with `register_runtime_defs` — inserting the same protocol def
-/// twice is harmless; the freeze pass overwrites with the same value.
-pub fn preregister_protocol_names(
-    residue: &[WatAST],
-    sym: &mut SymbolTable,
-) -> Result<(), EvalBreak> {
-    for form in residue {
-        let items = match form {
-            WatAST::List(items, _) => items,
-            _ => continue,
-        };
-        if items.is_empty() {
-            continue;
-        }
-        match &items[0] {
-            WatAST::Keyword(k, _) if k.as_str() == ":wat::core::defprotocol" => {
-                // Reuse parse_defprotocol_form — the form is well-formed at
-                // this point (macro-expanded, type-validated by check.rs,
-                // which runs at step 8, but we rely on shape correctness here
-                // — malformed forms simply produce a parse error that is then
-                // also reported at step 8 via the check pass).
-                if let Ok((name, pd)) = parse_defprotocol_form(form) {
-                    sym.runtime_def_values
-                        .entry(name)
-                        .or_insert_with(|| Value::wat__core__protocol_def(pd));
-                }
-            }
-            _ => continue,
-        }
-    }
-    Ok(())
-}
-
 /// Arc 265 — parse a `declare-acronyms` form and return `(namespace, acronyms)`.
 ///
 /// Shape: `(:wat::core::string::declare-acronyms :ns ["ACL" "HTTP"])`.
@@ -1949,14 +1899,6 @@ fn register_runtime_defs_form(
             let (name, cs) = parse_defclause_form(form, false)?;
             let value = Value::wat__core__clauses(cs);
             sym.functions.remove(&name); // remove stub if pre-registered (Stone 237.3)
-            sym.runtime_def_values.insert(name, value);
-        }
-        // Arc 232 Stone 232.1 — `:wat::core::defprotocol` at top-level.
-        // Shape: (:wat::core::defprotocol :P (method-sig ...) ...)
-        // Parse + produce Value::wat__core__protocol_def; store under protocol name.
-        ":wat::core::defprotocol" => {
-            let (name, pd) = parse_defprotocol_form(form)?;
-            let value = Value::wat__core__protocol_def(pd);
             sym.runtime_def_values.insert(name, value);
         }
         // Arc 232 Stone 232.1 — `:wat::core::extend-type` at top-level.
@@ -4003,7 +3945,7 @@ fn dispatch_keyword_head_value(
         // Extracts a Value's record-type FQDN as a String, regardless of storage
         // backend. Dispatch table: HolonAST classifier-wrap → extract_classifier;
         // Struct → sv.type_name (colon stripped); other → Value::type_name().
-        // Consumed by defprotocol's polymorphic dispatcher (revised Stone 232.1)
+        // Consumed by surface-method dispatch (revised Stone 232.1)
         // and all arc 234.x record-y verbs.
         ":wat::core::type" => eval_type(args, list_span, env, sym),
         // Arc 237 Stone 237.7a — `:wat::core::length` ∀T intrinsic.
@@ -4183,7 +4125,7 @@ fn dispatch_keyword_head_value(
         // Arc 232 Stone 232.0a — typed-entities reflection layer.
         // Three verbs that lift existing Rust helpers (extract_classifier)
         // and mint new structural accessors (bind_left + bind_right) as
-        // wat-callable primitives. defprotocol's polymorphic dispatcher
+        // wat-callable primitives. Surface-method dispatch
         // (Stone 232.1) consumes extract-classifier; defrecord accessor
         // synthesis (separate stone) composes Bind/left + Bind/right +
         // Bundle/children. Naming convention: Bind/left + Bind/right are
@@ -5339,116 +5281,12 @@ fn dispatch_keyword_head_value(
 
         // Anything else: user-defined function lookup.
         other => {
-            // Arc 232 Stone 232.3 — protocol-method dispatch.
-            // A head `:P/method` where P is a registered protocol dispatches on
-            // the receiver's CONCRETE type via the extend registry.  This branch
-            // fires BEFORE the generic sym.get / def-bound lookup so protocol
-            // method calls don't fall through to UnknownFunction.
-            //
-            // Disambiguation from Record/Struct accessors: Record accessors are
-            // registered as Function entries in sym.functions under
-            // `<record-fqdn>/<field>`.  A protocol FQDN is registered as
-            // `Value::wat__core__protocol_def` in runtime_def_values — NOT as a
-            // sym.functions entry.  We check the protocol registry first; if the
-            // stem before the last `/` names a protocol-def, it's a protocol call.
             if let Some(slash_pos) = other.rfind('/') {
                 let protocol_fqdn = &other[..slash_pos];
                 let method_name_raw = &other[slash_pos + 1..];
                 // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
-                // so the impl_clauses lookup uses the bare method name (the key stored at
-                // extend-type registration time).  e.g. `mk<i64,i64>` → bare `mk`.
+                // so the member lookup uses the bare method name.  e.g. `mk<i64,i64>` → bare `mk`.
                 let (method_name, _explicit_suffix) = split_type_params(method_name_raw);
-                // Check whether the stem is a registered protocol.
-                let is_protocol = matches!(
-                    sym.runtime_def_values.get(protocol_fqdn),
-                    Some(Value::wat__core__protocol_def(_))
-                );
-                if is_protocol {
-                    // Must have at least 1 arg (the receiver).
-                    if args.is_empty() {
-                        return Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::ArityMismatch {
-                                op: other.to_string(),
-                                expected: 1,
-                                got: 0,
-                            },
-                        }.into());
-                    }
-                    // Eval the receiver (arg 0).
-                    let receiver = eval_inner(&args[0], env, sym)?.value_owned();
-                    // Read the receiver's concrete type FQDN.
-                    // STOP-2: only Record variants carry class_fqdn; other shapes panic.
-                    let concrete_type_fqdn: String = match &receiver {
-                        // Arc 293.R2.1 — Aggregate: class is colon-free; add ':' for extend key.
-                        Value::Aggregate(a) => format!(":{}", a.class),
-                        Value::RustOpaque(inner) => inner.type_path.to_string(),
-                        other_val => {
-                            return Err(RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::MalformedForm {
-                                    head: other.to_string(),
-                                    reason: format!(
-                                        "protocol-method receiver must be a Record type \
-                                         implementing `{}`; got a `{}` value",
-                                        protocol_fqdn,
-                                        other_val.type_name()
-                                    ),
-                                },
-                            }.into());
-                        }
-                    };
-                    // Look up the extend-def for (P, concrete_type).
-                    // Key format: "extend:<P>:<T>" — confirmed in parse_extend_type_form.
-                    let extend_key = format!("extend:{}:{}", protocol_fqdn, concrete_type_fqdn);
-                    let ed = match sym.runtime_def_values.get(&extend_key) {
-                        Some(Value::wat__core__extend_def(ed)) => ed.clone(),
-                        _ => {
-                            return Err(RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::UnknownFunction(format!(
-                                    "type `{}` does not extend protocol `{}`",
-                                    concrete_type_fqdn, protocol_fqdn
-                                )),
-                            }.into());
-                        }
-                    };
-                    // Get the method impl clause.
-                    // STOP-4: if the clause is missing for this method, surface cleanly.
-                    let clause = match ed.impl_clauses.get(method_name) {
-                        Some(c) => c.clone(),
-                        None => {
-                            return Err(RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::UnknownFunction(format!(
-                                    "method `{}` not found in extend-type impl for `{}` on `{}`",
-                                    method_name, protocol_fqdn, concrete_type_fqdn
-                                )),
-                            }.into());
-                        }
-                    };
-                    // Eval the remaining args.
-                    let rest_vals: Vec<Value> = args[1..]
-                        .iter()
-                        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    // Build the call env: bind clause arg names to (receiver + rest).
-                    let mut all_vals = Vec::with_capacity(1 + rest_vals.len());
-                    all_vals.push(receiver);
-                    all_vals.extend(rest_vals);
-                    // clause.args.fixed_params is [(Identifier, type), ...]; types are placeholder :nil.
-                    let mut builder = env.child();
-                    for ((name_ident, _ty), val) in clause.args.fixed_params.iter().zip(all_vals.iter()) {
-                        builder = builder.bind_unknown_span(
-                            crate::scope::env_key(name_ident),
-                            TrackedValue::from(val.clone()),
-                        );
-                    }
-                    let call_env = builder.build();
-                    // Eval the clause body.
-                    return eval_inner(&clause.body, &call_env, sym)
-                        .map(|tv| tv.value_owned());
-                }
 
                 // Arc 293.4b — surface-method dispatch.
                 // Arc 293.4c — also handles foreign types taught via `extend-type` (monkeypatch).
@@ -5462,8 +5300,6 @@ fn dispatch_keyword_head_value(
                 // the concrete FQDN. Both paths use the identical dispatch lookup.
                 //
                 // `sym.types` is populated at freeze time (`FrozenWorld::freeze` → `symbols.set_types`).
-                // The protocol arm above runs first and returns early if the stem is a protocol_def,
-                // so surfaces and protocols cannot conflict.
                 if let Some(types) = sym.types.as_ref() {
                     if let Some(crate::types::TypeDef::Surface(s)) = types.get(protocol_fqdn) {
                         if let Some(member) = s.members.iter().find(|m| match m {
@@ -6183,156 +6019,7 @@ pub fn parse_defclause_form(
     ))
 }
 
-// ─── Arc 232 Stone 232.1 — defprotocol + extend-type parse fns ───────────────
-
-/// Arc 232 Stone 232.1 — parse a `(:wat::core::defprotocol :P (m1 [args] -> :R) ...)` form.
-///
-/// Shape:
-/// ```
-/// (:wat::core::defprotocol :t::Greeter
-///   (greet [self <- :t::Greeter  loudness <- :wat::core::i64] -> :wat::core::String))
-/// ```
-///
-/// Each method sig is a list `(method-name [argspec] -> :R)` where arg 0 is
-/// the receiver typed `:P`. Returns `(protocol_name, Arc<ProtocolDef>)`.
-pub(crate) fn parse_defprotocol_form(
-    form: &WatAST,
-) -> Result<(String, Arc<crate::value::ProtocolDef>), RuntimeError> {
-    const HEAD: &str = ":wat::core::defprotocol";
-    let form_span = form.span().clone();
-    let items = match form {
-        WatAST::List(items, _) => items,
-        _ => return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
-            head: HEAD.into(),
-            reason: "expected list".into()
-        } }.into()),
-    };
-    // items[0] = :wat::core::defprotocol keyword
-    // items[1] = :P protocol name keyword
-    // items[2..] = method sig lists
-    if items.len() < 3 {
-        return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::MalformedForm {
-            head: HEAD.into(),
-            reason: format!(
-                "expected (:wat::core::defprotocol :Name (method-sig ...) ...); got {} elements",
-                items.len()
-            )
-        } }.into());
-    }
-    let protocol_name = match &items[1] {
-        WatAST::Keyword(k, _) => k.clone(),
-        other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: HEAD.into(),
-            reason: format!("defprotocol first arg must be a keyword protocol name; got {}", other.variant_name())
-        } }.into()),
-    };
-
-    let mut methods = Vec::new();
-    for sig_form in &items[2..] {
-        let sig_span = sig_form.span().clone();
-        let sig_items = match sig_form {
-            WatAST::List(items, _) => items,
-            other => return Err(RuntimeError { span: sig_span, kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!("each method sig must be a list `(method-name [argspec] -> :R)`; got {}", other.variant_name())
-            } }.into()),
-        };
-        // sig_items[0] = method-name (bare Symbol)
-        // sig_items[1] = argspec Vector [self <- :P  arg <- :T ...]
-        // sig_items[2] = -> Symbol
-        // sig_items[3] = :RetType keyword
-        if sig_items.len() < 4 {
-            return Err(RuntimeError { span: sig_span, kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!("method sig must have at least 4 elements `(name [args] -> :R)`; got {}", sig_items.len())
-            } }.into());
-        }
-        // Arc 232 follow-on (generic methods) — strip `<T,…>` suffix off the
-        // method name into type_params, reusing split_name_and_type_params
-        // (the same splitter defn uses on `:name<T>` at runtime.rs:2324).
-        // The Symbol payload is a plain string (e.g. `"make<T>"` — no leading
-        // `:`) — the splitter operates on the raw string, so it is directly
-        // reusable: `split_name_and_type_params("make<T>")` → `("make", ["T"])`.
-        // Monomorphic methods (no `<`) return the name unchanged with an empty vec.
-        let (method_name, method_type_params) = match &sig_items[0] {
-            WatAST::Symbol(s, _) => {
-                match split_name_and_type_params(s.as_str()) {
-                    Ok(pair) => pair,
-                    Err(EvalBreak::Diagnostic(e)) => return Err(e),
-                    Err(_) => return Err(RuntimeError {
-                        span: sig_items[0].span().clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: HEAD.into(),
-                            reason: format!("malformed type params in method name `{}`", s.as_str())
-                        }
-                    }),
-                }
-            }
-            other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!("method sig first element must be a Symbol method name; got {}", other.variant_name())
-            } }.into()),
-        };
-        let argvec = match &sig_items[1] {
-            WatAST::Vector(v, _) => v,
-            other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!("method sig second element must be an argspec Vector `[...]`; got {}", other.variant_name())
-            } }.into()),
-        };
-        // Validate -> symbol
-        match &sig_items[2] {
-            WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-            other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!("expected `->` symbol after argspec in method sig `{}`; got {}", method_name, other.variant_name())
-            } }.into()),
-        }
-        let ret = match &sig_items[3] {
-            WatAST::Keyword(k, _) => parse_type_keyword(k)?,
-            other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!("expected return-type keyword after `->` in method sig `{}`; got {}", method_name, other.variant_name())
-            } }.into()),
-        };
-        // Parse argspec via the canonical parser (shared with fn/defclause/defmacro).
-        let spec = crate::argspec::parse_argspec_triples(
-            argvec,
-            HEAD,
-            &sig_span,
-            crate::argspec::ParseOptions { allow_rest_binder: false },
-        )?;
-        if spec.fixed_params.is_empty() {
-            return Err(RuntimeError { span: sig_span, kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!("method sig `{}` must have at least one arg (the receiver arg 0 typed `:P`)", method_name)
-            } }.into());
-        }
-        let arg_types: Vec<crate::types::TypeExpr> = spec.fixed_params.iter()
-            .map(|(_, ty)| ty.clone())
-            .collect();
-        // STOP: single-receiver invariant — arg 0 must be typed :P (the protocol itself).
-        let receiver_ty = &arg_types[0];
-        let receiver_path = match receiver_ty {
-            crate::types::TypeExpr::Path(p) => p.as_str(),
-            _ => "",
-        };
-        if receiver_path != protocol_name.as_str() {
-            return Err(RuntimeError { span: sig_span, kind: RuntimeErrorKind::MalformedForm {
-                head: HEAD.into(),
-                reason: format!(
-                    "method sig `{}` arg 0 must be the receiver typed `{}` (single-receiver invariant); got `{}`",
-                    method_name, protocol_name, crate::check::format_type(receiver_ty)
-                )
-            } }.into());
-        }
-        // Arc 232 follow-on: store the (possibly empty) type_params collected above.
-        methods.push(crate::value::ProtocolMethodSig { name: method_name, arg_types, ret, type_params: method_type_params });
-    }
-
-    let pd = Arc::new(crate::value::ProtocolDef { name: protocol_name.clone(), methods });
-    Ok((protocol_name, pd))
-}
+// ─── Arc 232 Stone 232.1 — extend-type parse fn ──────────────────────────────
 
 /// Arc 232 Stone 232.1 — parse an `(:wat::core::extend-type :T :P (m1 [self ...] body) ...)` form.
 ///
@@ -6404,8 +6091,8 @@ pub(crate) fn parse_extend_type_form(
         let method_name = match &impl_items[0] {
             WatAST::Symbol(s, _) => {
                 // Stone 6b-DEP — strip any `<T>` suffix from the impl method name so that
-                // impl_clauses is keyed by the BARE name, consistent with how defprotocol
-                // stores its sigs (via split_name_and_type_params).  A bare impl name
+                // impl_clauses is keyed by the BARE name (via split_name_and_type_params,
+                // the same splitter surface members use).  A bare impl name
                 // (no `<`) passes through unchanged (split_type_params returns ("name", "")).
                 let (bare, _suffix) = split_type_params(s.as_str());
                 bare.to_owned()
@@ -6421,7 +6108,7 @@ pub(crate) fn parse_extend_type_form(
         //
         // For extend-type impls we use a simplified parse: collect bare symbol params
         // from the argvec (no type annotations), use :wat::core::nil as placeholder types
-        // (the real types come from the defprotocol sig at dispatch time — 232.3).
+        // (the real types come from the surface member sig at dispatch time).
         let argvec_items = match &impl_items[1] {
             WatAST::Vector(v, _) => v,
             other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -6430,7 +6117,7 @@ pub(crate) fn parse_extend_type_form(
             } }.into()),
         };
         // Collect bare symbol param names. extend-type impls do NOT carry type annotations
-        // (the types live in the defprotocol sig). Each arg must be a bare Symbol.
+        // (the types live in the surface member sig). Each arg must be a bare Symbol.
         // Arc 293.4e-pre: build an ArgSpec (Identifier-keyed) instead of Vec<(String,TypeExpr)>.
         let mut fixed_params: Vec<(crate::scope::Identifier, crate::types::TypeExpr)> = Vec::new();
         for arg_item in argvec_items {
@@ -6973,7 +6660,6 @@ fn val_type_path(val: &Value) -> &'static str {
         Value::wat__kernel__HandlePool { .. } => ":wat::kernel::HandlePool",
         Value::wat__kernel__ChildHandle(_) => ":wat::kernel::ChildHandle",
         // Arc 232 Stone 232.1 — registry carriers (not dispatch-callable at runtime).
-        Value::wat__core__protocol_def(_) => ":wat::core::protocol-def",
         Value::wat__core__extend_def(_) => ":wat::core::extend-def",
     }
 }
@@ -15263,7 +14949,7 @@ fn bind_right(holon: &HolonAST) -> Option<HolonAST> {
 ///
 /// Arc 232 Stone 232.0a. Returns `Some(class-name)` for the canonical
 /// classifier-wrap shape `(Bind (Atom <s>) <right>)`; `None` otherwise.
-/// The dispatch primitive defprotocol's polymorphic verb uses to route
+/// The dispatch primitive surface-method dispatch uses to route
 /// to per-type implementations.
 fn eval_extract_classifier(
     args: &[WatAST],
@@ -33586,69 +33272,4 @@ mod tests {
         assert_eq!(values_equal(&a, &b), Some(false));
     }
 
-    /// Arc 232 Stone 232.3 — negative: calling a protocol method on a concrete
-    /// type that does NOT extend the protocol must produce a CLEAN runtime error
-    /// (UnknownFunction "type `:X` does not extend protocol `:P`"), not a panic.
-    ///
-    /// Proof: `:t::Dog` extends `:t::Swimmer`; `:t::Rock` does not. Calling
-    /// `(:t::Swimmer/swim rock 3)` must surface a clean `UnknownFunction` error.
-    #[test]
-    fn protocol_method_missing_impl_is_a_clean_runtime_error() {
-        use std::sync::Arc;
-        use crate::freeze::startup_from_source;
-        use crate::load::InMemoryLoader;
-
-        const SRC: &str = r#"
-(:wat::core::defprotocol :t::Swimmer
-  (swim [self <- :t::Swimmer laps <- :wat::core::i64] -> :wat::core::String))
-(:wat::core::defrecord :t::Dog [])
-(:wat::core::defrecord :t::Rock [])
-(:wat::core::extend-type :t::Dog :t::Swimmer (swim [self laps] "splash"))
-
-;; Callers typed over :t::Dog — safe.
-;; We test the missing-impl path by defn-ing a fn that accepts :t::Swimmer,
-;; then passing a :t::Rock at runtime (it is assignable to :t::Swimmer at
-;; check time because we lie about Rock extending Swimmer — simpler: just
-;; have a defn that calls swim on a Dog, confirm it works, then at the
-;; runtime level the missing-impl is tested via direct eval).
-(:wat::core::defn :user::dog-swim [d <- :t::Dog] -> :wat::core::String
-  (:t::Swimmer/swim d 3))
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-        let world = startup_from_source(SRC, None, Arc::new(InMemoryLoader::new()))
-            .expect("startup: Dog extends Swimmer, should succeed");
-
-        // Positive: Dog dispatch works cleanly.
-        let ast = crate::parse_one!("(:user::dog-swim (:t::Dog))")
-            .expect("parse dog-swim");
-        let result = crate::freeze::eval_in_frozen(&ast, &world, &Environment::new());
-        assert!(
-            result.is_ok(),
-            "Dog extends Swimmer — swim dispatch must succeed; got: {:?}", result.err()
-        );
-        match result.unwrap().value_owned() {
-            Value::String(s) => assert_eq!(*s, "splash"),
-            other => panic!("expected 'splash', got {:?}", other),
-        }
-
-        // Negative: Build a Rock value and call :t::Swimmer/swim on it directly
-        // via a direct keyword-head eval.  The Rock value is a Value::Aggregate(Record) whose
-        // class_fqdn is "t::Rock"; the extend-def for "extend::t::Swimmer::t::Rock"
-        // does NOT exist → must yield a clean UnknownFunction, not a panic.
-        //
-        // We synthesize the call form manually so we bypass the check-time
-        // assignable gate (which would reject :t::Rock for :t::Swimmer at startup).
-        let call_src = r#"(:t::Swimmer/swim (:t::Rock) 3)"#;
-        let call_ast = crate::parse_one!(call_src).expect("parse direct swim call");
-        match crate::freeze::eval_in_frozen(&call_ast, &world, &Environment::new()) {
-            Err(RuntimeError { kind: RuntimeErrorKind::UnknownFunction(msg), .. }) => {
-                assert_eq!(
-                    msg,
-                    "type `:t::Rock` does not extend protocol `:t::Swimmer`"
-                );
-            }
-            Ok(v) => panic!("expected UnknownFunction error for Rock with no impl; got value {:?}", v),
-            Err(other) => panic!("expected UnknownFunction, got: {:?}", other),
-        }
-    }
 }

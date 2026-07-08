@@ -228,31 +228,19 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     // Arc 232 Stone 232.3 — protocol-method call heads (`:<P>/<method>`).
     //
     // A keyword head that contains `/` where the part before the last `/` names
-    // a registered protocol is a protocol-method call — e.g. `:t::Greeter/greet`.
+    // a registered surface is a surface-method call — e.g. `:t::Shape/area`.
     // The resolver must accept these so they survive to the type-checker and
-    // runtime dispatch added in Stone 232.3; only the runtime knows the
-    // receiver's concrete type and can dispatch to the right impl.
-    //
-    // Disambiguate from Record/Struct accessor heads: those are registered as
-    // Function entries in `sym.functions` (caught by `sym.get(canonical)` above);
-    // protocol FQDNs are stored as `Value::wat__core__protocol_def` in
-    // `runtime_def_values`.
+    // runtime dispatch; only the runtime knows the receiver's concrete type and
+    // can dispatch to the right impl.
     if let Some(slash_pos) = head.rfind('/') {
         let stem = &head[..slash_pos];
-        if matches!(
-            sym.runtime_def_values.get(stem),
-            Some(crate::runtime::Value::wat__core__protocol_def(_))
-        ) {
-            return true;
-        }
         // Arc 293.4b — surface-method call heads (`:S/method`).
         //
         // A head `:S/method` where the stem names a `TypeDef::Surface` is a
         // surface-method call — e.g. `:t::Shape/area`. The resolver accepts these
         // so they survive to the type-checker (which verifies the receiver satisfies
         // S and the method is declared) and the runtime dispatcher (which routes to
-        // `:<T>/<method>` by concrete type). Surfaces and protocols are DISJOINT: a
-        // name registered as both is a programmer error; the protocol arm above wins.
+        // `:<T>/<method>` by concrete type).
         //
         // `sym.types` is pre-attached at step 6.97 (freeze/env.rs) BEFORE this
         // resolve pass runs, so the TypeDef::Surface lookup is safe here.

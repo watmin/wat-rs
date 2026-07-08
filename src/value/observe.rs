@@ -438,9 +438,6 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             format!("<clauses:{}/{}>", cs.name, cs.clauses.len())
         }
         // Arc 232 Stone 232.1 — registry carriers render as opaque tags.
-        Value::wat__core__protocol_def(pd) => {
-            format!("<protocol-def:{}>", pd.name)
-        }
         Value::wat__core__extend_def(ed) => {
             format!("<extend-def:{}:{}>", ed.protocol_name, ed.type_name)
         }

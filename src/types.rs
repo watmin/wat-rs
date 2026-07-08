@@ -308,7 +308,7 @@ pub struct UnionDef {
 /// field (row-polymorphic width subtyping) or a required named method (structural
 /// "methods are accessors": the satisfier backs it with a `defn :T/<name>`).
 ///
-/// Types-local: mirrors `value::ProtocolMethodSig` but does NOT depend on `value`.
+/// Types-local: does NOT depend on `value`.
 /// The `Method` variant carries the full `ArgSpec` from `parse_argspec_triples`
 /// (not a flattened `Vec<TypeExpr>`) so the binder names are preserved and the
 /// structural check can compare per-position with the candidate `defn`.

@@ -2021,7 +2021,6 @@ fn encode_value_with_path(
         // is a later strike (not portable in slice 1; same as fn).
         | Value::wat__stream__Stream(_)
         // Arc 232 Stone 232.1 — registry carriers are top-level registrations, not closure values.
-        | Value::wat__core__protocol_def(_)
         | Value::wat__core__extend_def(_) => Err(ExtractionError {
             span: crate::rust_caller_span!(),
             kind: ExtractionErrorKind::Internal(format!(

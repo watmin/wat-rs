@@ -300,7 +300,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // A pure-wat tool: given an ordered list of SourceFile{path,source} pairs,
     // parses each file's top-level forms, builds a symbol→(file,kind) map,
     // classifies cross-file references (defmacro = order-free; defn/defenum/
-    // defalias/def/defprotocol/defclause = eval-dep), and returns Violations
+    // defalias/def/defclause = eval-dep), and returns Violations
     // (files that eval-depend on later-loaded files). The surface:
     //   (:wat::deporder::verify-stdlib) — verifies the real baked order.
     // Loads after fix.wat (uses read-string + ast->children + ast-kind + ast-name).

@@ -365,13 +365,6 @@ pub enum Value {
     /// NOT a wrapping variant (carries metadata + Vec<Clause>; not
     /// Arc<Self>). Compiles cleanly under the `#[wat_value]` seal.
     wat__core__clauses(Arc<ClauseSet>),
-    /// Arc 232 Stone 232.1 — `:wat::core::defprotocol` declaration.
-    ///
-    /// Carries the protocol name + its method signatures (each with arg
-    /// types and return type). Stored in `runtime_def_values` under the
-    /// protocol name so `CheckEnv::from_symbols` can rebuild
-    /// `protocol_registrations` headlessly. NOT a wrapping variant.
-    wat__core__protocol_def(Arc<ProtocolDef>),
     /// Arc 232 Stone 232.1 — `:wat::core::extend-type` implementation.
     ///
     /// Carries the type + protocol names and the per-method impl bodies
@@ -434,45 +427,7 @@ pub struct ClauseSet {
 
 // ─── end Stone 237.2 structs ──────────────────────────────────────────────────
 
-// ─── Arc 232 Stone 232.1 — defprotocol / extend-type structs ─────────────────
-
-/// Arc 232 Stone 232.1 — a single method signature in a `defprotocol` declaration.
-///
-/// `arg_types[0]` is always the receiver type `:P` (single-receiver invariant).
-/// `ret` is the declared return type. The method body is provided by each
-/// `extend-type` implementor; it is NOT stored here.
-///
-/// Arc 232 follow-on (generic methods): `type_params` holds the bare type-variable
-/// names declared on the method name (`make<T>` → `["T"]`). Empty for monomorphic
-/// methods. The call-site checker instantiates these to fresh unification vars,
-/// mirroring the generic-fn path (`instantiate`, check.rs).
-#[derive(Debug, Clone)]
-pub struct ProtocolMethodSig {
-    /// Method name (e.g. `"greet"`, `"make"` — always the BARE name, no `<T>` suffix).
-    pub name: String,
-    /// Declared argument types in declaration order. `arg_types[0]` is the
-    /// receiver type (always `:P`, the protocol itself). Must be non-empty.
-    pub arg_types: Vec<TypeExpr>,
-    /// Declared return type.
-    pub ret: TypeExpr,
-    /// Arc 232 follow-on — universally-quantified type-parameter names declared
-    /// on the method (`make<T>` → `["T"]`). Empty for monomorphic methods.
-    /// The call-site checker instantiates these to fresh unification vars.
-    pub type_params: Vec<String>,
-}
-
-/// Arc 232 Stone 232.1 — a `defprotocol` declaration.
-///
-/// Produced by `parse_defprotocol_form`; stored as
-/// `Value::wat__core__protocol_def` in `runtime_def_values` under the
-/// protocol FQDN key so `CheckEnv::from_symbols` can load it headlessly.
-#[derive(Debug, Clone)]
-pub struct ProtocolDef {
-    /// Protocol FQDN (e.g. `":t::Greeter"`).
-    pub name: String,
-    /// Method signatures in declaration order.
-    pub methods: Vec<ProtocolMethodSig>,
-}
+// ─── Arc 232 Stone 232.1 — extend-type struct ────────────────────────────────
 
 /// Arc 232 Stone 232.1 — an `extend-type` implementation.
 ///
@@ -955,10 +910,6 @@ impl std::hash::Hash for Value {
                 (Arc::as_ptr(cs) as usize).hash(state);
             }
             // Arc 232 Stone 232.1 — registry carriers: not atomizable; pointer hash.
-            Value::wat__core__protocol_def(pd) => {
-                "wat__core__protocol_def".hash(state);
-                (Arc::as_ptr(pd) as usize).hash(state);
-            }
             Value::wat__core__extend_def(ed) => {
                 "wat__core__extend_def".hash(state);
                 (Arc::as_ptr(ed) as usize).hash(state);
@@ -1182,8 +1133,7 @@ impl Value {
             // Arc 293.R2.1: wat__holon__Record and wat__core__Record removed; covered by Aggregate arm above.
             // Stone 237.2 — multi-arity callable dispatcher.
             Value::wat__core__clauses(_) => "wat::core::clauses",
-            // Arc 232 Stone 232.1 — protocol registry carriers (not runtime-callable values).
-            Value::wat__core__protocol_def(_) => "wat::core::protocol-def",
+            // Arc 232 Stone 232.1 — extend-type registry carrier (not runtime-callable value).
             Value::wat__core__extend_def(_) => "wat::core::extend-def",
         }
     }
@@ -1271,8 +1221,7 @@ impl Value {
             Value::wat__core__List(_) => self.type_name().to_string(),
             Value::wat__stream__Stream(_) => self.type_name().to_string(),
             Value::wat__core__clauses(_) => self.type_name().to_string(),
-            // Arc 232 Stone 232.1 — registry carriers: generic kind string.
-            Value::wat__core__protocol_def(_) => self.type_name().to_string(),
+            // Arc 232 Stone 232.1 — registry carrier: generic kind string.
             Value::wat__core__extend_def(_) => self.type_name().to_string(),
         }
     }

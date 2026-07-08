@@ -23,7 +23,7 @@ use crate::check::{validate_aggregate_containment, validate_arc170_legacy_callsi
 use crate::macros::{expand_all, register_defmacros, register_stdlib_defmacros, MacroRegistry};
 use crate::resolve::{normalize_symbol_refs, resolve_references};
 use crate::runtime::{
-    preregister_acronyms, preregister_protocol_names, preregister_stdlib_defclause_stub,
+    preregister_acronyms, preregister_stdlib_defclause_stub,
     register_aggregate_methods, register_defines, register_enum_methods, register_newtype_methods,
     register_stdlib_defines, register_stdlib_runtime_defs, register_struct_methods,
     register_type_predicates, EvalBreak, Environment, SymbolTable,
@@ -49,7 +49,7 @@ pub(crate) struct EnvBundle {
 /// `user_forms = vec![]` yields the stdlib-only environment (the
 /// test path). All user-side steps (`expand_all(user)`,
 /// bare-legacy walker, `register_types(user)`, `register_defines(user)`,
-/// `preregister_protocol_names`, `preregister_acronyms(runtime)`,
+/// `preregister_acronyms(runtime)`,
 /// `normalize_symbol_refs`, `resolve_references`) are natural no-ops on
 /// an empty slice, so the same function drives both paths.
 ///
@@ -65,7 +65,6 @@ pub(crate) struct EnvBundle {
 ///       → extract `stdlib_runtime_def_forms` → `register_defines(user)`
 /// - 6a/6.5/6.7/6.8a/6.9.  Auto-method registration (struct/enum/newtype/record/predicate)
 /// - 6.8. Inventory restriction-entry drain into `binding_metadata`
-/// - 6.95. `preregister_protocol_names`
 /// - 6.96. `preregister_acronyms(runtime)`
 /// - 7.  `normalize_symbol_refs` + `resolve_references`
 /// - 7.6. `register_stdlib_runtime_defs`
@@ -170,7 +169,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         preregister_stdlib_defclause_stub(form, &mut symbols);
     }
     // (b) Extract stdlib forms that need RUNTIME registration via
-    //     runtime_defs: defclause, defprotocol, extend-type, def.
+    //     runtime_defs: defclause, extend-type, def.
     //     Arc 209 host-parity-4a broadened from defclause-only.
     let stdlib_runtime_def_forms: Vec<WatAST> = stdlib_residue
         .into_iter()
@@ -182,7 +181,6 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
                         if matches!(
                             k.as_str(),
                             ":wat::core::defclause"
-                                | ":wat::core::defprotocol"
                                 | ":wat::core::extend-type"
                                 // Arc 255 escape-hatch — scalar stdlib `def` forms
                                 // (e.g. MAX-READLN-BYTES) must reach runtime_def_values.
@@ -229,16 +227,6 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             .extend(meta);
     }
 
-    // 6.95. Arc 232 Stone 232.3 — pre-register defprotocol names into
-    //       runtime_def_values BEFORE the resolve pass.
-    preregister_protocol_names(&residue, &mut symbols)
-        .map_err(|e| match e {
-            EvalBreak::Diagnostic(re) => StartupError::Runtime(Box::new(re)),
-            EvalBreak::Signal(_) => unreachable!(
-                "interpreter bug: eval-loop control signal escaped to freeze layer"
-            ),
-        })?;
-
     // 6.96. Arc 265 — pre-register declare-acronyms forms into the
     //       runtime SymbolTable (macro_sym covered expand-time; this
     //       covers eval-time).
@@ -266,7 +254,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     resolve_references(&residue, &symbols, &macros)?;
 
     // 7.6. Stone 237.8b (+ arc 209 host-parity-4a) — register stdlib
-    //      defclause / defprotocol / extend-type / def forms into
+    //      defclause / extend-type / def forms into
     //      runtime_def_values.
     register_stdlib_runtime_defs(&stdlib_runtime_def_forms, &mut symbols)
         .map_err(|e| StartupError::Runtime(Box::new(e)))?;
