@@ -129,6 +129,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/program.wat",
         source: include_str!("../wat/program.wat"),
     },
+    // Arc 170 capability circuit, stone 2 — :wat::capability::Grantable, the uniform
+    // capability methods-surface every <fqdn>::Handle satisfies. Relocated here (from
+    // wat/service.wat's old position ~328) so it loads BEFORE wat/spawn.wat and
+    // wat/bracket.wat, both of which name it (:grants on the process-locus / the
+    // bracket's grant-boot/revoke-shutdown). Deps only on core.wat builtins.
+    WatSource {
+        path: "wat/capability.wat",
+        source: include_str!("../wat/capability.wat"),
+    },
     // Arc 259 (The Forced Hand) — the host opts for spawn-program (the Keymaker):
     // ThreadOpts / ProcessOpts / RemoteOpts + their constructors. Loaded AFTER
     // Record.wat (uses :wat::core::defrecord).

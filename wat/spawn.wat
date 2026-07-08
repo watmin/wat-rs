@@ -51,11 +51,15 @@
   [init-fn       <- :wat::core::Fn()->wat::core::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil
    runner-count  <- :wat::core::i64])
+;; Arc 170 capability circuit, stone 2 — `grants` rides the process-locus: the
+;; Vector<:wat::capability::Grantable> whose Handles the bracket grants each worker's
+;; pid to on boot, revokes on shutdown. Empty by default (the bare `(process)` ctor).
 (:wat::core::defstruct :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
    env-fn           <- :wat::core::String
    max-message-bytes <- :wat::core::i64
-   runner-count      <- :wat::core::i64])
+   runner-count      <- :wat::core::i64
+   grants           <- (:wat::core::Vector :wat::capability::Grantable)])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
 ;; in src/edn_shim.rs:1008.  Do NOT scatter the literal: change it here and there
@@ -100,31 +104,47 @@
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
-    (:wat::program::cpu-count)))
+    (:wat::program::cpu-count)
+    (:wat::core::Vector :wat::capability::Grantable)))  ;; grants default: empty
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288 (:wat::program::cpu-count)))  ;; DEFAULT-MAX-MESSAGE-BYTES
+  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288 (:wat::program::cpu-count)  ;; DEFAULT-MAX-MESSAGE-BYTES
+    (:wat::core::Vector :wat::capability::Grantable)))
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     s
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
-    (:wat::program::cpu-count)))
+    (:wat::program::cpu-count)
+    (:wat::core::Vector :wat::capability::Grantable)))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     "(:wat::program::EmptyEnv)"
     n
-    (:wat::program::cpu-count)))
+    (:wat::program::cpu-count)
+    (:wat::core::Vector :wat::capability::Grantable)))
 
 (:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
-    n))
+    n
+    (:wat::core::Vector :wat::capability::Grantable)))
+
+;; Arc 170 capability circuit, stone 2 — (process/grants [g1 g2 …]) cuts a process
+;; key carrying the Grantables the bracket grants each worker's pid to on boot,
+;; revokes on shutdown. Other fields default (as process/post-spawn et al.).
+(:wat::core::defn :wat::spawn::process/grants [gs <- (:wat::core::Vector :wat::capability::Grantable)] -> :wat::spawn::ProcessOpts
+  (:wat::spawn::ProcessOpts
+    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    "(:wat::program::EmptyEnv)"
+    524288  ;; DEFAULT-MAX-MESSAGE-BYTES
+    (:wat::program::cpu-count)
+    gs))
 
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
 ;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
@@ -134,6 +154,17 @@
 (:wat::core::defclause :wat::spawn::runner-count
   ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::i64  (:wat::spawn::ThreadOpts/runner-count locus))
   ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::i64  (:wat::spawn::ProcessOpts/runner-count locus)))
+
+;; ── The tier-blind Grantable reader (arc 170 capability circuit, stone 2) ────────────
+;; A defclause (NOT a Locus surface method — a `grants` surface-method impl on ProcessOpts
+;; would register :wat::spawn::ProcessOpts/grants, colliding with the defstruct's own field
+;; accessor of the same name; runner-count dodges this identically). Process returns its
+;; :grants field; thread returns an EMPTY vector — the firm boundary: a thread cell is in
+;; THIS process, needs no grant (the handle IS the capability). A future remote locus joins
+;; as one more clause returning empty (pids don't cross hosts); the 1-arg sig is unmoved.
+(:wat::core::defclause :wat::spawn::grants
+  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::Vector<wat::capability::Grantable>  (:wat::core::Vector :wat::capability::Grantable))
+  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::Vector<wat::capability::Grantable>  (:wat::spawn::ProcessOpts/grants locus)))
 
 ;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;

@@ -228,6 +228,12 @@
     [m  (:wat::core::length items)
      rc (:wat::spawn::runner-count locus)
      n  (:wat::core::if (:wat::core::< rc m) rc m)
+     ;; Arc 170 capability circuit, stone 2 — the Grantables this locus carries. Empty for
+     ;; thread/remote (the firm boundary); the process locus's :grants field otherwise. Read
+     ;; ONCE; grant-boot below folds over it before each worker's first item, revoke-shutdown
+     ;; folds over it after the drain. A foldl over an empty vector is a no-op, so a plain
+     ;; (process) (no :grants) takes no grant path — same as thread.
+     grantables (:wat::spawn::grants locus)
      ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` (Vector<Peer'<...>> param
      ;; — repeatedly `select'`-ed, must be eager) and later `sort-by`, so materialize here.
      peers (:wat::core::mapv
@@ -236,11 +242,41 @@
                (:wat::core::let
                  [work-fn (worker-init i)                          ;; per-runner setup, once
                   p (:wat::spawn::Locus/spawn-runner locus work-fn)
+                  ;; GRANT-BOOT: if the far end is a process (peer-pid → Some pid), grant that
+                  ;; kernel-vouched pid to each Grantable (ack'd request/reply) BEFORE the first
+                  ;; item is sent — so the grant lands before the worker's work-fn dials. A
+                  ;; thread peer (peer-pid → None) skips: the in-process handle IS the capability.
+                  _ (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
+                      ((:wat::core::Some pid)
+                        (:wat::core::foldl
+                          (:wat::core::fn [_acc <- :wat::core::nil  g <- :wat::capability::Grantable] -> :wat::core::nil
+                            (:wat::capability::Grantable/grant g (:wat::core::Vector :wat::core::i64 pid)))
+                          nil
+                          grantables))
+                      (:wat::core::None nil))
                   _ (:wat::kernel::send' p (:wat::core::Tuple i (:wat::core::nth items i)))]
                  p))
              (:wat::core::range 0 n))
      pairs  (:wat::bracket::collect-loop peers items
               (:wat::core::Vector :(wat::core::i64,O)) n 0 m)
+     ;; REVOKE-SHUTDOWN: the drain is complete but the peers are still alive (still in scope,
+     ;; still hold their Pidfd → peer-pid still Some). For each process peer, revoke its pid
+     ;; from each Grantable (ack'd) — the grant a worker held cannot outlive its reaping. A
+     ;; thread peer (None) skips. Runs BEFORE the return so no grant escapes the bracket.
+     _revoke (:wat::core::foldl
+               (:wat::core::fn [_acc <- :wat::core::nil
+                                p    <- :wat::kernel::Peer'<(wat::core::i64,I),(wat::core::i64,O)>]
+                 -> :wat::core::nil
+                 (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
+                   ((:wat::core::Some pid)
+                     (:wat::core::foldl
+                       (:wat::core::fn [_a <- :wat::core::nil  g <- :wat::capability::Grantable] -> :wat::core::nil
+                         (:wat::capability::Grantable/revoke g (:wat::core::Vector :wat::core::i64 pid)))
+                       nil
+                       grantables))
+                   (:wat::core::None nil)))
+               nil
+               peers)
      sorted (:wat::core::sort-by
               (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :wat::core::i64
                 (:wat::core::first pr))

@@ -49,16 +49,12 @@
   :Reply [state <- :S  reply <- :R]
   :Stop  [state <- :S  reply <- :R])
 
-;; ── Grantable — the uniform capability surface (arc 170 capability circuit, stone 1) ──────
+;; ── Grantable — the uniform capability surface (arc 170 capability circuit) ──────
 ;;
-;; A struct-nature methods-surface every service's `<fqdn>::Handle` satisfies (via the
-;; extend-type the defservice macro AUTO-EMITs, routing to the landed <fqdn>/grant &
-;; <fqdn>/revoke methods). This lets a HETEROGENEOUS `Vector<:wat::service::Grantable>` of
-;; different services' Handles be grant/revoke'd UNIFORMLY. Both features return nil for now.
-(:wat::core::defsurface :wat::service::Grantable :nature :wat::core::Struct
-  :features
-  [(grant  [self <- :wat::service::Grantable  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
-   (revoke [self <- :wat::service::Grantable  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])
+;; RELOCATED (stone 2): the :wat::capability::Grantable surface now lives in
+;; wat/capability.wat, which loads EARLY (before spawn.wat/bracket.wat, both of which
+;; name it). The defservice macro's auto-emitted extend-type (grantable-extend, below)
+;; routes each <fqdn>::Handle to :wat::capability::Grantable.
 
 ;; ── The canonical clause order — the story a service tells ──────────────────────
 ;; A defservice reads top-to-bottom as a sentence about an actor. Order is
@@ -1167,15 +1163,16 @@
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
      handle-record `(:wat::core::defrecord ~handle-name ~handle-fields)
 
-     ;; ── arc 170 stone 1: auto-emit the Grantable extend-type ─────────────────────
-     ;; Every <fqdn>::Handle uniformly satisfies :wat::service::Grantable, routing grant/revoke
-     ;; to the already-landed <fqdn>/grant & <fqdn>/revoke methods. This is a TOP-LEVEL form
-     ;; (NOT a method — methods are client fns; extend-type is not). Mirrors the hand-written
-     ;; extend-type proven in scratchpad/probe-grantable-mechanism.wat. self/pids binders use
-     ;; symbol-node for hygiene (Unquote at def time).
+     ;; ── arc 170: auto-emit the Grantable extend-type ─────────────────────────────
+     ;; Every <fqdn>::Handle uniformly satisfies :wat::capability::Grantable (relocated to
+     ;; wat/capability.wat, stone 2), routing grant/revoke to the already-landed <fqdn>/grant
+     ;; & <fqdn>/revoke methods. This is a TOP-LEVEL form (NOT a method — methods are client
+     ;; fns; extend-type is not). Mirrors the hand-written extend-type proven in
+     ;; scratchpad/probe-grantable-mechanism.wat. self/pids binders use symbol-node for
+     ;; hygiene (Unquote at def time).
      grantable-self-sym (:wat::core::symbol-node "self")
      grantable-pids-sym (:wat::core::symbol-node "pids")
-     grantable-extend `(:wat::core::extend-type ~handle-name :wat::service::Grantable
+     grantable-extend `(:wat::core::extend-type ~handle-name :wat::capability::Grantable
                          (grant  [~grantable-self-sym ~grantable-pids-sym] (~grant-method-name  ~grantable-self-sym ~grantable-pids-sym))
                          (revoke [~grantable-self-sym ~grantable-pids-sym] (~revoke-method-name ~grantable-self-sym ~grantable-pids-sym)))]
 
