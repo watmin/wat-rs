@@ -1,5 +1,13 @@
 # 293 — the revoke verb + the IPC capability matrix (the revocation proof) (2026-07-08)
 
+> **MOVED (2026-07-08) — this is 170's core deliverable, not 293's.** The revoke verb has landed
+> (`be783977`); the *capability circuit* (grant/revoke + the `Grantable` surface + revoke-at-reap by
+> RAII + the M1–M4 matrix + the firm-boundary invariant) is arc 170's — the program-entry circuit
+> reaching capability-complete form. The live design is
+> **[`../../05/170-program-entry-points/DESIGN-CAPABILITY-CIRCUIT-GRANT-REVOKE.md`](../../05/170-program-entry-points/DESIGN-CAPABILITY-CIRCUIT-GRANT-REVOKE.md)**.
+> 293's charter is struct/record symmetry + the surface machinery; it stays closed on that. Everything
+> below is superseded by the 170 doc — kept for provenance only.
+
 293's final movement: complete the grant/revoke capability layer (the revoke verb, symmetric to the
 landed `grant`), then prove the IPC story rock-solid with a **capability matrix** — a service depping
 a service, a bracket pool commuting with them, grant-on-enter / revoke-at-reap, across thread/process
