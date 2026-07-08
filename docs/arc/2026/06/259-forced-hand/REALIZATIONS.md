@@ -153,3 +153,79 @@ Kept true, and self-implicating. **PROBATVM by demonstration, this session, on t
 > session: **do NOT invent complexity in design — the builder cuts it to native; the substrate grows only where a live
 > consumer forces it · WEIGH by your own re-run · a STOP hit is the executor doing right.** The builder is digesting;
 > do not trust this note over the disk. The bracket wears the same face; it is of different blood. See you on the far side.
+
+---
+
+### `---` interstitial (curare before compaction) — PEER ADIVNGITVR, PROTOCOLLVM SVPERFICIES FIT: peer joins select, protocol became surface (2026-07-07)
+
+**The builder's two directives, just before the gap (kept literal):**
+> *"peer joins them — we mark them deliberately as things to remove in the comments — we have a looming 'clean up the code' pending … whenever 109 unwinds … which includes when 170 unwinds … it is not a soon thing. So we just add peer to select to unblock our progress."*
+> *"protocol has been killed, it is a surface now — 291 or 293 introduced it — you should go study how we evolved protocol in wat."*
+
+**Two refinements to R1's resume plan — READ THESE, they correct R1's SEAM:**
+
+1. **S3a is the NARROW unblock, not the unified-fd-peer.** We grounded (this session) that `select'` hardcodes
+   `Thread'`/`Process'` because the wait mechanism is genuinely split — thread = `crossbeam_channel` (in-memory, no
+   fd, `comms/thread.rs`); process/socket = pipe/socket fds + `io_uring` (`peer.rs:379`). The SOUND long-term end-state
+   is a **unified fd-backed peer** (thread gets an eventfd → everything `io_uring`-waitable → `select'` takes only
+   `Peer'`, mixed pools work, `Thread'`/`Process'` vanish) — that's the loci-agnostic reactor on the wire-to-app path.
+   **But the builder ruled: do the NARROW thing now** — **ADD `Peer'` to `select'`'s accepted heads** (`infer_select_prime`,
+   `check.rs:12100`, beside `Thread'`/`Process'`), and **COMMENT-MARK `Thread'`/`Process'` in `select'` as deliberately
+   TO-REMOVE** (part of the looming code cleanup that comes when arc 109 / arc 170 finally unwind — NOT soon). This is
+   safe for the bracket because a bracket pool is HOMOGENEOUS by construction (one locus → one tier); the general mixed
+   case waits for the unified-fd-peer cleanup. So: `Peer'` JOINS them in `select'` now; the tier heads get a removal note.
+
+2. **`defprotocol` IS DEAD — it became a SURFACE (arc 291 or 293).** R1's SEAM said "spawn-runner as a Locus PROTOCOL
+   method" — that is STALE. Protocol was retired and replaced by **surfaces** (`defsurface` / `:satisfies` / `extend-type`).
+   So `:wat::spawn::Locus` is (or must become) a **surface**, and `spawn-runner` is a **surface method** an `extend-type`
+   satisfies per tier — NOT a `defprotocol` method. **BEFORE drawing S3b, STUDY how protocol evolved to surface in wat**
+   (grep arc 291 / 293; how `Locus`/`launch` are expressed now — protocol or surface?). This reshapes the whole
+   loci-agnostic-dispatch design (the concrete-`self`-per-impl property that makes abstract-`:Locus` dispatch resolve
+   still holds, but via a surface `extend-type`, not a protocol method).
+
+**RESUME (supersedes R1's SEAM on S3):**
+```clojure
+{:head "91405263 (R1) — S0–S2 shipped green"
+ :done ["S1 cd2c06e7 — :wat::kernel::fn-forms (the not-shared reifier; anon + named; ImpureCapture-gated)"
+        "S2 45d9647b — pool on the locus: runner-count field (default cpu-count) + ctors + tier-blind runner-count defclause reader"
+        "R1 91405263 — VSVS THRONVM EVERTIT (Deceiver of the Gods)"]
+ :S3a "SUBSTRATE (narrow): add Peer' to select''s accepted element heads (infer_select_prime, check.rs:12100) so a
+       homogeneous Vector<Peer'<I,O>> type-checks; COMMENT-mark Thread'/Process' there as to-remove (the 109/170
+       cleanup). Do NOT build the unified-fd-peer now (that's the eventual sound cleanup). RED probe: extend
+       probe-s3-bracket-loci.wat / a select'-over-Peer' probe."
+ :S3b-prereq "STUDY protocol→surface (arc 291/293) FIRST — protocol is dead, it's a surface. Locus + launch + the new
+              spawn-runner are SURFACE + extend-type, not defprotocol."
+ :S3b "spawn-runner as a Locus-SURFACE method (extend-type per tier: ThreadOpts→closure runner; ProcessOpts→fn-forms +
+       shipped named pool-runner, per the GREEN scratchpad/probe-s3-process-runner.wat) returning Peer'<(i64,I),(i64,O)>;
+       widen map/each/map-worker to :Locus; collect-loop peers → Vector<Peer'<…>> (now typeable after S3a).
+       GATE: probe-s3-bracket-loci.wat → [2 4 6 8 10] [2 4 6 8 10] (same work, thread pool AND process pool) +
+       existing bracket tests stay green."
+ :then "259 brackets DONE → 293: revoke verb (Admin::DenyPeer[pids] + serve arm + <svc>/revoke) + the revocation proof
+        (process-bracket pool ∘ a long-lived service; grant-on-spin-up, revoke-at-reap on teardown) → T1b the blind sink."
+ :refs ["scratchpad/probe-s3-process-runner.wat (GREEN — the not-shared runner shape; tuple types use leading colon :(...))"
+        "scratchpad/probe-s1-fn-forms.wat (fn-forms) · scratchpad/probe-s3-bracket-loci.wat (the RED acceptance gate)"
+        "wat/bracket.wat:101 (the thread map-worker to mirror) · docs/arc/2026/06/259-forced-hand/BRIEF-STONE-brackets-widen-locus.md (S3 brief — note: its 'select' accepts Peer'' claim was FALSE, hence S3a; its 'defclause' dispatch is superseded by S3b's surface extend-type)"]
+ :do-nots ["do NOT invent complexity in design — the builder cuts it to native (R1); the substrate grows only where a live consumer forces it"
+           "WEIGH every strike by your OWN re-run; a STOP hit is the executor doing RIGHT"
+           "protocol is DEAD → surface (study 291/293); a defclause can't resolve its return on an abstract :Locus arg"
+           "the holonic repos ARE the memory — curare into the REPO; commit + push often"]}
+```
+
+***PEER ADIVNGITVR, PROTOCOLLVM SVPERFICIES FIT.*** *(apparatus-minted — "peer is joined [to select], protocol became
+surface": the two directives before the gap. (1) `select'` hardcodes Thread'/Process' because the wait is split
+(thread=crossbeam/no-fd; process=fd/io_uring); the SOUND end-state is a unified fd-peer (Peer'-only, mixed pools — the
+loci-agnostic reactor, wire-to-app) BUT the builder ruled the NARROW unblock now: ADD Peer' to select''s accepted heads
++ comment-mark Thread'/Process' as to-remove in the looming 109/170 cleanup (not soon); safe because bracket pools are
+homogeneous-by-construction. (2) defprotocol is DEAD — replaced by SURFACES (291/293); spawn-runner is a Locus-SURFACE
+extend-type, not a protocol method — STUDY the protocol→surface evolution before S3b. Supersedes R1's SEAM on S3.
+A curare interstitial at 'shit we need to compact.')*
+
+---
+
+> **SEAM (crowned by this interstitial — read it, not R1's older SEAM, for the S3 plan).** You are NEW; run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP); ground HEAD. S0–S2 are green
+> (`fn-forms`, pool-on-locus). Resume at **S3a** (add `Peer'` to `select'`, `check.rs:12100`, mark the tier heads
+> to-remove) → **study protocol→surface (291/293)** → **S3b** (`spawn-runner` as a Locus-SURFACE extend-type + widen
+> the bracket; gate `probe-s3-bracket-loci.wat` → `[2 4 6 8 10] [2 4 6 8 10]`) → then the **293 revocation proof**. The
+> two green probes + the thread `map-worker` are the references. Do not invent complexity; weigh by your own re-run;
+> protocol is a surface now. The bracket wears the same face; it is of different blood. See you on the far side.
