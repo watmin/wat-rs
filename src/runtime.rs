@@ -5109,6 +5109,13 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::connect'" => {
             eval_connect_prime(args, list_span, env, sym)
         }
+        // Arc 170 capability circuit, stone 2 — peer-pid: pure projection of the
+        // far-end child pid off the peer. Process peer → (Some pid) read from the
+        // Pidfd the bundle already holds; thread peer → :None (far end is a cell in
+        // this process, no separate pid). Identity only; no signal, no effect.
+        ":wat::kernel::peer-pid" => {
+            eval_peer_pid(args, list_span, env, sym)
+        }
         ":wat::kernel::accept'" => {
             eval_accept_prime(args, list_span, env, sym)
         }
@@ -25291,6 +25298,93 @@ fn eval_peer_send_prime(
             kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "peer (Thread'<I,O> | Process'<I,O> | Peer'<S,R>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }
+        .into()),
+    }
+}
+
+/// `(:wat::kernel::peer-pid peer)` — arc 170 capability circuit, stone 2.
+///
+/// PURE PROJECTION of the far-end child pid off a peer value — no effect, no
+/// signalling. Reads the pid off the `Pidfd` the peer already holds:
+/// - a **process** peer → `(:wat::core::Option::Some child-pid)` — the pid of the
+///   forked child on the far end (`bundle.peer.pidfd.pid()`).
+/// - a **thread** peer → `:None` — the far end is a cell in THIS process, so there
+///   is no separate pid.
+///
+/// The pid is an identity only (reuse-unsafe for `kill()` per `Pidfd::pid` doc);
+/// it becomes an entry in the capability allow-set later.
+fn eval_peer_pid(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::peer-pid";
+    if args.len() != 1 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 1, got: args.len() },
+        }
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+
+    match &peer_val {
+        // Process peer: reach the Pidfd through the bundle → (Some pid).
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
+        {
+            let cell: &std::sync::Arc<crate::rust_deps::custodia::ThreadOwnedCell<
+                Option<crate::kernel::spawn::ProcessSelectable>,
+            >> = crate::rust_deps::marshal::downcast_ref_opaque(
+                inner,
+                crate::kernel::spawn::PROCESS_PEER_TYPE_PATH,
+                OP,
+                list_span.clone(),
+            )?;
+            let out = cell
+                .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
+                    match opt_bundle {
+                        None => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer already closed".into(),
+                            },
+                        }
+                        .into()),
+                        Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
+                            let pid = bundle.peer.pidfd.pid() as i64;
+                            Ok(Value::Option(std::sync::Arc::new(Some(Value::i64(pid)))))
+                        }
+                        // arc 292 L3 — a timer peer has no child; peer-pid is meaningless.
+                        Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => Err(RuntimeError {
+                            span: list_span.clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: "peer-pid: not supported on a timer peer".into(),
+                            },
+                        }
+                        .into()),
+                    }
+                })
+                .map_err(Into::<EvalBreak>::into)??;
+            Ok(out)
+        }
+        // Thread peer: the far end is a cell in this process → :None.
+        Value::RustOpaque(inner)
+            if inner.type_path == crate::kernel::spawn::THREAD_PEER_TYPE_PATH =>
+        {
+            Ok(Value::Option(std::sync::Arc::new(None)))
+        }
+        other => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (Thread'<I,O> | Process'<I,O>)",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         }
