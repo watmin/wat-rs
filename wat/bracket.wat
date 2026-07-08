@@ -16,6 +16,18 @@
 ;; No explicit termination condition is needed; the channel drain IS the signal.
 ;;
 ;; Loads AFTER wat/spawn.wat (uses :wat::kernel::Peer', recv', send').
+;;
+;; ── Rendezvous convention ───────────────────────────────────────────────────
+;;
+;; `:user::` is the RENDEZVOUS NAMESPACE — the known-location coordinates where
+;; a program exposes what a substrate consumer looks up.  Not private/internal
+;; space; a rendezvous space.  `:user::main` is wat-program's coordinate (the
+;; kernel-required entry, `[] -> :nil`).  Bracket installs a second one:
+;; `:user::bracket::work-fn` — the work function a process-pool child's
+;; baked runner (`:wat::bracket::process-runner<I,O>` below) applies.  The
+;; runner itself is baked/reserved (never shipped); the child's user.program
+;; only ever ships the user's own work-fn, reified at this coordinate, plus a
+;; generated `:user::main` that passes the coordinate's value into the runner.
 
 (:wat::core::defn :wat::bracket::runner-loop<I,O>
   [self    <- :wat::kernel::ThreadSelfPeer'<O,I>
@@ -24,6 +36,115 @@
   (:wat::core::let [item (:wat::kernel::recv' self)
                     _    (:wat::kernel::send' self (work-fn item))]
     (:wat::bracket::runner-loop self work-fn)))
+
+;; ── process-runner — the BAKED, reserved process-pool runner (259 S3c) ───────
+;;
+;; Generic index-wrapping runner for the process (not-shared) locus tier: recv
+;; (idx,I) → work-fn item → send (idx,O), tail-recursing forever.  Established
+;; in the child's phase-one stdlib load — privileged, reserved, zero user
+;; input.  A user can never allocate it (`:wat::` is undefinable anywhere) and
+;; it is never shipped, so nothing can collide with it.  The work-fn is taken
+;; as a VALUE (not referenced by name) so the runner stays generic/baked with
+;; no stdlib -> user.program forward reference; the process arm's spawn-runner
+;; ships only the work-fn (at the :user::bracket::work-fn rendezvous
+;; coordinate) and a generated :user::main that passes it in here.
+(:wat::core::defn :wat::bracket::process-runner<I,O>
+  [self    <- :wat::kernel::Peer'<(wat::core::i64,O),(wat::core::i64,I)>
+   work-fn <- :wat::core::Fn(I)->O]
+  -> :wat::core::nil
+  (:wat::core::let
+    [pair (:wat::kernel::recv' self)
+     out  (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))
+     _    (:wat::kernel::send' self out)]
+    (:wat::bracket::process-runner self work-fn)))
+
+;; ── spawn-runner — the per-tier runner spawn, lifted onto the :Locus surface ──
+;;
+;; The bracket coordinator (map-worker) is now loci-agnostic: it holds an abstract
+;; :wat::spawn::Locus and calls (spawn-runner locus work-fn) once per pool tier.
+;; The RAW work fn Fn(I)->O is passed — NOT an index-wrapping closure. Each tier
+;; does its own index-wrapping over the raw fn:
+;;
+;;   THREAD (shared memory): build the (idx,I)->(idx,O) wrapper inline as a thread
+;;   closure (captures work-fn freely — no reification), run runner-loop on it.
+;;
+;;   PROCESS (not-shared): fn-forms the RAW work-fn (top-level, no captured fn —
+;;   the one shape fn-forms/closure_extract slice-1 CAN reify) into :__pool-work,
+;;   then ship a NAMED index-wrapping pool-runner as source (the defservice fork
+;;   trick). Mirrors scratchpad/probe-s3-process-runner.wat.
+;;
+;; Both return :wat::kernel::Peer'<(i64,I),(i64,O)> so collect-loop drains a
+;; uniform Vector<Peer'<…>> (select' accepts Peer' as of S3a).
+
+(:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
+  (spawn-runner [self work-fn]
+    (:wat::kernel::spawn-program' self
+      (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,O),(wat::core::i64,I)>] -> :wat::core::nil
+        (:wat::bracket::runner-loop sp
+          (:wat::core::fn [pair <- :(wat::core::i64,I)] -> :(wat::core::i64,O)
+            (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))))))))
+
+;; The PROCESS arm (not-shared) — bakes the runner, ships only the user's code
+;; (259 S3c; supersedes the S3b shipped-runner shape).
+;;
+;; The runner is BAKED (`:wat::bracket::process-runner<I,O>` above) — nothing
+;; reserved is shipped, so the `ReservedPrefix` problem S3b fought (an
+;; un-squattable shipped name has nowhere safe to live in `:wat::`) is simply
+;; gone.  We ship only: the user's work-fn, reified at the rendezvous
+;; coordinate `:user::bracket::work-fn` (fn-forms), plus a generated
+;; `:user::main` that calls the baked runner, passing that coordinate's VALUE
+;; in (the runner is baked, so `:user::main` passes the value — it cannot look
+;; the coordinate up from stdlib; that would be a stdlib -> user.program
+;; forward reference the resolver rejects).
+;;
+;; `:user::main`'s `self-peer` call still needs CONCRETE peer types — a
+;; generic runtime method can't monomorphize spawn-runner's `:I`/`:O`
+;; type-params into shipped `forms` (they'd land literal and unbound in the
+;; child universe). So we DERIVE the concrete arg/return types off the
+;; reified work-fn: `fn-forms` emits a `(def :user::bracket::work-fn (fn [n <-
+;; :ArgT] -> :RetT …))` whose ArgT/RetT are literal AST nodes. We AST-walk
+;; them out (def → fn → argspec[after <-] + [after ->]), build the concrete
+;; tuple-type keywords via `keyword-node`, and splice them into the shipped
+;; `self-peer` tuple types via quasiquote.  The generic baked runner itself
+;; needs no concrete types (it monomorphizes at the call).
+;;
+;; The fn-forms bind-name is a COMPUTED keyword (not a source literal): a
+;; literal `:user::bracket::work-fn` here would, when the child re-typechecks
+;; THIS file with that name shipped-as-a-def, resolve to the shipped fn (a Fn,
+;; not a keyword) and fail fn-forms' `name` param. A computed keyword is
+;; unresolvable at check → safe.
+(:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
+  (spawn-runner [self work-fn]
+    (:wat::core::let
+      [work-name (:wat::core::keyword/from-string "user::bracket::work-fn")
+       forms     (:wat::kernel::fn-forms work-fn work-name)
+       ;; ── derive the concrete arg/return type keywords off the reified work-fn ──
+       def-node  (:wat::core::Option/expect (:wat::core::last forms) "spawn-runner: fn-forms produced no define")
+       fn-form   (:wat::core::first (:wat::core::drop (:wat::core::ast->children def-node) 2))
+       fn-ch     (:wat::core::ast->children fn-form)
+       argspec   (:wat::core::first (:wat::core::drop fn-ch 1))
+       arg-ty    (:wat::core::Option/expect (:wat::core::last (:wat::core::ast->children argspec)) "spawn-runner: work-fn has no arg type")
+       ret-ty    (:wat::core::first (:wat::core::drop fn-ch 3))
+       ;; ast-name → ":wat::core::i64"; strip the leading ':' for the tuple bodies.
+       arg-nm    (:wat::core::ast-name arg-ty)
+       ret-nm    (:wat::core::ast-name ret-ty)
+       arg-t     (:wat::core::string::subs arg-nm 1 (:wat::core::string::length arg-nm))
+       ret-t     (:wat::core::string::subs ret-nm 1 (:wat::core::string::length ret-nm))
+       ;; ── build the CONCRETE self-peer tuple-type keyword nodes (I=arg, O=ret) ──
+       ;; self-peer :(i64,O) :(i64,I) — output tuple first, input tuple second.
+       sp-out    (:wat::core::keyword-node
+                   (:wat::core::string::concat ":(wat::core::i64,"
+                     (:wat::core::string::concat ret-t ")")))
+       sp-in     (:wat::core::keyword-node
+                   (:wat::core::string::concat ":(wat::core::i64,"
+                     (:wat::core::string::concat arg-t ")")))
+       ;; ── generated :user::main — passes the rendezvous work-fn VALUE into the baked runner ──
+       main-def  `(:wat::core::defn :user::main [] -> :wat::core::nil
+                    (:wat::bracket::process-runner
+                      (:wat::program::self-peer ~sp-out ~sp-in)
+                      :user::bracket::work-fn))]
+      (:wat::kernel::spawn-program' self
+        (:wat::core::concat forms (:wat::core::Vector :wat::WatAST main-def))))))
 
 ;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
 ;;
@@ -46,7 +167,7 @@
 ;; assertion-failed! so the failure is visible rather than silently swallowed.
 
 (:wat::core::defn :wat::bracket::collect-loop<I,O>
-  [peers     <- :wat::core::Vector<wat::kernel::Thread'<(wat::core::i64,I),(wat::core::i64,O)>>
+  [peers     <- :wat::core::Vector<wat::kernel::Peer'<(wat::core::i64,I),(wat::core::i64,O)>>
    items     <- :wat::core::Vector<I>
    pairs-acc <- :wat::core::Vector<(wat::core::i64,O)>
    cursor    <- :wat::core::i64
@@ -99,28 +220,22 @@
 ;; (spawn+prime+collect+sort) lives here ONCE; `map` and `each` are thin wrappers.
 
 (:wat::core::defn :wat::bracket::map-worker<I,O>
-  [locus       <- :wat::spawn::ThreadOpts
+  [locus       <- :wat::spawn::Locus
    items       <- :wat::core::Vector<I>
    worker-init <- :wat::core::Fn(wat::core::i64)->wat::core::Fn(I)->O]
   -> :wat::core::Vector<O>
   (:wat::core::let
     [m  (:wat::core::length items)
-     cc (:wat::program::cpu-count)
-     n  (:wat::core::if (:wat::core::< cc m) cc m)
-     ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` (Vector<Thread'<...>> param
+     rc (:wat::spawn::runner-count locus)
+     n  (:wat::core::if (:wat::core::< rc m) rc m)
+     ;; Arc 118.2a — `map` flipped LAZY; `peers` feeds `collect-loop` (Vector<Peer'<...>> param
      ;; — repeatedly `select'`-ed, must be eager) and later `sort-by`, so materialize here.
      peers (:wat::core::mapv
              (:wat::core::fn [i <- :wat::core::i64]
-                 -> :wat::kernel::Thread'<(wat::core::i64,I),(wat::core::i64,O)>
+                 -> :wat::kernel::Peer'<(wat::core::i64,I),(wat::core::i64,O)>
                (:wat::core::let
                  [work-fn (worker-init i)                          ;; per-runner setup, once
-                  wf (:wat::core::fn [pair <- :(wat::core::i64,I)] -> :(wat::core::i64,O)
-                       (:wat::core::Tuple (:wat::core::first pair)
-                         (work-fn (:wat::core::second pair))))
-                  p (:wat::kernel::spawn-program' locus
-                       (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,O),(wat::core::i64,I)>]
-                           -> :wat::core::nil
-                         (:wat::bracket::runner-loop self wf)))
+                  p (:wat::spawn::Locus/spawn-runner locus work-fn)
                   _ (:wat::kernel::send' p (:wat::core::Tuple i (:wat::core::nth items i)))]
                  p))
              (:wat::core::range 0 n))
@@ -142,7 +257,7 @@
 ;; shared work-fn.  The coordinator (spawn+prime+collect+sort) lives in map-worker.
 
 (:wat::core::defn :wat::bracket::map<I,O>
-  [locus   <- :wat::spawn::ThreadOpts
+  [locus   <- :wat::spawn::Locus
    items   <- :wat::core::Vector<I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::Vector<O>
@@ -156,7 +271,7 @@
 ;; item through the pool, then return nil.
 
 (:wat::core::defn :wat::bracket::each-worker<I,O>
-  [locus       <- :wat::spawn::ThreadOpts
+  [locus       <- :wat::spawn::Locus
    items       <- :wat::core::Vector<I>
    worker-init <- :wat::core::Fn(wat::core::i64)->wat::core::Fn(I)->O]
   -> :wat::core::nil
@@ -167,7 +282,7 @@
 ;; Passes a constant `worker-init` that ignores the runner id.
 
 (:wat::core::defn :wat::bracket::each<I,O>
-  [locus   <- :wat::spawn::ThreadOpts
+  [locus   <- :wat::spawn::Locus
    items   <- :wat::core::Vector<I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil

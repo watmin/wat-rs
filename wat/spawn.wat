@@ -265,7 +265,10 @@
                           init          <- :wat::core::keyword
                           serve         <- :wat::core::keyword
                           service-forms <- :wat::core::Vector<wat::WatAST>
-                          lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R,Sh,Lu>)])
+                          lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R,Sh,Lu>)
+   (spawn-runner<I,O> [self    <- :wat::spawn::Locus
+                       work-fn <- :wat::core::Fn(I)->O]
+     -> :wat::kernel::Peer'<(wat::core::i64,I),(wat::core::i64,O)>)])
 
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).

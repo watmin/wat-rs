@@ -15,5 +15,5 @@
      pr (:wat::bracket::map (:wat::spawn::process/runner-count 2) nums :my::double)]
     (:wat::kernel::println
       (:wat::core::string::concat
-        (:wat::core::edn::write tr)
-        (:wat::core::string::concat " " (:wat::core::edn::write pr))))))  ;; expect [2 4 6 8 10] [2 4 6 8 10]
+        (:wat::edn::write tr)
+        (:wat::core::string::concat " " (:wat::edn::write pr))))))  ;; expect [2 4 6 8 10] [2 4 6 8 10]
