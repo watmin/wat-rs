@@ -78,60 +78,71 @@ The answer is the services-as-surfaces pattern applied to the capability itself:
 
 - **`:wat::service::Grantable`** — a surface, `:nature :wat::core::Struct` (a `Handle` holds the
   owner-only admin peer, a live resource → it *stays home*, never crosses to a worker; circuit-law-clean).
-  Members: `grant [self, pids <- (Vector i64)] -> GrantGuard` and `revoke [self, pids] -> nil`.
+  Members: `grant [self, pids <- (Vector i64)] -> nil` and `revoke [self, pids] -> nil` (both plain
+  ack'd request/reply — the owner blocks on `PeersAllowed` / `PeersDenied`; zero fire-and-forget).
 - The `defservice` macro emits, for every service, `extend-type <fqdn>::Handle :wat::service::Grantable`
   routing to the `<fqdn>/grant` / `<fqdn>/revoke` methods we already landed.
 - `:grants` is then typed `(Vector :wat::service::Grantable)` — `[store-h cache-h]` reads exactly as the
   builder wanted, and it can't drift (structural satisfaction, checked; 278 R38 — the one interface model).
 
-### Crux 2 — revoke-at-reap is bound by **RAII**, because RAII is the only panic-safe home
+### Crux 2 — the bracket owns grant AND revoke, in its own wat control flow (NOT a Rust `Drop`)
 
-`grant` returns a **`GrantGuard`** — a Rust-`Drop`-backed wat value (the codebase's own guard idiom,
-`EnvGuard`/`SelfPeerGuard`/`FrameGuard`) whose `Drop` fires the revoke. The pool holds each worker's
-guard alongside its peer; they drop together at scope exit **or panic-unwind** → automatic revoke-at-reap.
+**Grants are done in wat; there is no reason to offload revocation to Rust.** The bracket controls its
+whole scope, so it knows exactly when to revoke — after `collect-loop` drains the mapped values, before
+it returns them:
 
-**Why RAII and not an explicit wat-level revoke — the sharp reason, grounded:** the reap is
-`ChildHandle::Drop` (`src/process/handle.rs:128`), **pidfd-based, PID-reuse-safe** (`handle.rs:26-27,95`):
-the worker's pid is *pinned un-recyclable until the owner reaps it*. An explicit wat revoke (revoke after
-the drain, before return) would be **skipped on panic** — the worker peers still drop-and-reap, the pid
-un-pins and becomes recyclable, but the service's allow-set still holds it → a freshly-recycled unrelated
-process could dial the service. RAII closes that hole: the `GrantGuard::Drop` fires the revoke even when
-the body panics.
+```
+boot     → grant  each worker's pid to each :grants Grantable   (wat, ack'd request/reply)
+work     → runners run; collect-loop drains the M mapped values
+shutdown → revoke each worker's pid from each Grantable          (wat, ack'd request/reply)
+return   → hand back the mapped vals
+```
 
-**The residual the 293 design flagged is already handled** by the same pidfd machinery:
-- *"a granted child must not reparent to init"* — the bracket **joins its workers at scope exit**, so the
-  owner always outlives them (no reparent), AND the owner holds the pidfd so *it* reaps (not init). The
-  pinned pid is the zero-recycle-window guarantee, for free. M1 still **verifies** it (`PPID == owner`).
+The bracket owns **both** ends, so a grant it doesn't revoke cannot exist — *that* is the RAII, made of
+the bracket's own control flow, not a guard type. "Thread the items around" is literal: thread
+`(grantables, worker-pids)` from spawn to the revoke step; the pids are captured at spawn (the
+process-locus `post-spawn-fn` / `ProcessLaunch/pid`). `grant`/`revoke` stay plain ack'd request/reply —
+**zero fire-and-forget, zero Rust `Drop`, no `GrantGuard`.**
 
-**The one sharp edge the strike must nail (not hand-wave):** drop ordering. The `GrantGuard`'s revoke
-must *land* (allow-set mutated) **before** the `ChildHandle` un-pins the pid. Both are Rust `Drop`s in
-the same scope (reverse-declaration order), so the guard is ordered to drop-and-revoke before the handle
-reaps; a disconfirming probe forces the reap and asserts a post-reap dial from a recycled-pid stand-in is
-refused. (`GrantGuard::Drop` fires the revoke as a send on the admin peer; whether it must block on
-`PeersDenied` or may fire-and-forget-then-the-ordering-carries-it is a strike decision — request/reply is
-the default, `Drop` permitting.)
+**Why NOT a Rust-`Drop` guard (the four-questions killed it, 2026-07-08).** A `Drop` cannot fail. A
+request/reply revoke performed in `Drop` therefore either hangs (no ack ever comes) or *swallows* the
+failure — a **hidden fire-and-forget-on-error**, which is exactly what "wat has zero fire-and-forget"
+forbids. And grounded: every Drop guard in the codebase (`EnvGuard`, `SelfPeerGuard`, `ChildHandle`) is
+pure-Rust, non-blocking, best-effort cleanup — none re-enters the interpreter, none blocks on an ack. A
+blocking, failure-reporting revoke has no honest home in `Drop`. So the revoke lives in the bracket's
+normal wat flow, where it can block on the ack and report failure like every other wat call.
+
+**Panic-safety is structural (tear-down-together), not a `Drop`.** If a runner crashes, `collect-loop`
+`assertion-failed!` propagates → `:user::main` unwinds → the `ProcessRuntime` / `ChildHandle` teardown
+reaps the **services too** (`SIGKILL` via pidfd, `handle.rs:128`). Nothing survives holding a stale
+allow-set, so there is no recycled-pid hole to close — the circuit dies whole. We do NOT fake a `finally`
+wat does not have; the happy path revokes explicitly, the crash path tears down together.
+
+**The 293 residual is handled by pidfd** the same way: the bracket joins its workers before scope exit
+(the owner outlives them → no reparent to init; the owner holds the pidfd → it reaps). M1 **verifies**
+`PPID == owner`. The pid is pinned un-recyclable until reap, so the explicit revoke-before-return lands
+inside the pinned window with room to spare.
 
 ## Build order (examinare strikes — each ships a real piece, weighed by own re-run)
 
-1. **`:wat::service::Grantable` surface + macro emission.** The surface (`:nature :Struct`, `grant ->
-   GrantGuard` / `revoke -> nil`) + the `defservice` macro emitting each `<fqdn>::Handle :satisfies` it
-   (routing to the landed grant/revoke). Gate: a probe holds two different services' Handles as
-   `Vector<Grantable>`, grants + revokes uniformly through the surface; floor 0-new; deleting the emitted
-   `:satisfies` is a compile error (coverage). **FIRST — unblocks all.**
-2. **`GrantGuard`.** The Rust-`Drop` value that revokes on drop; `grant` becomes `-> GrantGuard`. Nail the
-   drop-ordering vs `ChildHandle` reap. Gate: the disconfirming probe (force reap → post-reap dial by a
-   recycled-pid stand-in REFUSED); a *dropped-guard* revokes even when the holding scope panics.
-3. **`:grants` on the process-locus + bracket threading.** `(:wat::spawn::process/grants [g…])`
-   (a new `ProcessOpts` builder, parallel to `process/post-spawn`); the bracket grants each worker on
-   spawn (getting guards) and holds them with the peers so they reap together. Thread pool: `:grants` is
-   a no-op / rejected (the firm boundary — thread cells need no grant). Gate: a granted process pool
-   grants-on-enter/revokes-at-reap, differentially indistinguishable from an ungranted pool on the happy
-   path; the guards outlive exactly the workers.
-4. **M1 — the all-process core proof.** The circuit: `:user::main` starts B(proc), starts A(proc) +
+1. **`:wat::service::Grantable` surface + macro emission — ✅ LANDED (`dc2ae7a6`).** The surface
+   (`:nature :Struct`, `grant`/`revoke -> nil`) + the `defservice` macro auto-emitting each
+   `<fqdn>::Handle :satisfies` it (routing to the landed grant/revoke). Proven: a probe holds two
+   different services' Handles as one `Vector<Grantable>` and grant/revoke's uniformly; floor 0-new.
+2. **`:grants` on the process-locus + the bracket's grant-boot / revoke-shutdown.**
+   `(:wat::spawn::process/grants [g…])` — a new `ProcessOpts` builder, parallel to `process/post-spawn`,
+   carrying `(Vector :wat::service::Grantable)`. The bracket, in its OWN wat flow: grants each worker's
+   pid to each Grantable at spawn (capturing the pids), runs, drains via `collect-loop`, then revokes each
+   captured pid from each Grantable **after the drain, before returning** the mapped vals. Thread pool:
+   `:grants` is a no-op / rejected (the firm boundary — thread cells need no grant). Gate: a granted
+   process pool grants-on-boot / revokes-on-shutdown (both ack'd request/reply), differentially
+   indistinguishable from an ungranted pool on the happy path; a post-drain check confirms the granted
+   pids are gone from the services' allow-sets before the results return.
+3. **M1 — the all-process core proof.** The circuit: `:user::main` starts B(proc), starts A(proc) +
    `store-h(B)/grant [pid_A]` (A deps B — A dials B), spawns a PROCESS bracket pool with `:grants [A]`
-   (grant-on-enter), runs the work (workers→A→B), reaps (revoke-at-reap by RAII). **Prove:** work
-   completes; a post-reap dial by a would-be-recycled pid is refused by the accept-gate; the granted pool
-   child did not reparent (`PPID == owner`). **This is the deterministic refusal proof** the revoke verb's
+   (grant-on-boot), runs the work (workers→A→B), drains + revokes-on-shutdown. **Prove:** work completes;
+   a post-shutdown dial by a would-be-recycled pid is refused by the accept-gate; the granted pool child
+   did not reparent (`PPID == owner`). **This is the deterministic refusal proof** the revoke verb's
    race-probe only previewed.
 
 ## The IPC capability matrix (the honesty IS the proof — from the 293 scout, kept here)
@@ -148,9 +159,11 @@ service — do not build it, do not reintroduce the unified-fd-peer).
 
 ## Out of scope / rejected (affirmative cuts, not deferrals)
 
-- **No fire-and-forget grant/revoke on the request/reply path** (owner blocks until it lands — grant-before-dial
-  ordering; 278 R26). `GrantGuard::Drop` is the only place fire-and-forget is even weighed, and only if the
-  drop-ordering proof shows the send lands before the pid un-pins.
+- **No fire-and-forget, anywhere** (owner blocks on `PeersAllowed`/`PeersDenied`; 278 R26). This is why the
+  revoke is NOT a Rust `Drop`: a `Drop` cannot report failure, so a request/reply revoke in `Drop` is a
+  hidden fire-and-forget-on-error. The revoke lives in the bracket's wat flow, where it blocks + reports.
+- **No `GrantGuard` / no Rust-`Drop` revoke.** Rejected 2026-07-08 (see Crux 2). The bracket owns
+  grant+revoke in its own control flow; panic-safety is structural tear-down-together, not a guard.
 - **No `native?`/mode flag, no marker gates.** A service is loci-agnostic BY NATURE; capability is derived
   (pure/addresses cross, resources stay home — 293.W), never a decoration.
 - **M4 is not built.** The firm boundary is the law, not a gap.
@@ -160,24 +173,31 @@ service — do not build it, do not reintroduce the unified-fd-peer).
 ## RESUME-HERE (curare — 2026-07-08)
 
 ```clojure
-{:head    "be783977 — 293 revoke verb landed + pushed (Admin::DenyPeer/Status::PeersDenied/<fqdn>/revoke)"
+{:head    "dc2ae7a6 — 170 stone 1: the :wat::service::Grantable surface landed + pushed"
  :branch  "arc-170-gap-j-v5-deadlock-state"
  :arc     "170 — the CAPABILITY CIRCUIT (this doc). ~6 weeks in; basically solving 170's core deliverable
            (the program-entry circuit reaching capability-complete form). NOT force-closing here."
  :done    ["services-as-surfaces (293 S1-S4, PROBATVM) · the loci-agnostic bracket (259 S3, d81fd695)"
-           "grant verb (ba107458) + revoke verb (be783977) — weighed green (build clean; probe: echo:hi grant-intact
-            + revoke-midlife-ok; floor 4112 pass / 0 new, the 2 fails are the known no_inlined_wat lint + the known
-            sigterm race confirmed by isolated --test-threads=1 pass; coverage: deleting the DenyPeer serve arm is a
-            non-exhaustive-match compile error across every defservice)"]
- :next    ["1. :wat::service::Grantable surface + defservice macro emits <fqdn>::Handle :satisfies it (grant -> GrantGuard)"
-           "2. GrantGuard — the Rust-Drop revoke-on-drop value; nail drop-ordering vs ChildHandle reap (pidfd)"
-           "3. :grants on the process-locus (process/grants [g…]) + bracket threads guards spawn->reap"
-           "4. M1 — the all-process circuit proof (B<-A, granted process pool, deterministic post-reap-dial REFUSED)"]
+           "grant verb (ba107458) + revoke verb (be783977) — weighed green (probe: echo:hi grant-intact +
+            revoke-midlife-ok; floor 0-new; coverage: deleting the DenyPeer serve arm is a non-exhaustive compile error)"
+           "STONE 1 (dc2ae7a6): :wat::service::Grantable surface (:nature :Struct, grant/revoke -> nil) + the
+            defservice macro auto-emits each <fqdn>::Handle :satisfies it. Weighed green (probe-grantable-emitted.wat:
+            grantable-ok twice, macro-emitted extend-type, two services uniform; floor 4113 pass / 0 new)"]
+ :next    ["STONE 2 (collapsed): :grants on the process-locus (process/grants [Vector<Grantable>]) + the BRACKET's
+            grant-boot / revoke-shutdown IN WAT — grant each worker's pid at spawn (capture pids), drain, then revoke
+            each pid AFTER the drain BEFORE returning the mapped vals. Both ack'd request/reply, zero fire-and-forget,
+            NO Rust Drop, NO GrantGuard. Thread pool: :grants is a no-op/rejected (firm boundary)."
+           "STONE 3 = M1 — the all-process circuit proof (B<-A, granted process pool, deterministic post-shutdown dial
+            REFUSED; PPID == owner)."]
  :do-nots ["the shared/not-shared boundary is FIRM — do NOT reintroduce the unified-fd-peer for M4"
-           "grant is request/reply (owner blocks); GrantGuard::Drop is the only fire-and-forget candidate, gated on the
-            drop-ordering proof (revoke lands before the pid un-pins)"
+           "NO Rust-Drop revoke / NO GrantGuard (four-questions killed it 2026-07-08): a Drop can't report failure, so
+            a request/reply revoke in Drop is a hidden fire-and-forget-on-error. The revoke lives in the bracket's wat
+            flow. Panic-safety is structural tear-down-together, not a Drop. Do NOT fake a wat finally we don't have."
+           "grants are done in WAT, never Rust; grant/revoke are ack'd request/reply (owner blocks); zero fire-and-forget"
            "WEIGH by your OWN re-run; a mid-edit file is a PHANTOM; commit + push often (GitHub = DR)"
-           "cast wards never narrate; four-questions inform every decision; the holonic repos ARE the memory"]}
+           "BRIEF shadowdancers to run `cargo nextest run --release` in the FOREGROUND (the Bash call blocks = the wait);
+            NEVER background-it-and-poll-with-a-bash-loop (a sonnet did that + looped; the builder killed it)"
+           "cast wards never narrate; four-questions inform every decision; the holonic repos ARE the memory (not ~/.claude)"]}
 ```
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the
