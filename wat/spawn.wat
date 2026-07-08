@@ -238,10 +238,10 @@
     prog <- :wat::core::Vector<wat::WatAST>] -> :wat::kernel::Process'<I,O>
     (:wat::kernel::spawn-process' prog (:wat::spawn::ProcessOpts/post-spawn-fn locus) (:wat::spawn::ProcessOpts/env-fn locus) (:wat::spawn::ProcessOpts/max-message-bytes locus))))
 
-;; ── Locus — the locus-agnostic service-launch protocol (arc 209 host-parity-4a) ─
+;; ── Locus — the locus-agnostic service-launch surface (arc 209 host-parity-4a) ─
 ;;
 ;; defservice's `start [locus <- :Locus]` routes the per-tier service launch through
-;; this protocol. `listener'` is locus-blind on its own (its checker accepts an
+;; this surface. `listener'` is locus-blind on its own (its checker accepts an
 ;; abstract :Locus and dispatches the Bound shape on arity; the runtime dispatches
 ;; on the concrete value) — but the PROGRAM handed to spawn-program' is
 ;; shared-vs-not-shared specific: thread captures a closure over the in-memory
@@ -256,15 +256,16 @@
 ;; the impl invokes it tier-neutrally via `apply` — the thread impl captures and
 ;; applies; a future process impl ships forms that apply the same keyword.
 ;; serve's shape: (serve self-peer listener clients state) -> nil.
-(:wat::core::defprotocol :wat::spawn::Locus
+(:wat::core::defsurface :wat::spawn::Locus :nature :wat::core::Struct
   ;; arc 291 3a-ii-β: Lu = the lineage UP type (LineageUp); Sh = the ship/admin DOWN type.
   ;; The returned Launched carries the lineage peer as Peer'<Sh,Lu>.
-  (launch<S,R,St,Sh,Lu> [self          <- :wat::spawn::Locus
-                         ship          <- :Sh
-                         init          <- :wat::core::keyword
-                         serve         <- :wat::core::keyword
-                         service-forms <- :wat::core::Vector<wat::WatAST>
-                         lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R,Sh,Lu>))
+  :features
+  [(launch<S,R,St,Sh,Lu> [self          <- :wat::spawn::Locus
+                          ship          <- :Sh
+                          init          <- :wat::core::keyword
+                          serve         <- :wat::core::keyword
+                          service-forms <- :wat::core::Vector<wat::WatAST>
+                          lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R,Sh,Lu>)])
 
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).
