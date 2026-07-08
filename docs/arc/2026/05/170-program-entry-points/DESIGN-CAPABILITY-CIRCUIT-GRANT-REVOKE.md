@@ -141,9 +141,19 @@ inside the pinned window with room to spare.
 3. **M1 — the all-process core proof.** The circuit: `:user::main` starts B(proc), starts A(proc) +
    `store-h(B)/grant [pid_A]` (A deps B — A dials B), spawns a PROCESS bracket pool with `:grants [A]`
    (grant-on-boot), runs the work (workers→A→B), drains + revokes-on-shutdown. **Prove:** work completes;
-   a post-shutdown dial by a would-be-recycled pid is refused by the accept-gate; the granted pool child
-   did not reparent (`PPID == owner`). **This is the deterministic refusal proof** the revoke verb's
-   race-probe only previewed.
+   the revoke actually **bites** (see the teeth below); the granted pool child did not reparent
+   (`PPID == owner`).
+
+   **The teeth — how we prove refusal HONESTLY (grounded in the arc-272 `OnlyMyPeers` proof precedent, 2026-07-09).**
+   The tempting framing — *"a post-shutdown dial by a would-be-recycled pid is refused"* — is a **dead-end of
+   the exact class arc 272 already examined and declined** (`272/DESIGN-STONE-comms-policy.md:69-88`): you
+   cannot deterministically force pid recycling unprivileged, and staging it would test **the kernel's pid
+   assignment / `SO_PEERCRED` honesty — the trusted axiom the ocap model stands on — not our code.** *"You do
+   not test your axioms"*; the four-questions kill it on **Honest**. So M1 does **not** integration-test
+   recycling. Applying the arc-272 pattern to *revoke*, the honest teeth are three, none testing the kernel:
+   - **Predicate** — `admits` is false for a pid ∉ lineage: **already unit-tested** (`capability/policy.rs::only_my_peers_admits_lineage_and_refuses_everyone_else`). Revoke's refusal *is* this predicate; we do not re-prove it.
+   - **Revoke removes the pid** — after revoke-on-shutdown, the granted pid is gone from A's allow-set (observed via the `PeersDenied` ack + a post-drain check). This is *our* code, and it is what M1 adds.
+   - **Live refusal, same-uid, stageable** — a granted **live prober** dials A (admitted) → owner revokes → the prober re-dials → **bounced at the live accept gate**. The *pid-set-membership twin* of the existing live multi-process test (`tests/services/probe_arc209_c0b3bb_bounced.rs::stranger_is_bounced` — the proven shape to COPY): same uid, real pid, deterministic, unprivileged — **NOT** the declined cross-uid/recycled case. It directly observes the revoke biting (the same live pid crossing admitted→refused across a `deny'`).
 
 ## The IPC capability matrix (the honesty IS the proof — from the 293 scout, kept here)
 
@@ -196,10 +206,17 @@ service — do not build it, do not reintroduce the unified-fd-peer).
   "PROVEN END-TO-END (own re-run): probe-cap2-e2e.wat — a real :probe::echo' Handle in :grants on a PROCESS
    bracket -> [2 4 6 8 10], grant-boot + revoke-shutdown FIRED + ACKed, no crash. floor 4113/1-known/0-new."]
  :next
- ["1. M1 — THE TEETH (the e2e proves grant/revoke FIRE; M1 proves they BITE). A B<-A service circuit, a granted
-      PROCESS bracket pool, and a deterministic proof that a POST-SHUTDOWN dial by a would-be-recycled pid is
-      REFUSED by the accept-gate (OnlyMyPeers, SO_PEERCRED), + verify the granted pool child did not reparent
-      (PPID == owner). This is the core of the M1-M4 matrix (see the matrix + firm-boundary invariant above)."
+ ["1. M1 — THE TEETH (the e2e proves grant/revoke FIRE; M1 proves they BITE). A B<-A service circuit + a granted
+      PROCESS bracket pool. PROVE refusal HONESTLY per the arc-272 precedent (272/DESIGN-STONE-comms-policy.md:69-88;
+      grounded 2026-07-09): do NOT integ-test a 'recycled pid' — that is the declined dead-end class (can't force
+      recycling unprivileged; it tests the KERNEL's SO_PEERCRED/pid-assignment axiom, not us — you don't test your
+      axioms; four-questions kill it on Honest). The honest teeth (none test the kernel): (a) PREDICATE — admits
+      false for pid ∉ lineage, ALREADY unit-tested (policy.rs::only_my_peers_admits_lineage_and_refuses_everyone_else);
+      (b) REVOKE-REMOVES-PID — after revoke-on-shutdown the pid is gone from A's allow-set (PeersDenied ack + post-drain
+      check) — OUR code, what M1 adds; (c) LIVE REFUSAL, same-uid, stageable — a granted LIVE PROBER dials A (admitted)
+      -> owner revokes -> re-dials -> BOUNCED at the live gate; the pid-set-membership twin of the proven
+      tests/services/probe_arc209_c0b3bb_bounced.rs::stranger_is_bounced (COPY it). + PPID == owner (no reparent).
+      Core of the M1-M4 matrix (see the matrix + firm-boundary invariant + build-order item 3 above)."
   "2. The `map` arg-order flip (fn-first, to match core/map): bracket map/each/map-worker/each-worker are
       [locus items work-fn] (Ruby's Parallel order); core/map is (map f coll). Flip to [locus work-fn items].
       Blast radius = 11 callers (tests/kernel/*.wat + wat-tests/bracket.wat) + the 259 docs + scratchpad probes.
