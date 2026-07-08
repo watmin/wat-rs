@@ -1,0 +1,44 @@
+;; probe-s3-process-runner.wat — the NOT-SHARED runner the widened bracket (S3) will use.
+;;
+;; Proves: only the user WORK-FN is reified via fn-forms; the pool-runner (recv (i,item) →
+;; send (i, work item) → loop) is a NAMED defn shipped as source (like defservice's serve) —
+;; no recursive-closure reification. The parent-side Process' type is pinned by a typed context
+;; (a fn param here; the bracket's generic peers-vector element type in real use — same as how
+;; defservice pins its Process' through Launched<S,R>). Index-carrying (idx,value) pairs.
+;;
+;; EXPECT "6 10".
+
+;; typed drain: the param pins the Process' I/O (parent sends (idx,I), recvs (idx,O)); I=O=i64.
+(:wat::core::defn :probe::drain
+  [w <- :wat::kernel::Process'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+  -> :wat::core::nil
+  (:wat::core::let
+    [_ (:wat::kernel::send' w (:wat::core::Tuple 0 3))
+     _ (:wat::kernel::send' w (:wat::core::Tuple 1 5))
+     a (:wat::kernel::recv' w)
+     b (:wat::kernel::recv' w)]
+    (:wat::kernel::println
+      (:wat::core::string::concat
+        (:wat::core::i64::to-string (:wat::core::second a))
+        (:wat::core::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+     w (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::concat
+           (:wat::kernel::fn-forms work :bracket::__work)
+           (:wat::core::forms
+             (:wat::core::defn :bracket::pool-runner
+               [self <- :wat::kernel::Peer'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+               -> :wat::core::nil
+               (:wat::core::let
+                 [pair (:wat::kernel::recv' self)
+                  out  (:wat::core::Tuple (:wat::core::first pair)
+                                          (:bracket::__work (:wat::core::second pair)))
+                  _    (:wat::kernel::send' self out)]
+                 (:bracket::pool-runner self)))
+             (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:bracket::pool-runner
+                 (:wat::program::self-peer :(wat::core::i64,wat::core::i64) :(wat::core::i64,wat::core::i64)))))))]
+    (:probe::drain w)))
