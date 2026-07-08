@@ -46,9 +46,16 @@ uses (PID-reuse-safe). So we don't reshape a surface — we read what's already 
 
 ```clojure
 (:wat::kernel::peer-pid p) -> (:wat::core::Option :wat::core::i64)
-;;   process peer (far end is a forked child) -> (:Some child-pid)   ; kernel-vouched, from the Pidfd
-;;   thread  peer (far end is a cell in-proc)  -> :None               ; no separate process
+;;   (Some child-pid)  IFF the far end is a PROCESS locus (kernel-vouched, from the Pidfd)
+;;   :None             for EVERY other locus — pid is a process-locus attribute, exclusively:
+;;                       thread  (far end is a cell in THIS process — no separate pid)
+;;                       remote  (tier 3, another host — no local pid; pids don't cross hosts)
 ```
+
+**`pid` is a process-locus attribute, exclusively** (builder, 2026-07-09) — so `:None` is the general
+"not a process far end" answer, NOT thread-specific. The code uses explicit per-kind arms (`Process'` →
+`Some`, `Thread'` → `:None`), so the future **remote** locus slots in as one more arm (`Remote'` → `:None`),
+never a special case. The `Option` was already the future-proof shape for exactly this.
 
 - **Name `peer-pid`, no trailing `'`** — intueri-cast (`scratchpad/peer-pid-accessor-naming.wat`), weighed,
   and the builder's cut ratified over the ward's `far-pid` verdict (2026-07-09): the fn *takes a peer*, so
@@ -68,6 +75,18 @@ uses (PID-reuse-safe). So we don't reshape a surface — we read what's already 
 **Rust touch (small):** a `:wat::kernel::peer-pid` kernel fn — downcast the peer opaque; process bundle →
 `(:Some pidfd.pid())`; thread peer opaque → `:None`. No return-type changes to `spawn_process_peer` /
 `spawn-program'`.
+
+**GROUNDED FINDING (strike A, 2026-07-09) — peer-pid is for SPAWN-derived peers only.** The `Pidfd` lives
+only on a **spawn-derived** peer: `spawn-runner`/`spawn-program'` → `spawn_process_peer` → a `Process'`
+opaque (`PROCESS_PEER_TYPE_PATH`, `spawn.rs:887`) holding the `Pidfd`. A **`connect'`-derived** peer is a
+*unified* `Peer'` (`PEER_TYPE_PATH`, `peer.rs:206-211` = `{tx, rx}`) that carries **no pid** — the dialing
+side never receives the child's `Pidfd` (only `SO_PEERCRED` could recover it, a different mechanism). So
+`peer-pid`: `Process'` → `(Some pid)`, `Thread'` → `:None`, a unified `Peer'` → **an honest error** (a
+socket `Peer'` *has* a far process, so `:None` would lie). **This is exactly right for the bracket**, whose
+worker peers are `spawn-runner` results = `Process'`/`Thread'`, never `connect'`-derived. Verified by own
+re-run: `(peer-pid (spawn-runner (process) f))` → `(:Some 1796255)`; `(peer-pid (spawn-runner (thread) f))`
+→ `:None`. (The stone-1 disconfirming probe initially tested a `connect'`-peer — the wrong kind; the
+shadowdancer correctly STOPPED rather than hack the sketch. The gate probe targets `spawn-runner` peers.)
 
 ## The strike (the rooms, read in order)
 
