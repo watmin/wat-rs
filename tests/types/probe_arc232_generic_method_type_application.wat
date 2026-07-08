@@ -2,8 +2,8 @@
 ;;
 ;; Arc 232 follow-on (6b-ii-β) — generic-method TYPE-ARGUMENT APPLICATION.
 
-(:wat::core::defprotocol :user::Mk
-  (mk<S,R> [self <- :user::Mk] -> :wat::spawn::Bound<S,R>))
+(:wat::core::defsurface :user::Mk :nature :wat::core::Struct
+  :features [(mk<S,R> [self <- :user::Mk] -> :wat::spawn::Bound<S,R>)])
 
 (:wat::core::extend-type :wat::spawn::ThreadOpts :user::Mk
   (mk [self] (:wat::kernel::listener' self :S :R)))

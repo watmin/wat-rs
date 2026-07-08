@@ -1,4 +1,4 @@
-//! Arc 271 — MULTI-type-param generic protocol methods (`method<S,R>` in defprotocol).
+//! Arc 271 — MULTI-type-param generic surface methods (`method<S,R>` in defsurface).
 //!
 //! arc-232 / probe_arc232_generic_method shipped SINGLE-param generic methods (`make<T>`). A method
 //! with TWO type params — `combine<A,B>` — does not parse: the method name is a bare Symbol, and
