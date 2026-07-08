@@ -80,7 +80,14 @@
                              ;; Arc 293.2-parity — structtype is the low-level primitive defstruct (macro) expands to.
                              ":wat::core::structtype"
                              ":wat::core::newtype"
-                             ":wat::core::extend-type"
+                             ;; NOTE: :wat::core::extend-type is intentionally NOT a def-head.
+                             ;; Its child[1] is the type being EXTENDED (a REFERENCE, defined by
+                             ;; defstruct/defrecord elsewhere), not a def-site. Treating it as a
+                             ;; def-head recorded a phantom def-site and mis-flagged cross-file
+                             ;; extend-types (target in an earlier-loading file) as forward-refs.
+                             ;; Omitting it makes extend-type a pure consumer: def-form? is false,
+                             ;; so collect-form-refs gathers ALL children (target + surface + body)
+                             ;; as references and no def-site is recorded.
                              ":wat::core::derive"
                              ":wat::core::recordtype"
                              ;; Arc 293 decl-a — ONE type-reg primitive; nature derived from parent root.
