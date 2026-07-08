@@ -579,6 +579,17 @@
      ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
      allow-acc-sym (:wat::core::symbol-node "acc")
      allow-pid-sym (:wat::core::symbol-node "pid")
+     ;; arc 293: Admin::DenyPeer[pids] — mirror of AllowPeer, owner revokes a vec of caller
+     ;; pids from the callee's process-tier accept-gate. Status::PeersDenied is the
+     ;; request/reply ack — the owner blocks on it so the revoke is applied before it returns.
+     admin-deny-peer-kw (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{fqdn-str}::Admin::DenyPeer" :fqdn-str fqdn-str))
+     status-peers-denied-kw (:wat::core::keyword/from-string
+                              (:wat::core::string::interpolate "{fqdn-str}::Status::PeersDenied" :fqdn-str fqdn-str))
+     ;; arc 293: fold binders for the serve DenyPeer arm's (deny' l pid) sweep — synthetic
+     ;; fn binders introduced in the serve template → symbol-node + unquote for hygiene.
+     deny-acc-sym (:wat::core::symbol-node "acc")
+     deny-pid-sym (:wat::core::symbol-node "pid")
      dispatch-admin-name-str (:wat::core::string::interpolate "{fqdn-str}::dispatch-admin" :fqdn-str fqdn-str)
      dispatch-admin-name (:wat::core::keyword/from-string dispatch-admin-name-str)
      extract-addr-name-str (:wat::core::string::interpolate "{fqdn-str}::extract-addr" :fqdn-str fqdn-str)
@@ -593,19 +604,23 @@
      ;;   Init (startup seed), Stop (unit), Hibernate (unit), Resume (snapshot).
      ;;   Init and Resume both carry ::Record (not ::State — structs never cross the wire).
      ;; arc 278: Admin::AllowPeer[pids] — a vec of caller pids to grant to the accept-gate.
+     ;; arc 293: Admin::DenyPeer[pids] — mirror, a vec of caller pids to revoke from it.
      admin-enum-def `(:wat::core::defenum ~admin-ty :wat::enum::Pure
                        :Init     ~init-params-vec
                        :Stop
                        :Hibernate
                        :Resume   ~init-params-vec
-                       :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)])
+                       :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)]
+                       :DenyPeer [pids <- (:wat::core::Vector :wat::core::i64)])
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
      ;; arc 278: Status::PeersAllowed (unit) — the AllowPeer request/reply ack.
+     ;; arc 293: Status::PeersDenied (unit) — the DenyPeer request/reply ack.
      status-enum-def `(:wat::core::defenum ~status-ty :wat::enum::Pure
                              :Started   [addr     <- ~addr-ty]
                              :Stopped     [resp     <- ~resp-ty]
                              :Hibernated [snapshot <- ~record-ty]
-                             :PeersAllowed)
+                             :PeersAllowed
+                             :PeersDenied)
 
      ;; ── arc 291 3a-ii-α: dispatch-admin defn ────────────────────────────────
      ;; fn [ai <- Admin] -> State
@@ -636,6 +651,11 @@
                               ((~admin-allow-peer-kw pids)
                                 (:wat::kernel::assertion-failed!
                                   "defservice dispatch-admin: AllowPeer received before Init/Resume (protocol error)"
+                                  :wat::core::None
+                                  :wat::core::None))
+                              ((~admin-deny-peer-kw pids)
+                                (:wat::kernel::assertion-failed!
+                                  "defservice dispatch-admin: DenyPeer received before Init/Resume (protocol error)"
                                   :wat::core::None
                                   :wat::core::None))))
 
@@ -764,6 +784,20 @@
                                nil
                                pids)
                              (:wat::kernel::send' self ~status-peers-allowed-kw)
+                             (~serve-name self l clients state)))
+                         ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
+                         ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
+                         ;; the lineage peer (request/reply — owner blocks so revoke-before-return
+                         ;; ordering holds), then CONTINUE serving (recur — no state change).
+                         ((~admin-deny-peer-kw pids)
+                           (:wat::core::do
+                             (:wat::core::foldl
+                               (:wat::core::fn [~deny-acc-sym <- :wat::core::nil
+                                                ~deny-pid-sym <- :wat::core::i64] -> :wat::core::nil
+                                 (:wat::kernel::deny' l ~deny-pid-sym))
+                               nil
+                               pids)
+                             (:wat::kernel::send' self ~status-peers-denied-kw)
                              (~serve-name self l clients state)))
                          ((~admin-init-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
@@ -906,6 +940,31 @@
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
      methods           (:wat::core::conj methods grant-method)
+
+     ;; ── arc 293: owner-only revoke method (mirror of grant) ──────────────────────
+     ;; Method: (defn <fqdn>/revoke [h <- Handle  pids <- (Vector i64)] -> nil ...)
+     ;; Takes the Handle (unforgeable; never handed to clients — clients hold only a client
+     ;; Peer', so a client has NO revoke path). Sends Admin::DenyPeer[pids] down the lineage
+     ;; peer; recv's Status::PeersDenied → the revoke is applied before this returns. Callable
+     ;; any time, repeatedly, mid-life. Uses symbol-node for `_`/`r` binders (hygiene: Unquote
+     ;; at def time).
+     revoke-discard-sym (:wat::core::symbol-node "_")
+     revoke-r-sym       (:wat::core::symbol-node "r")
+     revoke-method-name (:wat::core::keyword/from-string
+                          (:wat::core::string::interpolate "{fqdn-str}/revoke" :fqdn-str fqdn-str))
+     revoke-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
+     revoke-method-body `(:wat::core::let
+                           [~revoke-discard-sym (:wat::kernel::send' (~handle-handle-acc h) (~admin-deny-peer-kw pids))
+                            ~revoke-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
+                           (:wat::core::match ~revoke-r-sym -> :wat::core::nil
+                             (~status-peers-denied-kw nil)
+                             (_ (:wat::kernel::assertion-failed!
+                                  "defservice revoke: expected Status::PeersDenied"
+                                  :wat::core::None
+                                  :wat::core::None))))
+     revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
+     ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
+     methods           (:wat::core::conj methods revoke-method)
 
      ;; ── host-parity-4a: locus-agnostic start fn ──────────────────────────────────
      ;; (defn <fqdn>/start [locus <- :wat::spawn::Locus  state0 <- <state-ty>] -> <fqdn>::Handle
