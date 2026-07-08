@@ -190,13 +190,17 @@
                         cursor)]
             (:wat::bracket::collect-loop peers items
               (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m)))
-        ((:wat::spawn::ServiceEvent::Closed _idx)
+        ((:wat::spawn::ServiceEvent::Closed idx)
           (:wat::kernel::assertion-failed!
-            "bracket collect-loop: runner closed unexpectedly"
+            (:wat::core::string::interpolate
+              "bracket collect-loop: runner {idx} closed unexpectedly"
+              :idx idx)
             :wat::core::None :wat::core::None))
-        ((:wat::spawn::ServiceEvent::Lost _idx _cause)
+        ((:wat::spawn::ServiceEvent::Lost idx cause)
           (:wat::kernel::assertion-failed!
-            "bracket collect-loop: runner crashed"
+            (:wat::core::string::interpolate
+              "bracket collect-loop: runner {idx} crashed: {cause}"
+              :idx idx :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
         (:wat::spawn::ServiceEvent::Shutdown
           (:wat::kernel::assertion-failed!

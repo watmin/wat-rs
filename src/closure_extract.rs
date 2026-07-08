@@ -2511,11 +2511,21 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             _ => {
                 // Stone S-B.1 — reconstruct recordtype form from AggregateDef.
                 // Arc 293 annihilation: parent field deleted; derive from nature.root_keyword().
+                // Bug fix — reconstruct the fields vector too (mirror the Struct branch),
+                // else a user defrecord ships to a process-bracket child fields-less and
+                // re-parses malformed ("expected (:recordtype :Name :Parent [fields]) got 2 args").
+                let mut field_vec_items = Vec::with_capacity(a.fields.len() * 3);
+                for (fname, fty) in &a.fields {
+                    field_vec_items.push(WatAST::Symbol(Identifier::bare(fname.clone()), span.clone()));
+                    field_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
+                    field_vec_items.push(WatAST::Keyword(crate::check::format_type(fty), span.clone()));
+                }
                 WatAST::List(
                     vec![
                         WatAST::Keyword(":wat::core::recordtype".into(), span.clone()),
                         WatAST::Keyword(a.name.clone(), span.clone()),
                         WatAST::Keyword(a.nature.root_keyword().to_string(), span.clone()),
+                        WatAST::Vector(field_vec_items, span.clone()),
                     ],
                     span,
                 )
