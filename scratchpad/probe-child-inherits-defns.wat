@@ -1,0 +1,34 @@
+;; probe-child-inherits-defns.wat — DECISIVE probe: does a not-shared (process) child
+;; inherit the PARENT's named defns, or is it a fresh universe that needs source shipped?
+;;
+;; :probe::dbl is defined in the PARENT ONLY. The shipped (forms ...) does NOT include it —
+;; the child's runner references :probe::dbl BY NAME. If the child inherits the parent's
+;; defns, this streams "6 10". If the child is a fresh universe, it fails "unknown :probe::dbl".
+;;
+;; This decides the bracket's not-shared delivery: reference-by-name (inherit) vs ship-source.
+
+;; defined in the PARENT universe only
+(:wat::core::defn :probe::dbl [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::* x 2))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [w (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           ;; NOTE: :probe::dbl is NOT redefined here — the child references it BY NAME.
+           (:wat::core::defn :probe::runner
+             [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+             (:wat::core::let
+               [item (:wat::kernel::recv' self)
+                _    (:wat::kernel::send' self (:probe::dbl item))]
+               (:probe::runner self)))
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64)))))
+     _ (:wat::kernel::send' w 3)
+     _ (:wat::kernel::send' w 5)
+     a (:wat::kernel::recv' w)
+     b (:wat::kernel::recv' w)]
+    (:wat::kernel::println
+      (:wat::core::string::concat
+        (:wat::core::i64::to-string a)
+        (:wat::core::string::concat " " (:wat::core::i64::to-string b))))))
