@@ -183,10 +183,11 @@ service — do not build it, do not reintroduce the unified-fd-peer).
            "STONE 1 (dc2ae7a6): :wat::service::Grantable surface (:nature :Struct, grant/revoke -> nil) + the
             defservice macro auto-emits each <fqdn>::Handle :satisfies it. Weighed green (probe-grantable-emitted.wat:
             grantable-ok twice, macro-emitted extend-type, two services uniform; floor 4113 pass / 0 new)"]
- :next    ["STONE 2 (collapsed): :grants on the process-locus (process/grants [Vector<Grantable>]) + the BRACKET's
-            grant-boot / revoke-shutdown IN WAT — grant each worker's pid at spawn (capture pids), drain, then revoke
-            each pid AFTER the drain BEFORE returning the mapped vals. Both ack'd request/reply, zero fire-and-forget,
-            NO Rust Drop, NO GrantGuard. Thread pool: :grants is a no-op/rejected (firm boundary)."
+ :next    ["STONE 2 (collapsed) — FULL STRIKE PLAN: DESIGN-STONE-CAP-2-BRACKET-GRANTS.md (prepped 2026-07-08). :grants
+            on the process-locus (process/grants [Vector<Grantable>]) + the BRACKET's grant-boot / revoke-shutdown IN
+            WAT — spawn-runner widens to -> SpawnedRunner {peer, pid <- (Option i64)} (the field is `pid`, not
+            grant-pid); map-worker grants each pid before the first item, drains, revokes each pid after. Ack'd
+            request/reply, zero fire-and-forget, NO Rust Drop. Thread pool: :grants is a no-op (firm boundary)."
            "STONE 3 = M1 — the all-process circuit proof (B<-A, granted process pool, deterministic post-shutdown dial
             REFUSED; PPID == owner)."]
  :do-nots ["the shared/not-shared boundary is FIRM — do NOT reintroduce the unified-fd-peer for M4"
