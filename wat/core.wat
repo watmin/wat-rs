@@ -750,8 +750,10 @@
                                  nil)))
                            nil
                            (:wat::core::range 0 n-kw-fields))
-         ;; Mint record form: (:wat::core::Record::def :<name>::Kwargs <kw-argvec>)
-         record-def      `(:wat::core::defrecord ~kwargs-ty ~kw-argvec)
+         ;; Mint the kwargs bundle as a STRUCT (defstruct): a kwargs bundle is a LOCAL
+         ;; calling-convention artifact (never stored/shipped) that must accept impure args
+         ;; (fns, sockets, resources) — so it is impure/struct, NOT a pure record. Arc 259/278.
+         record-def      `(:wat::core::defstruct ~kwargs-ty ~kw-argvec)
          ;; HYGIENIC hidden kwargs binder: fresh-symbol stamps a fresh unique scope (arc 274.1) so the
          ;; binder is capture-proof BY CONSTRUCTION — it cannot collide with any caller variable, even one
          ;; literally named "kwargs". (The field binders below stay plain symbol-node — they are
