@@ -360,7 +360,13 @@ pub fn extract_closure(
     // 1. Types in deterministic topological order.
     let type_order = topo_sort_types(&state);
     for tn in &type_order {
-        if let Some(def) = state.captured_types.get(tn) {
+        // Arc 170 — prefer the RETAINED original source form (shipped verbatim,
+        // cannot drift). Fall back to `type_def_to_ast` reconstruction only for
+        // synthesized types (records/enums derived by the parent) that have no
+        // user source form.
+        if let Some(src) = state.parent_types.source_form(tn) {
+            prologue.push(src.clone());
+        } else if let Some(def) = state.captured_types.get(tn) {
             prologue.push(type_def_to_ast(def));
         }
     }

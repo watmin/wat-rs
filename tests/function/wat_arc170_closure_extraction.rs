@@ -943,6 +943,13 @@ fn collect_type_decl_names(forms: &[WatAST]) -> Vec<String> {
                                 | ":wat::core::defenum"
                                 | ":wat::core::newtype"
                                 | ":wat::core::typealias"
+                                // Arc 170 — freeze now ships each user type's RETAINED
+                                // source form (captured at registration, post-macroexpansion),
+                                // so struct/record/enum sugar arrives under the PRIMITIVE heads
+                                // the sugar macros expand to. Recognize those too.
+                                | ":wat::core::structtype"
+                                | ":wat::core::recordtype"
+                                | ":wat::core::aggregatetype"
                         );
                         if is_type_decl {
                             if let WatAST::Keyword(name, _) = &items[1] {

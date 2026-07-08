@@ -388,6 +388,16 @@ pub struct TypeEnv {
     /// walked (transitively) by `is_subtype`. Distinct from `typeunion` membership:
     /// this is the Clojure `derive`/`isa?` axis — an open directional is-a hierarchy.
     subtype_edges: HashMap<String, Vec<String>>,
+    /// Arc 170 — the ORIGINAL source decl form for each user (non-reserved)
+    /// type, retained verbatim at registration time. Freeze ships these
+    /// across a process fork instead of reconstructing via `type_def_to_ast`
+    /// (a hand-written reconstruction that DRIFTS as the grammar evolves —
+    /// e.g. `defsurface` reconstruction cannot recover the `:messages` block).
+    /// Only user-namespace decls are captured; stdlib types (`:wat::*`) are
+    /// re-registered in the child via `with_builtins` and never shipped, and
+    /// synthesized `derived` defs (backing records / `::Op` / `::Reply`) have
+    /// no user form and fall back to reconstruction.
+    source_forms: HashMap<String, WatAST>,
 }
 
 /// Distinguishes user-source registration (subject to reserved-prefix gate)
@@ -429,6 +439,13 @@ impl TypeEnv {
 
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
         self.types.get(name)
+    }
+
+    /// Arc 170 — the retained ORIGINAL source decl form for user type `name`,
+    /// if one was captured at registration (only non-reserved user types are).
+    /// Freeze/closure-extract prefers this over `type_def_to_ast` reconstruction.
+    pub fn source_form(&self, name: &str) -> Option<&WatAST> {
+        self.source_forms.get(name)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&String, &TypeDef)> {
@@ -1866,6 +1883,11 @@ fn register_types_impl(
                 // carrier (a `Vector<WatAST>` of the surface's own forms) that `defservice` concats
                 // into its shipped `service-forms` bundle.
                 let surface_form_clone = if head == "defsurface" { Some(form.clone()) } else { None };
+                // Arc 170 — retain the ORIGINAL decl form (clone BEFORE `parse_type_decl`
+                // consumes it) so freeze can ship it verbatim instead of reconstructing.
+                // Generalizes `surface_form_clone` to every decl head. Stored only for
+                // non-reserved user names, AFTER a successful registration (below).
+                let form_clone = form.clone();
                 let def = parse_type_decl(head, form, decl_span.clone(), env)?;
                 // Arc 293 K3-revise — when a surface is registered, derive and register the
                 // PAIR of backing aggregates (`:S$core-record`, `:S$holon-record`).
@@ -1907,7 +1929,16 @@ fn register_types_impl(
                 } else {
                     vec![]
                 };
+                // Arc 170 — capture the user name BEFORE `def` is moved into `register`.
+                let def_name = def.name().to_string();
+                let is_user_type = !crate::resolve::is_reserved_prefix(&def_name);
                 register(env, def, decl_span.clone())?;
+                // Arc 170 — retain the original source form for user types only. Stdlib
+                // (`:wat::*`) is re-registered in the child via `with_builtins`; synthesized
+                // `derived` defs below are NOT captured (no user form → reconstruction fallback).
+                if is_user_type {
+                    env.source_forms.insert(def_name, form_clone);
+                }
                 for record_def in derived {
                     register(env, record_def, decl_span.clone())?;
                 }
