@@ -33,7 +33,7 @@
 
 use crate::ast::WatAST;
 use crate::scope::Identifier;
-use crate::runtime::{Function, FunctionBody, SymbolTable, Value};
+use crate::runtime::{eval, Environment, Function, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::value::value::AggregateValue;
 use crate::types::Nature;
 use crate::span::{span_prefix, Span};
@@ -421,6 +421,113 @@ pub fn extract_closure(
         prologue,
         entry_form,
     })
+}
+
+// ─── Wat-level dispatch: `:wat::kernel::fn-forms` ───────────────────────
+//
+// Arc 259 (forced-hand) Stone S1 — the first wat-level consumer of
+// `extract_closure` (see the module doc's "first wat-level consumer is
+// eval_kernel_spawn_process in slice 2" note — that was slice 1b's
+// forward-looking guess; this stone instead exposes it directly as its
+// own verb, `fn-forms`, so the not-shared bracket path can reify a
+// work-fn and ship the resulting forms itself).
+
+/// Wat-level dispatch arm for `:wat::kernel::fn-forms`.
+///
+/// Arity 2 — `(f name)`. `f` evaluates to a `:wat::core::fn` value (an
+/// anonymous block OR a named fn passed by reference — both arrive here
+/// as a resolved `Value::wat__core__fn`, so the reification is uniform);
+/// `name` evaluates to a `:wat::core::keyword` — the bind name the
+/// reified fn will carry when the returned forms are later evaluated in
+/// a FRESH universe (a forked, not-shared child).
+///
+/// Fronts [`extract_closure`] uniformly through its inline-lambda path
+/// (`entry_name = None`) per the pinned S1 contract — that path both
+/// reconstructs the fn-form AST from the value and walks the body for
+/// transitive deps, so it covers both input shapes without a name-vs-
+/// no-name branch here. Returns `prologue ++ [(:wat::core::def <name>
+/// <entry_form>)]` as a `:wat::core::Vector<wat::WatAST>` value: a
+/// self-contained program fragment that, `eval`d top-to-bottom in a
+/// fresh world, resolves `<name>` to a behaviorally-equivalent fn.
+///
+/// `ExtractionError::ImpureCapture` (channel/IO/process-handle captures
+/// cannot cross a process boundary — pointer identity doesn't survive
+/// `fork`/`clone3`) surfaces as a wat `RuntimeError` naming the capture
+/// and its type (via `ExtractionError`'s `Display`); `UnresolvedSymbol`
+/// / `Internal` surface the same way.
+pub fn eval_kernel_fn_forms(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::fn-forms";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        } });
+    }
+
+    // arg 0: the fn value to reify.
+    let fn_value = match eval(&args[0], env, sym)?.value_owned() {
+        v @ Value::wat__core__fn(_) => v,
+        other => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "fn value (:wat::core::fn) to reify",
+                got: Box::new(ValueSnapshot::of(&other)),
+            } });
+        }
+    };
+
+    // arg 1: the bind name — a keyword (carries its leading ':', same
+    // convention as every other keyword Value in the runtime).
+    let name: String = match eval(&args[1], env, sym)?.value_owned() {
+        Value::wat__core__keyword(k) => (*k).clone(),
+        other => {
+            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "keyword bind-name",
+                got: Box::new(ValueSnapshot::of(&other)),
+            } });
+        }
+    };
+
+    // Reach the parent TypeEnv exactly the way `conforms?` / struct-
+    // destructure already do — `sym.types()` — not a new param threaded
+    // through the world. `sym` is already the parent SymbolTable handed
+    // in by the dispatch site (mirrors `eval_kernel_spawn_process`'s
+    // `parent_symbols` = `sym` directly).
+    let parent_types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: OP.into(),
+        reason: "fn-forms requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
+    } })?;
+
+    let pkg = extract_closure(&fn_value, None, sym, parent_types).map_err(|e| {
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: e.to_string(),
+        } }
+    })?;
+
+    let def_span = list_span.clone();
+    let mut forms = pkg.prologue;
+    forms.push(WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::def".into(), def_span.clone()),
+            WatAST::Keyword(name, def_span.clone()),
+            pkg.entry_form,
+        ],
+        def_span,
+    ));
+
+    let items: Vec<Value> = forms
+        .into_iter()
+        .map(|f| Value::wat__WatAST(Arc::new(f)))
+        .collect();
+    Ok(Value::Vec(Arc::new(items)))
 }
 
 // ─── Capture-binding name minting ───────────────────────────────────────

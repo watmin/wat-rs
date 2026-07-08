@@ -5089,6 +5089,12 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::spawn-process" => {
             crate::process::eval_kernel_spawn_process(args, list_span, env, sym).map_err(Into::into)
         }
+        // Arc 259 (forced-hand) Stone S1 — reify a fn value (anonymous or
+        // named-by-reference) into shippable forms via `closure_extract`.
+        // See `crate::closure_extract::eval_kernel_fn_forms` doc.
+        ":wat::kernel::fn-forms" => {
+            crate::closure_extract::eval_kernel_fn_forms(args, list_span, env, sym).map_err(Into::into)
+        }
         // Arc 259 S2c-ii-b — spawn-program' is now a wat defclause in wat/spawn.wat.
         // The 3-arg Rust intrinsic is RETIRED; the defclause dispatches on the host
         // type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process').

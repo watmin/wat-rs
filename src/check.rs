@@ -5018,6 +5018,19 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 259 (forced-hand) Stone S1 — `f` accepts ANY `Fn` (inferred,
+            // not projected/unified — same "accept, runtime validates" posture
+            // as spawn-thread''s init-fn arg); `name` unifies against
+            // `:wat::core::keyword`; return type is the fixed
+            // `:wat::core::Vector<wat::WatAST>` shape.
+            ":wat::kernel::fn-forms" => {
+                let (val, mut errs) = infer_kernel_fn_forms(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 292 — one-shot timer peer (thread tier).
             // after : (locus, duration: :wat::time::Duration, msg: T) -> Thread'<nil, T>
             ":wat::kernel::after" => {
@@ -11523,6 +11536,71 @@ fn infer_spawn_process_prime(
         Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
         None => CheckResult::errs(local_errors),
     }
+}
+
+/// Type-check `(:wat::kernel::fn-forms f name)` — arc 259 (forced-hand) Stone S1.
+///
+/// Two positional args:
+/// - `args[0]`: `f`, the fn to reify; inferred but NOT projected/unified —
+///   the checker accepts ANY fn value here (mirrors `spawn-thread'`'s
+///   init-fn arg: "the checker does not project deeper"; runtime validates
+///   it is a `Value::wat__core__fn`). This is the established "accept any
+///   Fn" posture — no new type-system feature needed.
+/// - `args[1]`: `name`, the bind-name; inferred and unified with
+///   `:wat::core::keyword`.
+///
+/// Return type is fixed: `:wat::core::Vector<wat::WatAST>` (same shape as
+/// `spawn-process`'s `program` param — a vector of top-level wat forms).
+fn infer_kernel_fn_forms(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::fn-forms";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let ret_ty = TypeExpr::Parametric {
+        head: "wat::core::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::WatAST".into())],
+    };
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(ret_ty, local_errors);
+    }
+
+    // arg 0: f — infer it; accept any fn value (no projection/unification).
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    // arg 1: name — infer; must conform to :wat::core::keyword.
+    let name_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if let Some(name_ty) = &name_ty_opt {
+        let expected_name = TypeExpr::Path(":wat::core::keyword".into());
+        if !assignable(name_ty, &expected_name, subst, env) {
+            local_errors.push(CheckError {
+                span: args[1].span().clone(),
+                kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "name".into(),
+                    expected: ":wat::core::keyword".into(),
+                    got: format_type(name_ty),
+                },
+            });
+        }
+    }
+
+    if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) }
 }
 
 // ─── Arc 214 Stone 4.6a-ii — three peer verb intrinsics ─────────────────────
