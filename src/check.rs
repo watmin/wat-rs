@@ -12080,7 +12080,7 @@ fn infer_select_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector of Thread'<I,O> | Process'<I,O> peers".into(),
+                    expected: "Vector of Thread'<I,O> | Process'<I,O> | Peer'<I,O> peers".into(),
                     got: format_type(other),
                 },
             });
@@ -12097,8 +12097,10 @@ fn infer_select_prime(
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
         TypeExpr::Parametric { head, args: targs }
-            if (head == "wat::kernel::Thread'" || head == "wat::kernel::Process'")
-                && targs.len() == 2 =>
+            if (head == "wat::kernel::Thread'"       // TODO(arc-109/arc-170 cleanup): remove Thread'/Process' here —
+                || head == "wat::kernel::Process'"   //   the unified fd-backed Peer' end-state makes select' take
+                || head == "wat::kernel::Peer'")     //   ONLY Peer'; the tier heads vanish. Kept now to unblock the
+                && targs.len() == 2 =>               //   loci-agnostic bracket (259 S3a). Peer' is I=targs[0], O=targs[1].
         {
             // I = args[0] (input to spawned fn from parent); O = args[1] (output back to parent).
             (targs[0].clone(), targs[1].clone())
@@ -12116,7 +12118,7 @@ fn infer_select_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector of Thread'<I,O> | Process'<I,O> peers".into(),
+                    expected: "Vector of Thread'<I,O> | Process'<I,O> | Peer'<I,O> peers".into(),
                     got: format_type(other),
                 },
             });
