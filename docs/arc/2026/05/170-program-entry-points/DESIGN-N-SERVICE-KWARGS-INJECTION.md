@@ -161,7 +161,7 @@ Every assumption was probed on the disk. The map is complete except one dark cor
 | 7 | reflection surface | HAVE `metadata-of` (Kind/Purity/Layer/…); **LACK** struct-field ("type → fields") |
 | 8 | per-defn retained source reachable from wat | **NO** — source is file-level (`wat/source.wat`), not per-defn |
 
-### Gap A — fn-forms cannot ship the kwargs `$impl` — ROOTED (a keying bug, small fix)
+### Gap A — fn-forms cannot ship the kwargs `$impl` — ROOTED + **FIXED** (Strike A, `eb7a2334`)
 `fn-forms :probe::work$impl` fails `free symbol 'kwargs'` where `kwargs` is the `$impl`'s *own* param. Rooted to a
 **key mismatch in `closure_extract`**:
 - `FunctionDef.params` is stored by **`env_key`** (the scoped key) — `runtime.rs:733`
@@ -189,15 +189,21 @@ a work-fn's `::Kwargs` fields.
 
 ## The strike (decomposed — substrate first, then wiring)
 
-- **Strike A — root + resolve Gap A** (fn-forms shipping the kwargs `$impl`). Diagnose the `kwargs` free-symbol in
-  `closure_extract`; fix it (or, if structural, add a source-ship + companion-call seam). **Gate**: `fn-forms` a
-  kwargs `$impl` round-trips. **THE PREREQUISITE** — invoking the work-fn in the child is blocked on it.
-- **Strike B — Gap B** (struct-field reflection). Expose `TypeEnv` struct fields to wat, e.g. `(fields-of :T)` →
-  `[(name, type) …]`. **Gate**: `(fields-of :probe::work::Kwargs)` → `[(kv, Peer'<Kv…>)]`.
+- **Strike A — Gap A: the closure_extract keying fix — ✅ DONE (`eb7a2334`).** `walk_free_symbols`' Symbol arm now
+  keys the locals-membership check by `crate::scope::env_key(ident)` (matching `func.params`), so a hygienic
+  (`fresh-symbol`) param self-resolves. fn-forms now ships the kwargs `$impl` (`root-gapA.wat` → `both ok`); a general
+  substrate fix (any hygienic-param fn now reifies). Weighed: capture/hygiene 52/52, floor 0-new.
+- **Strike B — Gap B: struct-field reflection — NEXT (small).** Expose `TypeEnv` struct fields to wat, e.g.
+  `(fields-of :T)` → `[(name, type) …]` (the data is in the `TypeEnv`; `metadata-of` already reaches the registry for
+  *callable* metadata — this exposes the *type-structure* side). **Gate**: `(fields-of :probe::work::Kwargs)` →
+  `[(kv, Peer'<Kv…>)]`. Small + general.
 - **Strike C — the wat wiring** (on A + B). `process/uses :name handle`; the spawn-runner AST-walk recognizes the
-  kwargs `$impl`, reads `::Kwargs` via B, name-matches `uses`, per-kwarg grant+dial+assemble, invokes via A.
-  Decompose by N: **C1** single-service via kwargs (N=1) → `["echo:a" "echo:b" "echo:c"]`; **C2** N heterogeneous +
-  name+type-matched → a 2-service worker, a wrong-service handle a compile error.
+  kwargs `$impl` (its 2nd param is a `::Kwargs` struct — NOT the `[peer item]` dial shape, which would mis-derive
+  `S,R` off `item`), reads `::Kwargs` via B, name-matches `uses` + type-checks per handle, per-kwarg
+  grant+dial+assemble, invokes via A. Decompose by N: **C1** single-service via kwargs (N=1)
+  (`probe-b1-kwargs-worker.wat` — the RED reference, currently `free symbol` at the AST-walk) → `["echo:a" "echo:b"
+  "echo:c"]`; **C2** N heterogeneous + name+type-matched → a 2-service worker, a wrong-service handle a compile error.
 
-Order: Strike A first (root the dark corner) — until fn-forms can ship the kwargs `$impl` (or a companion-call seam
-exists), the rest is blocked. Then B (cheap), then C1 → C2.
+**Resume point: Strike B** (struct-field reflection) — small; then C1 → C2. The attack is fully mapped in this doc
+(the 8-probe ledger + both gaps rooted) — **no re-scout needed**; the probes live in `scratchpad/` (gitignored, local),
+but every finding is captured here, so they're reconstructable from this doc if lost.

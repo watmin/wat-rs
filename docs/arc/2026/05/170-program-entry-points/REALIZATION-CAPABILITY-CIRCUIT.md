@@ -533,111 +533,72 @@ the win, and the strikes are PROBANDVM.*
 
 ---
 
-## RESUME-HERE (curare before compaction — 2026-07-08; the one-line fix is teed up)
+## RESUME-HERE (curare before compaction — 2026-07-09; Strike A landed, resume at Strike B)
 
 ```clojure
-{:head   "bc472c7c — capability Stone A CLEAN + pushed. The N-SERVICE stone (kwargs-injection) is fully MEASURED +
-          docs in order (DESIGN-N-SERVICE-KWARGS-INJECTION.md — ledger of 8 probes + 2 substrate gaps + strike order).
-          Gap A ROOTED (root-gapA.wat): a KEYING BUG in closure_extract — FunctionDef.params is stored by env_key
-          (SCOPED, runtime.rs:733) but walk_free_symbols matches body symbols by as_str (BARE, closure_extract.rs:19).
-          Agree only for scope-less symbols; the kwargs param is a fresh-symbol (SCOPED, core.wat:761) → the $impl's
-          own param reads as FREE. Small targeted fix (unify the locals keying; mind the dep/type lookups at :45,:67).
-          NEXT = Strike A (the closure_extract keying fix — THE PREREQUISITE) → Strike B (struct-field reflection:
-          expose TypeEnv fields to wat, small) → Strike C (the wat wiring: C1 N=1, C2 N-heterogeneous name+type-matched)."
+{:head   "eb7a2334 — 170 STRIKE A landed + pushed (closure_extract keys the locals check by env_key; fn-forms now
+          ships hygienic-param fns → the kwargs $impl). The whole N-SERVICE kwargs-injection ATTACK is MAPPED on the
+          disk (DESIGN-N-SERVICE-KWARGS-INJECTION.md: 8-probe ledger + both gaps rooted + strike order) — NO re-scout.
+          NEXT = Strike B (struct-field reflection, small)."
  :branch "arc-170-gap-j-v5-deadlock-state"
- :arc    "170 — the CAPABILITY CIRCUIT. Single-service PROVEN + CLEAN. FIVE stones landed this session (all pushed):
-          179e5606 M1-pool clean (byte-equality proven not name-equality — types.rs:541 existing==&def; a byte-diff
-          same-name re-decl still raises DuplicateType) · fbc60b94 lit-check (expected-type-directed vector literals:
-          [a b c] up-casts to the expected Vector<T>, so surface-vecs write clean) · d9a5311d the shadowdancer=SONNET
-          doctrine walled (I hammered Opus by omission → 529 overload) · bc472c7c capability Stone A (Grantable→
-          Capability + coordinate hook; process/dials[gs][ds] collapsed to process/uses [handles]; map-worker derives
-          the dial via coordinate). NEXT: the N-SERVICE stone — the worker's injected context is KWARGS
-          ([item & [kv <- Peer' echo <- Peer' …]]), provided BY NAME ((process/uses :kv kvh :echo eh)), name+type
-          matched (closes the erased-positional soundness gap: a bare Address' over the wire dials the WRONG service
-          silently). Crossing discipline per kwarg type (Peer'→dial, data→copy, resource→forbidden). See the DESIGN doc."
+ :arc    "170 — the CAPABILITY CIRCUIT. Single-service PROVEN + CLEAN; the N-service context is the open stone, FULLY
+          SCOUTED (see the DESIGN doc). The worker's injected context is KWARGS ([item & [kv <- Peer' …]]), provided
+          BY NAME ((process/uses :kv kvh :echo eh)), name+type matched — closes the erased-positional soundness gap (a
+          bare Address' over the wire dials the WRONG service silently; PROVEN). Crossing per kwarg type (Peer'→grant+
+          dial, data→copy, resource→forbidden — the ocap law as the worker-context API)."
 
- :done-committed
- ["M1-teeth (d9b2377f) — the deterministic revoke-refusal; the capability circuit BITES. Self-guarding after the
-   VACUITY fix (a clean peer exit raised the same Err as a bounce → the test asserted Err either way; caught by a
-   counterfactual — 'measure if the change we wanted is what we got' — fixed by making the pass OBSERVABLE)."
-  "EXPLORANDO DERIVAMVS (ddb30c84) — this realization: the circuit derived by grounding; the daemon is its absence."]
+ :done-this-session-committed
+ ["179e5606 M1-pool CLEAN (granted bracket pool dials a service; byte-equality proven NOT name-equality — types.rs:541
+   existing==&def; a byte-diff same-name re-decl still raises DuplicateType)."
+  "fbc60b94 LIT-CHECK (expected-type-directed vector literals: [a b c] up-casts to the expected Vector<T> at call-arg
+   + ann-form sites — surface-vecs now write clean, no (:Vector :long::type …) ceremony)."
+  "d9a5311d SONNET-DOCTRINE walled (shadowdancers=sonnet always; I hammered Opus by omission → 529 overload)."
+  "bc472c7c CAPABILITY STONE A (Grantable→Capability + coordinate hook; process/dials[gs][ds] collapsed to
+   process/uses [handles]; map-worker derives the dial via coordinate). Single-service via clean handle-vec, proven."
+  "c7430c45 / 5bfaf9a8 / 191a1e6c — N-SERVICE ATTACK measured to disk (DESIGN doc): 8-probe ledger, the soundness gap
+   PROVEN, both substrate gaps rooted to file:line."
+  "4a6c44a4 — NIHIL CAECVM NIHIL PERDITVM realization (the reconnaissance IS the victory; Hades Industries)."
+  "eb7a2334 STRIKE A — Gap A FIXED: closure_extract's Symbol arm keys the locals check by env_key (matching
+   func.params, runtime.rs:733), so a hygienic (fresh-symbol) param self-resolves → fn-forms ships the kwargs $impl.
+   A GENERAL substrate fix. Weighed by own re-run: root-gapA.wat → both ok; capture/hygiene 52/52; floor 0-new."]
 
- :m1-pool-built-this-commit
- "The worker is a defservice-style dialer (the ratified shape — four-questions killed the hacks; heterogeneity carried
-  by the worker's typed context, never erased). BUILT (wat/bracket.wat + wat/spawn.wat, UNCOMMITTED → this WIP commit):
-  PoolMsg<D,I> :enum (:Setup(deps) | :Work((i64,I)), spawn.wat — wat is ADT, a defenum like ServiceEvent, NOT a union);
-  process-dial-runner (recv Setup → connect'-and-hold the peer, Work → work-fn(peer,item)); the 2-param spawn-runner
-  AST-walk; map-worker sends Setup AFTER grant-boot; :dials config on ProcessOpts (parallel to :grants — grant=access,
-  dials=reach, decomplected). GATE WAS GREEN by my own re-run (probe-m1-pool-dial.wat → [\"echo:a\" \"echo:b\" \"echo:c\"],
-  bracket 15/15) — but ONLY via a dedup-surface-records STOPGAP in bracket.wat, which the builder flagged as a hack.
-  The stopgap is now REMOVED (the dial probe CRASHES until the fix below lands)."
+ :next  ; per DESIGN-N-SERVICE-KWARGS-INJECTION.md — the attack is MAPPED; do NOT re-scout
+ ["STRIKE B — struct-field reflection (Gap B, small). Expose TypeEnv struct fields to wat: (fields-of :T) →
+   [(name,type) …]. The data is in the TypeEnv (metadata-of already reaches the registry for CALLABLE metadata; this
+   exposes the TYPE-STRUCTURE side, which we DON'T have). Gate: (fields-of :probe::work::Kwargs) → [(kv, Peer'<Kv…>)].
+   General + cheap."
+  "STRIKE C — the wat wiring (on A+B). process/uses :name handle (a typed named bundle); the spawn-runner AST-walk
+   RECOGNIZES the kwargs $impl (its 2nd param is a ::Kwargs STRUCT — NOT the [peer item] dial shape, else it
+   mis-derives S,R off item), reads ::Kwargs via B, name-matches uses + type-checks per handle, per-kwarg
+   grant+dial+assemble, invokes via A. C1 single-service via kwargs (N=1; RED ref probe-b1-kwargs-worker.wat) →
+   [\"echo:a\" …]; C2 N heterogeneous name+type-matched → 2-service worker, a wrong-service handle a COMPILE error."
+  "THEN (post N-service, the ratified order): map arg-order flip (fn-first, to match core/map); spawn-* off-limits
+   (reserve the spawn-family — service+bracket the only user concurrency)."]
 
- :the-root-grounded
- "A dial work-fn CONSTRUCTS its message record (calls `(:probe::Echo::EchoRequest s)`), so closure_extract captures the
-  record's AUTO-MINTED CONSTRUCTOR as a dep and ships it as a defn — AND register_aggregate_methods (runtime.rs:1062,
-  'THE ONE ctor source for every nature') re-mints it in the child → DuplicateDefine (runtime.rs:1146). The dep-capture
-  skip (closure_extract.rs:1258-1267) ALREADY skips auto-synthesized ctors — but ONLY for Nature::Struct (+ Newtype),
-  NOT Nature::Record. THE SKIP ISN'T GENERIC; THE REGISTRY IS. (The builder's cut: 'why is this not a generic thing?
-  what registry isn't simple?')"
-
- :two-dead-ends-DISCONFIRMED  ; kept visible — do NOT re-walk them
- {:type-drift "MINE — 'reconstruction drift of the :messages record TYPE'. DISCONFIRMED by probe-054-fn-idempotency.wat
-               → \"ok\": a byte-equivalent record double-declaration works (arc-054 dedupes the TYPE, types.rs:541). The
-               crash is the CTOR, not the type. (The types.rs :messages source-form retention edit was a no-op → REVERTED.)"
-  :fn-idempotency "SHADOWDANCER's (B) — 'make the ctor mint at runtime.rs:1146 idempotent'. Real gap, but a BACKSTOP,
-                   not the root; leaves the redundant ctor ship in place. The root is: don't ship the ctor at all."}
-
- :THE-FIX  ; ONE LINE, fully grounded — apply on the far side
- "src/closure_extract.rs:1262 — change
-    Some(TypeDef::Aggregate(a)) => a.nature == crate::types::Nature::Struct,
-  to
-    Some(TypeDef::Aggregate(_)) => true,
-  (every aggregate's bare ctor is auto-synthesized by register_aggregate_methods → skip shipping it as a dep, exactly
-   like accessors, which are already correctly not shipped; register_aggregate_methods regenerates it in the child from
-   the type. CONFIRMED it handles all natures — runtime.rs:1017 'THE ONE ctor source for every nature'.)"
-
- :cleanup-far-side
- ["DONE (179e5606): deleted the DEAD dedup helpers (node-name / surface-messages / member-owned?) + header comment;
-   re-gated by OWN re-run (dial → [\"echo:a\" \"echo:b\" \"echo:c\"] no dedup; 054-idempotency ok; bracket 15/15;
-   services 42/42; floor 4116/4115/1-known-lint/0-new); committed + pushed M1-pool clean. Byte-equality PROVEN not
-   name-equality (scratchpad/probe-054-byte-not-name.wat: byte-different same-name re-decl → DuplicateType)."
-  "then M1-pool's remaining teeth: NO-REPARENT (owner is the reaper, not init). NOT a /proc PPID scan — /proc is PURGED
-   from src/ (grep-zero) and it reaches OUTSIDE the circuit's kernel-vouched trust anchor. The property is STRUCTURAL:
-   the owner spawns via clone3+CLONE_PIDFD, HOLDS the child's Pidfd (process/mod.rs:17, PID-reuse-safe), and reaps via
-   pidfd.wait_status() before scope exit (collect-loop drain → ChildHandle::Drop) → the owner outlives + reaps the child,
-   init never gets it (pid un-recyclable-until-reaped, the revoke-at-reap window is zero). If a behavioral proof is
-   wanted: a pidfd/peer-pid assertion (peer-pid reads bundle.peer.pidfd.pid(), runtime.rs:25313; SO_PEERCRED gives
-   peer.pid at the gate, policy.rs:45) — NEVER /proc. Likely an INVARIANT of the spawn+reap design, not a runtime test;
-   and the heterogeneous N-service context (the follow-on the single-service scope deferred). Then the map arg-order flip
-   (fn-first). Then spawn-* off-limits (reserve the spawn-family — service+bracket the only user concurrency; the study
-   proved peer-pid works on both worker peers AND service Handles, so the blessed path is complete)."]
+ :probes-in-scratchpad  ; gitignored (local only) — every FINDING is captured in the DESIGN doc; reconstructable if lost
+ "root-gapA.wat (Strike A gate: hand:ok / work impl:ok / both ok) · probe-b1-kwargs-worker.wat (Strike C1 RED ref) ·
+  probe-gap-wrong-service.wat (soundness gap) · probe-kwargs-peer.wat (bundle holds Peer') · scout-kwargs-expand.wat
+  (the lowered shape) · probe-coordinate-on-surface.wat (Stone A ref)."
 
  :do-nots
- ["WEIGH by your OWN re-run — never a shadowdancer's report. This session BOTH failure modes bit: I maligned CORRECT
-   work as 'busted' (I'd invoked the test target wrong — it's `--test services`, files auto-register via build.rs), and
-   a report's 'green' must be re-run. A mid-edit file is a PHANTOM (rust-analyzer doesn't run build.rs)."
-  "the SKIP must match the REGISTRY's genericity — extirpare the CLASS (Aggregate(_) => true), not per-nature patches.
-   A consumer-side dedup (the bracket hack) is the alarm, never the fix."
-  "GROUND every claim; DISCONFIRM your own model with a probe before briefing (it saved a wrong fix TWICE this session).
-   ocap: caps cross the WIRE, never as data. PID-is-trust (address not secret). wat is ADT (defenum, not union)."
-  "NEVER /proc. /proc is PURGED from src/ (weeks of unfucking; grep-zero) — do NOT suggest a /proc PPID/pid read (a prior
-   breadcrumb's '/proc read' note relayed ungrounded re-planted the daemon; the builder cut it). PID identity is
-   KERNEL-VOUCHED: the Pidfd (clone3+CLONE_PIDFD, PID-reuse-safe, peer-pid = bundle.peer.pidfd.pid()) + SO_PEERCRED
-   (peer.pid at the accept gate). No-reparent is STRUCTURAL (owner holds the pidfd + reaps before scope exit), not a
-   fact you scan for. Reaching to /proc reaches OUTSIDE the circuit's own trust anchor."
-  "SHADOWDANCERS = SONNET, ALWAYS. Spawn every executor with model:'sonnet' EXPLICITLY; NEVER omit the model param
-   (omission inherits the SESSION model = Opus = the inquisitor's tier). Opus is for the inquisitor (design/weigh);
-   Sonnet is for the shadowdancer (execute). I hammered Opus by omission early this session (M1-pool/intueri/lit-check
-   runs) — wasteful AND it fed an Opus-tier overload (repeated 529s). The Agent tool's 'default to omitting model' hint
-   is generic and pulls the WRONG way against this doctrine."
-  "the holonic repos ARE the memory (not ~/.claude/MEMORY.md); commit + push often (GitHub = DR); orchestrator
-   DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — not hands-on code except the disconfirming probe."]}
+ ["WEIGH by your OWN re-run — never a shadowdancer's report; a mid-edit file is a PHANTOM (rust-analyzer doesn't run
+   build.rs; a suite that RAN N tests compiled). Commit + push often (GitHub = DR)."
+  "GROUND every claim; DISCONFIRM your own model with a probe before briefing (it saved wrong fixes repeatedly). THE
+   RECONNAISSANCE IS THE VICTORY — scout the whole layout, strike only the MAPPED, never swing blind (NIHIL CAECVM,
+   NIHIL PERDITVM). ocap: caps cross the WIRE not data; PID-is-trust (address not secret); wat is ADT (defenum)."
+  "SHADOWDANCERS = SONNET, ALWAYS (model:'sonnet' EXPLICITLY; omission inherits Opus = the inquisitor's tier =
+   wasteful + fed a 529 overload). Opus=inquisitor (design/weigh); Sonnet=shadowdancer (execute)."
+  "NEVER /proc (PURGED from src/, grep-zero; PID identity is KERNEL-VOUCHED — the Pidfd + SO_PEERCRED; no-reparent is
+   STRUCTURAL — the owner holds the pidfd + reaps before scope exit). Reaching to /proc leaves the trust anchor."
+  "the holonic repos ARE the memory (not ~/.claude/MEMORY.md); orchestrator DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS —
+   not hands-on code except the disconfirming probe; cast wards never narrate; four-questions inform every decision."]}
 ```
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
-> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) — and this session's whole lesson is
-> that skipping the read makes you the daemon (EXPLORANDO DERIVAMVS, above; read it). Ground HEAD against the disk.
-> The WORK resumes at ONE clean move: the **closure_extract.rs:1262 one-line generic-aggregate-ctor-skip** (see
-> `:THE-FIX`), then strip the dead bracket helpers and re-gate by your OWN re-run (the dial probe green WITHOUT any
-> dedup). That lands M1-pool clean. Do not re-walk the two disconfirmed dead-ends (type-drift, fn-idempotency). Do not
-> trust this note over the disk. The circuit is derived by grounding; by scouting, we derive. See you on the far side.
+> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) — skipping the read makes you the
+> daemon (read `EXPLORANDO DERIVAMVS` + `NIHIL CAECVM, NIHIL PERDITVM` above). Ground HEAD against the disk
+> (`eb7a2334`). The N-service attack is FULLY MAPPED in `DESIGN-N-SERVICE-KWARGS-INJECTION.md` — do NOT re-scout (the
+> 8 probes + both gaps + the strike order are recorded). Strike A is DONE (fn-forms ships hygienic params). The WORK
+> resumes at **Strike B** — struct-field reflection (`(fields-of :T)` → `[(name,type)…]`, exposing `TypeEnv` fields;
+> small) — then Strike C (the wat wiring, C1 N=1 → C2 N-heterogeneous). Weigh by your OWN re-run; shadowdancers=SONNET;
+> the reconnaissance is the victory, strike only the mapped. Do not trust this note over the disk. See you on the far side.
