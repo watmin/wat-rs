@@ -276,3 +276,105 @@ field types via `field-types-of`) generates the PARENT-SIDE contract check — a
 handles' typed coords, reconciled against the `::Kwargs` (the co-location reconciliation); (c) the child dials the typed
 addresses + assembles the `::Kwargs` + invokes via the companion (C1's mechanism). GATE: `(process/uses :echo kvh :kv eh)`
 SWAPPED → a located `TypeMismatch` at `wat --check`, not a runtime peer-closed. Every finding captured here; probes in `scratchpad/` (gitignored).
+
+### W2 scout — the carrier
+
+**The grounded flow (real files, not theorized).** `process/uses` (macro, `wat/spawn.wat:176-200`) builds
+`Vector<(keyword,Capability)>` — each handle up-casts to `Capability` at the `process/uses-pairs` call boundary
+(`spawn.wat:167-174`, param type `Vector<(keyword,Capability)>`), which is where the concrete handle type dies; the erased
+vector lands in `ProcessOpts.uses` (`spawn.wat:66-71`). `bracket/map<I,O,W>` (`bracket.wat:537`) and `map-worker<I,O,W>`
+(`bracket.wat:444`) are plain **fns**, not macros — `map-worker` reads `uses = (Locus/uses locus)` at `bracket.wat:460` via the
+`:wat::spawn::uses` defclause (`spawn.wat:220-222`), a **runtime** accessor over the already-erased value; no macro ever sees
+the literal `process/uses` call, only the `let`-bound `locus` symbol flowing in by reference. `spawn-runner` → `process-work-forms`
+(`bracket.wat:210-304`) is ALSO not a macro — it's a `defclause` (runtime dispatch), invoked from *inside* `map-worker`'s `peers`
+`mapv` closure (`bracket.wat:463-497`), i.e. once per worker **at pool spin-up, in the parent process, per spawn call** — not at
+static-check time of the parent's own file. It reads `::Kwargs` field types via `field-types-of` (`bracket.wat:256`) but never
+touches `uses`/the handles — it only has `work-fn` in scope. **Conclusion: concrete handle types and `::Kwargs` field types never
+meet at any single site in the real flow** — `uses` is erased before `map-worker`; `process-work-forms` never sees `uses` at all.
+This also means the strike's framing of `process-work-forms` as "a compile-time macro" is imprecise, grounded against the disk:
+it is runtime code (a `defclause`) that *generates* the child's source — genuinely static-before-any-execution reconciliation must
+happen through the ORDINARY type checker at an ordinary call site (exactly how `probe-c2-colocation.wat`'s `dial-all` catches the
+swap), not by injecting a check into this walk.
+
+**Candidate A — BLOCKED, structurally then empirically.** `process/uses` keeps a `Tuple`/struct of concrete handles (not erased).
+Probe: `scratchpad/probe-w2-a-heterogeneous.wat` defines `UsesCarrier` with a FIXED 2-tuple field, then constructs it with a
+3-element tuple at a second call site in the same file. `wat --check` → located `ArityMismatch` (`:wat::core::Tuple: expected 2
+argument(s); got 3`, line 18) + `TypeMismatch` (`:probe::UsesCarrier: parameter #1 expects :(wat::core::i64,wat::core::i64); got
+:(wat::core::i64,wat::core::i64,wat::core::i64)`, line 18). A `defstruct` field type is fixed **once**, canonically, at
+authoring time (mirrors `ProcessOpts.uses`'s single declared field type) — one struct definition cannot carry an arbitrary-arity
+heterogeneous contract across call sites of different N. A collapses into C (ProcessOpts itself would have to become generic).
+
+**Candidate B — BLOCKED, on a deeper reason than policy (probed twice, live).** First pass: a macro (`process/uses`-shaped)
+tries to resolve a let-bound handle's type via `field-names-of`/`field-types-of`. `scratchpad/probe-w2-b-macro-sees-symbol-not-type.wat`
+→ `MalformedDefmacro` (`keyword head ':wat::runtime::field-names-of' refused at macro expand time — not on the pure-combinator
+allow-list (default-deny F5 gate, arc 249 stone 249.2b-i)`, lines 26-33) — **both** `field-names-of`/`field-types-of` were
+categorically refused inside ANY macro body, independent of what they're called with. Per live builder direction mid-scout, this
+was fixed for real: `:wat::runtime::field-names-of` / `:wat::runtime::field-types-of` added to the `is_pure_total` allow-list in
+`src/macros/eval.rs` (same category as the already-allowed `signature-of-fn`/`extract-arg-names`/`extract-arg-types` — confirmed
+pure by reading `eval_field_names_of`/`eval_field_types_of`, `src/runtime.rs:11593-11662`: read-only lookups against the frozen
+`sym.types` registry, no IO, no mutation). Rebuilt; `cargo test --release -p wat --test macros` → 105 passed / 0 failed (captured
+`scratchpad/macro-suite.txt`). Two `tests/collection` failures seen in one interleaved run were a pre-existing parallel-test race,
+confirmed unrelated by isolating the single file (4/4 clean re-runs, both `--test-threads=1` and default). **Re-ran probe B against
+the rebuilt binary — the purity gate no longer fires, but the REAL blocker surfaces**: `MalformedForm: unknown type ':eh'` (line 32)
+— `field-names-of`/`field-types-of` key off a **registered type name** in the frozen registry; a let-bound local's bare symbol
+name (`eh`) is never one. Macros run on unevaluated syntax, before type inference — there is no primitive, purity-gated or not,
+that maps "this local variable" to "its inferred type." **The purity fix was necessary but not sufficient for B as literally
+probed** (a macro trying to read a handle's type off its call-site expression). The `src/macros/eval.rs` change is real, tested
+green, and left **uncommitted** in the working tree (only this doc is committed by this scout, per the strike's scope) — the
+builder should independently land or fold it.
+
+**Candidate C — BLOCKED, empirically (no precedent, and the naive attempt silently no-ops).** `grep -n "extend-type" wat/*.wat`
+shows every `extend-type` in the tree targets a CONCRETE struct (`ThreadOpts`, `ProcessOpts`) — never a generic one, even though
+generic structs exist (`Bound<S,R>`, `Launched<S,R,Sh,Lu>`, both FIXED-arity type-param lists, never variadic). Probe:
+`scratchpad/probe-w2-c-generic-extend-type.wat` defines `Carrier<U>` and `(extend-type :probe::Carrier<U> :probe::Foo (greet
+[self] 42))`. The `extend-type` declaration itself raises **no error** (silently accepted) — but the resulting instantiation is
+not wired: calling `(:probe::Foo/greet c)` where `c : Carrier<i64>` → located `TypeMismatch` (`:probe::Foo/greet: parameter #1
+(receiver) expects :probe::Foo; got :probe::Carrier<wat::core::i64>`, line 22). There is no "blanket impl across all U" mechanism
+in the language today — a parametric `ProcessOpts<U>` would NOT satisfy the plain (non-generic) `:wat::spawn::Locus` surface
+(`spawn.wat:371`) the way concrete `ProcessOpts` does now.
+
+**STOP-1 triggered, verbatim per the brief.** None of A/B/C, *as literally specified*, arrange a static reconciliation:
+A collapses into C; B's macro-time reflection dead-ends on inferred-type-of-a-local (a real primitive gap, not a policy gap);
+C needs a generic-struct-`extend-type` capability the substrate doesn't have and my probe shows silently no-ops rather than
+erroring loud (worth its own bug ticket regardless of C2 — a `defclause`/`extend-type` target with a free type variable should
+either work or refuse at the declaration, not silently accept and then fail every call site).
+
+**A fourth direction survives grounding (not literally A/B/C — a synthesis, unbuilt, for the builder to ratify).** Re-reading
+the ALREADY-PROVEN `probe-c2-colocation.wat` mechanism: `dial-all`'s swap-catch needs **no** surface/`extend-type`/`Locus`
+machinery at all — it is an ordinary `defn` whose declared parameter type is a literal, field-ordered `Tuple<Address'<S,R>…>`,
+called with a `Tuple` of `Dialable/coord` values built at the call site; the ORDINARY type checker does the reconciling, the
+same way it already checks any other call. Generalizing: nothing stops a NEW macro (`bracket/map-uses`, since `process/uses`
+itself never sees the work-fn and can't do this alone) that, given both the `:name handle` pairs and the work-fn keyword:
+(1) reads `<base>::Kwargs`'s **field NAMES ONLY** via `field-names-of` (now macro-legal after the fix above, and unblocked by B's
+own finding — the arg is `<base>::Kwargs`, a REGISTERED type name derived by string-concat off the literal work-fn keyword,
+exactly like `process-work-forms` already does at `bracket.wat:230-231` — never a local symbol, so B's local-binding blocker
+never applies here); (2) reorders the caller's `(kn vn)` pairs to match field order — pure AST/keyword-literal manipulation, no
+type reflection; (3) splices each `vn` VERBATIM (exactly `process/uses`'s existing trick, `spawn.wat:191-196`) into
+`(Dialable/coord ~vn)` calls, in field order, fed to a companion checker — a NEW auto-emitted declaration paired 1:1 with
+`::Kwargs`, field-for-field `Peer'<S,R>` → `Address'<S,R>` (the SAME head-swap string-split/join `process-work-forms` already
+proves at `bracket.wat:338`, since `::Kwargs`'s own ctor wants `Peer'` — the connected peer — not the bare `Address'` a parent
+holds pre-dial, so `::Kwargs`'s own constructor cannot double as the checker). The macro never needs to know any handle's type;
+it only ever touches registered names (`<base>::Kwargs`) and splices unevaluated syntax — the ordinary checker, at the ordinary
+call it emits, does the catching. **Unbuilt, unprobed as a whole** — flagged for the builder, not this scout's deliverable.
+
+**RECOMMENDED carrier: the fourth direction (companion-checker macro), NOT literally A/B/C.**
+
+| | verdict |
+|---|---|
+| **Obvious?** | ~ — reuses two ALREADY-PROVEN moves (verbatim AST splice from `process/uses`; ordinary-call type-check from `dial-all`) rather than inventing a third; not obvious that C2's own mechanism generalizes this way until traced, which this scout did. |
+| **Simple?** | NO, honestly — it needs a NEW macro (`bracket/map-uses`, since `process/uses` alone lacks the work-fn) AND a NEW auto-emitted companion declaration per `::Kwargs` (the `Peer'→Address'` head-swapped checker). Real, non-cosmetic build. |
+| **Honest?** | YES — the actual reconciliation is done by the SAME type checker that already catches every other type error, at an ordinary call, not by a bespoke walk; a swap is caught the identical way `dial-all` already proves it, no new class of diagnostic. |
+| **Good UX?** | Unclear pending the builder's call — `(bracket/map-uses locus items :work :echo eh :kv kvh)`-shaped is plausible but not designed; whether it subsumes or sits beside `process/uses` is an open sub-decision below. |
+
+**Open sub-decisions for the builder:**
+1. Does `bracket/map-uses` REPLACE `process/uses` + `bracket/map`, or compose beside them (keeping `process/uses`'s existing
+   grant/revoke-only role and adding a SEPARATE check-emitting macro at the `bracket/map`/`each` call site, which already knows
+   both `locus` and `work-fn`)? The latter touches less ratified surface.
+2. Who emits the companion `Peer'→Address'` checker declaration, and when — the same machinery that mints `::Kwargs` (at
+   *its* definition time, zero reflection needed there, the types are already literal source), or `process-work-forms` itself
+   (at first spawn, runtime, reflection-based, mirroring how it already derives `Address'` from `Peer'` at `bracket.wat:338`)?
+3. Land or drop the `src/macros/eval.rs` purity-allow-list change (uncommitted) — it is independently correct (proven pure,
+   105/105 macro tests green) and is a prerequisite for step 1 of the fourth direction regardless of which sub-decision above
+   is chosen; recommend landing it now, separately, rather than re-deriving it mid-W2-build.
+4. File the `extend-type`-on-a-generic-struct silent-no-op as its own bug (STOP-1's C probe) — independent of whether C2
+   ever needs generic-struct `extend-type`, a declaration that's accepted but never satisfiable at any call site is a footgun.
