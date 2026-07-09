@@ -133,50 +133,6 @@
                   "bracket thread runner: unexpected PoolMsg::Setup (thread pools never dial)"
                   :wat::core::None :wat::core::None)))))))))
 
-;; ── fn-forms surface-record dedup (arc 170 M1-pool) ──────────────────────────
-;;
-;; A DIAL work-fn references its service's surface + that surface's message records
-;; (it constructs the request, reads the reply). `fn-forms` dependency-extraction then
-;; emits those message records TWICE: once standalone (they're referenced) AND once
-;; inside the surface's retained source form (a defsurface's `:messages` DEFINE them).
-;; Evaluating both in the child raises `DuplicateDefine`. The surface's own definition is
-;; the authoritative one (it must ship — the work-fn dispatches its method), so we DROP the
-;; redundant standalone `recordtype` forms whose name a shipped `defsurface` already binds.
-;; (The proper home for this dedup is fn-forms itself; this is a consumer-side guard so the
-;; bracket's shipped forms are dup-free. No-op for a plain work-fn — no surface, no drop.)
-;; node-name → "" for non-nameable nodes (keeps `ast-name` off vectors/lists).
-(:wat::core::defn :wat::bracket::node-name [x <- :wat::WatAST] -> :wat::core::String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind x) "keyword")
-    (:wat::core::ast-name x)
-    ""))
-
-;; the CHILDREN of a defsurface's `:messages` vector (the message defrecord forms), or empty.
-(:wat::core::defn :wat::bracket::surface-messages [f <- :wat::WatAST] -> :wat::core::Vector<wat::WatAST>
-  (:wat::core::second
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- :(wat::core::i64,wat::core::Vector<wat::WatAST>)  cc <- :wat::WatAST]
-          -> :(wat::core::i64,wat::core::Vector<wat::WatAST>)
-        (:wat::core::if (:wat::core::= (:wat::core::first acc) 1)
-          (:wat::core::Tuple 0 (:wat::core::ast->children cc))          ;; cc is the :messages vector
-          (:wat::core::if (:wat::core::= (:wat::bracket::node-name cc) ":messages")
-            (:wat::core::Tuple 1 (:wat::core::second acc))
-            acc)))
-      (:wat::core::Tuple 0 (:wat::core::Vector :wat::WatAST))
-      (:wat::core::ast->children f))))
-
-;; is `x` OWNED by any surface member — the member type itself (`M`) OR one of its
-;; generated names (`M/…` — constructor/accessor)? A defsurface regenerates ALL of these,
-;; so every standalone one fn-forms emitted is redundant.
-(:wat::core::defn :wat::bracket::member-owned? [members <- :wat::core::Vector<wat::core::String>  x <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::bool  m <- :wat::core::String] -> :wat::core::bool
-      (:wat::core::if acc acc
-        (:wat::core::if (:wat::core::= m x)
-          true
-          (:wat::core::string::starts-with? x (:wat::core::string::concat m "/")))))
-    false
-    members))
-
 ;; The PROCESS arm (not-shared) — bakes the runner, ships only the user's code
 ;; (259 S3c; supersedes the S3b shipped-runner shape).
 ;;

@@ -1259,7 +1259,7 @@ fn record_dep_dependency(
                     let opt = state.parent_types.get(name)
                         .or_else(|| state.captured_types.get(name));
                     match opt {
-                        Some(TypeDef::Aggregate(a)) => a.nature == crate::types::Nature::Struct,
+                        Some(TypeDef::Aggregate(_)) => true,
                         Some(TypeDef::Newtype(_)) => true,
                         _ => false,
                     }
