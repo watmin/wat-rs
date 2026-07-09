@@ -428,3 +428,104 @@ TypeMismatch at `wat --check`; the correct wiring runs `["echo:a·kv:a" …]`.
 
 **Open sub-decision (arg order):** `(bracket/uses locus items work-fn :name val …)` vs fn-first
 `(bracket/uses work-fn locus items :name val …)` (to match the ratified core/map fn-first flip). Pin on the far side.
+
+#### The exact forms (the gate program — write this verbatim)
+
+```clojure
+;; ── two services (surfaces + defservices) ─────────────────────────────────────
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+(:wat::service::defservice :probe::echo'
+  :satisfies :probe::Echo  :durable []  :ephemeral []
+  :impls [(echo [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Echo::EchoResponse
+                (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
+   (:wat::core::defrecord :probe::Kv::GetResponse [v <- :wat::core::String])]
+  :features
+  [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse)])
+(:wat::service::defservice :probe::kv'
+  :satisfies :probe::Kv  :durable []  :ephemeral []
+  :impls [(get [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Kv::GetResponse
+                (:wat::core::string::concat "kv:" (:probe::Kv::GetRequest/k req)))))])
+
+;; ── the work-fn: item POSITIONAL; services + PURE DATA as KWARGS ───────────────
+(:wat::core::defn :probe::enrich
+  [item <- :wat::core::String
+   & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
+      kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>
+      tag  <- :wat::core::String]]                     ;; a DATA kwarg (copied, not dialed)
+  -> :wat::core::String
+  (:wat::core::string::concat tag
+    (:wat::core::string::concat " "
+      (:wat::core::string::concat
+        (:probe::Echo::EchoResponse/reply (:probe::Echo/echo echo (:probe::Echo::EchoRequest item)))
+        (:wat::core::string::concat "·"
+          (:probe::Kv::GetResponse/v (:probe::Kv/get kv (:probe::Kv::GetRequest item))))))))
+
+;; ── the dispatch: (bracket/uses locus items work-fn :name val …) ──────────────
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     kvh (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))
+     out (:wat::bracket::uses (:wat::spawn::process) ["a" "b" "c"] :probe::enrich
+           :echo eh :kv kvh :tag "run-7")]              ;; services + data, by name, order-free
+    (:wat::kernel::println out)))
+;; → ["run-7 echo:a·kv:a" "run-7 echo:b·kv:b" "run-7 echo:c·kv:c"]
+```
+
+**Order-free** — the last let-binding written any of these is IDENTICAL:
+```clojure
+(:wat::bracket::uses (:wat::spawn::process) ["a" "b" "c"] :probe::enrich :kv kvh :tag "run-7" :echo eh)
+```
+
+**The negative (the soundness gate) — a SWAPPED handle:**
+```clojure
+(:wat::bracket::uses (:wat::spawn::process) ["a" "b" "c"] :probe::enrich :echo kvh :kv eh :tag "run-7")
+;; MUST fail `wat --check`:
+;;   TypeMismatch: :echo expects Address'<probe::Echo::Op,probe::Echo::Reply>; got Address'<probe::Kv::Op,probe::Kv::Reply>
+;; (via (Dialable/coord kvh) : Address'<Kv…> ascribed to the :echo field's Address'<Echo…>) — NOT a runtime peer-closed.
+```
+
+**A missing / extra name — a NAME error at expand:**
+```clojure
+(:wat::bracket::uses (:wat::spawn::process) ["a" "b" "c"] :probe::enrich :echo eh :tag "run-7")   ;; missing :kv
+;; → macro-error: "bracket/uses: missing argument :kv" (kwargs-lower's unification)
+```
+
+#### The target expansion (what `bracket/uses` produces — pin the exact `uses'` arity on the far side)
+
+```clojure
+;; (bracket/uses (process) ["a" "b" "c"] :probe::enrich :echo eh :kv kvh :tag "run-7")
+;; expands (conceptually) to:
+(:wat::core::let
+  ;; (1) parent-side SWAP-CATCH — one ann-form per Peer' field: the handle's typed Dialable coord
+  ;;     ascribed to the FIELD's Address'<S,R> (from field-types-of on :probe::enrich::Kwargs).
+  ;;     A wrong-service handle fails HERE, at check time (the proven mechanism, probe-c2-typed-coordinate.wat).
+  [_chk-echo (:wat::core::ann-form (:wat::capability::Dialable/coord eh)
+               :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)
+   _chk-kv   (:wat::core::ann-form (:wat::capability::Dialable/coord kvh)
+               :wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>)]
+  ;; (2) hand off to the impl: the config locus, the items, the work-fn's $impl, the FIELD-ORDERED
+  ;;     service handles (grant + dial per worker), the FIELD-ORDERED data values (copied as EDN),
+  ;;     and the ::Kwargs type-def (assembled in the child, then invoked via the companion — C1's mechanism, N=1→N).
+  (:wat::bracket::uses' (:wat::spawn::process) ["a" "b" "c"]
+    :probe::enrich$impl
+    [eh kvh]                      ;; field-ordered Peer' handles → grant + dial
+    ["run-7"]                     ;; field-ordered pure-data → copied
+    :probe::enrich::Kwargs))
+```
+The `uses'` signature (how it takes the handle vector, the data vector, the `$impl`, the `::Kwargs` type) is the
+one thing to PIN in the W3 build — but the parent check `(ann-form (Dialable/coord h) <field Address'>)` and the
+child assemble+invoke (C1) are both already proven; W3 is generalizing C1's N=1 to N + wiring the data-copy path
+(exigere: service-dial first).
