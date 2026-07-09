@@ -26,3 +26,21 @@
 ;; each component against its expected position — including nested inside a spliced
 ;; `Vector<(keyword,Capability)>`, exactly `process/uses`'s (wat/spawn.wat) shape. Zero
 ;; consumers remain (whole-tree grep) — deleted rather than kept as dead surface.
+
+;; Dialable<S,R> (arc 170 W1) — a SECOND, PARAMETRIC surface every service's `<fqdn>::Handle`
+;; also satisfies (via a second auto-emitted extend-type, wat/service.wat's dialable-extend,
+;; beside grantable-extend). Where Capability/coordinate deliberately erases the service type
+;; (bare :wat::kernel::Address', for the uniform heterogeneous Vector<Capability> grant/revoke
+;; path), Dialable/coord returns the handle's own TYPED :wat::kernel::Address'<S,R> — so
+;; `(Dialable/coord handle)` resolves per-satisfier to the concrete service address
+;; (Address'<Echo::Op,Echo::Reply> vs Address'<Kv::Op,Kv::Reply>), and a wrong-service dial is
+;; a compile-time discrimination error. Proven by hand in
+;; scratchpad/probe-c2-typed-coordinate.wat (pre-auto-emit); this bakes the surface so
+;; defservice can auto-emit satisfaction without a hand-written extend-type per service.
+;; Method name `coord` (not `coordinate`) — deliberately distinct from Capability's
+;; `coordinate` so a handle satisfying BOTH surfaces has no unqualified-call ambiguity; callers
+;; already qualify by surface (`:wat::capability::Capability/coordinate` vs
+;; `:wat::capability::Dialable/coord`), matching the probe's proven shape.
+(:wat::core::defsurface :wat::capability::Dialable<S,R> :nature :wat::core::Struct
+  :features
+  [(coord [self <- :wat::capability::Dialable<S,R>] -> :wat::kernel::Address'<S,R>)])

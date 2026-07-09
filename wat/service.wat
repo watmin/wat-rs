@@ -1180,7 +1180,23 @@
                          (grant  [~grantable-self-sym ~grantable-pids-sym] (~grant-method-name  ~grantable-self-sym ~grantable-pids-sym))
                          (revoke [~grantable-self-sym ~grantable-pids-sym] (~revoke-method-name ~grantable-self-sym ~grantable-pids-sym))
                          (coordinate [~grantable-self-sym]
-                           (:wat::core::ann-form (~handle-addr-name ~grantable-self-sym) :wat::kernel::Address')))]
+                           (:wat::core::ann-form (~handle-addr-name ~grantable-self-sym) :wat::kernel::Address')))
+
+     ;; ── arc 170 W1: auto-emit the Dialable<S,R> extend-type ───────────────────────
+     ;; A SECOND, PARAMETRIC surface (wat/capability.wat) every <fqdn>::Handle also
+     ;; satisfies, beside the flat Capability above. Where Capability/coordinate up-casts
+     ;; to a bare Address' (service-erased, for uniform grant/revoke), Dialable/coord
+     ;; returns the handle's own TYPED addr field directly — Address'<proto::Op,proto::
+     ;; Reply> — so a wrong-service dial is a compile-time discrimination error. Mirrors
+     ;; the hand-proven extend-type in scratchpad/probe-c2-typed-coordinate.wat. proto-str
+     ;; (not fqdn-str) matches addr-ty's own Op/Reply namespace (arc 293 S2, line ~472).
+     dialable-ty (:wat::core::keyword/from-string
+                   (:wat::core::string::concat "wat::capability::Dialable<"
+                     (:wat::core::string::concat proto-str
+                       (:wat::core::string::concat "::Op,"
+                         (:wat::core::string::concat proto-str "::Reply>")))))
+     dialable-extend `(:wat::core::extend-type ~handle-name ~dialable-ty
+                         (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))]
 
     ;; Assemble the final `do`:
     ;;   record + state defs (durable/ephemeral projections)
@@ -1209,4 +1225,5 @@
        ~start-fn
        ~resume-fn
        ~handle-record
-       ~grantable-extend)))
+       ~grantable-extend
+       ~dialable-extend)))

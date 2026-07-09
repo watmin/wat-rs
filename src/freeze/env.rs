@@ -270,14 +270,20 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     //      `register_runtime_defs_form`). This is the FIRST registration for these
     //      forms, so a colliding key is a genuine DuplicateDefine
     //      (skip_if_present=false).
+    //
+    //      W1a — a macro (e.g. `defservice`) can emit `(do … (extend-type …) …)`
+    //      rather than a bare top-level extend-type, so this must recurse into
+    //      `do`/`let` wrappers the same way freeze step 9's
+    //      `register_runtime_defs_form` (runtime.rs) and `splice_type_decls`
+    //      (types.rs) already do for the sibling type-decl / runtime-def passes —
+    //      otherwise a macro-emitted extend-type's satisfaction scheme never
+    //      reaches `sym.functions` before `check_program` runs. Step 9 continues
+    //      to re-walk the SAME residue (skip_if_present=true, see runtime.rs:1935),
+    //      so pre-registering do/let-nested forms here is idempotent with step 9
+    //      exactly like the existing top-level case.
     for form in &residue {
-        if let WatAST::List(items, _) = form {
-            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::extend-type")
-            {
-                crate::runtime::register_extend_type_surface_impls(form, &mut symbols, false)
-                    .map_err(|e| StartupError::Runtime(Box::new(e)))?;
-            }
-        }
+        preregister_extend_type_in_do_let(form, &mut symbols)
+            .map_err(|e| StartupError::Runtime(Box::new(e)))?;
     }
 
     Ok(EnvBundle {
@@ -286,4 +292,49 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         symbols,
         residue,
     })
+}
+
+/// W1a — recursive walk for build_env step 7.7: find every `extend-type` form
+/// reachable from `form` through `do`/`let` wrappers (a macro-emitted
+/// extend-type is never a bare top-level form; it arrives nested inside a
+/// `(do …)` splice, and possibly nested `do`s within that), pre-registering
+/// each one's surface impls via the shared `register_extend_type_surface_impls`
+/// routine (`skip_if_present=false` — this is the FIRST registration for a
+/// given form, so a colliding key here is a genuine `DuplicateDefine`, mirroring
+/// the top-level case this replaces).
+///
+/// Mirrors the `do`/`let` recursion shape in `register_runtime_defs_form`
+/// (runtime.rs) and `splice_type_decls` (types.rs) — same two keywords, same
+/// body-start offset (`do` body is `items[1..]`, `let` body is `items[2..]`
+/// to skip the bindings vector).
+fn preregister_extend_type_in_do_let(
+    form: &WatAST,
+    symbols: &mut SymbolTable,
+) -> Result<(), crate::runtime::RuntimeError> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return Ok(()),
+    };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return Ok(()),
+    };
+    match head {
+        ":wat::core::extend-type" => {
+            crate::runtime::register_extend_type_surface_impls(form, symbols, false)
+        }
+        ":wat::core::do" => {
+            for child in &items[1..] {
+                preregister_extend_type_in_do_let(child, symbols)?;
+            }
+            Ok(())
+        }
+        ":wat::core::let" => {
+            for child in items.iter().skip(2) {
+                preregister_extend_type_in_do_let(child, symbols)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
