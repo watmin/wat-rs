@@ -970,16 +970,18 @@ The C2 wrong-service compile error is DE-RISKED end to end — parametric surfac
  ["W1 (foundation) DONE (4bb4ee34): each <fqdn>::Handle auto-satisfies :wat::capability::Dialable<S,R>, so
    (:wat::capability::Dialable/coord handle) → the handle's TYPED Address'<S,R> (service-discriminating at compile time).
    The flat :wat::capability::Capability/coordinate stays bare for uniform grant/revoke. Gate probe-w1-typed-coord-auto.wat green."
-  "W2 (NEXT) — process/uses PRESERVES the typed handles so the walk can call (Dialable/coord handle) on each, instead of
-   erasing to Vector<(keyword,Capability)>. THE DESIGN QUESTION (scout/probe first): what carrier keeps each handle's concrete
-   type + its :name AND still lets grant/revoke read it as Capability? (a heterogeneous Tuple of concrete handles + names, a
-   parametric ProcessOpts, or keep the erased Capability vector for grant/revoke + a SECOND typed-handle carrier for the check).
-   Grant/revoke fold up-casting each to Capability; the check needs the concrete Dialable satisfaction. Probe the carrier shape."
-  "W3 (the big one) — the spawn-runner walk (it already reads ::Kwargs field types via field-types-of) generates the
-   PARENT-SIDE contract check — a field-ordered Tuple<Address'<Si,Ri>…> from the handles' typed coords, reconciled against the
-   ::Kwargs (the co-location reconciliation, PROVEN in probe-c2-colocation.wat) → a SWAPPED handle a compile error; + the child
-   N-generalization (dial N typed addresses + assemble the ::Kwargs + invoke via the companion — C1's mechanism, N=1→N).
-   GATE: (process/uses :echo kvh :kv eh) SWAPPED → a located TypeMismatch at `wat --check`, NOT a runtime peer-closed."
+  "W2/W3 — CARRIER RATIFIED (2026-07-09) → the FULL SPEC is DESIGN-N-SERVICE-KWARGS-INJECTION.md '### W2/W3 — RATIFIED'.
+   The carrier is (:wat::bracket::uses locus items work-fn :name val …) — a MACRO (bracket/uses, bare) expanding into
+   (:wat::bracket::uses', prime, the impl); the companion pattern. The scout PROVED A/B/C blocked (process/uses can't carry
+   typed handles through the fixed ProcessOpts field; a macro can't reflect a LOCAL var's type; generic extend-type doesn't
+   wire) → so FUSE the provision into the dispatch (co-located with the work-fn = the ONLY site the compiler can catch a swap).
+   process/uses (the standalone locus) RETIRES into it; the locus stays CONFIG-only (process/env/runner-count, composable)."
+  "W2 = the bracket/uses MACRO: reflect the work-fn's ::Kwargs via field-*-of (now pure-total, 95460eb7) → name-match each
+   :name val → per-field compile-check (a Peer'→Address' checker, reusing dial-all — swap = compile error) → expand to uses'.
+   W3 = bracket/uses' RUNTIME: grant N + dial N typed addresses (Dialable/coord) + assemble the ::Kwargs + invoke via the
+   companion (C1's mechanism N=1→N) + retire process/uses. Mixed kwargs: Peer'→dial, pure data→copy-as-EDN, resource→forbidden
+   (293.W); build the SERVICE-DIAL path FIRST (exigere). OPEN: arg order (locus-first vs fn-first). GATE: (bracket/uses (process)
+   ['a' 'b' 'c'] :probe::enrich :echo kvh :kv eh) SWAPPED → located TypeMismatch at `wat --check`; correct → ['echo:a·kv:a' …]."
   "THEN (ratified): map arg-order flip (fn-first, to match core/map); spawn-* RESERVED (4 concurrency shapes measured clean:
    long-lived=defservice · fan-out=bracket/map · sealed one-shot eval=run-sandboxed-hermetic-ast · custom=coordinate/dial)."]
 

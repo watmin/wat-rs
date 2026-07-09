@@ -378,3 +378,53 @@ call it emits, does the catching. **Unbuilt, unprobed as a whole** — flagged f
    is chosen; recommend landing it now, separately, rather than re-deriving it mid-W2-build.
 4. File the `extend-type`-on-a-generic-struct silent-no-op as its own bug (STOP-1's C probe) — independent of whether C2
    ever needs generic-struct `extend-type`, a declaration that's accepted but never satisfiable at any call site is a footgun.
+
+### W2/W3 — RATIFIED (2026-07-09): the carrier is `bracket/uses` (macro) + `bracket/uses'` (impl)
+
+The W2 scout's synthesis is RATIFIED with the builder, named per the companion/prime convention (same shape as
+every `<name>` / `<name>$impl` kwargs companion in the language):
+
+- **`:wat::bracket::uses`** (bare) = the **kwargs-surface MACRO** the user writes. It fuses the service provision
+  INTO the dispatch — co-located with the work-fn, the ONLY site the compiler can catch a swap (the scout proved a
+  standalone `process/uses` locus CANNOT: A blocked — a fixed `ProcessOpts` field can't hold the arbitrary-arity
+  heterogeneous typed bundle; B blocked — a macro can't reflect a *local var's* type, only registered names; C
+  blocked — `extend-type` on a generic struct never wires a concrete instantiation).
+- **`:wat::bracket::uses'`** (prime) = the **expanded impl** the macro produces.
+
+**User form:**
+```clojure
+(:wat::bracket::uses <locus> <items> <work-fn> :name val …)
+;; e.g.
+(:wat::bracket::uses (:wat::spawn::process) ["a" "b" "c"] :probe::enrich :echo eh :kv kvh)
+```
+- `<locus>` is CONFIG only (`(process)` / `(process/runner-count 8)` / `(process/env …)`) — composable as before;
+  the SERVICES move to the `:name val` kwargs.
+- **Order-free** (`:kv kvh :echo eh` identical); **swap → compile error** (`:echo kvh` where `:echo` wants
+  `Peer'<Echo…>` → located TypeMismatch at `wat --check`, NEVER a runtime peer-closed).
+- **`process/uses` (the standalone locus) RETIRES into this.**
+
+**The `bracket/uses` macro, at expansion** (one site — items + work-fn + `:name val` all present):
+1. reflects the work-fn's `::Kwargs` via `field-names-of`/`field-types-of` (now on the pure-total allow-list, `95460eb7`);
+2. name-matches each `:name val` to the `::Kwargs` field by name (kwargs-lower's unification; missing/extra name = error);
+3. per field, emits a compile-time type check that the value fits the field's declared type — for a `Peer'<S,R>` field,
+   the handle's coordinate must be `Address'<S,R>` (a `Peer'→Address'` checker, reusing `dial-all`'s proven mechanism,
+   `probe-c2-colocation.wat`) → a wrong-service handle is a compile error;
+4. expands into `(:wat::bracket::uses' …)` with the reconciled bundle + the work-fn's `$impl`.
+
+**`bracket/uses'` (the impl) — W3 runtime:** grant N pids + dial N typed addresses (via the typed `Dialable/coord`) +
+assemble the one `::Kwargs` struct in the child + invoke via the companion (C1's mechanism, N=1 → N).
+
+**Mixed kwargs — the `::Kwargs` struct holds ANY typed field; each field's TYPE routes its crossing** (ocap discipline):
+`Peer'<S,R>` (a service) → a Handle → grant + dial → a live peer; pure data (`i64`/record/`String`) → the value →
+copied as EDN across the wire (no dialing); a live resource → forbidden (293.W — compile error).
+
+**Scope (`exigere`):** build the SERVICE-DIAL path first (the hard part); the data-copy field lands when a real consumer
+passes one — the shape admits it for free (same reconcile-by-name-into-the-struct; the type routes copy-vs-dial).
+
+**Build order (far side):** W2 = the `bracket/uses` MACRO (reflect `::Kwargs` + name-match + the per-field compile-check)
+→ a `bracket/uses'` shell. W3 = the `bracket/uses'` runtime (dial N + assemble + invoke, generalizing C1) + retire
+`process/uses`. **GATE:** `(bracket/uses (process) ["a" "b" "c"] :probe::enrich :echo kvh :kv eh)` SWAPPED → a located
+TypeMismatch at `wat --check`; the correct wiring runs `["echo:a·kv:a" …]`.
+
+**Open sub-decision (arg order):** `(bracket/uses locus items work-fn :name val …)` vs fn-first
+`(bracket/uses work-fn locus items :name val …)` (to match the ratified core/map fn-first flip). Pin on the far side.
