@@ -5829,6 +5829,46 @@ fn infer_list(
                             (ty.clone(), vec![], vec![]) // accessor: receiver only, no extra params, no type params
                         }
                     };
+                    // Infer every arg's type ONCE, up front — both the surface-level-param
+                    // resolution below and the arity/assignability checks further down need
+                    // these; inferring once (not twice) avoids double-reporting errors for the
+                    // same argument expression.
+                    let arg_tys: Vec<Option<TypeExpr>> = args
+                        .iter()
+                        .map(|arg| {
+                            infer(arg, env, locals, fresh, subst)
+                                .drain_errors_into(&mut local_errors)
+                        })
+                        .collect();
+                    // Arc C2 (surface type params, arc 170) — a `defsurface :S<T> …` member's
+                    // declared type is a bare, UNRESOLVED `:T` in `s.members` — correct only
+                    // PER-SATISFIER. Resolve it by looking up the receiver's concrete satisfier
+                    // scheme `<ConcreteType>/<method>`, which `extend-type` registered
+                    // (`register_extend_type_surface_impls`, runtime.rs) with the surface's `<T>`
+                    // already substituted to that satisfier's concrete binding (e.g. `T=i64` for
+                    // `(extend-type :IntBox :Holds<i64> …)`). Monomorphic surfaces
+                    // (`s.type_params` empty) take the identity branch — a pure no-op, so
+                    // existing (non-parametric) surfaces are byte-for-byte unaffected.
+                    let (member_ret_raw, extra_param_types_raw): (TypeExpr, Vec<TypeExpr>) =
+                        if s.type_params.is_empty() {
+                            (member_ret_raw, extra_param_types_raw)
+                        } else {
+                            arg_tys.first()
+                                .and_then(|o| o.as_ref())
+                                .and_then(|recv_ty| {
+                                    let recv_concrete = format_type(&apply_subst(recv_ty, subst));
+                                    let concrete_key = format!("{}/{}", recv_concrete, method_name);
+                                    env.get(&concrete_key).map(|scheme| {
+                                        let ret = scheme.ret.clone();
+                                        let params = scheme.params.get(1..).unwrap_or(&[]).to_vec();
+                                        (ret, params)
+                                    })
+                                })
+                                // No concrete satisfier scheme found (e.g. the receiver's type is
+                                // itself unresolved) — fall back to the surface's bare declaration,
+                                // matching prior (pre-parametric-surface) behavior.
+                                .unwrap_or((member_ret_raw, extra_param_types_raw))
+                        };
                     // Arc 293.4e-pre.ii — instantiate surface method type params (mirror of the
                     // protocol call-check arm's instantiation block, ~check.rs:5845-5891).
                     // Monomorphic members (empty type_params) take the identity path: use as-is.
@@ -5869,6 +5909,8 @@ fn infer_list(
                             (ret, rest)
                         };
                     // Arity: 1 (the receiver) + extra params (0 for Field members).
+                    // arg_tys was already inferred above (before the surface-level-param
+                    // resolution step), so no re-infer is needed here on mismatch.
                     let expected_arity = 1 + extra_param_types.len();
                     if args.len() != expected_arity {
                         local_errors.push(CheckError {
@@ -5879,20 +5921,8 @@ fn infer_list(
                                 got: args.len(),
                             },
                         });
-                        for arg in args {
-                            let _ = infer(arg, env, locals, fresh, subst)
-                                .drain_errors_into(&mut local_errors);
-                        }
                         return CheckResult::errs(local_errors);
                     }
-                    // Infer each argument's type.
-                    let arg_tys: Vec<Option<TypeExpr>> = args
-                        .iter()
-                        .map(|arg| {
-                            infer(arg, env, locals, fresh, subst)
-                                .drain_errors_into(&mut local_errors)
-                        })
-                        .collect();
                     // Check receiver (arg 0) satisfies the surface S.
                     if let Some(recv_ty) = &arg_tys[0] {
                         let surface_expected = TypeExpr::Path(protocol_fqdn.to_string());
@@ -15688,7 +15718,7 @@ fn instantiate(scheme: &TypeScheme, fresh: &mut InferCtx) -> (Vec<TypeExpr>, Typ
 /// Called from `instantiate` to convert each rigid type-variable name
 /// (`:T`, `:K`, `:V`) into a fresh unification variable for a call site,
 /// so independent call sites don't alias.
-fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> TypeExpr {
+pub(crate) fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> TypeExpr {
     match ty {
         TypeExpr::Path(p) => {
             let key = p.strip_prefix(':').unwrap_or(p);

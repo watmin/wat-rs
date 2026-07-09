@@ -5,13 +5,23 @@
 //! with assignable types (width subtyping). No `:satisfies`, no `:parent`,
 //! no declaration at the use site.
 //!
-//! `parse_defsurface` mirrors `parse_defstruct` but is simpler: name + fields
-//! only (no metadata-map), v1 monomorphic (no `<T>` type params shipped here).
+//! `parse_defsurface` mirrors `parse_defstruct` but is simpler: name + fields only
+//! (no metadata-map).
 //!
 //! Arc 293.4a — member list now carries both Field members (`name <- :T` triples)
 //! and Method members (`(name [args...] -> :R)` lists). `struct_satisfies_surface`
 //! takes a `resolve_method` closure (supplied by the `check` layer at the call site
 //! in `assignable`) so that Method satisfaction can consult `defn :T/<name>` sigs.
+//!
+//! Arc 170 C2 — the surface itself may carry type params (`defsurface :Holds<T> …`,
+//! parsed into `SurfaceDef.type_params` via `parse_declared_name`, same as
+//! `defenum`/`defrecord`). A bare reference to one of those params in a member's
+//! declared type (e.g. `-> :T`) is a PLACEHOLDER: `struct_satisfies_surface` treats it
+//! as satisfied by any concrete type (`is_surface_type_param_ref`), and the concrete
+//! per-satisfier binding is resolved separately — at `extend-type` registration time
+//! (`register_extend_type_surface_impls`, runtime.rs) and at the surface-method
+//! call site (`check.rs`'s surface-method-call arm). Monomorphic surfaces
+//! (`type_params` empty) take the identity path throughout — unaffected.
 
 use crate::ast::WatAST;
 use crate::span::Span;
@@ -49,15 +59,22 @@ where
             // Arc 293.4d — Field member: satisfied by a struct field with an assignable type
             // OR by a `:<T>/<name>` accessor (method / extend-type) that returns an assignable
             // type. This lets a foreign type back a Field member with an extend-type method.
+            //
+            // Arc 170 C2 — a bare reference to one of the SURFACE's OWN type params (e.g. `:T`
+            // for `Holds<T>`) is a placeholder, satisfied by ANY concrete type — the per-satisfier
+            // binding is resolved separately, at the call site (`check.rs`'s surface-method-call
+            // arm), not here. `is_surface_type_param_ref` is the identity-no-op when
+            // `surface.type_params` is empty (monomorphic surfaces unaffected).
+            let ty_is_param = is_surface_type_param_ref(mty, &surface.type_params);
             let has_struct_field = struct_fields
                 .iter()
-                .any(|(fname, fty)| fname == mname && is_assignable(fty, mty));
+                .any(|(fname, fty)| fname == mname && (ty_is_param || is_assignable(fty, mty)));
             if has_struct_field {
                 return true;
             }
             // Fall through to the method resolver (for foreign types with extend-type).
             if let Some((_, defn_ret)) = resolve_method(mname) {
-                return is_assignable(&defn_ret, mty);
+                return ty_is_param || is_assignable(&defn_ret, mty);
             }
             false
         }
@@ -66,8 +83,11 @@ where
             // The resolver forms the key `":<T>/<name>"` from the candidate type context
             // and returns (defn_arg_types, defn_ret) from env.schemes.
             if let Some((defn_arg_types, defn_ret)) = resolve_method(mname) {
-                // Return type must be assignable.
-                if !is_assignable(&defn_ret, mret) {
+                // Return type must be assignable — UNLESS the surface declares it as one of
+                // its own type params (Arc 170 C2: a placeholder, satisfied by construction).
+                if !is_surface_type_param_ref(mret, &surface.type_params)
+                    && !is_assignable(&defn_ret, mret)
+                {
                     return false;
                 }
                 // If the surface member declared explicit arg-type constraints (non-empty
@@ -87,7 +107,9 @@ where
                         return false;
                     }
                     for (defn_ty, member_ty) in defn_rest.iter().zip(member_arg_types.iter()) {
-                        if !is_assignable(defn_ty, member_ty) {
+                        if !is_surface_type_param_ref(member_ty, &surface.type_params)
+                            && !is_assignable(defn_ty, member_ty)
+                        {
                             return false;
                         }
                     }
@@ -98,6 +120,24 @@ where
             }
         }
     })
+}
+
+/// Arc 170 C2 — true iff `ty` is a bare `Path` naming one of the surface's OWN declared
+/// type params (e.g. `Path(":T")` when `type_params` contains `"T"`). Such a reference is
+/// a PLACEHOLDER in the surface's declaration — satisfied by any concrete type; the actual
+/// per-satisfier binding is resolved at the call site, not during structural satisfaction.
+/// Always `false` when `type_params` is empty (monomorphic surfaces — pure no-op).
+fn is_surface_type_param_ref(ty: &TypeExpr, type_params: &[String]) -> bool {
+    if type_params.is_empty() {
+        return false;
+    }
+    match ty {
+        TypeExpr::Path(p) => {
+            let bare = p.strip_prefix(':').unwrap_or(p);
+            type_params.iter().any(|tp| tp == bare)
+        }
+        _ => false,
+    }
 }
 
 /// Split a bare Symbol name like `"make<T>"` into `("make", vec!["T"])`.
@@ -322,7 +362,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             reason: "expected :Name after (:wat::core::defsurface ...)".into(),
         },
     })?;
-    let (name, _type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
+    let (name, type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
 
     // `:nature :<root>` — MANDATORY.
     let next = iter.next().ok_or_else(|| TypeError {
@@ -641,7 +681,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
 
     Ok(TypeDef::Surface(SurfaceDef {
         name,
-        type_params: vec![],
+        type_params,
         members,
         nature,
     }))

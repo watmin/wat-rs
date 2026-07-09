@@ -675,16 +675,27 @@ pub(crate) fn register_extend_type_surface_impls(
     skip_if_present: bool,
 ) -> Result<(), RuntimeError> {
     let (_canonical_key, ed) = parse_extend_type_form(form)?;
-    let surface_members = sym.types.as_deref()
+    let surface_def = sym.types.as_deref()
         .and_then(|t| t.get(&ed.protocol_name))
         .and_then(|td| match td {
-            crate::types::TypeDef::Surface(s) => Some(s.members.clone()),
+            crate::types::TypeDef::Surface(s) => Some(s.clone()),
             _ => None,
         });
-    let members = match surface_members {
-        Some(members) => members,
+    let surf = match surface_def {
+        Some(s) => s,
         None => return Ok(()), // protocol target — caller handles it
     };
+    let members = surf.members;
+    // Arc 170 C2 — bind the surface's own `<T>` type params to the concrete args parsed
+    // from this extend-type's `:Protocol<ConcreteArgs>` target (positional zip). Empty for
+    // a monomorphic surface (`surf.type_params` empty) → empty mapping → `check::rename`
+    // is the identity function on every type → pure no-op for existing surfaces.
+    let surface_type_subst: std::collections::HashMap<String, crate::types::TypeExpr> = surf
+        .type_params
+        .iter()
+        .cloned()
+        .zip(ed.protocol_type_args.iter().cloned())
+        .collect();
     for (method_name, clause) in &ed.impl_clauses {
         let method_key = format!("{}/{}", ed.type_name, method_name);
         if sym.functions.contains_key(&method_key) {
@@ -706,19 +717,24 @@ pub(crate) fn register_extend_type_surface_impls(
                     .enumerate()
                     .map(|(i, _)| {
                         if i == 0 {
+                            // self — already the concrete satisfier type; no substitution needed.
                             crate::types::parse_type_expr(&ed.type_name)
                                 .unwrap_or_else(|_| crate::types::TypeExpr::Path(ed.type_name.clone()))
                         } else {
-                            member_args.fixed_params.get(i)
+                            // Arc 170 C2 — resolve the surface's own `<T>` (if any) to this
+                            // satisfier's concrete binding. No-op when `surface_type_subst` is
+                            // empty (monomorphic surface).
+                            let raw = member_args.fixed_params.get(i)
                                 .map(|(_, t)| t.clone())
-                                .unwrap_or_else(|| crate::types::TypeExpr::Path(":wat::core::nil".into()))
+                                .unwrap_or_else(|| crate::types::TypeExpr::Path(":wat::core::nil".into()));
+                            crate::check::rename(&raw, &surface_type_subst)
                         }
                     })
                     .collect();
-                (pts, ret.clone())
+                (pts, crate::check::rename(ret, &surface_type_subst))
             }
             Some(crate::types::SurfaceMember::Field { ty, .. }) => {
-                (vec![crate::types::TypeExpr::Path(ed.type_name.clone())], ty.clone())
+                (vec![crate::types::TypeExpr::Path(ed.type_name.clone())], crate::check::rename(ty, &surface_type_subst))
             }
             // No matching surface member — shouldn't happen for a valid
             // extend-type, but fall back to the prior (nil placeholder)
@@ -6075,12 +6091,24 @@ pub(crate) fn parse_extend_type_form(
             reason: format!("extend-type first arg must be a keyword type name; got {}", other.variant_name())
         } }.into()),
     };
-    let protocol_name = match &items[2] {
+    let protocol_name_raw = match &items[2] {
         WatAST::Keyword(k, _) => k.clone(),
         other => return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: format!("extend-type second arg must be a keyword protocol name; got {}", other.variant_name())
         } }.into()),
+    };
+    // Arc 170 C2 — split a parametric protocol/surface target (`:Holds<wat::core::i64>`)
+    // into the BARE name (`:probe::Holds`, matching how the surface is registered in
+    // `TypeEnv`) plus the concrete type args (`[Path(":wat::core::i64")]`). A plain
+    // (non-generic) target (`:t::Greeter`) parses to `TypeExpr::Path` — `protocol_name`
+    // is unchanged, `protocol_type_args` is empty (the monomorphic no-op path).
+    // Parse failure (should not happen for a well-formed keyword) falls back to the raw
+    // keyword verbatim — preserves the prior behavior rather than fabricating a split.
+    let (protocol_name, protocol_type_args) = match crate::types::parse_type_expr(&protocol_name_raw) {
+        Ok(crate::types::TypeExpr::Parametric { head, args }) => (format!(":{}", head), args),
+        Ok(crate::types::TypeExpr::Path(p)) => (p, Vec::new()),
+        _ => (protocol_name_raw.clone(), Vec::new()),
     };
 
     let mut impl_clauses: std::collections::HashMap<String, crate::value::Clause> = std::collections::HashMap::new();
@@ -6198,6 +6226,7 @@ pub(crate) fn parse_extend_type_form(
     let ed = Arc::new(crate::value::ExtendDef {
         type_name,
         protocol_name,
+        protocol_type_args,
         impl_clauses,
     });
     Ok((canonical_key, ed))

@@ -439,8 +439,15 @@ pub struct ClauseSet {
 pub struct ExtendDef {
     /// Type FQDN being extended (e.g. `":t::Robot"`).
     pub type_name: String,
-    /// Protocol FQDN being implemented (e.g. `":t::Greeter"`).
+    /// Protocol/surface FQDN being implemented — always the BARE name (e.g. `":t::Greeter"`,
+    /// or `":probe::Holds"` for `(extend-type :IntBox :Holds<i64> …)`); never carries the
+    /// `<...>` type-arg suffix, so lookups against `TypeEnv` (keyed by the bare declared
+    /// name) always hit. See `protocol_type_args` for the parsed concrete args.
     pub protocol_name: String,
+    /// Arc 170 C2 — the concrete type args from a parametric surface target
+    /// (`:Holds<wat::core::i64>` → `[Path(":wat::core::i64")]`). Empty for a monomorphic
+    /// surface/protocol target (`:Greeter`) — the common case, a pure no-op.
+    pub protocol_type_args: Vec<TypeExpr>,
     /// Per-method impl bodies: method name → `Clause` (argspec + body).
     /// Keyed by method name string. Consumed by 232.3 dispatch.
     pub impl_clauses: HashMap<String, Clause>,
