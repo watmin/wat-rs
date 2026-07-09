@@ -51,23 +51,19 @@
   [init-fn       <- :wat::core::Fn()->wat::core::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil
    runner-count  <- :wat::core::i64])
-;; Arc 170 capability circuit, stone 2 — `grants` rides the process-locus: the
-;; Vector<:wat::capability::Grantable> whose Handles the bracket grants each worker's
-;; pid to on boot, revokes on shutdown. Empty by default (the bare `(process)` ctor).
-;; Arc 170 M1-pool — `dials` rides the process-locus alongside `grants`: the
-;; Vector<:wat::kernel::Address'> (type-ERASED — bare Address', so ProcessOpts stays
-;; NON-parametric) the bracket hands each granted worker as a PoolMsg::Setup so it can
-;; DIAL the service (a capability crossing the wire, never closure data — ocap). Single
-;; service ⇒ a one-element vector; empty by default (the bare `(process)` ctor). The
-;; ERASURE (concrete Address'<S,R> → bare Address') is the caller's `ann-form`; the wire
-;; tag is enum-name based so the child reconstitutes the concrete Address'<S,R>.
+;; Arc 170 capability circuit, stone A — `uses` rides the process-locus: ONE
+;; Vector<:wat::capability::Capability> of handles the bracket grants each worker's pid to
+;; on boot (grant-boot), revokes on shutdown (revoke-shutdown), AND dials via each handle's
+;; own `coordinate` method (which up-casts the handle's typed addr to a bare Address') — a
+;; single handle now carries both grant and dial, collapsing the former two-vector
+;; `grants`/`dials` split (stone 2) into one. Empty by default (the bare `(process)` ctor).
+;; Single service ⇒ a one-element vector.
 (:wat::core::defstruct :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
    env-fn           <- :wat::core::String
    max-message-bytes <- :wat::core::i64
    runner-count      <- :wat::core::i64
-   grants           <- (:wat::core::Vector :wat::capability::Grantable)
-   dials            <- (:wat::core::Vector :wat::kernel::Address')])
+   uses             <- (:wat::core::Vector :wat::capability::Capability)])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
 ;; in src/edn_shim.rs:1008.  Do NOT scatter the literal: change it here and there
@@ -113,13 +109,11 @@
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
     (:wat::program::cpu-count)
-    (:wat::core::Vector :wat::capability::Grantable)   ;; grants default: empty
-    (:wat::core::Vector :wat::kernel::Address')))      ;; dials default: empty
+    (:wat::core::Vector :wat::capability::Capability)))   ;; uses default: empty
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288 (:wat::program::cpu-count)  ;; DEFAULT-MAX-MESSAGE-BYTES
-    (:wat::core::Vector :wat::capability::Grantable)
-    (:wat::core::Vector :wat::kernel::Address')))
+    (:wat::core::Vector :wat::capability::Capability)))
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -127,8 +121,7 @@
     s
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
     (:wat::program::cpu-count)
-    (:wat::core::Vector :wat::capability::Grantable)
-    (:wat::core::Vector :wat::kernel::Address')))
+    (:wat::core::Vector :wat::capability::Capability)))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -136,8 +129,7 @@
     "(:wat::program::EmptyEnv)"
     n
     (:wat::program::cpu-count)
-    (:wat::core::Vector :wat::capability::Grantable)
-    (:wat::core::Vector :wat::kernel::Address')))
+    (:wat::core::Vector :wat::capability::Capability)))
 
 (:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -145,38 +137,23 @@
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
     n
-    (:wat::core::Vector :wat::capability::Grantable)
-    (:wat::core::Vector :wat::kernel::Address')))
+    (:wat::core::Vector :wat::capability::Capability)))
 
-;; Arc 170 capability circuit, stone 2 — (process/grants [g1 g2 …]) cuts a process
-;; key carrying the Grantables the bracket grants each worker's pid to on boot,
-;; revokes on shutdown. Other fields default (as process/post-spawn et al.).
-(:wat::core::defn :wat::spawn::process/grants [gs <- (:wat::core::Vector :wat::capability::Grantable)] -> :wat::spawn::ProcessOpts
+;; Arc 170 capability circuit, stone A — (process/uses [h1 h2 …]) cuts a process key
+;; carrying ONE vector of Capability handles: the bracket grants each worker's pid to
+;; every handle on boot (grant-boot), revokes on shutdown (revoke-shutdown), AND dials
+;; each handle's own `coordinate`-derived address as a PoolMsg::Setup (dial-and-hold).
+;; Dialing REQUIRES a grant (an ungranted connect' is refused by the ocap gate), so grant
+;; and dial now ride the SAME handle — collapsing the former `process/grants` +
+;; `process/dials` pair (stone 2) into one builder. Single service ⇒ `hs` is a
+;; one-element vector. Other fields default.
+(:wat::core::defn :wat::spawn::process/uses [hs <- (:wat::core::Vector :wat::capability::Capability)] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
     (:wat::program::cpu-count)
-    gs
-    (:wat::core::Vector :wat::kernel::Address')))
-
-;; Arc 170 M1-pool — (process/dials [g1 g2 …] [a1 a2 …]) cuts a process key that both
-;; GRANTS each worker's pid to the Grantables `gs` (grant-boot) AND hands each worker the
-;; dial-target addresses `ds` as a PoolMsg::Setup (dial-and-hold). Dialing REQUIRES a grant
-;; (an ungranted connect' is refused by the ocap gate), so the two ride together. Single
-;; service ⇒ `gs`/`ds` are one-element vectors (the service Handle + its erased address).
-;; The addresses are BARE Address' (caller `ann-form`s the concrete Handle/addr — see the
-;; :dials field note). Other fields default.
-(:wat::core::defn :wat::spawn::process/dials
-  [gs <- (:wat::core::Vector :wat::capability::Grantable)
-   ds <- (:wat::core::Vector :wat::kernel::Address')] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts
-    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
-    "(:wat::program::EmptyEnv)"
-    524288  ;; DEFAULT-MAX-MESSAGE-BYTES
-    (:wat::program::cpu-count)
-    gs
-    ds))
+    hs))
 
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
 ;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
@@ -187,26 +164,18 @@
   ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::i64  (:wat::spawn::ThreadOpts/runner-count locus))
   ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::i64  (:wat::spawn::ProcessOpts/runner-count locus)))
 
-;; ── The tier-blind Grantable reader (arc 170 capability circuit, stone 2) ────────────
-;; A defclause (NOT a Locus surface method — a `grants` surface-method impl on ProcessOpts
-;; would register :wat::spawn::ProcessOpts/grants, colliding with the defstruct's own field
+;; ── The tier-blind Capability reader (arc 170 capability circuit, stone A) ────────────
+;; A defclause (NOT a Locus surface method — a `uses` surface-method impl on ProcessOpts
+;; would register :wat::spawn::ProcessOpts/uses, colliding with the defstruct's own field
 ;; accessor of the same name; runner-count dodges this identically). Process returns its
-;; :grants field; thread returns an EMPTY vector — the firm boundary: a thread cell is in
-;; THIS process, needs no grant (the handle IS the capability). A future remote locus joins
-;; as one more clause returning empty (pids don't cross hosts); the 1-arg sig is unmoved.
-(:wat::core::defclause :wat::spawn::grants
-  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::Vector<wat::capability::Grantable>  (:wat::core::Vector :wat::capability::Grantable))
-  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::Vector<wat::capability::Grantable>  (:wat::spawn::ProcessOpts/grants locus)))
-
-;; ── The tier-blind dial-address reader (arc 170 M1-pool) ─────────────────────
-;; Mirrors `grants` (a defclause, not a Locus method — dodges the ProcessOpts/dials field
-;; accessor collision identically). Process returns its :dials field (the erased dial-target
-;; addresses map-worker hands each worker as PoolMsg::Setup); thread/future-remote return an
-;; EMPTY vector — the firm boundary: a thread cell shares this memory (the handle IS reach,
-;; no wire dial); a remote cell's peers are host-local (addresses don't cross hosts).
-(:wat::core::defclause :wat::spawn::dials
-  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::Vector<wat::kernel::Address'>  (:wat::core::Vector :wat::kernel::Address'))
-  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::Vector<wat::kernel::Address'>  (:wat::spawn::ProcessOpts/dials locus)))
+;; :uses field (the ONE vector of handles carrying both grant and dial, stone A collapse);
+;; thread/remote return an EMPTY vector — the firm boundary: a thread cell is in THIS
+;; process, needs no grant (the handle IS the capability); a remote cell's peers are
+;; host-local (addresses don't cross hosts). A future remote locus joins as one more clause
+;; returning empty; the 1-arg sig is unmoved.
+(:wat::core::defclause :wat::spawn::uses
+  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::Vector<wat::capability::Capability>  (:wat::core::Vector :wat::capability::Capability))
+  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::Vector<wat::capability::Capability>  (:wat::spawn::ProcessOpts/uses locus)))
 
 ;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;
@@ -253,11 +222,12 @@
 ;;
 ;; The enum NAME is the wire tag (`#wat.bracket.PoolMsg/Setup`); the D/I type-params
 ;; are NOT in the tag. So the PARENT (map-worker) holds a type-ERASED
-;; `PoolMsg<Address',(i64,I)>` (bare Address' — the locus `:dials` field is a concrete
-;; `Vector<Address'>`, keeping ProcessOpts non-parametric) while the CHILD's baked
-;; dial-runner holds the CONCRETE `PoolMsg<Address'<S,R>,I>` (S,R off the work-fn's peer
-;; param). Same name ⇒ the wire round-trips; the Setup payload encodes as SocketAddressWire
-;; either way. A thread/non-dial pool simply never sends :Setup (D stays phantom).
+;; `PoolMsg<Address',(i64,I)>` (bare Address' — derived per-handle from the locus's `:uses`
+;; field via each handle's `coordinate` method, keeping ProcessOpts non-parametric) while the
+;; CHILD's baked dial-runner holds the CONCRETE `PoolMsg<Address'<S,R>,I>` (S,R off the
+;; work-fn's peer param). Same name ⇒ the wire round-trips; the Setup payload encodes as
+;; SocketAddressWire either way. A thread/non-dial pool simply never sends :Setup (D stays
+;; phantom).
 (:wat::core::defenum :wat::bracket::PoolMsg<D,I> :wat::enum::Pure
   :Setup [deps <- :D]
   :Work  [pair <- :(wat::core::i64,I)])

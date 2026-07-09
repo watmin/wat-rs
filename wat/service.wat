@@ -49,12 +49,12 @@
   :Reply [state <- :S  reply <- :R]
   :Stop  [state <- :S  reply <- :R])
 
-;; ── Grantable — the uniform capability surface (arc 170 capability circuit) ──────
+;; ── Capability — the uniform capability surface (arc 170 capability circuit) ──────
 ;;
-;; RELOCATED (stone 2): the :wat::capability::Grantable surface now lives in
-;; wat/capability.wat, which loads EARLY (before spawn.wat/bracket.wat, both of which
-;; name it). The defservice macro's auto-emitted extend-type (grantable-extend, below)
-;; routes each <fqdn>::Handle to :wat::capability::Grantable.
+;; RELOCATED (stone 2) + RENAMED (stone A, was Grantable): the :wat::capability::Capability
+;; surface now lives in wat/capability.wat, which loads EARLY (before spawn.wat/bracket.wat,
+;; both of which name it). The defservice macro's auto-emitted extend-type (grantable-extend,
+;; below) routes each <fqdn>::Handle to :wat::capability::Capability.
 
 ;; ── The canonical clause order — the story a service tells ──────────────────────
 ;; A defservice reads top-to-bottom as a sentence about an actor. Order is
@@ -1163,18 +1163,24 @@
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
      handle-record `(:wat::core::defrecord ~handle-name ~handle-fields)
 
-     ;; ── arc 170: auto-emit the Grantable extend-type ─────────────────────────────
-     ;; Every <fqdn>::Handle uniformly satisfies :wat::capability::Grantable (relocated to
-     ;; wat/capability.wat, stone 2), routing grant/revoke to the already-landed <fqdn>/grant
-     ;; & <fqdn>/revoke methods. This is a TOP-LEVEL form (NOT a method — methods are client
-     ;; fns; extend-type is not). Mirrors the hand-written extend-type proven in
-     ;; scratchpad/probe-grantable-mechanism.wat. self/pids binders use symbol-node for
-     ;; hygiene (Unquote at def time).
+     ;; ── arc 170: auto-emit the Capability extend-type ─────────────────────────────
+     ;; Every <fqdn>::Handle uniformly satisfies :wat::capability::Capability (relocated to
+     ;; wat/capability.wat, stone 2; renamed from Grantable, stone A), routing grant/revoke to
+     ;; the already-landed <fqdn>/grant & <fqdn>/revoke methods, and `coordinate` to an
+     ;; up-cast of the handle's own typed addr field to the surface's bare Address' — so a
+     ;; single handle carries both grant AND dial. This is a TOP-LEVEL form (NOT a method —
+     ;; methods are client fns; extend-type is not). Mirrors the hand-written extend-type
+     ;; proven in scratchpad/probe-coordinate-on-surface.wat. self/pids binders use
+     ;; symbol-node for hygiene (Unquote at def time).
      grantable-self-sym (:wat::core::symbol-node "self")
      grantable-pids-sym (:wat::core::symbol-node "pids")
-     grantable-extend `(:wat::core::extend-type ~handle-name :wat::capability::Grantable
+     handle-addr-name (:wat::core::keyword/from-string
+                         (:wat::core::string::interpolate "{fqdn-str}::Handle/addr" :fqdn-str fqdn-str))
+     grantable-extend `(:wat::core::extend-type ~handle-name :wat::capability::Capability
                          (grant  [~grantable-self-sym ~grantable-pids-sym] (~grant-method-name  ~grantable-self-sym ~grantable-pids-sym))
-                         (revoke [~grantable-self-sym ~grantable-pids-sym] (~revoke-method-name ~grantable-self-sym ~grantable-pids-sym)))]
+                         (revoke [~grantable-self-sym ~grantable-pids-sym] (~revoke-method-name ~grantable-self-sym ~grantable-pids-sym))
+                         (coordinate [~grantable-self-sym]
+                           (:wat::core::ann-form (~handle-addr-name ~grantable-self-sym) :wat::kernel::Address')))]
 
     ;; Assemble the final `do`:
     ;;   record + state defs (durable/ephemeral projections)
