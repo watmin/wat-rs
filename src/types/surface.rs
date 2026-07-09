@@ -65,16 +65,16 @@ where
             // binding is resolved separately, at the call site (`check.rs`'s surface-method-call
             // arm), not here. `is_surface_type_param_ref` is the identity-no-op when
             // `surface.type_params` is empty (monomorphic surfaces unaffected).
-            let ty_is_param = is_surface_type_param_ref(mty, &surface.type_params);
-            let has_struct_field = struct_fields
-                .iter()
-                .any(|(fname, fty)| fname == mname && (ty_is_param || is_assignable(fty, mty)));
+            let has_struct_field = struct_fields.iter().any(|(fname, fty)| {
+                fname == mname
+                    && member_type_satisfied(fty, mty, &surface.type_params, &mut is_assignable)
+            });
             if has_struct_field {
                 return true;
             }
             // Fall through to the method resolver (for foreign types with extend-type).
             if let Some((_, defn_ret)) = resolve_method(mname) {
-                return ty_is_param || is_assignable(&defn_ret, mty);
+                return member_type_satisfied(&defn_ret, mty, &surface.type_params, &mut is_assignable);
             }
             false
         }
@@ -83,11 +83,11 @@ where
             // The resolver forms the key `":<T>/<name>"` from the candidate type context
             // and returns (defn_arg_types, defn_ret) from env.schemes.
             if let Some((defn_arg_types, defn_ret)) = resolve_method(mname) {
-                // Return type must be assignable — UNLESS the surface declares it as one of
-                // its own type params (Arc 170 C2: a placeholder, satisfied by construction).
-                if !is_surface_type_param_ref(mret, &surface.type_params)
-                    && !is_assignable(&defn_ret, mret)
-                {
+                // Return type must be assignable — UNLESS the surface declares it (in whole
+                // or in part, e.g. `Address'<S,R>`) from one of its own type params (Arc 170
+                // C2: a placeholder, satisfied by construction — `member_type_satisfied`
+                // recurses through parametric shapes to find embedded placeholders).
+                if !member_type_satisfied(&defn_ret, mret, &surface.type_params, &mut is_assignable) {
                     return false;
                 }
                 // If the surface member declared explicit arg-type constraints (non-empty
@@ -107,9 +107,7 @@ where
                         return false;
                     }
                     for (defn_ty, member_ty) in defn_rest.iter().zip(member_arg_types.iter()) {
-                        if !is_surface_type_param_ref(member_ty, &surface.type_params)
-                            && !is_assignable(defn_ty, member_ty)
-                        {
+                        if !member_type_satisfied(defn_ty, member_ty, &surface.type_params, &mut is_assignable) {
                             return false;
                         }
                     }
@@ -137,6 +135,54 @@ fn is_surface_type_param_ref(ty: &TypeExpr, type_params: &[String]) -> bool {
             type_params.iter().any(|tp| tp == bare)
         }
         _ => false,
+    }
+}
+
+/// Arc 170 C2 (receiver-check gap fix) — true iff the RESOLVED `defn_ty` (a satisfier's
+/// concrete method return/arg type, e.g. `Address'<Echo::Op,Echo::Reply>`) satisfies the
+/// surface's RAW, unresolved `member_ty` (e.g. `Address'<S,R>` where `S`/`R` are the
+/// surface's own type params — not real types).
+///
+/// `is_surface_type_param_ref` only recognizes a WHOLE-position bare placeholder (`-> :T`).
+/// A member type that EMBEDS a placeholder inside a parametric shape (`-> Address'<S,R>`,
+/// as opposed to `-> :T` directly) fell through to `is_assignable(defn_ty, member_ty)`,
+/// which compares the resolved concrete type against the literal unresolved symbols `:S`/
+/// `:R` — meaningless names with no type-def — and always fails. This is the divergence
+/// between return-type resolution (check.rs's surface-method-call arm, which substitutes
+/// `S,R` with the satisfier's concrete binding via `register_extend_type_surface_impls`'s
+/// `rename()`) and receiver-satisfaction (this module), which never substituted.
+///
+/// The fix: walk `member_ty` structurally. At any node that is itself a placeholder
+/// (`is_surface_type_param_ref`), accept ANY `defn_ty` at that position (the concrete
+/// binding is resolved elsewhere, at the call site). At a `Parametric` node with a
+/// concrete (non-placeholder) head, require the same head + arity in `defn_ty` and recurse
+/// pairwise into the args. Everywhere else, fall back to `is_assignable` (unchanged
+/// behavior for members with no placeholder at all — monomorphic surfaces, or a
+/// generic surface's non-generic members, are byte-for-byte unaffected: the first
+/// `is_surface_type_param_ref` check is identical to before, and the `Parametric` recursion
+/// only fires when in the OLD code it would have `unify`'d/`is_assignable`'d bare symbol
+/// paths that can never match a real type anyway).
+fn member_type_satisfied<F>(
+    defn_ty: &TypeExpr,
+    member_ty: &TypeExpr,
+    type_params: &[String],
+    is_assignable: &mut F,
+) -> bool
+where
+    F: FnMut(&TypeExpr, &TypeExpr) -> bool,
+{
+    if is_surface_type_param_ref(member_ty, type_params) {
+        return true;
+    }
+    match (defn_ty, member_ty) {
+        (
+            TypeExpr::Parametric { head: dh, args: dargs },
+            TypeExpr::Parametric { head: mh, args: margs },
+        ) if dh == mh && dargs.len() == margs.len() => dargs
+            .iter()
+            .zip(margs.iter())
+            .all(|(d, m)| member_type_satisfied(d, m, type_params, is_assignable)),
+        _ => is_assignable(defn_ty, member_ty),
     }
 }
 
