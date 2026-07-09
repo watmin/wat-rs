@@ -8,5 +8,5 @@
                       msg)
                sig  (:wat::runtime::signature-of-fn f)
                tys  (:wat::runtime::extract-arg-types sig)
-               rendered (:wat::edn::write tys)]
+               rendered tys]
               (:wat::kernel::println rendered)))

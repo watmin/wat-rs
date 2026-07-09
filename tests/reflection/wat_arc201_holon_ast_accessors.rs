@@ -107,7 +107,7 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"[#wat-edn.holon/Keyword :user::add-two #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"a\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"b\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "[#wat-edn.holon/Keyword :user::add-two #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"a\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"b\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
         "Bundle/children on add-two signature must yield head + arg-pair Bundles + arrow + ret"
     );
 }
@@ -135,7 +135,7 @@ fn bundle_children_walks_parametric_type_slot() {
     // The parametric type appears as a structured Bundle (not a fused flat keyword).
     assert_eq!(
         line,
-        "\"[#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"init\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"&\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"xs\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "[#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"init\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"&\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"xs\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
         "Bundle/children on sum-list signature must show :Vector standalone in nested Bundle"
     );
 }
@@ -171,7 +171,7 @@ fn bundle_first_returns_head_keyword_of_signature() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat-edn.holon/Keyword :user::add-two\"",
+        "#wat-edn.holon/Keyword :user::add-two",
         "Bundle/first on add-two signature must return the head Keyword Symbol"
     );
 }
@@ -191,7 +191,7 @@ fn bundle_first_composes_with_atom_value() {
     // EDN renderer normalises `::` to `/` in keyword tails; the keyword lands as `:user/add-two`.
     assert_eq!(
         line,
-        "\":user/add-two\"",
+        ":user/add-two",
         "Bundle/first + from-holon must extract the keyword value (EDN-normalised with /)"
     );
 }

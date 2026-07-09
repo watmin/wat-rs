@@ -9,4 +9,4 @@
                sig  (:wat::runtime::signature-of-fn f)
                tys  (:wat::runtime::extract-arg-types sig)
                len  (:wat::core::length tys)]
-              (:wat::kernel::println (:wat::edn::write len))))
+              (:wat::kernel::println len)))

@@ -13,5 +13,5 @@
               [sig
                 (:wat::runtime::signature-of-defn :user::sum-list)
                rendered
-                (:wat::edn::write sig)]
+                sig]
               (:wat::kernel::println rendered)))

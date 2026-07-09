@@ -11,5 +11,5 @@
                tys   (:wat::runtime::extract-arg-types sig)
                nlen  (:wat::core::length names)
                tlen  (:wat::core::length tys)]
-              (:wat::kernel::println (:wat::edn::write nlen))
-              (:wat::kernel::println (:wat::edn::write tlen))))
+              (:wat::kernel::println nlen)
+              (:wat::kernel::println tlen)))

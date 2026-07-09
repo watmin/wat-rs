@@ -10,5 +10,5 @@
                          ((:wat::core::Some s) s)
                          (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
                kids    (:wat::holon::Bundle/children sig)
-               rendered (:wat::edn::write kids)]
+               rendered kids]
               (:wat::kernel::println rendered)))

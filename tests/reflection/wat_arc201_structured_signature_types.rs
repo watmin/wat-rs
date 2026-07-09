@@ -104,7 +104,7 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"init\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"&\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"xs\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"init\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"&\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"xs\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
         "signature-of-defn must emit structured parametric Bundle for sum-list fn"
     );
 }
@@ -122,7 +122,7 @@ fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     );
     assert_eq!(
         line,
-        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::i64::+ #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a0\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a1\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::i64::+ #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a0\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a1\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
         "signature-of-defn must emit atomic Symbols for i64::+ monomorphic signature"
     );
 }
@@ -145,7 +145,7 @@ fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
     );
     assert_eq!(
         line,
-        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::foldl<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a0\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a1\\\" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"_a2\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :Acc]\"",
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::foldl<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a0\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a1\" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a2\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :Acc]",
         "signature-of-defn must emit structured Parametric+Fn Bundles for foldl"
     );
 }
@@ -162,7 +162,7 @@ fn signature_of_defn_emits_structured_tuple_return_type() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::make-pair #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Tuple #wat-edn.holon/Keyword :wat::core::i64 #wat-edn.holon/Keyword :wat::core::String]]\"",
+        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::make-pair #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Tuple #wat-edn.holon/Keyword :wat::core::i64 #wat-edn.holon/Keyword :wat::core::String]]",
         "signature-of-defn must emit structured Tuple Bundle for make-pair return type"
     );
 }

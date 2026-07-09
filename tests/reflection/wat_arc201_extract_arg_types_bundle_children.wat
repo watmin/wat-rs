@@ -15,5 +15,5 @@
                          "expected first type entry")
                ;; Decompose the Bundle: head = :wat::core::Vector, arg = :wat::core::i64
                parts   (:wat::holon::Bundle/children ty0)
-               rendered (:wat::edn::write parts)]
+               rendered parts]
               (:wat::kernel::println rendered)))

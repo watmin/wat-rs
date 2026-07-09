@@ -6,5 +6,5 @@
               [f   (:wat::core::fn [n <- :wat::core::i64 s <- :wat::core::String] -> :wat::core::String
                      s)
                sig (:wat::runtime::signature-of-fn f)
-               rendered (:wat::edn::write sig)]
+               rendered sig]
               (:wat::kernel::println rendered)))

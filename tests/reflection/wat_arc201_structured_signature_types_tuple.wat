@@ -8,5 +8,5 @@
               [sig
                 (:wat::runtime::signature-of-defn :user::make-pair)
                rendered
-                (:wat::edn::write sig)]
+                sig]
               (:wat::kernel::println rendered)))

@@ -111,7 +111,7 @@ fn signature_of_fn_emits_anonymous_head() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"a\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"b\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"a\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"b\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
         "signature-of-fn must emit :anonymous head for an anonymous fn value"
     );
 }
@@ -128,7 +128,7 @@ fn signature_of_fn_extracts_monomorphic_arg_types() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"n\\\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"s\\\" #wat-edn.holon/Keyword :wat::core::String] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::String]\"",
+        "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"n\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"s\" #wat-edn.holon/Keyword :wat::core::String] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::String]",
         "signature-of-fn must emit atomic Symbols for i64/String monomorphic arg types"
     );
 }
@@ -148,7 +148,7 @@ fn signature_of_fn_extracts_parametric_arg_types() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"xs\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"xs\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
         "signature-of-fn must emit structured Bundle for Vector<i64> parametric arg type"
     );
 }
@@ -166,7 +166,7 @@ fn signature_of_fn_extracts_return_type_path() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
         "signature-of-fn must emit :anonymous head and -> arrow with i64 return type"
     );
 }
@@ -181,7 +181,7 @@ fn signature_of_fn_extracts_return_type_parametric() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]]\"",
+        "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]]",
         "signature-of-fn must emit structured Bundle for Vector<i64> parametric return type"
     );
 }
@@ -200,7 +200,7 @@ fn signature_of_fn_composes_with_extract_arg_names() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"[#wat-edn.holon/Symbol \\\"logger\\\" #wat-edn.holon/Symbol \\\"counter\\\"]\"",
+        "[#wat-edn.holon/Symbol \"logger\" #wat-edn.holon/Symbol \"counter\"]",
         "signature-of-fn output must compose with extract-arg-names to yield [logger, counter]"
     );
 }
@@ -217,7 +217,7 @@ fn signature_of_fn_composes_with_bundle_children() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"[#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \\\"peer\\\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::String]] #wat-edn.holon/Symbol \\\"->\\\" #wat-edn.holon/Keyword :wat::core::String]\"",
+        "[#wat-edn.holon/Keyword :anonymous #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"peer\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::String]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::String]",
         "signature-of-fn output must compose with bundle-children to yield children vector"
     );
 }

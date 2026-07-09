@@ -101,7 +101,7 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     let line = &out[0];
     assert_eq!(
         line,
-        "\"[#wat-edn.holon/Keyword :wat::core::String #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "[#wat-edn.holon/Keyword :wat::core::String #wat-edn.holon/Keyword :wat::core::i64]",
         "extract-arg-types must return Vector of two Path-type Symbols for monomorphic fn"
     );
     // The return-type `:wat::core::String` appears in the sig too, but the
@@ -110,7 +110,7 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     let len_out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_len.wat");
     assert_eq!(len_out.len(), 1, "expected one length line; got {:?}", len_out);
     assert_eq!(
-        len_out[0].trim(), "\"2\"",
+        len_out[0].trim(), "2",
         "expected exactly 2 type items for a 2-param fn; got: {}",
         len_out[0]
     );
@@ -132,7 +132,7 @@ fn extract_arg_types_returns_bundles_for_parametric_args() {
     // Vector head and i64 arg appear as separate Symbols inside a Bundle (not fused).
     assert_eq!(
         line,
-        "\"[#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]]\"",
+        "[#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]]",
         "extract-arg-types must return Vector with one structured Bundle for parametric fn"
     );
 }
@@ -148,12 +148,12 @@ fn extract_arg_types_arity_matches_extract_arg_names() {
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_arity.wat");
     assert_eq!(out.len(), 2, "expected two output lines (name-len, type-len); got {:?}", out);
     assert_eq!(
-        out[0].trim(), "\"3\"",
+        out[0].trim(), "3",
         "expected extract-arg-names to return 3 items; got: {}",
         out[0]
     );
     assert_eq!(
-        out[1].trim(), "\"3\"",
+        out[1].trim(), "3",
         "expected extract-arg-types to return 3 items (same as names); got: {}",
         out[1]
     );
@@ -182,7 +182,7 @@ fn extract_arg_types_composes_with_bundle_children_on_parametric() {
     // D2 chain: Bundle/children on the Vector param type-AST yields head + i64 arg as separate Symbols.
     assert_eq!(
         line,
-        "\"[#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]\"",
+        "[#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]",
         "Bundle/children on parametric type-AST must yield [head-Symbol, arg-Symbol]"
     );
 }

@@ -6,5 +6,5 @@
               [sig
                 (:wat::runtime::signature-of-defn :wat::core::foldl)
                rendered
-                (:wat::edn::write sig)]
+                sig]
               (:wat::kernel::println rendered)))

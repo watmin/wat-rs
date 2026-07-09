@@ -11,5 +11,5 @@
                          (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
                head    (:wat::holon::Bundle/first sig)
                name-kw (:wat::holon::from-holon head)
-               rendered (:wat::edn::write name-kw)]
+               rendered name-kw]
               (:wat::kernel::println rendered)))

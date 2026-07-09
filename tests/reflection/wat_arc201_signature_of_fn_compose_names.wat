@@ -8,5 +8,5 @@
                        logger)
                sig    (:wat::runtime::signature-of-fn f)
                names  (:wat::runtime::extract-arg-names sig)
-               rendered (:wat::edn::write names)]
+               rendered names]
               (:wat::kernel::println rendered)))

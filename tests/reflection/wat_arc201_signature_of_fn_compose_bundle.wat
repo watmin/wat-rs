@@ -8,5 +8,5 @@
                        "ok")
                sig    (:wat::runtime::signature-of-fn f)
                kids   (:wat::holon::Bundle/children sig)
-               rendered (:wat::edn::write kids)]
+               rendered kids]
               (:wat::kernel::println rendered)))
