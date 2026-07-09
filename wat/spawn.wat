@@ -51,19 +51,24 @@
   [init-fn       <- :wat::core::Fn()->wat::core::Record
    post-spawn-fn <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil
    runner-count  <- :wat::core::i64])
-;; Arc 170 capability circuit, stone A — `uses` rides the process-locus: ONE
-;; Vector<:wat::capability::Capability> of handles the bracket grants each worker's pid to
+;; Arc 170 N-service kwargs stone — `uses` rides the process-locus: ONE
+;; Vector<(keyword,Capability)> of NAMED handles the bracket grants each worker's pid to
 ;; on boot (grant-boot), revokes on shutdown (revoke-shutdown), AND dials via each handle's
-;; own `coordinate` method (which up-casts the handle's typed addr to a bare Address') — a
-;; single handle now carries both grant and dial, collapsing the former two-vector
-;; `grants`/`dials` split (stone 2) into one. Empty by default (the bare `(process)` ctor).
-;; Single service ⇒ a one-element vector.
+;; own `coordinate` method (which up-casts the handle's typed addr to a bare Address'). The
+;; NAME (a keyword, e.g. `:echo`) is what the kwargs AST-walk (wat/bracket.wat) matches
+;; against the work-fn's `::Kwargs` field of the same name — closing the erased-positional
+;; soundness gap the design doc's "Why NOT positional" section documents (a mis-ordered bare
+;; Vector<Capability> silently dials the wrong service). grant/revoke still only need the
+;; Capability half (`second`); the name travels alongside for the name-match, unused by
+;; grant/revoke themselves. Empty by default (the bare `(process)` ctor). Single service ⇒
+;; a one-element vector — this SUBSUMES the former M1 positional single-dial shape (no
+;; existing test exercised the old bare-Vector<Capability> positional form; see arc 170 C1).
 (:wat::core::defstruct :wat::spawn::ProcessOpts
   [post-spawn-fn    <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil
    env-fn           <- :wat::core::String
    max-message-bytes <- :wat::core::i64
    runner-count      <- :wat::core::i64
-   uses             <- (:wat::core::Vector :wat::capability::Capability)])
+   uses             <- (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability))])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
 ;; in src/edn_shim.rs:1008.  Do NOT scatter the literal: change it here and there
@@ -109,11 +114,11 @@
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
     (:wat::program::cpu-count)
-    (:wat::core::Vector :wat::capability::Capability)))   ;; uses default: empty
+    (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability))))   ;; uses default: empty
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288 (:wat::program::cpu-count)  ;; DEFAULT-MAX-MESSAGE-BYTES
-    (:wat::core::Vector :wat::capability::Capability)))
+    (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability))))
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -121,7 +126,7 @@
     s
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
     (:wat::program::cpu-count)
-    (:wat::core::Vector :wat::capability::Capability)))
+    (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability))))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -129,7 +134,7 @@
     "(:wat::program::EmptyEnv)"
     n
     (:wat::program::cpu-count)
-    (:wat::core::Vector :wat::capability::Capability)))
+    (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability))))
 
 (:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
@@ -137,23 +142,60 @@
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
     n
-    (:wat::core::Vector :wat::capability::Capability)))
+    (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability))))
 
-;; Arc 170 capability circuit, stone A — (process/uses [h1 h2 …]) cuts a process key
-;; carrying ONE vector of Capability handles: the bracket grants each worker's pid to
-;; every handle on boot (grant-boot), revokes on shutdown (revoke-shutdown), AND dials
-;; each handle's own `coordinate`-derived address as a PoolMsg::Setup (dial-and-hold).
+;; Arc 170 N-service kwargs stone — (process/uses :name1 h1 :name2 h2 …) cuts a process
+;; key carrying ONE vector of NAMED Capability handles: the bracket grants each worker's
+;; pid to every handle on boot (grant-boot), revokes on shutdown (revoke-shutdown), AND
+;; dials each handle's own `coordinate`-derived address as a PoolMsg::Setup (dial-and-hold).
 ;; Dialing REQUIRES a grant (an ungranted connect' is refused by the ocap gate), so grant
 ;; and dial now ride the SAME handle — collapsing the former `process/grants` +
-;; `process/dials` pair (stone 2) into one builder. Single service ⇒ `hs` is a
-;; one-element vector. Other fields default.
-(:wat::core::defn :wat::spawn::process/uses [hs <- (:wat::core::Vector :wat::capability::Capability)] -> :wat::spawn::ProcessOpts
+;; `process/dials` pair (arc 170 stone 2) into one builder, further collapsed (stone A) into
+;; ONE vector, and now (N-service kwargs stone) NAMED — the name is what the bracket
+;; AST-walk (wat/bracket.wat, the kwargs branch of process-work-forms) matches against the
+;; kwargs work-fn's `::Kwargs` field of the same name. This SUBSUMES the former M1
+;; positional single-dial `process/uses [h1 h2 …]` shape (no test exercised the bare
+;; positional form — see arc 170 C1 curare).
+;;
+;; process/uses-pairs is the impl (a plain fn — 1 arg, the already-built named-pair
+;; vector). process/uses is the user-facing surface: a MACRO so it can take variadic
+;; `:name handle` pairs (arbitrary count, unevaluated key symbols) and build the pair
+;; vector at expansion time. Each pair is `(Tuple :name handle-expr)` — the handle
+;; expression is spliced VERBATIM (evaluated at the call site, ordinary call-arg
+;; position), so it up-casts to Capability the same way any Capability-typed call arg
+;; does (no new up-cast machinery needed).
+(:wat::core::defn :wat::spawn::process/uses-pairs
+  [hs <- (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability))] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     "(:wat::program::EmptyEnv)"
     524288  ;; DEFAULT-MAX-MESSAGE-BYTES
     (:wat::program::cpu-count)
     hs))
+
+(:wat::core::defmacro :wat::spawn::process/uses
+  [& kvs <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::let
+    [n      (:wat::core::length kvs)
+     npairs (:wat::core::i64::/ n 2)
+     _valid (:wat::core::if (:wat::core::= n (:wat::core::i64::* npairs 2))
+              -> :wat::core::nil
+              nil
+              (:wat::core::macro-error "process/uses: expected :name handle pairs (even arg count)"))
+     items  (:wat::core::foldl
+              (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>  i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                (:wat::core::let
+                  [kn   (:wat::core::Option/expect (:wat::core::get kvs (:wat::core::i64::* i 2)) "process/uses: key index")
+                   vn   (:wat::core::Option/expect (:wat::core::get kvs (:wat::core::i64::+ (:wat::core::i64::* i 2) 1)) "process/uses: val index")
+                   ;; force the up-cast to Capability at the SCALAR call boundary (proven to
+                   ;; work; a Tuple constructor is NOT component-wise up-cast — see
+                   ;; :wat::capability::as-capability's doc comment) before tupling.
+                   pair `(:wat::core::Tuple ~kn (:wat::capability::as-capability ~vn))]
+                  (:wat::core::conj acc pair)))
+              (:wat::core::Vector :wat::WatAST)
+              (:wat::core::range 0 npairs))]
+    `(:wat::spawn::process/uses-pairs [~@items])))
 
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
 ;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
@@ -174,8 +216,8 @@
 ;; host-local (addresses don't cross hosts). A future remote locus joins as one more clause
 ;; returning empty; the 1-arg sig is unmoved.
 (:wat::core::defclause :wat::spawn::uses
-  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::Vector<wat::capability::Capability>  (:wat::core::Vector :wat::capability::Capability))
-  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::Vector<wat::capability::Capability>  (:wat::spawn::ProcessOpts/uses locus)))
+  ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::Vector<(wat::core::keyword,wat::capability::Capability)>  (:wat::core::Vector :(wat::core::keyword,wat::capability::Capability)))
+  ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::Vector<(wat::core::keyword,wat::capability::Capability)>  (:wat::spawn::ProcessOpts/uses locus)))
 
 ;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
 ;;

@@ -162,6 +162,26 @@
 ;; THIS file with that name shipped-as-a-def, resolve to the shipped fn (a Fn,
 ;; not a keyword) and fail fn-forms' `name` param. A computed keyword is
 ;; unresolvable at check → safe.
+;; ── dotpath->colonpath — canonical wat.type/ dot-slash name -> wat's own colon-colon
+;; keyword-string convention ─────────────────────────────────────────────────
+;;
+;; Arc 170 C1 — `field-types-of` (Strike B) renders each `::Kwargs` field's type
+;; through the POST-arc-251 canonical form: `wat.kernel/Peer'` (Symbol, dot/slash,
+;; NO leading colon) rather than the surface literal `:wat::kernel::Peer'` a plain
+;; fn's own (unmangled) param-type keyword carries. The two conventions are
+;; interchangeable AS TEXT (both resolve to the same registry key; the wat reader
+;; accepts either "." or "::" as a namespace separator and "/" as the terminal
+;; separator) — this just re-punctuates one into the other so the compound
+;; angle-bracket keyword strings built below (`wat::kernel::Address'<S,R>`, …)
+;; stay in the ONE convention every other string in this AST-walk already uses.
+;; "wat.kernel/Peer'" -> "wat" "kernel/Peer'" (split ".") -> "wat::kernel/Peer'"
+;;                     -> "wat::kernel" "Peer'" (split "/") -> "wat::kernel::Peer'"
+(:wat::core::defn :wat::bracket::dotpath->colonpath [s <- :wat::core::String] -> :wat::core::String
+  (:wat::core::string::join "::"
+    (:wat::core::string::split
+      (:wat::core::string::join "::" (:wat::core::string::split s "."))
+      "/")))
+
 ;; Arc 170 M1-pool — the AST-walk now also distinguishes the DIAL work-fn. A
 ;; non-dial work-fn is 1-param `Fn(I)->O` (argspec = 3 AST children: `n <- :I`);
 ;; a dial work-fn is 2-param `Fn(Peer'<S,R>,I)->O` (6 children: `c <- :Peer'<S,R>
@@ -172,8 +192,120 @@
 ;;              the 1st param `Peer'<S,R>` by a `Peer'`→`Address'` head-swap (split/join),
 ;;              so the child's connect' gets a fully-typed address. The item type I is the
 ;;              LAST param either way; O is the return.
+;;
+;; Arc 170 C1 (N-service kwargs, N=1) — `process-work-forms` is a NEW dispatch point,
+;; a defclause keyed on the WORK-FN VALUE's runtime type: a literal keyword naming a
+;; kwargs `defn`'s companion MACRO (`:probe::work`) evaluates to a bare
+;; `:wat::core::keyword` (the arc-009 literal-keyword lift only fires for a registered
+;; FN, and a companion is a macro — never in `sym.functions`; see runtime.rs:3729-3740 /
+;; macros/registry.rs), whereas a plain (non-kwargs) work-fn keyword auto-upgrades to a
+;; `Value::wat__core__fn` at the call site, same as always. The `:wat::core::keyword`
+;; clause is declared FIRST — defclause dispatch is first-match-wins and a Fn/generic-`W`
+;; clause is a PERMISSIVE catch-all at runtime (`value_matches_type_by_name`,
+;; runtime.rs:6604-6606), so ordering is load-bearing: the keyword clause must be checked
+;; before the generic one or it would never fire. This is exactly why the recognition
+;; must NOT reflect the work-fn VALUE (metadata-of/lookup-define/field-names-of on an
+;; anonymous fn raises TypeMismatch and crashes the parent, per the design doc's STOP-4) —
+;; the keyword-vs-fn distinction is made by defclause's own type dispatch, for free.
 (:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
   (spawn-runner [self work-fn]
+    (:wat::kernel::spawn-program' self (:wat::bracket::process-work-forms work-fn))))
+
+(:wat::core::defclause :wat::bracket::process-work-forms
+  ;; ── KWARGS branch (arc 170 C1, N=1) ─────────────────────────────────────────
+  ;; work-fn is a BASE NAME keyword naming a kwargs `defn`'s companion (e.g. :probe::work).
+  ;; Ship `<base>$impl` BY NAME (the fn-forms keyword seam, c8e3c7ff) — its OWN 2-param
+  ;; signature is [item <- :I  kwargs <- :<base>::Kwargs] (item FIRST, unlike the raw
+  ;; dial shape where the peer is first). Read the ::Kwargs struct's sole field (N=1) via
+  ;; Strike B's field-names-of/field-types-of to recover S,R (the field's Peer'<S,R>) —
+  ;; NEVER by reflecting the work-fn value itself. Then synthesize a small ADAPTER fn
+  ;; (assembles the ::Kwargs struct from the held dial peer + calls the shipped $impl)
+  ;; and hand it to the ALREADY-PROVEN baked `process-dial-runner` unchanged — the
+  ;; adapter's shape (Peer'<S,R>,I)->O is exactly process-dial-runner's contract, so this
+  ;; reuses the M1 runner verbatim rather than duplicating its recv/Setup/Work loop.
+  ([work-fn <- :wat::core::keyword] -> :wat::core::Vector<wat::WatAST>
+    (:wat::core::let
+      [base-str      (:wat::core::keyword/to-string work-fn)
+       impl-kw       (:wat::core::keyword/from-string (:wat::core::string::concat base-str "$impl"))
+       kwargs-ty-str (:wat::core::string::concat base-str "::Kwargs")
+       kwargs-ty     (:wat::core::keyword/from-string kwargs-ty-str)
+       work-name     (:wat::core::keyword/from-string "user::bracket::work-fn")
+       forms         (:wat::kernel::fn-forms impl-kw work-name)
+       nforms        (:wat::core::length forms)
+       ;; The $impl fn-def-node — the SECOND-TO-LAST shipped form (fn-forms, given a
+       ;; KEYWORD naming an ALREADY-REGISTERED fn, ships its own canonical `defn` decl
+       ;; verbatim + a trailing `(def work-name <the-name>)` rebind; unlike the Fn-VALUE
+       ;; path, which inlines the fn body directly into ONE trailing `(def work-name (fn …))`
+       ;; — measured via scratchpad/probe-c1-kwargs-impl-astname.wat).
+       def-node      (:wat::core::Option/expect (:wat::core::get forms (:wat::core::i64::- nforms 2))
+                       "process-work-forms(kwargs): fn-forms produced no $impl define")
+       dn-ch         (:wat::core::ast->children def-node)
+       argspec       (:wat::core::Option/expect (:wat::core::get dn-ch 2) "process-work-forms(kwargs): no argspec")
+       arg-ch        (:wat::core::ast->children argspec)
+       ;; item = the $impl's FIRST param's type (index 2 of the flat [name <- ty …] triple
+       ;; list) — NOT last, unlike the raw dial shape (kwargs puts item before the bundle).
+       item-ty       (:wat::core::Option/expect (:wat::core::get arg-ch 2) "process-work-forms(kwargs): no item type")
+       ret-ty        (:wat::core::Option/expect (:wat::core::get dn-ch 4) "process-work-forms(kwargs): no ret type")
+       item-nm       (:wat::core::ast-name item-ty)
+       ret-nm        (:wat::core::ast-name ret-ty)
+       item-t        (:wat::core::string::subs item-nm 1 (:wat::core::string::length item-nm))
+       ret-t         (:wat::core::string::subs ret-nm 1 (:wat::core::string::length ret-nm))
+       ;; ── N=1: the ::Kwargs struct's SOLE field (name + Peer'<S,R> type). C2 generalizes
+       ;; this fold to N fields; this stone is the single-field ground case.
+       fnames        (:wat::runtime::field-names-of kwargs-ty)
+       ftypes        (:wat::runtime::field-types-of kwargs-ty)
+       _one          (:wat::core::if (:wat::core::= (:wat::core::length fnames) 1)
+                       -> :wat::core::nil nil
+                       (:wat::kernel::assertion-failed!
+                         "bracket process-work-forms: C1 supports exactly ONE kwargs field (N=1); N>1 is arc 170 C2"
+                         :wat::core::None :wat::core::None))
+       field-ty      (:wat::core::first ftypes)      ;; e.g. (wat.kernel/Peer' probe.Echo/Op probe.Echo/Reply)
+       ty-ch         (:wat::core::ast->children field-ty)
+       s-node        (:wat::core::Option/expect (:wat::core::get ty-ch 1) "process-work-forms(kwargs): no S in Peer'<S,R>")
+       r-node        (:wat::core::Option/expect (:wat::core::get ty-ch 2) "process-work-forms(kwargs): no R in Peer'<S,R>")
+       s-colon       (:wat::bracket::dotpath->colonpath (:wat::core::ast-name s-node))
+       r-colon       (:wat::bracket::dotpath->colonpath (:wat::core::ast-name r-node))
+       peer-inner    (:wat::core::string::concat s-colon (:wat::core::string::concat "," r-colon))
+       addr-b        (:wat::core::string::concat "wat::kernel::Address'<" (:wat::core::string::concat peer-inner ">"))
+       peer-b        (:wat::core::string::concat "wat::kernel::Peer'<"    (:wat::core::string::concat peer-inner ">"))
+       sp-out        (:wat::core::keyword-node
+                       (:wat::core::string::concat ":(wat::core::i64,"
+                         (:wat::core::string::concat ret-t ")")))
+       sp-in         (:wat::core::keyword-node
+                       (:wat::core::string::concat ":wat::bracket::PoolMsg<"
+                         (:wat::core::string::concat addr-b
+                           (:wat::core::string::concat "," (:wat::core::string::concat item-t ">")))))
+       peer-kw       (:wat::core::keyword-node (:wat::core::string::concat ":" peer-b))
+       item-kw       (:wat::core::keyword-node (:wat::core::string::concat ":" item-t))
+       ret-kw        (:wat::core::keyword-node (:wat::core::string::concat ":" ret-t))
+       kwargs-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" kwargs-ty-str))
+       ;; ADAPTER: (Peer'<S,R>, I) -> O — assembles the ::Kwargs struct (its ONE positional
+       ;; field, N=1) from the held dial peer, then calls the shipped $impl by name.
+       ;; `:user::bracket::work-fn` is applied via `apply` (a VALUE-position keyword
+       ;; reference, arc-009-lifted) rather than as a literal call HEAD — the shipped
+       ;; def's registry key round-trips through fn-forms' canonical dot-slash rendering
+       ;; (`:user.bracket/work-fn`), and a call-HEAD keyword resolves by strict textual
+       ;; match (measured: a direct `(:user::bracket::work-fn …)` call-head raised
+       ;; `UnresolvedReference`), while a value-position keyword resolves through the
+       ;; same arc-009 lift `apply`'s head arg already relies on (mirrors `Locus/launch`'s
+       ;; own `(apply -> :St init ship [])` keyword-headed calls, wat/spawn.wat).
+       adapter-def
+       `(:wat::core::defn :user::bracket::kwargs-adapter
+          [c    <- ~peer-kw
+           item <- ~item-kw]
+          -> ~ret-kw
+          (:wat::core::apply -> ~ret-kw :user::bracket::work-fn item [(~kwargs-kw c)]))
+       main-def
+       `(:wat::core::defn :user::main [] -> :wat::core::nil
+          (:wat::bracket::process-dial-runner
+            (:wat::program::self-peer ~sp-out ~sp-in)
+            :user::bracket::kwargs-adapter
+            :wat::core::None))]
+      (:wat::core::concat forms (:wat::core::Vector :wat::WatAST adapter-def main-def))))
+  ;; ── existing Fn branch (arc 170 M1-pool, arity 3/6 dispatch) — UNCHANGED logic,
+  ;; only the tail (spawn-program' call -> plain forms-vector return) is refactored so
+  ;; both clauses share the one call site above.
+  ([work-fn <- :W] -> :wat::core::Vector<wat::WatAST>
     (:wat::core::let
       [work-name (:wat::core::keyword/from-string "user::bracket::work-fn")
        forms     (:wat::kernel::fn-forms work-fn work-name)
@@ -225,9 +357,7 @@
               (:wat::bracket::process-runner
                 (:wat::program::self-peer ~sp-out ~sp-in)
                 :user::bracket::work-fn))))]
-      (:wat::kernel::spawn-program' self
-        (:wat::core::concat forms
-          (:wat::core::Vector :wat::WatAST main-def))))))
+      (:wat::core::concat forms (:wat::core::Vector :wat::WatAST main-def)))))
 
 ;; ── collect-loop — tail-recursive collector; drains M results from N runners ──
 ;;
@@ -344,8 +474,8 @@
                   _ (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
                       ((:wat::core::Some pid)
                         (:wat::core::foldl
-                          (:wat::core::fn [_acc <- :wat::core::nil  g <- :wat::capability::Capability] -> :wat::core::nil
-                            (:wat::capability::Capability/grant g (:wat::core::Vector :wat::core::i64 pid)))
+                          (:wat::core::fn [_acc <- :wat::core::nil  g <- :(wat::core::keyword,wat::capability::Capability)] -> :wat::core::nil
+                            (:wat::capability::Capability/grant (:wat::core::second g) (:wat::core::Vector :wat::core::i64 pid)))
                           nil
                           uses))
                       (:wat::core::None nil))
@@ -353,10 +483,13 @@
                   ;; PoolMsg::Setup — the worker connect's-and-holds the granted service (ocap
                   ;; over the wire). A foldl over an empty `uses` (thread/non-dial) is a no-op.
                   ;; Runs AFTER grant-boot (grant-then-dial) and BEFORE the first Work item so
-                  ;; the peer is held first.
+                  ;; the peer is held first. The NAME half of each pair (`first`) is unused
+                  ;; here — grant/dial are name-blind; the NAME only matters to the kwargs
+                  ;; AST-walk's field reconciliation (process-work-forms below), which reads
+                  ;; it off the `::Kwargs` type, not off this fold.
                   _ (:wat::core::foldl
-                      (:wat::core::fn [_acc <- :wat::core::nil  g <- :wat::capability::Capability] -> :wat::core::nil
-                        (:wat::kernel::send' p (:wat::bracket::PoolMsg::Setup (:wat::capability::Capability/coordinate g))))
+                      (:wat::core::fn [_acc <- :wat::core::nil  g <- :(wat::core::keyword,wat::capability::Capability)] -> :wat::core::nil
+                        (:wat::kernel::send' p (:wat::bracket::PoolMsg::Setup (:wat::capability::Capability/coordinate (:wat::core::second g)))))
                       nil
                       uses)
                   _ (:wat::kernel::send' p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))]
@@ -376,8 +509,8 @@
                  (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
                    ((:wat::core::Some pid)
                      (:wat::core::foldl
-                       (:wat::core::fn [_a <- :wat::core::nil  g <- :wat::capability::Capability] -> :wat::core::nil
-                         (:wat::capability::Capability/revoke g (:wat::core::Vector :wat::core::i64 pid)))
+                       (:wat::core::fn [_a <- :wat::core::nil  g <- :(wat::core::keyword,wat::capability::Capability)] -> :wat::core::nil
+                         (:wat::capability::Capability/revoke (:wat::core::second g) (:wat::core::Vector :wat::core::i64 pid)))
                        nil
                        uses))
                    (:wat::core::None nil)))

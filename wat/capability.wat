@@ -18,3 +18,16 @@
   [(grant      [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
    (revoke     [self <- :wat::capability::Capability  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
    (coordinate [self <- :wat::capability::Capability] -> :wat::kernel::Address')])
+
+;; ── as-capability — the explicit scalar up-cast (arc 170 N-service kwargs stone) ──
+;; The checker up-casts a concrete Capability-deriving value (a `<fqdn>::Handle`) to
+;; `:wat::capability::Capability` at an ORDINARY scalar call-arg position (derive-based
+;; assignability) — but NOT component-wise inside a `Tuple` constructor call (measured,
+;; scratchpad/probe-c1-capability-upcast.wat: a bare `(as-cap eh)` call type-checks; a
+;; `(Tuple :name eh)` checked against `(keyword,Capability)` does not — tuples aren't
+;; covariant on their components today). `process/uses` (wat/spawn.wat) needs to build a
+;; `(keyword,Capability)` pair from an arbitrary concrete Handle, so it forces the up-cast
+;; HERE, at the scalar boundary (proven to work), before tupling — sidesteps the gap
+;; entirely rather than needing a checker change. Identity at runtime; the return type
+;; annotation IS the up-cast.
+(:wat::core::defn :wat::capability::as-capability [c <- :wat::capability::Capability] -> :wat::capability::Capability c)
