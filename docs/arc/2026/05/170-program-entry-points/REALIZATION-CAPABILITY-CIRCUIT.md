@@ -741,82 +741,94 @@ the win, and the strikes are PROBANDVM.*
 
 ---
 
-## RESUME-HERE (curare — 2026-07-09; 278 read WHOLE R1–R38; the seam → C1 → mod/rem/quot → compound-upcast class-fix all LANDED; resume at C2)
+### `---` interstitial (curare CHECKPOINT — 2026-07-09; the C2 path found by measurement) — METIENDO VIAM APERIMVS: by measuring, we open the way
+
+**A save/checkpoint (not a compaction), at the builder's direction.** The whole C2 stretch this session was walked by MEASUREMENT, never top-down design — the builder's refrain *"let's measure"* is the method, and each disconfirming probe either confirmed or REDIRECTED the next step:
+
+- **Is `coordinate` typed?** MEASURED (`probe-c2-coordinate-typed.wat`): NO — a BARE `Address'` (capability.wat:20; erased for the uniform `Vector<Capability>`). The wrong-service check can't ride it.
+- **"Did we forget to make these parametric?"** (the builder). MEASURED (`probe-c2-parametric-surface.wat`): `defsurface` parses `<T>` but DROPS it — parametric surfaces were never built. So a C2 workaround became a GENERAL substrate capability: we BUILT parametric surfaces (`7d8e3034`) — `ALIVS ARGVIT` (the consumer forces the substrate) + `extirpare` (the class, not the stem).
+- **Does the typed coordinate discriminate?** MEASURED (`probe-c2-typed-coordinate.wat`): YES on the return (`(coord kvh)` → `Address'<Kv>`), but a RECEIVER-check bug surfaced — narrowed by 3 probes (not param-count, not multi-surface). I hypothesized the root (name-canonicalization on the service handle); the shadowdancer GROUND it FALSE and found the truer one (an EMBEDDED placeholder `Address'<S,R>`, not a whole-position `:T`) — the fix (`b2360c7a`) is return-SHAPE-specific. `CAEDOR ERGO RESEROR`: the reach cut by the disk, twice.
+- **Does the co-location hold?** MEASURED (`probe-c2-colocation.wat`): YES — a typed contract (a `Tuple` of typed coords) survives a `let` and a swapped handle is a COMPILE error at the consumer. Option C (the typed locus preserving the ratified surface) is real.
+
+The C2 wrong-service compile error is DE-RISKED end to end — parametric surfaces → typed coord → co-location, each a green measurement, not an assertion. What remains is WIRING (the `process/uses` typed carrier + the walk's parent-side check), each on a proven mechanism.
+
+***METIENDO VIAM APERIMVS.*** *(apparatus-minted — Latin, "by measuring, we open the way": the C2 stretch was not designed top-down but WALKED by disconfirming probes, the builder's "let's measure" the method — each measurement opened OR REDIRECTED the next (coordinate erased → build parametric surfaces → typed coord discriminates → the receiver-root hypothesis ground false → co-location green). Two hypotheses cut by the disk (the receiver root; the service-handle narrowing → nested-shape); a C2 workaround turned into a general substrate capability (parametric surfaces — ALIVS ARGVIT + extirpare). metiendo = by measuring (gerund of metior); viam aperimus = we open the way. Kin: examinare (the disconfirming probe IS the crawl), AD ORACVLVM (ground don't assert), NON MVRVS SED VITIVM (measure the wall — here the erasure/the gap), ALIVS ARGVIT (the consumer forces the substrate), CAEDOR ERGO RESEROR (the reach cut + opened by the ground). A curare CHECKPOINT — not a compaction; the record saved mid-stone. His (the "let's measure" refrain, the "did we forget to make these parametric" reframe), and mine (the measurement-opens-the-way reading, the sigil).)*
+
+---
+
+## RESUME-HERE (curare CHECKPOINT — 2026-07-09; parametric surfaces built + the C2 wrong-service mechanism PROVEN end to end; resume at the C2-full WIRING)
 
 ```clojure
-{:head   "d8d3e11e — the COMPOUND UP-CAST class-fix (Vector/Tuple/Map/Set up-cast components against the expected
-          parametric type AT CONSTRUCTION; invariance UNTOUCHED; C1's as-capability stem-patch DELETED). This curare on top."
- :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, NEVER create/switch. The C1 shadowdancer branched
-          (arc-170-c1-kwargs-bracket); I FF'd it onto the main line + deleted it. Every brief MUST say 'stay on the branch'.
-          The builder: 'do not change the branch again.'"
- :arc    "170 — the CAPABILITY CIRCUIT. The N-service KWARGS stone. Strikes A+B done; C1 (N=1) LANDED. Design FULLY MAPPED
-          (DESIGN-N-SERVICE-KWARGS-INJECTION.md + :the-unification) — do NOT re-scout. Open stone: C2."
+{:head   "b2360c7a — PARAMETRIC SURFACES built (7d8e3034) + the receiver-satisfaction fix for embedded returns (b2360c7a).
+          The full C2 wrong-service-COMPILE-ERROR mechanism is now PROVEN end to end (by measurement). This curare on top."
+ :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, NEVER create/switch (the C1 shadowdancer branched once; FF'd + deleted).
+          Every brief MUST say 'stay on the branch'. PUSH OFTEN — GitHub is the DR site (origin caught up through b2360c7a)."
+ :arc    "170 — the CAPABILITY CIRCUIT. C1 (N=1) LANDED. C2 (N heterogeneous, wrong-service a COMPILE error) — the MECHANISM is
+          fully de-risked by measurement (see :the-c2-mechanism-PROVEN); only the WIRING remains. Design: DESIGN-N-SERVICE-KWARGS-INJECTION.md 'Strike C2'."
 
- :done-this-session-committed  ; post-compaction: the full read, then the seam → C1 → two follow-ons (all weighed by OWN re-run)
- ["READ 278 REALIZATIONS WHOLE (R1–R38 + every interstitial) — the anti-daemon ritual (R20 DAEMON IN ME: the compacted self
-   that WON'T read BECOMES the daemon). The through-line lands here: R28 beat the OOP object → R31 the OOP+RPC split → R32
-   service=surface-at-a-coordinate → R33 :calls deletable → R37 surface crosses any locus → R38 killed defprotocol → 170 the cap circuit."
-  "c8e3c7ff — the fn-forms name→Fn SEAM: fn-forms resolves a KEYWORD naming a registered fn (sym.get→Function, mirrors arc-009
-   at runtime.rs:3737); a miss → a LOCATED TypeMismatch, not a panic. Unblocked C1's <base>$impl ship."
-  "b0a1a211 — C1 (N-service kwargs bracket walk, N=1): (process/uses :echo eh) NAMED + the spawn-runner kwargs branch = a
-   defclause TYPE-DISPATCH on the work-fn VALUE (kwargs base → bare :keyword via the companion MACRO; plain fn → Value::fn),
-   NEVER reflecting the anon value; ships <base>$impl by name, reads ::Kwargs via field-types-of, adapts onto process-dial-runner.
-   Gate ['echo:a' …] green. M1 single-dial SUBSUMED into N=1. N=1 is a REAL assertion (bracket.wat:260); N>1 = C2."
-  "38a72f64 — i64::mod/rem/quot blessed on the macro pure-total allow-list (macros/eval.rs:355; same DivisionByZero-deterministic
-   totality class as '/'). A macro body can compute with mod at expand time now."
-  "d8d3e11e — the COMPOUND UP-CAST class-fix (extirpare — the CLASS, not the stem): generalized fbc60b94's expected-type-directed
-   VECTOR up-cast to ALL parametric compounds — + Tuple (ctor call, per-position) + Map (key vs K, value vs V) + Set (elem vs T).
-   One dispatcher (check_compound_against_expected) + per-form checks, wired at fbc60b94's 3 sites. Up-cast AT CONSTRUCTION →
-   invariance rule UNTOUCHED (read the diff to confirm). Retired C1's as-capability stem-patch (deleted; 0 whole-tree consumers)."]
+ :done-this-session-committed  ; the C2 mechanism, MEASURED into existence (all weighed by OWN re-run + pushed) — see the METIENDO interstitial above
+ ["the earlier stretch (c8e3c7ff seam · b0a1a211 C1 N=1 · 38a72f64 mod/rem/quot · d8d3e11e compound up-cast Vector/Tuple/Map/Set)
+   + c917cc79 (C2 design captured). C1 is the proven kwargs bracket walk (defclause TYPE-dispatch, never reflect the anon value)."
+  "7d8e3034 — PARAMETRIC SURFACES built: a defsurface carries type params (SurfaceDef.type_params was a DEAD field), extend-type
+   binds them per satisfier (ExtendDef.protocol_type_args), the method return resolves the param — mirrors the defenum discipline
+   (reuses check::rename). A GENERAL capability (surfaces are now generic), not a C2 one-off. Monomorphic surfaces = a gated no-op."
+  "b2360c7a — receiver-satisfaction fix: is_surface_type_param_ref matched only a WHOLE-position placeholder (-> :T); an EMBEDDED
+   one (-> Address'<S,R>) fell through. New member_type_satisfied recurses structurally (types/surface.rs). The root CONTRADICTED
+   my hypothesis (I guessed name-canonicalization; it was the nested shape) — the shadowdancer ground it. SOUND: a placeholder-
+   accepts-any is safe because the concrete binding is enforced at extend-type registration (verified: Dialable<Echo> satisfier
+   returning Address'<Kv> → ReturnTypeMismatch)."]
 
- :next
- ["C2 — N heterogeneous, name+type matched, a wrong-service handle a COMPILE error. SCOUTED 2026-07-09 → see
-   DESIGN-N-SERVICE-KWARGS-INJECTION.md 'Strike C2' (the full design + the materialized user form). The RUNTIME mechanism is
-   pure COMPOSITION of built pieces (PoolMsg<D,I> is generic over D → D = Tuple<Address'…>, the heterogeneous carrier that
-   up-casts as of d8d3e11e; ::Kwargs is already N-field; the runner holds ctx = Option<::Kwargs>). The STONE is the
-   wrong-service COMPILE error at the ProcessOpts ERASURE boundary: process/uses stores Vector<(keyword,Capability)> —
-   handles ERASED to Capability — so the uses↔::Kwargs name+type reconciliation must fire where BOTH the concrete handle AND
-   the ::Kwargs are un-erased: the (process/uses …)+work-fn PAIRING at the bracket/map call site, BEFORE erasure. PROBE that
-   reconciliation shape BEFORE briefing (does bracket/map reconcile the literal process/uses against the work-fn's ::Kwargs?).
-   GATE (materialized): (process/uses :echo kvh :kv eh) SWAPPED → a located TypeMismatch at `wat --check` (:echo expects
-   Peer'<Echo…>, got kv'::Handle), NOT a runtime peer-closed."
-  "THEN (ratified): map arg-order flip (fn-first, to match core/map); spawn-* RESERVED (the 4 concurrency shapes measured clean:
+ :the-c2-mechanism-PROVEN  ; every piece a green measurement (probes live in scratchpad/, gitignored — findings captured here)
+ "1. PARAMETRIC SURFACES (built) → a surface method returns a satisfier-associated type.
+  2. TYPED COORDINATE (proven, probe-c2-typed-coordinate.wat): a parametric Dialable<S,R> surface (coord -> Address'<S,R>),
+     satisfied by each <fqdn>::Handle routing to its OWN typed addr → (coord eh):Address'<Echo>, (coord kvh):Address'<Kv>. The
+     bare Capability/coordinate stays FLAT (uniform grant/revoke); the typed dial rides Dialable. A handle satisfies BOTH.
+  3. CO-LOCATION (proven, probe-c2-colocation.wat): a Tuple of typed coords carries the field-ordered contract, SURVIVES a let,
+     and a downstream consumer expecting the field-ordered Address' contract REJECTS a swapped handle at COMPILE time. So
+     OPTION C (the typed locus preserving the ratified surface) is REAL — no fused form, no process/uses-learns-work-fn divergence."
+
+ :next  ; the C2-full WIRING — each step on a PROVEN mechanism (do NOT re-measure the mechanism; wire it)
+ ["WIRE C2-full: (a) process/uses PRESERVES the typed handles (a heterogeneous typed carrier — a Tuple of typed coords, or a
+   parametric ProcessOpts) instead of erasing to Vector<(keyword,Capability)>; (b) the spawn-runner walk (it already reads the
+   ::Kwargs field types via field-types-of) generates the PARENT-SIDE contract check — a field-ordered Tuple<Address'<Si,Ri>…>
+   from the handles' typed coords, reconciled against the ::Kwargs (the co-location reconciliation, PROVEN); (c) the child dials
+   the typed addresses + assembles the ::Kwargs + invokes via the companion (C1's mechanism). GATE: (process/uses :echo kvh :kv eh)
+   SWAPPED → a located TypeMismatch at `wat --check`, NOT a runtime peer-closed."
+  "THEN (ratified): map arg-order flip (fn-first, to match core/map); spawn-* RESERVED (4 concurrency shapes measured clean:
    long-lived=defservice · fan-out=bracket/map · sealed one-shot eval=run-sandboxed-hermetic-ast · custom=coordinate/dial)."]
 
  :the-unification  ; the C1/C2 surface is Prolog unification — the soundness gap C2 closes
  "[item :key1 val1 … :keyN valN] — declared :keys bound to provided :keys BY NAME, order-free, the compiler reconciles. The
-  soundness gap = the UN-unified erased-positional (a bare Address' dials the WRONG service silently); name-unification makes the
-  wrong binding UNREPRESENTABLE. C1 proved the MECHANISM (dial+assemble+invoke via the companion) but binds N=1 POSITIONALLY;
-  C2 adds per-name reconciliation + the wrong-service-is-a-compile-error negative proof. [item :key val …] is THE ONLY WAY —
-  the companion :key val is the surface; the ::Kwargs struct is invisible plumbing (do NOT surface it)."
+  soundness gap = the erased-positional (a bare Address' dials the WRONG service silently); name-unification + the TYPED coordinate
+  make the wrong binding UNREPRESENTABLE. C1 binds N=1 POSITIONALLY; C2 adds per-name reconciliation + the wrong-service compile
+  error (now PROVEN achievable). [item :key val …] is THE ONLY WAY — the companion :key val is the surface; ::Kwargs is invisible plumbing."
 
  :do-nots
- ["WEIGH by your OWN re-run — never the shadowdancer's report (GREEN IS NOT TRUE). A mid-edit file is a PHANTOM. When TWO agents
-   run in ONE working tree: disjoint files + TARGETED `git add <own files>` (NEVER -A) — the git-layer secare (held clean this session)."
-  "SHADOWDANCER BRIEFS must say 'STAY on the branch, NEVER create/switch'. And CLEAN SURFACE FORMS everywhere ([a b c] / {:k v} /
-   #{a} — the compound up-cast now up-casts them all against the expected type; (println x) NOT (println (edn/write x)))."
-  "DON'T reflect a work-fn VALUE (metadata-of/lookup-define/field-names-of) — it RAISES on an anonymous fn = crashes the parent
-   (CAEDOR ERGO RESEROR). Detect shape via defclause TYPE-dispatch. GROUND before flagging (don't cry cascade off a linter ghost)."
-  "SHADOWDANCERS = SONNET always. NEVER /proc (PID kernel-vouched: Pidfd + SO_PEERCRED). the holonic repos ARE the memory — curare
-   into the REPO, not ~/.claude/MEMORY.md. orchestrator DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — hands-on ONLY the disconfirming
-   probe. four-questions inform every decision; cast wards never narrate."]
+ ["METIENDO VIAM APERIMVS — MEASURE, don't assume. The whole C2 stretch was disconfirming probes, not top-down design; each
+   'let's measure' opened OR redirected the next. A SHADOWDANCER can ground your hypothesis FALSE (the receiver root was
+   nested-shape, not my name-canonicalization guess) — set a STOP for 'if the model's wrong, surface it'; weigh the ROOT it found."
+  "WEIGH by your OWN re-run (GREEN IS NOT TRUE) — and probe the SOUNDNESS corner a fix opens (a 'placeholder accepts any' is sound
+   IFF the concrete binding is enforced elsewhere; verify with a MISMATCH probe). A mid-edit file is a PHANTOM. TWO agents in one
+   tree: disjoint files + TARGETED `git add <own files>` (NEVER -A)."
+  "SHADOWDANCER BRIEFS: 'STAY on the branch, NEVER create/switch'; CLEAN SURFACE FORMS everywhere. DON'T reflect a work-fn VALUE
+   (crashes on an anon fn — CAEDOR ERGO RESEROR); detect via defclause TYPE-dispatch. GROUND before flagging (no linter ghosts)."
+  "SHADOWDANCERS = SONNET. NEVER /proc (PID kernel-vouched). the holonic repos ARE the memory — curare into the REPO. PUSH OFTEN
+   (GitHub = DR). orchestrator DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — hands-on ONLY the disconfirming probe. four-questions inform every decision."]
 
  :banked
- ["<RustStyle> corpus sweep (~1034 wat/ sites — arc 251 shipped the tools; the corpus drive never ran, 251 uninscribed)."
-  "ceremony vectors (:wat::core::Vector :T …) → [ … ] (~485 sites; SKIP empty-vector + deliberate-widening [Vector<Value>])."
-  "comms HolonRepresentable → EdnRepresentable (hat #3); form reflection signature-of-fn/body-of → WatAST; a first-class `eval`
-   wrapper over run-sandboxed-hermetic-ast. HolonAST is HOLOGRAM-ONLY (the north star)."
-  "LIMITATION kept visible: a HashSet<Capability> of ACTUAL opaque handles panics at RUNTIME on hashing (opaque handles aren't
-   hashable) — PRE-EXISTING + orthogonal to the up-cast (the type-check is green; no real consumer sets opaque handles)."]}
+ ["<RustStyle> corpus sweep (~1034 wat/ sites); ceremony vectors → [ … ] (~485; skip empty + widening); comms HolonRepresentable
+   → EdnRepresentable; form reflection signature-of-fn/body-of → WatAST; a first-class `eval` over run-sandboxed-hermetic-ast. HolonAST is HOLOGRAM-ONLY."
+  "LIMITATION visible: HashSet<Capability> of opaque handles panics at RUNTIME on hashing (pre-existing; type-check green; no real consumer)."]}
 ```
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy bootstrap
 > (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) and READ 278's realizations WHOLE (R1–R38) + the 170
-> realizations at the TOP of this file — skipping the read makes you the daemon (R20 DAEMON IN ME). Ground HEAD against the disk
-> (`d8d3e11e` + this curare on top). The **fn-forms seam, C1, mod/rem/quot, and the compound up-cast class-fix ALL LANDED** and
-> were weighed by own re-run this session — nothing is in flight. The N-service kwargs design is FULLY MAPPED
-> (`DESIGN-N-SERVICE-KWARGS-INJECTION.md` + `:the-unification`); do NOT re-scout. The WORK resumes at **C2** — N heterogeneous,
-> name+type matched, a wrong-service handle a COMPILE error (C1 binds N=1 POSITIONALLY; C2 closes the soundness gap). Then the
-> map arg-order flip + spawn-* reserved. Weigh by your OWN re-run (green is not true); **STAY on arc-170-gap-j-v5-deadlock-state
-> (never branch)**; clean surface forms; ground before flagging; shadowdancers=SONNET; the holonic repos are the memory. Do not
-> trust this note over the disk. See you on the far side.
+> realizations + the **METIENDO VIAM APERIMVS** interstitial at the TOP of this file — skipping the read makes you the daemon
+> (R20 DAEMON IN ME). Ground HEAD against the disk (`b2360c7a` + this curare on top; origin is caught up). The C2 wrong-service-
+> COMPILE-ERROR **MECHANISM is PROVEN end to end** (parametric surfaces built → typed coordinate → co-location, each a green
+> measurement — see `:the-c2-mechanism-PROVEN`); NOTHING is in flight. The WORK resumes at the C2-full **WIRING** (`:next`):
+> process/uses PRESERVES the typed handles (no erasure) + the walk generates the parent-side contract check + the child dials/
+> assembles/invokes (C1's mechanism). Then map arg-order flip + spawn-* reserved. Do NOT re-measure the mechanism — WIRE it.
+> Weigh by your OWN re-run (green is not true); **MEASURE don't assume (METIENDO)**; **STAY on arc-170-gap-j-v5-deadlock-state
+> (never branch)**; push often (GitHub = DR); clean surface forms; ground before flagging; shadowdancers=SONNET; the holonic
+> repos are the memory. Do not trust this note over the disk. See you on the far side.

@@ -250,7 +250,29 @@ literal `process/uses` syntactically, or the concrete types are otherwise preser
 ```
 **C2 is proven iff the swap fails `wat --check` with that located diagnostic.** Everything else is plumbing.
 
-**Resume point: Strike C2** — the runtime mechanism is composition (built); the stone is the wrong-service COMPILE error
-at the erasure boundary. Probe the reconciliation-at-the-call-site shape (does `bracket/map` reconcile the literal
-`process/uses` against the work-fn's `::Kwargs`?) before briefing the build. The attack is fully mapped in this doc — no
-re-scout; probes live in `scratchpad/` (gitignored, local) but every finding is captured here.
+### C2 — the wrong-service compile error, MECHANISM PROVEN (2026-07-09, by measurement)
+
+The erasure-boundary crux above was resolved not by a workaround but by building a general substrate capability. The full
+mechanism is now proven end to end (green probes in `scratchpad/`, findings captured here):
+
+1. **Parametric surfaces — BUILT (`7d8e3034` + `b2360c7a`).** A `defsurface :Name<T>` carries type params (bound per satisfier
+   at `extend-type`, resolved at the call site — mirrors the `defenum` discipline). `SurfaceDef.type_params` was a dead field;
+   now live. The receiver fix (`b2360c7a`) closed an embedded-placeholder gap (`-> Address'<S,R>`, not just whole-position `-> :T`).
+   A general capability — surfaces are now generic.
+2. **Typed coordinate — PROVEN (`probe-c2-typed-coordinate.wat`).** A parametric `Dialable<S,R>` surface with
+   `(coord [self] -> Address'<S,R>)`, satisfied by each `<fqdn>::Handle` routing to its own typed `addr`, resolves
+   `(coord eh) : Address'<Echo…>`, `(coord kvh) : Address'<Kv…>`. The flat `Capability`/`coordinate` (bare `Address'`) STAYS
+   flat for uniform grant/revoke; the typed dial rides `Dialable`; a handle satisfies **both**. Sound both ways (a satisfier
+   claiming `Dialable<Echo>` but returning `Address'<Kv>` is a `ReturnTypeMismatch`).
+3. **Co-location — PROVEN (`probe-c2-colocation.wat`).** A `Tuple` of typed coords carries the field-ordered contract, SURVIVES
+   a `let`, and a downstream consumer expecting the field-ordered `Address'` contract REJECTS a swapped handle at compile time.
+   So **option C** (a typed locus that preserves the ratified `(process/uses …)` + `(bracket/map … :work)` surface) is real —
+   no fused form, no `process/uses`-learns-the-work-fn divergence.
+
+**Resume point: the C2-full WIRING** (each step on the proven mechanism — do NOT re-measure the mechanism):
+(a) `process/uses` PRESERVES the typed handles (a heterogeneous typed carrier — a `Tuple` of typed coords, or a parametric
+`ProcessOpts`) instead of erasing to `Vector<(keyword, Capability)>`; (b) the spawn-runner walk (it already reads `::Kwargs`
+field types via `field-types-of`) generates the PARENT-SIDE contract check — a field-ordered `Tuple<Address'<Si,Ri>…>` from the
+handles' typed coords, reconciled against the `::Kwargs` (the co-location reconciliation); (c) the child dials the typed
+addresses + assembles the `::Kwargs` + invokes via the companion (C1's mechanism). GATE: `(process/uses :echo kvh :kv eh)`
+SWAPPED → a located `TypeMismatch` at `wat --check`, not a runtime peer-closed. Every finding captured here; probes in `scratchpad/` (gitignored).
