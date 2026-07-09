@@ -4254,6 +4254,18 @@ fn infer_list(
                         return CheckResult::errs(local_errors);
                     }
                 };
+                // Arc-check-literal-elems: a `[...]` literal ascribed to a known
+                // `Vector<T>` type up-casts its elements against T (via
+                // check_vector_literal_against) instead of inferring the whole
+                // literal bottom-up and requiring `assignable` on the result.
+                if let WatAST::Vector(items, _vspan) = &args[0] {
+                    if let Some(elem) = vector_elem_of(&ascribed_ty, subst, env.types()) {
+                        let _ = check_vector_literal_against(items, &elem, env, locals, fresh, subst)
+                            .drain_errors_into(&mut local_errors);
+                        let ty = apply_subst(&ascribed_ty, subst);
+                        return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+                    }
+                }
                 // Infer the expression's type.
                 let expr_ty = infer(&args[0], env, locals, fresh, subst)
                     .drain_errors_into(&mut local_errors);
@@ -6240,7 +6252,19 @@ fn infer_list(
                 .enumerate()
                 .take(param_types.len())
             {
-                let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                // Arc-check-literal-elems: same up-cast as the strict-arity loop below —
+                // a `[...]` literal against a known `Vector<T>` fixed-slot expected type
+                // checks its elements against T instead of inferring bottom-up.
+                let arg_ty = if let WatAST::Vector(items, _vspan) = arg {
+                    if let Some(elem) = vector_elem_of(expected, subst, env.types()) {
+                        check_vector_literal_against(items, &elem, env, locals, fresh, subst)
+                            .drain_errors_into(&mut local_errors)
+                    } else {
+                        infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
+                    }
+                } else {
+                    infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
+                };
                 if let Some(arg_ty) = arg_ty {
                     if !assignable(&arg_ty, expected, subst, env) {
                         local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -6295,7 +6319,19 @@ fn infer_list(
         }
 
         for (i, (arg, expected)) in args.iter().zip(&param_types).enumerate() {
-            let arg_ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            // Arc-check-literal-elems: a `[...]` literal in a call-arg slot with a
+            // known `Vector<T>` expected type up-casts its elements against T
+            // (via check_vector_literal_against) instead of inferring bottom-up.
+            let arg_ty = if let WatAST::Vector(items, _vspan) = arg {
+                if let Some(elem) = vector_elem_of(expected, subst, env.types()) {
+                    check_vector_literal_against(items, &elem, env, locals, fresh, subst)
+                        .drain_errors_into(&mut local_errors)
+                } else {
+                    infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
+                }
+            } else {
+                infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
+            };
             if let Some(arg_ty) = arg_ty {
                 if !assignable(&arg_ty, expected, subst, env) {
                     local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -14584,6 +14620,63 @@ fn infer_list_constructor(
     let ty = TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
         args: vec![apply_subst(&elem_ty, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Expected-type reduction helper: reduce/walk `t` and, iff it is
+/// `Vector<T>` (`Parametric{ head == "wat::core::Vector", args.len()==1 }`),
+/// return `Some(T)`; else `None`. Used to detect when a `[...]` literal sits
+/// in a position with a known expected vector element type (arg-position and
+/// ann-form), so its elements can be up-cast (checked against T) instead of
+/// inferred bottom-up.
+fn vector_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeExpr> {
+    let reduced = reduce(&walk(t, subst), subst, types);
+    match reduced {
+        TypeExpr::Parametric { head, args }
+            if head == "wat::core::Vector" && args.len() == 1 =>
+        {
+            Some(args[0].clone())
+        }
+        _ => None,
+    }
+}
+
+/// Expected-type-directed check of a `[...]` vector literal.
+///
+/// When a `WatAST::Vector` literal appears in a position with a known expected
+/// element type `T` (a call-arg slot typed `Vector<T>`, or an ann-form ascribing
+/// `Vector<T>`), each element is inferred then UP-CAST against `T` via
+/// `assignable` — the same machinery the explicit `(:wat::core::Vector T …)`
+/// form uses (see `infer_list_constructor`). This is sound (up-cast only): an
+/// element not assignable to `T` still errors. Returns `Vector<T>` (ok when no
+/// element errored, partial otherwise), so the caller's outer
+/// `assignable(result, Vector<T>)` passes trivially.
+fn check_vector_literal_against(
+    items: &[WatAST],
+    expected_elem: &TypeExpr,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        let item_ty = infer(item, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        if let Some(item_ty) = item_ty {
+            if !assignable(&item_ty, expected_elem, subst, env) {
+                local_errors.push(CheckError { span: item.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: ":wat::core::vec".into(),
+                    param: format!("#{}", i + 1),
+                    expected: format_type(&apply_subst(expected_elem, subst)),
+                    got: format_type(&apply_subst(&item_ty, subst)),
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::Vector".into(),
+        args: vec![apply_subst(expected_elem, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
