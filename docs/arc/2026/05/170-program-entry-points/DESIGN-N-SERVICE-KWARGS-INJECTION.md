@@ -161,13 +161,25 @@ Every assumption was probed on the disk. The map is complete except one dark cor
 | 7 | reflection surface | HAVE `metadata-of` (Kind/Purity/Layer/…); **LACK** struct-field ("type → fields") |
 | 8 | per-defn retained source reachable from wat | **NO** — source is file-level (`wat/source.wat`), not per-defn |
 
-### Gap A — fn-forms cannot ship the kwargs `$impl` (THE DARK CORNER)
-`fn-forms :probe::work$impl` fails with `free symbol 'kwargs' does not resolve` (`closure_extract`), where `kwargs`
-is the `$impl`'s own 2nd param — it should be bound (`closure_extract.rs:209` collects `func.params`). Measured
-**kwargs-specific** (rows 4–6: inline `let` ✓, named plain fn ✓, only the kwargs `$impl` fails ✗). **ROOT NOT YET
-FOUND** — needs a closure_extract diagnosis (why the `$impl`'s param reads as free) to know small-fix vs structural.
-This is the one thing to root before the wat wiring. Alternative if structural: ship the work-fn's *source* + invoke
-via the companion — but Gap 8 shows per-defn source isn't cleanly wat-reachable, so that path *also* needs a seam.
+### Gap A — fn-forms cannot ship the kwargs `$impl` — ROOTED (a keying bug, small fix)
+`fn-forms :probe::work$impl` fails `free symbol 'kwargs'` where `kwargs` is the `$impl`'s *own* param. Rooted to a
+**key mismatch in `closure_extract`**:
+- `FunctionDef.params` is stored by **`env_key`** (the scoped key) — `runtime.rs:733`
+  (`…map(|(n,_)| crate::scope::env_key(n))…`).
+- `walk_free_symbols` matches body symbols by **`as_str`** (the bare base name) — `closure_extract.rs:19`+`:30`
+  (`let name = ident.as_str(); if !locals.contains(&name)`).
+
+These agree only for **scope-less** symbols. The kwargs reshaping mints its param via
+`(:wat::core::fresh-symbol "kwargs")` (`core.wat:761`) — a **scoped** symbol (env_key `kwargs\u{1}<scope>`). So
+`func.params` holds `kwargs\u{1}<scope>`, the walk looks up bare `kwargs`, `contains` fails → the `$impl`'s own param
+reads as free. **Confirmed** (`scratchpad/root-gapA.wat`): a hand-written same-shape fn with a **bare** struct-typed
+2nd param + a `let` accessor ships fine (`hand: ok`); only the kwargs (`fresh-symbol`) `$impl` fails.
+
+**Fix (small, targeted, NOT structural):** unify the keying — build `body_locals` and match body symbols by the
+*same* key so a scoped `fresh-symbol` param reconciles with its (equally-scoped) body reference. closure_extract
+already ships every bare-param fn; it simply never handled a hygienic param. Watch the blast radius: the walk's
+`name` is reused for dep/type resolution (`closure_extract.rs:45,67`), so the locals key must be unified without
+breaking those lookups (compute the locals key separately, or normalize scoped↔bare consistently).
 
 ### Gap B — struct-field reflection (the "what reflection don't we have" answer — small)
 No wat-level "given a struct/record type, enumerate its fields (names + types)." The data is in the `TypeEnv`

@@ -374,10 +374,12 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
 ```clojure
 {:head   "bc472c7c — capability Stone A CLEAN + pushed. The N-SERVICE stone (kwargs-injection) is fully MEASURED +
           docs in order (DESIGN-N-SERVICE-KWARGS-INJECTION.md — ledger of 8 probes + 2 substrate gaps + strike order).
-          NEXT = Strike A (root Gap A): why does fn-forms reject the kwargs $impl ('free symbol kwargs' in
-          closure_extract) — kwargs-$impl-SPECIFIC (measured: inline-let ships, named-plain ships, only the kwargs
-          $impl fails). That's THE PREREQUISITE (invoking the work-fn in the child is blocked on it). Then Strike B
-          (struct-field reflection: expose TypeEnv fields to wat — small), then Strike C (the wat wiring: C1 N=1, C2 N)."
+          Gap A ROOTED (root-gapA.wat): a KEYING BUG in closure_extract — FunctionDef.params is stored by env_key
+          (SCOPED, runtime.rs:733) but walk_free_symbols matches body symbols by as_str (BARE, closure_extract.rs:19).
+          Agree only for scope-less symbols; the kwargs param is a fresh-symbol (SCOPED, core.wat:761) → the $impl's
+          own param reads as FREE. Small targeted fix (unify the locals keying; mind the dep/type lookups at :45,:67).
+          NEXT = Strike A (the closure_extract keying fix — THE PREREQUISITE) → Strike B (struct-field reflection:
+          expose TypeEnv fields to wat, small) → Strike C (the wat wiring: C1 N=1, C2 N-heterogeneous name+type-matched)."
  :branch "arc-170-gap-j-v5-deadlock-state"
  :arc    "170 — the CAPABILITY CIRCUIT. Single-service PROVEN + CLEAN. FIVE stones landed this session (all pushed):
           179e5606 M1-pool clean (byte-equality proven not name-equality — types.rs:541 existing==&def; a byte-diff
