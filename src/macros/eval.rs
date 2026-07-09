@@ -352,10 +352,16 @@ fn is_pure_total(head: &str) -> bool {
     matches!(
         head,
         // ── Integer arithmetic (pure, total, wrapping) ─────────────────
+        // mod/rem/quot route through the same eval_i64_arith dispatch as
+        // `/` (runtime.rs) — div-by-zero is a deterministic located abort
+        // (RuntimeErrorKind::DivisionByZero), never a panic, same as `/`.
         ":wat::core::i64::+"
         | ":wat::core::i64::-"
         | ":wat::core::i64::*"
         | ":wat::core::i64::/"
+        | ":wat::core::i64::mod"
+        | ":wat::core::i64::rem"
+        | ":wat::core::i64::quot"
 
         // ── Integer comparison ─────────────────────────────────────────
         | ":wat::core::i64::>"
