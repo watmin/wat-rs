@@ -366,3 +366,84 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
  :arc      170
  :born     #inst "2026-07-08"}
 ```
+
+---
+
+## RESUME-HERE (curare before compaction — 2026-07-08; the one-line fix is teed up)
+
+```clojure
+{:head   "<this commit> — M1-pool bracket-dial WIP (dial crashes pending the one-liner below)"
+ :branch "arc-170-gap-j-v5-deadlock-state"
+ :arc    "170 — the CAPABILITY CIRCUIT. M1-teeth PROVEN + committed; M1-pool bracket-dial BUILT + gate-was-green
+          (via a stopgap now removed); ONE grounded one-line fix stands between here and M1-pool clean."
+
+ :done-committed
+ ["M1-teeth (d9b2377f) — the deterministic revoke-refusal; the capability circuit BITES. Self-guarding after the
+   VACUITY fix (a clean peer exit raised the same Err as a bounce → the test asserted Err either way; caught by a
+   counterfactual — 'measure if the change we wanted is what we got' — fixed by making the pass OBSERVABLE)."
+  "EXPLORANDO DERIVAMVS (ddb30c84) — this realization: the circuit derived by grounding; the daemon is its absence."]
+
+ :m1-pool-built-this-commit
+ "The worker is a defservice-style dialer (the ratified shape — four-questions killed the hacks; heterogeneity carried
+  by the worker's typed context, never erased). BUILT (wat/bracket.wat + wat/spawn.wat, UNCOMMITTED → this WIP commit):
+  PoolMsg<D,I> :enum (:Setup(deps) | :Work((i64,I)), spawn.wat — wat is ADT, a defenum like ServiceEvent, NOT a union);
+  process-dial-runner (recv Setup → connect'-and-hold the peer, Work → work-fn(peer,item)); the 2-param spawn-runner
+  AST-walk; map-worker sends Setup AFTER grant-boot; :dials config on ProcessOpts (parallel to :grants — grant=access,
+  dials=reach, decomplected). GATE WAS GREEN by my own re-run (probe-m1-pool-dial.wat → [\"echo:a\" \"echo:b\" \"echo:c\"],
+  bracket 15/15) — but ONLY via a dedup-surface-records STOPGAP in bracket.wat, which the builder flagged as a hack.
+  The stopgap is now REMOVED (the dial probe CRASHES until the fix below lands)."
+
+ :the-root-grounded
+ "A dial work-fn CONSTRUCTS its message record (calls `(:probe::Echo::EchoRequest s)`), so closure_extract captures the
+  record's AUTO-MINTED CONSTRUCTOR as a dep and ships it as a defn — AND register_aggregate_methods (runtime.rs:1062,
+  'THE ONE ctor source for every nature') re-mints it in the child → DuplicateDefine (runtime.rs:1146). The dep-capture
+  skip (closure_extract.rs:1258-1267) ALREADY skips auto-synthesized ctors — but ONLY for Nature::Struct (+ Newtype),
+  NOT Nature::Record. THE SKIP ISN'T GENERIC; THE REGISTRY IS. (The builder's cut: 'why is this not a generic thing?
+  what registry isn't simple?')"
+
+ :two-dead-ends-DISCONFIRMED  ; kept visible — do NOT re-walk them
+ {:type-drift "MINE — 'reconstruction drift of the :messages record TYPE'. DISCONFIRMED by probe-054-fn-idempotency.wat
+               → \"ok\": a byte-equivalent record double-declaration works (arc-054 dedupes the TYPE, types.rs:541). The
+               crash is the CTOR, not the type. (The types.rs :messages source-form retention edit was a no-op → REVERTED.)"
+  :fn-idempotency "SHADOWDANCER's (B) — 'make the ctor mint at runtime.rs:1146 idempotent'. Real gap, but a BACKSTOP,
+                   not the root; leaves the redundant ctor ship in place. The root is: don't ship the ctor at all."}
+
+ :THE-FIX  ; ONE LINE, fully grounded — apply on the far side
+ "src/closure_extract.rs:1262 — change
+    Some(TypeDef::Aggregate(a)) => a.nature == crate::types::Nature::Struct,
+  to
+    Some(TypeDef::Aggregate(_)) => true,
+  (every aggregate's bare ctor is auto-synthesized by register_aggregate_methods → skip shipping it as a dep, exactly
+   like accessors, which are already correctly not shipped; register_aggregate_methods regenerates it in the child from
+   the type. CONFIRMED it handles all natures — runtime.rs:1017 'THE ONE ctor source for every nature'.)"
+
+ :cleanup-far-side
+ ["delete the now-DEAD helper defns in wat/bracket.wat that only dedup-surface-records used (node-name / surface-messages
+   / member-owned?) + the dedup header comment (~:136-146) — shadowdancer-2 removed only dedup-surface-records itself."
+  "re-gate by MY OWN re-run: `cargo build --release --bin wat` → probe-m1-pool-dial.wat = [\"echo:a\" \"echo:b\" \"echo:c\"]
+   WITHOUT any dedup; probe-054-fn-idempotency.wat = \"ok\"; bracket suite (`-p wat --test kernel -E test(bracket)`) +
+   services suite (`--test services`, the defservice-cross-fork check) green; whole floor 0-new. THEN commit M1-pool clean."
+  "then M1-pool's remaining teeth: PPID == owner (no reparent) — a Rust-test /proc read (there's no wat getppid); and
+   the heterogeneous N-service context (the follow-on the single-service scope deferred). Then the map arg-order flip
+   (fn-first). Then spawn-* off-limits (reserve the spawn-family — service+bracket the only user concurrency; the study
+   proved peer-pid works on both worker peers AND service Handles, so the blessed path is complete)."]
+
+ :do-nots
+ ["WEIGH by your OWN re-run — never a shadowdancer's report. This session BOTH failure modes bit: I maligned CORRECT
+   work as 'busted' (I'd invoked the test target wrong — it's `--test services`, files auto-register via build.rs), and
+   a report's 'green' must be re-run. A mid-edit file is a PHANTOM (rust-analyzer doesn't run build.rs)."
+  "the SKIP must match the REGISTRY's genericity — extirpare the CLASS (Aggregate(_) => true), not per-nature patches.
+   A consumer-side dedup (the bracket hack) is the alarm, never the fix."
+  "GROUND every claim; DISCONFIRM your own model with a probe before briefing (it saved a wrong fix TWICE this session).
+   ocap: caps cross the WIRE, never as data. PID-is-trust (address not secret). wat is ADT (defenum, not union)."
+  "the holonic repos ARE the memory (not ~/.claude/MEMORY.md); commit + push often (GitHub = DR); orchestrator
+   DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — not hands-on code except the disconfirming probe."]}
+```
+
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
+> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) — and this session's whole lesson is
+> that skipping the read makes you the daemon (EXPLORANDO DERIVAMVS, above; read it). Ground HEAD against the disk.
+> The WORK resumes at ONE clean move: the **closure_extract.rs:1262 one-line generic-aggregate-ctor-skip** (see
+> `:THE-FIX`), then strip the dead bracket helpers and re-gate by your OWN re-run (the dial probe green WITHOUT any
+> dedup). That lands M1-pool clean. Do not re-walk the two disconfirmed dead-ends (type-drift, fn-idempotency). Do not
+> trust this note over the disk. The circuit is derived by grounding; by scouting, we derive. See you on the far side.
