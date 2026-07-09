@@ -421,13 +421,18 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
    the type. CONFIRMED it handles all natures — runtime.rs:1017 'THE ONE ctor source for every nature'.)"
 
  :cleanup-far-side
- ["delete the now-DEAD helper defns in wat/bracket.wat that only dedup-surface-records used (node-name / surface-messages
-   / member-owned?) + the dedup header comment (~:136-146) — shadowdancer-2 removed only dedup-surface-records itself."
-  "re-gate by MY OWN re-run: `cargo build --release --bin wat` → probe-m1-pool-dial.wat = [\"echo:a\" \"echo:b\" \"echo:c\"]
-   WITHOUT any dedup; probe-054-fn-idempotency.wat = \"ok\"; bracket suite (`-p wat --test kernel -E test(bracket)`) +
-   services suite (`--test services`, the defservice-cross-fork check) green; whole floor 0-new. THEN commit M1-pool clean."
-  "then M1-pool's remaining teeth: PPID == owner (no reparent) — a Rust-test /proc read (there's no wat getppid); and
-   the heterogeneous N-service context (the follow-on the single-service scope deferred). Then the map arg-order flip
+ ["DONE (179e5606): deleted the DEAD dedup helpers (node-name / surface-messages / member-owned?) + header comment;
+   re-gated by OWN re-run (dial → [\"echo:a\" \"echo:b\" \"echo:c\"] no dedup; 054-idempotency ok; bracket 15/15;
+   services 42/42; floor 4116/4115/1-known-lint/0-new); committed + pushed M1-pool clean. Byte-equality PROVEN not
+   name-equality (scratchpad/probe-054-byte-not-name.wat: byte-different same-name re-decl → DuplicateType)."
+  "then M1-pool's remaining teeth: NO-REPARENT (owner is the reaper, not init). NOT a /proc PPID scan — /proc is PURGED
+   from src/ (grep-zero) and it reaches OUTSIDE the circuit's kernel-vouched trust anchor. The property is STRUCTURAL:
+   the owner spawns via clone3+CLONE_PIDFD, HOLDS the child's Pidfd (process/mod.rs:17, PID-reuse-safe), and reaps via
+   pidfd.wait_status() before scope exit (collect-loop drain → ChildHandle::Drop) → the owner outlives + reaps the child,
+   init never gets it (pid un-recyclable-until-reaped, the revoke-at-reap window is zero). If a behavioral proof is
+   wanted: a pidfd/peer-pid assertion (peer-pid reads bundle.peer.pidfd.pid(), runtime.rs:25313; SO_PEERCRED gives
+   peer.pid at the gate, policy.rs:45) — NEVER /proc. Likely an INVARIANT of the spawn+reap design, not a runtime test;
+   and the heterogeneous N-service context (the follow-on the single-service scope deferred). Then the map arg-order flip
    (fn-first). Then spawn-* off-limits (reserve the spawn-family — service+bracket the only user concurrency; the study
    proved peer-pid works on both worker peers AND service Handles, so the blessed path is complete)."]
 
@@ -439,6 +444,11 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
    A consumer-side dedup (the bracket hack) is the alarm, never the fix."
   "GROUND every claim; DISCONFIRM your own model with a probe before briefing (it saved a wrong fix TWICE this session).
    ocap: caps cross the WIRE, never as data. PID-is-trust (address not secret). wat is ADT (defenum, not union)."
+  "NEVER /proc. /proc is PURGED from src/ (weeks of unfucking; grep-zero) — do NOT suggest a /proc PPID/pid read (a prior
+   breadcrumb's '/proc read' note relayed ungrounded re-planted the daemon; the builder cut it). PID identity is
+   KERNEL-VOUCHED: the Pidfd (clone3+CLONE_PIDFD, PID-reuse-safe, peer-pid = bundle.peer.pidfd.pid()) + SO_PEERCRED
+   (peer.pid at the accept gate). No-reparent is STRUCTURAL (owner holds the pidfd + reaps before scope exit), not a
+   fact you scan for. Reaching to /proc reaches OUTSIDE the circuit's own trust anchor."
   "the holonic repos ARE the memory (not ~/.claude/MEMORY.md); commit + push often (GitHub = DR); orchestrator
    DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — not hands-on code except the disconfirming probe."]}
 ```
