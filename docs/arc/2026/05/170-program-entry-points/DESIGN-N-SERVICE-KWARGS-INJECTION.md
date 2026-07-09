@@ -193,17 +193,64 @@ a work-fn's `::Kwargs` fields.
   keys the locals-membership check by `crate::scope::env_key(ident)` (matching `func.params`), so a hygienic
   (`fresh-symbol`) param self-resolves. fn-forms now ships the kwargs `$impl` (`root-gapA.wat` → `both ok`); a general
   substrate fix (any hygienic-param fn now reifies). Weighed: capture/hygiene 52/52, floor 0-new.
-- **Strike B — Gap B: struct-field reflection — NEXT (small).** Expose `TypeEnv` struct fields to wat, e.g.
-  `(fields-of :T)` → `[(name, type) …]` (the data is in the `TypeEnv`; `metadata-of` already reaches the registry for
-  *callable* metadata — this exposes the *type-structure* side). **Gate**: `(fields-of :probe::work::Kwargs)` →
-  `[(kv, Peer'<Kv…>)]`. Small + general.
-- **Strike C — the wat wiring** (on A + B). `process/uses :name handle`; the spawn-runner AST-walk recognizes the
-  kwargs `$impl` (its 2nd param is a `::Kwargs` struct — NOT the `[peer item]` dial shape, which would mis-derive
-  `S,R` off `item`), reads `::Kwargs` via B, name-matches `uses` + type-checks per handle, per-kwarg
-  grant+dial+assemble, invokes via A. Decompose by N: **C1** single-service via kwargs (N=1)
-  (`probe-b1-kwargs-worker.wat` — the RED reference, currently `free symbol` at the AST-walk) → `["echo:a" "echo:b"
-  "echo:c"]`; **C2** N heterogeneous + name+type-matched → a 2-service worker, a wrong-service handle a compile error.
+- **Strike B — Gap B: struct-field reflection — ✅ DONE.** `field-names-of`/`field-types-of` expose the `TypeEnv`
+  struct fields; absorbed into the reflection type-eviction (`76b25943`/`77e3db60`), now emitting canonical `wat.type/`
+  forms (a DECOMPOSABLE list, not a mangled keyword). `(field-types-of :probe::work::Kwargs)` → the field `Peer'<S,R>` types.
+- **The fn-forms name→Fn SEAM — ✅ DONE (`c8e3c7ff`).** `fn-forms` resolves a KEYWORD naming a registered fn
+  (`sym.get`→`Function`, mirrors arc-009 at runtime.rs:3737); a miss → a LOCATED `TypeMismatch`, not a panic. Lets the
+  walk ship a computed `<base>$impl` keyword by name.
+- **Strike C — the wat wiring** (on A + B + the seam). `process/uses :name handle`; the spawn-runner AST-walk recognizes
+  the kwargs work-fn via **defclause TYPE-dispatch on the work-fn VALUE** (kwargs base → bare `:keyword` via the companion
+  MACRO; plain fn → `Value::fn`) — NEVER reflecting the anon value (it CRASHES); ships `<base>$impl` by name via the seam,
+  reads `::Kwargs` via B, adapts onto `process-dial-runner`, invokes via the companion.
+  - **C1 — single-service via kwargs (N=1) — ✅ DONE (`b0a1a211`).** Clean surface end to end:
+    `(process/uses :echo eh)` + `(bracket/map locus ["a" "b" "c"] :probe::work)` → `["echo:a" "echo:b" "echo:c"]`.
+    Binds the sole `::Kwargs` field POSITIONALLY (N==1 a real assertion, bracket.wat:260).
+  - **C2 — N heterogeneous, name+type matched, a wrong-service handle a COMPILE error — the OPEN stone.** See below.
 
-**Resume point: Strike B** (struct-field reflection) — small; then C1 → C2. The attack is fully mapped in this doc
-(the 8-probe ledger + both gaps rooted) — **no re-scout needed**; the probes live in `scratchpad/` (gitignored, local),
-but every finding is captured here, so they're reconstructable from this doc if lost.
+## Strike C2 — the design (scouted 2026-07-09; the runtime mechanism is composition, the compile-error is the stone)
+
+**The runtime N-mechanism: every dependency is already built.** C2's dial-hold-assemble-invoke is pure composition:
+- `PoolMsg<D,I>` (spawn.wat:275) is GENERIC over `D` — C1 uses `D = Address'<S,R>`; C2 uses `D = Tuple<Address'<S1,R1>, …>`,
+  a HETEROGENEOUS Tuple of the N addresses (Tuple is heterogeneous by nature + up-casts at construction as of `d8d3e11e`).
+- `::Kwargs` is already an N-field record (core.wat:645) — C1 only artificially asserts N==1.
+- The runner holds `ctx = Option<::Kwargs>` (the `::Kwargs` IS the N-heterogeneous-`Peer'` bundle), assembled once Setup
+  delivers all N addresses (`connect'` each Tuple component into its field). `process/uses :name handle …` already builds
+  the named pairs (spawn.wat:196); grant/revoke fold over them.
+
+**The compile-error is the real stone — the ProcessOpts ERASURE boundary.** C1's `process/uses` stores
+`Vector<(keyword, Capability)>` (spawn.wat:145/168) — every handle ERASED to `Capability` at the `ProcessOpts` field
+(a fixed homogeneous field can't hold an arbitrary-arity heterogeneous bundle; that erasure is why C1 works at all).
+Once erased, the concrete service type is gone, so a swapped `:kv eh` up-casts to `Capability` fine → no static error →
+the erased `Address'` dials the WRONG service at runtime (exactly `probe-gap-wrong-service.wat`, still un-closed).
+
+The reject needs, at ONE static site, BOTH facts — and they live at two different calls with the erasure between them:
+- `kvh : kv'::Handle` (concrete) — visible only at the `process/uses` call (which does NOT know the `::Kwargs`).
+- `:echo` wants `Peer'<Echo…>` — known only from the work-fn's `::Kwargs`, at the `bracket/map` call (where `uses` is erased).
+
+So C2's shape is NOT "hold N peers" (built) — it is: **make the `uses`↔`::Kwargs` name+type reconciliation a
+compile-time check that lives where BOTH are un-erased** — a property of the `(process/uses …) + work-fn` PAIRING at the
+`bracket/map` call site, *before* the `ProcessOpts` erasure. OPEN: whether `bracket/map` becomes a form that sees the
+literal `process/uses` syntactically, or the concrete types are otherwise preserved to that check. **PROBE this before briefing.**
+
+### The C2 user form (materialized — the gate)
+```clojure
+;; work-fn: item + TWO named service kwargs
+(:wat::core::defn :probe::work
+  [item <- :wat::core::String
+   & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
+      kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
+  -> :wat::core::String  (… use both echo and kv …))
+
+;; POSITIVE (proves the mechanism):
+(:wat::spawn::process/uses :echo eh :kv kvh)     ;; → runs, both services hit
+;; ORDER-FREE (proves name-binding, not position): :kv kvh :echo eh — identical result
+;; NEGATIVE (THE proof): :echo kvh :kv eh — SWAPPED handles → MUST be a COMPILE error
+;;   (located TypeMismatch: :echo expects Peer'<Echo…>, got kv'::Handle) — NOT a runtime `peer closed`.
+```
+**C2 is proven iff the swap fails `wat --check` with that located diagnostic.** Everything else is plumbing.
+
+**Resume point: Strike C2** — the runtime mechanism is composition (built); the stone is the wrong-service COMPILE error
+at the erasure boundary. Probe the reconciliation-at-the-call-site shape (does `bracket/map` reconcile the literal
+`process/uses` against the work-fn's `::Kwargs`?) before briefing the build. The attack is fully mapped in this doc — no
+re-scout; probes live in `scratchpad/` (gitignored, local) but every finding is captured here.

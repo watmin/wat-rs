@@ -770,9 +770,16 @@ the win, and the strikes are PROBANDVM.*
    invariance rule UNTOUCHED (read the diff to confirm). Retired C1's as-capability stem-patch (deleted; 0 whole-tree consumers)."]
 
  :next
- ["C2 — N heterogeneous, name+type matched, a wrong-service handle a COMPILE error (closes the soundness gap C1 left as a
-   POSITIONAL bind at N=1). The hook is in place: the name rides each (name,Capability) uses-pair + the ::Kwargs field name is
-   read. C2 inherits the coherent Tuple up-cast (as-capability is gone — construct the (kw,Capability) tuple with a Handle direct)."
+ ["C2 — N heterogeneous, name+type matched, a wrong-service handle a COMPILE error. SCOUTED 2026-07-09 → see
+   DESIGN-N-SERVICE-KWARGS-INJECTION.md 'Strike C2' (the full design + the materialized user form). The RUNTIME mechanism is
+   pure COMPOSITION of built pieces (PoolMsg<D,I> is generic over D → D = Tuple<Address'…>, the heterogeneous carrier that
+   up-casts as of d8d3e11e; ::Kwargs is already N-field; the runner holds ctx = Option<::Kwargs>). The STONE is the
+   wrong-service COMPILE error at the ProcessOpts ERASURE boundary: process/uses stores Vector<(keyword,Capability)> —
+   handles ERASED to Capability — so the uses↔::Kwargs name+type reconciliation must fire where BOTH the concrete handle AND
+   the ::Kwargs are un-erased: the (process/uses …)+work-fn PAIRING at the bracket/map call site, BEFORE erasure. PROBE that
+   reconciliation shape BEFORE briefing (does bracket/map reconcile the literal process/uses against the work-fn's ::Kwargs?).
+   GATE (materialized): (process/uses :echo kvh :kv eh) SWAPPED → a located TypeMismatch at `wat --check` (:echo expects
+   Peer'<Echo…>, got kv'::Handle), NOT a runtime peer-closed."
   "THEN (ratified): map arg-order flip (fn-first, to match core/map); spawn-* RESERVED (the 4 concurrency shapes measured clean:
    long-lived=defservice · fan-out=bracket/map · sealed one-shot eval=run-sandboxed-hermetic-ast · custom=coordinate/dial)."]
 
