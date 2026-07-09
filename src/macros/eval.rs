@@ -646,5 +646,18 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::runtime::signature-of-fn"
         | ":wat::runtime::extract-arg-names"
         | ":wat::runtime::extract-arg-types"
+
+        // Arc 170 Strike B — field-names-of / field-types-of: type-kw → the
+        // frozen runtime type registry (`sym.types`, an `Option<Arc<TypeEnv>>`
+        // populated once at freeze time) → AggregateDef.fields. Same category
+        // as signature-of-fn immediately above (read-only reflection off
+        // already-frozen registry state, no IO, no mutation, deterministic —
+        // see eval_field_names_of / eval_field_types_of, runtime.rs:11593-11662).
+        // Arg resolution mirrors the arc-166 eval_lookup_define pattern (a
+        // literal Keyword is read directly, not through eval_inner) — no
+        // fn-literal special-casing needed (the sole arg is a type keyword,
+        // never a `fn` form), unlike signature-of-fn above.
+        | ":wat::runtime::field-names-of"
+        | ":wat::runtime::field-types-of"
     )
 }
