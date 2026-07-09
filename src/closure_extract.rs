@@ -670,7 +670,22 @@ fn walk_free_symbols(
             if matches!(name.as_str(), "->" | "<-" | "&" | "_") {
                 return Ok(());
             }
-            if !locals.contains(&name) {
+            // `locals` (body_locals) is keyed by `env_key` — see
+            // `runtime.rs:733`, where `FunctionDef.params` is built via
+            // `crate::scope::env_key(n)`, the SAME key derivation the
+            // runtime's own symbol-lookup path uses at eval time
+            // (`runtime.rs:3273`). A hygienic (`fresh-symbol`) param
+            // carries a non-empty scope set, so its `env_key` differs
+            // from its bare `as_str()` name. Membership must therefore
+            // be tested by `env_key`, not the bare name, or a fn's own
+            // hygienic param reads as free inside its own body. `name`
+            // (bare) is still what gets pushed into `unresolved_frees` —
+            // downstream consumers (`closed_env` capture lookup,
+            // `rewrite_captures`'s `by_name` match on `ident.as_str()`)
+            // key on the bare name, and this arm only changes the
+            // locals-membership test, not that contract.
+            let key = crate::scope::env_key(ident);
+            if !locals.contains(key.as_ref()) {
                 state.unresolved_frees.push((name, span.clone()));
             }
             Ok(())
