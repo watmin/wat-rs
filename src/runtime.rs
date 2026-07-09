@@ -11308,36 +11308,39 @@ fn eval_extract_arg_names(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::extract-arg-types head) -> :wat::core::Vector<wat::core::keyword>`
+/// `(:wat::runtime::extract-arg-types head) -> :wat::core::Vector<wat::WatAST>`
 ///
 /// Arc 201 slice 5. Direct sibling of `eval_extract_arg_names` (arc 143 slice 3).
 /// Given a signature HolonAST (the shape `signature-of-defn` and `signature-of-fn`
 /// return), walks the head Bundle and collects the TYPE AST (pair[1]) from each
 /// arg-pair Bundle.
 ///
-/// TYPE-reflection HolonAST eviction (post arc-201): `head` is still the
+/// TYPE-reflection canonical-form rewire (post arc-251): `head` is still the
 /// internal HolonAST signature (`signature-of-fn`/`signature-of-defn`'s
-/// form-reflection output is untouched — that's a separate later strike),
-/// but this primitive no longer hands the caller a `pair[1]` HolonAST
-/// subtree to decompose. The original `TypeExpr` each arg type came from
-/// is not reachable from here (only the already-lowered signature AST
-/// is, per `signature-of-fn`/`signature-of-defn`'s HolonAST-carrier
-/// contract), so each type AST is instead rendered directly to its
-/// canonical keyword spelling via `holon_type_ast_to_keyword` — a
-/// structural mirror of `crate::check::format_type`/`format_type_inner`
-/// operating on the HolonAST shapes `type_expr_to_ast` emits, so
-/// parametric types (e.g. `Peer'<A,B>`) still render to the single
-/// canonical keyword `:wat::kernel::Peer'<probe::A,probe::B>` instead of
-/// a decomposable structure.
+/// form-reflection output is untouched — that's a separate later strike).
+/// The original `TypeExpr` each arg type came from is NOT reachable from
+/// here: `head` is an arbitrary already-evaluated `Value::holon__HolonAST`
+/// at this call site (e.g. `(extract-arg-types (signature-of-fn f))`, but
+/// also a variable holding a previously-computed signature, or a
+/// hand-built Bundle) — decoupled from whichever `Function`/`TypeScheme`
+/// it may have been rendered from, per `signature-of-fn`/`signature-of-defn`'s
+/// HolonAST-carrier contract. So each type AST is instead rendered directly
+/// to the canonical arc-251 `wat.type/` `WatAST` form via
+/// `holon_type_ast_to_wat_type_form` — a structural mirror of
+/// [`crate::edn_shim::type_expr_to_clojure_form`] operating on the HolonAST
+/// shapes `type_expr_to_ast` emits (rather than on `TypeExpr` directly), so
+/// parametric types (e.g. `Peer'<A,B>`) render to a decomposable
+/// `(wat.kernel/Peer' probe.A probe.B)` list instead of a mangled keyword.
 ///
 /// Algorithm:
 /// 1. Eval and destructure head as Bundle.
 /// 2. Skip children[0] (the function name symbol).
 /// 3. For each remaining child:
 ///    - Symbol("->"): STOP collecting (everything after is return type).
-///    - Bundle([_, type_ast]) (2 children): render type_ast to a keyword string.
+///    - Bundle([_, type_ast]) (2 children): render type_ast to the
+///      canonical `wat.type/` WatAST form.
 ///    - Anything else: skip.
-/// 4. Return Vec<Value::wat__core__keyword>.
+/// 4. Return Vec<Value::wat__WatAST>.
 ///
 /// Parallel to `eval_extract_arg_names` — same walker logic, extract pair[1]
 /// (type AST) instead of pair[0] (name keyword). Per `feedback_simple_is_uniform_composition`:
@@ -11385,12 +11388,14 @@ fn eval_extract_arg_types(
             // Extract pair[1] (the structured type AST per slice 1 emission rules).
             HolonAST::Bundle(pair) if pair.len() == 2 => {
                 // pair[0] is the arg name (Symbol composition); pair[1] is the type AST.
-                // Render pair[1] to its canonical keyword spelling — see
-                // `holon_type_ast_to_keyword` doc for why this renders
-                // rather than wraps the HolonAST subtree.
-                types.push(Value::wat__core__keyword(Arc::new(
-                    holon_type_ast_to_keyword(&pair[1]),
-                )));
+                // Render pair[1] to the canonical `wat.type/` WatAST form — see
+                // `holon_type_ast_to_wat_type_form` doc for why this renders
+                // rather than flattens to a keyword.
+                let node = holon_type_ast_to_wat_type_form(&pair[1]).map_err(|reason| RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm { head: OP.into(), reason },
+                })?;
+                types.push(Value::wat__WatAST(Arc::new(node)));
             }
             // Any other shape: skip.
             _ => {}
@@ -11401,22 +11406,28 @@ fn eval_extract_arg_types(
 }
 
 /// Render a signature-emission type-AST subtree (the shape
-/// `type_expr_to_ast` produces, lowered through `watast_to_holon`) back to
-/// its canonical keyword spelling — the same string
-/// `crate::check::format_type` would produce from the original `TypeExpr`.
+/// `type_expr_to_ast` produces, lowered through `watast_to_holon`) to the
+/// canonical arc-251 `wat.type/` `WatAST` form — the SAME form
+/// [`crate::edn_shim::type_expr_to_clojure_form`] would produce from the
+/// original `TypeExpr`, but operating on the already-lowered HolonAST shape
+/// (see `eval_extract_arg_types`'s doc for why the original `TypeExpr`
+/// isn't reachable at that call site).
 ///
-/// Used by `eval_extract_arg_types`: post arc-201-HolonAST-eviction, that
-/// primitive no longer has the original `TypeExpr` in hand (only the
-/// already-lowered signature HolonAST), so this is a structural mirror of
-/// `format_type`/`format_type_inner` operating on the HolonAST shapes
-/// instead — NOT a new formatting convention.
+/// Structurally mirrors `type_expr_to_clojure_form`'s 4-way Path/leaf
+/// discriminator (core `wat::core::X` -> `wat.type/X`; bare primitive ->
+/// `wat.type/X`; user/library `a::b::C` -> namespace-preserving `a.b/C`;
+/// type-var -> bare symbol) and its Parametric/Tuple/Fn Bundle handling.
 ///
 /// `type_expr_to_ast`'s emission rules (mirrored here in reverse):
 /// - `TypeExpr::Path(p)` -> `HolonAST::Keyword` leaf, content = `p` minus
 ///   leading colon (`as_keyword()` already strips it).
 /// - `TypeExpr::Var(id)` -> `HolonAST::Keyword` leaf, content = `"?{id}"`.
-///   Path and Var leaves are handled identically here: `as_keyword()`'s
-///   content is already the exact `format_type_inner` spelling for both.
+///   Unlike `type_expr_to_clojure_form` (which only ever sees
+///   parsed-from-source `TypeExpr`s and panics on `Var`), this walker DOES
+///   reach `Var`: `extract-arg-types` also reflects over primitive
+///   signatures built from `TypeScheme` (`type_scheme_to_signature_ast`),
+///   which genuinely carries `Var` for generic params. Rendered as the
+///   same bare-symbol type-var case as a `Path` type-var, `?` stripped.
 /// - `TypeExpr::Parametric { head, args }` -> `HolonAST::Bundle` whose
 ///   first child is the head keyword (colon-stripped) and remaining
 ///   children are the recursively-rendered args.
@@ -11426,71 +11437,95 @@ fn eval_extract_arg_types(
 ///   `"Fn"`, followed by arg subtrees, a `Symbol("->")` sentinel, then the
 ///   ret subtree.
 ///
-/// `format_type(t) == format!(":{}", format_type_inner(t))` holds for
-/// every `TypeExpr` variant (verified by inspection of `format_type`'s
-/// match arms) — so the top-level entry point here is just `inner` with a
-/// leading colon prepended; no separate top-level table is needed.
-fn holon_type_ast_to_keyword(h: &HolonAST) -> String {
-    format!(":{}", holon_type_ast_to_inner(h))
-}
-
-/// Inner (colon-stripped) companion to `holon_type_ast_to_keyword` — mirrors
-/// `crate::check::format_type_inner`. See that function's doc for why the
-/// leaf case (Path/Var) needs no special-casing: `as_keyword()`'s content
-/// is already the correct inner spelling for both.
-fn holon_type_ast_to_inner(h: &HolonAST) -> String {
+/// Fallible for the same reasons `type_expr_to_clojure_form` is: a
+/// malformed trailing-`::` path, or a bare/higher-kinded parametric head —
+/// clean `Err`, never a panic.
+fn holon_type_ast_to_wat_type_form(h: &HolonAST) -> Result<WatAST, String> {
+    let unk = crate::rust_caller_span!();
     if let Some(kw) = h.as_keyword() {
-        // Path or Var leaf — content is already colon-stripped and, for
-        // Var, already carries its `?{id}` spelling from `type_expr_to_ast`.
-        return kw.to_string();
+        // Path or Var leaf — content is already colon-stripped by
+        // `HolonAST::keyword()`. Strip the synthetic `?` Var marker (if
+        // present) before running the same 4-way ladder `Path` uses.
+        let body = kw.strip_prefix('?').unwrap_or(kw);
+        return Ok(if let Some(tail) = body.strip_prefix("wat::core::") {
+            // Case 1: core FQDN -> flat wat.type/ namespace.
+            WatAST::Symbol(crate::scope::Identifier::bare(format!("wat.type/{tail}")), unk)
+        } else if crate::check::BARE_PRIMITIVES.iter().any(|(bare, _)| *bare == format!(":{body}").as_str()) {
+            // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body}.
+            WatAST::Symbol(crate::scope::Identifier::bare(format!("wat.type/{body}")), unk)
+        } else if body.contains("::") {
+            // Case 3: user/library type -> namespace-preserving.
+            let sym = crate::edn_shim::wat_keyword_to_clojure_symbol(&format!(":{body}")).ok_or_else(|| {
+                format!("cannot render type `:{body}` to a faithful form (malformed namespaced path — trailing `::` or empty segment)")
+            })?;
+            WatAST::Symbol(crate::scope::Identifier::bare(sym), unk)
+        } else {
+            // Case 4: type-var (or Var-leaf with `?` stripped) -- bare symbol.
+            WatAST::Symbol(crate::scope::Identifier::bare(body.to_string()), unk)
+        });
     }
     if let HolonAST::Bundle(children) = h {
         if let Some(head) = children.first().and_then(|c| c.as_keyword()) {
-            match head {
+            return Ok(match head {
                 "Tuple" => {
-                    let inner: Vec<String> = children[1..]
-                        .iter()
-                        .map(holon_type_ast_to_inner)
-                        .collect();
-                    return if inner.len() == 1 {
-                        format!("({},)", inner[0])
-                    } else {
-                        format!("({})", inner.join(","))
-                    };
+                    let mut elems = vec![WatAST::Symbol(crate::scope::Identifier::bare("wat.type/Tuple".to_string()), unk.clone())];
+                    for c in &children[1..] {
+                        elems.push(holon_type_ast_to_wat_type_form(c)?);
+                    }
+                    WatAST::List(elems, unk)
                 }
                 "Fn" => {
                     // children[1..] = args..., Symbol("->"), ret.
                     let arrow_pos = children[1..]
                         .iter()
                         .position(|c| c.as_symbol() == Some("->"));
-                    if let Some(pos) = arrow_pos {
-                        let args_end = 1 + pos;
-                        let arg_parts: Vec<String> = children[1..args_end]
-                            .iter()
-                            .map(holon_type_ast_to_inner)
-                            .collect();
-                        let ret = children
-                            .get(args_end + 1)
-                            .map(holon_type_ast_to_inner)
-                            .unwrap_or_default();
-                        return format!("wat::core::Fn({})->{}", arg_parts.join(","), ret);
+                    let pos = arrow_pos.ok_or_else(|| "malformed Fn type AST: missing `->` sentinel".to_string())?;
+                    let args_end = 1 + pos;
+                    let mut items: Vec<WatAST> = Vec::with_capacity(children.len());
+                    for c in &children[1..args_end] {
+                        items.push(holon_type_ast_to_wat_type_form(c)?);
                     }
+                    items.push(WatAST::Keyword(":->".into(), unk.clone()));
+                    let ret = children.get(args_end + 1)
+                        .ok_or_else(|| "malformed Fn type AST: missing return type".to_string())?;
+                    items.push(holon_type_ast_to_wat_type_form(ret)?);
+                    WatAST::Vector(items, unk)
                 }
                 _ => {
                     // Parametric: head is the type-param-suffixed name
                     // (e.g. "wat::core::Vector", "wat::kernel::Peer'").
-                    let inner: Vec<String> = children[1..]
-                        .iter()
-                        .map(holon_type_ast_to_inner)
-                        .collect();
-                    return format!("{}<{}>", head, inner.join(","));
+                    // 4-way ladder mirrors Path.
+                    let sym = if let Some(tail) = head.strip_prefix("wat::core::") {
+                        // Case 1: core FQDN -> flat wat.type/ namespace.
+                        format!("wat.type/{tail}")
+                    } else if let Some((_bare, fqdn)) = crate::check::BARE_CONTAINER_HEADS.iter().find(|(bare, _)| *bare == head) {
+                        // Case 2: bare container head (Option, Vec, ...) -> canonical FQDN's last segment.
+                        let tail = fqdn.rsplit("::").next().unwrap();
+                        format!("wat.type/{tail}")
+                    } else if head.contains("::") {
+                        // Case 3: user/library type -> namespace-preserving.
+                        crate::edn_shim::wat_keyword_to_clojure_symbol(&format!(":{head}")).ok_or_else(|| {
+                            format!("cannot render parametric head `:{head}` (malformed namespaced path)")
+                        })?
+                    } else {
+                        // Case 4: bare/higher-kinded head — not in the model.
+                        return Err(format!(
+                            "cannot render parametric type with bare head `{head}` — not a core container and not FQDN; \
+                             use the fully-qualified type name (bare/higher-kinded heads are unsupported)"
+                        ));
+                    };
+                    let mut items = vec![WatAST::Symbol(crate::scope::Identifier::bare(sym), unk.clone())];
+                    for c in &children[1..] {
+                        items.push(holon_type_ast_to_wat_type_form(c)?);
+                    }
+                    WatAST::List(items, unk)
                 }
-            }
+            });
         }
     }
     // Unrecognised shape — should not occur for a signature-emitted type
-    // AST; fall back to a debug spelling rather than panicking.
-    format!("{:?}", h)
+    // AST; clean error rather than a panic.
+    Err(format!("unrecognised signature type-AST shape: {:?}", h))
 }
 
 /// `(:wat::runtime::field-names-of type-kw) -> :wat::core::Vector<wat::core::Keyword>`
@@ -11551,7 +11586,7 @@ fn eval_field_names_of(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::field-types-of type-kw) -> :wat::core::Vector<wat::core::Keyword>`
+/// `(:wat::runtime::field-types-of type-kw) -> :wat::core::Vector<wat::WatAST>`
 ///
 /// Arc 170 Strike B — direct sibling of `eval_field_names_of` above (same
 /// resolution: `type-kw` → runtime type registry → `AggregateDef`).
@@ -11559,16 +11594,16 @@ fn eval_field_names_of(
 /// `AggregateDef.fields` in the same declaration order) so a downstream
 /// consumer can zip the two vectors.
 ///
-/// Value representation: a plain KEYWORD per field type via
-/// `crate::check::format_type(ty)` — a type IS a keyword, exactly the
-/// field-shipping form in `closure_extract.rs:2521,2542`
-/// (`WatAST::Keyword(format_type(fty))`). NOT the `HolonAST` bandaid
-/// `extract-arg-types` uses. `format_type` already renders the canonical
-/// colon-included keyword string, INCLUDING the parametric case:
-/// `Peer'<probe::Kv::Op,probe::Kv::Reply>` renders to the single keyword
-/// `:wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>` (the same
-/// parseable spelling the declaration used), so no per-field colon
-/// prefixing is needed here (unlike the bare field NAMES above).
+/// Value representation (post arc-251 type-form rewire): each field's
+/// `TypeExpr` is rendered directly via
+/// [`crate::edn_shim::type_expr_to_clojure_form`] to the canonical
+/// `wat.type/` `WatAST` form and wrapped as `Value::wat__WatAST` — NOT the
+/// old `format_type` keyword flattening, which mangled parametric types
+/// (`Peer'<probe::Kv::Op,probe::Kv::Reply>` → the broken, non-reparseable
+/// keyword `:wat.kernel.Peer'<probe.Kv.Op_probe.Kv/Reply>`). The new form
+/// is plain-EDN and decomposable: an atomic type renders to
+/// `WatAST::Symbol("wat.type/i64")`; a parametric type renders to a
+/// `WatAST::List`, e.g. `(wat.kernel/Peer' probe.Kv/Op probe.Kv/Reply)`.
 fn eval_field_types_of(
     args: &[WatAST],
     list_span: &Span,
@@ -11586,11 +11621,14 @@ fn eval_field_types_of(
     let type_kw = resolve_type_keyword_arg(OP, &args[0], env, sym)?;
     let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, args[0].span(), sym)?;
 
-    let types: Vec<Value> = agg
-        .fields
-        .iter()
-        .map(|(_, ty)| Value::wat__core__keyword(Arc::new(crate::check::format_type(ty))))
-        .collect();
+    let mut types: Vec<Value> = Vec::with_capacity(agg.fields.len());
+    for (_, ty) in agg.fields.iter() {
+        let node = crate::edn_shim::type_expr_to_clojure_form(ty).map_err(|reason| RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::MalformedForm { head: OP.into(), reason },
+        })?;
+        types.push(Value::wat__WatAST(Arc::new(node)));
+    }
     Ok(Value::Vec(Arc::new(types)))
 }
 

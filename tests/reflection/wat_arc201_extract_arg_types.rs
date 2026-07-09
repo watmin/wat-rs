@@ -6,13 +6,13 @@
 //! arg-pair Bundle — symmetrically to `extract-arg-names` which collects pair[0]
 //! (the name).
 //!
-//! TYPE-reflection HolonAST eviction: return type is
-//! `:wat::core::Vector<wat::core::keyword>`. Each arg type — Path,
-//! Parametric, Tuple, or Fn — renders to its single canonical keyword
-//! spelling (`crate::check::format_type`'s output, e.g.
-//! `:wat::core::Vector<wat::core::i64>`), NOT a decomposable HolonAST
-//! subtree. `Bundle/children` no longer applies to a per-arg type slot
-//! from this primitive's output (that was the pre-eviction shape).
+//! Arc-251 canonical-form rewire: return type is
+//! `:wat::core::Vector<wat::WatAST>`. Each arg type — Path, Parametric,
+//! Tuple, or Fn — renders to the canonical `wat.type/` WatAST form (via
+//! `holon_type_ast_to_wat_type_form`, structurally mirroring
+//! `crate::edn_shim::type_expr_to_clojure_form`, e.g.
+//! `(wat.type/Vector wat.type/i64)`), NOT a mangled single keyword and NOT
+//! a HolonAST subtree.
 //!
 //! Originating consumer: `run-threads` macro (since retired) needed I
 //! and O from each `:ThreadPeer<I,O>` arg type structurally (without
@@ -95,16 +95,18 @@ fn run_expecting_runtime_error_file(fixture_path: &str) -> Option<String> {
 #[test]
 fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     // A fn with two Path-typed params (`:wat::core::String` and `:wat::core::i64`).
-    // TYPE-reflection HolonAST eviction: `extract-arg-types` returns a
-    // Vector of two plain keywords (Path types have always been
-    // "atomic" — now that atomicity is a keyword, not a HolonAST Symbol).
+    // Arc-251 canonical-form rewire: `extract-arg-types` returns a Vector of
+    // two `wat.type/` WatAST Symbols (rendered via
+    // `holon_type_ast_to_wat_type_form`, structurally mirroring
+    // `crate::edn_shim::type_expr_to_clojure_form`) — plain-EDN, not a
+    // mangled keyword.
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_types.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert_eq!(
         line,
-        "[:wat.core/String :wat.core/i64]",
-        "extract-arg-types must return Vector of two Path-type keywords for monomorphic fn"
+        "[wat.type/String wat.type/i64]",
+        "extract-arg-types must return Vector of two Path-type wat.type/ symbols for monomorphic fn"
     );
     // The return-type `:wat::core::String` appears in the sig too, but the
     // Vector only contains arg types (not the return). We verify we get
@@ -123,18 +125,19 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
 #[test]
 fn extract_arg_types_returns_bundles_for_parametric_args() {
     // A fn with a `:wat::core::Vector<wat::core::i64>` param.
-    // TYPE-reflection HolonAST eviction: Parametric types now render to
-    // their single canonical keyword spelling (via
-    // `holon_type_ast_to_keyword`, structurally mirroring
-    // `crate::check::format_type`) — NOT a decomposable
-    // `Bundle [head-Symbol, arg-Symbol]` HolonAST (the pre-eviction shape).
+    // Arc-251 canonical-form rewire: Parametric types now render to a
+    // decomposable `wat.type/`-headed WatAST List (via
+    // `holon_type_ast_to_wat_type_form`, structurally mirroring
+    // `crate::edn_shim::type_expr_to_clojure_form`) — NOT a mangled single
+    // keyword (the pre-rewire shape) and NOT the pre-arc-201-eviction
+    // `Bundle [head-Symbol, arg-Symbol]` HolonAST either.
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundles.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert_eq!(
         line,
-        "[:wat.core.Vector<wat.core/i64>]",
-        "extract-arg-types must return Vector with one canonical keyword for parametric fn"
+        "[(wat.type/Vector wat.type/i64)]",
+        "extract-arg-types must return Vector with one canonical wat.type/ list for parametric fn"
     );
 }
 

@@ -4531,14 +4531,15 @@ fn infer_list(
             }
             ":wat::runtime::extract-arg-types" => {
                 // Arc 201 slice 5 — extract-arg-types.
-                // (head :HolonAST) -> :wat::core::Vector<wat::core::keyword>
+                // (head :HolonAST) -> :wat::core::Vector<wat::WatAST>
                 // Type-direction sibling of extract-arg-names. Same special-case
                 // rationale: first arg is a HolonAST value; normal type-scheme
                 // unification would fail on arc-009 call sites.
-                // TYPE-reflection HolonAST eviction: each arg type now renders
-                // to its canonical keyword spelling (`holon_type_ast_to_keyword`
-                // in runtime.rs) instead of being handed back as a HolonAST
-                // subtree — mirrors field-types-of's declared return shape.
+                // Arc-251 canonical-form rewire: each arg type now renders to the
+                // canonical `wat.type/` WatAST form (`holon_type_ast_to_wat_type_form`
+                // in runtime.rs, via `crate::edn_shim::type_expr_to_clojure_form`'s
+                // discriminator) instead of a mangled keyword — mirrors
+                // field-types-of's declared return shape.
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
@@ -4551,7 +4552,7 @@ fn infer_list(
                 }
                 let ty = TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -4584,11 +4585,13 @@ fn infer_list(
             ":wat::runtime::field-types-of" => {
                 // Arc 170 Strike B — field-types-of. Direct sibling of
                 // field-names-of immediately above (same bypass rationale);
-                // type-direction twin returning each field's TypeExpr as a
-                // plain KEYWORD via `format_type` — a type IS a keyword
-                // (the `closure_extract.rs` field-shipping form), NOT the
-                // retired HolonAST carrier.
-                // (type-kw :wat::core::keyword) -> :wat::core::Vector<wat::core::keyword>
+                // type-direction twin returning each field's TypeExpr rendered
+                // to the canonical `wat.type/` WatAST form via
+                // `crate::edn_shim::type_expr_to_clojure_form` — plain-EDN,
+                // decomposable, reparseable (NOT the old `format_type` keyword
+                // flattening, which mangled parametric types via Rust-style
+                // `<>`; NOT the retired HolonAST carrier either).
+                // (type-kw :wat::core::keyword) -> :wat::core::Vector<wat::WatAST>
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
@@ -4601,7 +4604,7 @@ fn infer_list(
                 }
                 let ty = TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -19230,15 +19233,19 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 201 slice 5 — extract-arg-types: type-direction sibling.
-    // extract-arg-types (head :HolonAST) -> :wat::core::Vector<wat::core::keyword>
-    // TYPE-reflection HolonAST eviction: each arg type renders to its
-    // canonical keyword spelling — no HolonAST in the output.
+    // extract-arg-types (head :HolonAST) -> :wat::core::Vector<wat::WatAST>
+    // Arc-251 canonical-form rewire: each arg type renders to the canonical
+    // `wat.type/` WatAST form — no HolonAST, no mangled keyword, in the output.
+    let vec_watast_ty = || TypeExpr::Parametric {
+        head: "wat::core::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::WatAST".into())],
+    };
     env.register(
         ":wat::runtime::extract-arg-types".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty()],
-            ret: vec_kw_ty(),
+            ret: vec_watast_ty(),
             rest_param_type: None,
         },
     );
