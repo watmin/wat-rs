@@ -23,10 +23,11 @@
 //! Parametric / Tuple / Fn type slots emit as `Bundle` per slice 1's
 //! emission rules; Path / Var types emit as `Symbol` (atomic).
 //!
-//! Originating consumer: arc 170 Stone D2's `run-threads` macro receives
-//! a coordinator fn as a call-site argument and needs to extract
-//! `:ThreadPeer<I,O>` types per arg structurally without symbol-table
-//! lookup.
+//! Originating consumer: arc 170 Stone D2's `run-threads` macro (since
+//! retired — this primitive is now shared type-driven-macro infra)
+//! received a coordinator fn as a call-site argument and needed to
+//! extract `:ThreadPeer<I,O>` types per arg structurally without
+//! symbol-table lookup.
 //!
 //! Fixtures co-located beside each test name — slurped via startup_from_file.
 
@@ -195,12 +196,15 @@ fn signature_of_fn_composes_with_extract_arg_names() {
     // walks pair[0] of each arg-Bundle and returns the names as a
     // `:wat::core::Vector<keyword>`. This test proves the output
     // composes cleanly with the existing reflection-walker surface.
+    //
+    // TYPE-reflection HolonAST eviction: extract-arg-names now returns
+    // plain keywords (`:logger`, `:counter`), not HolonAST Symbol nodes.
     let out = run_file("tests/reflection/wat_arc201_signature_of_fn_compose_names.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert_eq!(
         line,
-        "[#wat-edn.holon/Symbol \"logger\" #wat-edn.holon/Symbol \"counter\"]",
+        "[:logger :counter]",
         "signature-of-fn output must compose with extract-arg-names to yield [logger, counter]"
     );
 }

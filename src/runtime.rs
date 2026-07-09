@@ -4116,6 +4116,10 @@ fn dispatch_keyword_head_value(
         ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, list_span, env, sym),
         // Arc 201 slice 5 — type-direction sibling of extract-arg-names.
         ":wat::runtime::extract-arg-types" => eval_extract_arg_types(args, list_span, env, sym),
+        // Arc 170 Strike B — struct-field reflection: extract-arg-names/-types'
+        // sibling pair for a TYPE's fields rather than a callable's argspec.
+        ":wat::runtime::field-names-of" => eval_field_names_of(args, list_span, env, sym),
+        ":wat::runtime::field-types-of" => eval_field_types_of(args, list_span, env, sym),
         // Arc 201 slice 2 — general-purpose Bundle accessors. The
         // leaf-unwrap counterpart (`:wat::core::atom-value`) was already
         // minted by arc 057; SCORE-SLICE-2 § Sibling check documents the
@@ -10750,9 +10754,11 @@ fn eval_signature_of_defn(
 /// impossible. Type mismatches at the input slot surface as
 /// `RuntimeError::TypeMismatch`, not `:None`.
 ///
-/// Used by macros (e.g. arc 170 Stone D2's `run-threads`) that receive a
-/// coordinator fn as a call-site argument and need to extract per-arg
-/// `:ThreadPeer<I,O>` types structurally without symbol-table lookup.
+/// Used by type-driven macros that receive a coordinator fn as a
+/// call-site argument and need to extract per-arg types structurally
+/// without symbol-table lookup (originating consumer was arc 170 Stone
+/// D2's `run-threads`, since retired — this primitive is shared infra,
+/// not run-threads-specific).
 fn eval_signature_of_fn(
     args: &[WatAST],
     list_span: &Span,
@@ -11226,11 +11232,13 @@ fn eval_rename_callable_name(
 /// Arc 143 slice 3. Takes a signature head AST and returns a `Vec` of
 /// the arg-name keywords (`:_a0`, `:_a1`, ... or user-defined names).
 ///
-/// Arc 221 Stone 221.4b audit — arg-pair arg names are `HolonAST::Symbol` (bare
-/// identifiers from param names), NOT `HolonAST::Keyword`. This is HONEST per the
-/// distinction in the BRIEF shape-table: function/macro param names are declared
-/// as bare WAT identifiers (`WatAST::Symbol`), not user keywords (`WatAST::Keyword`).
-/// `->` is also a bare-symbol sentinel. Both remain `HolonAST::Symbol` — no change.
+/// TYPE-reflection HolonAST eviction (post arc-201): the intermediate
+/// signature AST this walks (`head`, produced by `signature-of-fn`/
+/// `signature-of-defn`) still carries the internal HolonAST
+/// representation — that machinery is untouched. But the OUTPUT of this
+/// primitive is now a plain keyword per arg name (e.g. bare name `logger`
+/// -> `:logger`), matching `field-names-of`'s sibling shape. HolonAST no
+/// longer leaks out of this intrinsic.
 ///
 /// Algorithm:
 /// 1. Eval and destructure head as Bundle.
@@ -11239,7 +11247,7 @@ fn eval_rename_callable_name(
 ///    - Symbol("->"): STOP collecting (return-type sentinel; bare symbol, honest).
 ///    - Bundle([Symbol(arg_name), _]): collect arg_name (bare-ident Symbol; honest).
 ///    - Anything else: skip.
-/// 4. Return Vec<Value::holon__HolonAST> wrapping each Symbol leaf.
+/// 4. Return Vec<Value::wat__core__keyword> — one keyword per arg name.
 fn eval_extract_arg_names(
     args: &[WatAST],
     list_span: &Span,
@@ -11283,12 +11291,12 @@ fn eval_extract_arg_names(
             // Arc 230: pair[0] is a Symbol composition; as_symbol() extracts the name.
             HolonAST::Bundle(pair) if pair.len() == 2 => {
                 if let Some(arg_name) = pair[0].as_symbol() {
-                    // Return as HolonAST::symbol composition so value_to_watast →
-                    // holon_to_watast emits WatAST::Symbol (variable reference)
-                    // for bare names and WatAST::Keyword for `:keyword`-shaped names.
-                    names.push(Value::holon__HolonAST(Arc::new(
-                        HolonAST::symbol(arg_name),
-                    )));
+                    // Reflection-eviction (HolonAST retired from TYPE
+                    // reflection output): return the bare name as a plain
+                    // keyword, e.g. `logger` -> `:logger` — matching the
+                    // leading-colon convention every other keyword VALUE in
+                    // this file follows (runtime.rs:8150,14839).
+                    names.push(Value::wat__core__keyword(Arc::new(format!(":{}", arg_name))));
                 }
                 // If first child isn't a Symbol composition, skip (not a recognised pair).
             }
@@ -11300,21 +11308,36 @@ fn eval_extract_arg_names(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::extract-arg-types head) -> :wat::core::Vector<wat::holon::HolonAST>`
+/// `(:wat::runtime::extract-arg-types head) -> :wat::core::Vector<wat::core::keyword>`
 ///
 /// Arc 201 slice 5. Direct sibling of `eval_extract_arg_names` (arc 143 slice 3).
 /// Given a signature HolonAST (the shape `signature-of-defn` and `signature-of-fn`
 /// return), walks the head Bundle and collects the TYPE AST (pair[1]) from each
 /// arg-pair Bundle.
 ///
+/// TYPE-reflection HolonAST eviction (post arc-201): `head` is still the
+/// internal HolonAST signature (`signature-of-fn`/`signature-of-defn`'s
+/// form-reflection output is untouched — that's a separate later strike),
+/// but this primitive no longer hands the caller a `pair[1]` HolonAST
+/// subtree to decompose. The original `TypeExpr` each arg type came from
+/// is not reachable from here (only the already-lowered signature AST
+/// is, per `signature-of-fn`/`signature-of-defn`'s HolonAST-carrier
+/// contract), so each type AST is instead rendered directly to its
+/// canonical keyword spelling via `holon_type_ast_to_keyword` — a
+/// structural mirror of `crate::check::format_type`/`format_type_inner`
+/// operating on the HolonAST shapes `type_expr_to_ast` emits, so
+/// parametric types (e.g. `Peer'<A,B>`) still render to the single
+/// canonical keyword `:wat::kernel::Peer'<probe::A,probe::B>` instead of
+/// a decomposable structure.
+///
 /// Algorithm:
 /// 1. Eval and destructure head as Bundle.
 /// 2. Skip children[0] (the function name symbol).
 /// 3. For each remaining child:
 ///    - Symbol("->"): STOP collecting (everything after is return type).
-///    - Bundle([_, type_ast]) (2 children): collect type_ast as a HolonAST value.
+///    - Bundle([_, type_ast]) (2 children): render type_ast to a keyword string.
 ///    - Anything else: skip.
-/// 4. Return Vec<Value::holon__HolonAST>.
+/// 4. Return Vec<Value::wat__core__keyword>.
 ///
 /// Parallel to `eval_extract_arg_names` — same walker logic, extract pair[1]
 /// (type AST) instead of pair[0] (name keyword). Per `feedback_simple_is_uniform_composition`:
@@ -11362,9 +11385,12 @@ fn eval_extract_arg_types(
             // Extract pair[1] (the structured type AST per slice 1 emission rules).
             HolonAST::Bundle(pair) if pair.len() == 2 => {
                 // pair[0] is the arg name (Symbol composition); pair[1] is the type AST.
-                // Wrap pair[1] as a Value::holon__HolonAST so callers can
-                // recurse via Bundle/children for parametric decomposition.
-                types.push(Value::holon__HolonAST(Arc::new(pair[1].clone())));
+                // Render pair[1] to its canonical keyword spelling — see
+                // `holon_type_ast_to_keyword` doc for why this renders
+                // rather than wraps the HolonAST subtree.
+                types.push(Value::wat__core__keyword(Arc::new(
+                    holon_type_ast_to_keyword(&pair[1]),
+                )));
             }
             // Any other shape: skip.
             _ => {}
@@ -11372,6 +11398,282 @@ fn eval_extract_arg_types(
     }
 
     Ok(Value::Vec(Arc::new(types)))
+}
+
+/// Render a signature-emission type-AST subtree (the shape
+/// `type_expr_to_ast` produces, lowered through `watast_to_holon`) back to
+/// its canonical keyword spelling — the same string
+/// `crate::check::format_type` would produce from the original `TypeExpr`.
+///
+/// Used by `eval_extract_arg_types`: post arc-201-HolonAST-eviction, that
+/// primitive no longer has the original `TypeExpr` in hand (only the
+/// already-lowered signature HolonAST), so this is a structural mirror of
+/// `format_type`/`format_type_inner` operating on the HolonAST shapes
+/// instead — NOT a new formatting convention.
+///
+/// `type_expr_to_ast`'s emission rules (mirrored here in reverse):
+/// - `TypeExpr::Path(p)` -> `HolonAST::Keyword` leaf, content = `p` minus
+///   leading colon (`as_keyword()` already strips it).
+/// - `TypeExpr::Var(id)` -> `HolonAST::Keyword` leaf, content = `"?{id}"`.
+///   Path and Var leaves are handled identically here: `as_keyword()`'s
+///   content is already the exact `format_type_inner` spelling for both.
+/// - `TypeExpr::Parametric { head, args }` -> `HolonAST::Bundle` whose
+///   first child is the head keyword (colon-stripped) and remaining
+///   children are the recursively-rendered args.
+/// - `TypeExpr::Tuple(args)` -> `HolonAST::Bundle` headed by keyword
+///   `"Tuple"`.
+/// - `TypeExpr::Fn { args, ret }` -> `HolonAST::Bundle` headed by keyword
+///   `"Fn"`, followed by arg subtrees, a `Symbol("->")` sentinel, then the
+///   ret subtree.
+///
+/// `format_type(t) == format!(":{}", format_type_inner(t))` holds for
+/// every `TypeExpr` variant (verified by inspection of `format_type`'s
+/// match arms) — so the top-level entry point here is just `inner` with a
+/// leading colon prepended; no separate top-level table is needed.
+fn holon_type_ast_to_keyword(h: &HolonAST) -> String {
+    format!(":{}", holon_type_ast_to_inner(h))
+}
+
+/// Inner (colon-stripped) companion to `holon_type_ast_to_keyword` — mirrors
+/// `crate::check::format_type_inner`. See that function's doc for why the
+/// leaf case (Path/Var) needs no special-casing: `as_keyword()`'s content
+/// is already the correct inner spelling for both.
+fn holon_type_ast_to_inner(h: &HolonAST) -> String {
+    if let Some(kw) = h.as_keyword() {
+        // Path or Var leaf — content is already colon-stripped and, for
+        // Var, already carries its `?{id}` spelling from `type_expr_to_ast`.
+        return kw.to_string();
+    }
+    if let HolonAST::Bundle(children) = h {
+        if let Some(head) = children.first().and_then(|c| c.as_keyword()) {
+            match head {
+                "Tuple" => {
+                    let inner: Vec<String> = children[1..]
+                        .iter()
+                        .map(holon_type_ast_to_inner)
+                        .collect();
+                    return if inner.len() == 1 {
+                        format!("({},)", inner[0])
+                    } else {
+                        format!("({})", inner.join(","))
+                    };
+                }
+                "Fn" => {
+                    // children[1..] = args..., Symbol("->"), ret.
+                    let arrow_pos = children[1..]
+                        .iter()
+                        .position(|c| c.as_symbol() == Some("->"));
+                    if let Some(pos) = arrow_pos {
+                        let args_end = 1 + pos;
+                        let arg_parts: Vec<String> = children[1..args_end]
+                            .iter()
+                            .map(holon_type_ast_to_inner)
+                            .collect();
+                        let ret = children
+                            .get(args_end + 1)
+                            .map(holon_type_ast_to_inner)
+                            .unwrap_or_default();
+                        return format!("wat::core::Fn({})->{}", arg_parts.join(","), ret);
+                    }
+                }
+                _ => {
+                    // Parametric: head is the type-param-suffixed name
+                    // (e.g. "wat::core::Vector", "wat::kernel::Peer'").
+                    let inner: Vec<String> = children[1..]
+                        .iter()
+                        .map(holon_type_ast_to_inner)
+                        .collect();
+                    return format!("{}<{}>", head, inner.join(","));
+                }
+            }
+        }
+    }
+    // Unrecognised shape — should not occur for a signature-emitted type
+    // AST; fall back to a debug spelling rather than panicking.
+    format!("{:?}", h)
+}
+
+/// `(:wat::runtime::field-names-of type-kw) -> :wat::core::Vector<wat::core::Keyword>`
+///
+/// Arc 170 Strike B — struct-field reflection, the type-direction sibling
+/// of `extract-arg-names` (which reflects a *callable's* argspec; this
+/// reflects a *type's* field list). `type-kw` is a type keyword
+/// (`:probe::Bag`) evaluated at call time; resolved through the runtime
+/// type registry (`sym.types`, an `Option<Arc<TypeEnv>>` populated at
+/// freeze time — the same registry `lookup_form`'s `Binding::Type` arm
+/// reads) to its `AggregateDef`. `AggregateDef.fields: Vec<(String,
+/// TypeExpr)>` is always in declaration order (Vec preserves insertion
+/// order; no re-sorting anywhere in the parse path), so no extra sort is
+/// needed here.
+///
+/// Value representation: a plain KEYWORD per field name — the substrate's
+/// own "struct fields as data" form (`closure_extract.rs:2521,2542` ships
+/// a struct's field types as `WatAST::Keyword(format_type(fty))`; a type
+/// IS a keyword). NOT the retired `HolonAST` carrier `extract-arg-types`
+/// uses — we do not mint new HolonAST-returning intrinsics. Each bare
+/// field name (`kv`) becomes the keyword `:kv` via
+/// `Value::wat__core__keyword(Arc::new(format!(":{}", name)))` — the
+/// leading-colon convention every other keyword-value construction in
+/// this file follows (e.g. runtime.rs:8150,14834).
+///
+/// Arg handling mirrors the arc-166 pattern in `eval_lookup_define`: a
+/// literal `WatAST::Keyword` is used directly, without going through
+/// `eval_inner`. This matters here even more than for `lookup-define` —
+/// arc 009 "names are values" lifts a type keyword whose bare name also
+/// carries a defstruct-synthesized ctor (or, per `sym.get`, ANY
+/// registered callable including a defrecord's constructor) to a
+/// `Value::wat__core__fn`, not a keyword, when evaluated. Going through
+/// `eval_inner` would make every struct/record type keyword fail this
+/// primitive. The eval fallback remains for non-literal callers (a var
+/// holding a keyword).
+fn eval_field_names_of(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::field-names-of";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let type_kw = resolve_type_keyword_arg(OP, &args[0], env, sym)?;
+    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, args[0].span(), sym)?;
+
+    let names: Vec<Value> = agg
+        .fields
+        .iter()
+        .map(|(name, _)| Value::wat__core__keyword(Arc::new(format!(":{}", name))))
+        .collect();
+    Ok(Value::Vec(Arc::new(names)))
+}
+
+/// `(:wat::runtime::field-types-of type-kw) -> :wat::core::Vector<wat::core::Keyword>`
+///
+/// Arc 170 Strike B — direct sibling of `eval_field_names_of` above (same
+/// resolution: `type-kw` → runtime type registry → `AggregateDef`).
+/// Positionally aligned with `field-names-of`'s output (both walk
+/// `AggregateDef.fields` in the same declaration order) so a downstream
+/// consumer can zip the two vectors.
+///
+/// Value representation: a plain KEYWORD per field type via
+/// `crate::check::format_type(ty)` — a type IS a keyword, exactly the
+/// field-shipping form in `closure_extract.rs:2521,2542`
+/// (`WatAST::Keyword(format_type(fty))`). NOT the `HolonAST` bandaid
+/// `extract-arg-types` uses. `format_type` already renders the canonical
+/// colon-included keyword string, INCLUDING the parametric case:
+/// `Peer'<probe::Kv::Op,probe::Kv::Reply>` renders to the single keyword
+/// `:wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>` (the same
+/// parseable spelling the declaration used), so no per-field colon
+/// prefixing is needed here (unlike the bare field NAMES above).
+fn eval_field_types_of(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::runtime::field-types-of";
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let type_kw = resolve_type_keyword_arg(OP, &args[0], env, sym)?;
+    let agg = resolve_aggregate_def_for_reflection(OP, &type_kw, args[0].span(), sym)?;
+
+    let types: Vec<Value> = agg
+        .fields
+        .iter()
+        .map(|(_, ty)| Value::wat__core__keyword(Arc::new(crate::check::format_type(ty))))
+        .collect();
+    Ok(Value::Vec(Arc::new(types)))
+}
+
+/// Shared arg-resolution step for `field-names-of` / `field-types-of`:
+/// extracts the type keyword string (colon-included, e.g. `":probe::Bag"`)
+/// from the call's sole argument.
+///
+/// Mirrors the arc-166 pattern in `eval_lookup_define` exactly: a literal
+/// `WatAST::Keyword` is read directly, bypassing `eval_inner`. This is not
+/// merely stylistic here — `eval_inner`'s `WatAST::Keyword` arm implements
+/// arc 009 "names are values" (runtime.rs:3737: `if let Some(func) =
+/// sym.get(k) { return ...Value::wat__core__fn(func.clone()) }`), and a
+/// struct/record type's bare name IS a registered callable (its
+/// constructor). Evaluating `:probe::Bag` would therefore yield a
+/// `Value::wat__core__fn`, not a keyword — silently breaking this
+/// primitive for every struct/record type. The eval fallback (via
+/// `name_from_keyword_or_fn`) stays for non-literal callers, e.g. a local
+/// variable bound to a keyword.
+fn resolve_type_keyword_arg(
+    op: &str,
+    arg: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<String, EvalBreak> {
+    if let WatAST::Keyword(k, _) = arg {
+        return Ok(k.clone());
+    }
+    let v = eval_inner(arg, env, sym)?.value_owned();
+    match name_from_keyword_or_fn(&v) {
+        Some(n) => Ok(n),
+        None => Err(RuntimeError { span: arg.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
+            expected: "wat::core::keyword (type name)",
+            got: Box::new(ValueSnapshot::of(&v))
+        } }.into()),
+    }
+}
+
+/// Shared resolution step for `field-names-of` / `field-types-of`:
+/// `type-kw` (as evaluated, colon-included — e.g. `":probe::Bag"`) →
+/// the runtime type registry's `AggregateDef`. Unlike the
+/// extract-arg-names/-types pair (which walk near-identical HolonAST
+/// shapes and are kept as two independent walkers per
+/// `feedback_simple_is_uniform_composition`), this lookup step is
+/// genuinely one mechanical operation (registry get + variant match),
+/// not a second near-duplicate walker — sharing it removes duplication
+/// without hiding any per-verb logic.
+///
+/// `sym.types` (`Option<Arc<TypeEnv>>`) is populated at freeze time
+/// (`FrozenWorld::freeze` → `symbols.set_types`, see runtime.rs:5309)
+/// from the same `TypeEnv` the checker resolved `:probe::Bag` against —
+/// the runtime-reachable type registry `lookup_form`'s `Binding::Type`
+/// arm also reads (runtime.rs:10463/10509).
+///
+/// GROUNDED (not assumed): `TypeEnv` keys are colon-INCLUDED, despite
+/// `parse_declared_name`'s misleading "strip the colon" comment — that
+/// function's actual return value in the non-parametric branch is `Ok((raw,
+/// ...))` (`raw`, the ORIGINAL colon-included string; `types.rs:2769`), and
+/// in the parametric branch it re-adds the colon (`format!(":{}", base)`;
+/// `types.rs:2801`). Confirmed independently by `register_aggregate_methods`
+/// (runtime.rs:1165): `agg.name = ":myapp::Voltage"` per its own comment,
+/// and by an empirical probe (`lookup-define :probe::Bag` round-tripped
+/// correctly with the colon kept). So the lookup key is `type_kw` UNCHANGED
+/// — no trim. (`eval_struct_new`'s `trim_start_matches(':')` is unrelated:
+/// it strips for `AggregateValue::struct_`'s VALUE-level naming convention,
+/// not a `TypeEnv` HashMap key.)
+fn resolve_aggregate_def_for_reflection<'a>(
+    op: &str,
+    type_kw: &str,
+    span: &Span,
+    sym: &'a SymbolTable,
+) -> Result<&'a crate::types::AggregateDef, EvalBreak> {
+    match sym.types.as_ref().and_then(|t| t.get(type_kw)) {
+        Some(crate::types::TypeDef::Aggregate(a)) => Ok(a),
+        Some(_) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: op.into(),
+            reason: format!("'{}' is not a struct/record type (no fields)", type_kw)
+        } }.into()),
+        None => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: op.into(),
+            reason: format!("unknown type '{}'", type_kw)
+        } }.into()),
+    }
 }
 
 /// `(:wat::holon::Bundle/children bundle) -> :wat::core::Vector<wat::holon::HolonAST>`

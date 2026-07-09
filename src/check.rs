@@ -4531,10 +4531,14 @@ fn infer_list(
             }
             ":wat::runtime::extract-arg-types" => {
                 // Arc 201 slice 5 — extract-arg-types.
-                // (head :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+                // (head :HolonAST) -> :wat::core::Vector<wat::core::keyword>
                 // Type-direction sibling of extract-arg-names. Same special-case
                 // rationale: first arg is a HolonAST value; normal type-scheme
                 // unification would fail on arc-009 call sites.
+                // TYPE-reflection HolonAST eviction: each arg type now renders
+                // to its canonical keyword spelling (`holon_type_ast_to_keyword`
+                // in runtime.rs) instead of being handed back as a HolonAST
+                // subtree — mirrors field-types-of's declared return shape.
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
@@ -4547,7 +4551,57 @@ fn infer_list(
                 }
                 let ty = TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                };
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
+            ":wat::runtime::field-names-of" => {
+                // Arc 170 Strike B — field-names-of.
+                // (type-kw :wat::core::keyword) -> :wat::core::Vector<wat::core::keyword>
+                // Same arc-009 "names are values" bypass as extract-arg-names/-types:
+                // the arg is normally a plain type keyword (infers as
+                // `:wat::core::keyword`), but for a `defstruct`-declared type the bare
+                // name also carries an auto-synthesized ctor (`lookup_form`'s
+                // is_auto_ctor path), which `env.get(k)` would infer as that ctor's
+                // Fn type instead — a general reflection primitive must work for
+                // struct types too. Infer for side effects; do not constrain.
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+                let ty = TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                };
+                return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+            }
+            ":wat::runtime::field-types-of" => {
+                // Arc 170 Strike B — field-types-of. Direct sibling of
+                // field-names-of immediately above (same bypass rationale);
+                // type-direction twin returning each field's TypeExpr as a
+                // plain KEYWORD via `format_type` — a type IS a keyword
+                // (the `closure_extract.rs` field-shipping form), NOT the
+                // retired HolonAST carrier.
+                // (type-kw :wat::core::keyword) -> :wat::core::Vector<wat::core::keyword>
+                if args.len() != 1 {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len()
+                    } });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                }
+                let ty = TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -19108,7 +19162,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // directly (NOT wrapped in Option — the fn-value input is
     // structurally validated; absence is impossible). Sibling primitive
     // to `signature-of-defn` for the inline-fn / closure-value case that
-    // type-driven macros (arc 170 D2 `run-threads`) need.
+    // type-driven macros need (originally motivated by arc 170 D2
+    // `run-threads`, since retired — this primitive is shared infra,
+    // not run-threads-only).
     //
     // The type-checker `infer_list` special-case (below) bypasses normal
     // unification because the first argument is typed `:wat::core::fn`
@@ -19174,16 +19230,15 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 201 slice 5 — extract-arg-types: type-direction sibling.
-    // extract-arg-types (head :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+    // extract-arg-types (head :HolonAST) -> :wat::core::Vector<wat::core::keyword>
+    // TYPE-reflection HolonAST eviction: each arg type renders to its
+    // canonical keyword spelling — no HolonAST in the output.
     env.register(
         ":wat::runtime::extract-arg-types".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty()],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
-            },
+            ret: vec_kw_ty(),
             rest_param_type: None,
         },
     );

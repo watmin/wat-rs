@@ -179,8 +179,10 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
                         // only CREATES the closure (pure) and reads its SIGNATURE —
                         // the body never executes on this path, so its heads (user
                         // fns destined for the expansion's runtime code) are not
-                        // expand-time code. This is how run-threads reflects on its
-                        // caller's coordinator/factory fns (wat/kernel/run_threads.wat).
+                        // expand-time code. Shared macro-purity infra (arc 249) — not
+                        // run-threads-specific, even though run-threads (since retired)
+                        // was the originating consumer that reflected on its caller's
+                        // coordinator/factory fns this way.
                         if head == ":wat::runtime::signature-of-fn" {
                             for child in items.iter().skip(1) {
                                 let is_literal_fn = matches!(
@@ -628,11 +630,13 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::List?"
 
         // ── Runtime reflection (pure read-only; no IO, no side effects) ─
-        // Used by wat/kernel/run_threads.wat macros to reflect on fn signatures
-        // at macro expand time (arc 249 stone 249.2b-i; used in run-threads macro).
+        // Shared infra for type-driven macros to reflect on fn signatures
+        // at macro expand time (arc 249 stone 249.2b-i; originating
+        // consumer was arc 170 D2's `run-threads` macro, since retired —
+        // this allow-list entry is NOT run-threads-specific).
         // signature-of-fn: fn → HolonAST (pure; reads from fn value, no IO)
-        // extract-arg-names: HolonAST → Vector<Symbol> (pure; structural walk)
-        // extract-arg-types: HolonAST → Vector<HolonAST> (pure; structural walk)
+        // extract-arg-names: HolonAST → Vector<Keyword> (pure; structural walk)
+        // extract-arg-types: HolonAST → Vector<Keyword> (pure; structural walk)
         | ":wat::runtime::signature-of-fn"
         | ":wat::runtime::extract-arg-names"
         | ":wat::runtime::extract-arg-types"

@@ -369,12 +369,13 @@ pub fn make_pipe_channel_pair(
 /// is type-erased at this layer — the type parameters live in the
 /// checker's `TypeEnv` only; the runtime ferries `Value`s.
 ///
-/// This helper is intentionally NOT exposed to wat user code — Stone D's
-/// `run-threads` bracket macro is the user-facing path that builds
-/// peer pairs (with the type-parameter mirror baked into the macro
-/// expansion). Stone C1 only needs in-Rust peer construction for the
-/// substrate-layer tests; the `_for_test` suffix preserves that
-/// boundary on every grep.
+/// This helper is intentionally NOT exposed to wat user code — the
+/// user-facing path that builds peer pairs is `:wat::kernel::spawn-thread`
+/// + the arc-259 bracket (with the type-parameter mirror baked into the
+/// expansion). Stone D's original `run-threads` bracket macro filled this
+/// role and has since been retired (dead code, superseded). Stone C1
+/// only needs in-Rust peer construction for the substrate-layer tests;
+/// the `_for_test` suffix preserves that boundary on every grep.
 pub fn make_thread_peer_pair_for_test()
     -> (crate::runtime::Value, crate::runtime::Value)
 {

@@ -6,16 +6,18 @@
 //! arg-pair Bundle — symmetrically to `extract-arg-names` which collects pair[0]
 //! (the name).
 //!
-//! Return type: `:wat::core::Vector<wat::holon::HolonAST>`.
+//! TYPE-reflection HolonAST eviction: return type is
+//! `:wat::core::Vector<wat::core::keyword>`. Each arg type — Path,
+//! Parametric, Tuple, or Fn — renders to its single canonical keyword
+//! spelling (`crate::check::format_type`'s output, e.g.
+//! `:wat::core::Vector<wat::core::i64>`), NOT a decomposable HolonAST
+//! subtree. `Bundle/children` no longer applies to a per-arg type slot
+//! from this primitive's output (that was the pre-eviction shape).
 //!
-//! - Path args → atomic `Symbol` HolonASTs (e.g., `:wat::core::i64`).
-//! - Parametric args → `Bundle [head-Symbol, arg-Symbol...]` HolonASTs
-//!   (per slice 1 structured emission rules).
-//! - `Bundle/children` on a parametric result unpacks the head + type args —
-//!   proving the D2 algorithm chain (arc 170 Stone D2's `run-threads` macro).
-//!
-//! Originating consumer: `run-threads` macro needs I and O from each
-//! `:ThreadPeer<I,O>` arg type structurally (without string parsing).
+//! Originating consumer: `run-threads` macro (since retired) needed I
+//! and O from each `:ThreadPeer<I,O>` arg type structurally (without
+//! string parsing) — this primitive is now shared type-driven-macro
+//! infra, not run-threads-specific.
 //!
 //! Fixtures co-located beside each test name — slurped via startup_from_file.
 
@@ -88,21 +90,21 @@ fn run_expecting_runtime_error_file(fixture_path: &str) -> Option<String> {
     }
 }
 
-// ─── Row B: Monomorphic args extract as atomic Symbols ─────────────────────
+// ─── Row B: Monomorphic args extract as plain keywords ──────────────────────
 
 #[test]
 fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     // A fn with two Path-typed params (`:wat::core::String` and `:wat::core::i64`).
-    // Per slice 1 emission rules, Path types land as atomic HolonAST Symbols.
-    // `extract-arg-types` should return a Vector of two HolonAST Symbols,
-    // each rendered by `edn::write` with the full keyword path visible.
+    // TYPE-reflection HolonAST eviction: `extract-arg-types` returns a
+    // Vector of two plain keywords (Path types have always been
+    // "atomic" — now that atomicity is a keyword, not a HolonAST Symbol).
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_types.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     assert_eq!(
         line,
-        "[#wat-edn.holon/Keyword :wat::core::String #wat-edn.holon/Keyword :wat::core::i64]",
-        "extract-arg-types must return Vector of two Path-type Symbols for monomorphic fn"
+        "[:wat.core/String :wat.core/i64]",
+        "extract-arg-types must return Vector of two Path-type keywords for monomorphic fn"
     );
     // The return-type `:wat::core::String` appears in the sig too, but the
     // Vector only contains arg types (not the return). We verify we get
@@ -116,24 +118,23 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     );
 }
 
-// ─── Row C: Parametric args extract as Bundles ──────────────────────────────
+// ─── Row C: Parametric args extract as a single canonical keyword ───────────
 
 #[test]
 fn extract_arg_types_returns_bundles_for_parametric_args() {
     // A fn with a `:wat::core::Vector<wat::core::i64>` param.
-    // Per slice 1 emission rules, Parametric types land as Bundle
-    // `[Symbol(":wat::core::Vector"), Symbol(":wat::core::i64")]`.
-    // `extract-arg-types` returns a one-element Vector containing that Bundle.
-    // The rendered EDN should show the head and arg as SEPARATE Symbols —
-    // NOT as the flat pre-arc-201 `:wat::core::Vector<wat::core::i64>` string.
+    // TYPE-reflection HolonAST eviction: Parametric types now render to
+    // their single canonical keyword spelling (via
+    // `holon_type_ast_to_keyword`, structurally mirroring
+    // `crate::check::format_type`) — NOT a decomposable
+    // `Bundle [head-Symbol, arg-Symbol]` HolonAST (the pre-eviction shape).
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundles.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    // Vector head and i64 arg appear as separate Symbols inside a Bundle (not fused).
     assert_eq!(
         line,
-        "[#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]]",
-        "extract-arg-types must return Vector with one structured Bundle for parametric fn"
+        "[:wat.core.Vector<wat.core/i64>]",
+        "extract-arg-types must return Vector with one canonical keyword for parametric fn"
     );
 }
 
@@ -156,34 +157,6 @@ fn extract_arg_types_arity_matches_extract_arg_names() {
         out[1].trim(), "3",
         "expected extract-arg-types to return 3 items (same as names); got: {}",
         out[1]
-    );
-}
-
-// ─── Row D: Composes with Bundle/children for D2 algorithm chain ────────────
-
-#[test]
-fn extract_arg_types_composes_with_bundle_children_on_parametric() {
-    // D2 algorithm chain: extract-arg-types on a signature with a
-    // parametric param, then Bundle/children on the extracted type-AST
-    // to decompose it into [head, arg1, arg2, ...].
-    //
-    // We use `:wat::core::Vector<wat::core::i64>` (simpler than ThreadPeer
-    // but structurally identical — both are Parametric with head + args).
-    // The chain:
-    //   1. signature-of-fn → sig HolonAST
-    //   2. extract-arg-types sig → [Bundle(:wat::core::Vector, :wat::core::i64)]
-    //   3. first kid = the Bundle for the Vector param
-    //   4. Bundle/children on that Bundle → [Symbol(:wat::core::Vector), Symbol(:wat::core::i64)]
-    //
-    // This proves the full D2 chain works end-to-end.
-    let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundle_children.wat");
-    assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
-    let line = &out[0];
-    // D2 chain: Bundle/children on the Vector param type-AST yields head + i64 arg as separate Symbols.
-    assert_eq!(
-        line,
-        "[#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]",
-        "Bundle/children on parametric type-AST must yield [head-Symbol, arg-Symbol]"
     );
 }
 

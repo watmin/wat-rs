@@ -89,10 +89,12 @@ fn rename_callable_name_error_from_mismatch() {
 
 #[test]
 fn extract_arg_names_foldl_returns_three_names() {
+    // TYPE-reflection HolonAST eviction: extract-arg-names now returns
+    // plain keywords, not HolonAST Symbol nodes.
     let line = unwrap_string(run_expr("(:t::test4-extract-foldl-names)"), "test4");
     assert_eq!(
         line,
-        r#"[#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Symbol "_a1" #wat-edn.holon/Symbol "_a2"]"#,
+        r#"[:_a0 :_a1 :_a2]"#,
         "extracted foldl arg names must be exactly _a0/_a1/_a2"
     );
 }
@@ -105,10 +107,11 @@ fn extract_arg_names_zero_args_returns_empty() {
 
 #[test]
 fn extract_arg_names_stops_before_return_type() {
+    // TYPE-reflection HolonAST eviction: names render as plain keywords.
     let line = unwrap_string(run_expr("(:t::test6-extract-stops-before-return)"), "test6");
     assert_eq!(
         line,
-        r#"2 [#wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "y"]"#,
+        r#"2 [:x :y]"#,
         "extract must stop before return type arrow and yield exactly x and y"
     );
 }
@@ -125,10 +128,11 @@ fn extract_arg_names_error_non_bundle() {
 
 #[test]
 fn rename_then_extract_preserves_arg_names() {
+    // TYPE-reflection HolonAST eviction: names render as plain keywords.
     let line = unwrap_string(run_expr("(:t::test8-rename-then-extract)"), "test8");
     assert_eq!(
         line,
-        r#"2 [#wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "y"]"#,
+        r#"2 [:x :y]"#,
         "arg names x and y must be preserved after rename"
     );
 }

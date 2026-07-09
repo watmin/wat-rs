@@ -1330,10 +1330,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // ThreadPeer<Request, Reply>; client peer gets
     // ThreadPeer<Reply, Request>. Same struct, opposite directions.
     //
-    // Stone D (`run-threads` bracket macro) is the user-facing
-    // constructor. Stone C1 itself only mints the type and the two
-    // peer-relative verbs (`Thread/readln`, `Thread/println`); test
-    // peer-pair construction goes through the substrate-internal
+    // `:wat::kernel::spawn-thread` + the arc-259 bracket are the
+    // user-facing constructors (Stone D's `run-threads` bracket macro,
+    // the original constructor, was retired — dead code, superseded).
+    // Stone C1 itself only mints the type and the two peer-relative
+    // verbs (`Thread/readln`, `Thread/println`); test peer-pair
+    // construction goes through the substrate-internal
     // `make_thread_peer_pair_for_test` helper in
     // `typed_channel.rs`.
     //
