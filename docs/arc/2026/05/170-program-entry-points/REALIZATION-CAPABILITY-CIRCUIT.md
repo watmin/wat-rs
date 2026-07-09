@@ -372,13 +372,19 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
 ## RESUME-HERE (curare before compaction — 2026-07-08; the one-line fix is teed up)
 
 ```clojure
-{:head   "179e5606 — M1-pool CLEAN + pushed (the one-liner LANDED; the dial probe green WITHOUT any dedup)"
+{:head   "bc472c7c — capability Stone A CLEAN + pushed (process/uses [handles]; coordinate on the surface). The
+          N-SERVICE design is DRAWN (DESIGN-N-SERVICE-KWARGS-INJECTION.md), gated on 2 groundings — NOT yet struck."
  :branch "arc-170-gap-j-v5-deadlock-state"
- :arc    "170 — the CAPABILITY CIRCUIT. M1-teeth PROVEN; M1-pool PROVEN CLEAN (179e5606) — a granted PROCESS bracket
-          pool's workers dial a granted echo' service, [\"echo:a\" \"echo:b\" \"echo:c\"], no dedup, no DuplicateDefine.
-          The closure_extract.rs:1262 generic-aggregate-ctor-skip landed; byte-equality (types.rs:541 existing==&def)
-          PROVEN not name-equality (a byte-different same-name re-decl still raises DuplicateType; scratchpad/
-          probe-054-byte-not-name.wat, gitignored). Floor 4116/4115-pass/1-known-lint/0-new; bracket 15/15, services 42/42."
+ :arc    "170 — the CAPABILITY CIRCUIT. Single-service PROVEN + CLEAN. FIVE stones landed this session (all pushed):
+          179e5606 M1-pool clean (byte-equality proven not name-equality — types.rs:541 existing==&def; a byte-diff
+          same-name re-decl still raises DuplicateType) · fbc60b94 lit-check (expected-type-directed vector literals:
+          [a b c] up-casts to the expected Vector<T>, so surface-vecs write clean) · d9a5311d the shadowdancer=SONNET
+          doctrine walled (I hammered Opus by omission → 529 overload) · bc472c7c capability Stone A (Grantable→
+          Capability + coordinate hook; process/dials[gs][ds] collapsed to process/uses [handles]; map-worker derives
+          the dial via coordinate). NEXT: the N-SERVICE stone — the worker's injected context is KWARGS
+          ([item & [kv <- Peer' echo <- Peer' …]]), provided BY NAME ((process/uses :kv kvh :echo eh)), name+type
+          matched (closes the erased-positional soundness gap: a bare Address' over the wire dials the WRONG service
+          silently). Crossing discipline per kwarg type (Peer'→dial, data→copy, resource→forbidden). See the DESIGN doc."
 
  :done-committed
  ["M1-teeth (d9b2377f) — the deterministic revoke-refusal; the capability circuit BITES. Self-guarding after the
