@@ -936,8 +936,10 @@ The C2 wrong-service compile error is DE-RISKED end to end — parametric surfac
 ## RESUME-HERE (curare CHECKPOINT — 2026-07-09; parametric surfaces built + the C2 wrong-service mechanism PROVEN end to end; resume at the C2-full WIRING)
 
 ```clojure
-{:head   "b2360c7a — PARAMETRIC SURFACES built (7d8e3034) + the receiver-satisfaction fix for embedded returns (b2360c7a).
-          The full C2 wrong-service-COMPILE-ERROR mechanism is now PROVEN end to end (by measurement). This curare on top."
+{:head   "4bb4ee34 — the C2 wiring FOUNDATION landed: W1 (typed Dialable<S,R> surface auto-emitted per <fqdn>::Handle,
+          service.wat) + W1a (the check-time extend-type pre-registration now recurses into do/let, freeze/env.rs — a
+          GENERAL fix: every macro-emitted parametric extend-type is now checked). Prior: PARAMETRIC SURFACES (7d8e3034)
+          + the receiver fix (b2360c7a); the C2 wrong-service-COMPILE-ERROR mechanism PROVEN. All weighed + pushed. Curare on top."
  :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, NEVER create/switch (the C1 shadowdancer branched once; FF'd + deleted).
           Every brief MUST say 'stay on the branch'. PUSH OFTEN — GitHub is the DR site (origin caught up through b2360c7a)."
  :arc    "170 — the CAPABILITY CIRCUIT. C1 (N=1) LANDED. C2 (N heterogeneous, wrong-service a COMPILE error) — the MECHANISM is
@@ -965,12 +967,19 @@ The C2 wrong-service compile error is DE-RISKED end to end — parametric surfac
      OPTION C (the typed locus preserving the ratified surface) is REAL — no fused form, no process/uses-learns-work-fn divergence."
 
  :next  ; the C2-full WIRING — each step on a PROVEN mechanism (do NOT re-measure the mechanism; wire it)
- ["WIRE C2-full: (a) process/uses PRESERVES the typed handles (a heterogeneous typed carrier — a Tuple of typed coords, or a
-   parametric ProcessOpts) instead of erasing to Vector<(keyword,Capability)>; (b) the spawn-runner walk (it already reads the
-   ::Kwargs field types via field-types-of) generates the PARENT-SIDE contract check — a field-ordered Tuple<Address'<Si,Ri>…>
-   from the handles' typed coords, reconciled against the ::Kwargs (the co-location reconciliation, PROVEN); (c) the child dials
-   the typed addresses + assembles the ::Kwargs + invokes via the companion (C1's mechanism). GATE: (process/uses :echo kvh :kv eh)
-   SWAPPED → a located TypeMismatch at `wat --check`, NOT a runtime peer-closed."
+ ["W1 (foundation) DONE (4bb4ee34): each <fqdn>::Handle auto-satisfies :wat::capability::Dialable<S,R>, so
+   (:wat::capability::Dialable/coord handle) → the handle's TYPED Address'<S,R> (service-discriminating at compile time).
+   The flat :wat::capability::Capability/coordinate stays bare for uniform grant/revoke. Gate probe-w1-typed-coord-auto.wat green."
+  "W2 (NEXT) — process/uses PRESERVES the typed handles so the walk can call (Dialable/coord handle) on each, instead of
+   erasing to Vector<(keyword,Capability)>. THE DESIGN QUESTION (scout/probe first): what carrier keeps each handle's concrete
+   type + its :name AND still lets grant/revoke read it as Capability? (a heterogeneous Tuple of concrete handles + names, a
+   parametric ProcessOpts, or keep the erased Capability vector for grant/revoke + a SECOND typed-handle carrier for the check).
+   Grant/revoke fold up-casting each to Capability; the check needs the concrete Dialable satisfaction. Probe the carrier shape."
+  "W3 (the big one) — the spawn-runner walk (it already reads ::Kwargs field types via field-types-of) generates the
+   PARENT-SIDE contract check — a field-ordered Tuple<Address'<Si,Ri>…> from the handles' typed coords, reconciled against the
+   ::Kwargs (the co-location reconciliation, PROVEN in probe-c2-colocation.wat) → a SWAPPED handle a compile error; + the child
+   N-generalization (dial N typed addresses + assemble the ::Kwargs + invoke via the companion — C1's mechanism, N=1→N).
+   GATE: (process/uses :echo kvh :kv eh) SWAPPED → a located TypeMismatch at `wat --check`, NOT a runtime peer-closed."
   "THEN (ratified): map arg-order flip (fn-first, to match core/map); spawn-* RESERVED (4 concurrency shapes measured clean:
    long-lived=defservice · fan-out=bracket/map · sealed one-shot eval=run-sandboxed-hermetic-ast · custom=coordinate/dial)."]
 
