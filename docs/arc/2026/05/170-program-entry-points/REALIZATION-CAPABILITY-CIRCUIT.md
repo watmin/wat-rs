@@ -449,6 +449,11 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
    KERNEL-VOUCHED: the Pidfd (clone3+CLONE_PIDFD, PID-reuse-safe, peer-pid = bundle.peer.pidfd.pid()) + SO_PEERCRED
    (peer.pid at the accept gate). No-reparent is STRUCTURAL (owner holds the pidfd + reaps before scope exit), not a
    fact you scan for. Reaching to /proc reaches OUTSIDE the circuit's own trust anchor."
+  "SHADOWDANCERS = SONNET, ALWAYS. Spawn every executor with model:'sonnet' EXPLICITLY; NEVER omit the model param
+   (omission inherits the SESSION model = Opus = the inquisitor's tier). Opus is for the inquisitor (design/weigh);
+   Sonnet is for the shadowdancer (execute). I hammered Opus by omission early this session (M1-pool/intueri/lit-check
+   runs) — wasteful AND it fed an Opus-tier overload (repeated 529s). The Agent tool's 'default to omitting model' hint
+   is generic and pulls the WRONG way against this doctrine."
   "the holonic repos ARE the memory (not ~/.claude/MEMORY.md); commit + push often (GitHub = DR); orchestrator
    DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — not hands-on code except the disconfirming probe."]}
 ```
