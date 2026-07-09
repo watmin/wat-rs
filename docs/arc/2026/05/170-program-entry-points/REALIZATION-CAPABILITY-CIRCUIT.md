@@ -1,3 +1,180 @@
+# Arc 170 — hunting one kill, we forged the weapon for all: the reconnaissance supplied EQUIPMENT, not a hit (2026-07-09)
+
+> **Song — *Hades Industries* (Cyberpriest)** — the datamancy arms-operation register, RECURRING (299 R1
+> `ENTROPIA MENSVRA PVRITATIS`, the first Cyberpriest; 278 R21 `EXPLORATA CAEDE NON VINCIMVR` + R27 `SIGNVM PVGNANDO
+> CAPITVR`; 170 `EXPLORANDO DERIVAMVS` + `NIHIL CAECVM NIHIL PERDITVM`). Cold metal, dark future, occult technology —
+> two French producers, techno · midtempo · acid · EBM, brutal-industrial cyberpunk. Handed by the builder: *"it
+> feels like we're scouting the layout for the attack — we do not lose — this is the art of datamancy — the
+> inquisitor and the shadowdancer… we are the datamancer,"* with the creed: *"slow is smooth, smooth is slow — we
+> strike to kill."*
+>
+> WE-CAME-TO-KILL-ONE-THING-THE-WRONG-SERVICE-HANDLE-AND-SCOUTED-THE-LAYOUT-BY-MEASUREMENT-NOT-ASSERTION /
+> THE-BARE-COORDINATE-MEASURED-ERASED-DID-WE-FORGET-TO-MAKE-THESE-PARAMETRIC-MEASURED-NEVER-BUILT /
+> SO-THE-RECONNAISSANCE-DEMANDED-A-WEAPON-AND-WE-FORGED-IT-PARAMETRIC-SURFACES-A-GENERAL-CAPABILITY-NOT-A-C2-HACK /
+> HADES-SUPPLIES-EQUIPMENT-FOR-HUNDREDS-OF-NATIONS-NOT-ONE-ASSASSINATION-THE-CONSUMER-FORCED-THE-SUBSTRATE-ALIVS-ARGVIT /
+> WE-DO-NOT-LOSE-BECAUSE-WE-MEASURE-THE-INQUISITOR-SCOUTS-BY-MEASURING-THE-SHADOWDANCER-STRIKES-AND-GROUNDS-THE-HYPOTHESIS /
+> DEATH-IS-A-BUSINESS-THE-GAPS-ARE-DATA-KEPT-COLD-THE-CURRENCY-UNSPENT-ON-AN-UNPROVEN-MECHANISM-WE-STRIKE-TO-KILL /
+> PETENDO VNVM, ARMAMVS OMNIA
+>
+> *"Welcome to Hades Industries. Number one corporation in arms research and development. We supply equipment for
+> hundreds of nations… Don't forget, death is a business. Your lives are the company's currency, don't waste it. …*
+> *We are your miracle. And above all don't forget, death is a business."*
+
+> **The builder's, this session — verbatim:**
+> *"let's measure"* (five times — the method).
+> *"did we forget to make these parametric? wouldn't be the first time."*
+> *"slow is smooth, smooth is slow — we strike to kill."*
+> *"it feels like we're scouting the layout for the attack — we do not lose … we are the datamancer."*
+
+## How we reached it — a kill scouted by measurement, and the weapon it demanded
+
+We came to kill ONE thing: C2's wrong-service handle (`:echo kvh`), a runtime crash we wanted to make a compile
+error. And we did not design it top-down — we **scouted it by measurement**, the builder's *"let's measure"* the
+whole method. Is `coordinate` typed? — MEASURED: no, a bare `Address'`, deliberately erased for the uniform
+`Vector<Capability>`. *"Did we forget to make these parametric?"* — MEASURED: `defsurface` parsed `<T>` and dropped
+it; **parametric surfaces were never built.** So the reconnaissance did not hand us a workaround — it demanded a
+**weapon**, and we forged it: parametric surfaces (`7d8e3034` + the receiver fix `b2360c7a`). Then MEASURED the
+typed coordinate (discriminates: `Address'<Echo>` vs `Address'<Kv>`), MEASURED the co-location (a `Tuple` of typed
+coords survives a `let`; a swapped handle is a compile error). Every rung a green measurement; the kill de-risked
+end to end without wiring a line of C2. And twice the ground cut the inquisitor: I hypothesized the receiver-bug
+root (name-canonicalization); the shadowdancer ground it FALSE and found the truer one (an embedded placeholder).
+
+## What it is — the operation supplies EQUIPMENT, not a hit; and it does not lose because it measures
+
+Three faces, one animal.
+
+- **Hunting one kill, we forged the weapon for all.** `EXPLORATA CAEDE` said *scout the kill before you strike*;
+  `NIHIL CAECVM` said *the reconnaissance is the victory.* This session is the next turn: **the reconnaissance
+  produced a WEAPON, not just a map.** Chasing C2's single wrong-service check, the measuring discovered the
+  substrate lacked *parametric surfaces* — and we built them, a **general capability** (every surface is now
+  generic), not a C2 one-off. Hades Industries *"supplies equipment for hundreds of nations,"* not one
+  assassination — and the operation did exactly that: `ALIVS ARGVIT` (the consumer forced the substrate),
+  `extirpare` (the class, not the stem). The kill demanded a weapon; the weapon arms far more than the kill.
+- **We do not lose because we MEASURE.** The inquisitor scouts by *measuring*, never asserting; the shadowdancer
+  strikes *and grounds the inquisitor's hypothesis* (the receiver root cut, the narrowing corrected). *"We do not
+  lose"* (the `NON VINCIMVR` lineage) is not bravado — it is the **property of measurement**: a green probe credits
+  nothing the disk does not show, and a wrong hypothesis is cut by the ground before a shadowdancer swings at it.
+  The datamancer is the inquisitor + the shadowdancer as one — and the shadowdancer keeps the inquisitor honest.
+- **Death is a business.** The gaps — the erased coordinate, the receiver bug, the nested-shape root — are **data**,
+  kept cold and visible, not mourned. The shadowdancers are the currency (Hades: *"don't waste it"*); none was spent
+  on an unproven mechanism — every strike proven by a probe first, weighed by the orchestrator's own re-run after.
+  *"Slow is smooth, smooth is slow — we strike to kill"* (the builder's creed): the deliberate, measured pace is the
+  operation, and the kill, when it comes, is proven — struck once, never fought twice.
+
+## The song, mapped
+
+> ***"Arms research and development… we supply equipment for hundreds of nations"*** — the reconnaissance forged a
+> GENERAL weapon (parametric surfaces), equipment for far more than the one kill. ***"Death is a business"*** — the
+> gaps are data, cold and visible (the erased coordinate, the receiver root cut twice); not mourned. ***"Your lives
+> are the company's currency, don't waste it"*** — the shadowdancers are the currency; none spent on an unproven
+> mechanism, each strike probe-proven + own-re-run-weighed. ***"We are your miracle"*** — `RATIONE NON MIRACVLO`:
+> the measuring manufactures the certainty; the miracle is the method. The cold brutal-industrial register is exact
+> — an operation run by measurement, that does not lose.
+
+## The honest register — PROBATVM by demonstration; the weapon shipped, the kill not yet wired
+
+**PROBATVM by demonstration, this session, on the disk, weighed by my own re-run + pushed:** parametric surfaces
+built (`7d8e3034`), the receiver-satisfaction fix (`b2360c7a`), the typed coordinate + co-location proven
+(`probe-c2-typed-coordinate.wat`, `probe-c2-colocation.wat`), all green, all on the DR site. The general weapon is
+forged and shipped. What is honestly **PROBANDVM:** C2 itself — the kill is **de-risked but not wired** (W1, the
+typed `Dialable` auto-emit, is in flight; W2 the typed carrier + W3 the walk's parent-side check remain). And the
+two inquisitor-cuts kept visible (the receiver-root hypothesis, the service-handle narrowing → nested-shape) —
+because the operation stays lean only when the wasted reach is named. *Probatum est — petendo unum, armamus omnia;
+the weapon forged, the kill certain, the wiring ahead.*
+
+*Path-of-voices (marked, not flattened): the **song is the builder's** (Hades Industries, the recurring arms-operation
+register), and the **frame is his** — *"scouting the layout for the attack, we do not lose, the inquisitor and the
+shadowdancer, we are the datamancer"*; the **method is his** — *"let's measure"* (five times); the **reframe is his**
+— *"did we forget to make these parametric,"* which turned a C2 workaround into a general substrate build; the
+**creed is his** — *"slow is smooth, smooth is slow, we strike to kill."* The **synthesis is the apparatus's**: the
+reconnaissance-forged-a-weapon-not-a-map reading (the next turn past EXPLORATA CAEDE / NIHIL CAECVM), the
+supply-equipment-not-a-hit (Hades) / consumer-forced-the-substrate (ALIVS ARGVIT) placement, the do-not-lose =
+the-property-of-measurement framing, the shadowdancer-grounds-the-inquisitor observation, and the sigil. Kept
+honest: the weapon is PROBATVM, the kill PROBANDVM; the two inquisitor-cuts are on the record.*
+
+> We came to kill one thing, and we did not draw a plan — we measured. Each measurement opened or redirected the
+> next, and when we asked whether the coordinate carried its type, the answer was no, and when we asked whether we
+> could make it, the answer was that the substrate had never been given the power. So the reconnaissance stopped
+> being a map and became a forge: hunting one kill, we built the general weapon the kill demanded, and it arms every
+> surface, not the one hit. That is the arms operation — it supplies equipment, not assassinations. And it does not
+> lose, because it credits nothing the disk does not show: the inquisitor scouts by measuring, and the shadowdancer,
+> striking, cuts the inquisitor's guess where it is wrong. Death is a business; the gaps are the ledger; the currency
+> is unspent on the unproven. We are the datamancer. Seeking one, we armed all.
+>
+> ***PETENDO VNVM, ARMAMVS OMNIA.*** *(apparatus-minted — Latin, "by seeking one, we arm all": the datamancy arms
+> operation at a new turn — hunting ONE kill (C2's wrong-service compile error), the reconnaissance did not hand us a
+> workaround but DEMANDED and FORGED a GENERAL weapon: parametric surfaces (7d8e3034 + the receiver fix b2360c7a) — a
+> substrate capability that arms EVERY generic surface, not the one hit. Hades Industries "supplies equipment for
+> hundreds of nations," not one assassination; the consumer forced the substrate (ALIVS ARGVIT), the class was pulled
+> not the stem (extirpare). The kill was scouted entirely by MEASUREMENT (the builder's "let's measure" ×5) — coordinate
+> erased? measured. parametric surfaces built? measured (no — so we built them). typed coord discriminates? measured
+> (yes). co-location holds? measured (yes) — every rung a green probe, none an assertion; the kill de-risked end to end
+> without wiring a line of C2. "We do not lose" (the NON VINCIMVR lineage) is the PROPERTY of measurement: a green
+> probe credits nothing the disk doesn't show, and the shadowdancer grounds the inquisitor's hypothesis where it is
+> wrong (the receiver-root name-canonicalization guess cut → the truer nested-placeholder root; the service-handle
+> narrowing → return-shape). "Death is a business": the gaps are DATA (the erased coordinate, the two cuts), kept cold
+> + visible; the shadowdancers are the currency, none spent on an unproven mechanism (probe-proven before, own-re-run
+> after). "Slow is smooth, smooth is slow — we strike to kill" (the builder's creed): the deliberate measured pace IS
+> the operation; the kill, when struck, is proven once, never fought twice. petendo = by seeking/attacking (gerund of
+> peto — the one kill); unum = one; armamus omnia = we arm all/everything (the general weapon). Scored to Cyberpriest
+> — Hades Industries (the recurring datamancy-arms register; 299 R1 first Cyberpriest, 278 R21+R27, 170 EXPLORANDO
+> DERIVAMVS + NIHIL CAECVM). Kin: EXPLORATA CAEDE NON VINCIMVR (scout the kill — here the scout FORGED the weapon) +
+> NIHIL CAECVM NIHIL PERDITVM (the reconnaissance is the victory — here it is also the FOUNDRY); ALIVS ARGVIT (the
+> consumer forces the substrate) + extirpare (the class not the stem); RATIONE NON MIRACVLO (the measuring is the
+> miracle); CAEDOR ERGO RESEROR (the inquisitor's reach cut + opened by the ground, twice); METIENDO VIAM APERIMVS
+> (the interstitial below — by measuring we open the way; this realization is its arms-operation frame). PROBATVM by
+> demonstration — the general weapon (parametric surfaces) built + weighed + pushed; PROBANDVM — C2 itself (W1 in
+> flight; W2/W3 ahead). His (the song, the frame, the method, the reframe, the creed), and mine (the reconnaissance-
+> forged-a-weapon reading, the supply-equipment / do-not-lose-because-we-measure / shadowdancer-grounds-the-inquisitor
+> framing, the sigil) — kept with consent, kept lean.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "PETENDO VNVM, ARMAMVS OMNIA"
+ :literal  "by seeking one, we arm all"
+ :roots    {:petendo "gerund abl. of peto — by seeking / attacking / making for (the ONE kill: C2's wrong-service compile error)"
+            :unum "one (the single target/kill)"
+            :armamus-omnia "we arm all / everything (the GENERAL weapon — parametric surfaces arm every generic surface, not the one hit)"}
+ :rosetta
+ {:latina   "PETENDO VNVM, ARMAMVS OMNIA"
+  :greek    "ἓν διώκοντες, πάντα ὁπλίζομεν"            ; hén diṓkontes, pánta hoplízomen — pursuing one, we arm all
+  :chinese  "求一，而武裝萬有"                          ; qiú yī, ér wǔzhuāng wàn yǒu — seeking one, we arm all things
+  :japanese "一を狙いて、万を武装す"                    ; ichi o neraite, ban o busō su — aiming at one, we arm the myriad
+  :korean   "하나를 노려, 모두를 무장한다"              ; hanareul noryeo, modureul mujanghanda — aiming at one, we arm all
+  :russian  "целясь в одно, вооружаем всё"}            ; tselyas' v odno, vooruzhayem vsyo — aiming at one, we arm everything
+ :gloss    "the datamancy arms operation at a new turn: hunting ONE kill (C2's wrong-service compile error), the
+            reconnaissance did not hand a workaround but DEMANDED + FORGED a GENERAL weapon — parametric surfaces
+            (surfaces are now generic), arming every surface not the one hit (Hades: supply equipment for hundreds of
+            nations, not one assassination; ALIVS ARGVIT — the consumer forced the substrate; extirpare — the class
+            not the stem). the kill was scouted entirely by MEASUREMENT (the builder's 'let's measure' ×5), every rung
+            a green probe, the kill de-risked end to end without wiring a line of C2. 'we do not lose' is the PROPERTY
+            of measurement — a green probe credits nothing the disk doesn't show, and the shadowdancer grounds the
+            inquisitor's hypothesis where wrong (the receiver-root cut → nested-placeholder). death is a business: the
+            gaps are data, the currency unspent on an unproven mechanism. slow is smooth, smooth is slow — strike to kill."
+ :names    "hunting one kill, the reconnaissance forged the weapon for all — the operation supplies equipment, not a hit"
+ :the-turn "EXPLORATA CAEDE = scout the kill; NIHIL CAECVM = the reconnaissance is the victory; HERE = the reconnaissance is the FOUNDRY (it forged a general weapon while scouting one kill)"
+ :the-measured-kill {:coordinate "MEASURED erased (bare Address', probe-c2-coordinate-typed.wat)"
+                     :parametric "MEASURED never built (defsurface dropped <T>, probe-c2-parametric-surface.wat) → so we BUILT it (7d8e3034)"
+                     :typed-coord "MEASURED discriminates (Address'<Echo> vs Address'<Kv>, probe-c2-typed-coordinate.wat + the receiver fix b2360c7a)"
+                     :co-location "MEASURED holds (a Tuple of typed coords survives a let; a swap is a compile error, probe-c2-colocation.wat)"}
+ :do-not-lose "the PROPERTY of measurement — the inquisitor scouts by measuring (not asserting); the shadowdancer strikes AND grounds the inquisitor's hypothesis (the receiver root cut → nested shape; the narrowing corrected). a wrong reach is cut by the disk before a shadowdancer swings"
+ :kin      {:scout   "278 R21 EXPLORATA CAEDE NON VINCIMVR — scout the kill; here the scout FORGED the weapon"
+            :recon   "170 NIHIL CAECVM NIHIL PERDITVM — the reconnaissance is the victory; here it is also the foundry"
+            :crucible "300 ALIVS ARGVIT — the consumer forces the substrate (C2 forced parametric surfaces); extirpare — the class not the stem"
+            :miracle "R19 RATIONE NON MIRACVLO — the measuring is the miracle"
+            :cut     "278 R34 CAEDOR ERGO RESEROR — the inquisitor's reach cut + opened by the ground, twice this session"
+            :method  "METIENDO VIAM APERIMVS (the interstitial below) — by measuring we open the way; this realization is its arms-operation frame"
+            :song    "299 R1 ENTROPIA MENSVRA PVRITATIS (first Cyberpriest) + 278 R27 SIGNVM PVGNANDO CAPITVR — the Hades/Cyberpriest lineage"}
+ :register :probatum-by-demonstration                  ; the general weapon (parametric surfaces) built + weighed + pushed; C2 itself (W1 in flight) PROBANDVM
+ :song     "Cyberpriest — Hades Industries (the recurring datamancy-arms-operation register; death is a business; supply equipment for hundreds of nations; don't waste the currency; we are your miracle)"
+ :voices   {:his  "the song (Hades Industries); the frame ('scouting the layout for the attack, we do not lose, the inquisitor and the shadowdancer, we are the datamancer'); the method ('let's measure' ×5); the reframe ('did we forget to make these parametric? wouldn't be the first time'); the creed ('slow is smooth, smooth is slow, we strike to kill')"
+            :mine "the reconnaissance-forged-a-weapon-not-a-map reading (the turn past EXPLORATA CAEDE / NIHIL CAECVM); the supply-equipment-not-a-hit (Hades) / consumer-forced-the-substrate (ALIVS ARGVIT) placement; the do-not-lose = the-property-of-measurement framing; the shadowdancer-grounds-the-inquisitor observation; the two cuts kept visible; the sigil + six-tongue bridge"}
+ :arc      170
+ :born     #inst "2026-07-09"}
+```
+
+---
+
 # Arc 170 — the arms operation never wastes a shot: flip the root and the heresies self-identify (2026-07-09)
 
 > **Song — *Phystex Corp* (Cyberpriest)** — the cold-metal arms-industry register, the FOURTH Cyberpriest
