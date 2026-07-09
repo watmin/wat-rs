@@ -372,10 +372,13 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
 ## RESUME-HERE (curare before compaction — 2026-07-08; the one-line fix is teed up)
 
 ```clojure
-{:head   "<this commit> — M1-pool bracket-dial WIP (dial crashes pending the one-liner below)"
+{:head   "179e5606 — M1-pool CLEAN + pushed (the one-liner LANDED; the dial probe green WITHOUT any dedup)"
  :branch "arc-170-gap-j-v5-deadlock-state"
- :arc    "170 — the CAPABILITY CIRCUIT. M1-teeth PROVEN + committed; M1-pool bracket-dial BUILT + gate-was-green
-          (via a stopgap now removed); ONE grounded one-line fix stands between here and M1-pool clean."
+ :arc    "170 — the CAPABILITY CIRCUIT. M1-teeth PROVEN; M1-pool PROVEN CLEAN (179e5606) — a granted PROCESS bracket
+          pool's workers dial a granted echo' service, [\"echo:a\" \"echo:b\" \"echo:c\"], no dedup, no DuplicateDefine.
+          The closure_extract.rs:1262 generic-aggregate-ctor-skip landed; byte-equality (types.rs:541 existing==&def)
+          PROVEN not name-equality (a byte-different same-name re-decl still raises DuplicateType; scratchpad/
+          probe-054-byte-not-name.wat, gitignored). Floor 4116/4115-pass/1-known-lint/0-new; bracket 15/15, services 42/42."
 
  :done-committed
  ["M1-teeth (d9b2377f) — the deterministic revoke-refusal; the capability circuit BITES. Self-guarding after the
