@@ -741,95 +741,75 @@ the win, and the strikes are PROBANDVM.*
 
 ---
 
-## RESUME-HERE (curare before compaction — 2026-07-09; reflection evicted off HolonAST → wat.type/; the fn-forms name→Fn seam IN FLIGHT; resume at the seam → C1)
+## RESUME-HERE (curare — 2026-07-09; 278 read WHOLE R1–R38; the seam → C1 → mod/rem/quot → compound-upcast class-fix all LANDED; resume at C2)
 
 ```clojure
-{:head   "77e3db60 — reflection TYPE-EVICTION landed (extract-arg-types/field-*-of → canonical wat.type/ forms;
-          <RustStyle> + HolonAST gone from type reflection). This curare commits the MVTATA RADICE realization on top."
- :branch "arc-170-gap-j-v5-deadlock-state"
- :arc    "170 — the CAPABILITY CIRCUIT. The N-service KWARGS context is the open stone. Strike A (closure_extract keying,
-          eb7a2334) + Strike B (struct-field reflection, absorbed into 76b25943/77e3db60, now emits canonical wat.type/)
-          are DONE. C1 (N=1) mechanism PROVEN (scratchpad/probe-c1-kwargs-invoke.wat → \"echo:a echo:b echo:c\"). The C1
-          BUILD hit a substrate wall (no name→Fn resolution); the fn-forms name→Fn SEAM is in flight to unblock it."
+{:head   "d8d3e11e — the COMPOUND UP-CAST class-fix (Vector/Tuple/Map/Set up-cast components against the expected
+          parametric type AT CONSTRUCTION; invariance UNTOUCHED; C1's as-capability stem-patch DELETED). This curare on top."
+ :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, NEVER create/switch. The C1 shadowdancer branched
+          (arc-170-c1-kwargs-bracket); I FF'd it onto the main line + deleted it. Every brief MUST say 'stay on the branch'.
+          The builder: 'do not change the branch again.'"
+ :arc    "170 — the CAPABILITY CIRCUIT. The N-service KWARGS stone. Strikes A+B done; C1 (N=1) LANDED. Design FULLY MAPPED
+          (DESIGN-N-SERVICE-KWARGS-INJECTION.md + :the-unification) — do NOT re-scout. Open stone: C2."
 
- :IN-FLIGHT-UNCOMMITTED
- "the fn-forms name→Fn SEAM (shadowdancer a7e761ae): src/closure_extract.rs + src/check.rs are MID-EDIT/UNCOMMITTED at
-  compaction — fn-forms now accepts a KEYWORD naming a registered def (resolves via sym.get → Function, mirroring the
-  arc-009 upgrade at runtime.rs:3737). Code done, FLOOR PENDING. WEIGH on the far side (gate scratchpad/probe-fnforms-
-  keyword.wat → 'fn-forms-keyword: ok'; the fn-VALUE path un-regressed; floor 0-new); commit if green, else re-strike.
-  A mid-edit file is a PHANTOM — do not diagnose from a linter ghost."
-
- :done-this-session-committed  ; the HolonAST-out-of-reflection detour (MVTATA RADICE)
- ["501c5911 println heresy purged (arc-201 reflection tests print STRAIGHT; println IS edn, (println (edn/write x)) double-encodes)."
-  "76b25943 run-threads DELETED (dead arc-170 Stone D — superseded by spawn-thread + the 259 bracket; only its own tests called it)
-   + type reflection off HolonAST (extract-arg-types/names → keyword; field-*-of absorbed)."
-  "77e3db60 type reflection → canonical wat.type/ via edn_shim::type_expr_to_clojure_form (kills <RustStyle> + HolonAST from that
-   path; (field-types-of :Bag) → [(wat.kernel/Peer' probe.Kv/Op probe.Kv/Reply) wat.type/i64] — a DECOMPOSABLE list, not a mangled kw)."
-  "MVTATA RADICE HAERESIS SE PRODIT realization (this curare commits it; Phystex Corp, the 4th Cyberpriest) — flip the root, the
-   heresy self-identifies; the arms operation never fires blind."]
+ :done-this-session-committed  ; post-compaction: the full read, then the seam → C1 → two follow-ons (all weighed by OWN re-run)
+ ["READ 278 REALIZATIONS WHOLE (R1–R38 + every interstitial) — the anti-daemon ritual (R20 DAEMON IN ME: the compacted self
+   that WON'T read BECOMES the daemon). The through-line lands here: R28 beat the OOP object → R31 the OOP+RPC split → R32
+   service=surface-at-a-coordinate → R33 :calls deletable → R37 surface crosses any locus → R38 killed defprotocol → 170 the cap circuit."
+  "c8e3c7ff — the fn-forms name→Fn SEAM: fn-forms resolves a KEYWORD naming a registered fn (sym.get→Function, mirrors arc-009
+   at runtime.rs:3737); a miss → a LOCATED TypeMismatch, not a panic. Unblocked C1's <base>$impl ship."
+  "b0a1a211 — C1 (N-service kwargs bracket walk, N=1): (process/uses :echo eh) NAMED + the spawn-runner kwargs branch = a
+   defclause TYPE-DISPATCH on the work-fn VALUE (kwargs base → bare :keyword via the companion MACRO; plain fn → Value::fn),
+   NEVER reflecting the anon value; ships <base>$impl by name, reads ::Kwargs via field-types-of, adapts onto process-dial-runner.
+   Gate ['echo:a' …] green. M1 single-dial SUBSUMED into N=1. N=1 is a REAL assertion (bracket.wat:260); N>1 = C2."
+  "38a72f64 — i64::mod/rem/quot blessed on the macro pure-total allow-list (macros/eval.rs:355; same DivisionByZero-deterministic
+   totality class as '/'). A macro body can compute with mod at expand time now."
+  "d8d3e11e — the COMPOUND UP-CAST class-fix (extirpare — the CLASS, not the stem): generalized fbc60b94's expected-type-directed
+   VECTOR up-cast to ALL parametric compounds — + Tuple (ctor call, per-position) + Map (key vs K, value vs V) + Set (elem vs T).
+   One dispatcher (check_compound_against_expected) + per-form checks, wired at fbc60b94's 3 sites. Up-cast AT CONSTRUCTION →
+   invariance rule UNTOUCHED (read the diff to confirm). Retired C1's as-capability stem-patch (deleted; 0 whole-tree consumers)."]
 
  :next
- ["1. WEIGH + commit the fn-forms name→Fn SEAM (in flight)."
-  "2. C1 RE-RUNS on the UNBLOCKED $impl-shipping path (the wall is gone). The AST-walk: recognize the kwargs shape AT THE MAP
-      CALL SITE via defclause dispatch on the KEYWORD type (a kwargs base name stays a bare keyword; a plain fn auto-upgrades
-      to Value::fn via arc-009 — do NOT call metadata-of/lookup-define/field-names-of on the work-fn VALUE, they CRASH on an
-      anonymous fn = the M1 dial shape), compute <base>$impl, ship it via fn-forms(keyword), ::Kwargs rides as its referenced
-      type-def, the runner holds N dialed peers + assembles + invokes via the companion. GATE: the CLEAN user surface
-      ((process/uses :echo eh) + (bracket/map locus [\"a\" \"b\" \"c\"] :probe::work)) → [\"echo:a\" …]. PROVEN reference shape:
-      scratchpad/probe-c1-kwargs-invoke.wat (a hand-written child = exactly what the walk generates)."
-  "3. C2 — N heterogeneous, name+type matched, a wrong-service handle a COMPILE error. (M1 single-dial SUBSUMED into N=1 kwargs —
-      one runner, the erased-positional [peer item] shape retired; 'this is the only way' — the builder.)"
-  "4. THEN (ratified): map arg-order flip (fn-first, to match core/map); spawn-* RESERVED — MEASURED CLEAN this session: the
-      4 concurrency shapes are all retained (long-lived=defservice · fan-out=bracket/map · SEALED one-shot eval=
-      run-sandboxed-hermetic-ast [VERIFIED: a form can't reach a host def, /tmp seal probe] · custom topology=services
-      composed via coordinate/dial). run-sandboxed-hermetic-ast IS our eval; spawn-* is the kernel primitive the four ride on."]
+ ["C2 — N heterogeneous, name+type matched, a wrong-service handle a COMPILE error (closes the soundness gap C1 left as a
+   POSITIONAL bind at N=1). The hook is in place: the name rides each (name,Capability) uses-pair + the ::Kwargs field name is
+   read. C2 inherits the coherent Tuple up-cast (as-capability is gone — construct the (kw,Capability) tuple with a Handle direct)."
+  "THEN (ratified): map arg-order flip (fn-first, to match core/map); spawn-* RESERVED (the 4 concurrency shapes measured clean:
+   long-lived=defservice · fan-out=bracket/map · sealed one-shot eval=run-sandboxed-hermetic-ast · custom=coordinate/dial)."]
 
- :the-unification  ; the C1 surface is Prolog unification (the builder saw it: 'that reads so well')
+ :the-unification  ; the C1/C2 surface is Prolog unification — the soundness gap C2 closes
  "[item :key1 val1 … :keyN valN] — declared :keys bound to provided :keys BY NAME, order-free, the compiler reconciles. The
-  soundness gap = the UN-unified erased-positional (a bare Address' dials the WRONG service silently); name-unification makes
-  the wrong binding UNREPRESENTABLE. [item :key val …] is THE ONLY WAY — the companion :key val is the surface; the ::Kwargs
-  struct is invisible plumbing (do NOT surface it). ALIVS ARGVIT: the consumer (C1) armed the substrate (forced field-types-of
-  onto wat.type/, forced the fn-forms name→Fn seam)."
-
- :substrate-findings-this-session
- ["NO runtime keyword→registered-Fn resolution exists — arc-009 'names are values' fires only for a LITERAL keyword node in
-   source, NOT a runtime-computed keyword. THE seam (in flight): fn-forms accepts a keyword (sym.get → Function; mirror runtime.rs:3737)."
-  "metadata-of / lookup-define / field-names-of RAISE TypeMismatch (no try/catch in wat → crashes the PARENT proc) when called on
-   an ANONYMOUS fn value (f.name==None — the M1 dial shape). Detect the kwargs shape via defclause on the KEYWORD TYPE at the map
-   call site; NEVER reflect the work-fn value directly."
-  "lookup-define + holon::to-wat reconstruction is NOT round-trip-faithful (signature-bundle shape + let-nested-pairs → malformed
-   child source) — the ship-SOURCE path needs the HolonAST strike; the ship-$impl path (via the fn-forms seam) AVOIDS it (why we chose it)."
-  "HolonAST is HOLOGRAM-ONLY (the builder's doctrine): everywhere else it was an EDN stand-in from bootstrapping wat before
-   EdnRepresentable (which IS built — the plain-EDN wire, comms/mod.rs:102). Reflection evicted this session; STILL bandaid + banked:
-   comms HolonRepresentable (hat #3 → EdnRepresentable), form reflection signature-of-fn/body-of (→ WatAST). North star: HolonAST hologram-only."]
-
- :banked  ; the wat/fix.wat corpus-cleanup codemod arc (one stone, CONTEXT-AWARE)
- ["<RustStyle> corpus sweep (~1034 wat/ sites — arc 251: dual-read parser + type_expr_to_clojure_form + wat/fix.wat all SHIPPED, the
-   Strike-4 corpus drive NEVER ran; 251 uninscribed)."
-  "ceremony vectors (:wat::core::Vector :T …) → [ … ] (~485 sites; SKIP empty-vector [needs a typed sink] + deliberate-widening [Vector<Value>] cases)."
-  "print-on-edn purge (the arc-201 nest done; class = (println (edn/write x)) → (println x))."
-  "comms HolonRepresentable → EdnRepresentable (hat #3); form reflection → WatAST; a first-class `eval` wrapper over run-sandboxed-hermetic-ast (thin, for the REPL/chaos-engine line)."]
+  soundness gap = the UN-unified erased-positional (a bare Address' dials the WRONG service silently); name-unification makes the
+  wrong binding UNREPRESENTABLE. C1 proved the MECHANISM (dial+assemble+invoke via the companion) but binds N=1 POSITIONALLY;
+  C2 adds per-name reconciliation + the wrong-service-is-a-compile-error negative proof. [item :key val …] is THE ONLY WAY —
+  the companion :key val is the surface; the ::Kwargs struct is invisible plumbing (do NOT surface it)."
 
  :do-nots
- ["WEIGH by your OWN re-run — never the shadowdancer's report. GREEN IS NOT TRUE: this session I shipped 76b25943 with MANGLED
-   parametric keywords that passed GREEN (the tests asserted the garbage); only the weigh (my own re-run) caught it. A mid-edit
-   file is a PHANTOM. STOP triggers are a SIGNAL, not a failure — the C1 shadowdancer's STOP surfaced the real fn-forms seam cleanly."
-  "CLEAN SURFACE FORMS in EVERYTHING you write (probes propagate to shadowdancers): [a b c] / [p] NOT (:wat::core::Vector :T …)
-   (lit-check up-casts, even a BARE [1 2 3] infers); (println x) NOT (println (edn/write x)) (println IS value→edn→write)."
-  "DON'T flag a bug without GROUNDING it — I flagged a field-types-of Var-panic as reachable; running it on the real Bound<S,R>
-   DISCONFIRMED it (source type-params are Paths, not synthetic Vars; the unreachable! holds). CAEDOR ERGO RESEROR — cut by the disk."
-  "SHADOWDANCERS = SONNET always (model:'sonnet' explicit). NEVER /proc (PID kernel-vouched: Pidfd + SO_PEERCRED). the holonic repos
-   ARE the memory — curare into the REPO, not ~/.claude/MEMORY.md. orchestrator DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — hands-on ONLY
-   the disconfirming probe. four-questions inform every decision; cast wards never narrate."]}
+ ["WEIGH by your OWN re-run — never the shadowdancer's report (GREEN IS NOT TRUE). A mid-edit file is a PHANTOM. When TWO agents
+   run in ONE working tree: disjoint files + TARGETED `git add <own files>` (NEVER -A) — the git-layer secare (held clean this session)."
+  "SHADOWDANCER BRIEFS must say 'STAY on the branch, NEVER create/switch'. And CLEAN SURFACE FORMS everywhere ([a b c] / {:k v} /
+   #{a} — the compound up-cast now up-casts them all against the expected type; (println x) NOT (println (edn/write x)))."
+  "DON'T reflect a work-fn VALUE (metadata-of/lookup-define/field-names-of) — it RAISES on an anonymous fn = crashes the parent
+   (CAEDOR ERGO RESEROR). Detect shape via defclause TYPE-dispatch. GROUND before flagging (don't cry cascade off a linter ghost)."
+  "SHADOWDANCERS = SONNET always. NEVER /proc (PID kernel-vouched: Pidfd + SO_PEERCRED). the holonic repos ARE the memory — curare
+   into the REPO, not ~/.claude/MEMORY.md. orchestrator DESIGNS/PROBES/BRIEFS/DELEGATES/WEIGHS — hands-on ONLY the disconfirming
+   probe. four-questions inform every decision; cast wards never narrate."]
+
+ :banked
+ ["<RustStyle> corpus sweep (~1034 wat/ sites — arc 251 shipped the tools; the corpus drive never ran, 251 uninscribed)."
+  "ceremony vectors (:wat::core::Vector :T …) → [ … ] (~485 sites; SKIP empty-vector + deliberate-widening [Vector<Value>])."
+  "comms HolonRepresentable → EdnRepresentable (hat #3); form reflection signature-of-fn/body-of → WatAST; a first-class `eval`
+   wrapper over run-sandboxed-hermetic-ast. HolonAST is HOLOGRAM-ONLY (the north star)."
+  "LIMITATION kept visible: a HashSet<Capability> of ACTUAL opaque handles panics at RUNTIME on hashing (opaque handles aren't
+   hashable) — PRE-EXISTING + orthogonal to the up-cast (the type-check is green; no real consumer sets opaque handles)."]}
 ```
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy bootstrap
-> (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) — skipping the read makes you the daemon (read
-> **MVTATA RADICE HAERESIS SE PRODIT** at the top + **EXPLORANDO DERIVAMVS** + **NIHIL CAECVM NIHIL PERDITVM** below). Ground HEAD
-> against the disk (`77e3db60` + this curare on top) — and note the **fn-forms name→Fn SEAM is UNCOMMITTED/mid-edit in `src/`**
-> (shadowdancer, floor-pending): WEIGH it first (gate `scratchpad/probe-fnforms-keyword.wat`), commit-if-green, else re-strike; a
-> mid-edit file is a PHANTOM. The N-service kwargs design is FULLY MAPPED (`DESIGN-N-SERVICE-KWARGS-INJECTION.md` + the-unification
-> above); do NOT re-scout. The C1 mechanism is PROVEN (`probe-c1-kwargs-invoke.wat`); the wall was `fn-forms` couldn't resolve a
-> computed `<base>$impl` keyword to its fn — the seam fixes exactly that. The WORK resumes at: **weigh the seam → C1 re-runs on the
-> `$impl`-shipping path → C2 → map arg-order flip → spawn-* reserved.** Weigh by your OWN re-run (green is not true); clean surface
-> forms; ground before flagging; shadowdancers=SONNET; the holonic repos are the memory. Do not trust this note over the disk. See you on the far side.
+> (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) and READ 278's realizations WHOLE (R1–R38) + the 170
+> realizations at the TOP of this file — skipping the read makes you the daemon (R20 DAEMON IN ME). Ground HEAD against the disk
+> (`d8d3e11e` + this curare on top). The **fn-forms seam, C1, mod/rem/quot, and the compound up-cast class-fix ALL LANDED** and
+> were weighed by own re-run this session — nothing is in flight. The N-service kwargs design is FULLY MAPPED
+> (`DESIGN-N-SERVICE-KWARGS-INJECTION.md` + `:the-unification`); do NOT re-scout. The WORK resumes at **C2** — N heterogeneous,
+> name+type matched, a wrong-service handle a COMPILE error (C1 binds N=1 POSITIONALLY; C2 closes the soundness gap). Then the
+> map arg-order flip + spawn-* reserved. Weigh by your OWN re-run (green is not true); **STAY on arc-170-gap-j-v5-deadlock-state
+> (never branch)**; clean surface forms; ground before flagging; shadowdancers=SONNET; the holonic repos are the memory. Do not
+> trust this note over the disk. See you on the far side.
