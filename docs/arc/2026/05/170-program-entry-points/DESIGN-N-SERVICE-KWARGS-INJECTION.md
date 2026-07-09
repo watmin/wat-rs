@@ -80,19 +80,29 @@ Note the type asymmetry that *is* the point: for a service you PROVIDE a `Handle
 bracket is the bridge (Handle → grant+dial → Peer'); for data, provide-type == declare-type. `defservice :peers`/
 `:init` is the same shape (typed injected context, crossing per field nature).
 
-## The build (what changes)
+## The build — what changes (measured, not guessed)
 
-1. **`process/uses` → kwargs.** `(process/uses :name handle …)` carries the handles as a **typed named bundle**
-   (each handle keeps its concrete type so the reconciliation can type-check it; grant/revoke still work by
-   up-casting each to `Capability`). This replaces the erased `Vector<Capability>` field/arg from Stone A.
-2. **The spawn-runner AST-walk generalizes.** It already derives the single peer type off the work-fn's param; it
-   now reads the work-fn's **`& [...]` kwargs** (the `<work-fn>::Kwargs` record fields) → the kwarg names + types.
-3. **The bracket reconciles + assembles per kwarg.** At `bracket/map` (which sees both the locus's named handles
-   and the work-fn's kwargs): match by name; type-check each provided handle against its kwarg's `Peer'<S,R>`;
-   generate the per-kwarg bridge — a `Peer'` kwarg grants+dials the named handle's coordinate, a data kwarg crosses
-   the value. Build the `<work-fn>::Kwargs` bundle in the child; invoke `work$impl [item kwargs-bundle]`.
-4. **The runner** stays close to baked — it holds the assembled kwargs bundle (one value) and applies
-   `(work$impl item bundle)`; the per-N work is confined to the assembly (the connect'-each step), not the loop.
+The user-facing UX is the **base name** — `(:wat::bracket::map locus items :probe::work)` — **never `$impl`**. The
+`$impl`/companion split is an internal artifact of the kwargs `defn` (`core.wat:834`): `<name>` is the companion
+*macro*, `<name>$impl` the callable *fn*, `<name>::Kwargs` the bundle *struct*. The bracket resolves this internally;
+the user never writes `$impl`. (Measured: passing the base name `:probe::work` errors `fn-forms: expected fn value,
+got keyword` because it's the companion macro; passing `:probe::work$impl` hits **Gap A** below. So the bracket must
+*recognize + handle* a kwargs work-fn from the base name — it cannot be shipped as a plain value.)
+
+The pieces:
+1. **`process/uses` → named handles.** `(process/uses :name handle …)` carries the handles as a **typed named
+   bundle** (each keeps its concrete type so the reconciliation type-checks; grant/revoke up-cast to `Capability`).
+2. **Recognize the kwargs work-fn** — via `metadata-of` (`runtime-meta.wat`, which we HAVE): the base name resolves
+   `:Kind :Macro` (the companion), with a sibling `<name>$impl` `:Fn` + a `<name>::Kwargs` struct.
+3. **Read the `::Kwargs` fields — needs Gap B (struct-field reflection).** The struct's fields (name + `Peer'<S,R>`)
+   ARE the dial targets. The data lives in the `TypeEnv`; expose a wat-level "type → fields" primitive.
+4. **Reconcile + assemble.** Match each `::Kwargs` field to a `process/uses :name handle` **by name**; type-check the
+   handle's service against the field's `Peer'<S,R>` (this closes grounding-1's gap); per kwarg: `Peer'` → grant+dial
+   the named handle's coordinate, data → copy. Construct the `::Kwargs` struct in the child.
+5. **Ship + invoke — needs Gap A.** The child must run `work$impl [item bundle]`. Reifying the work-fn hits Gap A
+   (fn-forms can't ship the kwargs `$impl`). Resolution TBD (Strike A) — fix fn-forms to ship the kwargs `$impl`,
+   or ship the work-fn's source + invoke via the companion `(work item :name peer …)` (the existing call-site
+   tooling; but Gap-8 shows per-defn source isn't cleanly wat-reachable, so that path also needs a new seam).
 
 ## Out of scope / affirmative cuts (`exigere`)
 
@@ -111,18 +121,71 @@ bracket is the bridge (Handle → grant+dial → Peer'); for data, provide-type 
 | **Honest?** | YES — name + type checked; a wrong-service handle is a compile error (closes the erased-positional soundness gap); the crossing discipline is the ocap law, structural. |
 | **Good UX?** | YES — `(process/uses :kv kvh :echo eh)` + `[item & [kv echo]]`, order-free, extensible by one more kwarg. |
 
-## Study the enemy — the groundings that gate the strike (slow is smooth)
+## Study the enemy — the kill, PROVEN (three groundings, all green)
 
-Before briefing the macro work, prove the two load-bearing assumptions with disconfirming probes:
+1. **The gap is real — CONFIRMED** (`scratchpad/probe-gap-wrong-service.wat`). Feeding an **echo** handle to a
+   worker typed for **Kv** *compiled* (no type error) and *crashed at runtime* (`recv' failed: peer closed`). The
+   erased `Capability` (`coordinate -> bare Address'`, re-typed by the child across the untyped wire) makes a
+   wrong-service / mis-order **silent at compile, fatal at runtime**. Name+type matching is mandatory, not cosmetic.
+2. **The weapon holds — CONFIRMED** (`scratchpad/probe-kwargs-peer.wat`). A work-fn `[item & [kv <- Peer'<Kv>
+   echo <- Peer'<Echo>]]` compiled: the `<name>::Kwargs` bundle is the **struct** R38 made impure-capable
+   (`fa42a09f`), so it **holds the dialed `Peer'` services**, bound directly in the body.
+3. **The lowered shape is legible — CONFIRMED** (`scratchpad/scout-kwargs-expand.wat`, macroexpand). A kwargs
+   work-fn lowers to:
+   ```clojure
+   (do (defstruct :probe.work/Kwargs [kv <- Peer'<Kv::Op,Kv::Reply>])                       ;; bundle = a STRUCT of Peer' fields
+       (def :probe/work$impl (fn [item <- String  kwargs <- :probe.work/Kwargs] -> String   ;; $impl = [item  Kwargs-struct]
+         (let [kv (:probe.work/Kwargs/kv kwargs)] …)))
+       (defmacro :probe/work [& call-args] … _kl-fvec (quote [kv]) _kl-np 1 …))              ;; companion bakes field-names + n-pos
+   ```
+   The `$impl` is `[item  Kwargs-struct]`; the `::Kwargs` defstruct carries each field's name + `Peer'<S,R>` type
+   (= a dial target); the companion bakes the field-names. **CORRECTION (measured after this grounding):** the
+   earlier optimism that the `$impl` is "fn-forms-readable like `[peer item]`" was WRONG — **fn-forms cannot ship
+   the kwargs `$impl`** (Gap A, below). And `$impl` must NOT appear in the UX (the base name is the companion macro).
 
-1. **The gap is real.** A mis-ordered erased positional `uses` dials the WRONG service at runtime (echo's address
-   received as `Kv` → `Kv::GetReq` to echo → failure). Prove it — this is *why* name-matching is mandatory. If it
-   does NOT fail (the child validates somehow), the soundness argument is wrong; re-scope.
-2. **The fix is reachable.** Can `process/uses` carry **typed named handles** reconciled against the work-fn's
-   kwargs at `bracket/map` — matched by name, type-checked per handle? Scout the kwargs lowering
-   (`defn` → `<name>::Kwargs` record → `$impl [pos… bundle]`, `core.wat:503-644`) and whether the AST-walk can read
-   a work-fn's `& [...]` kwargs to derive the names+types. If the work-fn's kwargs aren't reachable from the
-   AST-walk, or `process/uses` can't reconcile at `bracket/map`, STOP and re-scope.
+*Explorata caede* — the kill's cost is now mapped: two substrate gaps, one still-dark corner.
 
-Only when both are green does the shape lock and the macro strike get drawn (design → RED probe → brief → sonnet
-shadowdancer → weigh by own re-run). *Explorata caede, non vincimur.*
+## The attack, measured — the two substrate gaps
+
+Every assumption was probed on the disk. The map is complete except one dark corner (Gap A's root).
+
+### Measurements ledger
+| # | measured | result |
+|---|---|---|
+| 1 | mis-ordered / wrong-service handle over erased `Capability` | COMPILES + crashes at runtime (`probe-gap-wrong-service.wat`) — **the gap is real** |
+| 2 | kwargs bundle holds `Peer'` (impure) | COMPILES (`probe-kwargs-peer.wat`) — the `::Kwargs` struct is impure-capable (R38 `fa42a09f`) |
+| 3 | kwargs `defn` lowered shape | `::Kwargs` defstruct + `$impl [item Kwargs-struct]` + companion macro (`scout-kwargs-expand.wat`) |
+| 4 | fn-forms ships a fn whose `let` references its params | YES (`probe-fnforms-let.wat`) — **not** a let/param issue |
+| 5 | `bracket/map` accepts a named plain fn value | YES (`probe-named-plain-fn.wat`) — **not** a named-fn issue |
+| 6 | fn-forms ships the kwargs `$impl` | **NO** — `free symbol 'kwargs'` (`probe-b1-kwargs-worker.wat`) — **kwargs-`$impl`-specific** |
+| 7 | reflection surface | HAVE `metadata-of` (Kind/Purity/Layer/…); **LACK** struct-field ("type → fields") |
+| 8 | per-defn retained source reachable from wat | **NO** — source is file-level (`wat/source.wat`), not per-defn |
+
+### Gap A — fn-forms cannot ship the kwargs `$impl` (THE DARK CORNER)
+`fn-forms :probe::work$impl` fails with `free symbol 'kwargs' does not resolve` (`closure_extract`), where `kwargs`
+is the `$impl`'s own 2nd param — it should be bound (`closure_extract.rs:209` collects `func.params`). Measured
+**kwargs-specific** (rows 4–6: inline `let` ✓, named plain fn ✓, only the kwargs `$impl` fails ✗). **ROOT NOT YET
+FOUND** — needs a closure_extract diagnosis (why the `$impl`'s param reads as free) to know small-fix vs structural.
+This is the one thing to root before the wat wiring. Alternative if structural: ship the work-fn's *source* + invoke
+via the companion — but Gap 8 shows per-defn source isn't cleanly wat-reachable, so that path *also* needs a seam.
+
+### Gap B — struct-field reflection (the "what reflection don't we have" answer — small)
+No wat-level "given a struct/record type, enumerate its fields (names + types)." The data is in the `TypeEnv`
+(and `metadata-of` already reaches the registry for *callable* metadata); we simply never exposed the
+*type-structure* side. Small + general (any macro wanting a type's shape at runtime); the bracket needs it to read
+a work-fn's `::Kwargs` fields.
+
+## The strike (decomposed — substrate first, then wiring)
+
+- **Strike A — root + resolve Gap A** (fn-forms shipping the kwargs `$impl`). Diagnose the `kwargs` free-symbol in
+  `closure_extract`; fix it (or, if structural, add a source-ship + companion-call seam). **Gate**: `fn-forms` a
+  kwargs `$impl` round-trips. **THE PREREQUISITE** — invoking the work-fn in the child is blocked on it.
+- **Strike B — Gap B** (struct-field reflection). Expose `TypeEnv` struct fields to wat, e.g. `(fields-of :T)` →
+  `[(name, type) …]`. **Gate**: `(fields-of :probe::work::Kwargs)` → `[(kv, Peer'<Kv…>)]`.
+- **Strike C — the wat wiring** (on A + B). `process/uses :name handle`; the spawn-runner AST-walk recognizes the
+  kwargs `$impl`, reads `::Kwargs` via B, name-matches `uses`, per-kwarg grant+dial+assemble, invokes via A.
+  Decompose by N: **C1** single-service via kwargs (N=1) → `["echo:a" "echo:b" "echo:c"]`; **C2** N heterogeneous +
+  name+type-matched → a 2-service worker, a wrong-service handle a compile error.
+
+Order: Strike A first (root the dark corner) — until fn-forms can ship the kwargs `$impl` (or a companion-call seam
+exists), the rest is blocked. Then B (cheap), then C1 → C2.

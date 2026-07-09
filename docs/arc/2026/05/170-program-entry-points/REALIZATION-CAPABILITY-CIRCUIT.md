@@ -372,8 +372,12 @@ PROBATVM, M1-pool PROBANDVM, the flailing unlaundered.*
 ## RESUME-HERE (curare before compaction — 2026-07-08; the one-line fix is teed up)
 
 ```clojure
-{:head   "bc472c7c — capability Stone A CLEAN + pushed (process/uses [handles]; coordinate on the surface). The
-          N-SERVICE design is DRAWN (DESIGN-N-SERVICE-KWARGS-INJECTION.md), gated on 2 groundings — NOT yet struck."
+{:head   "bc472c7c — capability Stone A CLEAN + pushed. The N-SERVICE stone (kwargs-injection) is fully MEASURED +
+          docs in order (DESIGN-N-SERVICE-KWARGS-INJECTION.md — ledger of 8 probes + 2 substrate gaps + strike order).
+          NEXT = Strike A (root Gap A): why does fn-forms reject the kwargs $impl ('free symbol kwargs' in
+          closure_extract) — kwargs-$impl-SPECIFIC (measured: inline-let ships, named-plain ships, only the kwargs
+          $impl fails). That's THE PREREQUISITE (invoking the work-fn in the child is blocked on it). Then Strike B
+          (struct-field reflection: expose TypeEnv fields to wat — small), then Strike C (the wat wiring: C1 N=1, C2 N)."
  :branch "arc-170-gap-j-v5-deadlock-state"
  :arc    "170 — the CAPABILITY CIRCUIT. Single-service PROVEN + CLEAN. FIVE stones landed this session (all pushed):
           179e5606 M1-pool clean (byte-equality proven not name-equality — types.rs:541 existing==&def; a byte-diff
