@@ -4254,21 +4254,16 @@ fn infer_list(
                         return CheckResult::errs(local_errors);
                     }
                 };
-                // Arc-check-literal-elems: a `[...]` literal ascribed to a known
-                // `Vector<T>` type up-casts its elements against T (via
-                // check_vector_literal_against) instead of inferring the whole
-                // literal bottom-up and requiring `assignable` on the result.
-                if let WatAST::Vector(items, _vspan) = &args[0] {
-                    if let Some(elem) = vector_elem_of(&ascribed_ty, subst, env.types()) {
-                        let _ = check_vector_literal_against(items, &elem, env, locals, fresh, subst)
-                            .drain_errors_into(&mut local_errors);
-                        let ty = apply_subst(&ascribed_ty, subst);
-                        return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
-                    }
-                }
-                // Infer the expression's type.
-                let expr_ty = infer(&args[0], env, locals, fresh, subst)
-                    .drain_errors_into(&mut local_errors);
+                // Arc-check-literal-elems (generalized, this strike): a parametric-
+                // compound literal/ctor-call (`[...]` / `{...}` / `#{...}` /
+                // `(:wat::core::Tuple ...)`) ascribed to a known matching expected
+                // type up-casts its components against the expected component
+                // type(s) (via infer_component_against -> check_compound_against_expected)
+                // instead of inferring the whole compound bottom-up and requiring
+                // `assignable` on the result. Non-compound / non-matching-shape exprs
+                // fall back to plain bottom-up infer inside the same helper, so the
+                // `assignable` check below still applies uniformly to both cases.
+                let expr_ty = infer_component_against(&args[0], &ascribed_ty, env, locals, fresh, subst, &mut local_errors);
                 // Require expr's type S assignable to the ascribed type T.
                 if let Some(s) = expr_ty {
                     if !assignable(&s, &ascribed_ty, subst, env) {
@@ -6309,19 +6304,12 @@ fn infer_list(
                 .enumerate()
                 .take(param_types.len())
             {
-                // Arc-check-literal-elems: same up-cast as the strict-arity loop below —
-                // a `[...]` literal against a known `Vector<T>` fixed-slot expected type
-                // checks its elements against T instead of inferring bottom-up.
-                let arg_ty = if let WatAST::Vector(items, _vspan) = arg {
-                    if let Some(elem) = vector_elem_of(expected, subst, env.types()) {
-                        check_vector_literal_against(items, &elem, env, locals, fresh, subst)
-                            .drain_errors_into(&mut local_errors)
-                    } else {
-                        infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
-                    }
-                } else {
-                    infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
-                };
+                // Arc-check-literal-elems (generalized, this strike): same up-cast as
+                // the strict-arity loop below — a parametric-compound literal/ctor-call
+                // against a known matching fixed-slot expected type checks its
+                // components against the expected component type(s) instead of
+                // inferring bottom-up.
+                let arg_ty = infer_component_against(arg, expected, env, locals, fresh, subst, &mut local_errors);
                 if let Some(arg_ty) = arg_ty {
                     if !assignable(&arg_ty, expected, subst, env) {
                         local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -6376,19 +6364,12 @@ fn infer_list(
         }
 
         for (i, (arg, expected)) in args.iter().zip(&param_types).enumerate() {
-            // Arc-check-literal-elems: a `[...]` literal in a call-arg slot with a
-            // known `Vector<T>` expected type up-casts its elements against T
-            // (via check_vector_literal_against) instead of inferring bottom-up.
-            let arg_ty = if let WatAST::Vector(items, _vspan) = arg {
-                if let Some(elem) = vector_elem_of(expected, subst, env.types()) {
-                    check_vector_literal_against(items, &elem, env, locals, fresh, subst)
-                        .drain_errors_into(&mut local_errors)
-                } else {
-                    infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
-                }
-            } else {
-                infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors)
-            };
+            // Arc-check-literal-elems (generalized, this strike): a parametric-
+            // compound literal/ctor-call in a call-arg slot with a known matching
+            // expected type up-casts its components against the expected
+            // component type(s) (via infer_component_against) instead of
+            // inferring bottom-up.
+            let arg_ty = infer_component_against(arg, expected, env, locals, fresh, subst, &mut local_errors);
             if let Some(arg_ty) = arg_ty {
                 if !assignable(&arg_ty, expected, subst, env) {
                     local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -14705,6 +14686,31 @@ fn vector_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeEx
     }
 }
 
+/// Component-inference helper shared by every `check_*_against` function
+/// below: infers `node`'s type for a slot with known `expected` type, trying
+/// the compound-up-cast dispatcher FIRST (so a NESTED compound — e.g. a
+/// `(:wat::core::Tuple ...)` ctor call as an ELEMENT of a `[...]` vector
+/// literal, exactly the shape `process/uses`'s macro spreads into
+/// `process/uses-pairs`'s `Vector<Tuple<keyword,Capability>>` slot — also
+/// up-casts recursively), falling back to plain bottom-up `infer` when
+/// `node` isn't a recognized compound form or doesn't match `expected`'s
+/// shape. Errors drain into `local_errors` either way.
+fn infer_component_against(
+    node: &WatAST,
+    expected: &TypeExpr,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    local_errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if let Some(result) = check_compound_against_expected(node, expected, env, locals, fresh, subst) {
+        result.drain_errors_into(local_errors)
+    } else {
+        infer(node, env, locals, fresh, subst).drain_errors_into(local_errors)
+    }
+}
+
 /// Expected-type-directed check of a `[...]` vector literal.
 ///
 /// When a `WatAST::Vector` literal appears in a position with a known expected
@@ -14725,7 +14731,7 @@ fn check_vector_literal_against(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     for (i, item) in items.iter().enumerate() {
-        let item_ty = infer(item, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        let item_ty = infer_component_against(item, expected_elem, env, locals, fresh, subst, &mut local_errors);
         if let Some(item_ty) = item_ty {
             if !assignable(&item_ty, expected_elem, subst, env) {
                 local_errors.push(CheckError { span: item.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -14742,6 +14748,232 @@ fn check_vector_literal_against(
         args: vec![apply_subst(expected_elem, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+// ─── Expected-type-directed up-cast: the same rule, generalized to ALL FOUR
+// parametric compound forms (this strike) ──────────────────────────────────
+//
+// `vector_elem_of` / `check_vector_literal_against` above (fbc60b94) are the
+// TEMPLATE: a `[...]` literal in a position with a known expected `Vector<T>`
+// up-casts its elements against T (via `assignable`) instead of inferring
+// bottom-up and requiring `assignable` on the whole result. The disease is
+// the same in the other three parametric compounds — Tuple, Map, Set — so
+// the cure is the same shape, sibling-by-sibling, dispatched through one
+// `check_compound_against_expected` so the three wiring sites (ann-form +
+// the two call-arg loops) only need ONE call each, not four.
+
+/// Expected-type reduction helper: reduce/walk `t` and, iff it is
+/// `HashMap<K,V>` (`Parametric{ head == "wat::core::HashMap", args.len()==2}`),
+/// return `Some((K,V))`; else `None`. Mirrors `vector_elem_of`.
+fn map_kv_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<(TypeExpr, TypeExpr)> {
+    let reduced = reduce(&walk(t, subst), subst, types);
+    match reduced {
+        TypeExpr::Parametric { head, args }
+            if head == "wat::core::HashMap" && args.len() == 2 =>
+        {
+            Some((args[0].clone(), args[1].clone()))
+        }
+        _ => None,
+    }
+}
+
+/// Expected-type reduction helper: reduce/walk `t` and, iff it is
+/// `HashSet<T>` (`Parametric{ head == "wat::core::HashSet", args.len()==1}`),
+/// return `Some(T)`; else `None`. Mirrors `vector_elem_of`.
+fn set_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeExpr> {
+    let reduced = reduce(&walk(t, subst), subst, types);
+    match reduced {
+        TypeExpr::Parametric { head, args }
+            if head == "wat::core::HashSet" && args.len() == 1 =>
+        {
+            Some(args[0].clone())
+        }
+        _ => None,
+    }
+}
+
+/// Expected-type reduction helper: reduce/walk `t` and, iff it is
+/// `TypeExpr::Tuple(elems)` (tuple types are NOT `Parametric` — they're
+/// their own AST variant, see `parse_type_node`'s `(wat.type/Tuple A B)`
+/// handling in types.rs), return `Some(elems)`; else `None`.
+fn tuple_elems_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<Vec<TypeExpr>> {
+    let reduced = reduce(&walk(t, subst), subst, types);
+    match reduced {
+        TypeExpr::Tuple(elems) => Some(elems),
+        _ => None,
+    }
+}
+
+/// Expected-type-directed check of a `{k v ...}` map literal. Mirrors
+/// `check_vector_literal_against`: each key up-casts against `K`, each value
+/// up-casts against `V` (via `assignable`); returns `HashMap<K,V>` (the
+/// compound is BORN at the expected type). Sound (up-cast only): a
+/// non-assignable key or value still errors.
+fn check_map_literal_against(
+    pairs: &[(WatAST, WatAST)],
+    expected_k: &TypeExpr,
+    expected_v: &TypeExpr,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    for (i, (k_node, v_node)) in pairs.iter().enumerate() {
+        let k_ty = infer_component_against(k_node, expected_k, env, locals, fresh, subst, &mut local_errors);
+        if let Some(k_ty) = k_ty {
+            if !assignable(&k_ty, expected_k, subst, env) {
+                local_errors.push(CheckError { span: k_node.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: "{…} map literal".into(),
+                    param: format!("key #{}", i + 1),
+                    expected: format_type(&apply_subst(expected_k, subst)),
+                    got: format_type(&apply_subst(&k_ty, subst)),
+                } });
+            }
+        }
+        let v_ty = infer_component_against(v_node, expected_v, env, locals, fresh, subst, &mut local_errors);
+        if let Some(v_ty) = v_ty {
+            if !assignable(&v_ty, expected_v, subst, env) {
+                local_errors.push(CheckError { span: v_node.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: "{…} map literal".into(),
+                    param: format!("value #{}", i + 1),
+                    expected: format_type(&apply_subst(expected_v, subst)),
+                    got: format_type(&apply_subst(&v_ty, subst)),
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::HashMap".into(),
+        args: vec![apply_subst(expected_k, subst), apply_subst(expected_v, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Expected-type-directed check of a `#{a b ...}` set literal. Mirrors
+/// `check_vector_literal_against`: each element up-casts against `T` (via
+/// `assignable`); returns `HashSet<T>` (the compound is BORN at the expected
+/// type). Sound (up-cast only): a non-assignable element still errors.
+fn check_set_literal_against(
+    items: &[WatAST],
+    expected_elem: &TypeExpr,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        let item_ty = infer_component_against(item, expected_elem, env, locals, fresh, subst, &mut local_errors);
+        if let Some(item_ty) = item_ty {
+            if !assignable(&item_ty, expected_elem, subst, env) {
+                local_errors.push(CheckError { span: item.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: "#{…} set literal".into(),
+                    param: format!("element #{}", i + 1),
+                    expected: format_type(&apply_subst(expected_elem, subst)),
+                    got: format_type(&apply_subst(&item_ty, subst)),
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Parametric {
+        head: "wat::core::HashSet".into(),
+        args: vec![apply_subst(expected_elem, subst)],
+    };
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Expected-type-directed check of a `(:wat::core::Tuple a b ...)` ctor
+/// call. Mirrors `check_vector_literal_against`: component `i` up-casts
+/// against expected component-type `i` (via `assignable`); returns the
+/// expected `Tuple<...>` shape (the compound is BORN at the expected type).
+/// Arity mismatch is still a hard error (not an up-cast question) — falls
+/// back to bottom-up inference per-arg so spans/errors still propagate.
+fn check_tuple_constructor_against(
+    args: &[WatAST],
+    expected_elems: &[TypeExpr],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != expected_elems.len() {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: ":wat::core::Tuple".into(),
+            expected: expected_elems.len(),
+            got: args.len(),
+        } });
+        let mut elements = Vec::with_capacity(args.len());
+        for arg in args {
+            let ty = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors).unwrap_or_else(|| fresh.fresh());
+            elements.push(apply_subst(&ty, subst));
+        }
+        return CheckResult::partial_with(TypeExpr::Tuple(elements), local_errors);
+    }
+    for (i, (arg, expected)) in args.iter().zip(expected_elems.iter()).enumerate() {
+        let arg_ty = infer_component_against(arg, expected, env, locals, fresh, subst, &mut local_errors);
+        if let Some(arg_ty) = arg_ty {
+            if !assignable(&arg_ty, expected, subst, env) {
+                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: ":wat::core::Tuple".into(),
+                    param: format!("#{}", i + 1),
+                    expected: format_type(&apply_subst(expected, subst)),
+                    got: format_type(&apply_subst(&arg_ty, subst)),
+                } });
+            }
+        }
+    }
+    let ty = TypeExpr::Tuple(expected_elems.iter().map(|e| apply_subst(e, subst)).collect());
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Single dispatcher for the whole class: when `node` is one of the four
+/// parametric-compound forms (`WatAST::Vector`, `WatAST::Map`, `WatAST::Set`,
+/// or a `(:wat::core::Tuple ...)` ctor call) AND `expected` reduces to the
+/// matching parametric/tuple shape, returns `Some(check-result)` from the
+/// matching `check_*_against` helper — the compound is checked
+/// component-wise UP-CAST against the expected type instead of inferred
+/// bottom-up. Returns `None` when `node` isn't a recognized compound form or
+/// `expected` doesn't match its shape; callers fall back to plain bottom-up
+/// `infer`. Wired at the three expected-type-known positions (the ann-form
+/// arm and the two call-arg loops) — ONE call site each, instead of one
+/// per-form check duplicated three times.
+fn check_compound_against_expected(
+    node: &WatAST,
+    expected: &TypeExpr,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> Option<CheckResult<TypeExpr>> {
+    match node {
+        WatAST::Vector(items, _) => {
+            let elem = vector_elem_of(expected, subst, env.types())?;
+            Some(check_vector_literal_against(items, &elem, env, locals, fresh, subst))
+        }
+        WatAST::Map(pairs, _) => {
+            let (k, v) = map_kv_of(expected, subst, env.types())?;
+            Some(check_map_literal_against(pairs, &k, &v, env, locals, fresh, subst))
+        }
+        WatAST::Set(items, _) => {
+            let elem = set_elem_of(expected, subst, env.types())?;
+            Some(check_set_literal_against(items, &elem, env, locals, fresh, subst))
+        }
+        WatAST::List(items, span) => {
+            // Tuple ctor call: `(:wat::core::Tuple a b ...)` — a constructor
+            // call, not a brace literal, so detection is head-keyword-based.
+            let head = items.first()?;
+            let WatAST::Keyword(k, _) = head else { return None; };
+            if k != ":wat::core::Tuple" {
+                return None;
+            }
+            let elems = tuple_elems_of(expected, subst, env.types())?;
+            Some(check_tuple_constructor_against(&items[1..], &elems, span, env, locals, fresh, subst))
+        }
+        _ => None,
+    }
 }
 
 /// Arc 220 Stone 220.4 — `:wat::core::List/of` variadic constructor.

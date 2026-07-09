@@ -188,10 +188,12 @@
                 (:wat::core::let
                   [kn   (:wat::core::Option/expect (:wat::core::get kvs (:wat::core::i64::* i 2)) "process/uses: key index")
                    vn   (:wat::core::Option/expect (:wat::core::get kvs (:wat::core::i64::+ (:wat::core::i64::* i 2) 1)) "process/uses: val index")
-                   ;; force the up-cast to Capability at the SCALAR call boundary (proven to
-                   ;; work; a Tuple constructor is NOT component-wise up-cast — see
-                   ;; :wat::capability::as-capability's doc comment) before tupling.
-                   pair `(:wat::core::Tuple ~kn (:wat::capability::as-capability ~vn))]
+                   ;; the Tuple constructor is now component-wise up-cast against its expected
+                   ;; type (arc-check-literal-elems, generalized) — vn's concrete Handle
+                   ;; up-casts to Capability directly at construction, recursively, even
+                   ;; nested inside the spliced Vector<(keyword,Capability)> below. No scalar
+                   ;; pre-up-cast needed (as-capability retired).
+                   pair `(:wat::core::Tuple ~kn ~vn)]
                   (:wat::core::conj acc pair)))
               (:wat::core::Vector :wat::WatAST)
               (:wat::core::range 0 npairs))]
