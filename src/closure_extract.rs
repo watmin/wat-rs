@@ -476,9 +476,25 @@ pub fn eval_kernel_fn_forms(
         } });
     }
 
-    // arg 0: the fn value to reify.
+    // arg 0: the fn value to reify. A runtime-computed keyword naming a
+    // registered def (e.g. built via `keyword/from-string`) does NOT
+    // auto-upgrade to its fn the way a *literal* keyword node does (the
+    // arc-009 "names are values" lift lives in `eval`'s `WatAST::Keyword`
+    // arm, runtime.rs, and only fires when the keyword is a literal AST
+    // node in source). Mirror that exact resolution here so a keyword
+    // Value arriving through computation also resolves.
     let fn_value = match eval(&args[0], env, sym)?.value_owned() {
         v @ Value::wat__core__fn(_) => v,
+        Value::wat__core__keyword(k) => match sym.get(&k) {
+            Some(func) => Value::wat__core__fn(func.clone()),
+            None => {
+                return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "a keyword naming a registered fn (or a fn value)",
+                    got: Box::new(ValueSnapshot::of(&Value::wat__core__keyword(k))),
+                } });
+            }
+        },
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),

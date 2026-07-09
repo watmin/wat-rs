@@ -11450,7 +11450,13 @@ fn infer_spawn_process_prime(
 ///   the checker accepts ANY fn value here (mirrors `spawn-thread'`'s
 ///   init-fn arg: "the checker does not project deeper"; runtime validates
 ///   it is a `Value::wat__core__fn`). This is the established "accept any
-///   Fn" posture — no new type-system feature needed.
+///   Fn" posture — no new type-system feature needed. This permissiveness
+///   is also what lets a `:wat::core::keyword` flow through arg 0 (a
+///   runtime-computed keyword naming a registered def, e.g. built via
+///   `keyword/from-string`): the checker can't statically distinguish
+///   "keyword naming a fn" from "any keyword", so it doesn't try — the
+///   runtime resolves the keyword to its `Function` (mirroring arc-009's
+///   literal-keyword lift) or raises a located `TypeMismatch` on a miss.
 /// - `args[1]`: `name`, the bind-name; inferred and unified with
 ///   `:wat::core::keyword`.
 ///
