@@ -379,7 +379,51 @@ call it emits, does the catching. **Unbuilt, unprobed as a whole** — flagged f
 4. File the `extend-type`-on-a-generic-struct silent-no-op as its own bug (STOP-1's C probe) — independent of whether C2
    ever needs generic-struct `extend-type`, a declaration that's accepted but never satisfiable at any call site is a footgun.
 
-### W2/W3 — RATIFIED (2026-07-09): the carrier is `bracket/uses` (macro) + `bracket/uses'` (impl)
+### W2 MECHANISM CORRECTED (2026-07-09b) — reflection at macro-expand is NOT viable; the check is minted at defn-time (Path B)
+
+> **A disconfirming probe overturned the reflection assumption below.** The scout's `bracket/uses` macro was to
+> reflect the work-fn's `::Kwargs` (via `field-*-of`) at MACRO-EXPAND time to build the per-field `Address'` check.
+> **It cannot:** `field-types-of :probe::enrich::Kwargs` inside a macro body fails with `unknown type
+> ':probe::enrich::Kwargs'` — the `::Kwargs` type is not registered when a macro expands (it registers later, at
+> freeze). The SAME call works at runtime/check-time — which is why C1's `process-work-forms` (a *defclause*, not a
+> macro) reflects `::Kwargs` fine. Probes (harness scratchpad, ephemeral): `probe-w2-reflect-at-macro-expand.wat`
+> (fails at expand) vs `probe-w2-reflect-at-runtime.wat` (works at runtime).
+>
+> **Path B (ratified via the four-questions — Obvious+Simple+Honest+Good-UX all YES; the check-time-reflection-hook
+> alternative died on Obvious+Simple):** don't reflect at expand — mint the check where the field types are LITERAL
+> source (defn-time), as an ordinary typed fn, and let the ORDINARY type checker fire at freeze.
+>
+> - **Auto-mint `<fqdn>::kwargs-check`** at the site where the kwargs `defn` already mints `$impl` / the companion /
+>   `::Kwargs`. It is a KWARGS fn whose params are the field-ordered `Address'<S,R>` types (head-swap `Peer'<S,R>` →
+>   `Address'<S,R>`, exactly the transform C1's `process-work-forms` does at `bracket.wat:266-270`, but from the
+>   literal defn source — zero reflection):
+>   ```clojure
+>   (:wat::core::defn :probe::enrich::kwargs-check
+>     [& [echo <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>
+>         kv   <- :wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>
+>         tag  <- :wat::core::String]]           ;; a data kwarg keeps its own type
+>     -> :wat::core::nil nil)
+>   ```
+> - **`bracket/uses` degenerates to a THIN macro**: rewrap each service `:name val` → `:name (Dialable/coord val)`
+>   (data kwargs pass through unwrapped), emit ONE call `(:probe::enrich::kwargs-check :echo (Dialable/coord eh) …)`,
+>   then hand off to the runner (W3). NO reflection, NO field-name/type knowledge at expand — the generated kwargs
+>   checker name-matches (its own kwargs) and the ordinary checker catches the swap.
+> - **PROVEN (2026-07-09b, on the disk):** the hand-written checker shape catches it — `probe-w2b-ok.wat` (correct,
+>   order-free) freezes CLEAN; `probe-w2b-swap.wat` (swapped) is a located `TypeMismatch` at `wat --check`:
+>   `expects Address'<probe::Echo::Op,probe::Echo::Reply>; got Address'<probe::Kv::Op,probe::Kv::Reply>`. This is the
+>   same compile-time mechanism the committed test `tests/services/probe_arc170_wrong_service_colocation_bad.wat`
+>   proves — B just GENERATES the checker (kwargs-keyed → order-free) instead of hand-writing a positional `dial-all`.
+>
+> **The user-form UX and the compile-time guarantee are UNCHANGED** (the whole point — the reflection was an
+> internal detail): the forms below stand verbatim; only the internal "how the check is emitted" changes from
+> macro-reflection to defn-time-minted checker. **Build order (B):** (1) auto-mint `<fqdn>::kwargs-check` at the
+> kwargs-defn codegen site; (2) `bracket/uses` (thin macro: rewrap + forward + hand to runner); (3) `bracket/uses'`
+> runtime — generalize C1's `process-work-forms` N=1 → N. The GATE is unchanged (swap → located `TypeMismatch`;
+> correct → `["run-7 echo:a·kv:a" …]`). The `field-*-of`-at-macro-expand reflection and the A/B/C carrier analysis
+> below are SUPERSEDED by this; the user-forms + target-expansion sections are kept (UX unchanged; the target
+> expansion's `(ann-form (Dialable/coord h) <field Address'>)` is now the `kwargs-check` call, semantically identical).
+
+### W2/W3 — RATIFIED (2026-07-09): the carrier is `bracket/uses` (macro) + `bracket/uses'` (impl)  *(mechanism superseded by Path B above; UX + gate unchanged)*
 
 The W2 scout's synthesis is RATIFIED with the builder, named per the companion/prime convention (same shape as
 every `<name>` / `<name>$impl` kwargs companion in the language):
