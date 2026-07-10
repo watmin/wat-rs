@@ -1,0 +1,15 @@
+;; Arc 170 C2 soundness NEGATIVE — a satisfier whose method body returns the WRONG type must be
+;; rejected. BadBox claims `Holds<i64>` (via extend-type) but its `get` returns a String (its own
+;; field), violating the surface's `-> :T` bound (T = i64 per the extend-type target). This proves
+;; the receiver-satisfaction fix (commit b2360c7a): a mistyped satisfier is caught at check time,
+;; not silently accepted.
+
+(:wat::core::defsurface :probe::Holds<T> :nature :wat::core::Struct
+  :features
+  [(get [self <- :probe::Holds<T>] -> :T)])
+
+(:wat::core::defrecord :probe::BadBox [s <- :wat::core::String])
+(:wat::core::extend-type :probe::BadBox :probe::Holds<wat::core::i64>
+  (get [self] (:probe::BadBox/s self)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "x"))

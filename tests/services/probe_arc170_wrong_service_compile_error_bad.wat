@@ -1,0 +1,38 @@
+;; Arc 170 wrong-service compile error — NEGATIVE: the wrong-service swap.
+;; Two services (:probe::echo' / :probe::kv'); :user::main ascribes the KV handle's
+;; auto-emitted Dialable/coord to an ECHO address. The auto-emitted typed coordinate
+;; (:wat::capability::Dialable<S,R>, baked in wat/capability.wat + auto-emitted per
+;; service in wat/service.wat) must catch this at check time as a located TypeMismatch
+;; — never a runtime "peer closed".
+
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+(:wat::service::defservice :probe::echo'
+  :satisfies :probe::Echo  :durable []  :ephemeral []
+  :impls [(echo [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
+   (:wat::core::defrecord :probe::Kv::GetResponse [v <- :wat::core::String])]
+  :features
+  [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse)])
+(:wat::service::defservice :probe::kv'
+  :satisfies :probe::Kv  :durable []  :ephemeral []
+  :impls [(get [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Kv::GetResponse (:probe::Kv::GetRequest/k req))))])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     kvh (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))
+     bad (:wat::core::ann-form (:wat::capability::Dialable/coord kvh)
+           :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)]
+    (:wat::kernel::println "measured")))

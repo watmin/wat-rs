@@ -1,0 +1,48 @@
+;; Arc 170 wrong-service compile error — NEGATIVE: co-location angle.
+;; A Tuple of typed coords carries a field-ordered contract through a `let`; a SWAPPED
+;; tuple is rejected at a downstream consumer. De-rotted from scratchpad/probe-c2-colocation.wat:
+;; the hand-written `(defsurface :probe::Dialable<S,R> ...)` + two `extend-type`s are DELETED
+;; (the baked :wat::capability::Dialable<S,R> now auto-emits this per defservice — hand-declaring
+;; it DUPLICATE-DEFINEs). Every `:probe::Dialable/coord` call becomes `:wat::capability::Dialable/coord`.
+;; EXPECT: a located TypeMismatch from the swapped Tuple vs the field-ordered contract (NOT
+;; DuplicateDefine).
+
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+(:wat::service::defservice :probe::echo'
+  :satisfies :probe::Echo  :durable []  :ephemeral []
+  :impls [(echo [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
+   (:wat::core::defrecord :probe::Kv::GetResponse [v <- :wat::core::String])]
+  :features
+  [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse)])
+(:wat::service::defservice :probe::kv'
+  :satisfies :probe::Kv  :durable []  :ephemeral []
+  :impls [(get [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Kv::GetResponse (:probe::Kv::GetRequest/k req))))])
+
+;; the downstream consumer — expects the FIELD-ORDERED address contract (stands in for ::Kwargs):
+(:wat::core::defn :probe::dial-all
+  [contract <- :(wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>,wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>)]
+  -> :wat::core::nil
+  nil)
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [eh   (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     kvh  (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))
+     good (:wat::core::Tuple (:wat::capability::Dialable/coord eh)  (:wat::capability::Dialable/coord kvh))
+     bad  (:wat::core::Tuple (:wat::capability::Dialable/coord kvh) (:wat::capability::Dialable/coord eh))
+     _    (:probe::dial-all good)
+     _    (:probe::dial-all bad)]
+    nil))

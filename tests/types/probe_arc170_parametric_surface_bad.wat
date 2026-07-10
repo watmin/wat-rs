@@ -1,0 +1,17 @@
+;; NEGATIVE variant of probe_arc170_parametric_surface.wat — `bad` is the ONLY ascription.
+;; Proves the parametric surface return is genuinely TYPED (resolved to i64 per the IntBox
+;; satisfier), not bare/any: ascribing it to String must be a located TypeMismatch.
+
+(:wat::core::defsurface :probe::Holds<T> :nature :wat::core::Struct
+  :features
+  [(get [self <- :probe::Holds<T>] -> :T)])
+
+(:wat::core::defrecord :probe::IntBox [n <- :wat::core::i64])
+(:wat::core::extend-type :probe::IntBox :probe::Holds<wat::core::i64>
+  (get [self] (:probe::IntBox/n self)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [b   (:probe::IntBox 42)
+     bad (:wat::core::ann-form (:probe::Holds/get b) :wat::core::String)]
+    (:wat::kernel::println "measured")))
