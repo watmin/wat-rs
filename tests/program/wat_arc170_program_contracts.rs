@@ -660,12 +660,19 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
     let world = freeze_trivial();
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))
     "#,
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let handle = process_handle_field(&process);
+    // MEASURE the child ran: it announces itself on its stdout pipe.
+    let types = world.symbols().types().map(|a| a.as_ref());
+    let receiver_val = wat::channel::receiver_from_pipe(process_stdout_field(&process));
+    match drive_typed_recv(unwrap_receiver_inner(&receiver_val), types) {
+        Value::String(s) => assert_eq!(&*s, "spawned child", "expected spawned child; got {:?}", s),
+        other => panic!("expected String; got {:?}", other),
+    }
     // Drop process Struct → stdin/stdout/stderr pipes close; child exits 0.
     drop(process);
     wait_child_exit_ok(handle);
@@ -685,12 +692,19 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
     let world = freeze_trivial();
     let call = build_spawn_process_call(
         r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
+        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))
     "#,
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
     let handle = process_handle_field(&process);
+    // MEASURE the child ran: it announces itself on its stdout pipe.
+    let types = world.symbols().types().map(|a| a.as_ref());
+    let receiver_val = wat::channel::receiver_from_pipe(process_stdout_field(&process));
+    match drive_typed_recv(unwrap_receiver_inner(&receiver_val), types) {
+        Value::String(s) => assert_eq!(&*s, "spawned child", "expected spawned child; got {:?}", s),
+        other => panic!("expected String; got {:?}", other),
+    }
     // Drop process → tx drops → child's rx disconnects → child returns nil → exit 0.
     drop(process);
     // First wait — real waitpid; caches exit 0.
@@ -1034,11 +1048,18 @@ fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
     for _ in 0..3 {
         let call = build_spawn_process_call(
             r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))
         "#,
         );
         let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
         let handle = process_handle_field(&process);
+        // MEASURE the child ran: it announces itself on its stdout pipe.
+        let types = world.symbols().types().map(|a| a.as_ref());
+        let receiver_val = wat::channel::receiver_from_pipe(process_stdout_field(&process));
+        match drive_typed_recv(unwrap_receiver_inner(&receiver_val), types) {
+            Value::String(s) => assert_eq!(&*s, "spawned child", "expected spawned child; got {:?}", s),
+            other => panic!("expected String; got {:?}", other),
+        }
         // Drop process → child exits 0.
         drop(process);
         wait_child_exit_ok(handle);

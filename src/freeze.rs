@@ -533,6 +533,11 @@ pub enum StartupError {
     /// that did not evaluate to a function value at freeze, or whose
     /// signature did not match `:fn(:i64) -> :i64`.
     SigmaFn(String),
+    /// Arc 170 — the `:user::main` wall, imposed at `startup_from_source`.
+    /// Fires when a declared `:user::main` is not exactly `[] -> :wat::core::nil`
+    /// ([`validate_user_main_signature`]) or its body is the bare `nil` literal
+    /// ([`validate_user_main_not_useless`], UselessMain).
+    MainSignature(String),
 }
 
 impl fmt::Debug for StartupError {
@@ -690,7 +695,20 @@ pub fn startup_from_source(
     // to `<entry>` for in-memory / test sources. Arc 016 slice 1.
     let file_label = base_canonical.unwrap_or("<entry>");
     let entry_forms = parse_all_with_file(entry_src, file_label)?;
-    startup_from_forms(entry_forms, base_canonical, loader)
+    let world = startup_from_forms(entry_forms, base_canonical, loader)?;
+    // Arc 170 — the `:user::main` wall. Imposed HERE (not in
+    // `startup_from_forms`) because this is the chokepoint every real
+    // entry path routes through (`startup_from_file` / `startup_beside` /
+    // `cargo wat` / the wat-scripts load gate); `startup_from_forms` stays
+    // usable by internal callers (macro-expanded sandboxes, dynamically
+    // generated tests, compiler passes) that legitimately build worlds
+    // without a `:user::main`. Conditional on `:user::main` being
+    // declared at all — `startup_bare()` (no main) passes cleanly.
+    if world.symbols().get(":user::main").is_some() {
+        validate_user_main_signature(&world).map_err(StartupError::MainSignature)?;
+        validate_user_main_not_useless(&world).map_err(StartupError::MainSignature)?;
+    }
+    Ok(world)
 }
 
 /// Slurp a workspace-relative `.wat` file and start it up — the canonical loader for
@@ -1111,6 +1129,35 @@ pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> 
     Ok(())
 }
 
+/// A declared `:user::main` must DO something — its body may not be the bare
+/// `nil` literal. "Either give it a real body or omit the main entirely."
+/// (arc 170, the UselessMain wall.) Semantic uselessness is undecidable; we
+/// wall the one literal form sonnets keep writing:
+/// `(:user::main [] -> :wat::core::nil nil)`.
+pub fn validate_user_main_not_useless(frozen: &FrozenWorld) -> Result<(), String> {
+    let func = match frozen.symbols().get(":user::main") {
+        Some(f) => f,
+        None => return Ok(()), // no main declared — nothing to check
+    };
+    if let FunctionBody::Wat(ast) = &func.body {
+        if matches!(&**ast, WatAST::NilLit(_)) {
+            return Err(
+                ":user::main body is the bare `nil` literal (UselessMain). \
+                 A declared :user::main must DO something — either give it a real \
+                 body, or OMIT the main entirely (not every file needs one; only \
+                 programs that RUN). Never write `(:user::main [] -> :wat::core::nil nil)`. \
+                 And do NOT cheat by wrapping a no-op to slip past this check — \
+                 `(:user::main [] -> :wat::core::nil (:wat::core::let [_ 0] nil))`, \
+                 `(... (:wat::core::do nil))`, or any body that computes nothing and \
+                 returns nil is the SAME uselessness in disguise and will be rejected on \
+                 sight in review. If the file does not need to RUN, delete the main."
+                    .to_string(),
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Reader-friendly rendering of a [`TypeExpr`] for diagnostic messages.
 /// Matches the surface form users write in wat source — same grammar
 /// the parser accepts.
@@ -1527,7 +1574,7 @@ mod tests {
         // substrate maps to libc::exit(0).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defn :user::main [] -> :wat::core::nil nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");

@@ -27,7 +27,6 @@ fn gen_world(depth: usize) -> String {
              (:wat::core::defrecord :casc::Tag{k}   [id <- :wat::core::i64])\n"
         ));
     }
-    s.push_str("(:wat::core::defn :user::main [] -> :wat::core::nil nil)");
     s
 }
 

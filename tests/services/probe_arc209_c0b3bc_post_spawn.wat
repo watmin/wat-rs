@@ -10,6 +10,6 @@
                  (:wat::core::let [_ (:wat::kernel::send' tx (:wat::spawn::ProcessLaunch/pid launch))]
                    nil)))
              (:wat::core::forms
-               (:wat::core::defn :user::main [] -> :wat::core::nil nil)))
+               (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))
      pid   (:wat::kernel::recv' rx)]
     pid))

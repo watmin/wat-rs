@@ -50,7 +50,7 @@ fn harness_composes_multiple_deps_into_user_source() {
         // Arc 170 slice 1f-ζ: canonical nil main; dep functions verified
         // via eval_in_frozen on the frozen world.
         let user = r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
         "#;
         let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
         let out = h.run(&[]).expect("run");
@@ -79,7 +79,7 @@ fn harness_same_deps_usable_from_different_entry_source() {
     wat::process::run_in_fork(|| {
         // Arc 170 slice 1f-ζ: canonical nil main; dep-a verified via eval.
         let user = r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
         "#;
         let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
         let out = h.run(&[]).expect("run");
@@ -102,7 +102,7 @@ fn harness_with_zero_deps_matches_from_source() {
         // Arc 170 slice 1f-ζ: canonical nil main. Passing &[] uses no deps.
         // Verify both harness constructions succeed and run returns Ok.
         let src = r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil nil)
+            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
         "#;
         let h_no_deps = Harness::from_source_with_deps(src, &[], &[]).expect("freeze-empty-deps");
         let h_ref = Harness::from_source(src).expect("freeze-from-source");

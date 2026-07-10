@@ -6,5 +6,3 @@
 (:wat::holon::defrecord :geo::HCircle [color <- :wat::core::String  radius <- :wat::core::f64])
 (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
   "ok")
-(:wat::core::defn :user::main [] -> :wat::core::String
-  (:geo::describe (:geo::HCircle "red" 2.0)))

@@ -2602,7 +2602,7 @@ mod tests {
   :then\n\
   (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
 \n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+";
 
     /// Eval a `src` expression in the cold-and-windy frozen world; panics on error.
     fn ev(src: &str) -> Value {
@@ -2825,7 +2825,7 @@ mod tests {
         // 1-condition world: only the Temp record type + main fn (no defrule).
         const TEMP_WORLD: &str = "\
 (:wat::core::defrecord :user::Temp [value <- :wat::core::i64])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+";
 
         let world = startup_from_source(TEMP_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");
@@ -2915,7 +2915,7 @@ mod tests {
         const JOIN_WORLD: &str = "\
 (:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+";
 
         let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");
@@ -3000,7 +3000,7 @@ mod tests {
         const JOIN_WORLD: &str = "\
 (:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+";
 
         let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");
@@ -3073,7 +3073,7 @@ mod tests {
         const JOIN_WORLD: &str = "\
 (:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
-(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+";
 
         let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("world should freeze");

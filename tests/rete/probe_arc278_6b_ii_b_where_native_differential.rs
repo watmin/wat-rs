@@ -29,9 +29,7 @@ fn world(threshold: i64) -> String {
             (:weather::WindSpeed   (?loc <- :location) (?k <- :kph))\n\
             (:wat::rete::where (:wat::core::> ?c {threshold}))]\n\
            :then\n\
-           (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\n\
-         \n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)"
+           (:wat::rete::insert (:weather::ColdAndWindy ?loc)))"
     )
 }
 

@@ -9,7 +9,7 @@
   (:wat::kernel::spawn-process
               (:wat::core::forms
                 (:wat::core::defmacro :h::id-macro [x <- :wat::WatAST] -> :wat::WatAST `~x)
-                (:wat::core::defn :user::main [] -> :wat::core::nil nil))))
+                (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "child")))))
 
 ;; Test 4: newtype in fn body do-prefix lifts to prologue.
 (:wat::core::defn :my::launch-newtype [] -> :wat::kernel::Process<wat::core::nil,wat::core::nil>

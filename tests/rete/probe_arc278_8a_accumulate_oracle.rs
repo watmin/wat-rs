@@ -29,9 +29,7 @@ fn world(acc: &str, gate: &str) -> String {
             {acc}\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
-           (:wat::rete::insert (:w::Busy ?loc ?n)))\n\
-         \n\
-         (:wat::core::defn :user::main [] -> :wat::core::nil nil)"
+           (:wat::rete::insert (:w::Busy ?loc ?n)))"
     )
 }
 

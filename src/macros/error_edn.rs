@@ -62,6 +62,12 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
             "SigmaFnError",
             OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
         ),
+        // MainSignature carries a bare String message (no span, no kind —
+        // see `StartupError::MainSignature(String)`), same shape as SigmaFn.
+        StartupError::MainSignature(msg) => tagged(
+            "MainSignatureError",
+            OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
+        ),
     }
 }
 
@@ -143,6 +149,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Check(e) => e.message(),
             SE::Stdlib(e) => e.message(),
             SE::SigmaFn(msg) => crate::to_edn::first_line(msg.clone()),
+            SE::MainSignature(msg) => crate::to_edn::first_line(msg.clone()),
         }
     }
     fn location(&self) -> OwnedValue {
@@ -158,6 +165,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Check(e) => e.location(),
             SE::Stdlib(e) => e.location(),
             SE::SigmaFn(_) => OwnedValue::Nil,
+            SE::MainSignature(_) => OwnedValue::Nil,
         }
     }
     fn causes(&self) -> OwnedValue {
@@ -173,6 +181,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Check(e) => e.causes(),
             SE::Stdlib(e) => e.causes(),
             SE::SigmaFn(_) => OwnedValue::Vector(vec![]),
+            SE::MainSignature(_) => OwnedValue::Vector(vec![]),
         }
     }
     /// Delegates to the inner error's `variant()` (its own tagged, span-stripped
@@ -193,6 +202,10 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Stdlib(e) => e.variant(),
             SE::SigmaFn(msg) => tagged(
                 "SigmaFnError",
+                OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
+            ),
+            SE::MainSignature(msg) => tagged(
+                "MainSignatureError",
                 OwnedValue::Map(vec![(kw("detail"), str_val(msg))]),
             ),
         }

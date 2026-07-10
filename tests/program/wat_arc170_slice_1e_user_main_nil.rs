@@ -10,15 +10,16 @@
 //!   panic-cascade → libc::exit(N) via slice 1i's StdErrService epilogue
 //!
 //! Wat fixtures are co-located siblings:
-//! - `wat_arc170_slice_1e_user_main_nil.wat` — canonical main (primary, via startup_beside)
-//! - `*_wrong_return.wat` — `[] -> i64` (freeze ok, validate rejects)
-//! - `*_legacy_3arg.wat` — 3-arg main (freeze ok, validate rejects)
-//! - `*_slice2_4arg.wat` — NEGATIVE: 4-arg main (freeze fails, BareLegacyMainSignature)
-//! - `*_argv.wat` — main with (:wat::runtime::argv) let-bind
+//! - `wat_arc170_slice_1e_user_main_nil.wat` — canonical main (primary, via startup_beside);
+//!   `[] -> :nil` with a REAL body (a bare-`nil` body is UselessMain-rejected — arc-170 wall)
+//! - `*_wrong_return.wat.bad` — `[] -> i64`: rejected at FREEZE (StartupError::MainSignature)
+//! - `*_legacy_3arg.wat.bad` — 3-arg main: rejected at FREEZE (StartupError::MainSignature)
+//! - `*_slice2_4arg.wat.bad` — NEGATIVE: 4-arg main, rejected at FREEZE
+//! - `*_argv.wat` — main with (:wat::runtime::argv) let-bind (a real body, passes the wall)
 
 use wat::freeze::{
     expected_user_main_signature, invoke_user_main, startup_beside, startup_from_file,
-    validate_user_main_signature,
+    validate_user_main_signature, StartupError,
 };
 use wat::runtime::{set_argv, Value};
 use wat::types::TypeExpr;
@@ -28,13 +29,6 @@ use wat::types::TypeExpr;
 fn freeze_ok(fixture: &str) -> wat::freeze::FrozenWorld {
     startup_from_file(fixture)
         .unwrap_or_else(|e| panic!("freeze should succeed for {fixture:?}; got: {e}"))
-}
-
-fn freeze_err(fixture: &str) -> String {
-    match startup_from_file(fixture) {
-        Ok(_) => panic!("expected freeze to fail for {fixture:?}; succeeded"),
-        Err(e) => format!("{}", e),
-    }
 }
 
 // ─── T1. `:user::main [] -> :wat::core::nil` parses + freezes + invokes ──
@@ -68,46 +62,52 @@ fn t1_canonical_main_freezes_and_invokes() {
     );
 }
 
-// ─── T2. Wrong return type fires walker diagnostic ─────────────────────
+// ─── T2. Non-canonical main signatures are REJECTED at freeze (arc-170 wall) ──
 
 #[test]
-fn t2_wrong_return_type_fires_walker() {
-    // `[] -> :wat::core::i64` — empty params but a non-nil return.
-    // The freeze-time walker is dead code (defn macro-expands to def
-    // before it runs); enforcement moved to `validate_user_main_signature`.
-    // Freeze now succeeds; validate_user_main_signature returns Err.
-    let world = freeze_ok("tests/program/wat_arc170_slice_1e_user_main_nil_wrong_return.wat");
+fn t2_wrong_return_type_rejected_at_freeze() {
+    // `[] -> :wat::core::i64` — empty params but a non-nil return. The
+    // arc-170 :user::main wall rejects a non-canonical signature at FREEZE
+    // (superseding the old "freeze ok, validate rejects at run" path).
+    let err = startup_from_file(
+        "tests/program/wat_arc170_slice_1e_user_main_nil_wrong_return.wat.bad",
+    )
+    .expect_err("[] -> :wat::core::i64 main must be rejected at freeze");
     assert!(
-        validate_user_main_signature(&world).is_err(),
-        "expected validate_user_main_signature to reject [] -> :wat::core::i64 signature"
+        matches!(err, StartupError::MainSignature(_)),
+        "expected StartupError::MainSignature; got {err:?}"
     );
 }
 
 #[test]
-fn t2_legacy_3arg_main_fires_walker() {
-    // The pre-arc-170 shape — 3-arg with stdio, nil return. Still
-    // not canonical post-slice-1e because params are non-empty.
-    // validate_user_main_signature rejects non-empty param list.
-    let world = freeze_ok("tests/program/wat_arc170_slice_1e_user_main_nil_legacy_3arg.wat");
+fn t2_legacy_3arg_main_rejected_at_freeze() {
+    // The pre-arc-170 3-arg-with-stdio shape — non-empty params. Rejected
+    // at FREEZE by the arc-170 :user::main wall.
+    let err = startup_from_file(
+        "tests/program/wat_arc170_slice_1e_user_main_nil_legacy_3arg.wat.bad",
+    )
+    .expect_err("3-arg :user::main must be rejected at freeze");
     assert!(
-        validate_user_main_signature(&world).is_err(),
-        "expected validate_user_main_signature to reject 3-arg :user::main"
+        matches!(err, StartupError::MainSignature(_)),
+        "expected StartupError::MainSignature; got {err:?}"
     );
 }
 
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
-fn t2_arc170_slice_2_main_fires_walker() {
-    // The slice-2-shape (4-arg with argv + ExitCode return) is also
-    // non-canonical post-slice-1e. Slice 1e's walker fires on it.
-    let err = freeze_err("tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat");
-    assert_eq!(
-        err,
-        r#"check:
-1 type-check error(s):
-  - tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat:3:191: :user::main: body produces :wat::core::u8; signature declares :wat::kernel::ExitCode
-"#,
-        "s1e_t2: slice-2 main shape diagnostic golden"
+fn t2_slice2_4arg_main_rejected_at_freeze() {
+    // The slice-2-shape (4-arg with argv + ExitCode return) is non-canonical
+    // and rejected at FREEZE. It fails at the CHECK step first — its body
+    // produces :u8 where the signature declares :wat::kernel::ExitCode
+    // (ReturnTypeMismatch) — before reaching the arc-170 param-count wall, so
+    // the rejection surfaces as StartupError::Check (superseding the old
+    // brittle rust-debug ExitCode-diagnostic golden with a structural match).
+    let err = startup_from_file(
+        "tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat.bad",
+    )
+    .expect_err("4-arg :user::main must be rejected at freeze");
+    assert!(
+        matches!(err, StartupError::Check(_)),
+        "expected StartupError::Check (ExitCode ReturnTypeMismatch); got {err:?}"
     );
 }
 

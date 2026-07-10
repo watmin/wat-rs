@@ -32,5 +32,5 @@
     [p (:wat::kernel::spawn-program' (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
-           (:wat::core::defn :user::main [] -> :wat::core::nil nil)))]
+           (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]
     (:wat::kernel::send' p (:w2c_ctrl::R 42))))

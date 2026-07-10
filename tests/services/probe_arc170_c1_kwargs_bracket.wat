@@ -23,7 +23,7 @@
   :Setup [addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
   :Work  [s    <- :wat::core::String])
 
-(:wat::core::defn :user::main [] -> :wat::core::String
+(:wat::core::defn :probe::run [] -> :wat::core::String
   (:wat::core::let
     [eh   (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      ea   (:probe::echo'::Handle/addr eh)

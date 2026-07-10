@@ -5,8 +5,3 @@
 
 (:wat::core::structtype :my::Point
   [x <- :wat::core::i64  y <- :wat::core::i64])
-
-(:wat::core::defn :user::main [] -> :wat::core::i64
-  (:wat::core::i64::+
-    (:my::Point/x (:my::Point 3 4))
-    (:my::Point/y (:my::Point 3 4))))

@@ -49,5 +49,3 @@
     (:geo::describe (:geo::Square "blue" 3.0))
     "  |  "
     (:geo::describe (:wat::core::Vector :wat::core::i64 10 20 30))))
-
-(:wat::core::defn :user::main [] -> :wat::core::String (:geo::demo))

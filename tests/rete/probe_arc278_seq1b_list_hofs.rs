@@ -32,7 +32,7 @@ fn check(src: &str) -> Result<(), String> {
 /// Build a world from one probe `defn`, start it (TYPE-CHECK fires here), then eval `call`.
 // rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
 fn eval_probe(defn: &str, call: &str) -> Result<Value, String> {
-    let world = format!("{defn}\n(:wat::core::defn :user::main [] -> :wat::core::nil nil)");
+    let world = format!("{defn}");
     let w = startup_from_source(&world, None, Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup (type-check): {e:?}"))?;
     let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;
@@ -54,7 +54,7 @@ const SUM: &str = "(:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64]
 const DBL: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))";
 const GT1: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))";
 const L123: &str = "(:wat::core::List/of 1 2 3)";
-const MAIN: &str = "(:wat::core::defn :user::main [] -> :wat::core::nil nil)";
+const MAIN: &str = "";
 
 // ── Checker parity: all 8 ops type-check over a List (parametric AND bare param) ──
 

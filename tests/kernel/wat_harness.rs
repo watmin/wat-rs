@@ -15,13 +15,10 @@ use wat::harness::{Harness, HarnessError};
 const DIMS_AND_MODE: &str = r##"
 "##;
 
-fn nil_main_body(body: &str) -> String {
-    format!(
-        r##"{}
-        (:wat::core::defn :user::main [] -> :wat::core::nil {})
-        "##,
-        DIMS_AND_MODE, body
-    )
+/// Real-body trivial-main source, loaded from a .wat fixture so no_inlined_wat never sees it.
+fn trivial_src() -> String {
+    std::fs::read_to_string("tests/kernel/wat_harness_trivial_main.wat")
+        .expect("harness trivial-main fixture must exist")
 }
 
 // ─── happy path — run returns Ok ────────────────────────────────────────
@@ -30,7 +27,7 @@ fn nil_main_body(body: &str) -> String {
 fn harness_captures_stdout() {
     // Arc 170: stdout capture retired. run() returns Ok with empty stdout/stderr.
     // Test verifies the program compiles and runs without error.
-    let src = nil_main_body("nil");
+    let src = trivial_src();
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&[]).expect("run");
     // stdout/stderr capture retired with the four-arg main shape.
@@ -44,12 +41,7 @@ fn harness_captures_stdout() {
 fn harness_injects_stdin_lines() {
     // Arc 170: stdin injection retired alongside four-arg main.
     // Test verifies the program compiles and runs cleanly.
-    let src = format!(
-        r##"{}
-        (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-        "##,
-        DIMS_AND_MODE
-    );
+    let src = trivial_src();
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&["alpha", "beta", "gamma"]).expect("run");
     // stdin injection and output capture retired with the four-arg shape.
@@ -61,7 +53,7 @@ fn harness_injects_stdin_lines() {
 #[test]
 fn harness_freeze_once_run_many() {
     // Arc 170: main is canonical nil. Verifies freeze-once, run-many is stable.
-    let src = nil_main_body("nil");
+    let src = trivial_src();
     let h = Harness::from_source(&src).expect("freeze");
     for _ in 0..3 {
         let out = h.run(&[]).expect("run");
@@ -82,11 +74,10 @@ fn harness_startup_error_surfaces() {
 
 #[test]
 fn harness_main_signature_mismatch() {
-    // Arc 170: non-canonical main (returns i64) fires BareLegacyMainSignature
-    // at startup (step 4b), surfacing as HarnessError::Startup (not MainSignature).
-    // The validate_user_main_signature path fires only when startup succeeds
-    // but the shape is wrong at the type level — BareLegacyMainSignature
-    // pre-empts this for any non-nil-returning main.
+    // Arc 170: non-canonical main (returns i64) is rejected at FREEZE by the
+    // :user::main wall (validate_user_main_signature imposed in startup_from_source),
+    // so it surfaces as HarnessError::Startup(StartupError::MainSignature) — the
+    // wall pre-empts the harness's own post-startup validate path.
     let src = format!(
         r##"{}
         (:wat::core::defn :user::main [] -> :wat::core::i64 42)
@@ -95,8 +86,8 @@ fn harness_main_signature_mismatch() {
     );
     let err = Harness::from_source(&src).expect_err("sig mismatch must fail");
     assert!(
-        matches!(err, HarnessError::MainSignature(_)),
-        "expected HarnessError::MainSignature for non-canonical main; got {:?}",
+        matches!(&err, HarnessError::Startup(e) if matches!(e.as_ref(), wat::freeze::StartupError::MainSignature(_))),
+        "expected HarnessError::Startup(MainSignature) for non-canonical main; got {:?}",
         err
     );
 }
@@ -107,7 +98,7 @@ fn harness_main_signature_mismatch() {
 fn harness_captures_stderr() {
     // Arc 170: stderr capture retired. run() returns Ok with empty stderr.
     // Test verifies the program compiles and runs without error.
-    let src = nil_main_body("nil");
+    let src = trivial_src();
     let h = Harness::from_source(&src).expect("freeze");
     let out = h.run(&[]).expect("run");
     assert!(out.stdout.is_empty(), "expected empty stdout");
@@ -119,7 +110,7 @@ fn harness_captures_stderr() {
 #[test]
 fn harness_world_accessor_exposes_frozen_world() {
     // Arc 170: canonical nil main. world() accessor still works.
-    let src = nil_main_body("nil");
+    let src = trivial_src();
     let h = Harness::from_source(&src).expect("freeze");
     // Should have :user::main registered; function lookup must succeed.
     let world = h.world();

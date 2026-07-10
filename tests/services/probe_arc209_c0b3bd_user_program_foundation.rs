@@ -9,25 +9,68 @@
 //! current path unchanged). The consumers build on this — root (`wat-cli --env fqdn/fn`) and
 //! process (`ProcessOpts` env-fn name → child resolves+runs) are follow-on sub-stones.
 //!
-//! TWO proofs:
+//! TWO proofs (arc-170 update: `:user::main` returns `:nil` per the wall, so — per the IPC triangle,
+//! recovery §13 — it WRITES the `user.program` as EDN to stdout; the test captures + asserts it):
 //! 1. `injected_user_program_flows_to_main` — inject a `:user::MyEnv` Record; `:user::main` reads
-//!    `(:wat::program::Env/user.program (:wat::program::env))` and returns it; the test asserts the
-//!    returned value IS the injected record (class_fqdn `user::MyEnv`), not `EmptyEnv`.
+//!    `(:wat::program::Env/user.program (:wat::program::env))` and prints it; the test captures the
+//!    stdout EDN and asserts it is the injected record (`#user/MyEnv {:token 42}`), not `EmptyEnv`.
 //! 2. `default_user_program_is_empty_env` — `None` → `:user::main` sees `EmptyEnv` (the current
 //!    behavior is preserved by the default; the regression guard).
 //!
-//! RED at HEAD: `invoke_user_main` takes 2 args; the 3-arg call (with the injected `user.program`)
-//! does not compile. GREEN after 3b-d: the seam accepts + installs the injected Record.
-//!
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bd_user_program_foundation
 
-use wat::freeze::{eval_in_frozen, invoke_user_main, invoke_user_main_with_program, startup_beside};
-use wat::runtime::{Environment, Value};
-use wat::types::Nature;
+use std::os::fd::{FromRawFd, OwnedFd};
+use std::sync::Arc;
+use wat::freeze::{
+    eval_in_frozen, invoke_user_main, invoke_user_main_with_program, startup_beside,
+};
+use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
+use wat::runtime::Environment;
+use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
+
+fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
+    let mut fds = [0i32; 2];
+    let r = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    assert_eq!(r, 0, "pipe(2) succeeded");
+    let read_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let write_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    (
+        Arc::new(PipeReader::from_owned_fd(read_fd)),
+        Arc::new(PipeWriter::from_owned_fd(write_fd)),
+    )
+}
+
+fn drain_lines(reader: &Arc<dyn WatReader>) -> Vec<String> {
+    let bytes = reader.read_all(wat::rust_caller_span!()).expect("read-all");
+    let s = String::from_utf8(bytes).expect("utf8");
+    if s.is_empty() {
+        return Vec::new();
+    }
+    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
+    if s.ends_with('\n') {
+        lines.pop();
+    }
+    lines
+}
+
+/// Install a captured ambient stdio, run `main` (which prints the user.program EDN), drain stdout.
+fn capture_stdout(run: impl FnOnce()) -> Vec<String> {
+    let _ = take_ambient_stdio();
+    let (stdin_service, _stdin_inject) = pipe_pair();
+    let (stdout_capture, stdout_service) = pipe_pair();
+    let (_stderr_capture, stderr_service) = pipe_pair();
+    install_ambient_stdio(AmbientStdio {
+        stdin: stdin_service,
+        stdout: stdout_service,
+        stderr: stderr_service,
+    });
+    run();
+    let _ = take_ambient_stdio();
+    drain_lines(&stdout_capture)
+}
 
 #[test]
 fn injected_user_program_flows_to_main() {
-    // Wat source lives in the co-located fixture: probe_arc209_c0b3bd_user_program_foundation.wat
     let world = startup_beside(file!())
         .expect("startup should succeed (C0b.3b-d: user.program injection foundation)");
     // Build the injected user.program Record in the frozen world.
@@ -38,33 +81,29 @@ fn injected_user_program_flows_to_main() {
     )
     .map(|tv| tv.value_owned())
     .expect("MyEnv constructs");
-    // Inject it through the new additive seam (invoke_user_main stays 2-arg; the injecting
-    // variant is a separate fn — zero ripple to the ~30 existing callers).
-    let got = invoke_user_main_with_program(&world, vec![], injected)
-        .unwrap_or_else(|e| panic!("invoke_user_main_with_program raised: {e:?}"));
-    match got {
-        Value::Aggregate(a) if a.nature != Nature::Struct => assert_eq!(
-            a.class.as_str(),
-            "user::MyEnv",
-            "expected main to read the INJECTED user.program (user::MyEnv), not the EmptyEnv default"
-        ),
-        other => panic!("expected main to return the injected :wat::core::Record user.program; got {other:?}"),
-    }
+    // Inject it through the additive seam; main reads user.program + prints it as EDN.
+    let lines = capture_stdout(|| {
+        invoke_user_main_with_program(&world, vec![], injected)
+            .unwrap_or_else(|e| panic!("invoke_user_main_with_program raised: {e:?}"));
+    });
+    assert_eq!(
+        lines,
+        vec!["#user/MyEnv {:token 42}".to_string()],
+        "expected main to read + emit the INJECTED user.program (user::MyEnv), not EmptyEnv"
+    );
 }
 
 #[test]
 fn default_user_program_is_empty_env() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed");
+    let world = startup_beside(file!()).expect("startup should succeed");
     // The unchanged 2-arg invoke_user_main → the EmptyEnv default (current behavior preserved).
-    let got = invoke_user_main(&world, vec![])
-        .unwrap_or_else(|e| panic!("invoke_user_main raised: {e:?}"));
-    match got {
-        Value::Aggregate(a) if a.nature != Nature::Struct => assert_eq!(
-            a.class.as_str(),
-            "wat::program::EmptyEnv",
-            "expected the default user.program to be EmptyEnv when none is injected"
-        ),
-        other => panic!("expected main to return the EmptyEnv default user.program; got {other:?}"),
-    }
+    let lines = capture_stdout(|| {
+        invoke_user_main(&world, vec![])
+            .unwrap_or_else(|e| panic!("invoke_user_main raised: {e:?}"));
+    });
+    assert_eq!(
+        lines,
+        vec!["#wat.program/EmptyEnv {}".to_string()],
+        "expected the default user.program to be EmptyEnv when none is injected"
+    );
 }

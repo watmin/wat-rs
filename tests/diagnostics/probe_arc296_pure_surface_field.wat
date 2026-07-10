@@ -16,8 +16,3 @@
 (:wat::core::defrecord :probe::Boom
   [message <- :wat::core::String
    causes  <- :wat::core::Vector<probe::E>])
-
-(:wat::core::defn :user::main [] -> :wat::core::String
-  ;; The purity fix is exercised at REGISTRATION time (validate_aggregate_containment).
-  ;; main just needs to exist so startup completes; the declaration above is the test.
-  "ok")

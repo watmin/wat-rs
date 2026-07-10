@@ -15,18 +15,26 @@
 //! 3. `parametric_surface_rejects_mistyped_satisfier` — negative (soundness): `BadBox` claims
 //!    `Holds<i64>` but its `get` returns a `String` field — a located `ReturnTypeMismatch`.
 
+use wat::ast::WatAST;
 use wat::check::error::{CheckErrorKind, CheckErrors};
-use wat::freeze::{invoke_user_main, startup_from_file, StartupError};
-use wat::runtime::Value;
+use wat::freeze::{eval_in_frozen, startup_from_file, StartupError};
+use wat::runtime::{Environment, Value};
 
 #[test]
 fn parametric_surface_return_resolves_to_satisfier_type() {
     let world = startup_from_file("tests/types/probe_arc170_parametric_surface.wat")
         .expect("startup should succeed: parametric defsurface return resolves per satisfier");
-    // Drive via `invoke_user_main` (not a `parse_one!`-string) so this test inlines no wat form;
-    // `:user::main` returns `(Holds/get b)` directly, whose resolved return type is i64.
-    let got = invoke_user_main(&world, Vec::new())
-        .unwrap_or_else(|e| panic!("main raised: {e:?}"));
+    // `:probe::resolve` (a non-main defn — the fixture carries no `:user::main`, per the arc-170
+    // `[] -> :nil` / UselessMain wall) returns `(Holds/get b)`, whose resolved return type is i64.
+    // Eval it via a PROGRAMMATICALLY built call AST (not a `parse_one!`-string), so this test
+    // inlines no wat form (no_inlined_wat clean).
+    let call = WatAST::List(
+        vec![WatAST::Keyword(":probe::resolve".into(), wat::rust_caller_span!())],
+        wat::rust_caller_span!(),
+    );
+    let got = eval_in_frozen(&call, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("resolve raised: {e:?}"))
+        .value_owned();
     match got {
         Value::i64(42) => { /* Holds<T>/get resolved T = i64 per IntBox's extend-type */ }
         other => panic!(

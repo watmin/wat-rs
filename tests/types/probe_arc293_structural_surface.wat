@@ -13,6 +13,3 @@
 ;; accepts ANYTHING with the Shape surface; Circle has `color` ⇒ structurally satisfies it
 (:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> :wat::core::bool
   true)
-
-(:wat::core::defn :user::main [] -> :wat::core::bool
-  (:geo::accepts-shape (:geo::Circle "red" 2.0)))
