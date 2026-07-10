@@ -15,7 +15,8 @@
 //! 3. `parametric_surface_rejects_mistyped_satisfier` — negative (soundness): `BadBox` claims
 //!    `Holds<i64>` but its `get` returns a `String` field — a located `ReturnTypeMismatch`.
 
-use wat::freeze::{invoke_user_main, startup_from_file};
+use wat::check::error::{CheckErrorKind, CheckErrors};
+use wat::freeze::{invoke_user_main, startup_from_file, StartupError};
 use wat::runtime::Value;
 
 #[test]
@@ -39,11 +40,21 @@ fn parametric_surface_return_resolves_to_satisfier_type() {
 fn parametric_surface_return_is_typed_not_any() {
     // The parametric surface's resolved return type is genuinely i64 (not bare/any): ascribing
     // it to String is a located TypeMismatch (expected String, got i64) at the `ann-form` site
-    // (probe_arc170_parametric_surface.wat.bad:16, the `bad` binding). Asserted via bare-word
-    // `contains` (not an EDN golden) so this test does not inline wat error-EDN.
-    let err = format!("{:?}", startup_from_file("tests/types/probe_arc170_parametric_surface.wat.bad").expect_err("wrong ascription must fail check"));
-    assert!(err.contains("TypeMismatch") && err.contains("String") && err.contains("i64"),
-        "expected a TypeMismatch (ascribing the i64 Holds/get return to String), got: {err}");
+    // (probe_arc170_parametric_surface.wat.bad:16, the `bad` binding). Asserted STRUCTURALLY on
+    // the error enum (not a `contains` substring, not an EDN golden) so the expected/got are the
+    // exact bare-keyword type strings.
+    let err = startup_from_file("tests/types/probe_arc170_parametric_surface.wat.bad")
+        .expect_err("wrong ascription must fail check");
+    let StartupError::Check(CheckErrors(errs)) = &err else {
+        panic!("expected a type-check error, got {err:?}");
+    };
+    match &errs[0].kind {
+        CheckErrorKind::TypeMismatch { expected, got, .. } => {
+            assert_eq!(expected, ":wat::core::String");
+            assert_eq!(got, ":wat::core::i64");
+        }
+        other => panic!("expected TypeMismatch, got {other:?}"),
+    }
 }
 
 #[test]
@@ -51,9 +62,19 @@ fn parametric_surface_rejects_mistyped_satisfier() {
     // Soundness: BadBox claims Holds<i64> via extend-type, but its `get` body returns its own
     // String field — a located ReturnTypeMismatch (probe_arc170_parametric_surface_soundness.wat.bad:13,
     // the `get` method body), proving the receiver-satisfaction check (commit b2360c7a) actually
-    // verifies the satisfier's method body, not just its signature. Asserted via bare-word
-    // `contains` (not an EDN golden) so this test does not inline wat error-EDN.
-    let err = format!("{:?}", startup_from_file("tests/types/probe_arc170_parametric_surface_soundness.wat.bad").expect_err("mistyped satisfier must fail check"));
-    assert!(err.contains("ReturnTypeMismatch") && err.contains("BadBox") && err.contains("i64") && err.contains("String"),
-        "expected a ReturnTypeMismatch (BadBox get returns String where Holds<i64> wants i64), got: {err}");
+    // verifies the satisfier's method body, not just its signature. Asserted STRUCTURALLY on the
+    // error enum (not a `contains` substring, not an EDN golden).
+    let err = startup_from_file("tests/types/probe_arc170_parametric_surface_soundness.wat.bad")
+        .expect_err("mistyped satisfier must fail check");
+    let StartupError::Check(CheckErrors(errs)) = &err else {
+        panic!("expected a type-check error, got {err:?}");
+    };
+    match &errs[0].kind {
+        CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. } => {
+            assert_eq!(function, ":probe::BadBox/get");
+            assert_eq!(expected, ":wat::core::i64"); // Holds<i64> wants i64
+            assert_eq!(got, ":wat::core::String"); // BadBox/get returns its String field
+        }
+        other => panic!("expected ReturnTypeMismatch, got {other:?}"),
+    }
 }

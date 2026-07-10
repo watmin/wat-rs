@@ -22,7 +22,8 @@
 //!    coords carries a field-ordered contract through a `let`; a SWAPPED tuple is rejected at
 //!    the downstream consumer with a located `TypeMismatch` (not `DuplicateDefine`).
 
-use wat::freeze::startup_from_file;
+use wat::check::error::{CheckErrorKind, CheckErrors};
+use wat::freeze::{startup_from_file, StartupError};
 
 #[test]
 fn correct_service_coord_compiles() {
@@ -35,26 +36,42 @@ fn correct_service_coord_compiles() {
 
 #[test]
 fn wrong_service_coord_is_compile_error() {
-    let err = format!(
-        "{:?}",
-        startup_from_file("tests/services/probe_arc170_wrong_service_compile_error.wat.bad")
-            .expect_err("wrong-service coord must fail check")
-    );
-    assert!(
-        err.contains("TypeMismatch") && err.contains("Echo") && err.contains("Kv"),
-        "expected a TypeMismatch naming Echo and Kv (kv handle's coord ascribed to an Echo address), got: {err}"
-    );
+    let err = startup_from_file("tests/services/probe_arc170_wrong_service_compile_error.wat.bad")
+        .expect_err("wrong-service coord must fail check");
+    let StartupError::Check(CheckErrors(errs)) = &err else {
+        panic!("expected a type-check error, got {err:?}");
+    };
+    match &errs[0].kind {
+        CheckErrorKind::TypeMismatch { expected, got, .. } => {
+            // kv handle's coord ascribed to an Echo address → the ann-form rejects it
+            assert_eq!(expected, ":wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>");
+            assert_eq!(got, ":wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>");
+        }
+        other => panic!("expected TypeMismatch, got {other:?}"),
+    }
 }
 
 #[test]
 fn swapped_colocation_tuple_is_compile_error() {
-    let err = format!(
-        "{:?}",
-        startup_from_file("tests/services/probe_arc170_wrong_service_colocation.wat.bad")
-            .expect_err("swapped tuple must fail check")
-    );
-    assert!(
-        err.contains("TypeMismatch") && err.contains("Echo") && err.contains("Kv"),
-        "expected a TypeMismatch (swapped Tuple vs the field-ordered Echo/Kv contract), got: {err}"
-    );
+    let err = startup_from_file("tests/services/probe_arc170_wrong_service_colocation.wat.bad")
+        .expect_err("swapped tuple must fail check");
+    let StartupError::Check(CheckErrors(errs)) = &err else {
+        panic!("expected a type-check error, got {err:?}");
+    };
+    match &errs[0].kind {
+        CheckErrorKind::TypeMismatch { expected, got, .. } => {
+            // swapped Tuple vs the field-ordered (Echo, Kv) contract at the downstream consumer
+            assert_eq!(
+                expected,
+                ":(wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>,\
+                  wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>)"
+            );
+            assert_eq!(
+                got,
+                ":(wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>,\
+                  wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)"
+            );
+        }
+        other => panic!("expected TypeMismatch, got {other:?}"),
+    }
 }
