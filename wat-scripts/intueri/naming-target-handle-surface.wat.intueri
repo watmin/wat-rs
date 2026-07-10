@@ -1,0 +1,52 @@
+;; naming-target-handle-surface.wat — the naming decision for arc-170's capability-circuit
+;; handle-unification stone. A bracket is handed ONE Vector of service handles; from each it
+;; must GRANT a worker's pid AND get the service's ADDRESS to dial. Today a common surface
+;; (:wat::capability::Grantable) carries grant/revoke and makes a heterogeneous Vector of
+;; different services' handles HOMOGENEOUS. We are ADDING an address hook so the ONE vec
+;; carries BOTH capabilities (grant + dial), and the bracket needs nothing else.
+;;
+;; TWO names are in question. Weigh which KEEPS ITS PROMISE (says what it is) to a reader
+;; with no context.
+
+;; ── DECISION 1: the address method added to the surface ──────────────────────────────────
+;; It returns the service's live coordinate — the pure, brute-forceable location a worker
+;; dials (connect' : Address' -> Peer'). Type-erased to bare :wat::kernel::Address'.
+;; Anchors on the disk:
+;;   - the concrete handle already exposes this as a struct accessor `<fqdn>::Handle/addr`
+;;   - arc-278 R32 (QVANTVMVIS PROCVL IDEM NEXVS): "a service is a surface at a COORDINATE";
+;;     the builder crowned `coordinate` ("that is a wonderful word") for the Address'.
+;; Candidates (which one says "the location I dial", not a mechanism/verb?):
+;;   coordinate  — R32's word; the address IS the coordinate; a pure location (recommended?)
+;;   addr        — matches the existing Handle/addr accessor; terse
+;;   address     — full form of addr
+;;   reach       — reads as a verb / an act, not the location
+;;   where       — vague
+;;   dial-addr   — names the consumer's use, not the thing
+
+;; ── DECISION 2: the surface's name ───────────────────────────────────────────────────────
+;; Today: :wat::capability::Grantable — named for grant/revoke ONLY. With the address hook it
+;; now carries the WHOLE owner-facing capability of a service handle: grant a pid + revoke a
+;; pid + hand out the coordinate to dial. Is "Grantable" still honest (it names one of three
+;; features), or does the broader thing want a broader name?
+;; Anchors:
+;;   - every service's <fqdn>::Handle satisfies it (the defservice macro auto-emits extend-type)
+;;   - it is the thing an OWNER holds and hands to a bracket to say "workers may use this service"
+;;   - R28/R38: surfaces are wat's interface mechanism (supersede Clojure protocols)
+;; Candidates (which one says what a service handle IS to its owner?):
+;;   Grantable      — keep it; grant is the load-bearing verb, addr rides along (honest-enough?)
+;;   ServiceHandle  — what it literally is: the owner's handle to a service
+;;   Capability     — the ocap term; the handle IS the capability (grant + revoke + reach)
+;;   Reachable      — names the new addr hook, loses grant
+;;   Dialable       — names dialing, loses grant/revoke
+;;   Handle'        — the primed-handle convention
+
+;; The surface as it would read WITH the address method (name TBD by this cast):
+(:wat::core::defsurface :wat::capability::Grantable :nature :wat::core::Struct
+  :features
+  [(grant      [self <- :wat::capability::Grantable  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
+   (revoke     [self <- :wat::capability::Grantable  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
+   (coordinate [self <- :wat::capability::Grantable] -> :wat::kernel::Address')])   ;; ← DECISION 1 name shown as `coordinate`
+
+;; The user form it enables (a bracket handed ONE vec of handles):
+;;   (:wat::spawn::process/uses (:wat::core::Vector :wat::capability::Grantable kvh eh))
+;; the bracket, per handle: (grant h [pid]) + (coordinate h) -> ship -> worker dials.

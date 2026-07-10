@@ -1,0 +1,75 @@
+;; holder-nature-vocabulary.wat — intueri TARGET.
+;; The question: "holder" was named when the category was aggregates that HOLD fields. A fourth
+;; satisfier-nature has arrived — "a thing you communicate with" — that HOLDS NOTHING. So:
+;;   (1) is "holder" still an honest CATEGORY name?  (2) what is the true name?  (3) does the
+;;   fourth nature sit INSIDE the (renamed) category as a variant, or BESIDE it as its own axis?
+;; The builder's read (verbatim): "holder is a bad word now... does the remote implement the
+;; holder?... the holder is the far side?... i think we may need a new term and holder is replaced."
+
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; THE CATEGORY TODAY — `Holder` (a Rust enum; a surface declares one via `:holder <kw>`)
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; A surface's `:holder` declares WHAT KIND of thing may satisfy it, and how that thing behaves
+;; at a boundary (comms-crossing, EDN-repr, directional assignability — the "capability trit",
+;; AGGREGATE-AUDIT.md). Named "holder" because all three current natures are AGGREGATES that
+;; HOLD positional fields.
+(:wat::core::defenum :wat::types::Holder :wat::enum::Portable
+  :Struct         ;; "may HOLD live resources (sockets/channels/closures) → CANNOT cross the wire; in-locus"
+  :Record         ;; "pure DATA → crosses the wire as EDN, by value"
+  :HolonRecord)   ;; "pure DATA + a hologram (VSA) → crosses as EDN, by value, VSA-capable"
+;; The SHARED axis of all three: the satisfier is a VALUE at a boundary — held, or sent by copy.
+;; (Grounded meanings from AGGREGATE-AUDIT.md § "the holder is the capability trit".)
+
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; THE FOURTH NATURE — new with services-as-surfaces (a wire contract: methods only)
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; A services-as-surfaces surface is satisfied NOT by a value you hold or copy, but by a live PEER
+;; you `send'`/`recv'` with — a CORRESPONDENT. It does not HOLD anything; it is the FAR SIDE of a
+;; conversation. Local vs remote collapse: you always reach it through a peer, in-thread
+;; (ThreadSelfPeer') or across a socket (Process'/wire) — R31's "one act".
+;;   proposed value: :???  — "a thing you communicate with (a dialable peer / service)"
+;;
+;; THE TENSION (why "holder" may be the wrong word):
+;;   - "holder" PROMISES "a thing that holds". A correspondent holds NOTHING → the promise breaks.
+;;   - Calling a peer a "holder" is a CATEGORY PUN — exactly the pun 293.W already rejected for
+;;     enums ("an enum has a holder" was cut: a sum has no backing; DESIGN-293.W § the-name).
+;;   - So EITHER (a) "holder" is the wrong CATEGORY name now — it needs a truer word spanning all
+;;     four natures — OR (b) "communicates" is NOT a holder at all and belongs on a SIBLING axis.
+
+;; ── the shape at stake, drawn both ways (which is honest?) ──
+;; (a) FOURTH VARIANT inside a RENAMED category:
+;;     (:wat::core::defenum :wat::types::<NewCategoryName> :wat::enum::Portable
+;;       :Struct :Record :HolonRecord :<Communicates>)
+;;     (:wat::core::defsurface :demo::Store :<newkw> :<Communicates> :features [...])
+;; (b) A SIBLING AXIS beside the holder (the first three are aggregate KINDS; a peer is not an
+;;     aggregate — a connection, not a value — so it may not belong in the same enum at all):
+;;     (:wat::core::defsurface :demo::Store :satisfied-by :<Communicates> :features [...])
+;;         ;; ^ a DIFFERENT clause because a communicating satisfier is a different axis than
+;;         ;;   "which aggregate kind"; holder (aggregate) and this (correspondent) are orthogonal.
+
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; THE QUESTIONS FOR intueri (name each promise; say which keeps it)
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; Q1 — CATEGORY NAME. Is "holder" still honest for a category that now includes a NON-holding
+;;      nature (a correspondent)? Level-1 (lies) / Level-2 (mumbles) / keeps-its-promise? If it
+;;      must change, what is the TRUE name for "the satisfier's nature at a boundary" — spanning
+;;      {holds-resources, pure-data, data+hologram, communicates}? (candidates to weigh, not a
+;;      closed set: Nature · Kind · Boundary · Carrier · Substance · Backing · Vessel · Medium ·
+;;      Mobility · ...)
+;; Q2 — STRUCTURE. Does "communicates" belong as a FOURTH VARIANT inside the (renamed) category
+;;      (a), or BESIDE it on its own axis (b)? The load-bearing fact: the first three are aggregate
+;;      KINDS (a value's backing); a peer is not an aggregate (a connection, not a value). Does that
+;;      difference-in-kind force a separate axis, or is "the satisfier's nature" one axis with four
+;;      values? (The builder's intuition: naming Q1 will REVEAL Q2 — if the true category name
+;;      honestly spans all four, it's one axis; if the fourth won't fit the word, it's a sibling.)
+;; Q3 — THE FOURTH VALUE'S NAME. "a thing you communicate with": :Service · :Peer · :Correspondent ·
+;;      :Comms · :Remote · truer? (harmonize with whatever Q1 lands; note :Remote's earlier Level-1
+;;      lie — a "remote" may be same-process.)
+
+;; ANCHORS to harmonize with (ratified, do not re-open):
+;;   - the capability-DECLARED-not-DEFAULTED doctrine (293.W — a default masks intent; every
+;;     satisfier-nature is declared explicitly, never omitted or derived).
+;;   - the enum mobility markers :wat::enum::Portable / :wat::enum::Anchored (293.W naming rigor —
+;;     STRUCTURAL namespace, the load on the member word).
+;;   - R7's :wat::core::Value (the universal TOP of the type hierarchy) — NOT a candidate here
+;;     (it means "any type", the "Any" the builder explicitly rejected; noted so it's not re-raised).

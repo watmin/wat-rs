@@ -1,0 +1,65 @@
+;; holder-decision.wat — what `:holder` actually does, and what "O" relaxes. NON-RUNNING; it's
+;; here so we can SEE the shapes and decide. No type-theory vocab needed — read the comments.
+
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; WHAT `:holder` IS (plain): a floor on WHAT KIND of thing is allowed to satisfy the surface.
+;;   :holder :Struct  = "you must be an AGGREGATE — a thing with named fields — at least a struct."
+;; It exists because a surface can demand FIELDS, and only an aggregate HAS fields.
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+
+;; ── CASE 1: a FIELD-bearing surface — here `:holder` does REAL work ─────────────────────────
+;; :Account DEMANDS a field `balance`. Only an aggregate has fields. So "must be an aggregate"
+;; is a REAL, needed requirement. A dialed Peer' has no `balance` field — it SHOULD be rejected.
+(:wat::core::defsurface :demo::Account :holder :wat::core::Struct
+  :features [(balance <- :wat::core::i64)                       ;; a FIELD member — needs an aggregate
+             (deposit [self <- :demo::Account  amt <- :wat::core::i64] -> :wat::core::i64)])
+;;   satisfiers: a struct with a `balance` field  ✅   ·   a Peer'  ❌ (correctly — no field)
+;;   → for THIS surface, `:holder :Struct` is meaningful. O does NOT change this. Stays mandatory.
+
+;; ── CASE 2: a METHOD-ONLY surface — here `:holder` is VACUOUS but is FORCED on you today ────
+;; :Store demands NO fields — only operations (put/scan). NOTHING in it needs an aggregate.
+;; But `:holder` is MANDATORY (arc 293 K0a), so you are FORCED to write `:holder :Struct` —
+;; a "must be an aggregate" floor that NOTHING in :Store actually needs.
+(:wat::core::defsurface :demo::Store :holder :wat::core::Struct   ;; ← the :Struct is VACUOUS but forced
+  :features [(put  [self <- :demo::Store  req <- :demo::PutReq] -> :demo::PutResp)   ;; only METHODS,
+             (scan [self <- :demo::Store  req <- :demo::ScanReq] -> :demo::ScanResp)]) ;;   no fields
+;;   TODAY: a struct satisfies  ✅   ·   a dialed Peer'  ❌ REJECTED — not an aggregate —
+;;   even though :Store never asked for an aggregate. The vacuous floor is what blocks the peer.
+;;   ↑ THIS is the block. In the service world a caller ALWAYS holds a Peer' (you dial a service),
+;;     so this vacuous floor rejects the ONLY thing that ever satisfies a wire contract.
+
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; OPTION O — a method-only surface may OMIT `:holder` (no fields → no aggregate floor).
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+(:wat::core::defsurface :demo::Store                              ;; ← NO :holder clause
+  :features [(put  [self <- :demo::Store  req <- :demo::PutReq] -> :demo::PutResp)
+             (scan [self <- :demo::Store  req <- :demo::ScanReq] -> :demo::ScanResp)])
+;;   NOW: a struct satisfies  ✅   AND   a dialed Peer' satisfies  ✅   — both work.
+;;
+;;   WHAT WE RELAX:  the "must declare a holder" rule, ONLY for surfaces that have no fields.
+;;                   (a method-only surface stops FORCING "must be an aggregate" — a demand it
+;;                    never needed, because it has no fields to require one.)
+;;   WHAT WE STILL IMPOSE:  a surface WITH a field member (Case 1) STILL must declare `:holder`.
+;;                          Nothing there changes. The floor stays where a field genuinely needs it.
+;;   WHAT WE LOSE:  essentially nothing — only the ability to FORCE "aggregates only" onto a
+;;                  method-only surface, which was never a meaningful thing to force (no field
+;;                  needs it). We give up a restriction that only ever did harm (blocked peers).
+
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; OPTION V (the alternative) — keep `:holder` ALWAYS mandatory; add a new value `:Value`
+;; meaning "any type at all may satisfy" (aggregate or not).
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+(:wat::core::defsurface :demo::Store :holder :wat::core::Value    ;; ← "anything may satisfy"
+  :features [(put  [self <- :demo::Store  req <- :demo::PutReq] -> :demo::PutResp)
+             (scan [self <- :demo::Store  req <- :demo::ScanReq] -> :demo::ScanResp)])
+;;   ALSO works (struct ✅, Peer' ✅). The awkward part: the holder slot is a ladder of
+;;   AGGREGATE KINDS (Struct < Record < HolonRecord). `:Value` is NOT an aggregate kind — it's
+;;   "no restriction" — so you're putting "no restriction" into a slot that names a KIND. It reads
+;;   fine, but it mixes "which aggregate kind" with "any type" in one slot (two ideas, one place).
+
+;; ═══════════════════════════════════════════════════════════════════════════════════════════
+;; THE DECISION IN ONE LINE:
+;;   O = "a surface with no fields needs no aggregate-floor; let it omit :holder."   (relax the rule)
+;;   V = "always keep the :holder slot; add a 'no restriction' value to it."          (add a value)
+;; Both let a Peer' satisfy a wire contract. O drops a floor that was never needed; V keeps the
+;; floor slot and adds an escape value. Neither loses the local-struct satisfier.

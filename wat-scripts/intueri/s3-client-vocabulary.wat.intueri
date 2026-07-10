@@ -1,0 +1,111 @@
+;; s3-client-vocabulary.wat — PROPOSED names for the CLIENT side of services-as-surfaces
+;; (293 S3 `:calls [surface]` + the peer-as-satisfier + the dial). NON-RUNNING; it exists to
+;; COMMUNICATE the naming decisions so intueri can weigh which candidates keep their promise.
+;;
+;; THE ENDPOINT WE ARE NAMING FOR (not the transition): after S4 purges the old per-service
+;; internals, EVERY service :satisfies a surface (server) and EVERY consumer :calls a surface
+;; (client). Nobody names a concrete service anywhere. The transition names below (marked
+;; [TRANSITION — PURGED BY S4]) are scaffolding S2 emitted to dodge a collision; they are NOT
+;; candidates — they are the thing being replaced. Name the TRUE endpoint.
+
+;; ════════════════════════════════════════════════════════════════════════════════════════
+;; RATIFIED ANCHORS (already cast + shipped — S1/S2; DO NOT re-name; harmonize WITH these)
+;; ════════════════════════════════════════════════════════════════════════════════════════
+;; A surface is the ONE contract; its methods each take a NAMED request record, return a NAMED
+;; response record. S1 synthesizes the wire-protocol enums FROM the methods:
+(:wat::core::defrecord :probe::Kv::PutRequest  [key <- :wat::core::String  val <- :wat::core::String])
+(:wat::core::defrecord :probe::Kv::PutResponse [ok  <- :wat::core::bool])
+(:wat::core::defrecord :probe::Kv::GetRequest  [key <- :wat::core::String])
+(:wat::core::defrecord :probe::Kv::GetResponse [val <- (:wat::core::Option :wat::core::String)])
+
+(:wat::core::defsurface :probe::Kv :holder :wat::core::Struct
+  ;; each method member ALSO registers a METHOD-DISPATCH STUB fn named  :probe::Kv/put ,
+  ;; :probe::Kv/get  — receiver typed :probe::Kv (a satisfier), dispatched to the satisfier's
+  ;; extend-type impl. THIS is the name the RPC client fn collided with (see below).
+  :features [(put [self <- :probe::Kv  req <- :probe::Kv::PutRequest] -> :probe::Kv::PutResponse)
+             (get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse)])
+
+;; S1-SYNTHESIZED (shared, one set, under the SURFACE namespace — NOT per service):
+(:wat::core::defenum :probe::Kv::Op    :wat::enum::Pure  :Put [req  <- :probe::Kv::PutRequest]  :Get [req  <- :probe::Kv::GetRequest])
+(:wat::core::defenum :probe::Kv::Reply :wat::enum::Pure  :Put [resp <- :probe::Kv::PutResponse] :Get [resp <- :probe::Kv::GetResponse])
+
+;; The UNIFORM wire types every satisfier shares (this is the ENTIRE reason a caller dials blind):
+;;   :wat::kernel::Address'<probe::Kv::Op, probe::Kv::Reply>   — the dial target (pure, EDN-crossable)
+;;   :wat::kernel::Peer'<probe::Kv::Op, probe::Kv::Reply>      — what connect' yields from that Address'
+;;   :wat::kernel::connect'                                    — the dial: Address' -> Peer'
+;;   :wat::kernel::Locus                                       — the wire (thread/process/UDS/mTLS/L4), orthogonal
+
+;; ════════════════════════════════════════════════════════════════════════════════════════
+;; [TRANSITION — PURGED BY S4] — NOT candidates; the scaffolding being replaced
+;; ════════════════════════════════════════════════════════════════════════════════════════
+;; S2, to dodge the :probe::Kv/put dispatch-stub collision, emitted the RPC client fn under the
+;; concrete SERVICE namespace: :probe::kv-store'/put  [c <- Peer'<Kv::Op,Kv::Reply>  req <- ...].
+;; That name (a) couples the caller to ONE backend (kv-store'), and (b) can't be named by a
+;; :calls [:probe::Kv] consumer that is BLIND to which backend. It dies with the per-service ::Op.
+
+;; ════════════════════════════════════════════════════════════════════════════════════════
+;; THE SLOTS TO NAME (each name is a PROMISE — which candidate keeps it?)
+;; ════════════════════════════════════════════════════════════════════════════════════════
+
+;; ── SLOT 1 — the PEER-AS-SATISFIER: the construct that makes a dialed Peer' BE a :probe::Kv,
+;;    so the SAME surface method dispatches whether the receiver is a local struct or a remote
+;;    peer (R31's "the interface and the remote service become one act"). Two shapes:
+;;
+;;    Shape 1a — NO WRAPPER: the dialed Peer'<Kv::Op,Kv::Reply> DIRECTLY satisfies :probe::Kv
+;;               (the macro emits an `extend-type :probe::Kv` for the peer type; sending
+;;               Kv::Op::Put / receiving Kv::Reply::Put IS the method body). Then there is no
+;;               new NAME at all — a Peer' of the right protocol is-a Kv. Fewest names, most honest?
+;;
+;;    Shape 1b — A NAMED CLIENT TYPE that wraps the peer and satisfies the surface. If we need a
+;;               name, which promise does it keep? Candidates (a struct holding the Peer', that
+;;               extend-types :probe::Kv):
+(:wat::core::defstruct :probe::Kv::Client [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; "a Kv client"
+(:wat::core::defstruct :probe::Kv::Remote [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; "a remote Kv"
+(:wat::core::defstruct :probe::Kv::Proxy  [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; "a stand-in for a Kv"
+(:wat::core::defstruct :probe::Kv::Stub   [peer <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>])  ;; RPC-gen jargon (CORBA/gRPC)
+;;    QUESTION for intueri: does SLOT 1 want a name at all (1a — the Peer' is-a Kv, nothing new),
+;;    or does a named client type keep a promise the bare peer can't? If named, which of
+;;    Client / Remote / Proxy / Stub says what it IS (and does not lie — e.g. Proxy/Stub carry
+;;    OOP-RPC-codegen baggage; Remote asserts a locus when a "remote" may be same-process)?
+
+;; ── SLOT 2 — the CLIENT ENTRY POINT the :calls [:probe::Kv] consumer INVOKES to do an op.
+;;    If SLOT 1 makes the peer a Kv, then the surface method :probe::Kv/put IS the entry — ONE
+;;    name, uniform for local struct AND dialed peer (no separate RPC fn). Is that the true shape,
+;;    or is a DISTINCT client-call name wanted? Candidates if distinct:
+;;      :probe::Kv/put            — the surface method itself (uniform; requires SLOT-1 peer-is-a-Kv)
+;;      :probe::Kv::call/put      — a namespaced RPC face, distinct from the dispatch stub
+;;      :probe::Kv/put!           — a bang to mark "this one goes over the wire" (but dispatch may be local...)
+;;    QUESTION for intueri: is the honest endpoint ONE name (:probe::Kv/put, dispatched through
+;;    whatever satisfies Kv — struct or peer), so the RPC-vs-local distinction is INVISIBLE (the
+;;    decomplection R31 promised)? Or does a caller deserve to SEE it may cross the wire?
+
+;; ── SLOT 3 — the DIAL a :calls [:probe::Kv] consumer runs in :init to turn a given
+;;    Address'<Kv::Op,Kv::Reply> (a pure operating-input) INTO the Kv it then calls.
+;;    Today: (:wat::kernel::connect' addr) -> Peer'. If SLOT 1 = a named client type, the dial
+;;    must PRODUCE it. Candidates for the surface-level dial:
+;;      (:wat::kernel::connect' addr)              — the raw dial (yields Peer'; is-a Kv iff SLOT-1a)
+;;      (:probe::Kv/connect addr)                  — a surface-level dial that yields a Kv
+;;      (:probe::Kv/dial addr)                     — "dial a Kv"
+;;      (:probe::Kv/at addr)                       — "the Kv at this address"
+;;    QUESTION for intueri: does the consumer just use the ratified `connect'` (SLOT-1a: the Peer'
+;;    is already a Kv, no surface-specific dial needed), or is a surface-level dial name warranted
+;;    (and if so, connect / dial / at — which says "produce the Kv I will call" without mumbling)?
+
+;; ── SLOT 4 (bundled, the Reply-as-error-union) — a modeled error is a Reply variant, not just
+;;    the success record. The Op enum carries requests; the Reply enum carries SUCCESS (the
+;;    response record) PLUS one variant per modeled error (each an error record). What does the
+;;    client entry (SLOT 2) RETURN so the caller must branch success-vs-error?
+;;      -> :probe::Kv::PutResponse                                  — success only (errors would be lost — dishonest)
+;;      -> :wat::core::Result<probe::Kv::PutResponse, probe::Kv::Error>   — a Result split
+;;      -> :probe::Kv::Reply                                        — the raw Reply enum (caller matches variants)
+;;    QUESTION for intueri: what does the client method's RETURN TYPE promise so the caller
+;;    cannot ignore a modeled error — the Reply enum itself (match-forced), or a Result over
+;;    {success-record, error-union}? (The surface method today declares -> PutResponse; the
+;;    Reply-as-error-union changes what the CLIENT sees.)
+
+;; ════════════════════════════════════════════════════════════════════════════════════════
+;; What a GOOD verdict looks like: for each slot, the ONE name (or "no name — use the anchor")
+;; that keeps its promise; the rejected candidates marked Level 1 (lies) / Level 2 (mumbles)
+;; with why; harmonized with the ratified anchors (Op/Reply/Address'/Peer'/connect'/:satisfies/
+;; :impls/:calls) and the endpoint doctrine (nobody names a concrete service; the RPC-vs-local
+;; distinction is decomplected away unless a caller genuinely deserves to see the wire).

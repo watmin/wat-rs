@@ -1,0 +1,34 @@
+;; probe-cap2-peer-pid.wat — arc 170 capability circuit, stone 2 DISCONFIRMING PROBE.
+;;
+;; Isolate the ONE gap: does (:wat::kernel::peer-pid p) lift the pid off a peer?
+;;   process peer (connect' to a process service) -> (Some pid)
+;;   thread  peer (connect' to a thread  service) -> :None
+;; Pre-strike this fails on EXACTLY ":wat::kernel::peer-pid is undefined" — everything
+;; around it (start the services, connect' → peers) is already green, so the whole
+;; strike is "define :wat::kernel::peer-pid". EXPECT (post-strike): "(Some <pid>)" then ":None".
+
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+
+(:wat::service::defservice :probe::echo'
+  :satisfies :probe::Echo  :durable [] :ephemeral []
+  :impls [(echo [s req] (:wat::service::Outcome::Reply s
+                          (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [;; ── a PROCESS peer: its far end is a forked child → peer-pid should be (Some pid) ──
+     ph  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     pc  (:wat::kernel::connect' (:probe::echo'::Handle/addr ph))
+     _   (:wat::kernel::println "process-peer peer-pid:")
+     _   (:wat::kernel::println (:wat::kernel::peer-pid pc))   ; ← THE GAP (undefined pre-strike)
+     ;; ── a THREAD peer: its far end is a cell in THIS process → peer-pid should be :None ──
+     th  (:probe::echo'/start :locus (:wat::spawn::thread) :record (:probe::echo'::Record))
+     tc  (:wat::kernel::connect' (:probe::echo'::Handle/addr th))
+     _   (:wat::kernel::println "thread-peer peer-pid:")
+     _   (:wat::kernel::println (:wat::kernel::peer-pid tc))]
+    nil))

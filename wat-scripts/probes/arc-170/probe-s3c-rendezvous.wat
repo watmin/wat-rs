@@ -1,0 +1,58 @@
+;; probe-s3c-rendezvous.wat — the redesign's load-bearing composition (259 S3c).
+;;
+;; The current process arm SHIPS the runner and lets it reference the work-fn BY NAME
+;; (a closure over a shipped symbol). To BAKE the runner into :wat::bracket:: (reserved,
+;; privileged, zero user input) it CANNOT reference a :user::bracket:: name — that would be
+;; a stdlib -> user.program forward reference the resolver rejects. So the runner must take
+;; the work-fn as a VALUE argument and thread it through its recursion (like the thread
+;; runner-loop already does), and :user::main passes it from the RENDEZVOUS coordinate.
+;;
+;; This probe proves that composition with the runner still SHIPPED (baking it is then pure
+;; relocation into stdlib). It proves:
+;;   (1) the runner takes work-fn as a VALUE (so it can be baked/generic — no by-name ref),
+;;   (2) the work-fn lives at the rendezvous coordinate :user::bracket::work-fn (non-reserved,
+;;       ships clean — no reserved gate, no underscores/"internal" markers),
+;;   (3) :user::main looks up that coordinate and drives the runner.
+;;
+;; EXPECT "6 10".
+
+;; typed drain: pins the Process' I/O (parent sends (idx,I), recvs (idx,O)); I=O=i64.
+(:wat::core::defn :probe::drain
+  [w <- :wat::kernel::Process'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+  -> :wat::core::nil
+  (:wat::core::let
+    [_ (:wat::kernel::send' w (:wat::core::Tuple 0 3))
+     _ (:wat::kernel::send' w (:wat::core::Tuple 1 5))
+     a (:wat::kernel::recv' w)
+     b (:wat::kernel::recv' w)]
+    (:wat::kernel::println
+      (:wat::core::string::concat
+        (:wat::core::i64::to-string (:wat::core::second a))
+        (:wat::core::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+     w (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::concat
+           ;; the user's work-fn, reified to the RENDEZVOUS coordinate (non-reserved, clean name)
+           (:wat::kernel::fn-forms work :user::bracket::work-fn)
+           (:wat::core::forms
+             ;; the GENERIC runner (baked into :wat::bracket:: in the real strike) — takes the
+             ;; work-fn as a VALUE and threads it through the recursion; NO by-name reference.
+             (:wat::core::defn :bracket::pool-runner
+               [self    <- :wat::kernel::Peer'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>
+                work-fn <- :wat::core::Fn(wat::core::i64)->wat::core::i64]
+               -> :wat::core::nil
+               (:wat::core::let
+                 [pair (:wat::kernel::recv' self)
+                  out  (:wat::core::Tuple (:wat::core::first pair)
+                                          (work-fn (:wat::core::second pair)))
+                  _    (:wat::kernel::send' self out)]
+                 (:bracket::pool-runner self work-fn)))
+             ;; :user::main looks up the rendezvous coordinate and PASSES the work-fn value.
+             (:wat::core::defn :user::main [] -> :wat::core::nil
+               (:bracket::pool-runner
+                 (:wat::program::self-peer :(wat::core::i64,wat::core::i64) :(wat::core::i64,wat::core::i64))
+                 :user::bracket::work-fn)))))]
+    (:probe::drain w)))

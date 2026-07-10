@@ -1,0 +1,78 @@
+;; s2s-process-probe.wat — arc 278 S4d GREEN-LIGHT target.
+;; Two primed services, BOTH forked to PROCESSES:
+;;   echo'   — :satisfies :probe::Echo; echoes "echo:<msg>".
+;;   caller' — :satisfies :probe::Caller; DIALS echo' (holds a client Peer'<Echo::Op,Echo::Reply>
+;;             in :ephemeral, declares :peers [:probe::Echo]); its `run` impl calls Echo/echo.
+;;
+;; Needs BOTH arc-278-S4d changes:
+;;   (1) wat-edn admits `'` in symbol/keyword bodies → the primed keywords (`echo'`, `caller'`,
+;;       and the Address'/Peer' cap records) survive the process-pipe wire.
+;;   (2) defservice :peers ships (:probe::Echo::surface-forms) into caller''s child bundle → the
+;;       forked caller child resolves Echo/echo + Echo::EchoRequest/EchoResponse (else StartupError).
+;; Prints: echo:hi
+
+;; ── ECHO: the dialed surface + its service ──────────────────────────────────────
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+
+(:wat::service::defservice :probe::echo'
+  :satisfies :probe::Echo
+  :durable   []
+  :ephemeral []
+  :impls
+  [(echo [s req]
+     (:wat::service::Outcome::Reply s
+       (:probe::Echo::EchoResponse
+         (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+
+;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
+(:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Caller::RunRequest  [])
+   (:wat::core::defrecord :probe::Caller::RunResponse [out <- :wat::core::String])]
+  :features
+  [(run [self <- :probe::Caller  req <- :probe::Caller::RunRequest] -> :probe::Caller::RunResponse)])
+
+(:wat::service::defservice :probe::caller'
+  :satisfies :probe::Caller
+  :durable   []
+  ;; the dialed peer — a client Peer'<Echo::Op,Echo::Reply>, held as a ROOT ephemeral field
+  :ephemeral [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]
+  ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
+  :peers     [:probe::Echo]
+  ;; :init connects to echo' (its Address' crosses the fork as an operating-input cap record)
+  :init (:wat::core::fn
+          [record    <- :probe::caller'::Record
+           echo-addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
+          -> :probe::caller'::State
+          (:probe::caller'::State record (:wat::kernel::connect' echo-addr)))
+  :impls
+  [(run [s req]
+     (:wat::core::let
+       [echo (:probe::caller'::State/echo s)
+        er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest "hi"))
+        out  (:probe::Echo::EchoResponse/reply er)]
+       (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse out))))])
+
+;; ── the crossing: start both on PROCESSES, dial caller', which dials echo' ───────
+;; arc 278: caller' births on a PROCESS whose post-spawn hook grants caller's own pid to
+;; echo's accept-gate BEFORE caller''s :init dials echo' (grant-before-dial ordering — the
+;; hook fires owner-side with the child ProcessLaunch{pid} after the fork, before :init ships).
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [eh  (:probe::echo'/start   :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     ea  (:probe::echo'::Handle/addr eh)
+     ch  (:probe::caller'/start
+           :locus (:wat::spawn::process/post-spawn
+                    (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                      (:probe::echo'/grant eh
+                        (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
+           :record (:probe::caller'::Record) :echo-addr ea)
+     cc  (:wat::kernel::connect' (:probe::caller'::Handle/addr ch))
+     rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))
+     out (:probe::Caller::RunResponse/out rr)]
+    (:wat::kernel::println out)))

@@ -15,3 +15,16 @@ fail-fast = false
 slow-timeout = { period = "20s", terminate-after = 3 }   # a touch more headroom in CI
 retries = 1                                              # absorb a rare leak-flake; surfaces as flaky, not failed
 fail-fast = false
+
+# The wat-scripts load gate freezes EVERY .wat under wat-scripts/ in ONE test
+# (~170 files after arc-170 promoted its scratch probes into wat-scripts/probes/)
+# — legitimately CPU-heavy, ~23s isolated, and grows with the corpus. The default
+# 30s kill breaches only under full-floor CPU contention; give it a generous
+# deadline so contention can't SIGTERM it mid-freeze. A genuine hang still dies at 90s.
+[[profile.default.overrides]]
+filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
+slow-timeout = { period = "45s", terminate-after = 2 }   # warn 45s, kill 90s
+
+[[profile.ci.overrides]]
+filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
+slow-timeout = { period = "45s", terminate-after = 2 }
