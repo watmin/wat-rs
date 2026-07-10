@@ -14,7 +14,7 @@ use wat::freeze::startup_from_file;
 /// A `recordtype` whose parent is a USER type (inheritance) must be rejected at registration.
 #[test]
 fn recordtype_with_user_parent_is_rejected() {
-    let r = startup_from_file("tests/types/probe_arc293_reject_user_parent_bad.wat");
+    let r = startup_from_file("tests/types/probe_arc293_reject_user_parent.wat.bad");
     assert!(
         r.is_err(),
         "a recordtype with a USER-type parent (inheritance) must be rejected — \

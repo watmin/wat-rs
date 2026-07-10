@@ -1,0 +1,5 @@
+;; tests/function/probe_arc237_8b_zero_ary_minus.wat.bad — NEGATIVE: 0-ary minus.
+;; 0-ary (-) has no clause (no identity for subtraction); must error.
+;; startup MUST fail.
+
+(:wat::core::defn :user::bad [] -> :wat::core::i64 (:wat::core::-))

@@ -1,8 +1,0 @@
-;; tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut_bad.wat
-;; :wat::core::define-dispatch — must be HARD-CUT-rejected at startup (Stone 241.13).
-
-(:wat::core::defn :test::desc-i64 [x <- :wat::core::i64] -> :wat::core::String "i64 arm")
-(:wat::core::defn :test::desc-str [x <- :wat::core::String] -> :wat::core::String "str arm")
-(:wat::core::define-dispatch :test::describe
-  ((:wat::core::i64) :test::desc-i64)
-  ((:wat::core::String) :test::desc-str))

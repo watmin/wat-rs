@@ -85,7 +85,7 @@ fn diag_first_over_form() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn diag_program_body_quasiquote_impure_unquote_fenced() {
-    let result = startup_from_file("tests/macros/probe_arc249_threading_in_wat_impure_prog_bad.wat");
+    let result = startup_from_file("tests/macros/probe_arc249_threading_in_wat_impure_prog.wat.bad");
     let accepted = result.is_ok();
     println!(
         "\n=== diag_program_body_quasiquote_impure_unquote_fenced ===\nstartup_ok = {} (false = fenced/safe, true = F5-redux HOLE)\n",

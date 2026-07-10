@@ -366,6 +366,37 @@ wat call chain — each frame carrying a real `file:line:col`
 into `wat-rs/src/*.rs`, same convention Rust uses for stdlib
 frames). USER-GUIDE § "Failure output" has a worked example.
 
+### Intentionally-invalid fixtures — declared bad by EXTENSION: `.wat.bad` (arc 170, 2026-07-09)
+
+A negative test fixture that is **supposed to be rejected** — a lexer/parser
+negative (a supplementary-plane char literal, whitespace inside a keyword's
+generic head), a type-error negative, a freeze-wall negative (an illegal
+`:user::main`) — MUST use the **`.wat.bad`** extension, never `.wat`.
+
+**Why it is the extension, not a `_bad` infix.** A file named `foo_bad.wat`
+still ends in `.wat`, so it is indistinguishable from valid wat to any tool
+that globs the corpus: the wat-scripts load gate (`Path::extension() == "wat"`),
+a `wat-fix` codemod (`git ls-files '*.wat'`), a lint sweep. A single
+intentionally-malformed fixture then **poisons the whole tool** — e.g.
+`strip-useless-mains.wat`'s `read-string` *panics* the instant it reaches a
+lexer-negative, because that file is *designed* not to parse. Declaring
+bad-ness in the **extension** makes the wrong thing structurally excluded: a
+`.wat.bad` file's `Path::extension()` is `"bad"`, so every `*.wat` glob and
+every `== "wat"` check skips it *by construction*. The malformed fixture can no
+longer masquerade as valid wat — constraint engineering, not vigilance.
+
+**How tests load them.** By **explicit path** —
+`startup_from_file("tests/foo.wat.bad")` — never `startup_beside` (which
+derives `.wat`). `std::fs::read_to_string` is extension-agnostic, so loading is
+unaffected; the test asserts the parse/type/freeze `Err`. (Negative fixtures
+have never used `startup_beside`; they are all explicit-path already.)
+
+**The rule.** A new fixture that must be rejected gets `.wat.bad`. A `.wat` file
+is a promise that it freezes; if it does not, it is either a `.wat.bad` or a
+bug — never a `.wat` that "happens to fail." (Migration 2026-07-09: 234
+`*_bad.wat` → `*.wat.bad` + one non-`_bad`-named parse-invalid straggler; the
+`_bad.wat` infix convention is retired.)
+
 ### Consumer layout (arc 018)
 
 The opinionated default for consumer crates:

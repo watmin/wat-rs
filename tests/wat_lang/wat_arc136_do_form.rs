@@ -54,10 +54,10 @@ fn run_err_file(rel_path: &str) -> String {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn do_empty_form_is_malformed() {
-    let err = run_err_file("tests/wat_lang/wat_arc136_do_form_empty_bad.wat");
+    let err = run_err_file("tests/wat_lang/wat_arc136_do_form_empty.wat.bad");
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_empty_bad.wat", line: 4, col: 54, end_line: 4, end_col: 68 }, kind: MalformedForm { head: ":wat::core::do", reason: "do form requires at least one form; got zero", remedies: [] } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_empty.wat.bad", line: 4, col: 54, end_line: 4, end_col: 68 }, kind: MalformedForm { head: ":wat::core::do", reason: "do form requires at least one form; got zero", remedies: [] } }]))"#,
         "expected MalformedForm naming the do form"
     );
 }
@@ -88,10 +88,10 @@ fn do_recipient_unifies_with_final_form_type() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn do_recipient_mismatch_fires_type_mismatch() {
-    let err = run_err_file("tests/wat_lang/wat_arc136_do_form_mismatch_bad.wat");
+    let err = run_err_file("tests/wat_lang/wat_arc136_do_form_mismatch.wat.bad");
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_mismatch_bad.wat", line: 5, col: 3, end_line: 7, end_col: 8 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::String", got: ":wat::core::i64", remedies: [] } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc136_do_form_mismatch.wat.bad", line: 5, col: 3, end_line: 7, end_col: 8 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::String", got: ":wat::core::i64", remedies: [] } }]))"#,
         "expected TypeMismatch at probe's body"
     );
 }

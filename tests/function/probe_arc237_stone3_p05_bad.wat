@@ -1,5 +1,0 @@
-;; tests/function/probe_arc237_stone3_p05_bad.wat — NEGATIVE probe 5: :guard non-boolean.
-;; :guard must produce :bool; an :i64 expression must fail type-check. startup MUST fail.
-
-(:wat::core::defclause :my::bad
-  ([x <- :wat::core::i64] :guard (:wat::core::i64::+ x 1) -> :wat::core::i64 x))

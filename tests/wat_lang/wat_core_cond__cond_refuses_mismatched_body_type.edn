@@ -6,7 +6,7 @@
     #wat.check/TypeMismatch {
       :message ":wat::core::if: parameter else-branch expects :wat::core::i64; got :wat::core::String"
       :location #wat.core/Span {
-        :file "tests/wat_lang/wat_core_cond_body_mismatch_bad.wat"
+        :file "tests/wat_lang/wat_core_cond_body_mismatch.wat.bad"
         :line 7
         :col 12
         :end #wat.core.Option/Some #wat.core/Pos {

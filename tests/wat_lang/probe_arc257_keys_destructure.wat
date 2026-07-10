@@ -1,6 +1,6 @@
 ;; tests/wat_lang/probe_arc257_keys_destructure.wat
 ;; Arc 257.2 — {:keys [x y z]} destructure in binder position (positive cases).
-;; Probe 3 (bare-symbol brace rejected) uses the _bad.wat fixture.
+;; Probe 3 (bare-symbol brace rejected) uses the .wat.bad fixture.
 
 (:wat::core::defstruct :myapp::Voltage [magnitude <- :wat::core::f64])
 (:wat::core::defstruct :myapp::Triple

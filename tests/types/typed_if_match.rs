@@ -102,7 +102,7 @@ fn untyped_if_gives_migration_hint() {
 fn untyped_match_gives_migration_hint() {
     // Three args, where the second is NOT `->` — detected as the
     // old untyped shape.
-    let errs = check_errors("tests/types/typed_if_match_untyped_match_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_untyped_match.wat.bad");
     assert_malformed_mentioning(&errs, ":wat::core::match", "now requires `-> :T`");
 }
 
@@ -110,13 +110,13 @@ fn untyped_match_gives_migration_hint() {
 
 #[test]
 fn if_without_type_keyword_after_arrow_rejected() {
-    let errs = check_errors("tests/types/typed_if_match_if_no_type_kw_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_if_no_type_kw.wat.bad");
     assert_malformed_mentioning(&errs, ":wat::core::if", "type keyword");
 }
 
 #[test]
 fn match_without_type_keyword_after_arrow_rejected() {
-    let errs = check_errors("tests/types/typed_if_match_match_no_type_kw_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_match_no_type_kw.wat.bad");
     assert_malformed_mentioning(&errs, ":wat::core::match", "type keyword");
 }
 
@@ -125,13 +125,13 @@ fn if_wrong_arity_rejected_with_shape_guidance() {
     // Six args — one too many for both the bare 3-arg and annotated 5-arg forms.
     // Arc 258.1 updated the error to name both valid shapes; the needle matches
     // the annotated-shape portion of the message.
-    let errs = check_errors("tests/types/typed_if_match_if_wrong_arity_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_if_wrong_arity.wat.bad");
     assert_malformed_mentioning(&errs, ":wat::core::if", "(:wat::core::if cond -> :T then else)");
 }
 
 #[test]
 fn match_too_few_args_rejected_with_shape_guidance() {
-    let errs = check_errors("tests/types/typed_if_match_match_too_few_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_match_too_few.wat.bad");
     assert_malformed_mentioning(&errs, ":wat::core::match", "at least 4 args");
 }
 
@@ -139,20 +139,20 @@ fn match_too_few_args_rejected_with_shape_guidance() {
 
 #[test]
 fn if_then_branch_type_mismatch_named_by_branch() {
-    let errs = check_errors("tests/types/typed_if_match_then_branch_mismatch_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_then_branch_mismatch.wat.bad");
     assert_type_mismatch_on(&errs, ":wat::core::if", "then-branch");
 }
 
 #[test]
 fn if_else_branch_type_mismatch_named_by_branch() {
-    let errs = check_errors("tests/types/typed_if_match_else_branch_mismatch_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_else_branch_mismatch.wat.bad");
     assert_type_mismatch_on(&errs, ":wat::core::if", "else-branch");
 }
 
 #[test]
 fn match_arm_type_mismatch_named_by_arm_index() {
     // Arm #2 (the :None arm) produces a String instead of i64.
-    let errs = check_errors("tests/types/typed_if_match_arm_type_mismatch_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_arm_type_mismatch.wat.bad");
     assert_type_mismatch_on(&errs, ":wat::core::match", "arm #2");
 }
 
@@ -160,7 +160,7 @@ fn match_arm_type_mismatch_named_by_arm_index() {
 
 #[test]
 fn if_non_bool_cond_rejected_at_check() {
-    let errs = check_errors("tests/types/typed_if_match_non_bool_cond_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_non_bool_cond.wat.bad");
     assert_type_mismatch_on(&errs, ":wat::core::if", "cond");
 }
 
@@ -197,7 +197,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
     // the scrutinee is a user enum AND any arm pattern uses a bare-
     // symbol head matching one of that enum's variants, emit a
     // MalformedForm pointing the user at the keyword form.
-    let errs = check_errors("tests/types/typed_if_match_bare_symbol_variant_bad.wat");
+    let errs = check_errors("tests/types/typed_if_match_bare_symbol_variant.wat.bad");
     assert_malformed_mentioning(
         &errs,
         ":wat::core::match",

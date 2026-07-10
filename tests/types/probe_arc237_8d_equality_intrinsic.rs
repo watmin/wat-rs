@@ -72,7 +72,7 @@ fn regression_cross_numeric_now_type_checks() {
     // `(= 1 2.0)` still EVALS to `false` (category-aware `=`, C4's contract,
     // unchanged). Formerly `regression_cross_numeric_is_check_error`.
     let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cross_numeric_bad.wat",
+        "tests/types/probe_arc237_8d_equality_intrinsic_cross_numeric.wat.bad",
     );
     assert!(r.is_ok(), "cross-numeric `=` now type-checks (arc 300 C5); got: {:?}", r);
 }
@@ -80,7 +80,7 @@ fn regression_cross_numeric_now_type_checks() {
 #[test]
 fn regression_cross_type_is_check_error() {
     let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cross_type_bad.wat",
+        "tests/types/probe_arc237_8d_equality_intrinsic_cross_type.wat.bad",
     );
     assert!(r.is_err(), "cross-type `=` must be a check error");
 }
@@ -94,7 +94,7 @@ fn regression_cross_type_is_check_error() {
 #[test]
 fn cut_i64_eq_gone() {
     let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_i64_eq_bad.wat",
+        "tests/types/probe_arc237_8d_equality_intrinsic_cut_i64_eq.wat.bad",
     );
     assert!(r.is_err(), ":i64::= must be cut (unknown keyword)");
 }
@@ -102,7 +102,7 @@ fn cut_i64_eq_gone() {
 #[test]
 fn cut_i64_not_eq_gone() {
     let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_i64_not_eq_bad.wat",
+        "tests/types/probe_arc237_8d_equality_intrinsic_cut_i64_not_eq.wat.bad",
     );
     assert!(r.is_err(), ":i64::not= must be cut");
 }
@@ -110,7 +110,7 @@ fn cut_i64_not_eq_gone() {
 #[test]
 fn cut_f64_eq_gone() {
     let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_f64_eq_bad.wat",
+        "tests/types/probe_arc237_8d_equality_intrinsic_cut_f64_eq.wat.bad",
     );
     assert!(r.is_err(), ":f64::= must be cut");
 }
@@ -118,7 +118,7 @@ fn cut_f64_eq_gone() {
 #[test]
 fn cut_f64_not_eq_gone() {
     let r = startup_from_file(
-        "tests/types/probe_arc237_8d_equality_intrinsic_cut_f64_not_eq_bad.wat",
+        "tests/types/probe_arc237_8d_equality_intrinsic_cut_f64_not_eq.wat.bad",
     );
     assert!(r.is_err(), ":f64::not= must be cut");
 }

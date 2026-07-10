@@ -30,7 +30,7 @@
 //!
 //! Wat fixtures:
 //!   probe_arc214_stone46i_typed_peer_probe{2,3}.wat (positive startup),
-//!   probe_arc214_stone46i_typed_peer_probe{4,5}_bad.wat (negative startup).
+//!   probe_arc214_stone46i_typed_peer_probe{4,5}.wat.bad (negative startup).
 //!
 //! Run: `cargo nextest run --release -E 'binary(types)' -F probe_arc214_stone46i_typed_peer`
 
@@ -85,7 +85,7 @@ fn probe_3_spawn_program_prime_process_types_to_peer() {
 #[test]
 fn probe_4_wrong_scalar_return_annotation_rejected() {
     let result = startup_from_file(
-        "tests/types/probe_arc214_stone46i_typed_peer_probe4_bad.wat",
+        "tests/types/probe_arc214_stone46i_typed_peer_probe4.wat.bad",
     );
     assert!(result.is_err(), "expected startup failure (wrong return type); got Ok");
 }
@@ -99,7 +99,7 @@ fn probe_4_wrong_scalar_return_annotation_rejected() {
 #[test]
 fn probe_5_cross_tier_annotation_rejected() {
     let result = startup_from_file(
-        "tests/types/probe_arc214_stone46i_typed_peer_probe5_bad.wat",
+        "tests/types/probe_arc214_stone46i_typed_peer_probe5.wat.bad",
     );
     assert!(result.is_err(), "expected startup failure (cross-tier annotation); got Ok");
 }

@@ -1,0 +1,8 @@
+;; tests/function/probe_arc237_7c_non_collection.wat.bad — NEGATIVE: non-collection arg0.
+;; assoc with i64 as arg0 (neither HashMap nor Record) must reject.
+;; startup MUST fail.
+
+(:wat::core::defn :user::bad [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::HashMap/keys
+      (:wat::core::assoc 42 "k" 1))))

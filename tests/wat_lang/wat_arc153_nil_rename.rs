@@ -39,7 +39,7 @@
 //! Tests come in two shapes:
 //!
 //!   - **Negative-case tests**: assert specific error variants
-//!     surface — loaded via co-located `*_bad.wat` fixtures
+//!     surface — loaded via co-located `*.wat.bad` fixtures
 //!     through `startup_from_file`.
 //!
 //!   - **Positive-case tests** (verify the canonical
@@ -67,11 +67,11 @@ fn type_position_unit_post_retirement_is_unknown_fqdn() {
     // `BareLegacyUnitName` migration window. Arc 163 re-armed the
     // walker; bare :wat::core::unit now fires BareLegacyUnitName.
     let err = startup_err_file(
-        "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat",
+        "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
         "expected BareLegacyUnitName walker to fire on retired :wat::core::unit"
     );
 }
@@ -99,11 +99,11 @@ fn value_position_nil_keyword_type_checks_and_evaluates() {
 fn value_position_nil_against_i64_recipient_fires_type_mismatch() {
     // nil body vs i64 sig → ReturnTypeMismatch.
     let err = startup_err_file(
-        "tests/wat_lang/wat_arc153_nil_rename_nil_i64_bad.wat",
+        "tests/wat_lang/wat_arc153_nil_rename_nil_i64.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_nil_i64_bad.wat", line: 4, col: 51, end_line: 4, end_col: 54 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::i64", got: ":wat::core::nil", remedies: [] } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_nil_i64.wat.bad", line: 4, col: 51, end_line: 4, end_col: 54 }, kind: ReturnTypeMismatch { function: ":t::probe", expected: ":wat::core::i64", got: ":wat::core::nil", remedies: [] } }]))"#,
         "expected ReturnTypeMismatch when nil body meets i64 sig"
     );
 }
@@ -123,11 +123,11 @@ fn mixed_empty_list_body_with_nil_sig_unifies() {
 fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
     // Arc 163 follow-up — walker re-armed; unit sig fires BareLegacyUnitName.
     let err = startup_err_file(
-        "tests/wat_lang/wat_arc153_nil_rename_unit_sig_bad.wat",
+        "tests/wat_lang/wat_arc153_nil_rename_unit_sig.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_sig_bad.wat", line: 4, col: 35, end_line: 4, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_sig.wat.bad", line: 4, col: 35, end_line: 4, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
         "expected BareLegacyUnitName walker to fire on retired :wat::core::unit sig"
     );
 }
@@ -163,11 +163,11 @@ fn other_keywords_still_type_as_keyword() {
 fn bare_legacy_unit_name_walker_retired() {
     // Arc 163 follow-up — walker RE-ARMED; bare :wat::core::unit fires fatal.
     let err = startup_err_file(
-        "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat",
+        "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos_bad.wat", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad", line: 5, col: 35, end_line: 5, end_col: 51 }, kind: BareLegacyUnitName }]))"#,
         "expected BareLegacyUnitName walker to fire on bare :wat::core::unit"
     );
 }

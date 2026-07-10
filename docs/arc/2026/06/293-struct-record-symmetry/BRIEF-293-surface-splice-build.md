@@ -73,7 +73,7 @@ invasive; prefer A unless the pipeline makes it awkward.)
 | existing 293 surface suite GREEN | `cargo nextest run --release -E 'test(probe_arc293)'` | all pass |
 | whole gate, floor 0 | `cargo nextest run --release` | `0 failed` |
 
-The committed RED probe is `tests/types/probe_arc293_surface_splice.{rs,wat}` (+ `_bad.wat`). Both tests are
+The committed RED probe is `tests/types/probe_arc293_surface_splice.{rs,wat}` (+ `.wat.bad`). Both tests are
 `#[ignore]`'d (IGNORE-LEDGER 293-surface-splice). **Un-ignore BOTH as the FINAL step** and they must go green — that is
 the kill. Runtime estimate: 30–50 min. Trap-door: the merge order / positional constructor — the probe constructs
 `(:probe::Metric "market-eval" "u-123" 456 "requests" 7)` over the merged order `namespace uuid time-ns name value`; if

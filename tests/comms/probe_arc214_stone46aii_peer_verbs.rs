@@ -40,7 +40,7 @@ fn startup_err(path: &str) -> String {
 #[test]
 fn probe_2_recv_projects_o_wrong_use_rejected() {
     let _err = startup_err(
-        "tests/comms/probe_arc214_stone46aii_peer_verbs_probe2_bad.wat",
+        "tests/comms/probe_arc214_stone46aii_peer_verbs_probe2.wat.bad",
     );
 }
 
@@ -54,6 +54,6 @@ fn probe_2_recv_projects_o_wrong_use_rejected() {
 #[test]
 fn probe_3_send_checks_i_wrong_payload_rejected() {
     let _err = startup_err(
-        "tests/comms/probe_arc214_stone46aii_peer_verbs_probe3_bad.wat",
+        "tests/comms/probe_arc214_stone46aii_peer_verbs_probe3.wat.bad",
     );
 }

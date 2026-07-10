@@ -46,7 +46,7 @@ fn missing_surface_member_is_rejected() {
     // GREEN TARGET: startup FAILS (type error) because :geo::Bare lacks `color`
     // and therefore does NOT structurally satisfy :geo::Shape.
     let world = startup_from_file(
-        "tests/types/probe_arc293_structural_surface_missing_bad.wat",
+        "tests/types/probe_arc293_structural_surface_missing.wat.bad",
     );
     assert!(
         world.is_err(),

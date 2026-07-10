@@ -1,7 +1,0 @@
-;; tests/wat_lang/probe_arc241_stone16_define_in_fn_bad.wat
-;; :wat::core::define in fn-body do-prefix — must be rejected (Stone 241.16 consistency).
-
-(:wat::core::defn :test::with-helper [] -> :wat::core::i64
-  (:wat::core::do
-    (:wat::core::define (:h::helper -> :wat::core::i64) 42)
-    (:h::helper)))

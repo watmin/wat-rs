@@ -1,7 +1,7 @@
 ;; tests/types/probe_arc237_8d_equality_intrinsic.wat
 ;; Co-located fixture for probe_arc237_8d_equality_intrinsic.rs
 ;; Loaded via startup_beside(file!()). Positive regression cases only.
-;; Negative check-error cases use separate _bad.wat fixtures.
+;; Negative check-error cases use separate .wat.bad fixtures.
 
 ;; Shared type for regression_eq_records_is_the_relational_case
 (:wat::core::defrecord :my::Pt [x <- :wat::core::i64  y <- :wat::core::i64])

@@ -1,6 +1,6 @@
 ;; tests/types/probe_arc237_sB1_recordtype.wat
 ;; Co-located fixture for probe_arc237_sB1_recordtype.rs (arc 237 Stone S-B.1).
-;; Probes 01-05 use this shared world. Probe 06 (negative) uses _bad.wat.
+;; Probes 01-05 use this shared world. Probe 06 (negative) uses .wat.bad.
 
 (:wat::core::recordtype :my::Circle :wat::core::Record [])
 (:wat::core::recordtype :my::Sphere :wat::holon::Record [])

@@ -31,7 +31,7 @@ fn contract_01_def_metadata_restricted_allowed_caller_passes() {
 fn contract_02_def_metadata_restricted_non_allowed_caller_fails() {
     // Non-allowed caller (:other:: namespace) must fail post-stone.
     let result = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_non_allowed_bad.wat",
+        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_non_allowed.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -45,7 +45,7 @@ fn contract_02_def_metadata_restricted_non_allowed_caller_fails() {
 fn contract_03_defn_metadata_restricted_enforces() {
     // defn with metadata-map restriction: non-allowed caller must fail.
     let result = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_non_allowed_bad.wat",
+        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_non_allowed.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -58,7 +58,7 @@ fn contract_03_defn_metadata_restricted_enforces() {
 #[test]
 fn contract_04_def_restricted_hard_cut_rejected() {
     let result = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted_bad.wat",
+        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -71,7 +71,7 @@ fn contract_04_def_restricted_hard_cut_rejected() {
 #[test]
 fn contract_05_defn_restricted_hard_cut_rejected() {
     let result = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted_bad.wat",
+        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -86,23 +86,23 @@ fn contract_05_defn_restricted_hard_cut_rejected() {
 fn contract_06_rejection_remedies_name_replacements() {
     // def-restricted → remedy names :wat::core::def
     let result_def = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted_bad.wat",
+        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted.wat.bad",
     );
     let msg_def = format!("{}", result_def.unwrap_err());
     assert_eq!(
         msg_def,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted_bad.wat:4:2: malformed :wat::core::def-restricted form: ':wat::core::def-restricted' is retired (Stone 241.14); use ':wat::core::def' with metadata-map: `(def :name {:restricted-to [<prefix-kw>...]} expr)`\n  did you mean: :wat::core::def [replaces a retired form] \u{2014} re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone14_restricted_absorbed_def_restricted.wat.bad:4:2: malformed :wat::core::def-restricted form: ':wat::core::def-restricted' is retired (Stone 241.14); use ':wat::core::def' with metadata-map: `(def :name {:restricted-to [<prefix-kw>...]} expr)`\n  did you mean: :wat::core::def [replaces a retired form] \u{2014} re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding\n",
         "def-restricted retirement remedy must name :wat::core::def with [replaces a retired form]"
     );
 
     // defn-restricted → remedy names :wat::core::defn
     let result_defn = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted_bad.wat",
+        "tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted.wat.bad",
     );
     let msg_defn = format!("{}", result_defn.unwrap_err());
     assert_eq!(
         msg_defn,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted_bad.wat:4:2: malformed :wat::core::defn-restricted form: ':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`\n  did you mean: :wat::core::defn [replaces a retired form] \u{2014} re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone14_restricted_absorbed_defn_restricted.wat.bad:4:2: malformed :wat::core::defn-restricted form: ':wat::core::defn-restricted' is retired (Stone 241.14); use ':wat::core::defn' with metadata-map: `(defn :name {:restricted-to [<prefix-kw>...]} [<args>] -> :<Ret> body)`\n  did you mean: :wat::core::defn [replaces a retired form] \u{2014} re-express the caller restriction as a `{:restricted-to [...]}` metadata-map on the binding\n",
         "defn-restricted retirement remedy must name :wat::core::defn with [replaces a retired form]"
     );
 }

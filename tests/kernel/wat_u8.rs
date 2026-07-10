@@ -97,7 +97,7 @@ fn vec_u8_construction_round_trips() {
 fn u8_type_mismatch_rejected_at_check_time() {
     // Passing :wat::core::i64 directly where :wat::core::u8 is expected should fail type
     // check — not silently coerce.
-    let result = startup_from_file("tests/kernel/wat_u8_bad.wat");
+    let result = startup_from_file("tests/kernel/wat_u8.wat.bad");
     assert!(
         result.is_err(),
         "expected type check to reject :wat::core::i64 literal where :wat::core::u8 was expected"

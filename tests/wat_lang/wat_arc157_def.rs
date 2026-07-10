@@ -70,10 +70,10 @@ fn def_computed_value_references_prior_def() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn def_type_mismatch_via_registered_type() {
-    let err = startup_err("tests/wat_lang/wat_arc157_def_type_mismatch_bad.wat");
+    let err = startup_err("tests/wat_lang/wat_arc157_def_type_mismatch.wat.bad");
     assert_eq!(
         err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_type_mismatch_bad.wat", line: 3, col: 71, end_line: 3, end_col: 74 }, kind: TypeMismatch { callee: ":wat::core::i64::+", param: "#1", expected: ":wat::core::i64", got: ":wat::core::f64" } }]))"##,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_type_mismatch.wat.bad", line: 3, col: 71, end_line: 3, end_col: 74 }, kind: TypeMismatch { callee: ":wat::core::i64::+", param: "#1", expected: ":wat::core::i64", got: ":wat::core::f64" } }]))"##,
         "expected TypeMismatch when :pi (f64) used in i64 context"
     );
 }
@@ -81,10 +81,10 @@ fn def_type_mismatch_via_registered_type() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn def_type_error_in_expr() {
-    let err = startup_err("tests/wat_lang/wat_arc157_def_type_error_in_expr_bad.wat");
+    let err = startup_err("tests/wat_lang/wat_arc157_def_type_error_in_expr.wat.bad");
     assert_eq!(
         err,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_type_error_in_expr_bad.wat", line: 4, col: 35, end_line: 4, end_col: 47 }, kind: TypeMismatch { callee: ":t::helper", param: "#1", expected: ":wat::core::i64", got: ":wat::core::String" } }, CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_type_error_in_expr_bad.wat", line: 4, col: 35, end_line: 4, end_col: 47 }, kind: TypeMismatch { callee: ":t::helper", param: "#1", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"##,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_type_error_in_expr.wat.bad", line: 4, col: 35, end_line: 4, end_col: 47 }, kind: TypeMismatch { callee: ":t::helper", param: "#1", expected: ":wat::core::i64", got: ":wat::core::String" } }, CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_type_error_in_expr.wat.bad", line: 4, col: 35, end_line: 4, end_col: 47 }, kind: TypeMismatch { callee: ":t::helper", param: "#1", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"##,
         "expected TypeMismatch in def expr"
     );
 }
@@ -128,10 +128,10 @@ fn def_position_illegal_inside_define_body() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn def_redef_forbidden_strict_default() {
-    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_forbidden_bad.wat");
+    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad");
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden_bad.wat", line: 3, col: 2, end_line: 3, end_col: 17 }, kind: DefRedefForbidden { name: ":a", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden_bad.wat", line: 2, col: 2, end_line: 2, end_col: 17 } } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad", line: 3, col: 2, end_line: 3, end_col: 17 }, kind: DefRedefForbidden { name: ":a", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad", line: 2, col: 2, end_line: 2, end_col: 17 } } }]))"#,
         "expected DefRedefForbidden naming :a on second def"
     );
 }
@@ -175,10 +175,10 @@ fn def_runtime_let_splice_closure_capture() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn def_redef_default_flag_off_strict_default() {
-    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_forbidden_bad.wat");
+    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad");
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden_bad.wat", line: 3, col: 2, end_line: 3, end_col: 17 }, kind: DefRedefForbidden { name: ":a", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden_bad.wat", line: 2, col: 2, end_line: 2, end_col: 17 } } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad", line: 3, col: 2, end_line: 3, end_col: 17 }, kind: DefRedefForbidden { name: ":a", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_forbidden.wat.bad", line: 2, col: 2, end_line: 2, end_col: 17 } } }]))"#,
         "expected DefRedefForbidden with default flag off"
     );
 }
@@ -196,10 +196,10 @@ fn def_redef_set_redef_true_same_type_succeeds() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn def_redef_set_redef_true_type_change_fires() {
-    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_type_change_bad.wat");
+    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad");
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_type_change_bad.wat", line: 4, col: 2, end_line: 4, end_col: 17 }, kind: DefRedefTypeChange { name: ":a", prior_type: ":wat::core::i64", new_type: ":wat::core::String", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_type_change_bad.wat", line: 3, col: 2, end_line: 3, end_col: 17 } } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad", line: 4, col: 2, end_line: 4, end_col: 17 }, kind: DefRedefTypeChange { name: ":a", prior_type: ":wat::core::i64", new_type: ":wat::core::String", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_type_change.wat.bad", line: 3, col: 2, end_line: 3, end_col: 17 } } }]))"#,
         "expected DefRedefTypeChange naming prior i64 and new String types"
     );
 }
@@ -207,10 +207,10 @@ fn def_redef_set_redef_true_type_change_fires() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn def_redef_set_redef_false_strict_default() {
-    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_false_bad.wat");
+    let err = startup_err("tests/wat_lang/wat_arc157_def_redef_false.wat.bad");
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_false_bad.wat", line: 4, col: 2, end_line: 4, end_col: 17 }, kind: DefRedefForbidden { name: ":a", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_false_bad.wat", line: 3, col: 2, end_line: 3, end_col: 17 } } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc157_def_redef_false.wat.bad", line: 4, col: 2, end_line: 4, end_col: 17 }, kind: DefRedefForbidden { name: ":a", original_def_span: Span { file: "tests/wat_lang/wat_arc157_def_redef_false.wat.bad", line: 3, col: 2, end_line: 3, end_col: 17 } } }]))"#,
         "expected DefRedefForbidden after explicit set-redef! false"
     );
 }

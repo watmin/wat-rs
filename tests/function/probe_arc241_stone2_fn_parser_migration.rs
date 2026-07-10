@@ -47,9 +47,9 @@
 //! Run: `cargo test --release --test probe_arc241_stone2_fn_parser_migration`
 
 //! Wat source: tests/function/probe_arc241_stone2_fn_parser_migration.wat
-//! Negative fixtures: probe_arc241_stone2_c05_bad.wat, probe_arc241_stone2_c06_bad.wat,
-//!   probe_arc241_stone2_c07_bad.wat, probe_arc241_stone2_c08_bad.wat,
-//!   probe_arc241_stone2_c09_bad.wat, probe_arc241_stone2_c10_bad.wat.
+//! Negative fixtures: probe_arc241_stone2_c05.wat.bad, probe_arc241_stone2_c06.wat.bad,
+//!   probe_arc241_stone2_c07.wat.bad, probe_arc241_stone2_c08.wat.bad,
+//!   probe_arc241_stone2_c09.wat.bad, probe_arc241_stone2_c10.wat.bad.
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -97,21 +97,21 @@ fn contract_05_name_not_symbol_errors() {
     // Post-migration: canonical parser emits "name slot must be a plain symbol (not a
     // keyword, literal, or nested form)" via From<ArgSpecError> for RuntimeError.
     // Either way: ERROR (not silent success).
-    let result = startup_from_file("tests/function/probe_arc241_stone2_c05_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c05.wat.bad");
     assert!(result.is_err(), "non-Symbol at name slot must error; got Ok");
 }
 
 #[test]
 fn contract_06_missing_arrow_errors() {
     // Slot 1 of triple is `=` not `<-`. Canonical: MissingArrow.
-    let result = startup_from_file("tests/function/probe_arc241_stone2_c06_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c06.wat.bad");
     assert!(result.is_err(), "missing `<-` arrow must error; got Ok");
 }
 
 #[test]
 fn contract_07_non_keyword_at_type_slot_errors() {
     // Slot 2 of triple is a string, not a Keyword. Canonical: TypeNotKeyword.
-    let result = startup_from_file("tests/function/probe_arc241_stone2_c07_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c07.wat.bad");
     assert!(result.is_err(), "non-Keyword at type slot must error; got Ok");
 }
 
@@ -119,7 +119,7 @@ fn contract_07_non_keyword_at_type_slot_errors() {
 fn contract_08_incomplete_triple_errors() {
     // Argspec has fewer than 3 items at a triple position. Canonical: IncompleteTriple.
     // `[x <-]` — name then arrow but no type slot.
-    let result = startup_from_file("tests/function/probe_arc241_stone2_c08_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c08.wat.bad");
     assert!(result.is_err(), "incomplete triple must error; got Ok");
 }
 
@@ -132,7 +132,7 @@ fn contract_09_missing_ret_arrow_errors() {
     // Pre-migration: A1's inline check emits "fn signature missing `->` between
     // args-vector and return type". Post-migration: SAME inline check; same message.
     // (The ret-clause inline parsing is UNCHANGED in Stone 241.2 per DESIGN D2.)
-    let result = startup_from_file("tests/function/probe_arc241_stone2_c09_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c09.wat.bad");
     assert!(result.is_err(), "missing `->` ret-arrow must error; got Ok");
 }
 
@@ -140,6 +140,6 @@ fn contract_09_missing_ret_arrow_errors() {
 fn contract_10_non_keyword_ret_type_errors() {
     // Argspec is fine; `->` is present; ret-type slot is a string not a Keyword.
     // Inline ret-clause check at A1/A2/A3 (unchanged by Stone 241.2).
-    let result = startup_from_file("tests/function/probe_arc241_stone2_c10_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone2_c10.wat.bad");
     assert!(result.is_err(), "non-Keyword ret-type must error; got Ok");
 }

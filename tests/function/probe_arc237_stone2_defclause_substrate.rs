@@ -37,8 +37,8 @@
 //! this file verbatim as "the working contract sonnet must satisfy."
 
 //! Wat source: tests/function/probe_arc237_stone2_defclause_substrate.wat
-//! Negative fixtures: probe_arc237_stone2_p07_bad.wat, probe_arc237_stone2_p08_bad.wat,
-//!   probe_arc237_stone2_p11_bad.wat, probe_arc237_stone2_p12_bad.wat.
+//! Negative fixtures: probe_arc237_stone2_p07.wat.bad, probe_arc237_stone2_p08.wat.bad,
+//!   probe_arc237_stone2_p11.wat.bad, probe_arc237_stone2_p12.wat.bad.
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -114,7 +114,7 @@ fn probe_06_per_clause_return_types_pick_at_call_site() {
 #[test]
 fn probe_07_body_return_type_mismatch_errors() {
     // Clause body returns f64 but declares -> :i64. Should fail at type-check.
-    let result = startup_from_file("tests/function/probe_arc237_stone2_p07_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone2_p07.wat.bad");
     assert!(
         result.is_err(),
         "body returning :f64 with declared -> :i64 should fail type-check; got Ok",
@@ -125,7 +125,7 @@ fn probe_07_body_return_type_mismatch_errors() {
 #[test]
 fn probe_08_no_matching_clause_at_call_site_errors() {
     // Call with arg types that no clause accepts.
-    let result = startup_from_file("tests/function/probe_arc237_stone2_p08_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone2_p08.wat.bad");
     assert!(
         result.is_err(),
         "calling :i64-typed clause with :String arg should fail at type-check; got Ok",
@@ -152,7 +152,7 @@ fn probe_10_single_clause_defclause_equivalent_to_defn() {
 #[test]
 fn probe_11_empty_defclause_rejected() {
     // defclause with ZERO clauses should be rejected at parse/registration.
-    let result = startup_from_file("tests/function/probe_arc237_stone2_p11_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone2_p11.wat.bad");
     assert!(
         result.is_err(),
         "defclause with 0 clauses should be rejected; got Ok",
@@ -165,7 +165,7 @@ fn probe_12_binding_contract_preserved_no_literal_patterns() {
     // Per arc 159/169/234 + Path C lock: clause args MUST be [name <- :Type].
     // Literal patterns (e.g., [0 <- :i64]) are NOT a valid arg shape.
     // Sonnet should reject this at parse time.
-    let result = startup_from_file("tests/function/probe_arc237_stone2_p12_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone2_p12.wat.bad");
     assert!(
         result.is_err(),
         "literal-pattern arg [0 <- :i64] should be rejected per binding contract; got Ok",

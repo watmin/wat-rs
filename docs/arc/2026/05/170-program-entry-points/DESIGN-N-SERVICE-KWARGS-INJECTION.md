@@ -411,7 +411,7 @@ call it emits, does the catching. **Unbuilt, unprobed as a whole** — flagged f
 > - **PROVEN (2026-07-09b, on the disk):** the hand-written checker shape catches it — `probe-w2b-ok.wat` (correct,
 >   order-free) freezes CLEAN; `probe-w2b-swap.wat` (swapped) is a located `TypeMismatch` at `wat --check`:
 >   `expects Address'<probe::Echo::Op,probe::Echo::Reply>; got Address'<probe::Kv::Op,probe::Kv::Reply>`. This is the
->   same compile-time mechanism the committed test `tests/services/probe_arc170_wrong_service_colocation_bad.wat`
+>   same compile-time mechanism the committed test `tests/services/probe_arc170_wrong_service_colocation.wat.bad`
 >   proves — B just GENERATES the checker (kwargs-keyed → order-free) instead of hand-writing a positional `dial-all`.
 >
 > **The user-form UX and the compile-time guarantee are UNCHANGED** (the whole point — the reflection was an

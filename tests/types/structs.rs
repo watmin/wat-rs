@@ -75,7 +75,7 @@ fn structs_are_values_that_survive_rebinding() {
 
 #[test]
 fn constructor_arity_mismatch_rejected_at_check() {
-    let errs = check_errors("tests/types/structs_ctor_arity_mismatch_bad.wat");
+    let errs = check_errors("tests/types/structs_ctor_arity_mismatch.wat.bad");
     let saw_arity = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 2, got: 1, .. }, .. }
@@ -86,7 +86,7 @@ fn constructor_arity_mismatch_rejected_at_check() {
 
 #[test]
 fn constructor_field_type_mismatch_rejected_at_check() {
-    let errs = check_errors("tests/types/structs_ctor_type_mismatch_bad.wat");
+    let errs = check_errors("tests/types/structs_ctor_type_mismatch.wat.bad");
     let saw_type = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. }
@@ -97,7 +97,7 @@ fn constructor_field_type_mismatch_rejected_at_check() {
 
 #[test]
 fn accessor_returns_correct_field_type() {
-    let errs = check_errors("tests/types/structs_accessor_return_type_bad.wat");
+    let errs = check_errors("tests/types/structs_accessor_return_type.wat.bad");
     let saw_ret = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. }
@@ -117,7 +117,7 @@ fn builtin_capacity_exceeded_struct_is_usable() {
 
 #[test]
 fn builtin_capacity_exceeded_cannot_be_redeclared() {
-    match startup_from_file("tests/types/structs_builtin_redeclare_bad.wat") {
+    match startup_from_file("tests/types/structs_builtin_redeclare.wat.bad") {
         Err(_) => {}
         Ok(_) => panic!("expected startup to reject redeclaration of builtin"),
     }

@@ -1,6 +1,6 @@
 ;; tests/wat_lang/probe_arc234_stone4_hash_destructure.wat
 ;; Arc 234 Stone 234.4 — let-binding hash-destructure probes (positive cases).
-;; Probes 1, 2, 3, 4, 6. Probe 5 (unknown field) uses the _bad.wat fixture.
+;; Probes 1, 2, 3, 4, 6. Probe 5 (unknown field) uses the .wat.bad fixture.
 
 (:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 (:wat::core::defrecord :myapp::Triple

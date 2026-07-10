@@ -21,8 +21,8 @@
 //! Run: cargo test --release --test probe_arc237_7c_assoc_polymorphic
 
 //! Wat source: tests/function/probe_arc237_7c_assoc_polymorphic.wat
-//! Negative fixtures: probe_arc237_7c_wrong_key_bad.wat, probe_arc237_7c_wrong_value_bad.wat,
-//!   probe_arc237_7c_non_collection_bad.wat.
+//! Negative fixtures: probe_arc237_7c_wrong_key.wat.bad, probe_arc237_7c_wrong_value.wat.bad,
+//!   probe_arc237_7c_non_collection.wat.bad.
 //! Ignored Record-arm fixtures: probe_arc237_7c_assoc_base_record.wat,
 //!   probe_arc237_7c_assoc_holonic_record.wat (un-ignored when Stone 237.7c ships).
 
@@ -51,19 +51,19 @@ fn assoc_hashmap_returns_hashmap_type_preserved() {
 
 #[test]
 fn assoc_hashmap_wrong_key_type_rejected_at_check() {
-    let result = startup_from_file("tests/function/probe_arc237_7c_wrong_key_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_7c_wrong_key.wat.bad");
     assert!(result.is_err(), "assoc HashMap<String,i64> with i64 key MUST reject at check; got Ok");
 }
 
 #[test]
 fn assoc_hashmap_wrong_value_type_rejected_at_check() {
-    let result = startup_from_file("tests/function/probe_arc237_7c_wrong_value_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_7c_wrong_value.wat.bad");
     assert!(result.is_err(), "assoc HashMap<String,i64> with String value MUST reject at check; got Ok");
 }
 
 #[test]
 fn assoc_non_collection_arg0_rejected() {
-    let result = startup_from_file("tests/function/probe_arc237_7c_non_collection_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_7c_non_collection.wat.bad");
     assert!(result.is_err(), "assoc with non-collection arg0 (i64) MUST reject; got Ok");
 }
 

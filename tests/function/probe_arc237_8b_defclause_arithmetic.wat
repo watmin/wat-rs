@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc237_8b_defclause_arithmetic.wat
 ;; Arc 237 Stone 237.8b — recipe-lock + numeric grid via wat-defclause.
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Negative (startup-fail) cases are in sibling *_bad.wat files.
+;; Negative (startup-fail) cases are in sibling *.wat.bad files.
 
 ;; GATE 1 — defclause supports & rest-binders in args-vec
 (:wat::core::defclause :my::g1-sum-all

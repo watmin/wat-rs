@@ -1,5 +1,0 @@
-;; tests/wat_lang/probe_arc241_stone15_zombie_purge_try_bad.wat
-;; Zombie A: :wat::core::try — must be HARD-CUT-rejected via Stone 241.15.
-
-(:wat::core::defn :test::do-it [r <- :wat::core::Result<wat::core::i64,wat::core::String>] -> :wat::core::Result<wat::core::i64,wat::core::String>
-  (:wat::core::Ok (:wat::core::try r)))

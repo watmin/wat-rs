@@ -1,9 +1,0 @@
-;; tests/function/probe_arc247_hof_coll_first_bad.wat — NEGATIVE: coll-first (map xs f) is gone.
-;; After the fn-first flip, (map coll fn) must be a check error. startup MUST fail.
-
-(:wat::core::defn :user::bad [] -> :wat::core::bool
-  (:wat::core::= (:wat::core::map
-                   [1 2 3]
-                   (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::i64::+ x 1)))
-                 [2 3 4]))

@@ -26,7 +26,7 @@
 //!       (`open_surface_dispatch_ambiguous_return_is_a_compile_error`).
 //!
 //! Wat sources: `probe_arc278_open_surface_dispatch.wat` (the sound shapes),
-//! `probe_arc278_open_surface_dispatch_ambiguous_bad.wat` (the unsound shape,
+//! `probe_arc278_open_surface_dispatch_ambiguous.wat.bad` (the unsound shape,
 //! must never start up).
 
 use wat::check::CheckErrorKind;
@@ -75,7 +75,7 @@ fn open_surface_dispatch_unknown_class_is_runtime_no_match() {
 #[test]
 fn open_surface_dispatch_ambiguous_return_is_a_compile_error() {
     let result = startup_from_file(
-        "tests/rete/probe_arc278_open_surface_dispatch_ambiguous_bad.wat",
+        "tests/rete/probe_arc278_open_surface_dispatch_ambiguous.wat.bad",
     );
     match result {
         Err(StartupError::Check(errs)) => {

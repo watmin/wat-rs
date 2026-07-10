@@ -1,8 +1,0 @@
-;; tests/function/probe_arc237_8b_gate2_cross_bad.wat — NEGATIVE: cross-type no matching clause.
-;; (i64, f64) mixed args to a type-dispatched defclause MUST reject (no matching clause).
-;; startup MUST fail.
-
-(:wat::core::defclause :my::add
-  ([x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x y))
-  ([x <- :wat::core::f64 y <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::+ x y)))
-(:wat::core::defn :user::bad [] -> :wat::core::f64 (:my::add 1 2.0))

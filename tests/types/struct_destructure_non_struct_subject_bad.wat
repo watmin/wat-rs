@@ -1,8 +1,0 @@
-;; struct_destructure_non_struct_subject_bad.wat — rhs is i64, not struct. Must FAIL.
-(:wat::core::defstruct :test::PaperResolved
-  [outcome       <- :wat::core::String
-   grace-residue <- :wat::core::f64])
-(:wat::core::defn :user::compute [] -> :wat::core::String
-  (:wat::core::let
-    [{:keys [outcome]} 42]
-    outcome))

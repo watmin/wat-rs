@@ -22,7 +22,7 @@ use wat::freeze::startup_from_file;
 fn contract_01_define_dispatch_hard_cut_rejected() {
     // A well-formed define-dispatch decl must be HARD-CUT-rejected at startup.
     let result = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut_bad.wat",
+        "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -36,12 +36,12 @@ fn contract_01_define_dispatch_hard_cut_rejected() {
 #[test]
 fn contract_02_rejection_remedy_names_defclause() {
     let result = startup_from_file(
-        "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut_bad.wat",
+        "tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut.wat.bad",
     );
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut_bad.wat:6:2: malformed :wat::core::define-dispatch form: ':wat::core::define-dispatch' is retired (Stone 241.13); use ':wat::core::defclause' instead\n  did you mean: :wat::core::defclause [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone13_define_dispatch_hard_cut.wat.bad:6:2: malformed :wat::core::define-dispatch form: ':wat::core::define-dispatch' is retired (Stone 241.13); use ':wat::core::defclause' instead\n  did you mean: :wat::core::defclause [replaces a retired form]\n",
         "retirement remedy must name :wat::core::defclause with [replaces a retired form]"
     );
 }

@@ -1,8 +1,0 @@
-;; structs_accessor_return_type_bad.wat — Bar/volume is i64 but used where f64 expected. Must FAIL.
-(:wat::core::defstruct :my::market::Bar
-  [open   <- :wat::core::f64
-   volume <- :wat::core::i64])
-(:wat::core::defn :my::probe [] -> :wat::core::f64
-  (:wat::core::let
-    [b (:my::market::Bar 1.0 100)]
-    (:my::market::Bar/volume b)))

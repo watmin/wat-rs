@@ -1,6 +1,0 @@
-;; tests/function/probe_arc237_7b_contains_wrong_elem_bad.wat — NEGATIVE: wrong element type.
-;; contains? on Vector<i64> with a String elem must reject at check time.
-;; startup MUST fail.
-
-(:wat::core::defn :user::bad [] -> :wat::core::bool
-  (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) "x"))

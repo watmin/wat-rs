@@ -1,4 +1,0 @@
-;; typealias_preserves_type_mismatches_bad.wat — alias does not hide type errors. Must FAIL.
-(:wat::core::typealias :my::Amount :wat::core::f64)
-(:wat::core::defn :app::double [x <- :my::Amount] -> :my::Amount (:wat::core::f64::* x 2.0))
-(:wat::core::defn :my::probe [] -> :my::Amount (:app::double "not a number"))

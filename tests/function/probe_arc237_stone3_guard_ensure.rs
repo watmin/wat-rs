@@ -43,9 +43,9 @@
 //! verbatim as "the working contract sonnet must satisfy."
 
 //! Wat source: tests/function/probe_arc237_stone3_guard_ensure.wat
-//! Negative fixtures: probe_arc237_stone3_p05_bad.wat, probe_arc237_stone3_p08_bad.wat,
-//!   probe_arc237_stone3_p09_bad.wat, probe_arc237_stone3_p10_bad.wat,
-//!   probe_arc237_stone3_p12_bad.wat, probe_arc237_stone3_p13_bad.wat.
+//! Negative fixtures: probe_arc237_stone3_p05.wat.bad, probe_arc237_stone3_p08.wat.bad,
+//!   probe_arc237_stone3_p09.wat.bad, probe_arc237_stone3_p10.wat.bad,
+//!   probe_arc237_stone3_p12.wat.bad, probe_arc237_stone3_p13.wat.bad.
 //! Runtime-error fns in main fixture: :user::probe-02-err, :user::probe-07-err.
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
@@ -101,7 +101,7 @@ fn probe_04_factorial_demo_via_guards() {
 #[test]
 fn probe_05_guard_non_boolean_errors_at_check() {
     // :guard must produce :bool. An :i64 expression should fail type-check.
-    let result = startup_from_file("tests/function/probe_arc237_stone3_p05_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone3_p05.wat.bad");
     assert!(
         result.is_err(),
         ":guard returning :i64 (not :bool) should fail type-check; got Ok",
@@ -131,7 +131,7 @@ fn probe_07_ensure_false_raises_postcondition() {
 #[test]
 fn probe_08_ensure_fn_wrong_arity_errors_at_check() {
     // :ensure :fn must be 1-arity. 2-arity should reject at type-check.
-    let result = startup_from_file("tests/function/probe_arc237_stone3_p08_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone3_p08.wat.bad");
     assert!(
         result.is_err(),
         ":ensure :fn with arity 2 should fail type-check; got Ok",
@@ -142,7 +142,7 @@ fn probe_08_ensure_fn_wrong_arity_errors_at_check() {
 #[test]
 fn probe_09_ensure_fn_arg_type_mismatch_errors_at_check() {
     // :ensure :fn's arg type must match the clause's declared return type.
-    let result = startup_from_file("tests/function/probe_arc237_stone3_p09_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone3_p09.wat.bad");
     assert!(
         result.is_err(),
         ":ensure :fn arg type :String != declared return :i64; should fail type-check; got Ok",
@@ -152,7 +152,7 @@ fn probe_09_ensure_fn_arg_type_mismatch_errors_at_check() {
 // ─── Probe 10 ───────────────────────────────────────────────────────────────
 #[test]
 fn probe_10_ensure_fn_return_not_bool_errors_at_check() {
-    let result = startup_from_file("tests/function/probe_arc237_stone3_p10_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone3_p10.wat.bad");
     assert!(
         result.is_err(),
         ":ensure :fn return :i64 (not :bool); should fail type-check; got Ok",
@@ -174,7 +174,7 @@ fn probe_11_full_shape_guard_and_ensure() {
 #[test]
 fn probe_12_multiple_guards_rejected() {
     // ONE :guard per clause; multiple should reject.
-    let result = startup_from_file("tests/function/probe_arc237_stone3_p12_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone3_p12.wat.bad");
     assert!(
         result.is_err(),
         "multiple :guard in same clause should reject; got Ok",
@@ -185,7 +185,7 @@ fn probe_12_multiple_guards_rejected() {
 #[test]
 fn probe_13_keyword_order_violation_rejected() {
     // Order fixed: args → :guard? → :ensure? → body. :ensure BEFORE :guard is illegal.
-    let result = startup_from_file("tests/function/probe_arc237_stone3_p13_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_stone3_p13.wat.bad");
     assert!(
         result.is_err(),
         ":ensure before :guard (order violation) should reject; got Ok",

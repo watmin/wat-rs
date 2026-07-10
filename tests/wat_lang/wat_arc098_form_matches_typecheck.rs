@@ -76,7 +76,7 @@ fn valid_where_escape_returns_bool() {
 #[test]
 fn rejects_unknown_struct_type() {
     expect_check_error(
-        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_struct_bad.wat",
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_struct.wat.bad",
         "unknown struct type :test::DoesNotExist",
     );
 }
@@ -84,7 +84,7 @@ fn rejects_unknown_struct_type() {
 #[test]
 fn rejects_unknown_field() {
     expect_check_error(
-        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_field_bad.wat",
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_field.wat.bad",
         "struct :test::PaperResolved has no field :unknown-field",
     );
 }
@@ -92,7 +92,7 @@ fn rejects_unknown_field() {
 #[test]
 fn rejects_unknown_constraint_head() {
     expect_check_error(
-        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_constraint_bad.wat",
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_unknown_constraint.wat.bad",
         "unknown matcher head: :foo",
     );
 }
@@ -100,7 +100,7 @@ fn rejects_unknown_constraint_head() {
 #[test]
 fn rejects_where_body_non_bool() {
     expect_check_error(
-        "tests/wat_lang/wat_arc098_form_matches_typecheck_where_nonbool_bad.wat",
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_where_nonbool.wat.bad",
         "where-body",
     );
 }
@@ -108,7 +108,7 @@ fn rejects_where_body_non_bool() {
 #[test]
 fn rejects_arity_zero() {
     expect_check_error(
-        "tests/wat_lang/wat_arc098_form_matches_typecheck_arity_zero_bad.wat",
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_arity_zero.wat.bad",
         ":wat::form::matches?",
     );
 }
@@ -116,7 +116,7 @@ fn rejects_arity_zero() {
 #[test]
 fn rejects_pattern_head_non_keyword() {
     expect_check_error(
-        "tests/wat_lang/wat_arc098_form_matches_typecheck_pattern_head_nonkw_bad.wat",
+        "tests/wat_lang/wat_arc098_form_matches_typecheck_pattern_head_nonkw.wat.bad",
         "pattern head must be a struct type keyword",
     );
 }

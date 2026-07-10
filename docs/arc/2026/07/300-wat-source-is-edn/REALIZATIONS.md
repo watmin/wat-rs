@@ -259,14 +259,14 @@ The builder, running the 244 recapture-pending reds, stopped on one and could no
           {:message "`:wat::core::def` redef of `:a`: name already bound at …:2:2. Redef is forbidden by
                      default; opt in via `(:wat::config::set-redef! true)` before this form. Use a different
                      name, or enable redef explicitly."
-           :location  #wat.core/Span {:file "…_bad.wat" :line 3 :col 2 :end #wat.core.Option/Some #wat.core/Pos {:line 3 :col 17}}
+           :location  #wat.core/Span {:file "….wat.bad" :line 3 :col 2 :end #wat.core.Option/Some #wat.core/Pos {:line 3 :col 17}}
            :causes [] :name ":a"
-           :prior-loc #wat.core/Span {:file "…_bad.wat" :line 2 :col 2 :end #wat.core.Option/Some #wat.core/Pos {:line 2 :col 17}}}]}
+           :prior-loc #wat.core/Span {:file "….wat.bad" :line 2 :col 2 :end #wat.core.Option/Some #wat.core/Pos {:line 2 :col 17}}}]}
 ```
 
 **RIGHT — the old golden (the rust-debug impostor it's red against):**
 ```
-Check(CheckErrors([CheckError { span: Span { file: "…_bad.wat", line: 3, col: 2, end_line: 3, end_col: 17 },
+Check(CheckErrors([CheckError { span: Span { file: "….wat.bad", line: 3, col: 2, end_line: 3, end_col: 17 },
   kind: DefRedefForbidden { name: ":a", original_def_span: Span { … end_line: 2, end_col: 17 } } }]))
 ```
 

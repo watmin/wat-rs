@@ -67,7 +67,7 @@ fn letstar_result_no_whitespace_tuple_payload() {
 #[test]
 fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
     let result = startup_from_file(
-        "tests/wat_lang/wat_arc072_letstar_parametric_whitespace_bad.wat",
+        "tests/wat_lang/wat_arc072_letstar_parametric_whitespace.wat.bad",
     );
     let err = result
         .map(|_| panic!("expected lex error on `:HashMap<String, i64>`"))

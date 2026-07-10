@@ -19,7 +19,7 @@
 //!
 //! Wat source lives in the co-located fixture: probe_arc278_0d_transform_dispatch_parity.wat
 //! (slurped via startup_beside(file!())).
-//! Negative fixture: tests/collection/probe_arc278_0d_transform_dispatch_parity_bad.wat
+//! Negative fixture: tests/collection/probe_arc278_0d_transform_dispatch_parity.wat.bad
 
 use wat::freeze::{startup_beside, startup_from_file};
 
@@ -39,7 +39,7 @@ fn transform_ops_typecheck_on_persistent_vector() {
 fn wrong_element_still_rejected() {
     // GUARD — parity is not permissiveness. A String reducer folded over an i64 PersistentVector must be
     // REJECTED (element type i64 ≠ String). Err today (PV rejected outright) AND after 0d (element mismatch).
-    let r = startup_from_file("tests/collection/probe_arc278_0d_transform_dispatch_parity_bad.wat");
+    let r = startup_from_file("tests/collection/probe_arc278_0d_transform_dispatch_parity.wat.bad");
     assert!(
         r.is_err(),
         "folding a String reducer over an i64 PersistentVector must be rejected (parity != permissiveness). Got: {r:?}"

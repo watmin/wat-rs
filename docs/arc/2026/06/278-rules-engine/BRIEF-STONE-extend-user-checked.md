@@ -97,7 +97,7 @@ inheritance mis-handles) → fix the routine. Report every red you touched, with
 | what | command | expected |
 |---|---|---|
 | RED gate flips GREEN | `cargo nextest run --release -p wat --test types -E 'test(user_extend_type_wrong_return_rejected)'` | passed (un-ignored) |
-| the wrong-typed impl is a compile error | `cargo wat tests/types/probe_arc278_extend_user_body_checked_bad.wat` | `ReturnTypeMismatch` at check |
+| the wrong-typed impl is a compile error | `cargo wat tests/types/probe_arc278_extend_user_body_checked.wat.bad` | `ReturnTypeMismatch` at check |
 | baked satisfiers still green | `cargo nextest run --release -E 'test(query_contract)'` | passed |
 | the inheritance regression guard | `cargo nextest run --release -p wat --test types` | 0 failed (modulo grounded cascade fixes) |
 | whole floor | `cargo nextest run --release` | 0 failed (report the Summary line verbatim; ground every red) |

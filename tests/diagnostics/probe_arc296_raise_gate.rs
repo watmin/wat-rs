@@ -20,7 +20,7 @@ use wat::runtime::Environment;
 #[test]
 fn raise_bare_integer_is_compile_error() {
     let result = startup_from_file(
-        "tests/diagnostics/probe_arc296_raise_gate_bad.wat",
+        "tests/diagnostics/probe_arc296_raise_gate.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -31,7 +31,7 @@ fn raise_bare_integer_is_compile_error() {
     // The error must be the exact type-mismatch message from the checker.
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc296_raise_gate_bad.wat:12:25: :wat::kernel::raise!: parameter #1 expects :wat::core::Error; got :wat::core::i64\n",
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc296_raise_gate.wat.bad:12:25: :wat::kernel::raise!: parameter #1 expects :wat::core::Error; got :wat::core::i64\n",
         "compile error must be exact type-mismatch diagnostic"
     );
 }

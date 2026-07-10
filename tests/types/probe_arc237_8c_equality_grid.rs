@@ -62,13 +62,13 @@ fn regression_cross_numeric_now_type_checks() {
     // `both_numeric` arm), matching eval + clj. `(= 1 2.0)` still EVALS to `false`
     // (category-aware `=`, C4's contract, unchanged) — C5 only makes the check accept
     // it as well-formed. Formerly `regression_cross_numeric_is_check_error`.
-    let r = startup_from_file("tests/types/probe_arc237_8c_equality_grid_cross_numeric_bad.wat");
+    let r = startup_from_file("tests/types/probe_arc237_8c_equality_grid_cross_numeric.wat.bad");
     assert!(r.is_ok(), "cross-numeric `=` now type-checks (arc 300 C5); got: {:?}", r);
 }
 
 #[test]
 fn regression_cross_type_is_check_error() {
-    let r = startup_from_file("tests/types/probe_arc237_8c_equality_grid_cross_type_bad.wat");
+    let r = startup_from_file("tests/types/probe_arc237_8c_equality_grid_cross_type.wat.bad");
     assert!(r.is_err(), "cross-type `=` must be a check error");
 }
 

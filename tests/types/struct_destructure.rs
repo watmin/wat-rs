@@ -117,8 +117,8 @@ fn field_order_can_differ_from_declaration() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn unknown_field_name_is_clean_malformed_form() {
-    let err = startup_err("tests/types/struct_destructure_unknown_field_bad.wat");
-    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_unknown_field_bad.wat:8:6: malformed :wat::core::let form: struct-destructure: field \"nonexistent\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_unknown_field_bad.wat\", line: 8, col: 6, end_line: 8, end_col: 27 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"struct-destructure: field \\\"nonexistent\\\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)\", remedies: [] } }]))");
+    let err = startup_err("tests/types/struct_destructure_unknown_field.wat.bad");
+    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_unknown_field.wat.bad:8:6: malformed :wat::core::let form: struct-destructure: field \"nonexistent\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_unknown_field.wat.bad\", line: 8, col: 6, end_line: 8, end_col: 27 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"struct-destructure: field \\\"nonexistent\\\" is not declared on struct :test::PaperResolved (declared fields: outcome, grace-residue)\", remedies: [] } }]))");
 }
 
 // ─── Test 7 — non_struct_subject_is_clean_type_mismatch ─────────────────
@@ -128,8 +128,8 @@ fn unknown_field_name_is_clean_malformed_form() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn non_struct_subject_is_clean_type_mismatch() {
-    let err = startup_err("tests/types/struct_destructure_non_struct_subject_bad.wat");
-    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_non_struct_subject_bad.wat:7:24: :wat::core::let: parameter struct-destructure (outcome) expects a struct type; got :wat::core::i64\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_non_struct_subject_bad.wat\", line: 7, col: 24, end_line: 7, end_col: 26 }, kind: TypeMismatch { callee: \":wat::core::let\", param: \"struct-destructure (outcome)\", expected: \"a struct type\", got: \":wat::core::i64\" } }]))");
+    let err = startup_err("tests/types/struct_destructure_non_struct_subject.wat.bad");
+    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_non_struct_subject.wat.bad:7:24: :wat::core::let: parameter struct-destructure (outcome) expects a struct type; got :wat::core::i64\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_non_struct_subject.wat.bad\", line: 7, col: 24, end_line: 7, end_col: 26 }, kind: TypeMismatch { callee: \":wat::core::let\", param: \"struct-destructure (outcome)\", expected: \"a struct type\", got: \":wat::core::i64\" } }]))");
 }
 
 // ─── Test 8 — empty_brace_form_is_clean_malformed_form ──────────────────
@@ -139,8 +139,8 @@ fn non_struct_subject_is_clean_type_mismatch() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn empty_brace_form_is_clean_malformed_form() {
-    let err = startup_err("tests/types/struct_destructure_empty_brace_bad.wat");
-    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_empty_brace_bad.wat:8:6: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_empty_brace_bad.wat\", line: 8, col: 6, end_line: 8, end_col: 8 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\", remedies: [] } }]))");
+    let err = startup_err("tests/types/struct_destructure_empty_brace.wat.bad");
+    assert_eq!(err, "check:\n1 type-check error(s):\n  - tests/types/struct_destructure_empty_brace.wat.bad:8:6: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\n\n---\nCheck(CheckErrors([CheckError { span: Span { file: \"tests/types/struct_destructure_empty_brace.wat.bad\", line: 8, col: 6, end_line: 8, end_col: 8 }, kind: MalformedForm { head: \":wat::core::let\", reason: \"let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\", remedies: [] } }]))");
 }
 
 // ─── Test 9 — non_symbol_inside_brace_form_is_clean_malformed_form ──────
@@ -149,8 +149,8 @@ fn empty_brace_form_is_clean_malformed_form() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn non_symbol_inside_brace_form_is_clean_malformed_form() {
-    let err = startup_err("tests/types/struct_destructure_non_symbol_bad.wat");
-    assert_eq!(err, "parse: tests/types/struct_destructure_non_symbol_bad.wat:8:6: malformed brace-literal: map-literal body must alternate key + value pairs; got 1 forms\n---\nParse(ParseError { span: Span { file: \"tests/types/struct_destructure_non_symbol_bad.wat\", line: 8, col: 6, end_line: 8, end_col: 10 }, kind: MalformedBraceLiteral { reason: \"map-literal body must alternate key + value pairs; got 1 forms\" } })");
+    let err = startup_err("tests/types/struct_destructure_non_symbol.wat.bad");
+    assert_eq!(err, "parse: tests/types/struct_destructure_non_symbol.wat.bad:8:6: malformed brace-literal: map-literal body must alternate key + value pairs; got 1 forms\n---\nParse(ParseError { span: Span { file: \"tests/types/struct_destructure_non_symbol.wat.bad\", line: 8, col: 6, end_line: 8, end_col: 10 }, kind: MalformedBraceLiteral { reason: \"map-literal body must alternate key + value pairs; got 1 forms\" } })");
 }
 
 // ─── Test 10 — multi_form_body_with_destructure ─────────────────────────

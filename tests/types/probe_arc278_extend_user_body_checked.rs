@@ -19,7 +19,7 @@ use wat::freeze::startup_from_file;
 /// `-> :i64` MUST be rejected at type-check. If freeze succeeds, the impl body was never checked.
 #[test]
 fn user_extend_type_wrong_return_rejected() {
-    match startup_from_file("tests/types/probe_arc278_extend_user_body_checked_bad.wat") {
+    match startup_from_file("tests/types/probe_arc278_extend_user_body_checked.wat.bad") {
         Err(_) => {}
         Ok(_) => panic!(
             "expected a ReturnTypeMismatch: user extend-type impl `emit` returns a String against \

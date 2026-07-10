@@ -39,9 +39,9 @@ fn parametric_surface_return_resolves_to_satisfier_type() {
 fn parametric_surface_return_is_typed_not_any() {
     // The parametric surface's resolved return type is genuinely i64 (not bare/any): ascribing
     // it to String is a located TypeMismatch (expected String, got i64) at the `ann-form` site
-    // (probe_arc170_parametric_surface_bad.wat:16, the `bad` binding). Asserted via bare-word
+    // (probe_arc170_parametric_surface.wat.bad:16, the `bad` binding). Asserted via bare-word
     // `contains` (not an EDN golden) so this test does not inline wat error-EDN.
-    let err = format!("{:?}", startup_from_file("tests/types/probe_arc170_parametric_surface_bad.wat").expect_err("wrong ascription must fail check"));
+    let err = format!("{:?}", startup_from_file("tests/types/probe_arc170_parametric_surface.wat.bad").expect_err("wrong ascription must fail check"));
     assert!(err.contains("TypeMismatch") && err.contains("String") && err.contains("i64"),
         "expected a TypeMismatch (ascribing the i64 Holds/get return to String), got: {err}");
 }
@@ -49,11 +49,11 @@ fn parametric_surface_return_is_typed_not_any() {
 #[test]
 fn parametric_surface_rejects_mistyped_satisfier() {
     // Soundness: BadBox claims Holds<i64> via extend-type, but its `get` body returns its own
-    // String field — a located ReturnTypeMismatch (probe_arc170_parametric_surface_soundness_bad.wat:13,
+    // String field — a located ReturnTypeMismatch (probe_arc170_parametric_surface_soundness.wat.bad:13,
     // the `get` method body), proving the receiver-satisfaction check (commit b2360c7a) actually
     // verifies the satisfier's method body, not just its signature. Asserted via bare-word
     // `contains` (not an EDN golden) so this test does not inline wat error-EDN.
-    let err = format!("{:?}", startup_from_file("tests/types/probe_arc170_parametric_surface_soundness_bad.wat").expect_err("mistyped satisfier must fail check"));
+    let err = format!("{:?}", startup_from_file("tests/types/probe_arc170_parametric_surface_soundness.wat.bad").expect_err("mistyped satisfier must fail check"));
     assert!(err.contains("ReturnTypeMismatch") && err.contains("BadBox") && err.contains("i64") && err.contains("String"),
         "expected a ReturnTypeMismatch (BadBox get returns String where Holds<i64> wants i64), got: {err}");
 }

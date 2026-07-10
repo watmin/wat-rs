@@ -77,7 +77,7 @@ fn probe_1_select_returns_ready_index_and_value() {
 #[test]
 fn probe_2_select_wrong_return_annotation_rejected() {
     let result = startup_from_file(
-        "tests/comms/probe_arc214_stone46b_select_prime_probe2_bad.wat",
+        "tests/comms/probe_arc214_stone46b_select_prime_probe2.wat.bad",
     );
     assert!(
         result.is_err(),

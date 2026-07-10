@@ -10,7 +10,7 @@ sites* are all type-checked. The ONE hole: a **user** `extend-type` impl **body*
 surface it claims to satisfy. A satisfier can produce the wrong type, call an unknown function, or misuse its args,
 and it compiles + runs. That is a magic-free-floor (R3) doctrine violation at a load-bearing construct.
 
-**Proven** (`tests/types/probe_arc278_extend_user_body_checked_bad.wat`, RED gate `83a8d145`): a user impl
+**Proven** (`tests/types/probe_arc278_extend_user_body_checked.wat.bad`, RED gate `83a8d145`): a user impl
 `(emit [self x] "i am a string")` against surface `emit … -> :i64` freezes clean at HEAD. Also confirmed by probe:
 a body calling a non-existent fn reaches **runtime** `UnknownFunction`, not a compile error — the whole body is
 invisible to the checker, not just the return type.

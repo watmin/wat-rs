@@ -17,7 +17,7 @@
 //! both lex today; ONLY primed + comma fails.
 //!
 //! Wat fixtures: tests/types/probe_arc214_lexer_primed_generic_head_{control,primed}.wat (positive),
-//!   tests/types/probe_arc214_lexer_primed_generic_head_{primed_space,unprimed_space}_bad.wat (negative).
+//!   tests/types/probe_arc214_lexer_primed_generic_head_{primed_space,unprimed_space}.wat.bad (negative).
 //!
 //! Run: `cargo nextest run --release -E 'binary(types)' -F probe_arc214_lexer_primed_generic_head`
 
@@ -66,12 +66,12 @@ fn primed_two_param_must_lex() {
 #[test]
 fn primed_two_param_with_space_fails_same_as_unprimed() {
     let primed = startup_from_file(
-        "tests/types/probe_arc214_lexer_primed_generic_head_primed_space_bad.wat",
+        "tests/types/probe_arc214_lexer_primed_generic_head_primed_space.wat.bad",
     )
     .expect_err("whitespace inside <...> is a lex error by design");
     let primed = format!("{}", primed);
     let unprimed = startup_from_file(
-        "tests/types/probe_arc214_lexer_primed_generic_head_unprimed_space_bad.wat",
+        "tests/types/probe_arc214_lexer_primed_generic_head_unprimed_space.wat.bad",
     )
     .expect_err("whitespace inside <...> is a lex error by design (unprimed control)");
     let unprimed = format!("{}", unprimed);

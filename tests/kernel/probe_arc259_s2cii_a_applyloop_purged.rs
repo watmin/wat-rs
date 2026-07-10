@@ -17,7 +17,7 @@
 //!
 //! Run: `cargo nextest run --release -E 'binary(kernel)' -F probe_arc259_s2cii_a_applyloop_purged`
 //!
-//! WAT fixture: tests/kernel/probe_arc259_s2cii_a_applyloop_purged_bad.wat
+//! WAT fixture: tests/kernel/probe_arc259_s2cii_a_applyloop_purged.wat.bad
 
 use wat::freeze::startup_from_file;
 
@@ -26,7 +26,7 @@ use wat::freeze::startup_from_file;
 /// is a valid thread prog).
 #[test]
 fn s2cii_a_apply_loop_prog_rejected() {
-    match startup_from_file("tests/kernel/probe_arc259_s2cii_a_applyloop_purged_bad.wat") {
+    match startup_from_file("tests/kernel/probe_arc259_s2cii_a_applyloop_purged.wat.bad") {
         Ok(_) => panic!(
             "the apply-loop prog [i64]->i64 must be REJECTED post-purge; got Ok (still accepted)"
         ),

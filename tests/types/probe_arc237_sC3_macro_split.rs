@@ -81,7 +81,7 @@ fn eval_i64(fn_name: &str) -> i64 {
 #[test] fn liskov_base_into_holon_rejected() {
     // THE static proof: a base-defined record is NOT a :wat::holon::Record → check error.
     let r = startup_from_file(
-        "tests/types/probe_arc237_sC3_macro_split_liskov_base_into_holon_bad.wat",
+        "tests/types/probe_arc237_sC3_macro_split_liskov_base_into_holon.wat.bad",
     );
     assert!(r.is_err(), "a base-defined record must be REJECTED at a :wat::holon::Record param");
 }

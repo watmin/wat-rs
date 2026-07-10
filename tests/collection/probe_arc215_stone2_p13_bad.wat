@@ -1,4 +1,0 @@
-;; tests/collection/probe_arc215_stone2_p13_bad.wat
-;; Probe 13: mixed-K map {1 "v" "two" "w"} must fail at check with TypeMismatch.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::length {1 "v" "two" "w"}))

@@ -1,6 +1,6 @@
 ;; tests/wat_lang/wat_core_try.wat — co-located fixture.
 ;; :wat::core::Result/try — error-propagation form. Runtime tests only.
-;; Check-error tests use separate *_bad.wat files.
+;; Check-error tests use separate *.wat.bad files.
 
 ;; test1: try on Ok extracts inner value → Result(Ok(42))
 (:wat::core::defn :t::test1-try-ok [] -> :wat::core::Result<wat::core::i64,wat::core::String>

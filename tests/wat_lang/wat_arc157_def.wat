@@ -1,7 +1,7 @@
 ;; tests/wat_lang/wat_arc157_def.wat — co-located fixture.
 ;; Arc 157 slice 1a-i — :wat::core::def foundational top-level binding.
 ;; Contains non-conflicting def forms and runtime probe functions.
-;; Separate *_ok.wat / *_bad.wat files handle conflicting-name scenarios.
+;; Separate *_ok.wat / *.wat.bad files handle conflicting-name scenarios.
 
 ;; Tests 1 + 5: direct top-level def
 (:wat::core::def :pi 3.14159)

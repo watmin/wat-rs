@@ -1,7 +1,7 @@
 //! FM 2-bis probe — arc 237 Stone S-B.1: `:wat::core::recordtype` + `TypeDef::Record`.
 //!
 //! Wat source: tests/types/probe_arc237_sB1_recordtype.wat (loaded via startup_beside).
-//! Probe 06 (negative) uses tests/types/probe_arc237_sB1_recordtype_bad.wat.
+//! Probe 06 (negative) uses tests/types/probe_arc237_sB1_recordtype.wat.bad.
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -66,7 +66,7 @@ fn probe_05_holon_flavor_transitive() {
 // ─── Probe 06: unknown parent rejected at registration ──────────────────────
 #[test]
 fn probe_06_unknown_parent_rejected() {
-    let r = startup_from_file("tests/types/probe_arc237_sB1_recordtype_bad.wat");
+    let r = startup_from_file("tests/types/probe_arc237_sB1_recordtype.wat.bad");
     assert!(
         r.is_err(),
         "recordtype with an unknown parent must be rejected at registration; got Ok"

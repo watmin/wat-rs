@@ -1,5 +1,5 @@
 ;; Co-located fixture for wat_dispatch_193a.rs — slurped via startup_beside(file!()).
-;; Three compute fns (one per passing test). The negative startup test uses wat_dispatch_193a_bad.wat.
+;; Three compute fns (one per passing test). The negative startup test uses wat_dispatch_193a.wat.bad.
 
 (:wat::core::use! :rust::test::MathUtils)
 

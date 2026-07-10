@@ -43,7 +43,7 @@ wat's eval already computes it; only the check-side gate (237.8a's `cross-numeri
  :tests "flip the two 237.8a COMPARISON-reject tests to expect Ok:
          tests/types/probe_arc237_8a_no_implicit_coercion.rs::comparison_i64_f64_mixed_rejected_at_check
          tests/function/probe_arc237_8b_defclause_arithmetic.rs::regression_cross_type_lt_rejected
-         (+ their cmp/lt `_bad.wat` fixtures — now valid, like the C4 arith flip)."}
+         (+ their cmp/lt `.wat.bad` fixtures — now valid, like the C4 arith flip)."}
 ```
 
 ## Out of scope

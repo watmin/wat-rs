@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc241_stone2_fn_parser_migration.wat
 ;; Arc 241 Stone 241.2 — fn-signature parser migration (A1/A2/A3) behavioral parity.
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Negative (startup-fail) cases are in sibling *_bad.wat files.
+;; Negative (startup-fail) cases are in sibling *.wat.bad files.
 
 ;; Contract 1 — no-arg fn succeeds
 (:wat::core::defn :user::c01-f [] -> :wat::core::i64

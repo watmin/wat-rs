@@ -19,7 +19,7 @@
 //!
 //! Wat source for C01/C02/C04: co-located probe_arc242_stone1_lexeme_role.wat
 //! (slurped via startup_beside(file!())); startup SUCCESS is the assertion.
-//! Negative fixture for C03: probe_arc242_stone1_lexeme_role_bad.wat
+//! Negative fixture for C03: probe_arc242_stone1_lexeme_role.wat.bad
 //! (loaded via startup_from_file; startup FAILURE + retirement-remedy message is the assertion).
 
 use wat::freeze::{startup_beside, startup_from_file};
@@ -58,7 +58,7 @@ fn contract_03_legacy_char_hard_cut_with_remedy() {
     // :wat::core::Char retires per Doctrine 2 (scalar types lowercase).
     // Post-stone: HARD CUT rejection with structured retirement remedy pointing at :wat::core::char.
     // At HEAD: :wat::core::Char works → no error → assertion fails.
-    let result = startup_from_file("tests/value/probe_arc242_stone1_lexeme_role_bad.wat");
+    let result = startup_from_file("tests/value/probe_arc242_stone1_lexeme_role.wat.bad");
     assert!(
         result.is_err(),
         ":wat::core::Char must be rejected by the substrate (retirement hard-cut)"
@@ -66,7 +66,7 @@ fn contract_03_legacy_char_hard_cut_with_remedy() {
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "check:\n2 type-check error(s):\n  - tests/value/probe_arc242_stone1_lexeme_role_bad.wat:8:43: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n  - tests/value/probe_arc242_stone1_lexeme_role_bad.wat:8:64: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n",
+        "check:\n2 type-check error(s):\n  - tests/value/probe_arc242_stone1_lexeme_role.wat.bad:8:43: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n  - tests/value/probe_arc242_stone1_lexeme_role.wat.bad:8:64: malformed :wat::core::Char form: ':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead (scalar types lowercase per arc 242 Doctrine 2)\n  did you mean: :wat::core::char [replaces a retired form]\n",
         "retirement remedy must carry exact golden"
     );
 }

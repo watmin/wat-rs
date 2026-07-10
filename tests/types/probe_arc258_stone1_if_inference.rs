@@ -50,10 +50,10 @@ fn contract_02_annotated_if_still_works() {
 fn contract_03_branch_mismatch_rejected_for_the_right_reason() {
     // then=:i64, else=:String — they do not unify. Inference must reject this as a branch
     // mismatch, NOT as an arity error ("now requires -> :T").
-    let r = startup_from_file("tests/types/probe_arc258_stone1_if_inference_c03_bad.wat")
+    let r = startup_from_file("tests/types/probe_arc258_stone1_if_inference_c03.wat.bad")
         .map(|_| ())
         .map_err(|e| format!("{e:?}"));
     assert!(r.is_err(), "a branch-type mismatch must be rejected");
     let msg = r.unwrap_err();
-    assert_eq!(msg, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc258_stone1_if_inference_c03_bad.wat", line: 4, col: 79, end_line: 4, end_col: 82 }, kind: TypeMismatch { callee: ":wat::core::if", param: "else-branch", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"#);
+    assert_eq!(msg, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc258_stone1_if_inference_c03.wat.bad", line: 4, col: 79, end_line: 4, end_col: 82 }, kind: TypeMismatch { callee: ":wat::core::if", param: "else-branch", expected: ":wat::core::i64", got: ":wat::core::String" } }]))"#);
 }

@@ -1,7 +1,7 @@
 ;; tests/wat_lang/wat_arc154_kill_let_star.wat — co-located fixture for the sibling probe (.rs).
 ;; Covers positive (startup-ok) tests: sequential let semantics, tail-call, nested,
 ;; fn body, empty bindings, walker narrowness, reflection.
-;; Negative tests use separate *_bad.wat files via startup_from_file.
+;; Negative tests use separate *.wat.bad files via startup_from_file.
 
 ; test 1: sequential let — b references a
 (:wat::core::defn :t::compute1 [] -> :wat::core::i64

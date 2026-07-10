@@ -44,7 +44,7 @@ surface `:holder` magic shorthand and the loose `root_holder_of` `_=>Record` arm
 ## Implementation sketch
 - Add `from_root_keyword` → route surface (room 2) + parse_aggregate (room 3) through it → delete the two dead reverse
   maps. `cargo build`. Migrate the 2 `:holder` fixtures (room 4). Add the surface + retype the field (room 5).
-- The new RED probe `tests/types/probe_arc293_holder_root_symbol.{rs,wat}` (+ `_bad.wat`) is already committed-RED and
+- The new RED probe `tests/types/probe_arc293_holder_root_symbol.{rs,wat}` (+ `.wat.bad`) is already committed-RED and
   goes GREEN when room 2 lands.
 
 ## Gate (EXPECTATIONS — fixed before the strike)

@@ -1,7 +1,7 @@
 ;; tests/types/probe_arc237_8c_equality_grid.wat
 ;; Co-located fixture for probe_arc237_8c_equality_grid.rs
 ;; Loaded via startup_beside(file!()). Positive regression cases only.
-;; Negative check-error cases use separate _bad.wat fixtures.
+;; Negative check-error cases use separate .wat.bad fixtures.
 
 ;; regression_eq_scalars (5 assertions)
 (:wat::core::defn :user::eq-scalars-i64-eq [] -> :wat::core::bool (:wat::core::= 1 1))

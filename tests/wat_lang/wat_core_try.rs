@@ -106,7 +106,7 @@ fn try_inside_match_arm_propagates() {
 
 #[test]
 fn try_with_zero_args_rejected_at_check() {
-    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_arity_zero_bad.wat");
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_arity_zero.wat.bad");
     let saw_arity = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 1, got: 0, .. }, .. }
@@ -117,7 +117,7 @@ fn try_with_zero_args_rejected_at_check() {
 
 #[test]
 fn try_with_two_args_rejected_at_check() {
-    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_arity_two_bad.wat");
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_arity_two.wat.bad");
     let saw_arity = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::ArityMismatch { callee, expected: 1, got: 2, .. }, .. }
@@ -128,7 +128,7 @@ fn try_with_two_args_rejected_at_check() {
 
 #[test]
 fn try_on_non_result_arg_rejected_at_check() {
-    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_non_result_arg_bad.wat");
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_non_result_arg.wat.bad");
     let saw_type_mismatch = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. } if callee == ":wat::core::Result/try"
@@ -138,7 +138,7 @@ fn try_on_non_result_arg_rejected_at_check() {
 
 #[test]
 fn try_inside_non_result_function_rejected_at_check() {
-    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_non_result_enclosing_bad.wat");
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_non_result_enclosing.wat.bad");
     let saw_malformed = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::MalformedForm { head, .. }, .. } if head == ":wat::core::Result/try"
@@ -148,7 +148,7 @@ fn try_inside_non_result_function_rejected_at_check() {
 
 #[test]
 fn try_mismatched_err_types_rejected_at_check() {
-    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_err_type_mismatch_bad.wat");
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_err_type_mismatch.wat.bad");
     let saw_type_mismatch = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, .. }, .. } if callee == ":wat::core::Result/try"
@@ -171,7 +171,7 @@ fn try_inside_result_returning_fn_propagates_to_fn() {
 
 #[test]
 fn try_inside_non_result_fn_rejected_at_check() {
-    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_fn_non_result_bad.wat");
+    let errs = check_errors_from_file("tests/wat_lang/wat_core_try_fn_non_result.wat.bad");
     let saw_malformed = errs.iter().any(|e| matches!(
         e,
         CheckError { kind: CheckErrorKind::MalformedForm { head, .. }, .. } if head == ":wat::core::Result/try"

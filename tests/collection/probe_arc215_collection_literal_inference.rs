@@ -109,7 +109,7 @@ fn probe_4_nested_map_literal_resolved() {
 #[test]
 fn probe_5_mixed_value_types_rejected_at_check() {
     let err = startup_from_file(
-        "tests/collection/probe_arc215_collection_literal_inference_p5_bad.wat",
+        "tests/collection/probe_arc215_collection_literal_inference_p5.wat.bad",
     )
     .expect_err("expected startup failure for mixed-value-type map");
     // Arc 296 stone C: the error's face is EDN (stone B). Assert DATA equality
@@ -203,15 +203,15 @@ fn probe_10_set_literal_dedup_at_construction() {
 #[test]
 fn probe_11_mixed_element_types_rejected_at_check() {
     let err = startup_from_file(
-        "tests/collection/probe_arc215_collection_literal_inference_p11_bad.wat",
+        "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad",
     )
     .expect_err("expected startup failure for mixed-element-type set");
     let err = format!("{}\n---\n{:?}", err, err);
     assert_eq!(
         err,
-        r##"#wat.check/CheckErrors {:message "2 type-check errors" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "#{…} set literal: parameter element #2 expects :wat::core::i64; got :wat::core::keyword" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11_bad.wat" :line 4 :col 27 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee "#{…} set literal" :param "element #2" :expected ":wat::core::i64" :got ":wat::core::keyword" :remedies []} #wat.check/TypeMismatch {:message "#{…} set literal: parameter element #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11_bad.wat" :line 4 :col 32 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "#{…} set literal" :param "element #3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}
+        r##"#wat.check/CheckErrors {:message "2 type-check errors" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "#{…} set literal: parameter element #2 expects :wat::core::i64; got :wat::core::keyword" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad" :line 4 :col 27 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee "#{…} set literal" :param "element #2" :expected ":wat::core::i64" :got ":wat::core::keyword" :remedies []} #wat.check/TypeMismatch {:message "#{…} set literal: parameter element #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad" :line 4 :col 32 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "#{…} set literal" :param "element #3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}
 ---
-#wat.check/CheckErrors {:message "2 type-check errors" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "#{…} set literal: parameter element #2 expects :wat::core::i64; got :wat::core::keyword" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11_bad.wat" :line 4 :col 27 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee "#{…} set literal" :param "element #2" :expected ":wat::core::i64" :got ":wat::core::keyword" :remedies []} #wat.check/TypeMismatch {:message "#{…} set literal: parameter element #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11_bad.wat" :line 4 :col 32 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "#{…} set literal" :param "element #3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}"##,
+#wat.check/CheckErrors {:message "2 type-check errors" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "#{…} set literal: parameter element #2 expects :wat::core::i64; got :wat::core::keyword" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad" :line 4 :col 27 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee "#{…} set literal" :param "element #2" :expected ":wat::core::i64" :got ":wat::core::keyword" :remedies []} #wat.check/TypeMismatch {:message "#{…} set literal: parameter element #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad" :line 4 :col 32 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "#{…} set literal" :param "element #3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}"##,
         "probe_11: mixed-element-type set TypeMismatch golden"
     );
 }

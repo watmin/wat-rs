@@ -24,7 +24,7 @@
 ;; The genuinely UNSOUND shape — narrowing clauses whose return types DON'T
 ;; unify — is now a CHECK-TIME error (`AmbiguousClauseReturnAtCallSite`), so it
 ;; can't live in a fixture that must load; see
-;; `probe_arc278_open_surface_dispatch_ambiguous_bad.wat` for that witness.
+;; `probe_arc278_open_surface_dispatch_ambiguous.wat.bad` for that witness.
 
 (:wat::core::defsurface :probe::Reason :nature :wat::core::Record :features [])
 

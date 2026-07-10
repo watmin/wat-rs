@@ -592,7 +592,7 @@ WHOLE 293.4 (a method-members / b dispatcher / c extend-type adapter / d field-a
   First consumer `wat-scripts/fixes/strip-useless-mains.wat` (predicate `useless-main?` + GUARD: never strip a SOLE-defn
   main — that's an arc-170 main-AS-SUBJECT test). **This replaces the host-side bash main-sweep** — run it on nursery +
   onward: `git ls-files 'tests/**/*.wat' | grep -vE '_bad\.wat|wat_arc220_char' | <to-EDN-vec> | cargo wat ./wat-scripts/fixes/strip-useless-mains.wat`.
-  (Known gap: `read-string` panics on malformed `_bad.wat`/non-BMP char fixtures → filter them.) Form-aware caught ~13
+  (Known gap: `read-string` panics on malformed `.wat.bad`/non-BMP char fixtures → filter them.) Form-aware caught ~13
   the bash missed; the GATE caught its one over-strip (4 arc-170 subject-mains) → guard added. weigh-against-disk works.
 The builder's remarkable upgrade: **the ENTIRE test suite migrates from inlined-wat-strings → co-located `.wat`
 fixtures**, so every test is `cargo wat`-runnable + fix-wat-able + lint-checkable. **Annihilation, NOT a ratchet** —

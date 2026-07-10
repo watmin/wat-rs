@@ -24,7 +24,7 @@ fn surface_nature_root_symbol_accepts_record() {
 /// A struct does NOT satisfy a `:nature :wat::core::Record` surface — the nature bound is a hard reject.
 #[test]
 fn surface_nature_root_symbol_rejects_struct() {
-    let r = startup_from_file("tests/types/probe_arc293_holder_root_symbol_bad.wat");
+    let r = startup_from_file("tests/types/probe_arc293_holder_root_symbol.wat.bad");
     assert!(
         r.is_err(),
         "a struct must not satisfy a `:nature :wat::core::Record` surface (non-portable, Struct < Record); got Ok"

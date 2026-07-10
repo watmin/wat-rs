@@ -1,5 +1,0 @@
-;; tests/function/probe_arc237_stone2_p07_bad.wat — NEGATIVE probe 7: body return type mismatch.
-;; Clause body returns f64 (3.14) but declares -> :i64. startup MUST fail.
-
-(:wat::core::defclause :my::bad
-  ([x <- :wat::core::i64] -> :wat::core::i64 3.14))

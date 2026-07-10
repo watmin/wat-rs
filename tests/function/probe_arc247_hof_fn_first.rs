@@ -14,7 +14,7 @@
 //! Run: cargo test --release --test probe_arc247_hof_fn_first
 
 //! Wat source: tests/function/probe_arc247_hof_fn_first.wat
-//! Negative fixture: probe_arc247_hof_coll_first_bad.wat.
+//! Negative fixture: probe_arc247_hof_coll_first.wat.bad.
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -64,6 +64,6 @@ fn mint_foldl_fn_first() {
 #[test]
 fn mint_map_coll_first_is_gone() {
     // (map [1 2 3] f) coll-first must be a check error after the flip.
-    let result = startup_from_file("tests/function/probe_arc247_hof_coll_first_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc247_hof_coll_first.wat.bad");
     assert!(result.is_err(), "coll-first `(map xs f)` must be a check error after the flip; got Ok");
 }

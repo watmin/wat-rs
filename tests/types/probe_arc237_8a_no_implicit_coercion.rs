@@ -102,7 +102,7 @@ fn comparison_string_same_type_works() {
 fn arith_i64_f64_mixed_coerces_to_f64() {
     // arc 300 C4: (+ i64 f64) => f64 — the fixture declares `-> f64` and now type-checks.
     let result = startup_from_file(
-        "tests/types/probe_arc237_8a_no_implicit_coercion_arith_i64_f64_bad.wat",
+        "tests/types/probe_arc237_8a_no_implicit_coercion_arith_i64_f64.wat.bad",
     );
     assert!(
         result.is_ok(),
@@ -115,7 +115,7 @@ fn arith_i64_f64_mixed_coerces_to_f64() {
 fn arith_f64_i64_mixed_coerces_to_f64() {
     // arc 300 C4: (+ f64 i64) => f64 (both operand orders).
     let result = startup_from_file(
-        "tests/types/probe_arc237_8a_no_implicit_coercion_arith_f64_i64_bad.wat",
+        "tests/types/probe_arc237_8a_no_implicit_coercion_arith_f64_i64.wat.bad",
     );
     assert!(
         result.is_ok(),
@@ -131,7 +131,7 @@ fn comparison_i64_f64_mixed_coerces() {
     // Retires 237.8a's comparison-side cross-numeric reject; see `infer_ordering`'s
     // `both_numeric` arm (src/check.rs).
     let result = startup_from_file(
-        "tests/types/probe_arc237_8a_no_implicit_coercion_cmp_i64_f64_bad.wat",
+        "tests/types/probe_arc237_8a_no_implicit_coercion_cmp_i64_f64.wat.bad",
     );
     assert!(
         result.is_ok(),

@@ -1,6 +1,0 @@
-;; ord_hashmap_bad.wat — HashMap not in orderable class; must fail at check. Must FAIL.
-(:wat::core::defn :user::compute [] -> :wat::core::bool
-  (:wat::core::let
-    [m1 (:wat::core::HashMap :wat::core::String :wat::core::i64 "a" 1)
-     m2 (:wat::core::HashMap :wat::core::String :wat::core::i64 "b" 2)]
-    (:wat::core::< m1 m2)))

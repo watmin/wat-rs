@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc237_stone2_defclause_substrate.wat
 ;; Arc 237 Stone 237.2 — defclause substrate mint (12 probes).
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Negative (startup-fail) cases are in sibling *_bad.wat files.
+;; Negative (startup-fail) cases are in sibling *.wat.bad files.
 
 ;; Probe 1 — single-clause defclause parses + type-checks (basic foundation)
 (:wat::core::defclause :p01::identity

@@ -14,7 +14,7 @@
 //! Run: cargo test --release --test probe_arc237_7b_intrinsic_typing
 
 //! Wat source: tests/function/probe_arc237_7b_intrinsic_typing.wat
-//! Negative fixtures: probe_arc237_7b_contains_wrong_elem_bad.wat, probe_arc237_7b_conj_wrong_elem_bad.wat
+//! Negative fixtures: probe_arc237_7b_contains_wrong_elem.wat.bad, probe_arc237_7b_conj_wrong_elem.wat.bad
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -72,11 +72,11 @@ fn conj_vector_preserves_collection_type() {
 
 // ─── TIER B — ELEMENT-TYPING ENFORCEMENT (wrong-elem rejection) ─────────────
 // The ∀T intrinsics reject wrong-elem calls at check time via custom inference arms.
-// Each negative case lives in its own *_bad.wat fixture.
+// Each negative case lives in its own *.wat.bad fixture.
 
 #[test]
 fn contains_q_wrong_element_rejected_at_check() {
-    let result = startup_from_file("tests/function/probe_arc237_7b_contains_wrong_elem_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_7b_contains_wrong_elem.wat.bad");
     assert!(
         result.is_err(),
         "contains? on Vector<i64> with String elem MUST reject at check; got Ok",
@@ -85,7 +85,7 @@ fn contains_q_wrong_element_rejected_at_check() {
 
 #[test]
 fn conj_wrong_element_rejected_at_check() {
-    let result = startup_from_file("tests/function/probe_arc237_7b_conj_wrong_elem_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc237_7b_conj_wrong_elem.wat.bad");
     assert!(
         result.is_err(),
         "conj on Vector<i64> with String elem MUST reject at check; got Ok",

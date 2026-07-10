@@ -1,7 +1,7 @@
 ;; tests/types/probe_arc234_stone3c_fix_narrow_fallthrough.wat
 ;; Co-located fixture for probe_arc234_stone3c_fix_narrow_fallthrough.rs (arc 234 Stone 234.3c.fix).
 ;; Positive cases (probes 2, 3, 4): startup must succeed.
-;; Probe 1 (negative) uses the sibling _p1_bad.wat file.
+;; Probe 1 (negative) uses the sibling _p1.wat.bad file.
 
 (:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 

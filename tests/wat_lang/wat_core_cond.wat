@@ -1,6 +1,6 @@
 ;; tests/wat_lang/wat_core_cond.wat — co-located fixture for the sibling probe (.rs).
 ;; Covers positive tests for :wat::core::cond.
-;; Negative tests use separate *_bad.wat files.
+;; Negative tests use separate *.wat.bad files.
 
 ; test: cond_first_arm_matches
 (:wat::core::defn :t::cond-first [] -> :wat::core::String

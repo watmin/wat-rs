@@ -76,7 +76,7 @@ fn contract_06_empty_metadata_rejected() {
     // (def :name {} value) — empty metadata is ILLEGAL per FORM-COLLAPSE-NOTES
     // ("divide-by-zero"; presence/absence distinction MUST be honored).
     assert!(
-        startup_from_file("tests/reflection/probe_arc241_stone6_def_metadata_map_c06_bad.wat").is_err(),
+        startup_from_file("tests/reflection/probe_arc241_stone6_def_metadata_map_c06.wat.bad").is_err(),
         "empty {{}} metadata-map must error; got Ok"
     );
 }

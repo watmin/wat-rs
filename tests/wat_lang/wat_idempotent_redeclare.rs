@@ -29,11 +29,11 @@ fn typealias_byte_equivalent_is_noop() {
 #[test]
 fn typealias_divergent_errors() {
     let err = startup_err_file(
-        "tests/wat_lang/wat_idempotent_redeclare_typealias_div_bad.wat",
+        "tests/wat_lang/wat_idempotent_redeclare_typealias_div.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Type(TypeError { span: Span { file: "tests/wat_lang/wat_idempotent_redeclare_typealias_div_bad.wat", line: 5, col: 1, end_line: 5, end_col: 52 }, kind: DuplicateType { name: ":my::Amount" } })"#,
+        r#"Type(TypeError { span: Span { file: "tests/wat_lang/wat_idempotent_redeclare_typealias_div.wat.bad", line: 5, col: 1, end_line: 5, end_col: 52 }, kind: DuplicateType { name: ":my::Amount" } })"#,
         "expected DuplicateType error for divergent typealias re-registration"
     );
 }
@@ -49,7 +49,7 @@ fn define_byte_equivalent_is_noop() {
 #[test]
 fn define_divergent_body_errors() {
     let err = startup_err_file(
-        "tests/wat_lang/wat_idempotent_redeclare_define_div_bad.wat",
+        "tests/wat_lang/wat_idempotent_redeclare_define_div.wat.bad",
     );
     assert_eq!(
         err,

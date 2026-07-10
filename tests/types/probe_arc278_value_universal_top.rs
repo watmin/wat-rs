@@ -115,7 +115,7 @@ fn widen_record_value_field_accepts_i64_and_string() {
 #[test]
 fn narrow_value_into_i64_param_is_type_error() {
     assert!(
-        typechecks_file("tests/types/probe_arc278_value_universal_top_narrow_bad.wat").is_err(),
+        typechecks_file("tests/types/probe_arc278_value_universal_top_narrow.wat.bad").is_err(),
         "NARROW must be rejected: a :wat::core::Value is NOT assignable where :wat::core::i64 is wanted \
          (the non-negotiable discipline — if this type-checks, Value is a loose any)"
     );

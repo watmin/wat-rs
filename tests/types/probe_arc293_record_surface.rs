@@ -46,7 +46,7 @@ fn holon_record_structurally_satisfies_a_core_surface() {
 /// a record MISSING a surface member is rejected.
 #[test]
 fn record_missing_a_surface_member_is_rejected() {
-    let world = startup_from_file("tests/types/probe_arc293_record_surface_missing_bad.wat");
+    let world = startup_from_file("tests/types/probe_arc293_record_surface_missing.wat.bad");
     assert!(
         world.is_err(),
         "a record lacking `color` must NOT satisfy :geo::Shape"

@@ -80,6 +80,6 @@ fn option_none_via_macro_generated_shim() {
 #[test]
 fn type_check_rejects_wrong_arg_types() {
     install_fixture_shim();
-    let result = startup_from_file("tests/kernel/wat_dispatch_193a_bad.wat");
+    let result = startup_from_file("tests/kernel/wat_dispatch_193a.wat.bad");
     assert!(result.is_err(), "expected type error; got {:?}", result.ok());
 }

@@ -1,7 +1,7 @@
 ;; tests/types/probe_arc227_stone2_defrecord.wat
 ;; Co-located fixture for probe_arc227_stone2_defrecord.rs (arc 227 Stone 227.2 v3).
 ;; Loaded via startup_beside(file!()). Each :user::t<N> function is exercised by
-;; its sibling Rust test. Negative-startup tests use separate _bad.wat fixtures.
+;; its sibling Rust test. Negative-startup tests use separate .wat.bad fixtures.
 
 ;; ─── Type definitions ────────────────────────────────────────────────────────
 

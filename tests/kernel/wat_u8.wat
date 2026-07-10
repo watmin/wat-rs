@@ -1,5 +1,5 @@
 ;; Co-located fixture for wat_u8.rs — slurped via startup_beside(file!()).
-;; The negative startup test (type mismatch) uses wat_u8_bad.wat.
+;; The negative startup test (type mismatch) uses wat_u8.wat.bad.
 ;; compute-u8-256 and compute-u8-neg1 error at eval time (runtime bounds check).
 
 (:wat::core::defn :my::compute-u8-42 [] -> :wat::core::u8

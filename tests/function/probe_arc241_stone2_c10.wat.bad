@@ -1,0 +1,5 @@
+;; tests/function/probe_arc241_stone2_c10.wat.bad — NEGATIVE contract 10: ret type not keyword.
+;; -> present but ret-type slot is a string, not a Keyword. startup MUST fail.
+
+(:wat::core::defn :user::bad [] -> :wat::core::i64
+  ((:wat::core::fn [x <- :wat::core::i64] -> "i64" x)))

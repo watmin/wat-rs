@@ -36,7 +36,7 @@ fn method_member_surface_parses_and_is_satisfied_by_a_defn() {
 #[test]
 fn method_member_not_satisfied_when_defn_is_absent() {
     let world = startup_from_file(
-        "tests/types/probe_arc293_4a_method_members_bad.wat",
+        "tests/types/probe_arc293_4a_method_members.wat.bad",
     );
     assert!(
         world.is_err(),

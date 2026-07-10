@@ -68,7 +68,7 @@ Run `cargo nextest run --release` (WHOLE workspace). Each failure is exactly one
   to **`:wat::enum::Impure`** in its fixture/stdlib site.
 - **"missing marker"** parse error → a `defenum` was missed → add the marker (`:Pure` default; `:Impure` if it holds a
   `Sender`/`Receiver`/socket/closure/struct).
-- a **`_bad.wat`** fixture whose expected error CHANGED (it now hits the mandatory-marker error first) → add the marker
+- a **`.wat.bad`** fixture whose expected error CHANGED (it now hits the mandatory-marker error first) → add the marker
   so it reaches its INTENDED error, then confirm the probe's assertion still holds.
 - **`deftest_svc_test_svc_assert_state`** (`wat-tests/service-template.wat`) — `:svc::Request` carries reply-`Sender`s
   → it is genuinely **`:wat::enum::Impure`**; its `make-channel` is a THREAD-tier channel that the 254.1 gate doesn't

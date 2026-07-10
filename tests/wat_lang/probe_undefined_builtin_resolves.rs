@@ -17,7 +17,7 @@ use wat::freeze::{startup_beside, startup_from_file};
 #[ignore = "RED-at-HEAD: checker rejection of undefined builtins (arc-255 builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn wrong_operator_leaf_is_a_check_error() {
     let result = startup_from_file(
-        "tests/wat_lang/probe_undefined_builtin_resolves_wrong_leaf_bad.wat",
+        "tests/wat_lang/probe_undefined_builtin_resolves_wrong_leaf.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -31,7 +31,7 @@ fn wrong_operator_leaf_is_a_check_error() {
 #[ignore = "RED-at-HEAD: checker rejection of undefined builtins (arc-255 builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn bogus_leaf_under_known_namespace_is_a_check_error() {
     let result = startup_from_file(
-        "tests/wat_lang/probe_undefined_builtin_resolves_bogus_bad.wat",
+        "tests/wat_lang/probe_undefined_builtin_resolves_bogus.wat.bad",
     );
     assert!(
         result.is_err(),

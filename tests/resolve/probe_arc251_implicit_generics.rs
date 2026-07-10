@@ -12,7 +12,7 @@ use wat::freeze::{startup_beside, startup_from_file};
 
 #[test]
 fn fact_01_suffix_generic_is_really_checked() {
-    let r = startup_from_file("tests/resolve/probe_arc251_implicit_generics_fact01_bad.wat");
+    let r = startup_from_file("tests/resolve/probe_arc251_implicit_generics_fact01.wat.bad");
     assert!(
         r.is_err(),
         "suffix-generic SHOULD reject the ill-typed call (T:=i64 then b=String); \
@@ -43,7 +43,7 @@ fn bare_var_no_suffix_now_checks() {
 #[test]
 fn bare_var_no_suffix_rejects_illtyped() {
     // Proves the auto-generalized vars are REALLY unified (not opaquely accepted).
-    let r = startup_from_file("tests/resolve/probe_arc251_implicit_generics_bare_bad.wat");
+    let r = startup_from_file("tests/resolve/probe_arc251_implicit_generics_bare.wat.bad");
     assert!(
         r.is_err(),
         "bare-var generic MUST reject the ill-typed call (T:=i64 then b=String); \

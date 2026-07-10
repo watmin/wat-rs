@@ -10,7 +10,7 @@ real sig-check; the acceptance demo stays `#[ignore]`'d (293.4d's gate).
 | 1 | 293.4a probe GREEN (un-ignored) | **PASS** — `method_member_surface_parses_and_is_satisfied_by_a_defn` |
 | 2 | a method member PARSES | **PASS** — no more `MalformedDecl "triple is incomplete"` |
 | 3 | a method member SATISFIED by a `defn` | **PASS** — `(:t::accept (:t::Sq …))` type-checks |
-| 4 | MISSING method = NOT satisfied (negative) | **PASS** — `method_member_not_satisfied_when_defn_is_absent` (+ `_bad.wat`); resolver returns None → false |
+| 4 | MISSING method = NOT satisfied (negative) | **PASS** — `method_member_not_satisfied_when_defn_is_absent` (+ `.wat.bad`); resolver returns None → false |
 | 5 | acceptance demo stays RED (untouched) | **PASS** — still `#[ignore]`'d |
 | 6 | whole workspace green | **PASS** — 4087 / 0 / 93 (own forced run) |
 
@@ -25,7 +25,7 @@ real sig-check; the acceptance demo stays `#[ignore]`'d (293.4d's gate).
 - **`src/function/infer.rs`**, **`src/closure_extract.rs`** — the mechanical cascade (one assignable caller; the two
   `SurfaceDef.members` readers pattern-match Field|Method).
 - **`src/argspec/parse.rs`** — `ArgSpec` derives `PartialEq, Eq` (it now lives inside the `Eq`-derived `SurfaceDef`).
-- **Tests** — `probe_arc293_4a_method_members.rs` un-ignored + negative arm; `probe_arc293_4a_method_members_bad.wat` new.
+- **Tests** — `probe_arc293_4a_method_members.rs` un-ignored + negative arm; `probe_arc293_4a_method_members.wat.bad` new.
 
 ## Honest deltas (carried, not hidden)
 1. **The ArgSpec correction** — caught mid-build (the member was first written `arg_types: Vec<TypeExpr>`, the brief's

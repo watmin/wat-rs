@@ -30,12 +30,12 @@ fn check_result(path: &str) -> Result<(), String> {
 // rewritten to target a non-portable-but-valid-type-keyword payload.
 #[test]
 fn bare_sender_payload_rejected_by_type_keyword_gate_not_portability() {
-    let result = check_result("tests/channel/probe_arc254_channel_payload_portable_senders_bad.wat");
+    let result = check_result("tests/channel/probe_arc254_channel_payload_portable_senders.wat.bad");
     let msg = result.expect_err("bare Sender payload is rejected today");
     // Stone B (arc 296): Display now emits EDN (the {:?}-impostor wall). Golden recaptured.
     assert_eq!(
         msg,
-        "#wat.check/CheckErrors {:message \"1 type-check error\" :location nil :causes [] :errors [#wat.check/MalformedForm {:message \"malformed :wat::kernel::make-channel form: first argument :wat::kernel::Sender<:wat::core::i64> is not a valid type keyword\" :location #wat.core/Span {:file \"tests/channel/probe_arc254_channel_payload_portable_senders_bad.wat\" :line 2 :col 57 :end #wat.core.Option/Some #wat.core/Pos {:line 2 :col 94}} :causes [] :head \":wat::kernel::make-channel\" :reason \"first argument :wat::kernel::Sender<:wat::core::i64> is not a valid type keyword\" :remedies []}]}",
+        "#wat.check/CheckErrors {:message \"1 type-check error\" :location nil :causes [] :errors [#wat.check/MalformedForm {:message \"malformed :wat::kernel::make-channel form: first argument :wat::kernel::Sender<:wat::core::i64> is not a valid type keyword\" :location #wat.core/Span {:file \"tests/channel/probe_arc254_channel_payload_portable_senders.wat.bad\" :line 2 :col 57 :end #wat.core.Option/Some #wat.core/Pos {:line 2 :col 94}} :causes [] :head \":wat::kernel::make-channel\" :reason \"first argument :wat::kernel::Sender<:wat::core::i64> is not a valid type keyword\" :remedies []}]}",
         "expected the existing type-keyword gate (not a portability check)"
     );
 }
@@ -46,7 +46,7 @@ fn bare_sender_payload_rejected_by_type_keyword_gate_not_portability() {
 // A struct-with-Sender-field as a make-channel payload now type-checks clean.
 #[test]
 fn channel_of_struct_with_opaque_field_must_be_rejected() {
-    let result = check_result("tests/channel/probe_arc254_channel_payload_portable_struct_with_sender_bad.wat");
+    let result = check_result("tests/channel/probe_arc254_channel_payload_portable_struct_with_sender.wat.bad");
     println!("=== STRUCT_WITH_SENDER check result ===\n{:?}\n=== end ===", result);
     assert!(
         result.is_ok(),
@@ -74,7 +74,7 @@ fn portable_channel_payload_still_accepted() {
 // The struct↛wire firm rule (arc 291 4b-i) applies to WIRE PEERS, not channels.
 #[test]
 fn channel_of_all_edn_struct_must_be_rejected() {
-    let result = check_result("tests/channel/probe_arc254_channel_payload_portable_all_edn_struct_bad.wat");
+    let result = check_result("tests/channel/probe_arc254_channel_payload_portable_all_edn_struct.wat.bad");
     assert!(
         result.is_ok(),
         "arc 293.W.2d: thread make-channel with an all-EDN struct payload MUST \

@@ -43,7 +43,7 @@ fn c02_generic_clause_call_checks() {
 fn c03_illtyped_generic_call_rejected() {
     // Guard: T:=i64 from a=1, then b="two" (String) must fail to unify → REJECT.
     assert!(
-        check_file("tests/types/probe_arc256_generic_defclause_c03_bad.wat").is_err(),
+        check_file("tests/types/probe_arc256_generic_defclause_c03.wat.bad").is_err(),
         "ill-typed generic clause call must be rejected (T:=i64 then String)"
     );
 }

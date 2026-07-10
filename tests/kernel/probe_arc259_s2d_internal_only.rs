@@ -12,7 +12,7 @@
 //!
 //! Run: `cargo nextest run --release -E 'binary(kernel)' -F probe_arc259_s2d_internal_only`
 //!
-//! WAT fixtures: tests/kernel/probe_arc259_s2d_internal_only_{spawn_thread,close}_bad.wat
+//! WAT fixtures: tests/kernel/probe_arc259_s2d_internal_only_{spawn_thread,close}.wat.bad
 
 use wat::freeze::startup_from_file;
 
@@ -21,7 +21,7 @@ use wat::freeze::startup_from_file;
 #[test]
 fn user_calling_spawn_thread_prime_is_a_check_error() {
     let result = startup_from_file(
-        "tests/kernel/probe_arc259_s2d_internal_only_spawn_thread_bad.wat",
+        "tests/kernel/probe_arc259_s2d_internal_only_spawn_thread.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -34,7 +34,7 @@ fn user_calling_spawn_thread_prime_is_a_check_error() {
 #[test]
 fn user_calling_close_prime_is_a_check_error() {
     let result = startup_from_file(
-        "tests/kernel/probe_arc259_s2d_internal_only_close_bad.wat",
+        "tests/kernel/probe_arc259_s2d_internal_only_close.wat.bad",
     );
     assert!(
         result.is_err(),

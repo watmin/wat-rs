@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc247_hof_fn_first.wat
 ;; Arc 247 — Clojure-honest seq-HOF order (fn-first).
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; coll-first negative case is in probe_arc247_hof_coll_first_bad.wat.
+;; coll-first negative case is in probe_arc247_hof_coll_first.wat.bad.
 
 ;; REGRESSION — variadic plus uses foldl internally; flip must not change result
 (:wat::core::defn :user::regression-plus [] -> :wat::core::bool

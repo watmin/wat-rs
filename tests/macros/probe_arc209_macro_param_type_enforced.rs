@@ -4,7 +4,7 @@
 //! rejected. BEFORE (HEAD): silently accepted (the bug). AFTER: a clean MalformedDefmacro.
 //!
 //! Wat source lives in the NEGATIVE fixture:
-//! tests/macros/probe_arc209_macro_param_type_enforced_bad.wat
+//! tests/macros/probe_arc209_macro_param_type_enforced.wat.bad
 //! (loaded via startup_from_file — must fail).
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_macro_param_type_enforced
@@ -17,7 +17,7 @@ use wat::freeze::startup_from_file;
 #[test]
 fn lying_macro_param_type_is_rejected_at_macro_def() {
     let r = startup_from_file(
-        "tests/macros/probe_arc209_macro_param_type_enforced_bad.wat",
+        "tests/macros/probe_arc209_macro_param_type_enforced.wat.bad",
     );
     // AFTER (ENFORCE): macro-def must REJECT a non-:wat::WatAST param type.
     // BEFORE (HEAD): Ok — silently accepted (the mandatory-then-discarded bug). RED.
@@ -27,7 +27,7 @@ fn lying_macro_param_type_is_rejected_at_macro_def() {
             // Measure the diagnostic: it must name the param + say macro params are forms.
             assert_eq!(
                 msg,
-                "macro: tests/macros/probe_arc209_macro_param_type_enforced_bad.wat:6:34: malformed defmacro: macro param `x` is declared `Path(\":wat::core::i64\")`, but a macro param always binds a form — its type must be `:wat::WatAST`",
+                "macro: tests/macros/probe_arc209_macro_param_type_enforced.wat.bad:6:34: malformed defmacro: macro param `x` is declared `Path(\":wat::core::i64\")`, but a macro param always binds a form — its type must be `:wat::WatAST`",
                 "rejection message must match malformed defmacro golden"
             );
         }

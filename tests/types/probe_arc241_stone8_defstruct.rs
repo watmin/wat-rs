@@ -68,7 +68,7 @@ fn contract_05_defstruct_multi_field_triples() {
 
 #[test]
 fn contract_06_defstruct_empty_metadata_rejected() {
-    let result = try_startup("tests/types/probe_arc241_stone8_defstruct_c06_bad.wat");
+    let result = try_startup("tests/types/probe_arc241_stone8_defstruct_c06.wat.bad");
     assert!(
         result.is_err(),
         "empty {{}} metadata-map must error; got Ok"
@@ -79,7 +79,7 @@ fn contract_06_defstruct_empty_metadata_rejected() {
 
 #[test]
 fn contract_07_legacy_struct_hard_cut() {
-    let result = try_startup("tests/types/probe_arc241_stone8_defstruct_c07_bad.wat");
+    let result = try_startup("tests/types/probe_arc241_stone8_defstruct_c07.wat.bad");
     assert!(
         result.is_err(),
         "legacy :wat::core::struct must be HARD CUT REJECTED; got Ok"
@@ -88,7 +88,7 @@ fn contract_07_legacy_struct_hard_cut() {
 
 #[test]
 fn contract_08_legacy_struct_restricted_hard_cut() {
-    let result = try_startup("tests/types/probe_arc241_stone8_defstruct_c08_bad.wat");
+    let result = try_startup("tests/types/probe_arc241_stone8_defstruct_c08.wat.bad");
     assert!(
         result.is_err(),
         "legacy :wat::core::struct-restricted must be HARD CUT REJECTED; got Ok"

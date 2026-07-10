@@ -33,8 +33,8 @@
 //! Run: `cargo test --release --test probe_arc241_stone5_defclause_rest_dispatch`
 
 //! Wat source: tests/function/probe_arc241_stone5_defclause_rest_dispatch.wat
-//! Negative fixtures: probe_arc241_stone5_c05_bad.wat, probe_arc241_stone5_c06_bad.wat,
-//!   probe_arc241_stone5_c07_bad.wat.
+//! Negative fixtures: probe_arc241_stone5_c05.wat.bad, probe_arc241_stone5_c06.wat.bad,
+//!   probe_arc241_stone5_c07.wat.bad.
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -96,7 +96,7 @@ fn contract_04_rest_only_empty_call_succeeds() {
 fn contract_05_rest_element_type_mismatch_errors() {
     // Passing "three" (String) where Vector<i64> element is expected.
     // Type mismatch is caught at eval time (rest element types are checked at dispatch).
-    let world = startup_from_file("tests/function/probe_arc241_stone5_c05_bad.wat")
+    let world = startup_from_file("tests/function/probe_arc241_stone5_c05.wat.bad")
         .expect("startup should succeed (rest element type mismatch caught at dispatch, not check)");
     let ast = wat::parse_one!("(:user::bad)").expect("parse");
     let result = eval_in_frozen(&ast, &world, &Environment::new());
@@ -106,7 +106,7 @@ fn contract_05_rest_element_type_mismatch_errors() {
 #[test]
 fn contract_06_under_supply_below_fixed_errors() {
     // Clause has 2 fixed args + rest; calling with only 1 arg must error. startup MUST fail.
-    let result = startup_from_file("tests/function/probe_arc241_stone5_c06_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone5_c06.wat.bad");
     assert!(result.is_err(), "under-supply below fixed-arity must error; got Ok");
 }
 
@@ -114,7 +114,7 @@ fn contract_06_under_supply_below_fixed_errors() {
 fn contract_07_fixed_only_strict_arity_preserved() {
     // Clause WITHOUT rest_param. Called with extra args → strict arity rejection.
     // Stone 241.5's variadic-min behavior MUST NOT apply when rest_param is None.
-    let result = startup_from_file("tests/function/probe_arc241_stone5_c07_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone5_c07.wat.bad");
     assert!(result.is_err(), "strict-arity clause should reject over-supply; got Ok");
 }
 

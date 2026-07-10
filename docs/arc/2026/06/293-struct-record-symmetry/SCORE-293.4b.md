@@ -10,7 +10,7 @@ flipped RED→GREEN; the negative arm proves the dispatcher requires satisfactio
 | 1 | 293.4b probe GREEN (un-ignored) | **PASS** — `surface_method_dispatches_by_runtime_type` |
 | 2 | `:Surface/method` RESOLVES (no UnresolvedReference) | **PASS** — startup Ok |
 | 3 | dispatch ROUTES by runtime type | **PASS** — Circle ≈ 12.566 (π·2²) / Square = 9.0 (3²), each its own impl |
-| 4 | non-satisfier rejected at check time | **PASS** — `non_satisfier_receiver_rejected_at_check_time` (+ `_bad.wat`) |
+| 4 | non-satisfier rejected at check time | **PASS** — `non_satisfier_receiver_rejected_at_check_time` (+ `.wat.bad`) |
 | 5 | 293.4a un-regressed | **PASS** |
 | 6 | acceptance demo stays RED | **PASS** — still `#[ignore]`'d |
 | 7 | whole workspace green | **PASS** — 4089 / 0 / 93 (own forced run) |
@@ -25,7 +25,7 @@ flipped RED→GREEN; the negative arm proves the dispatcher requires satisfactio
 - **`src/runtime.rs`** (+86) — surface-method dispatch after the `is_protocol` block: eval receiver → concrete type
   FQDN (reuses the protocol path's extraction) → `sym.get(canonical_callable_name(":<T>/<m>")) → apply_function`. **The
   ONE semantic change: a plain `defn` lookup, NOT `extend:<S>:<T>`** (verified on disk).
-- **Tests** — `probe_arc293_4b_surface_dispatch.rs` un-ignored + negative arm; `_bad.wat` new.
+- **Tests** — `probe_arc293_4b_surface_dispatch.rs` un-ignored + negative arm; `.wat.bad` new.
 
 ## Honest deltas (carried, not hidden)
 1. **The defn-not-extend-def distinction held.** The executor did NOT copy the protocol `extend:<P>:<T>` lookup

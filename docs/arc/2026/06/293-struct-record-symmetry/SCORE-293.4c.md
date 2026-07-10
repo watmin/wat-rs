@@ -9,8 +9,8 @@
 |---|---|---|
 | 1 | 293.4c probe GREEN (un-ignored) | **PASS** — `(:t::probe)` → 42 |
 | 2 | foreign type satisfies + dispatches via extend-type | **PASS** — `:wat::core::String/tag` adapter, dispatched on a String |
-| 3 | collision = DuplicateDefine | **PASS** — `_dup_bad.wat` rejected |
-| 4 | non-extended foreign type rejected | **PASS** — `_notextended_bad.wat` rejected |
+| 3 | collision = DuplicateDefine | **PASS** — `_dup.wat.bad` rejected |
+| 4 | non-extended foreign type rejected | **PASS** — `_notextended.wat.bad` rejected |
 | 5 | protocol extend-type un-regressed | **PASS** — `binary(function)` 221/221 |
 | 6 | 293.4a + 293.4b un-regressed | **PASS** |
 | 7 | acceptance demo stays RED | **PASS** — still `#[ignore]`'d |
@@ -26,7 +26,7 @@
   `env.schemes` under the SAME `<type>/<method>` key; (b) `assignable` non-aggregate path: after the Aggregate gate
   fails, a foreign type satisfies a surface iff the surface has **no holder bound** AND **no field members** AND every
   method member resolves via `env.get(key)` (`struct_satisfies_surface(&[], …)`). Properly bounded — STOP-3 guarded.
-- **Tests** — probe un-ignored + collision arm + negative arm; `_dup_bad.wat`, `_notextended_bad.wat` new.
+- **Tests** — probe un-ignored + collision arm + negative arm; `_dup.wat.bad`, `_notextended.wat.bad` new.
 
 ## Honest deltas (carried, not hidden)
 1. **Check + runtime agree by construction** — both populate/read the one canonical key `<T>/<method>`

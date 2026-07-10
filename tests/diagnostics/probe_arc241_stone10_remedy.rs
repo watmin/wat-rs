@@ -24,7 +24,7 @@
 //! 7 of 8 contracts disconfirm cleanly at HEAD; C04 is the post-stone semantic
 //! contract (consistent with arc 241 probe precedent).
 //!
-//! WAT fixtures: tests/diagnostics/probe_arc241_stone10_remedy_c{01,02,03,04,07,08}_bad.wat
+//! WAT fixtures: tests/diagnostics/probe_arc241_stone10_remedy_c{01,02,03,04,07,08}.wat.bad
 //! C05 shares c02's fixture; C06 shares c03's fixture.
 //!
 //! Run: `cargo nextest run --release -E 'binary(diagnostics)' -F probe_arc241_stone10_remedy`
@@ -58,11 +58,11 @@ fn contract_01_typo_remedy_on_variant_constructor() {
     // disconfirming path per Stone 241.9 probe C08 precedent.
     // Post-stone: error contains 'did you mean :my::Status::Ok [typo, distance 1]'.
     // Uses :test::pick (non-main) — main signature retirement doesn't apply.
-    // Fixture: probe_arc241_stone10_remedy_c01_bad.wat
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c01_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c01.wat.bad
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c01.wat.bad");
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c01_bad.wat:2:49: :test::pick: body produces :wat::core::keyword; signature declares :my::Status\n  did you mean:\n    :my::Status::Ok  [typo, distance 1]\n    :my::Status::Error  [typo, distance 5]\n",
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c01.wat.bad:2:49: :test::pick: body produces :wat::core::keyword; signature declares :my::Status\n  did you mean:\n    :my::Status::Ok  [typo, distance 1]\n    :my::Status::Error  [typo, distance 5]\n",
         "variant-typo case: 'did you mean' with distance annotation"
     );
 }
@@ -75,11 +75,11 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
     // reason: string already names `:wat::core::defstruct` in prose, but the
     // STRUCTURED canonical phrasing ('did you mean: ... [retirement replacement]')
     // is the 241.10 shape.
-    // Fixture: probe_arc241_stone10_remedy_c02_bad.wat
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c02.wat.bad
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02.wat.bad");
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat:1:2: malformed :wat::core::struct form: ':wat::core::struct' is retired (Stone 241.8)\n  did you mean: :wat::core::defstruct [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c02.wat.bad:1:2: malformed :wat::core::struct form: ':wat::core::struct' is retired (Stone 241.8)\n  did you mean: :wat::core::defstruct [replaces a retired form]\n",
         "retirement case: 'did you mean: :wat::core::defstruct [replaces a retired form]'"
     );
 }
@@ -89,8 +89,8 @@ fn contract_02_retirement_remedy_for_hard_cut_form() {
 fn contract_03_ranked_multi_candidate_variant_typo() {
     // Declare enum with two variants close in spelling; typo a constructor
     // close to both. Post-stone: ranked output names multiple candidates.
-    // Fixture: probe_arc241_stone10_remedy_c03_bad.wat
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c03.wat.bad
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03.wat.bad");
     let typo_annotation_count = msg.matches("[typo, distance").count();
     assert!(
         typo_annotation_count >= 2,
@@ -105,8 +105,8 @@ fn contract_03_ranked_multi_candidate_variant_typo() {
 fn contract_04_no_remedy_for_distant_unknown() {
     // `:wat::core::xyzzy` is far from any real form. No candidate within threshold.
     // Post-stone: error message renders without "did you mean" section.
-    // Fixture: probe_arc241_stone10_remedy_c04_bad.wat
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c04.wat.bad
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c04.wat.bad");
     assert_eq!(
         msg,
         "<startup succeeded — no error to display>",
@@ -122,8 +122,8 @@ fn contract_04_no_remedy_for_distant_unknown() {
 fn contract_05_single_remedy_single_line_format() {
     // Single remedy → inline single-line "did you mean: <form> [annotation]".
     // Uses retirement path (always produces error post-241.8).
-    // Fixture: probe_arc241_stone10_remedy_c02_bad.wat (same as C02)
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c02.wat.bad (same as C02)
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c02.wat.bad");
     let line = msg.lines().find(|l| l.contains("did you mean"))
         .unwrap_or_else(|| panic!("expected 'did you mean' line; got:\n{}", msg));
     assert_eq!(
@@ -138,8 +138,8 @@ fn contract_05_single_remedy_single_line_format() {
 fn contract_06_multi_remedy_multi_line_format() {
     // Multiple remedies → "did you mean:" header on its own line; ranked candidates
     // each on their own subsequent line. Uses variant-constructor typo path.
-    // Fixture: probe_arc241_stone10_remedy_c03_bad.wat (same as C03)
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c03.wat.bad (same as C03)
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c03.wat.bad");
     let lines: Vec<&str> = msg.lines().collect();
     let header_idx = lines.iter().position(|l| {
         l.trim_end().ends_with("did you mean:") || (l.contains("did you mean:") && !l.contains("[typo"))
@@ -156,11 +156,11 @@ fn contract_06_multi_remedy_multi_line_format() {
 fn contract_07_retirement_kind_annotation_canonical() {
     // The retirement kind annotation is the LITERAL string `[retirement replacement]`.
     // No abbreviations; no variants. Exact phrase per D7.
-    // Fixture: probe_arc241_stone10_remedy_c07_bad.wat
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c07_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c07.wat.bad
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c07.wat.bad");
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c07_bad.wat:1:2: malformed :wat::core::struct-restricted form: ':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n  did you mean: :wat::core::defstruct [replaces a retired form] — re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n",
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc241_stone10_remedy_c07.wat.bad:1:2: malformed :wat::core::struct-restricted form: ':wat::core::struct-restricted' is retired (Stone 241.8); use ':wat::core::defstruct' with metadata-map: re-express ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n  did you mean: :wat::core::defstruct [replaces a retired form] — re-express the ctor restriction as `{:restricted-to [<prefix-kw>...]}` and per-field restrictions as `{:field-metadata {field {:restricted-to [<prefix-kw>...]}}}` on the defstruct binding\n",
         "retirement annotation must be exact '[replaces a retired form]'"
     );
 }
@@ -171,8 +171,8 @@ fn contract_07_retirement_kind_annotation_canonical() {
 fn contract_08_threshold_filters_far_typos() {
     // `:wat::core::definitelywrong` is far from any real form (distance >> needle.len()/3).
     // Post-stone: no remedy offered (threshold filter).
-    // Fixture: probe_arc241_stone10_remedy_c08_bad.wat
-    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08_bad.wat");
+    // Fixture: probe_arc241_stone10_remedy_c08.wat.bad
+    let msg = display_err("tests/diagnostics/probe_arc241_stone10_remedy_c08.wat.bad");
     assert_eq!(
         msg,
         "<startup succeeded — no error to display>",

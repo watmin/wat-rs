@@ -39,7 +39,7 @@ fn not_eq_f64_cross_numeric_coerce() {
     // Arc-237 Stone 237.8a: cross-numeric coercion for equality DELETED.
     // `(:wat::core::not= 3 3.0)` is now a TypeMismatch (same-type-only
     // relational intrinsic). Startup must fail with a type check error.
-    let result = startup_from_file("tests/wat_lang/wat_not_eq_cross_numeric_bad.wat");
+    let result = startup_from_file("tests/wat_lang/wat_not_eq_cross_numeric.wat.bad");
     assert!(
         result.is_err(),
         "expected cross-numeric not= to produce a type error; got Ok"
@@ -47,7 +47,7 @@ fn not_eq_f64_cross_numeric_coerce() {
     let msg = format!("{:?}", result.unwrap_err());
     assert_eq!(
         msg,
-        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_not_eq_cross_numeric_bad.wat", line: 4, col: 23, end_line: 4, end_col: 26 }, kind: TypeMismatch { callee: ":wat::core::not=", param: "#2", expected: ":wat::core::i64", got: ":wat::core::f64" } }]))"##,
+        r##"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_not_eq_cross_numeric.wat.bad", line: 4, col: 23, end_line: 4, end_col: 26 }, kind: TypeMismatch { callee: ":wat::core::not=", param: "#2", expected: ":wat::core::i64", got: ":wat::core::f64" } }]))"##,
         "expected TypeMismatch on cross-numeric not= call"
     );
 }

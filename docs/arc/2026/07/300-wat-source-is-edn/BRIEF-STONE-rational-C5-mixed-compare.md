@@ -29,9 +29,9 @@ green (RED at HEAD: the co-located fixture's mixed comparisons fail to type-chec
   pair (check-accepts / eval-errors — a NEW inconsistency), ADD that arm. Check and eval MUST agree.
 - **Flip the two 237.8a COMPARISON-reject tests** to expect Ok (the same move C4 made for arithmetic):
   - `tests/types/probe_arc237_8a_no_implicit_coercion.rs::comparison_i64_f64_mixed_rejected_at_check`
-    (fixture `..._cmp_i64_f64_bad.wat`)
+    (fixture `..._cmp_i64_f64.wat.bad`)
   - `tests/function/probe_arc237_8b_defclause_arithmetic.rs::regression_cross_type_lt_rejected`
-    (fixture `probe_arc237_8b_regression_cross_lt_bad.wat`)
+    (fixture `probe_arc237_8b_regression_cross_lt.wat.bad`)
   Flip `assert!(result.is_err())` → `assert!(result.is_ok())`, rename to `..._coerces`/`..._works`, update
   the messages + doc-comments + the fixtures' header comments (they now type-check — note arc 300 C5).
 

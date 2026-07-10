@@ -288,7 +288,7 @@ fn probe_12_typeunion_arg_accepts_member_value() {
 #[test]
 fn probe_13_typeunion_arg_rejects_non_member_value() {
     let result = startup_from_file(
-        "tests/types/probe_arc237_stone1_typeunion_substrate_probe13_bad.wat",
+        "tests/types/probe_arc237_stone1_typeunion_substrate_probe13.wat.bad",
     );
     assert!(
         result.is_err(),

@@ -1,6 +1,0 @@
-;; tests/function/probe_arc241_stone5_c07_bad.wat — NEGATIVE contract 7: strict arity over-supply.
-;; Clause WITHOUT rest_param; over-supply (2 args for 1-arg clause) must error. startup MUST fail.
-
-(:wat::core::defclause :my::strict
-  ([x <- :wat::core::i64] -> :wat::core::i64 x))
-(:wat::core::defn :user::bad [] -> :wat::core::i64 (:my::strict 1 2))

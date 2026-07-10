@@ -1,0 +1,9 @@
+;; struct_restricted_field_denied.wat.bad — outsider accesses restricted field. Must FAIL.
+(:wat::core::defstruct :my::Vault
+  {:restricted-to  [:my::admin::]
+   :field-metadata {:secret {:restricted-to [:my::admin::]}}}
+  [secret <- :wat::core::i64
+   name   <- :wat::core::i64])
+(:wat::core::defn :user::outsider::read-secret
+  [v <- :my::Vault] -> :wat::core::i64
+  (:my::Vault/secret v))

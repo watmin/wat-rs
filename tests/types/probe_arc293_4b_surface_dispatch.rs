@@ -59,7 +59,7 @@ fn surface_method_dispatches_by_runtime_type() {
 /// The receiver type mismatch fires at startup (check pass), so `startup_from_file` must return `Err`.
 #[test]
 fn non_satisfier_receiver_rejected_at_check_time() {
-    let result = startup_from_file("tests/types/probe_arc293_4b_surface_dispatch_bad.wat");
+    let result = startup_from_file("tests/types/probe_arc293_4b_surface_dispatch.wat.bad");
     assert!(
         result.is_err(),
         "a record without `defn :T/area` must NOT satisfy :t::Shape; \

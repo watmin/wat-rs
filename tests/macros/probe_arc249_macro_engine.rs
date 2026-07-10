@@ -31,7 +31,7 @@ fn regression_pure_computed_unquote_preserved() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn mint_impure_computed_unquote_rejected() {
-    let result = startup_from_file("tests/macros/probe_arc249_macro_engine_impure_bad.wat");
+    let result = startup_from_file("tests/macros/probe_arc249_macro_engine_impure.wat.bad");
     assert!(
         result.is_err(),
         "an impure computed-unquote `~(:wat::kernel::stopped?)` MUST be rejected by the \
@@ -72,7 +72,7 @@ fn mint_program_body_fold() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn hygiene_bound_program_body_literal_binder_refused() {
-    let result = startup_from_file("tests/macros/probe_arc249_macro_engine_hygiene_bad.wat");
+    let result = startup_from_file("tests/macros/probe_arc249_macro_engine_hygiene.wat.bad");
     assert!(
         result.is_err(),
         "a program body whose quasiquote introduces a literal let-binder name must be \

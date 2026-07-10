@@ -29,7 +29,7 @@ fn contract_01_ann_form_checks_and_evaluates() {
 #[test]
 fn contract_02_mismatched_ascription_rejected() {
     assert!(
-        startup_from_file("tests/resolve/probe_arc251_stone4b_ann_form_bad.wat").is_err(),
+        startup_from_file("tests/resolve/probe_arc251_stone4b_ann_form.wat.bad").is_err(),
         "(ann-form 42 :String) must be REJECTED — 42 is i64, not String (ascription is checked)"
     );
 }

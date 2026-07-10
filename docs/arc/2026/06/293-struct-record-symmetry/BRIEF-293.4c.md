@@ -68,7 +68,7 @@ register-extend pass + the satisfaction non-aggregate path). NO change to 293.4a
 `tests/types/probe_arc293_4c_extend_type_adapter.rs` + `.wat` — a `:t::Tagged` surface (method `tag`); `extend-type`
 teaches `:wat::core::String` to be `:t::Tagged` (constant body 42); `(:t::tag-of "hello")` must satisfy + dispatch.
 Verified RED at HEAD (the dispatcher rejects the String receiver). UN-IGNORE it; GREEN at 293.4c.
-**ADD a collision arm** (`_dup_bad.wat`): two `extend-type` of the same `:<T>/<m>` (or an `extend-type` colliding with a
+**ADD a collision arm** (`_dup.wat.bad`): two `extend-type` of the same `:<T>/<m>` (or an `extend-type` colliding with a
 real `defn :<T>/<m>`) → `DuplicateDefine` at startup. **ADD a negative arm**: a foreign type NOT extended (no
 `:<T>/tag`) passed where `:t::Tagged` is required → rejected. Do NOT touch `probe_arc293_acceptance_demo` (293.4d's gate).
 

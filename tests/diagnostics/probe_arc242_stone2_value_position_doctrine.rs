@@ -32,8 +32,8 @@ fn contract_01_keyword_nil_in_body_rejected() {
     // (Note: the body's :wat::core::nil is the keyword-in-value-position
     // doctrine violation under test; do NOT migrate to bare nil — that
     // would defeat the test.)
-    // Fixture: probe_arc242_stone2_value_position_doctrine_c01_bad.wat
-    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c01_bad.wat");
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c01.wat.bad
+    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c01.wat.bad");
     assert!(
         result.is_err(),
         "keyword form :wat::core::nil in value position must be REJECTED (Doctrine 1); got Ok"
@@ -60,8 +60,8 @@ fn contract_02_bare_nil_in_body_passes() {
 #[test]
 fn contract_03_keyword_type_in_body_rejected_with_remedy() {
     // (:wat::core::defn :f [] -> :wat::core::i64 :wat::core::i64) — ILLEGAL.
-    // Fixture: probe_arc242_stone2_value_position_doctrine_c03_bad.wat
-    let msg = match startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03_bad.wat") {
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c03.wat.bad
+    let msg = match startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03.wat.bad") {
         Ok(_) => String::from("<startup succeeded — no error to display>"),
         Err(e) => format!("{}", e),
     };
@@ -69,7 +69,7 @@ fn contract_03_keyword_type_in_body_rejected_with_remedy() {
     // Specific phrasing: doctrine guidance pointing at value-position correctness.
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03_bad.wat:1:50: malformed :wat::core::i64 form: Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position\n",
+        "check:\n1 type-check error(s):\n  - tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c03.wat.bad:1:50: malformed :wat::core::i64 form: Doctrine 1 (arc 242): ':wat::core::i64' is a TYPE keyword, not a value; use a value of this type in value position\n",
         ":wat::core::i64 in value position must be REJECTED with Doctrine 1 structured guidance"
     );
 }
@@ -93,8 +93,8 @@ fn contract_04_bare_value_in_body_passes() {
 #[test]
 fn contract_05_keyword_nil_in_let_binding_rejected() {
     // (:wat::core::let [x :wat::core::nil] x) — ILLEGAL (let-binding value).
-    // Fixture: probe_arc242_stone2_value_position_doctrine_c05_bad.wat
-    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c05_bad.wat");
+    // Fixture: probe_arc242_stone2_value_position_doctrine_c05.wat.bad
+    let result = startup_from_file("tests/diagnostics/probe_arc242_stone2_value_position_doctrine_c05.wat.bad");
     assert!(
         result.is_err(),
         "keyword :wat::core::nil in let-binding value position must be REJECTED; got Ok"

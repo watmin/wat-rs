@@ -32,7 +32,7 @@
 //!
 //! Per FM 2-bis (recovery doc § 6): probe COMMITTED before the BRIEF.
 //! Wat fixtures: probe_arc237_sA1_assignable_probe{01,02,04,05}.wat (positive),
-//!   probe_arc237_sA1_assignable_probe{03,06}_bad.wat (negative).
+//!   probe_arc237_sA1_assignable_probe{03,06}.wat.bad (negative).
 
 use wat::freeze::startup_from_file;
 
@@ -57,7 +57,7 @@ fn probe_02_subtype_accepted_multi_arg() {
 // ─── Probe 3: directional rejection — supertype into subtype slot (guard) ─────
 #[test]
 fn probe_03_directional_rejection() {
-    let r = startup_from_file("tests/types/probe_arc237_sA1_assignable_probe03_bad.wat");
+    let r = startup_from_file("tests/types/probe_arc237_sA1_assignable_probe03.wat.bad");
     assert!(r.is_err(), "supertype into subtype slot must remain a type error");
 }
 
@@ -77,6 +77,6 @@ fn probe_04_exact_match_ok() {
 // ─── Probe 6: no-edge rejection — unrelated record (guard) ────────────────────
 #[test]
 fn probe_06_no_edge_rejected() {
-    let r = startup_from_file("tests/types/probe_arc237_sA1_assignable_probe06_bad.wat");
+    let r = startup_from_file("tests/types/probe_arc237_sA1_assignable_probe06.wat.bad");
     assert!(r.is_err(), "unrelated record into subtype slot must be a type error (no edge)");
 }

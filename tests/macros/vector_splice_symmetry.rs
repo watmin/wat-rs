@@ -32,7 +32,7 @@
 //! (slurped via startup_beside(file!())). Named compute fns: :my::compute-splice,
 //! :my::compute-hygienic, :my::compute-round-trip.
 //!
-//! Negative test uses: tests/macros/vector_splice_symmetry_bad.wat
+//! Negative test uses: tests/macros/vector_splice_symmetry.wat.bad
 //! (loaded via startup_from_file; must fail with "hygiene-scope divergence").
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
@@ -100,7 +100,7 @@ fn splice_of_vector_bound_symbol_succeeds() {
 #[test]
 #[should_panic(expected = "hygiene-scope divergence")]
 fn anaphoric_splice_capture_refused_by_hygiene() {
-    startup_from_file("tests/macros/vector_splice_symmetry_bad.wat")
+    startup_from_file("tests/macros/vector_splice_symmetry.wat.bad")
         .unwrap_or_else(|e| panic!("startup failed:\n{}", e));
 }
 

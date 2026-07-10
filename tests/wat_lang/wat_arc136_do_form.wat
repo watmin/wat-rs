@@ -1,6 +1,6 @@
 ;; tests/wat_lang/wat_arc136_do_form.wat — co-located fixture for the sibling probe (.rs).
 ;; Covers positive tests for :wat::core::do. Each test calls its own named fn via eval_in_frozen.
-;; Negative tests use separate *_bad.wat files via startup_from_file.
+;; Negative tests use separate *.wat.bad files via startup_from_file.
 
 ; test 2: single form — (do x) = x
 (:wat::core::defn :t::test2-single [] -> :wat::core::i64

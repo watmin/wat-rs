@@ -51,7 +51,7 @@ fn define_alias_length_to_user_size_delegates_correctly() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn define_alias_retired_form_rejected_at_startup() {
-    let result = startup_from_file("tests/wat_lang/wat_arc143_define_alias_retired_bad.wat");
+    let result = startup_from_file("tests/wat_lang/wat_arc143_define_alias_retired.wat.bad");
     assert!(
         result.is_err(),
         "expected startup to fail for retired :wat::runtime::define-alias form; got Ok"
@@ -60,7 +60,7 @@ fn define_alias_retired_form_rejected_at_startup() {
     let err_msg = format!("{}", result.unwrap_err());
     assert_eq!(
         err_msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc143_define_alias_retired_bad.wat:4:2: malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead\n  did you mean: :wat::core::defalias [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/wat_arc143_define_alias_retired.wat.bad:4:2: malformed :wat::runtime::define-alias form: ':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead\n  did you mean: :wat::core::defalias [replaces a retired form]\n",
         "error message should name the retired form and the :wat::core::defalias replacement"
     );
 }

@@ -50,14 +50,14 @@ fn probe_3_bare_symbol_brace_form_rejected() {
     // NOT a valid destructure (not :keys, not Symbol→Keyword pairs).
     // classify_map_destructure returns None → binder dispatch emits MalformedForm.
     let result =
-        startup_from_file("tests/wat_lang/probe_arc257_keys_destructure_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc257_keys_destructure.wat.bad");
     match result {
         Ok(_) => panic!("Probe 3: expected error for bare-symbol brace-form in binder; got Ok"),
         Err(e) => {
             let msg = format!("{}", e);
             assert_eq!(
                 msg,
-                "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc257_keys_destructure_bad.wat:10:8: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\n",
+                "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc257_keys_destructure.wat.bad:10:8: malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position\n",
                 "Probe 3: expected exact rejection message for bare-symbol brace-form in binder"
             );
         }

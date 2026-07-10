@@ -69,7 +69,7 @@ fn cond_dispatches_on_bound_value() {
 
 #[test]
 fn cond_refuses_missing_else() {
-    let err = run_err_file("tests/wat_lang/wat_core_cond_no_else_bad.wat");
+    let err = run_err_file("tests/wat_lang/wat_core_cond_no_else.wat.bad");
     wat::assert_edn_matches_file!(
         err,
         "wat_core_cond__cond_refuses_missing_else.edn",
@@ -79,7 +79,7 @@ fn cond_refuses_missing_else() {
 
 #[test]
 fn cond_refuses_non_bool_test() {
-    let err = run_err_file("tests/wat_lang/wat_core_cond_non_bool_bad.wat");
+    let err = run_err_file("tests/wat_lang/wat_core_cond_non_bool.wat.bad");
     wat::assert_edn_matches_file!(
         err,
         "wat_core_cond__cond_refuses_non_bool_test.edn",
@@ -89,7 +89,7 @@ fn cond_refuses_non_bool_test() {
 
 #[test]
 fn cond_refuses_mismatched_body_type() {
-    let err = run_err_file("tests/wat_lang/wat_core_cond_body_mismatch_bad.wat");
+    let err = run_err_file("tests/wat_lang/wat_core_cond_body_mismatch.wat.bad");
     wat::assert_edn_matches_file!(
         err,
         "wat_core_cond__cond_refuses_mismatched_body_type.edn",

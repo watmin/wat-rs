@@ -1,0 +1,2 @@
+;; typealias_self_ref.wat.bad — self-referential alias must halt at startup. Expect StartupError::Type.
+(:wat::core::typealias :my::A :my::A)

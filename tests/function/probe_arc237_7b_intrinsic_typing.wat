@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc237_7b_intrinsic_typing.wat
 ;; Arc 237 Stone 237.7b — ∀T intrinsic typing precision (empty?, contains?, get, conj).
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Negative (startup-fail) cases are in sibling *_bad.wat files.
+;; Negative (startup-fail) cases are in sibling *.wat.bad files.
 
 ;; TIER A — empty? (∀T -> bool)
 (:wat::core::defn :user::empty-q-vector [] -> :wat::core::bool

@@ -22,8 +22,8 @@
 //!   8. Non-vector last arg rejection (trailing i64 instead of Vector)
 
 //! Wat source: tests/function/probe_diagnostic_dynamic_keyword_invocation.wat
-//! Negative fixtures: probe_diagnostic_non_keyword_bad.wat (probe 7),
-//!   probe_diagnostic_non_vector_bad.wat (probe 8).
+//! Negative fixtures: probe_diagnostic_non_keyword.wat.bad (probe 7),
+//!   probe_diagnostic_non_vector.wat.bad (probe 8).
 //! Runtime-fail fn in main fixture: :user::probe-6-err (probe 6).
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
@@ -124,7 +124,7 @@ fn probe_6_apply_rejects_special_form_head() {
 // String-literal head in apply — apply head is dispatched dynamically).
 #[test]
 fn probe_7_apply_rejects_non_keyword_head() {
-    let world = startup_from_file("tests/function/probe_diagnostic_non_keyword_bad.wat")
+    let world = startup_from_file("tests/function/probe_diagnostic_non_keyword.wat.bad")
         .expect("startup should succeed (non-keyword head in apply caught at eval, not check)");
     let ast = wat::parse_one!("(:user::bad)").expect("parse");
     let result = eval_in_frozen(&ast, &world, &Environment::new());
@@ -138,7 +138,7 @@ fn probe_7_apply_rejects_non_keyword_head() {
 // Error occurs at eval time (apply's spread-arg check is dynamic).
 #[test]
 fn probe_8_apply_rejects_non_vector_last_arg() {
-    let world = startup_from_file("tests/function/probe_diagnostic_non_vector_bad.wat")
+    let world = startup_from_file("tests/function/probe_diagnostic_non_vector.wat.bad")
         .expect("startup should succeed (non-vector spread arg caught at eval, not check)");
     let ast = wat::parse_one!("(:user::bad)").expect("parse");
     let result = eval_in_frozen(&ast, &world, &Environment::new());

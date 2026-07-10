@@ -82,7 +82,7 @@ fn probe_4_hashmap_destructure_none() {
 fn probe_5_unknown_field_errors() {
     // The unknown-field error fires at eval time (checker permits the form, runtime rejects).
     let world =
-        startup_from_file("tests/wat_lang/probe_arc234_stone4_hash_destructure_bad.wat")
+        startup_from_file("tests/wat_lang/probe_arc234_stone4_hash_destructure.wat.bad")
             .expect("startup should succeed; error fires at eval time");
     let ast = wat::parse_one!("(:user::compute)").expect("parse");
     match eval_in_frozen(&ast, &world, &Environment::new()) {
@@ -91,7 +91,7 @@ fn probe_5_unknown_field_errors() {
             let msg = format!("{:?}", e);
             assert_eq!(
                 msg,
-                r#"RuntimeError { span: Span { file: "tests/wat_lang/probe_arc234_stone4_hash_destructure_bad.wat", line: 8, col: 25, end_line: 8, end_col: 46 }, kind: UnknownField { record_class: "myapp::Voltage", field: "nonexistent", available: ["magnitude"] } }"#,
+                r#"RuntimeError { span: Span { file: "tests/wat_lang/probe_arc234_stone4_hash_destructure.wat.bad", line: 8, col: 25, end_line: 8, end_col: 46 }, kind: UnknownField { record_class: "myapp::Voltage", field: "nonexistent", available: ["magnitude"] } }"#,
                 "Probe 5: expected exact UnknownField error"
             );
         }

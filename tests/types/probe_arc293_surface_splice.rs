@@ -39,7 +39,7 @@ fn surface_splice_merges_and_constructs() {
 /// correctness check, verified once the positive is green.
 #[test]
 fn surface_splice_conflicting_field_types_rejected() {
-    let world = startup_from_file("tests/types/probe_arc293_surface_splice_bad.wat");
+    let world = startup_from_file("tests/types/probe_arc293_surface_splice.wat.bad");
     assert!(
         world.is_err(),
         "splicing two surfaces that install `foobar` at conflicting types (:i64 vs :String) \

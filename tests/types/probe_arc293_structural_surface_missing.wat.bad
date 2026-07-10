@@ -1,0 +1,16 @@
+;; tests/types/probe_arc293_structural_surface_missing.wat.bad — negative fixture
+;;
+;; Arc 293.3-core — a struct MISSING the surface member must FAIL.
+
+(:wat::core::defsurface :geo::Shape
+  :nature :wat::core::Struct
+  :features [color <- :wat::core::String])
+
+(:wat::core::defstruct :geo::Bare
+  [other <- :wat::core::i64])
+
+(:wat::core::defn :geo::accepts-shape [s <- :geo::Shape] -> :wat::core::bool
+  true)
+
+(:wat::core::defn :user::main [] -> :wat::core::bool
+  (:geo::accepts-shape (:geo::Bare 42)))

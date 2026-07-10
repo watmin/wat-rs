@@ -1,7 +1,7 @@
 ;; tests/types/probe_arc237_sC3_macro_split.wat
 ;; Co-located fixture for probe_arc237_sC3_macro_split.rs
 ;; Loaded via startup_beside(file!()). Each named fn is exercised by its sibling Rust test.
-;; liskov_base_into_holon_rejected uses a separate _bad.wat fixture.
+;; liskov_base_into_holon_rejected uses a separate .wat.bad fixture.
 
 (:wat::core::defrecord :my::Pt  [x <- :wat::core::i64  y <- :wat::core::i64])
 (:wat::holon::defrecord :my::HPt [x <- :wat::core::i64  y <- :wat::core::i64])

@@ -1,0 +1,6 @@
+;; tests/function/probe_arc237_7b_conj_wrong_elem.wat.bad — NEGATIVE: wrong element type.
+;; conj on Vector<i64> with a String elem must reject at check time.
+;; startup MUST fail.
+
+(:wat::core::defn :user::bad [] -> :wat::core::i64
+  (:wat::core::length (:wat::core::conj (:wat::core::Vector :wat::core::i64 1 2) "x")))

@@ -6,7 +6,7 @@ Independent scorecard, fixed BEFORE the strike. Scored by the orchestrator's own
 |---|---|---|---|
 | 1 | the 293.4c probe flips GREEN (un-ignored) | `cargo nextest run --release -E 'test(extend_type_teaches_a_foreign_type_to_satisfy_a_surface)'` | PASS |
 | 2 | a FOREIGN type satisfies + dispatches via extend-type | the probe's `(:t::probe)` → `42` (the adapter's `:wat::core::String/tag` impl, dispatched on a String receiver) | 42 |
-| 3 | COLLISION = DuplicateDefine (negative) | a `_dup_bad.wat`: two `extend-type` of the same `:<T>/<m>` (or extend vs real defn) → startup `Err` | rejected (DuplicateDefine) |
+| 3 | COLLISION = DuplicateDefine (negative) | a `_dup.wat.bad`: two `extend-type` of the same `:<T>/<m>` (or extend vs real defn) → startup `Err` | rejected (DuplicateDefine) |
 | 4 | a NON-extended foreign type is REJECTED (negative) | a foreign type with no `:<T>/tag`, passed where `:t::Tagged` is required → check `Err` | rejected (not satisfied) |
 | 5 | protocol `extend-type` un-regressed | `cargo nextest run --release -E 'binary(function)'` (+ any defprotocol/extend tests) | green (arc-232 path untouched) |
 | 6 | 293.4a + 293.4b un-regressed | `cargo nextest run --release -E 'test(method_member_surface_parses) + test(surface_method_dispatches)'` | both PASS |

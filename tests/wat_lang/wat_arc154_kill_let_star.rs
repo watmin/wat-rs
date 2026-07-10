@@ -24,7 +24,7 @@
 //!
 //! Positive tests use `startup_beside(file!())` — the co-located fixture
 //! covers all the valid-program shapes. Negative tests use `startup_from_file`
-//! with co-located `*_bad.wat` fixtures.
+//! with co-located `*.wat.bad` fixtures.
 
 use wat::freeze::{startup_beside, startup_from_file};
 
@@ -51,11 +51,11 @@ fn let_accepts_sequential_bindings() {
 fn let_star_post_retirement_silently_aliases_to_let() {
     // Arc 163 follow-up — walker re-armed; bare `:wat::core::let*` fires fatal.
     let err = startup_err_file(
-        "tests/wat_lang/wat_arc154_kill_let_star_letstar_bad.wat",
+        "tests/wat_lang/wat_arc154_kill_let_star_letstar.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_letstar_bad.wat", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_letstar.wat.bad", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
         "expected BareLegacyLetStar walker to fire on bare :wat::core::let*"
     );
 }
@@ -67,11 +67,11 @@ fn let_star_post_retirement_silently_aliases_to_let() {
 fn let_body_type_mismatch_surfaces() {
     // Sequential `let` body type must unify with declared return type.
     let err = startup_err_file(
-        "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch_bad.wat",
+        "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch_bad.wat", line: 5, col: 3, end_line: 5, end_col: 28 }, kind: ReturnTypeMismatch { function: ":t::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_body_mismatch.wat.bad", line: 5, col: 3, end_line: 5, end_col: 28 }, kind: ReturnTypeMismatch { function: ":t::main", expected: ":()", got: ":wat::core::i64", remedies: [] } }]))"#,
         "expected ReturnTypeMismatch on body type vs declared return"
     );
 }
@@ -123,11 +123,11 @@ fn walker_narrowness_other_keywords_unaffected() {
 fn multiple_let_star_sites_post_retirement_silently_alias() {
     // Arc 163 follow-up — multiple let* sites all fire BareLegacyLetStar.
     let err = startup_err_file(
-        "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar_bad.wat",
+        "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad",
     );
     assert_eq!(
         err,
-        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar_bad.wat", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }, CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar_bad.wat", line: 7, col: 4, end_line: 7, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
+        r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad", line: 5, col: 4, end_line: 5, end_col: 20 }, kind: BareLegacyLetStar }, CheckError { span: Span { file: "tests/wat_lang/wat_arc154_kill_let_star_multi_letstar.wat.bad", line: 7, col: 4, end_line: 7, end_col: 20 }, kind: BareLegacyLetStar }]))"#,
         "expected two BareLegacyLetStar errors for two let* sites"
     );
 }

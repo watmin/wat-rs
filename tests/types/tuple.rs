@@ -64,8 +64,8 @@ fn tuple_pascal_canonical_works() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn legacy_tuple_lowercase_redirects_via_pattern2_poison() {
-    let err = startup_err("tests/types/tuple_legacy_lowercase_bad.wat");
-    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/tuple_legacy_lowercase_bad.wat", line: 2, col: 85, end_line: 2, end_col: 102 }, kind: TypeMismatch { callee: ":wat::core::tuple", param: "(retired verb)", expected: ":wat::core::Tuple", got: ":wat::core::tuple" } }]))"#);
+    let err = startup_err("tests/types/tuple_legacy_lowercase.wat.bad");
+    assert_eq!(err, r#"Check(CheckErrors([CheckError { span: Span { file: "tests/types/tuple_legacy_lowercase.wat.bad", line: 2, col: 85, end_line: 2, end_col: 102 }, kind: TypeMismatch { callee: ":wat::core::tuple", param: "(retired verb)", expected: ":wat::core::Tuple", got: ":wat::core::tuple" } }]))"#);
 }
 
 // --- 3. Tuple in function return position type-checks clean -------------

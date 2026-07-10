@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc237_stone3_guard_ensure.wat
 ;; Arc 237 Stone 237.3 — :guard + :ensure clause-keywords (14 probes).
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Startup-fail negative cases are in sibling *_bad.wat files.
+;; Startup-fail negative cases are in sibling *.wat.bad files.
 ;; Runtime-error cases (probes 2, 7) are included here — startup succeeds, eval fails.
 
 ;; Probe 1 — :guard true → body fires → 42

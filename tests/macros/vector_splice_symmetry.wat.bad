@@ -1,0 +1,16 @@
+;; tests/macros/vector_splice_symmetry.wat.bad — NEGATIVE fixture for vector_splice_symmetry.rs
+;; (anaphoric_splice_capture_refused_by_hygiene). Must fail at startup with
+;; "hygiene-scope divergence" (the body's a/b are literal template symbols that get scope-tagged
+;; differently from the spliced binders — textbook anaphoric capture refused by hygiene).
+(:wat::core::defmacro :my::make-adder
+  [& params <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  `(:wat::core::fn [~@params] -> :wat::core::i64
+      (:wat::core::i64::+ a b)))
+
+(:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64
+  (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
+
+(:wat::core::defn :my::compute [] -> :wat::core::i64
+  ((:my::adder) 7 35))
+

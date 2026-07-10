@@ -17,7 +17,7 @@
 //!
 //! Wat source lives in the co-located fixture: wat_arc220_char.wat
 //! (slurped via startup_beside(file!())).
-//! Test 4 uses: tests/value/wat_arc220_char_supplementary_plane.wat (negative — fails at lex time).
+//! Test 4 uses: tests/value/wat_arc220_char_supplementary_plane.wat.bad (negative — fails at lex time).
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -78,11 +78,11 @@ fn char_literal_unicode_escape() {
 /// A supplementary-plane char literal (e.g. `\😀`) must fail at lex time
 /// with a diagnostic mentioning "supplementary-plane" or "BMP".
 /// This tests that the lexer enforces BMP-only at the source level.
-/// Uses the negative fixture: tests/value/wat_arc220_char_supplementary_plane.wat
+/// Uses the negative fixture: tests/value/wat_arc220_char_supplementary_plane.wat.bad
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn char_literal_supplementary_plane_rejected() {
-    let result = startup_from_file("tests/value/wat_arc220_char_supplementary_plane.wat");
+    let result = startup_from_file("tests/value/wat_arc220_char_supplementary_plane.wat.bad");
     // Must fail at startup (lex/parse time).
     assert!(
         result.is_err(),

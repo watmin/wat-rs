@@ -45,7 +45,7 @@ fn extend_type_teaches_a_foreign_type_to_satisfy_a_surface() {
 #[test]
 fn extend_type_surface_collision_is_duplicate_define() {
     let result = startup_from_file(
-        "tests/types/probe_arc293_4c_extend_type_adapter_dup_bad.wat",
+        "tests/types/probe_arc293_4c_extend_type_adapter_dup.wat.bad",
     );
     assert!(
         result.is_err(),
@@ -60,7 +60,7 @@ fn extend_type_surface_collision_is_duplicate_define() {
 #[test]
 fn non_extended_foreign_type_is_rejected_at_check_time() {
     let result = startup_from_file(
-        "tests/types/probe_arc293_4c_extend_type_adapter_notextended_bad.wat",
+        "tests/types/probe_arc293_4c_extend_type_adapter_notextended.wat.bad",
     );
     assert!(
         result.is_err(),

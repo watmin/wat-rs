@@ -50,7 +50,7 @@ fn alias_of_alias_chain_expands_to_root() {
 
 #[test]
 fn cyclic_alias_halts_at_startup() {
-    match startup_from_file("tests/types/typealias_cyclic_bad.wat") {
+    match startup_from_file("tests/types/typealias_cyclic.wat.bad") {
         Err(StartupError::Type(_)) => {}
         Err(other) => panic!("expected Type error (cyclic alias); got {:?}", other),
         Ok(_) => panic!("expected startup to fail due to cyclic alias"),
@@ -59,7 +59,7 @@ fn cyclic_alias_halts_at_startup() {
 
 #[test]
 fn self_referential_alias_halts_at_startup() {
-    match startup_from_file("tests/types/typealias_self_ref_bad.wat") {
+    match startup_from_file("tests/types/typealias_self_ref.wat.bad") {
         Err(StartupError::Type(_)) => {}
         Err(other) => panic!("expected Type error; got {:?}", other),
         Ok(_) => panic!("expected self-referential alias to halt startup"),
@@ -70,7 +70,7 @@ fn self_referential_alias_halts_at_startup() {
 
 #[test]
 fn alias_preserves_type_mismatches() {
-    let errs = check_errors("tests/types/typealias_preserves_type_mismatches_bad.wat");
+    let errs = check_errors("tests/types/typealias_preserves_type_mismatches.wat.bad");
     let hit = errs.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. }));
     assert!(hit, "expected TypeMismatch; got {:?}", errs);
 }

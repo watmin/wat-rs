@@ -104,7 +104,7 @@ fn third_vector() {
 #[test]
 fn first_hashset_rejected() {
     // The bad fixture has a defn that calls (first <HashSet>) — must fail at type-check.
-    match startup_from_file("tests/collection/probe_seq_container_registry_hashset_first_bad.wat") {
+    match startup_from_file("tests/collection/probe_seq_container_registry_hashset_first.wat.bad") {
         Err(_) => {}
         Ok(v) => panic!("expected rejection (∅ N/A: container is not Indexable); got {v:?}"),
     }

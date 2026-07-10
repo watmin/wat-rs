@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc241_stone3_defclause_parser_migration.wat
 ;; Arc 241 Stone 241.3 — A4 defclause parser migration behavioral parity.
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Negative (startup-fail) cases are in sibling *_bad.wat files.
+;; Negative (startup-fail) cases are in sibling *.wat.bad files.
 
 ;; Contract 1 — no-arg defclause succeeds
 (:wat::core::defclause :user::c01-f

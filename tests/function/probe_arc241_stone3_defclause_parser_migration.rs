@@ -50,8 +50,8 @@
 //! Run: `cargo test --release --test probe_arc241_stone3_defclause_parser_migration`
 
 //! Wat source: tests/function/probe_arc241_stone3_defclause_parser_migration.wat
-//! Negative fixtures: probe_arc241_stone3_c04_bad.wat, probe_arc241_stone3_c05_bad.wat,
-//!   probe_arc241_stone3_c06_bad.wat.
+//! Negative fixtures: probe_arc241_stone3_c04.wat.bad, probe_arc241_stone3_c05.wat.bad,
+//!   probe_arc241_stone3_c06.wat.bad.
 
 use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
 use wat::runtime::{Environment, Value};
@@ -97,20 +97,20 @@ fn contract_03_defclause_multi_arg_succeeds() {
 fn contract_04_name_not_symbol_errors() {
     // Slot 0 of triple is a keyword, not a Symbol.
     // A4 enforces this per arc 159/169/234 binding contract; canonical also enforces.
-    let result = startup_from_file("tests/function/probe_arc241_stone3_c04_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone3_c04.wat.bad");
     assert!(result.is_err(), "non-Symbol at name slot must error; got Ok");
 }
 
 #[test]
 fn contract_05_missing_arrow_errors() {
     // Slot 1 of triple is `=` not `<-`.
-    let result = startup_from_file("tests/function/probe_arc241_stone3_c05_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone3_c05.wat.bad");
     assert!(result.is_err(), "missing `<-` arrow must error; got Ok");
 }
 
 #[test]
 fn contract_06_incomplete_triple_errors() {
     // Argspec has fewer than 3 items at a triple position.
-    let result = startup_from_file("tests/function/probe_arc241_stone3_c06_bad.wat");
+    let result = startup_from_file("tests/function/probe_arc241_stone3_c06.wat.bad");
     assert!(result.is_err(), "incomplete triple must error; got Ok");
 }

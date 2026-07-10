@@ -48,18 +48,18 @@ fn holon_record_accepted_where_holon_wanted() {
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
 #[test]
 fn core_record_rejected_where_holon_wanted() {
-    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c4_bad.wat");
+    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c4.wat.bad");
     // The rejection must be the HOLDER mismatch — not an incidental error. The fields are
     // identical to a holon's, so the only thing that can fail is `:geo::Pt` ↛ `:wat::holon::Record`.
     let err = format!("{:?}", world.err());
-    assert_eq!(err, r##"Some(Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc293_holder_substitution_c4_bad.wat", line: 6, col: 20, end_line: 6, end_col: 34 }, kind: TypeMismatch { callee: ":u::wants-holon", param: "#1", expected: ":wat::holon::Record", got: ":geo::Pt" } }])))"##);
+    assert_eq!(err, r##"Some(Check(CheckErrors([CheckError { span: Span { file: "tests/types/probe_arc293_holder_substitution_c4.wat.bad", line: 6, col: 20, end_line: 6, end_col: 34 }, kind: TypeMismatch { callee: ":u::wants-holon", param: "#1", expected: ":wat::holon::Record", got: ":geo::Pt" } }])))"##);
 }
 
 /// Case 5 — a STRUCT is not a record (separate branch): passing `:geo::SPt` where
 /// `:wat::core::Record` is wanted must be rejected.
 #[test]
 fn struct_rejected_where_record_wanted() {
-    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c5_bad.wat");
+    let world = startup_from_file("tests/types/probe_arc293_holder_substitution_c5.wat.bad");
     assert!(
         world.is_err(),
         "a struct must NOT satisfy :wat::core::Record (struct is a separate branch of the nature lattice)"

@@ -32,7 +32,7 @@ fn contract_01_defn_success_baseline() {
 fn contract_02_legacy_define_hard_cut_rejected() {
     // Legacy `:wat::core::define` is RETIRED post-stone. HARD CUT.
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
     assert!(
         result.is_err(),
         "legacy :wat::core::define must be HARD-CUT-rejected post-stone; got Ok"
@@ -45,11 +45,11 @@ fn contract_02_legacy_define_hard_cut_rejected() {
 #[test]
 fn contract_03_retirement_remedy_names_defn() {
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut_bad.wat:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
         "retirement remedy must name :wat::core::defn"
     );
 }
@@ -60,11 +60,11 @@ fn contract_03_retirement_remedy_names_defn() {
 #[test]
 fn contract_04_retirement_kind_annotation_present() {
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut_bad.wat:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
         "retirement remedy must carry '[replaces a retired form]' annotation"
     );
 }
@@ -77,11 +77,11 @@ fn contract_05_retirement_table_includes_define_entry() {
     // Indirect: :wat::core::defn appears in remedy text + [replaces a retired form]
     // proves the retirement table contains the entry.
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut_bad.wat:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
         "retirement table must include :wat::core::define -> :wat::core::defn entry"
     );
 }

@@ -20,11 +20,11 @@ use wat::freeze::startup_from_file;
 #[test]
 fn contract_01_define_rejection_carries_stone_241_16_marker() {
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad");
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
         ":wat::core::define rejection must carry Stone 241.16 marker (eval-time residue completion)"
     );
 }
@@ -35,11 +35,11 @@ fn contract_01_define_rejection_carries_stone_241_16_marker() {
 #[test]
 fn contract_02_retirement_remedy_preserves_defn_replacement() {
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad");
     let msg = format!("{}", result.unwrap_err());
     assert_eq!(
         msg,
-        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue_bad.wat:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
+        "check:\n1 type-check error(s):\n  - tests/wat_lang/probe_arc241_stone16_define_eval_residue.wat.bad:4:2: malformed :wat::core::define form: ':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)\n  did you mean: :wat::core::defn [replaces a retired form]\n",
         "define retirement remedy must continue to name :wat::core::defn with [replaces a retired form]"
     );
 }
@@ -49,7 +49,7 @@ fn contract_02_retirement_remedy_preserves_defn_replacement() {
 #[test]
 fn contract_03_define_in_let_body_still_rejected() {
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_in_let_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_in_let.wat.bad");
     assert!(
         result.is_err(),
         "define-headed AST in nested let-body must be rejected (consistency with Stone 241.11 HARD CUT); got Ok"
@@ -61,7 +61,7 @@ fn contract_03_define_in_let_body_still_rejected() {
 #[test]
 fn contract_04_define_in_fn_body_still_rejected() {
     let result =
-        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_in_fn_bad.wat");
+        startup_from_file("tests/wat_lang/probe_arc241_stone16_define_in_fn.wat.bad");
     assert!(
         result.is_err(),
         "define-headed AST in fn-body do-prefix must be rejected; got Ok"

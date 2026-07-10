@@ -1,7 +1,7 @@
 ;; tests/function/probe_arc241_stone5_defclause_rest_dispatch.wat
 ;; Arc 241 Stone 241.5 — defclause & rest-binder runtime dispatch.
 ;; Co-located fixture, slurped via startup_beside(file!()).
-;; Startup-fail negative cases are in sibling *_bad.wat files.
+;; Startup-fail negative cases are in sibling *.wat.bad files.
 
 ;; Contracts 1-2 — variadic-min with rest; also empty-rest case
 (:wat::core::defclause :c12::sum-all

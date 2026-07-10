@@ -1,8 +1,0 @@
-;; tests/function/probe_arc241_stone5_c06_bad.wat — NEGATIVE contract 6: under-supply below fixed.
-;; Clause has 2 fixed args + rest; calling with only 1 arg must error. startup MUST fail.
-
-(:wat::core::defclause :my::pair
-  ([a <- :wat::core::i64 b <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
-    (:wat::core::i64::+ a b)))
-(:wat::core::defn :user::bad [] -> :wat::core::i64 (:my::pair 1))

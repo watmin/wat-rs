@@ -1,6 +1,6 @@
 ;; tests/wat_lang/wat_arc168_let_flat_shape.wat — co-located fixture.
 ;; Covers positive tests for arc 168: flat-shape vector bindings + implicit-do body.
-;; Negative tests use separate *_bad.wat files.
+;; Negative tests use separate *.wat.bad files.
 
 ; test 1: single binding [x 1]
 (:wat::core::defn :t::test1-single [] -> :wat::core::i64

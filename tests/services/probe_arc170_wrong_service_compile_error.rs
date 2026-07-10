@@ -37,7 +37,7 @@ fn correct_service_coord_compiles() {
 fn wrong_service_coord_is_compile_error() {
     let err = format!(
         "{:?}",
-        startup_from_file("tests/services/probe_arc170_wrong_service_compile_error_bad.wat")
+        startup_from_file("tests/services/probe_arc170_wrong_service_compile_error.wat.bad")
             .expect_err("wrong-service coord must fail check")
     );
     assert!(
@@ -50,7 +50,7 @@ fn wrong_service_coord_is_compile_error() {
 fn swapped_colocation_tuple_is_compile_error() {
     let err = format!(
         "{:?}",
-        startup_from_file("tests/services/probe_arc170_wrong_service_colocation_bad.wat")
+        startup_from_file("tests/services/probe_arc170_wrong_service_colocation.wat.bad")
             .expect_err("swapped tuple must fail check")
     );
     assert!(

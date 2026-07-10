@@ -47,12 +47,12 @@ fn make_channel_is_the_one_constructor() {
 // B + C — CUT-CONFIRMERS for the channel verbs (GREEN after 254.0: condemned verbs gone).
 #[test]
 fn condemned_channel_verbs_are_annihilated() {
-    let unbounded = check_result("tests/channel/probe_arc254_make_channel_unbounded_bad.wat");
+    let unbounded = check_result("tests/channel/probe_arc254_make_channel_unbounded.wat.bad");
     assert!(
         unbounded.is_err(),
         "make-unbounded-channel must no longer resolve (depth-1 doctrine); it type-checked clean"
     );
-    let bounded_n = check_result("tests/channel/probe_arc254_make_channel_bounded_n_bad.wat");
+    let bounded_n = check_result("tests/channel/probe_arc254_make_channel_bounded_n.wat.bad");
     assert!(
         bounded_n.is_err(),
         "make-bounded-channel (name + N knob) must no longer resolve; it type-checked clean"
@@ -62,12 +62,12 @@ fn condemned_channel_verbs_are_annihilated() {
 // D + E — CUT-CONFIRMERS for the phantom queue verbs (GREEN after 254.0: phantoms now error).
 #[test]
 fn phantom_queue_verbs_are_annihilated() {
-    let bounded_q = check_result("tests/channel/probe_arc254_make_channel_bounded_queue_bad.wat");
+    let bounded_q = check_result("tests/channel/probe_arc254_make_channel_bounded_queue.wat.bad");
     assert!(
         bounded_q.is_err(),
         "make-bounded-queue (phantom: no runtime, no callers) must no longer type-check"
     );
-    let unbounded_q = check_result("tests/channel/probe_arc254_make_channel_unbounded_queue_bad.wat");
+    let unbounded_q = check_result("tests/channel/probe_arc254_make_channel_unbounded_queue.wat.bad");
     assert!(
         unbounded_q.is_err(),
         "make-unbounded-queue (phantom: no runtime, no callers) must no longer type-check"

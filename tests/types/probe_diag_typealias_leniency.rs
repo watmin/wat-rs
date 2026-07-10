@@ -16,7 +16,7 @@ use wat::freeze::startup_from_file;
 #[ignore = "arc 255 banked gate: undeclared field-type keywords are accepted LENIENTLY today (the +'2 dark class, type-keyword flavor); un-ignore when 255 makes them check errors"]
 fn probe_undeclared_field_type_keyword_rejected_or_lenient() {
     let result = startup_from_file(
-        "tests/types/probe_diag_typealias_leniency_check_bad.wat",
+        "tests/types/probe_diag_typealias_leniency_check.wat.bad",
     );
     match result {
         Ok(_) => panic!("LENIENT: undeclared field-type keyword accepted silently"),

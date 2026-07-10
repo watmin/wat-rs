@@ -12,7 +12,7 @@ use wat::freeze::startup_from_file;
 /// A surface with method members written OUTSIDE the member vector must be rejected, not silently truncated.
 #[test]
 fn members_outside_the_member_vector_are_rejected_not_silently_dropped() {
-    let result = startup_from_file("tests/types/probe_arc293_4d_fix_silent_member_drop_bad.wat");
+    let result = startup_from_file("tests/types/probe_arc293_4d_fix_silent_member_drop.wat.bad");
     assert!(
         result.is_err(),
         "a defsurface with members written outside the `[...]` vector must be a hard error \

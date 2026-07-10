@@ -29,7 +29,7 @@ fn contract_01_defmacro_canonical_shape_works() {
 
 #[test]
 fn contract_02_old_paren_pair_shape_rejected() {
-    let result = startup_from_file("tests/macros/probe_arc241_stone17_defmacro_canonical_c02_bad.wat");
+    let result = startup_from_file("tests/macros/probe_arc241_stone17_defmacro_canonical_c02.wat.bad");
     assert!(
         result.is_err(),
         "old paren-pair defmacro shape must be HARD-CUT-rejected post-stone (canonical Vector-triple is the only way); got Ok"

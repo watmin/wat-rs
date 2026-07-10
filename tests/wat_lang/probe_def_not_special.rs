@@ -146,13 +146,13 @@ fn probe_def_at_top_level_still_works() {
 #[test]
 fn probe_define_rejected_at_startup_check() {
     // Stone 241.11 HARD-CUT arm fires at startup-check → startup FAILS.
-    let result = startup_from_file("tests/wat_lang/probe_def_not_special_define_bad.wat");
+    let result = startup_from_file("tests/wat_lang/probe_def_not_special_define.wat.bad");
     match result {
         Err(e) => {
             let msg = format!("{:?}", e);
             assert_eq!(
                 msg,
-                r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/probe_def_not_special_define_bad.wat", line: 4, col: 4, end_line: 4, end_col: 22 }, kind: MalformedForm { head: ":wat::core::define", reason: "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)", remedies: [Remedy { form: ":wat::core::defn", kind: Retirement, note: None }] } }]))"#,
+                r#"Check(CheckErrors([CheckError { span: Span { file: "tests/wat_lang/probe_def_not_special_define.wat.bad", line: 4, col: 4, end_line: 4, end_col: 22 }, kind: MalformedForm { head: ":wat::core::define", reason: "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)", remedies: [Remedy { form: ":wat::core::defn", kind: Retirement, note: None }] } }]))"#,
                 "expected exact define-HARD-CUT error"
             );
         }

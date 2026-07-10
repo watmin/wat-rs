@@ -2,7 +2,7 @@
 ;; slurped via startup_beside(file!()) for the three positive tests.
 ;;
 ;; Three named compute functions (renamed from :my::compute to unique names).
-;; The anaphoric (bad) test is in vector_splice_symmetry_bad.wat.
+;; The anaphoric (bad) test is in vector_splice_symmetry.wat.bad.
 
 ;; Test 1 (splice_of_vector_bound_symbol_succeeds): ~@xs on a Vector-bound symbol.
 (:wat::core::defmacro :my::splice-vec

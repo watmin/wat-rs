@@ -58,7 +58,7 @@ fn contract_04_defenum_with_variant_metadata() {
 
 #[test]
 fn contract_05_defenum_empty_metadata_rejected() {
-    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c05_bad.wat");
+    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c05.wat.bad");
     assert!(
         result.is_err(),
         "defenum with empty {{}} metadata should be REJECTED; got OK"
@@ -69,7 +69,7 @@ fn contract_05_defenum_empty_metadata_rejected() {
 
 #[test]
 fn contract_06_legacy_enum_unit_form_rejected() {
-    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c06_bad.wat");
+    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c06.wat.bad");
     assert!(
         result.is_err(),
         "legacy :wat::core::enum should be HARD-CUT-rejected post-241.9; got OK"
@@ -78,7 +78,7 @@ fn contract_06_legacy_enum_unit_form_rejected() {
 
 #[test]
 fn contract_07_legacy_enum_tagged_pair_form_rejected() {
-    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c07_bad.wat");
+    let result = try_startup("tests/types/probe_arc241_stone9_defenum_c07.wat.bad");
     assert!(
         result.is_err(),
         "legacy enum tagged pair-form should be HARD-CUT-rejected post-241.9; got OK"

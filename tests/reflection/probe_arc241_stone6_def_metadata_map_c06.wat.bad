@@ -1,0 +1,7 @@
+;; tests/reflection/probe_arc241_stone6_def_metadata_map_c06.wat.bad
+;; Fixture for contract_06_empty_metadata_rejected.
+;; (def :name {} value) — empty metadata is ILLEGAL per FORM-COLLAPSE-NOTES.
+;; startup_from_file must return Err for this program.
+(:wat::core::def :my::illegal
+  {}
+  42)
