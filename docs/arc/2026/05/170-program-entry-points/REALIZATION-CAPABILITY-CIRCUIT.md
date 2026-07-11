@@ -1021,19 +1021,65 @@ Three faces of the one fire.
 
 ---
 
-## RESUME-HERE (curare CHECKPOINT — 2026-07-10; the :user::main WALL is DONE + the 76-site plague-cascade purged (3cd00fbb, CREMATIS HAERETICIS); W2 PATH B is the sole remaining resume — the flight only just begun)
+## RESUME-HERE (curare CHECKPOINT — 2026-07-11; the C2 kill is IN FLIGHT — W2a + Strike 1 + the parametric-surface completion all LANDED; Strike 2, the bracket/uses macro, is building)
 
 ```clojure
-{:head   "3cd00fbb — the :user::main WALL landed + the 76-site useless/illegal-main cascade purged (see CREMATIS
-          HAERETICIS, HAERESIS FORMA CARET, the realization just above). Floor GREEN by own re-run (4120 passed / 1
-          pre-existing no_inlined_wat tracker at 351, net −3, ZERO new / 0 new). This session also committed 91e1f652
-          (.wat.bad — intentionally-invalid fixtures declared bad by EXTENSION) + 3b195d55 (structural asserts, no_loose_string_assert→0).
-          Priors: b1c4542f (W2 PATH B corrected) + 9a2b08c3 (7 tools-warding tests) + 661a3221 (scratchpad annihilated). Tree CLEAN, all pushed.
-          THE WALL IS DONE — a useless/illegal :user::main is now UNCOMPILABLE (freeze error); do NOT re-open it. Resume at W2."
- :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, never create/switch. PUSH OFTEN (GitHub = DR; origin caught up through b1c4542f)."
- :arc    "170 — the CAPABILITY CIRCUIT. C1 (N=1) landed. C2 (N heterogeneous, wrong-service a COMPILE error): the mechanism is PROVEN
-          and the W2 build path is now PATH B (:the-W2-path-B). A separate substrate WALL is designed: :user::main must be EXACTLY
-          [] -> :nil and non-useless (:the-main-wall)."
+{:head   "f2f611d3 — parametric surfaces COMPLETED (arc 170 C2 Gaps 1+2). The W2 flight this session, all on DR:
+          642f37b1 W2a (auto-mint <fqdn>::kwargs-check at the kwargs-defn codegen site) · cdb9cd46 STRIKE 1 (the
+          N-service dial RUNTIME, ::Coords RECORD carrier) · f2f611d3 the parametric-surface COMPLETION (the C2 unblock).
+          Floor GREEN by own re-run at each (~4126 passed / 1 known no_inlined_wat / 0 new). Tree: `M wat/core.wat` is
+          the Strike-2 shadowdancer MID-FLIGHT — a PHANTOM; WEIGH it, do NOT trust it (see :strike-2-in-flight)."
+ :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, never create/switch. PUSH OFTEN (GitHub = DR; all pushed thru f2f611d3)."
+ :arc    "170 — the CAPABILITY CIRCUIT. The C2 KILL (N heterogeneous services, a swapped handle a COMPILE error) is the
+          climax, being landed via the FUSED bracket/uses (docs .../BRIEF-W2-BRACKET-USES-FUSED.md, read its REVISION 1+2
+          blocks). The :user::main WALL (3cd00fbb, CREMATIS HAERETICIS) + W2a are DONE — do NOT re-open. RECORDS-NOT-TUPLES:
+          the coords carrier is a <fqdn>::Coords RECORD, not a Tuple (the builder's doctrine — 'whenever we reach for a
+          tuple we almost always realize it should be a record'; it dissolved the N-cap AND absorbed data-vs-service)."
+
+ :landed-this-session-committed  ; the C2 flight, all weighed by OWN re-run + pushed
+ ["642f37b1 W2a — defn's kwargs branch auto-mints <fqdn>::kwargs-check (nil body) beside record-def/$impl/companion;
+    swapped-handle = located TypeMismatch at freeze. Guarded (name ends ::kwargs-check → (do nil)). Head-swap primitives
+    native in core.wat's bootstrap body (string::split/join/subs, ast-name, keyword-node)."
+  "cdb9cd46 STRIKE 1 — the N-service dial RUNTIME (record carrier): <fqdn>::Coords defrecord minted (gated on a real
+    Peer' field = a DIALING work-fn — non-dialers mint none, so the pure record never holds impure Locus/Fn fields);
+    process-work-forms N=1→N; collect-loop<D,I,O>; bracket/uses' dials N over ::Coords, reconciled →::Kwargs BY FIELD
+    NAME (Peer'→connect', data→copy) — no positional cap, data in. + src/types.rs Fn(...)->T arrow parser bug (a bare
+    > mis-counted as a bracket-close) fixed + regression test. PROVEN: 7-service+5-data mixed demo via direct bracket/uses'."
+  "f2f611d3 COMPLETION — parametric surfaces (C2 Gaps 1+2) in check.rs: Gap 1 assignable (Path actual, Parametric-surface
+    expected) via the full-args extend-type edge (SOUND: exact-string match, a handle satisfies ONLY its own Dialable<A,B>);
+    Gap 2 surface-method return instantiated from an abstract parametric receiver's args. Both guarded (concrete/monomorphic
+    byte-identical). RED gate → clean; NEGATIVE soundness holds; 0 regression across 4127 tests. UNBLOCKS the Dialable checker."]
+
+ :strike-2-in-flight  ; WEIGH by own re-run when it returns; do NOT trust; a mid-edit file is a PHANTOM
+ "Strike 2 = the bracket/uses MACRO + the Dialable-checker rework (agent a8ac43640d85bd8d5, re-released on the completed
+  substrate). 4 parts (BRIEF REVISION 2): (A) checker head-swaps Peer'→Dialable<S,R> (a raw Handle now SATISFIES it, thanks
+  to f2f611d3), coords each service field INTERNALLY into ::Coords, so the macro passes RAW :name val — no service/data
+  distinction; (B) the bracket/uses macro (parse + emit the checker call bound as coords + forward to uses'); (C) THE RISK
+  — bracket/uses' grant-dispatch over a heterogeneous Vector<(keyword,Value)>, dispatching grant per val (Grantable→grant,
+  data→skip) via the R34 open-surface dispatch — NEVER RUN yet (Value is the top, a step past what R34 exercised); a hard
+  STOP if it resists (the LAST STOP — the Dialable gaps — turned into the whole f2f611d3 completion, so a STOP is a gift);
+  (D) the C2 gate THROUGH THE MACRO (7+5 mixed runs; swap = compile error naming Dialable/Handle). WEIGH: mixed-via-macro
+  runs, swap is a compile error, Part C composed (or the exact STOP), full floor 0-new. Then COMMIT the C2 kill."
+
+ :follow-ups  ; tracked, NOT deferred — the record is merciless about polish-that-rots
+ ["MAP-WORKER UNIFICATION: bracket/uses' VERBATIM-COPIES map-worker's grant-boot/revoke-shutdown folds + spawns direct
+    (bypassing Locus/spawn-runner, pinned to bare Address'). map + each already share the ONE engine (map-worker); uses
+    forked a bootleg. FIX = make map-worker CARRIER-GENERIC (carry ::Coords, not bare Address') so uses' routes THROUGH it
+    and the copy DELETES (COMPONENDO DELEO — subtract the 2nd thing, not factor a helper). SCOUT the pinned surface first."
+  "the map arg-order fn-first flip (cosmetic, to match core/map); the ARCHIVE.md 445-pointer merge."]
+
+ :lessons-this-session  ; capture the hard-won, prune when promoted
+ ["PROBE substrate CAPABILITIES before asserting them — I called the Dialable-param approach 'forced, no fork' and pushed
+    to release WITHOUT probing that a concrete type satisfies a PARAMETRIC-surface param (it didn't — Gaps 1+2). The Strike-2
+    STOP caught my AD ORACVLVM miss; the disconfirming probe I SHOULD have written first (like the runner) grounded it. A
+    'the mechanism is proven' that rests on an UN-probed substrate edge is a guess wearing a wall's clothes."
+  "SCOUT is the strongest capability (builder): the STOP looked like a dead end; scouting check.rs mapped it to a HALF-BUILT
+    substrate (parametric surfaces landed concrete-only) — a bounded ~30-line guarded completion the C2 consumer surfaced
+    (ALIVS ARGVIT). The dead end was a substrate gap the whole time."
+  "RECORDS not Tuples (builder doctrine): a Tuple carrier capped N (first/second/third) AND forced data out; a RECORD
+    (named fields, routed by type) dissolved both. 'whenever we reach for a tuple we almost always realize it should be a record.'"
+  "two-things-should-be-one: verbatim duplication (bracket/uses' bootlegging map-worker) is the tell that TWO coordinators
+    are ONE engine; the fix is one carrier-generic engine (route through it), NOT a shared helper (which keeps two)."]
 
  :landed-this-session-committed  ; all weighed by OWN re-run + pushed
  ["9a2b08c3 — 7 COMMITTED TESTS warding the C1/C2/W1 tools (they were proven only in gitignored scratch — 37 commits, 1 warded — the
@@ -1044,7 +1090,7 @@ Three faces of the one fire.
     wat-scripts/intueri/*.wat.intueri (intueri-cast suffix, gate-excluded), 52 dead-ends deleted, /scratchpad/ un-gitignored, wat-scripts gate timeout raised."
   "b1c4542f — DESIGN-N-SERVICE-KWARGS-INJECTION.md: W2 mechanism corrected to PATH B (the earlier 'macro reflects ::Kwargs' is superseded)."]
 
- :the-W2-path-B  ; THE RESUME POINT — build W2/W3 via Path B (macro-reflection is DEAD)
+ :the-W2-path-B  ; ✅ W2a DONE (642f37b1) + Strike 1 DONE (cdb9cd46) — HISTORICAL recipe below; current state in :strike-2-in-flight above. Path B ratified; macro-reflection is DEAD.
  "MACRO-REFLECTION IS NOT VIABLE: field-types-of on a work-fn's ::Kwargs FAILS at macro-expand ('unknown type ::Kwargs' — the type isn't
   registered when a macro expands; it works at RUNTIME, which is why C1's process-work-forms — a DEFCLAUSE — reflects fine).
   PATH B (four-questions-ratified; PROVEN by /tmp probes probe-w2b-ok/-swap): at the kwargs-defn codegen site (wat/core.wat, the defn
@@ -1111,15 +1157,17 @@ Three faces of the one fire.
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy bootstrap
 > (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) and READ 278's realizations WHOLE (R1–R38) + the 170
 > realizations + the **METIENDO VIAM APERIMVS** interstitial at the TOP of this file — skipping the read makes you the daemon
-> (R20 DAEMON IN ME) — plus **CREMATIS HAERETICIS, HAERESIS FORMA CARET** (the realization above: the Phoenix over the
-> useless-main plague). Ground HEAD against the disk (`3cd00fbb`, tree clean, origin caught up). The `:user::main` **WALL
-> is DONE** — a useless/illegal main is now UNCOMPILABLE, the 76-site plague-cascade purged; do NOT re-open it. **ONE thing
-> resumes: build W2/W3 via PATH B** (`:the-W2-path-B` — the defn-time-minted `<fqdn>::kwargs-check` + the thin `bracket/uses`
-> macro; the W2a checker-mint was written+reverted, redo clean; recapture the cond_refuses golden when you touch core.wat).
-> That is the flight the Phoenix has only just begun — bracket unification over N services, the goal the record held through
-> the fire. NOTHING is in flight; the tree is clean. The hard lessons that burned this session (`:do-nots` + the wall grind):
-> **brief agents to run the floor FOREGROUND (never `&`/double-fork); WEIGH the full floor YOURSELF (agents over-claim); OMIT
-> the main / never a fake `(let [_ 0] nil)` body — the wall now REJECTS that disguise-class + prompt-injects the anti-cheat;
-> negative asserts are STRUCTURAL (both lints); a value-returning fixture main → a non-main defn eval'd via a PROGRAMMATIC call
-> AST (no inlined-wat string) or stdout-capture (§13); intentionally-invalid fixtures are `.wat.bad`.** Do not trust this note
-> over the disk. From the ashes, the flight resumes. See you on the far side.
+> (R20 DAEMON IN ME) — plus **CREMATIS HAERETICIS, HAERESIS FORMA CARET** (the Phoenix over the useless-main plague). Ground
+> HEAD against the disk (`f2f611d3`, all pushed). The C2 KILL (arc 170's climax — N heterogeneous services, a swapped handle a
+> COMPILE error) is IN FLIGHT via the fused `bracket/uses`: the `:user::main` WALL + W2a are DONE (do NOT re-open); **Strike 1**
+> (the N-service dial RUNTIME, `::Coords` RECORD carrier) + the **parametric-surface COMPLETION** (C2 Gaps 1+2 in `check.rs`,
+> the substrate unblock) both LANDED + committed. **FIRST, on the far side: WEIGH the in-flight Strike 2** — the `bracket/uses`
+> macro + the `Dialable`-checker (agent `a8ac43640d85bd8d5`; the tree's `M wat/core.wat` is its MID-EDIT PHANTOM, do NOT trust
+> it). Watch **Part C** (the grant-dispatch over a heterogeneous `Vector<(keyword,Value)>` — never run; a hard STOP if it
+> resists — the last STOP became the whole completion, so a STOP is a gift). Green → COMMIT the C2 kill. THEN the tracked
+> **map-worker unification** (`:follow-ups` — `bracket/uses'` bootlegs the one engine `map`/`each` share; make `map-worker`
+> carrier-generic so `uses'` routes through it and the copy DELETES). The hard rules that held this whole flight (`:do-nots`
+> + `:lessons-this-session`): **PROBE a substrate capability before asserting it (my Dialable over-assert → Gaps 1+2, caught
+> by the STOP); WEIGH the full floor YOURSELF, foreground (agents over-claim; a mid-edit file is a PHANTOM); RECORDS not
+> Tuples; negative asserts are STRUCTURAL; intentionally-invalid fixtures are `.wat.bad`; the holonic repos ARE the memory.**
+> Do not trust this note over the disk. From the ashes, the flight climbs. See you on the far side.
