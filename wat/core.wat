@@ -860,7 +860,42 @@
          ;; by parse_defmacro_form (ident.as_str()); env_key for a scoped fresh-symbol would
          ;; NOT match the bare "call-args" binding key inserted by expand_program_body.
          ;; No capture risk: call-args is an internal macro parameter, not user-visible.
-         call-args-sym       (:wat::core::symbol-node "call-args")]
+         call-args-sym       (:wat::core::symbol-node "call-args")
+         ;; ── W2a: the kwargs-check name + the recursion guard ──
+         ;; kwargs-check-name-str: "<name>::kwargs-check" (bare string); kwargs-check-kw: the
+         ;; keyword node ":<name>::kwargs-check" for the auto-minted fn's own def head.
+         kwargs-check-name-str (:wat::core::string::concat name-str "::kwargs-check")
+         kwargs-check-kw       (:wat::core::keyword-node
+                                  (:wat::core::string::concat ":" kwargs-check-name-str))
+         ;; GUARD: this defn is ITSELF a kwargs-check (it has `& [...]`, so it took the kwargs
+         ;; branch too) → do NOT mint ITS checker (infinite mint). Suffix test on the bare name.
+         is-check (:wat::core::string::ends-with? name-str "::kwargs-check")
+         ;; ── the head-swapped argvec: fold kw-ch, swap Peer' TYPE nodes only ──
+         ;; kw-ch is flat triples [fname@j·3, arrow@j·3+1, type@j·3+2]; only the type position
+         ;; (j mod 3 == 2) is ever swapped, and only when it names a Peer'<S,R> (data-typed
+         ;; fields pass through as `child` unchanged).
+         swapped-ch (:wat::core::foldl
+                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> j <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                        (:wat::core::let
+                          [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2a swapped-ch index")
+                           is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
+                           nm      (:wat::core::ast-name child)
+                           is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer'") false)
+                           swapped (:wat::core::if is-peer
+                                     (:wat::core::keyword-node
+                                       (:wat::core::string::join "Address'" (:wat::core::string::split nm "Peer'")))
+                                     child)]
+                          (:wat::core::conj acc swapped)))
+                      (:wat::core::Vector :wat::WatAST)
+                      (:wat::core::range 0 kw-len))
+         swapped-argvec (:wat::core::with-children kw-argvec swapped-ch)
+         ;; ── the checker form (guarded) ──
+         ;; GUARD NO-OP = (do nil), NOT an empty (do): an empty `(:wat::core::do)` is ILLEGAL —
+         ;; "do form requires at least one form; got zero". `(do nil)` has one form, evaluates to
+         ;; nil, is discarded as a harmless top-level form.
+         kwargs-check-def (:wat::core::if is-check
+                            `(:wat::core::do nil)
+                            `(:wat::core::defn ~kwargs-check-kw [& ~swapped-argvec] -> :wat::core::nil nil))]
         ;; Arc 260.1b: emit record-def + $impl fn (under :<name>$impl) + companion defmacro (:name)
         ;; The companion macro is a THIN FORWARDER to :wat::core::kwargs-lower (Part B dedup).
         ;; Values baked in at defn-expansion time via ~ (depth-1 unquotes from the outer quasiquote):
@@ -894,7 +929,8 @@
                 ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
                 ~(:wat::core::symbol-node "_kl-np")   ~n-pos
                 ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~name-str))]
-               `(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))))
+               `(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))
+           ~kwargs-check-def))          ;; ← W2a. Order-independent (the checker refs only literal Address' types).
       ;; ── BACKWARD-COMPAT PASS-THROUGH (no kwargs section) ────────────────────
       `(:wat::core::def ~name (:wat::core::fn ~@rest)))))
 

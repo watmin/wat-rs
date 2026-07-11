@@ -1,0 +1,44 @@
+;; Arc 170 W2a — auto-minted `<fqdn>::kwargs-check` NEGATIVE: swapped handles.
+;; Same shape as the _ok.wat sibling, but the :echo/:kv coords are SWAPPED at the
+;; kwargs-check call site. Both names stay present (no missing/extra :key), so the
+;; auto-minted checker's head-swapped Address'<S,R> field types must reject this as a
+;; located TypeMismatch (not a name/arity error).
+
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
+   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+(:wat::service::defservice :probe::echo'
+  :satisfies :probe::Echo  :durable []  :ephemeral []
+  :impls [(echo [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+
+(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
+   (:wat::core::defrecord :probe::Kv::GetResponse [v <- :wat::core::String])]
+  :features
+  [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse)])
+(:wat::service::defservice :probe::kv'
+  :satisfies :probe::Kv  :durable []  :ephemeral []
+  :impls [(get [s req]
+            (:wat::service::Outcome::Reply s
+              (:probe::Kv::GetResponse (:probe::Kv::GetRequest/k req))))])
+
+;; the kwargs work-fn -> AUTO-mints :probe::enrich::kwargs-check
+(:wat::core::defn :probe::enrich
+  [item <- :wat::core::String
+   & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
+      kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
+  -> :wat::core::String
+  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo echo (:probe::Echo::EchoRequest item))))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [eh  (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     kvh (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))]
+    (:probe::enrich::kwargs-check :echo (:wat::capability::Dialable/coord kvh)
+                                  :kv   (:wat::capability::Dialable/coord eh))))
