@@ -5853,7 +5853,10 @@ fn infer_list(
                         if s.type_params.is_empty() {
                             (member_ret_raw, extra_param_types_raw)
                         } else {
-                            arg_tys.first()
+                            // (1) CONCRETE satisfier scheme (existing path — a satisfier's
+                            //     `<ConcreteType>/<method>` scheme has the surface `<T>` already
+                            //     bound to its concrete args). Byte-identical to prior behavior.
+                            let concrete = arg_tys.first()
                                 .and_then(|o| o.as_ref())
                                 .and_then(|recv_ty| {
                                     let recv_concrete = format_type(&apply_subst(recv_ty, subst));
@@ -5863,11 +5866,53 @@ fn infer_list(
                                         let params = scheme.params.get(1..).unwrap_or(&[]).to_vec();
                                         (ret, params)
                                     })
-                                })
-                                // No concrete satisfier scheme found (e.g. the receiver's type is
-                                // itself unresolved) — fall back to the surface's bare declaration,
-                                // matching prior (pre-parametric-surface) behavior.
-                                .unwrap_or((member_ret_raw, extra_param_types_raw))
+                                });
+                            match concrete {
+                                Some(rp) => rp,
+                                None => {
+                                    // (2) Arc 170 C2 Gap 2 — ABSTRACT parametric-surface receiver:
+                                    //     the receiver IS this surface itself parametrized (e.g.
+                                    //     `Dialable<probe::Echo::Op,probe::Echo::Reply>`), so no
+                                    //     concrete satisfier `<Type>/<method>` scheme exists →
+                                    //     `Dialable/coord` on it fell back to the RAW `Address'<S,R>`.
+                                    //     Instead, bind the surface's own `<T>` params from the
+                                    //     RECEIVER's concrete args (`s.type_params[i] → recv_args[i]`)
+                                    //     and `rename` the member's raw return + extra params — the
+                                    //     SAME rename+mapping shape used below at ~5910-5933, sourced
+                                    //     from the receiver's args instead of a satisfier's binding.
+                                    //     GUARD: only when the receiver is literally THIS surface
+                                    //     (`head == protocol_fqdn`) parametrized with the right arity;
+                                    //     every other receiver keeps the raw fallback (byte-identical,
+                                    //     so the concrete-satisfier and monomorphic paths never move).
+                                    let mut abstract_inst: Option<(TypeExpr, Vec<TypeExpr>)> = None;
+                                    if let Some(Some(recv_ty)) = arg_tys.first().map(|o| o.as_ref()) {
+                                        if let TypeExpr::Parametric { head, args: recv_args } =
+                                            apply_subst(recv_ty, subst)
+                                        {
+                                            if format!(":{head}") == protocol_fqdn
+                                                && recv_args.len() == s.type_params.len()
+                                            {
+                                                let mapping: HashMap<String, TypeExpr> = s
+                                                    .type_params
+                                                    .iter()
+                                                    .cloned()
+                                                    .zip(recv_args.iter().cloned())
+                                                    .collect();
+                                                let ret = rename(&member_ret_raw, &mapping);
+                                                let params = extra_param_types_raw
+                                                    .iter()
+                                                    .map(|ty| rename(ty, &mapping))
+                                                    .collect();
+                                                abstract_inst = Some((ret, params));
+                                            }
+                                        }
+                                    }
+                                    // No concrete satisfier AND not an abstract-surface receiver
+                                    // (e.g. the receiver's type is unresolved) — fall back to the
+                                    // surface's bare declaration, matching prior behavior.
+                                    abstract_inst.unwrap_or((member_ret_raw, extra_param_types_raw))
+                                }
+                            }
                         };
                     // Arc 293.4e-pre.ii — instantiate surface method type params (mirror of the
                     // protocol call-check arm's instantiation block, ~check.rs:5845-5891).
@@ -15371,6 +15416,25 @@ pub(crate) fn assignable(
             || crate::types::is_subtype(&format!(":{head}"), ep, types) {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
             return nature_floor_ok(&a, ep, types);
+        }
+    }
+    // Arc 170 C2 Gap 1 — a CONCRETE type satisfies a PARAMETRIC-SURFACE param iff its FULL-ARGS
+    // extend-type edge exists (e.g. `echo'::Handle <: Dialable<Echo::Op,Echo::Reply>`, keyed by the
+    // full parametric string — types.rs:2151 stores the extend-type target keyword VERBATIM) AND the
+    // edge clears the surface's nature floor. This is the (Path actual, Parametric expected) case the
+    // branch above (Parametric actual, Path expected) never covered — roles flipped. Guarded on the
+    // expected head naming a `Surface`, so a parametric NON-surface bound (e.g. `Vector<T>`) is
+    // untouched → falls through to the derive-graph / unify paths below (byte-identical). SOUND, not
+    // permissive: `is_subtype` is an EXACT-string match on the parent, so `echo'::Handle` matches ONLY
+    // `Dialable<Echo::Op,Echo::Reply>`, never `Dialable<Kv::Op,Kv::Reply>` — the swap-gate holds.
+    if let (TypeExpr::Path(ap), TypeExpr::Parametric { head, .. }) = (&a, &e) {
+        let surface_key = format!(":{head}");
+        if let Some(crate::types::TypeDef::Surface(_)) = types.get(&surface_key) {
+            if crate::types::is_subtype(ap, &format_type(&e), types) {
+                // Nature floor uses the BARE surface key (the full-args string is not a
+                // registered surface); mirrors the flipped branch's `nature_floor_ok(&a, ep, …)`.
+                return nature_floor_ok(&a, &surface_key, types);
+            }
         }
     }
     // Arc 291 3a-ii-β — a parametric type satisfies a parametric bound iff its head DERIVES
