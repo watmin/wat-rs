@@ -3290,6 +3290,19 @@ fn parse_fn_body(
 }
 
 /// Parse a comma-separated list of types (respecting nested `<>` and `()`).
+///
+/// Arc 170 W2 Strike 1a — a bare `>` immediately preceded by `-` is the arrow of a
+/// `Fn(...)->T` function type, NOT a closing angle bracket. Before this fix, `depth`
+/// blindly decremented on every `>`, so a `Fn(...)->T` embedded as a non-final element
+/// of a comma list (a Tuple element, or a generic's Nth type-arg) underflowed depth to
+/// -1 — every comma AFTER the arrow then read `depth == 0` as false and never split,
+/// silently swallowing the rest of the list into one opaque unparsed `Path`. Mirrors the
+/// lexer's own `->`-vs-`<...>` disambiguation (`wat-reader/src/lexer.rs` `lex_keyword`'s
+/// `angle_depth` handling) — grounded via `#-then->`, since a genuine angle-bracket close
+/// is never preceded by `-` (operator paths like `:wat::core::>=` never reach this parser;
+/// they're never split into a type-list). Found via `wat-scripts/probes/arc-170/…`-class
+/// probing: a hand-written `Tuple<Fn(i64)->i64,i64,>` return type froze to a malformed
+/// 1-element `Tuple(Path("Fn(i64)->i64,i64"))` instead of the correct 2-element Tuple.
 fn parse_type_list(
     s: &str,
     original: &str,
@@ -3299,9 +3312,11 @@ fn parse_type_list(
     let mut out = Vec::new();
     let mut depth = 0i32;
     let mut start = 0usize;
+    let mut prev_char: Option<char> = None;
     for (i, c) in s.char_indices() {
         match c {
             '<' | '(' => depth += 1,
+            '>' if prev_char == Some('-') => {} // Fn(...)->T arrow — not a bracket close.
             '>' | ')' => depth -= 1,
             ',' if depth == 0 => {
                 let piece = &s[start..i];
@@ -3310,6 +3325,7 @@ fn parse_type_list(
             }
             _ => {}
         }
+        prev_char = Some(c);
     }
     let tail = &s[start..];
     if !tail.trim().is_empty() {
@@ -3323,17 +3339,28 @@ fn parse_type_list(
 /// Checks the match BEFORE adjusting depth so that `c` itself being a
 /// bracket (`<` or `(`) is correctly detected at the outermost level —
 /// finding `<` in `List<T>` matches position 4, not None.
+///
+/// Arc 170 W2 Strike 1a — same `->`-arrow-vs-angle-close disambiguation as
+/// `parse_type_list` above (twin depth-trackers, same latent bug class); fixed in
+/// lockstep even though this fn's sole call site (the `Head<args>` branch of
+/// `parse_type_inner`) isn't reachable by the bug today (it returns on the FIRST
+/// top-level `<`, always found before any `->` could appear) — leaving one twin
+/// fixed and the other not would just relocate the latent bug to this fn's next
+/// caller.
 fn find_top_level_char(s: &str, c: char) -> Option<usize> {
     let mut depth = 0i32;
+    let mut prev_char: Option<char> = None;
     for (i, ch) in s.char_indices() {
         if depth == 0 && ch == c {
             return Some(i);
         }
         match ch {
             '<' | '(' => depth += 1,
+            '>' if prev_char == Some('-') => {} // Fn(...)->T arrow — not a bracket close.
             '>' | ')' => depth -= 1,
             _ => {}
         }
+        prev_char = Some(ch);
     }
     None
 }
@@ -4218,6 +4245,31 @@ mod tests {
     fn type_expr_tuple_malformed_rejected() {
         // Missing closing ')'.
         assert!(parse_type_expr(":(i64,String").is_err());
+    }
+
+    #[test]
+    fn type_expr_tuple_with_fn_element_arrow_not_a_bracket_close() {
+        // Arc 170 W2 regression — a `Fn(...)->T` element in a NON-final tuple position.
+        // Before the fix, `parse_type_list` decremented `depth` on the `>` of the `->` arrow,
+        // underflowing to -1, so the comma AFTER the arrow was never seen as a top-level split:
+        // the whole tail collapsed into one opaque `Path("wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64")`.
+        // It must parse as a 2-element Tuple: [Fn(i64)->i64, i64].
+        let t = parse_type_expr(":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::i64)").unwrap();
+        match t {
+            TypeExpr::Tuple(elements) => {
+                assert_eq!(elements.len(), 2, "Fn(...)->T arrow must not swallow the trailing comma: {elements:?}");
+                match &elements[0] {
+                    TypeExpr::Fn { args, ret } => {
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(args[0], TypeExpr::Path(":wat::core::i64".into()));
+                        assert_eq!(**ret, TypeExpr::Path(":wat::core::i64".into()));
+                    }
+                    other => panic!("expected element 0 = Fn(i64)->i64, got {other:?}"),
+                }
+                assert_eq!(elements[1], TypeExpr::Path(":wat::core::i64".into()));
+            }
+            other => panic!("expected 2-tuple (Fn(i64)->i64, i64), got {other:?}"),
+        }
     }
 
     // ─── Arc 032 — :wat::holon::BundleResult builtin ────────────────

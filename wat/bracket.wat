@@ -212,17 +212,20 @@
     (:wat::kernel::spawn-program' self (:wat::bracket::process-work-forms work-fn))))
 
 (:wat::core::defclause :wat::bracket::process-work-forms
-  ;; ── KWARGS branch (arc 170 C1, N=1) ─────────────────────────────────────────
-  ;; work-fn is a BASE NAME keyword naming a kwargs `defn`'s companion (e.g. :probe::work).
+  ;; ── KWARGS branch (arc 170 C1 ground case N=1, generalized to N by C2 Strike 1) ──
+  ;; work-fn is a BASE NAME keyword naming a kwargs `defn`'s companion (e.g. :probe::enrich).
   ;; Ship `<base>$impl` BY NAME (the fn-forms keyword seam, c8e3c7ff) — its OWN 2-param
   ;; signature is [item <- :I  kwargs <- :<base>::Kwargs] (item FIRST, unlike the raw
-  ;; dial shape where the peer is first). Read the ::Kwargs struct's sole field (N=1) via
-  ;; Strike B's field-names-of/field-types-of to recover S,R (the field's Peer'<S,R>) —
-  ;; NEVER by reflecting the work-fn value itself. Then synthesize a small ADAPTER fn
-  ;; (assembles the ::Kwargs struct from the held dial peer + calls the shipped $impl)
-  ;; and hand it to the ALREADY-PROVEN baked `process-dial-runner` unchanged — the
-  ;; adapter's shape (Peer'<S,R>,I)->O is exactly process-dial-runner's contract, so this
-  ;; reuses the M1 runner verbatim rather than duplicating its recv/Setup/Work loop.
+  ;; dial shape where the peer is first). Read the ::Kwargs struct's N fields (field-order
+  ;; preserved by field-names-of/field-types-of, Strike B) to recover each field's Peer'<S,R>
+  ;; — NEVER by reflecting the work-fn value itself. Then synthesize: (1) an N-ARY ADAPTER fn
+  ;; (Peer'<S1,R1>,…,Peer'<Sn,Rn>,I)->O that assembles the ::Kwargs struct positionally (field
+  ;; order) from the N held dial peers + calls the shipped $impl, and (2) an N-DIAL RUNNER
+  ;; emitted as source (the baked single-peer `process-dial-runner` can't carry a variadic
+  ;; type-param list — a Tuple<Address'<S1,R1>,…> carrier is concretely-typed PER CALL, so the
+  ;; runner recv-ing it must be too; shape proven at
+  ;; wat-scripts/probes/arc-170/w3-n-dial-runner.wat). N=1 is not special-cased — it is the
+  ;; ground case of the same fold (a 1-element Tuple carrier/ctx).
   ([work-fn <- :wat::core::keyword] -> :wat::core::Vector<wat::WatAST>
     (:wat::core::let
       [base-str      (:wat::core::keyword/to-string work-fn)
@@ -250,58 +253,93 @@
        ret-nm        (:wat::core::ast-name ret-ty)
        item-t        (:wat::core::string::subs item-nm 1 (:wat::core::string::length item-nm))
        ret-t         (:wat::core::string::subs ret-nm 1 (:wat::core::string::length ret-nm))
-       ;; ── N=1: the ::Kwargs struct's SOLE field (name + Peer'<S,R> type). C2 generalizes
-       ;; this fold to N fields; this stone is the single-field ground case.
+       ;; ── arc 170 C2 Strike 1 (record redirect): the ::Kwargs fields, reconciled BY NAME ──
+       ;; The coords carrier D is the `<base>::Coords` RECORD (minted at the kwargs-defn site,
+       ;; wat/core.wat) — addressed by field NAME, so N has NO positional-accessor cap and DATA
+       ;; fields fall out for free. The runner recv's ONE `::Coords` record as the Setup payload,
+       ;; reconciles it → `::Kwargs` by field name (Peer' field → connect' the Address'; data field
+       ;; → copy the value through, routed off `field-types-of`), holds the assembled `::Kwargs`,
+       ;; and invokes `$impl` per Work item. `fnames`/`ftypes` are field-ordered + positionally
+       ;; aligned (Strike B), so a single fold over 0..n builds the ordered ctor args.
        fnames        (:wat::runtime::field-names-of kwargs-ty)
        ftypes        (:wat::runtime::field-types-of kwargs-ty)
-       _one          (:wat::core::if (:wat::core::= (:wat::core::length fnames) 1)
+       n             (:wat::core::length ftypes)
+       _n-check      (:wat::core::if (:wat::core::= (:wat::core::length fnames) n)
                        -> :wat::core::nil nil
                        (:wat::kernel::assertion-failed!
-                         "bracket process-work-forms: C1 supports exactly ONE kwargs field (N=1); N>1 is arc 170 C2"
+                         "bracket process-work-forms: field-names-of/field-types-of length mismatch"
                          :wat::core::None :wat::core::None))
-       field-ty      (:wat::core::first ftypes)      ;; e.g. (wat.kernel/Peer' probe.Echo/Op probe.Echo/Reply)
-       ty-ch         (:wat::core::ast->children field-ty)
-       s-node        (:wat::core::Option/expect (:wat::core::get ty-ch 1) "process-work-forms(kwargs): no S in Peer'<S,R>")
-       r-node        (:wat::core::Option/expect (:wat::core::get ty-ch 2) "process-work-forms(kwargs): no R in Peer'<S,R>")
-       s-colon       (:wat::bracket::dotpath->colonpath (:wat::core::ast-name s-node))
-       r-colon       (:wat::bracket::dotpath->colonpath (:wat::core::ast-name r-node))
-       peer-inner    (:wat::core::string::concat s-colon (:wat::core::string::concat "," r-colon))
-       addr-b        (:wat::core::string::concat "wat::kernel::Address'<" (:wat::core::string::concat peer-inner ">"))
-       peer-b        (:wat::core::string::concat "wat::kernel::Peer'<"    (:wat::core::string::concat peer-inner ">"))
-       sp-out        (:wat::core::keyword-node
-                       (:wat::core::string::concat ":(wat::core::i64,"
-                         (:wat::core::string::concat ret-t ")")))
-       sp-in         (:wat::core::keyword-node
-                       (:wat::core::string::concat ":wat::bracket::PoolMsg<"
-                         (:wat::core::string::concat addr-b
-                           (:wat::core::string::concat "," (:wat::core::string::concat item-t ">")))))
-       peer-kw       (:wat::core::keyword-node (:wat::core::string::concat ":" peer-b))
-       item-kw       (:wat::core::keyword-node (:wat::core::string::concat ":" item-t))
+       coords-ty-str (:wat::core::string::concat base-str "::Coords")
+       sp-out-str    (:wat::core::string::concat "(wat::core::i64," (:wat::core::string::concat ret-t ")"))
+       sp-out        (:wat::core::keyword-node (:wat::core::string::concat ":" sp-out-str))
+       ;; sp-in D = the ::Coords RECORD (a plain type path), NOT a Tuple: PoolMsg<<base>::Coords,I>.
+       sp-in-str     (:wat::core::string::concat "wat::bracket::PoolMsg<"
+                       (:wat::core::string::concat coords-ty-str
+                         (:wat::core::string::concat "," (:wat::core::string::concat item-t ">"))))
+       sp-in         (:wat::core::keyword-node (:wat::core::string::concat ":" sp-in-str))
+       runner-self-kw (:wat::core::keyword-node
+                        (:wat::core::string::concat ":wat::kernel::Peer'<"
+                          (:wat::core::string::concat sp-out-str
+                            (:wat::core::string::concat "," (:wat::core::string::concat sp-in-str ">")))))
+       ;; ctx holds the assembled ::Kwargs (the N-heterogeneous dialed-peer bundle), None until Setup.
+       ctx-ty-kw     (:wat::core::keyword-node
+                       (:wat::core::string::concat ":wat::core::Option<" (:wat::core::string::concat kwargs-ty-str ">")))
        ret-kw        (:wat::core::keyword-node (:wat::core::string::concat ":" ret-t))
        kwargs-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" kwargs-ty-str))
-       ;; ADAPTER: (Peer'<S,R>, I) -> O — assembles the ::Kwargs struct (its ONE positional
-       ;; field, N=1) from the held dial peer, then calls the shipped $impl by name.
-       ;; `:user::bracket::work-fn` is applied via `apply` (a VALUE-position keyword
-       ;; reference, arc-009-lifted) rather than as a literal call HEAD — the shipped
-       ;; def's registry key round-trips through fn-forms' canonical dot-slash rendering
-       ;; (`:user.bracket/work-fn`), and a call-HEAD keyword resolves by strict textual
-       ;; match (measured: a direct `(:user::bracket::work-fn …)` call-head raised
-       ;; `UnresolvedReference`), while a value-position keyword resolves through the
-       ;; same arc-009 lift `apply`'s head arg already relies on (mirrors `Locus/launch`'s
-       ;; own `(apply -> :St init ship [])` keyword-headed calls, wat/spawn.wat).
-       adapter-def
-       `(:wat::core::defn :user::bracket::kwargs-adapter
-          [c    <- ~peer-kw
-           item <- ~item-kw]
-          -> ~ret-kw
-          (:wat::core::apply -> ~ret-kw :user::bracket::work-fn item [(~kwargs-kw c)]))
+       ;; kwargs-ctor-args: one form per ::Kwargs field, DECLARED order, each read off the ::Coords
+       ;; record BY NAME (`(:<base>::Coords/<field> deps)`). A Peer'-typed field (its ::Kwargs type
+       ;; is a Peer'<S,R> — an `ast-kind` "list" whose head names Peer') gets `connect'`ed
+       ;; (Address'→Peer'); a data field is copied through verbatim. `deps` is the Setup binder
+       ;; symbol (literal in the runner quasiquote below — the same across-quasiquote literal-symbol
+       ;; reference the C1 dial-runner already used, proven to survive the ship-as-source round-trip).
+       kwargs-ctor-args
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+           (:wat::core::let
+             [fname-str   (:wat::core::keyword/to-string (:wat::core::Option/expect (:wat::core::get fnames i) "process-work-forms(kwargs): fnames index"))
+              accessor-kw (:wat::core::keyword-node
+                            (:wat::core::string::concat ":"
+                              (:wat::core::string::concat coords-ty-str
+                                (:wat::core::string::concat "/" fname-str))))
+              ft          (:wat::core::Option/expect (:wat::core::get ftypes i) "process-work-forms(kwargs): ftypes index")
+              is-peer     (:wat::core::if (:wat::core::= (:wat::core::ast-kind ft) "list")
+                            (:wat::core::string::contains?
+                              (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ft))) "Peer'")
+                            false)
+              form        (:wat::core::if is-peer
+                            `(:wat::kernel::connect' (~accessor-kw deps))
+                            `(~accessor-kw deps))]
+             (:wat::core::conj acc form)))
+         (:wat::core::Vector :wat::WatAST)
+         (:wat::core::range 0 n))
+       ;; N-DIAL RUNNER — emitted as source. recv PoolMsg<::Coords,I>; Setup deps (a ::Coords record)
+       ;; → reconcile-by-name into the ::Kwargs bundle (connect' the Peer' fields, copy the data
+       ;; fields), HOLD it; Work pair → invoke `$impl` (via the `:user::bracket::work-fn` keyword,
+       ;; arc-009-lifted through `apply`'s head — the C1-proven invocation seam) with the item + the
+       ;; held ::Kwargs bundle, send the indexed result, recurse. No separate adapter fn: the
+       ;; reconciliation IS the assembly, done once at Setup.
+       runner-def
+       `(:wat::core::defn :user::bracket::dial-runner
+          [self <- ~runner-self-kw
+           ctx  <- ~ctx-ty-kw]
+          -> :wat::core::nil
+          (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
+            ((:wat::bracket::PoolMsg::Setup deps)
+              (:user::bracket::dial-runner self
+                (:wat::core::Some (~kwargs-kw ~@kwargs-ctor-args))))
+            ((:wat::bracket::PoolMsg::Work pair)
+              (:wat::core::let
+                [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
+                 out (:wat::core::Tuple (:wat::core::first pair)
+                       (:wat::core::apply -> ~ret-kw :user::bracket::work-fn (:wat::core::second pair) [k]))
+                 _   (:wat::kernel::send' self out)]
+                (:user::bracket::dial-runner self ctx)))))
        main-def
        `(:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::bracket::process-dial-runner
+          (:user::bracket::dial-runner
             (:wat::program::self-peer ~sp-out ~sp-in)
-            :user::bracket::kwargs-adapter
             :wat::core::None))]
-      (:wat::core::concat forms (:wat::core::Vector :wat::WatAST adapter-def main-def))))
+      (:wat::core::concat forms (:wat::core::Vector :wat::WatAST runner-def main-def))))
   ;; ── existing Fn branch (arc 170 M1-pool, arity 3/6 dispatch) — UNCHANGED logic,
   ;; only the tail (spawn-program' call -> plain forms-vector return) is refactored so
   ;; both clauses share the one call site above.
@@ -379,8 +417,19 @@
 ;; never disconnect or crash in normal operation; if it does, raise via
 ;; assertion-failed! so the failure is visible rather than silently swallowed.
 
-(:wat::core::defn :wat::bracket::collect-loop<I,O>
-  [peers     <- :wat::core::Vector<wat::kernel::Peer'<wat::bracket::PoolMsg<wat::kernel::Address',I>,(wat::core::i64,O)>>
+;; Arc 170 C2 Strike 1c — generalized `Address'` (bare) to `D`. Purely a WIDENING of the
+;; declared type (this fn's own logic never touches the Setup/D payload — it only ever
+;; handles Work/select' events on the (i64,O) channel), so every existing bare-Address'
+;; caller (map-worker) still infers D=Address' unchanged. Needed so `:wat::bracket::uses'`
+;; (below) can reuse this SAME collector over `Peer'<PoolMsg<D,I>,…>` peers where D is the
+;; concretely-typed `<base>::Coords` RECORD (the field-ordered coords carrier — Address' +
+;; data fields, one named record) rather than the erased bare `Address'` — `:wat::spawn::Locus`'s
+;; `spawn-runner` surface method (wat/spawn.wat) is FIXED to bare Address' (out of Strike 1's
+;; scope), so a Coords-carrying pool cannot round-trip through it; `uses'` spawns directly
+;; instead (see below), and needs its peers' D to be the real `::Coords` type — hence this
+;; generalization is a prerequisite for reuse, not a reinvention (COMPONENDO DELEO).
+(:wat::core::defn :wat::bracket::collect-loop<D,I,O>
+  [peers     <- :wat::core::Vector<wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>>
    items     <- :wat::core::Vector<I>
    pairs-acc <- :wat::core::Vector<(wat::core::i64,O)>
    cursor    <- :wat::core::i64
@@ -521,6 +570,87 @@
                 (:wat::core::first pr))
               pairs)]
     ;; Arc 118.2a — `map` flipped LAZY; the function's declared return type is `Vector<O>`.
+    (:wat::core::mapv
+      (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :O
+        (:wat::core::second pr))
+      sorted)))
+
+;; ── uses' — the N-service coords-carrying pool coordinator (arc 170 C2 Strike 1c) ──
+;;
+;; `map-worker`'s peers are pinned to `Peer'<PoolMsg<Address'(bare),I>,…>` by
+;; `:wat::spawn::Locus`'s `spawn-runner` surface method (wat/spawn.wat:386-388) — a FIXED
+;; declared return type, unchanged by this stone. A coords-carrying pool needs its Setup
+;; payload to be the REAL, concretely-typed field-ordered `<base>::Coords` RECORD (Address' +
+;; data fields, one named record — built by the evolved W2a checker, Strike 1a) — a type that
+;; CANNOT round-trip through that fixed bare-Address' surface method (a record does not
+;; `assignable` to a bare parametric-head Path; only `Address'<S,R>` itself widens to bare
+;; `Address'` via the reflexive same-head `is_subtype` edge, check.rs:15367-15375). So `uses'`
+;; spawns DIRECTLY via `spawn-program'` (bypassing `Locus/spawn-runner` for this one path)
+;; instead of inventing a new locus-dispatch mechanism. It REUSES `collect-loop` (generalized
+;; to `D` above) and DUPLICATES (not reinvents — the SAME shape, unavoidable since it can't
+;; call through map-worker's own peers-mapv closure) map-worker's grant-boot/revoke-shutdown
+;; folds verbatim — name-blind, unchanged (`:wat::bracket::map-worker` itself is untouched by
+;; this stone). `coords` is the field-ordered `::Coords` record VALUE (built by the caller —
+;; the hand-wired Strike-1 proof, or later the `bracket/uses` macro's checker-call result);
+;; `work-fn` is the kwargs work-fn's BASE keyword (e.g. :probe::enrich) — `process-work-forms`
+;; (Strike 1b) builds the child's forms ONCE (identical for every runner in the pool). `uses`
+;; carries ONLY the SERVICE handles (data kwargs need no grant — they copy as EDN, not dial).
+;; PROCESS ONLY (dialing a service needs the firm process boundary — the whole point of this
+;; stone; a thread locus never needs to dial at all).
+(:wat::core::defn :wat::bracket::uses'<D,I,O>
+  [locus   <- :wat::spawn::ProcessOpts
+   uses    <- :wat::core::Vector<(wat::core::keyword,wat::capability::Capability)>
+   items   <- :wat::core::Vector<I>
+   work-fn <- :wat::core::keyword
+   coords  <- :D]
+  -> :wat::core::Vector<O>
+  (:wat::core::let
+    [m      (:wat::core::length items)
+     rc     (:wat::spawn::ProcessOpts/runner-count locus)
+     n      (:wat::core::if (:wat::core::< rc m) rc m)
+     forms  (:wat::bracket::process-work-forms work-fn)   ;; built ONCE — identical per runner
+     peers  (:wat::core::mapv
+              (:wat::core::fn [i <- :wat::core::i64]
+                  -> :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>
+                (:wat::core::let
+                  [p (:wat::kernel::spawn-program' locus forms)
+                   ;; GRANT-BOOT — verbatim copy of map-worker's own fold (name-blind, UNCHANGED).
+                   _ (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
+                       ((:wat::core::Some pid)
+                         (:wat::core::foldl
+                           (:wat::core::fn [_acc <- :wat::core::nil  g <- :(wat::core::keyword,wat::capability::Capability)] -> :wat::core::nil
+                             (:wat::capability::Capability/grant (:wat::core::second g) (:wat::core::Vector :wat::core::i64 pid)))
+                           nil
+                           uses))
+                       (:wat::core::None nil))
+                   ;; SETUP-DIAL — arc 170 C2 Strike 1c: ONE Setup(coords), not N per-handle
+                   ;; Setups. `coords` is already the field-ordered, concretely-typed Tuple —
+                   ;; no per-handle `Capability/coordinate` fold needed here at all.
+                   _ (:wat::kernel::send' p (:wat::bracket::PoolMsg::Setup coords))
+                   _ (:wat::kernel::send' p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))]
+                  p))
+              (:wat::core::range 0 n))
+     pairs   (:wat::bracket::collect-loop peers items
+               (:wat::core::Vector :(wat::core::i64,O)) n 0 m)
+     ;; REVOKE-SHUTDOWN — verbatim copy of map-worker's own fold (UNCHANGED).
+     _revoke (:wat::core::foldl
+               (:wat::core::fn [_acc <- :wat::core::nil
+                                p    <- :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>]
+                 -> :wat::core::nil
+                 (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
+                   ((:wat::core::Some pid)
+                     (:wat::core::foldl
+                       (:wat::core::fn [_a <- :wat::core::nil  g <- :(wat::core::keyword,wat::capability::Capability)] -> :wat::core::nil
+                         (:wat::capability::Capability/revoke (:wat::core::second g) (:wat::core::Vector :wat::core::i64 pid)))
+                       nil
+                       uses))
+                   (:wat::core::None nil)))
+               nil
+               peers)
+     sorted  (:wat::core::sort-by
+               (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :wat::core::i64
+                 (:wat::core::first pr))
+               pairs)]
     (:wat::core::mapv
       (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :O
         (:wat::core::second pr))

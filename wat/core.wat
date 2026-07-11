@@ -889,13 +889,63 @@
                       (:wat::core::Vector :wat::WatAST)
                       (:wat::core::range 0 kw-len))
          swapped-argvec (:wat::core::with-children kw-argvec swapped-ch)
-         ;; ── the checker form (guarded) ──
+         ;; ── arc 170 W2 Strike 1a (record redirect): mint <fqdn>::Coords + checker returns it ──
+         ;; The coords CARRIER is a NAMED RECORD, not a positional Tuple — addressed by field NAME,
+         ;; so N-service reconciliation has NO positional-accessor cap AND data fields fall out for
+         ;; free (a data field is just another named field). `<fqdn>::Coords` is a defRECORD (pure,
+         ;; EDN-crossable — it IS the PoolMsg::Setup wire payload) whose fields are the HEAD-SWAPPED
+         ;; argvec (each Peer'<S,R> → Address'<S,R>; data fields keep their own type), SAME field
+         ;; names + order as `::Kwargs`. Reuses the `swapped-argvec` field nodes verbatim.
+         coords-ty-str (:wat::core::string::concat name-str "::Coords")
+         coords-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" coords-ty-str))
+         ;; has-peer-field?: does the kwargs section declare ≥1 `Peer'<S,R>` field? This is the
+         ;; SEMANTIC gate for "is this a DIALING work-fn" — the ONLY kind that needs a `::Coords`
+         ;; dial-carrier (services are declared `Peer'` and dialed; data fields ride along). Read
+         ;; the ORIGINAL field types (`kw-ch` position j·3+2), NOT the swapped ones: a swapped
+         ;; `Peer'`→`Address'`, but a defservice `start`/`resume` init-param can ALSO be declared
+         ;; `Address'` directly (e.g. `s2s-thread-probe.wat`'s `:echo-addr <- Address'<…>`) — so
+         ;; testing the swapped `Address'` would false-match those. Only a real `Peer'` field
+         ;; (unmangled source) marks a dialing work-fn. This keeps `::Coords` (a pure defrecord)
+         ;; from being minted for the many NON-dialing kwargs defns that hold impure fields — every
+         ;; `defservice`'s auto `start`/`resume` (`[& [locus <- :wat::spawn::Locus …]]`,
+         ;; wat/service.wat:1114) carries a STRUCT `locus`; `probe-kwargs-struct.wat`'s
+         ;; `:probe::apply-it` carries a `Fn`. None declare a `Peer'`, so none mint Coords → the
+         ;; 293.W ImpureFieldInPureAggregate containment they'd otherwise hit never fires. A dialing
+         ;; work-fn's own fields are all crossable (Peer'→Address' + EDN data); a hypothetical
+         ;; dialing bundle carrying an impure data field would still (correctly) fail Coords minting
+         ;; with a LOCATED 293.W diagnostic naming that field — the honest error, not a Tuple fallback.
+         has-peer-field (:wat::core::foldl
+                          (:wat::core::fn [acc <- :wat::core::bool i <- :wat::core::i64] -> :wat::core::bool
+                            (:wat::core::if acc true
+                              (:wat::core::string::contains?
+                                (:wat::core::ast-name
+                                  (:wat::core::Option/expect
+                                    (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                    "w2a has-peer-field: type index"))
+                                "Peer'")))
+                          false
+                          (:wat::core::range 0 n-kw-fields))
+         ;; mint-coords?: the checker itself is a kwargs defn (has `& [...]`) so it re-enters this
+         ;; branch — the `is-check` suffix guard stops the infinite mint (no Coords/checker for a
+         ;; `::kwargs-check`). Otherwise gate on being a dialing (Peer'-bearing) work-fn.
+         mint-coords? (:wat::core::if is-check false has-peer-field)
+         ;; ── the Coords record + checker forms (guarded) ──
          ;; GUARD NO-OP = (do nil), NOT an empty (do): an empty `(:wat::core::do)` is ILLEGAL —
          ;; "do form requires at least one form; got zero". `(do nil)` has one form, evaluates to
          ;; nil, is discarded as a harmless top-level form.
-         kwargs-check-def (:wat::core::if is-check
-                            `(:wat::core::do nil)
-                            `(:wat::core::defn ~kwargs-check-kw [& ~swapped-argvec] -> :wat::core::nil nil))]
+         coords-def (:wat::core::if mint-coords?
+                      `(:wat::core::defrecord ~coords-kw ~swapped-argvec)
+                      `(:wat::core::do nil))
+         ;; The checker's body constructs `(::Coords field-1 field-2 …)` in DECLARED field order,
+         ;; reusing `fname-nodes` (the SAME symbol-node objects bound as the field names inside
+         ;; `swapped-argvec` — hygienic by construction, mirrors the $impl let-binder reuse above).
+         ;; The gate (param types stay `Address'<S,R>` → a swapped coord TypeMismatches) and the
+         ;; coord-assembly (this body) are ONE act; the field-ordering falls out of the kwargs
+         ;; mechanism the checker itself rides (kwargs-lower reorders `:name`s to field order).
+         kwargs-check-def (:wat::core::if mint-coords?
+                            `(:wat::core::defn ~kwargs-check-kw [& ~swapped-argvec] -> ~coords-kw
+                               (~coords-kw ~@fname-nodes))
+                            `(:wat::core::do nil))]
         ;; Arc 260.1b: emit record-def + $impl fn (under :<name>$impl) + companion defmacro (:name)
         ;; The companion macro is a THIN FORWARDER to :wat::core::kwargs-lower (Part B dedup).
         ;; Values baked in at defn-expansion time via ~ (depth-1 unquotes from the outer quasiquote):
@@ -930,6 +980,7 @@
                 ~(:wat::core::symbol-node "_kl-np")   ~n-pos
                 ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~name-str))]
                `(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))
+           ~coords-def                  ;; ← W2 record redirect: <fqdn>::Coords (before the checker refs it).
            ~kwargs-check-def))          ;; ← W2a. Order-independent (the checker refs only literal Address' types).
       ;; ── BACKWARD-COMPAT PASS-THROUGH (no kwargs section) ────────────────────
       `(:wat::core::def ~name (:wat::core::fn ~@rest)))))

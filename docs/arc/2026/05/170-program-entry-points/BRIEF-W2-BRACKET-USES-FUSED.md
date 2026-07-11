@@ -1,5 +1,46 @@
 # BRIEF — W2 (fused): `bracket/uses` — the C2 kill, N heterogeneous services, a swapped handle a COMPILE error
 
+> ## ⟳ REVISION (2026-07-10) — the coords carrier is a RECORD, not a Tuple; no cap; data IS in scope
+> **Supersedes** the `Tuple<Address'…>` carrier + the service-only `exigere` cut below. Strike 1's
+> first cut used a positional `Tuple` coords carrier, which capped N at 3 (`first/second/third`
+> accessors) and forced data kwargs out of scope. The builder cut both: *"at most 3 feels fucking
+> retarded"* + *"whenever we reach for a tuple we almost always realize it should be a record."*
+> The correction (R28 / records-are-EDN, one level down):
+> - Mint a **`<fqdn>::Coords` record** (a `defrecord`, pure/EDN-crossable) alongside `::Kwargs` at the
+>   kwargs-defn site — head-swapped field types (`Peer'→Address'`; data unchanged), same names/order.
+> - The **checker returns `<fqdn>::Coords`** (not a `Tuple`): `-> :<fqdn>::Coords (:<fqdn>::Coords ~@fname-nodes)`.
+>   Still type-checks the swap (params stay `Address'`); now a named record.
+> - The runtime **carrier D = `<fqdn>::Coords`**; the worker reconciles `::Coords → ::Kwargs` **by field
+>   NAME** (iterate fields; `Peer'` field → `connect'` its `Address'`; data field → copy) — no positional
+>   accessors → **no N cap**, and **data fields fall out for free** (the record routes by field type).
+> - **Scope reversal:** data kwargs are now IN (the `exigere` cut below is void — a Tuple made data hard,
+>   a record makes it free). Demo proves it: a work-fn with **7 `Peer'` services + 5 data fields (N=12)**.
+> - The `src/types.rs` Fn-arrow parser fix (a real latent bug the checker's return exposed) STAYS; add a
+>   regression test (a `Fn`-typed field / `Tuple<Fn(i64)->i64,i64>` that now parses correctly).
+>
+> Read the sections below for the mint site / rooms / runner shape (all still accurate); read `Tuple` as
+> `::Coords record` and "service-only" as "service + data, routed by field type."
+>
+> ## ⟳ REVISION 2 (2026-07-11) — Strike 2: the checker takes `Dialable`, the macro passes raw, mixed in one
+> **Supersedes** any "the macro wraps `(Dialable/coord val)`" / "service-only macro" framing. Grounding the
+> macro against the landed `bracket/uses'` showed the macro *cannot* separate service from data at expand
+> (Path B killed reflection) — so it can neither selectively wrap for the checker nor build a service-only
+> grant vector. Resolution (both forced, no fork):
+> - **Checker takes `Dialable<S,R>` not `Address'<S,R>`** — a `<fqdn>::Handle` *satisfies* `Dialable<S,R>`
+>   (R32: a value satisfies a surface-typed param), so the macro passes **raw** `:name val` uniformly; the
+>   checker coords each service field **internally** (`(Dialable/coord field)`) into `::Coords`. Swap still a
+>   located `TypeMismatch` (`Dialable<Kv>` vs `Dialable<Echo>`) — the W2a swap test's asserted type updates
+>   from `Address'` to `Dialable`/`Handle` (a *diagnostic* change; the user forms are UNCHANGED).
+> - **`bracket/uses'` separates grant at RUNTIME, not the macro** — the pairs vector widens to
+>   `Vector<(keyword, :wat::core::Value)>` (heterogeneous handles+data); grant-boot dispatches each val on
+>   its concrete class (`Grantable` → grant, data → skip) via the proven open-surface dispatch (R34,
+>   `check.rs:6104`). So **mixed service+data lands in one strike** — no split, no fast-follow; the dial side
+>   (Strike 1's `::Coords → ::Kwargs` reconciliation) is untouched.
+> - **Still owed after this stone** (tracked, not deferred): the `map-worker` unification (`bracket/uses'` is
+>   a verbatim bootleg of the one engine `map`/`each` use — collapse it in by making `map-worker` carrier-
+>   generic; scout the pinned `Locus/spawn-runner` first).
+
+
 > **Arc 170's climax stone.** W2 (the macro) + W3 (the N-runtime) were split on paper but are
 > ONE deliverable — the complete `bracket/uses`. Built in **two internal strikes, committed
 > atomically green** (no lying shell ever lands). **Executor: sonnet shadowdancer(s), weighed by
