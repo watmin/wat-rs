@@ -1054,9 +1054,24 @@ Three faces of the one fire.
   ONE call (<fqdn>::kwargs-check :name (coord val) …), then hand to the runner. The ORDINARY type checker catches a swap at FREEZE (same
   compile-time mechanism the committed colocation test proves). GUARD the checker-of-checker (name ends '::kwargs-check' → skip). GATE:
   swap → located TypeMismatch at wat --check; correct → the runner runs. W3 = bracket/uses' runtime = C1's process-work-forms generalized
-  N=1→N (grant N, dial N via Dialable/coord, assemble ::Kwargs, invoke $impl). NOTE: the W2a checker-mint core.wat change was WRITTEN +
-  WORKED (2 tests passed) but was REVERTED (tangled with the main-wall mess); redo it clean. It line-shifts cond_refuses_missing_else's
-  exact-span golden — recapture that golden when you touch core.wat. OPEN (cosmetic, LATER — builder: 'make it work first'): arg order."
+  N=1→N (grant N, dial N via Dialable/coord, assemble ::Kwargs, invoke $impl).
+
+  ── W2a SCOUTED + DRAWN (2026-07-10) — strike-ready, do NOT re-scout ──
+  MINT SITE: wat/core.wat kwargs branch. record-def is minted at ~line 756 (`(:defstruct ~kwargs-ty ~kw-argvec)`); the emit
+  `do` block is at ~876 (emits ~record-def + the $impl `def` + the companion `defmacro`). ADD a 4th form ~kwargs-check-def there.
+  BUILD (in the `let`): swapped-argvec = fold over kw-ch (triples: fname@i*3, arrow@i*3+1, type@i*3+2); for each TYPE node, if its
+  ast-name contains 'Peer'', swap it, else pass through (data types: String/i64 pass untouched); rebuild the argvec via with-children.
+  HEAD-SWAP (verbatim, the EXACT transform process-work-forms already proves at bracket.wat:338):
+    addr = (:wat::core::string::join \"Address'\" (:wat::core::string::split type-name \"Peer'\"))   ;; :…Peer'<S,R> → :…Address'<S,R>
+    (then strip the leading ':' via subs 1 len, and keyword-node it — same as bracket.wat:339-342).
+  kwargs-check-def = `(:wat::core::defn :<name>::kwargs-check [& ~swapped-argvec] -> :wat::core::nil nil). (nil body is FINE — the
+  UselessMain wall is :user::main-ONLY; a <fqdn>::kwargs-check fn is untouched.)
+  GUARD: the checker is ITSELF a kwargs defn → at the branch top, if name-str ENDS-WITH '::kwargs-check', SKIP minting the 4th
+  artifact (else infinite mint). GATE: a kwargs defn :probe::enrich auto-mints :probe::enrich::kwargs-check; a correct call
+  freezes CLEAN, a swapped call is a located TypeMismatch at freeze. The MECHANISM is already PROVEN (hand-written probe-w2b-ok/
+  -swap froze clean/TypeMismatch, 2026-07-09b) — W2a just AUTO-mints it; promote those two probes to COMMITTED tests targeting the
+  auto-minted checker. RECAPTURE cond_refuses_missing_else's exact-span golden (core.wat line-shift). OPEN (cosmetic, LATER): arg order.
+  NOTE: this was WRITTEN + WORKED (2 tests) then reverted with the main-wall mess — redo clean off THIS recipe."
 
  :the-main-wall  ; ✅ DONE (3cd00fbb) — imposed + the whole 76-site cascade purged + floor green; do NOT re-open
  "DONE. A declared :user::main is now EXACTLY [] -> :wat::core::nil AND its body must NOT be the bare `nil` literal
