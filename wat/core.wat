@@ -637,7 +637,13 @@
                (:wat::core::conj acc v)))
            (:wat::core::Vector :wat::WatAST)
            (:wat::core::range 0 nf))]
-        `(~impl-kw ~@pos (~kwargs-ty ~@ovals))))))
+        ;; Arc 294 item 9a — aggregate ctor kwargs mode: when kwargs-ty is the sentinel
+        ;; `:wat::core::agg-positional`, emit PURE POSITIONAL to the (prime) ctor `(~impl-kw ~@ovals)`
+        ;; — no Kwargs-record wrap. Else defn's shape: positional + a trailing Kwargs record.
+        (:wat::core::if (:wat::core::= (:wat::core::ast-name kwargs-ty) ":wat::core::agg-positional")
+          -> :wat::WatAST
+          `(~impl-kw ~@pos ~@ovals)
+          `(~impl-kw ~@pos (~kwargs-ty ~@ovals)))))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
