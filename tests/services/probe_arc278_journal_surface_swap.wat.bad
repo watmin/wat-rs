@@ -1,0 +1,17 @@
+;; Arc 278 T1b.1 Journal surface — NEGATIVE: the wrong-response-type swap at the reply site.
+;; Identical to the positive `probe_arc278_journal_surface.wat` sibling EXCEPT `write-metrics`
+;; replies a `:wat::query::Store::PutResponse::Success` (a DIFFERENT enum, structurally similar —
+;; both are zero-field `:Success` variants) instead of the declared
+;; `:wat::telemetry'::Journal::WriteMetricsResponse`. `:wat::service::Outcome::Reply`'s second
+;; parameter is typed to the op's declared response type (Store::PutResponse mirrors this same
+;; pattern for its own satisfiers), so this must be a located `TypeMismatch` AT THE REPLY SITE —
+;; never a runtime mismatch.
+(:wat::service::defservice :probe::toy-journal-swap'
+  :satisfies :wat::telemetry'::Journal
+  :durable   []
+  :ephemeral []
+  :impls
+  [(write-metrics [s req]
+     (:wat::service::Outcome::Reply s (:wat::query::Store::PutResponse::Success)))
+   (write-logs [s req]
+     (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteLogsResponse::Success)))])

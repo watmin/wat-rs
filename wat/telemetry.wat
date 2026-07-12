@@ -13,7 +13,11 @@
 ;;
 ;; Loads AFTER wat/core.wat (defrecord/defenum/defsurface/typealias + splice + Keyword/String/i64/
 ;; HashMap primitives). Depends additionally on :wat::core::Uuid (arc-207 runtime primitive, always
-;; available). No eval-deps beyond those.
+;; available).
+;;
+;; Arc 278 stone T1b.1 adds the `Journal` surface (write half) at the end of this file — it reuses
+;; `:wat::query::{Constraint,Transient,Fatal}` (wat/query.wat) as its response payloads, so this
+;; file's stdlib.rs manifest slot now ALSO depends on wat/query.wat and must load after it.
 
 ;; ─── Tags — the dimension map every scope carries (keyword → string). ────────────
 (:wat::core::typealias :wat::telemetry'::Tags
@@ -73,3 +77,44 @@
    caller  <- :wat::core::keyword
    level   <- :wat::telemetry'::Level
    message <- :wat::telemetry'::LogMessage])
+
+;; ─── Journal — arc 278 stone T1b.1: the telemetry sink's S4c contract, write half. ─
+;; A `:nature :wat::kernel::Peer'` surface — a dialed `Peer'<Journal::Op,Journal::Reply>` IS a
+;; Journal intrinsically (arc 293 Path B), exactly the shape `:wat::query::Store` has
+;; (wat/query.wat:101). Mirrors Store's `:messages`/`:features` split verbatim: per-op
+;; `Journal::<Op>Request` records + `Journal::<Op>Response` `:wat::enum::Pure` enums in
+;; `:messages`, kebab methods in `:features`. `journal'` (the satisfier, STONE T1b.2) holds a
+;; `:wat::query::Store` peer and serializes Metric/Log -> StoredRow -> store/put; the WRITE
+;; failures below are therefore the store's `put` failures, surfaced pass-through — NOT a
+;; parallel telemetry error vocabulary (derive-is-the-wall). This is why `Journal` depends on
+;; `:wat::query::` (Constraint/Transient/Fatal, wat/query.wat:78-80) and must load after it — see
+;; this file's stdlib.rs manifest slot.
+;;
+;; WRITE half only (`write-metrics`/`write-logs`) — `query-metrics`/`query-logs` join the surface
+;; at T2 (need `:wat::query::Query`/`Result` + the rete filter, absent today; see
+;; docs/arc/2026/06/278-rules-engine/DESIGN-STONE-T1b1-journal-surface.md § Scope).
+(:wat::core::defsurface :wat::telemetry'::Journal :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat::telemetry'::Journal::WriteMetricsRequest
+     [batch <- (:wat::core::Vector :wat::telemetry'::Metric)])
+   (:wat::core::defenum :wat::telemetry'::Journal::WriteMetricsResponse :wat::enum::Pure
+     :Success    []
+     :Constraint [err <- :wat::query::Constraint]
+     :Transient  [err <- :wat::query::Transient]
+     :Fatal      [err <- :wat::query::Fatal])
+
+   (:wat::core::defrecord :wat::telemetry'::Journal::WriteLogsRequest
+     [batch <- (:wat::core::Vector :wat::telemetry'::Log)])
+   (:wat::core::defenum :wat::telemetry'::Journal::WriteLogsResponse :wat::enum::Pure
+     :Success    []
+     :Constraint [err <- :wat::query::Constraint]
+     :Transient  [err <- :wat::query::Transient]
+     :Fatal      [err <- :wat::query::Fatal])]
+  :features
+  [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
+   (write-metrics [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::WriteMetricsRequest]
+     -> :wat::telemetry'::Journal::WriteMetricsResponse)
+
+   ;; write a logs batch (>=1, homogeneous) ATOMICALLY through the owned store.
+   (write-logs [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::WriteLogsRequest]
+     -> :wat::telemetry'::Journal::WriteLogsResponse)])

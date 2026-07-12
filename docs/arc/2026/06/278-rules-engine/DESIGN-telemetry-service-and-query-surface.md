@@ -1,5 +1,24 @@
-# DESIGN — the wat telemetry facility (`TelemetryService'` sink + `Span` producers + the query surface)
+# DESIGN — the wat telemetry facility (`Journal` sink + `Span` producers + the query surface)
 
+> ⚠️ **TRUED 2026-07-11 — read this banner before the body below; it supersedes stale names + shapes.**
+> 1. **NAMING RATIFIED — the sink is `Journal`, not `TelemetryService'`.** intueri cast twice (surface name):
+>    the first cast retired `TelemetryService'` (the `Service` suffix = the "absent-domain" mumble) and picked
+>    `Sink`; a second cast weighed the builder's `Journal` against `Sink` and `Journal` **won outright** — `Sink`
+>    half-speaks (fails *Honest* on the QUERY half, since a "sink" reads write-only in common usage), while
+>    `Journal` speaks both halves (written-to AND queried; the `journald`/`journalctl` precedent is this design's
+>    exact write+query shape). **Locked:** surface `:wat::telemetry'::Journal` (`:nature :wat::kernel::Peer'`) /
+>    service `:wat::telemetry'::journal'` (`:satisfies`) / verbs `write-metrics`·`query-metrics`·`write-logs`·
+>    `query-logs` (kebab) / messages `Journal::WriteMetricsRequest/Response` … Everywhere below that reads
+>    `TelemetryService'` = `Journal`/`journal'`.
+> 2. **The `:ops` shape below is SUPERSEDED by arc 278 S4c.** A `defservice` may no longer use `:ops`; it must
+>    declare a `defsurface :nature :wat::kernel::Peer'` (owning its per-op `Request`/`Response` in a `:messages`
+>    block) and `:satisfies` it with `:impls` (bodies only). Exemplar: `wat/query.wat` (`Store`) + `wat/query/mem.wat`
+>    (`mem-store'`). The current `Journal` surface spec lives in **`DESIGN-STONE-T1b1-journal-surface.md`**.
+> 3. **The query ops are T2-GATED.** `query-metrics`/`query-logs` reference `:wat::query::Query`/`Result`, which do
+>    **not exist yet** (they are the rete-as-datalog vocabulary — **T2**). So the `Journal` surface ships the WRITE
+>    half now (`write-metrics`/`write-logs`); the query ops JOIN the surface at T2 with the `Query`/`Result` vocab +
+>    the rete filter. T1b's mem↔sqlite differential reads back through the store's own `scan`.
+>
 > **STATUS: DESIGN ratified + names intueri-cast; TOOLING BUILT — 278 unblocked (2026-07-04).** This is **what wat's
 > logging + metrics facility will be.** The door we thought open was closed — **surface-splice was designed-but-unbuilt**;
 > it is **open now**: surface-splice + one-way aggregate construction shipped (arc-293, `4c98b2ef`), so the records are
