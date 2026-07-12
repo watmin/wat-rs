@@ -27,7 +27,7 @@
 ;; default `Reason` satisfier; a structured `:wat::sqlite'::Reason` is a later stone) — the
 ;; satisfier's mechanism, so it lives in :wat::query with the contract ──────────────────────────
 (:wat::core::defn :wat::query::lift-fault [f <- :wat::sqlite'::Fault] -> :wat::query::Fault
-  (:wat::query::Fault (:wat::sqlite'::Fault/message f)))
+  (:wat::query::Fault :message (:wat::sqlite'::Fault/message f)))
 
 ;; ─── per-op response builders — classify a raw sqlite Result into the op's own outcome enum.
 ;; Each `Store::<Op>Response` exposes only the error variants that op's surface declares; a sqlite
@@ -40,13 +40,13 @@
     ((:wat::core::Err e)
       (:wat::core::match e -> :wat::query::Store::EnsureSchemaResponse
         ((:wat::sqlite'::Error::Constraint f)
-          (:wat::query::Store::EnsureSchemaResponse::Constraint (:wat::query::Constraint (:wat::query::lift-fault f))))
+          (:wat::query::Store::EnsureSchemaResponse::Constraint (:wat::query::Constraint :reason (:wat::query::lift-fault f))))
         ;; EnsureSchemaResponse has no :Transient variant (schema DDL has no meaningful
         ;; "retry and it'll pass" semantics at this contract layer) — fold into :Fatal.
         ((:wat::sqlite'::Error::Transient f)
-          (:wat::query::Store::EnsureSchemaResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))
+          (:wat::query::Store::EnsureSchemaResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite'::Error::Fatal f)
-          (:wat::query::Store::EnsureSchemaResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))))
+          (:wat::query::Store::EnsureSchemaResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))))
 
 (:wat::core::defn :wat::query::put-response
   [r <- :wat::core::Result<wat::core::nil,wat::sqlite'::Error>] -> :wat::query::Store::PutResponse
@@ -55,11 +55,11 @@
     ((:wat::core::Err e)
       (:wat::core::match e -> :wat::query::Store::PutResponse
         ((:wat::sqlite'::Error::Transient f)
-          (:wat::query::Store::PutResponse::Transient (:wat::query::Transient (:wat::query::lift-fault f))))
+          (:wat::query::Store::PutResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite'::Error::Constraint f)
-          (:wat::query::Store::PutResponse::Constraint (:wat::query::Constraint (:wat::query::lift-fault f))))
+          (:wat::query::Store::PutResponse::Constraint (:wat::query::Constraint :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite'::Error::Fatal f)
-          (:wat::query::Store::PutResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))))
+          (:wat::query::Store::PutResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))))
 
 (:wat::core::defn :wat::query::scan-response
   [r <- :wat::core::Result<wat::core::Vector<wat::query::Row>,wat::sqlite'::Error>
@@ -69,13 +69,13 @@
     ((:wat::core::Err e)
       (:wat::core::match e -> :wat::query::Store::ScanResponse
         ((:wat::sqlite'::Error::Transient f)
-          (:wat::query::Store::ScanResponse::Transient (:wat::query::Transient (:wat::query::lift-fault f))))
+          (:wat::query::Store::ScanResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
         ;; ScanResponse has no :Constraint variant (a read cannot violate a write constraint) —
         ;; fold into :Fatal (defensive; never hit against this store's own schema).
         ((:wat::sqlite'::Error::Constraint f)
-          (:wat::query::Store::ScanResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))
+          (:wat::query::Store::ScanResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite'::Error::Fatal f)
-          (:wat::query::Store::ScanResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))
+          (:wat::query::Store::ScanResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))
     ((:wat::core::Ok rows)
       (:wat::core::let
         [full?    (:wat::core::= (:wat::core::count rows) limit)
@@ -93,11 +93,11 @@
     ((:wat::core::Err e)
       (:wat::core::match e -> :wat::query::Store::ScanIndexResponse
         ((:wat::sqlite'::Error::Transient f)
-          (:wat::query::Store::ScanIndexResponse::Transient (:wat::query::Transient (:wat::query::lift-fault f))))
+          (:wat::query::Store::ScanIndexResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite'::Error::Constraint f)
-          (:wat::query::Store::ScanIndexResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))
+          (:wat::query::Store::ScanIndexResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite'::Error::Fatal f)
-          (:wat::query::Store::ScanIndexResponse::Fatal (:wat::query::Fatal (:wat::query::lift-fault f))))))
+          (:wat::query::Store::ScanIndexResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))
     ((:wat::core::Ok rows)
       (:wat::core::let
         [full?    (:wat::core::= (:wat::core::count rows) limit)
@@ -119,19 +119,19 @@
 (:wat::core::defn :wat::query::row-from-cells
   [cells <- (:wat::core::Vector :wat::sqlite'::Cell)] -> :wat::query::Row
   (:wat::query::Row
-    (:wat::query::cell->string (:wat::core::nth cells 0))    ;; pk
-    (:wat::query::cell->string (:wat::core::nth cells 1))    ;; sk
-    (:wat::query::cell->string (:wat::core::nth cells 2))))  ;; data
+    :pk (:wat::query::cell->string (:wat::core::nth cells 0))    ;; pk
+    :sk (:wat::query::cell->string (:wat::core::nth cells 1))    ;; sk
+    :data (:wat::query::cell->string (:wat::core::nth cells 2))))  ;; data
 
 (:wat::core::defn :wat::query::index-row-from-cells
   [cells <- (:wat::core::Vector :wat::sqlite'::Cell)] -> :wat::query::IndexRow
   ;; select order is (ipk,isk,pk,sk,data); IndexRow's own field order is (pk,sk,ipk,isk,data).
   (:wat::query::IndexRow
-    (:wat::query::cell->string (:wat::core::nth cells 2))    ;; pk
-    (:wat::query::cell->string (:wat::core::nth cells 3))    ;; sk
-    (:wat::query::cell->string (:wat::core::nth cells 0))    ;; ipk
-    (:wat::query::cell->string (:wat::core::nth cells 1))    ;; isk
-    (:wat::query::cell->string (:wat::core::nth cells 4))))  ;; data
+    :pk (:wat::query::cell->string (:wat::core::nth cells 2))    ;; pk
+    :sk (:wat::query::cell->string (:wat::core::nth cells 3))    ;; sk
+    :ipk (:wat::query::cell->string (:wat::core::nth cells 0))    ;; ipk
+    :isk (:wat::query::cell->string (:wat::core::nth cells 1))    ;; isk
+    :data (:wat::query::cell->string (:wat::core::nth cells 4))))  ;; data
 
 ;; ─── ensure-schema — main + one complete table per named GSI ────────────────────────────────────
 (:wat::core::defn :wat::query::ensure-index-tables

@@ -9,7 +9,7 @@
 ;; Probe 1: match record with single {var :field} → f64(7.5)
 (:wat::core::defn :t::probe1-match-record-single [] -> :wat::core::f64
   (:wat::core::let
-      [rec (:myapp::Voltage 7.5)]
+      [rec (:myapp::Voltage :magnitude 7.5)]
       (:wat::core::match rec -> :wat::core::f64
         ({mag :magnitude} mag)
         (_ 0.0))))
@@ -17,7 +17,7 @@
 ;; Probe 2: match record with multi {var1 :f1 var2 :f2} → i64(7)
 (:wat::core::defn :t::probe2-match-record-multi [] -> :wat::core::i64
   (:wat::core::let
-      [pt (:myapp::Point 3 4)]
+      [pt (:myapp::Point :x 3 :y 4)]
       (:wat::core::match pt -> :wat::core::i64
         ({px :x  py :y} (:wat::core::+ px py))
         (_ 0))))
@@ -55,7 +55,7 @@
 ;; Probe 6: mixed match — Sensor record → "record-matched"
 (:wat::core::defn :t::probe6-compute-from-record [] -> :wat::core::String
   (:wat::core::let
-      [s (:myapp::Sensor 3.14)]
+      [s (:myapp::Sensor :reading 3.14)]
       (:wat::core::match s -> :wat::core::String
         ({r :reading} "record-matched")
         (_ "wildcard"))))

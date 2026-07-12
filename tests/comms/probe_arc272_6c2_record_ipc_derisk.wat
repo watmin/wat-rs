@@ -17,7 +17,7 @@
                 (:wat::core::let
                   ;; the child mints a plain base record and hands it to the parent over the self-peer.
                   [self (:wat::program::self-peer :user::Pt :wat::core::i64)
-                   _    (:wat::kernel::send' self (:user::Pt 7 35))]
+                   _    (:wat::kernel::send' self (:user::Pt :x 7 :y 35))]
                   nil))))
      ;; the parent recv's the record off the lineage channel; reconstruct via the EDN wire.
      pt  (:wat::kernel::recv' svc)]

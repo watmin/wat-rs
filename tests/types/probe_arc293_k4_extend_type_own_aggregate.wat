@@ -26,4 +26,4 @@
   (:k4::Located/mag2 s))
 
 (:wat::core::defn :k4::demo [] -> :wat::core::i64
-  (:k4::report (:k4::Pt 3 4)))    ; 3*3 + 4*4 = 9 + 16 = 25
+  (:k4::report (:k4::Pt :x 3 :y 4)))    ; 3*3 + 4*4 = 9 + 16 = 25

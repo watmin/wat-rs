@@ -12,13 +12,13 @@
 
 ;; derive Bad for k=2 only
 (:wat::rete::defrule :n::mark-bad
-  :when [(:n::A (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
-  :then (:wat::rete::insert (:n::Bad ?k)))
+  :when [(:n::A :k (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
+  :then (:wat::rete::insert (:n::Bad :k ?k)))
 
 ;; Ok = A with NO Bad (negation over a DERIVED fact — needs stratification)
 (:wat::rete::defrule :n::ok
-  :when [(:n::A (?k <- :k)) (:wat::rete::not (:n::Bad (?k <- :k)))]
-  :then (:wat::rete::insert (:n::Ok ?k)))
+  :when [(:n::A :k (?k <- :k)) (:wat::rete::not (:n::Bad :k (?k <- :k)))]
+  :then (:wat::rete::insert (:n::Ok :k ?k)))
 
 ;; ── 3-STRATUM negation chain (the harder case: facts must thread across TWO negation layers) ──
 ;; A(1),A(2),A(3): Bad for k=2 (stratum 0); Warn = A with no Bad (stratum 1); Safe = A with no Warn (stratum 2).
@@ -30,14 +30,14 @@
 (:wat::core::defrecord :n3::Safe [k <- :wat::core::i64])
 
 (:wat::rete::defrule :n3::mark-bad
-  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
-  :then (:wat::rete::insert (:n3::Bad ?k)))
+  :when [(:n3::A :k (?k <- :k)) (:wat::rete::where (:wat::core::= ?k 2))]
+  :then (:wat::rete::insert (:n3::Bad :k ?k)))
 (:wat::rete::defrule :n3::mark-warn
-  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Bad (?k <- :k)))]
-  :then (:wat::rete::insert (:n3::Warn ?k)))
+  :when [(:n3::A :k (?k <- :k)) (:wat::rete::not (:n3::Bad :k (?k <- :k)))]
+  :then (:wat::rete::insert (:n3::Warn :k ?k)))
 (:wat::rete::defrule :n3::mark-safe
-  :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Warn (?k <- :k)))]
-  :then (:wat::rete::insert (:n3::Safe ?k)))
+  :when [(:n3::A :k (?k <- :k)) (:wat::rete::not (:n3::Warn :k (?k <- :k)))]
+  :then (:wat::rete::insert (:n3::Safe :k ?k)))
 
 ;; ── drivers (parameterized by the fire verb — the ONLY thing the differential varies) ──
 ;; The .rs names one entry and passes the fire fn (fire-rules native / fire-rules-spec oracle);
@@ -49,8 +49,8 @@
   -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [rules (:wat::rete::collect-rules :n)
                     s0    (:wat::rete::compile rules)
-                    s1    (:wat::rete::insert s0 (:n::A 1))
-                    s2    (:wat::rete::insert s1 (:n::A 2))
+                    s1    (:wat::rete::insert s0 (:n::A :k 1))
+                    s2    (:wat::rete::insert s1 (:n::A :k 2))
                     fired (fire s2)]
     (:wat::core::PersistentVector
       (:wat::core::length (:wat::rete::query-by-type-string fired "n::Bad"))
@@ -62,9 +62,9 @@
   -> :wat::core::PersistentVector<wat::core::i64>
   (:wat::core::let [rules (:wat::rete::collect-rules :n3)
                     s0    (:wat::rete::compile rules)
-                    s1    (:wat::rete::insert s0 (:n3::A 1))
-                    s2    (:wat::rete::insert s1 (:n3::A 2))
-                    s3    (:wat::rete::insert s2 (:n3::A 3))
+                    s1    (:wat::rete::insert s0 (:n3::A :k 1))
+                    s2    (:wat::rete::insert s1 (:n3::A :k 2))
+                    s3    (:wat::rete::insert s2 (:n3::A :k 3))
                     fired (fire s3)]
     (:wat::core::PersistentVector
       (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Bad"))

@@ -43,7 +43,7 @@
 (:wat::test::deftest :wat-tests::core::record-def::base-construct-x
   ()
   (:wat::core::let
-    [p (:test::rd::Pt 3 4)]
+    [p (:test::rd::Pt :x 3 :y 4)]
     (:wat::test::assert-eq (:test::rd::Pt/x p) 3)))
 
 ;; ─── BASE: slash-accessor (y) ────────────────────────────────────────────────
@@ -51,7 +51,7 @@
 (:wat::test::deftest :wat-tests::core::record-def::base-construct-y
   ()
   (:wat::core::let
-    [p (:test::rd::Pt 3 4)]
+    [p (:test::rd::Pt :x 3 :y 4)]
     (:wat::test::assert-eq (:test::rd::Pt/y p) 4)))
 
 ;; ─── Predicate: true on matching class ──────────────────────────────────────
@@ -59,7 +59,7 @@
 (:wat::test::deftest :wat-tests::core::record-def::predicate-true
   ()
   (:wat::core::let
-    [p (:test::rd::Pt 3 4)]
+    [p (:test::rd::Pt :x 3 :y 4)]
     (:wat::test::assert-eq (:test::rd::is-Pt? p) true)))
 
 ;; ─── Predicate: false on non-matching class ──────────────────────────────────
@@ -70,7 +70,7 @@
 (:wat::test::deftest :wat-tests::core::record-def::predicate-false-cross-class
   ()
   (:wat::core::let
-    [b (:test::rd::Box 99)]
+    [b (:test::rd::Box :w 99)]
     (:wat::test::assert-eq (:test::rd::is-Pt? b) false)))
 
 ;; ─── Class-safety guard — wrong-class receiver panics with "got class" ───────
@@ -94,7 +94,7 @@
       (:wat::test::run-thread
         ;; Accessor returns i64; do discards it and returns nil.
         ;; The class guard fires before the nil is reached — that's the point.
-        (:wat::core::do (:test::rd::Pt/x (:test::rd::Box 5)) ()))
+        (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) ()))
      fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
@@ -111,7 +111,7 @@
 (:wat::test::deftest :wat-tests::core::record-def::holonic-construct-accessor
   ()
   (:wat::core::let
-    [h (:test::rd::HPt 7 8)]
+    [h (:test::rd::HPt :x 7 :y 8)]
     (:wat::test::assert-eq (:test::rd::HPt/x h) 7)))
 
 ;; ─── HOLONIC: to-holon succeeds ──────────────────────────────────────────────
@@ -127,7 +127,7 @@
   ;; the returned HolonAST is a valid point in HD space (self-coincident
   ;; is the minimal geometric sanity check on any HolonAST).
   (:wat::core::let
-    [h (:test::rd::HPt 1 2)
+    [h (:test::rd::HPt :x 1 :y 2)
      v (:wat::holon::to-holon h)]
     (:wat::test::assert-coincident v v)))
 
@@ -145,7 +145,7 @@
         ;; to-holon panics at runtime on base record; do discards result and
         ;; returns nil. The runtime error fires before the nil is reached.
         (:wat::core::let
-          [p (:test::rd::Pt 3 4)]
+          [p (:test::rd::Pt :x 3 :y 4)]
           (:wat::core::do (:wat::holon::to-holon p) ())))
      fail (:wat::kernel::RunResult/failure r)]
     (:wat::core::match fail -> :wat::core::nil
@@ -164,5 +164,5 @@
 (:wat::test::deftest :wat-tests::core::record-def::liskov-holonic-into-base
   ()
   (:wat::core::let
-    [h (:test::rd::HPt 5 6)]
+    [h (:test::rd::HPt :x 5 :y 6)]
     (:wat::test::assert-eq (:test::rd::accepts-base? h) true)))

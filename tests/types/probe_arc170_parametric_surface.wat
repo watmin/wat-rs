@@ -15,5 +15,5 @@
   (get [self] (:probe::IntBox/n self)))
 
 (:wat::core::defn :probe::resolve [] -> :wat::core::i64
-  (:wat::core::let [b (:probe::IntBox 42)]
+  (:wat::core::let [b (:probe::IntBox :n 42)]
     (:probe::Holds/get b)))

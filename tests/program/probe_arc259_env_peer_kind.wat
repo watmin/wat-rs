@@ -5,8 +5,8 @@
 (:wat::core::defn :probe::compute [] -> :wat::core::bool
   (:wat::core::conforms?
     (:wat::program::Env/wat.peer-kind
-      (:wat::program::Env (:wat::time::now) (:wat::time::now) 0 0
-        :wat::program::PeerKind::thread 1 (:wat::program::EmptyEnv)))
+      (:wat::program::Env :wat.started-at (:wat::time::now) :wat.peer-started-at (:wat::time::now) :wat.process-id 0 :wat.os-thread-id 0
+        :wat.peer-kind :wat::program::PeerKind::thread :wat.cpu-count 1 :user.program (:wat::program::EmptyEnv)))
     :wat::program::PeerKind))
 
 ;; seam: run by invoke_user_main; asserts the seam stamps :process for the root main.

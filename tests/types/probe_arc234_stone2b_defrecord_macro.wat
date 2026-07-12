@@ -7,27 +7,27 @@
 (:wat::core::defrecord :myapp::Tag [])
 
 ;; ─── Probe 1: single-field construction returns :wat::core::Record ─────────────────
-(:wat::core::defn :user::probe-1 [] -> :wat::core::Record (:myapp::Voltage 5.0))
+(:wat::core::defn :user::probe-1 [] -> :wat::core::Record (:myapp::Voltage :magnitude 5.0))
 
 ;; ─── Probe 2: per-field accessor returns value ───────────────────────────────
 (:wat::core::defn :user::probe-2 [] -> :wat::core::f64
-  (:wat::core::let [v (:myapp::Voltage 42.5)] (:myapp::Voltage/magnitude v)))
+  (:wat::core::let [v (:myapp::Voltage :magnitude 42.5)] (:myapp::Voltage/magnitude v)))
 
 ;; ─── Probe 3: predicate true on matching class ────────────────────────────────
 (:wat::core::defn :user::probe-3 [] -> :wat::core::bool
-  (:wat::core::let [v (:myapp::Voltage 5.0)] (:myapp::is-Voltage? v)))
+  (:wat::core::let [v (:myapp::Voltage :magnitude 5.0)] (:myapp::is-Voltage? v)))
 
 ;; ─── Probe 4: predicate false on non-matching class ──────────────────────────
 (:wat::core::defn :user::probe-4 [] -> :wat::core::bool
-  (:wat::core::let [c (:myapp::Counter 42)] (:myapp::is-Voltage? c)))
+  (:wat::core::let [c (:myapp::Counter :count 42)] (:myapp::is-Voltage? c)))
 
 ;; ─── Probe 5: multi-field accessors in order ─────────────────────────────────
 (:wat::core::defn :user::probe-5-a [] -> :wat::core::i64
-  (:wat::core::let [t (:myapp::Triple 7 "hello" true)] (:myapp::Triple/a t)))
+  (:wat::core::let [t (:myapp::Triple :a 7 :b "hello" :c true)] (:myapp::Triple/a t)))
 (:wat::core::defn :user::probe-5-b [] -> :wat::core::String
-  (:wat::core::let [t (:myapp::Triple 7 "hello" true)] (:myapp::Triple/b t)))
+  (:wat::core::let [t (:myapp::Triple :a 7 :b "hello" :c true)] (:myapp::Triple/b t)))
 (:wat::core::defn :user::probe-5-c [] -> :wat::core::bool
-  (:wat::core::let [t (:myapp::Triple 7 "hello" true)] (:myapp::Triple/c t)))
+  (:wat::core::let [t (:myapp::Triple :a 7 :b "hello" :c true)] (:myapp::Triple/c t)))
 (:wat::core::defn :user::probe-5 [] -> :wat::core::String
   (:wat::core::let
     [a (:user::probe-5-a)

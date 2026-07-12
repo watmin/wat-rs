@@ -9,7 +9,7 @@
   (:wat::core::let
     [peer (:wat::kernel::spawn-program'
             (:wat::spawn::thread/init
-              (:wat::core::fn [] -> :wat::core::Record (:user::MyEnv 8080)))
+              (:wat::core::fn [] -> :wat::core::Record (:user::MyEnv :port 8080)))
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:wat::kernel::send' self
                 (:user::MyEnv/port

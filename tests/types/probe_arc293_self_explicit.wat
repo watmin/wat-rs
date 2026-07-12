@@ -16,4 +16,4 @@
 
 (:wat::core::defn :se::greet [x <- :se::Named] -> :wat::core::String (:se::Named/name x))
 
-(:wat::core::defn :se::demo [] -> :wat::core::String (:se::greet (:se::Person "bob")))
+(:wat::core::defn :se::demo [] -> :wat::core::String (:se::greet (:se::Person :name "bob")))

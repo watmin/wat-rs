@@ -1137,6 +1137,12 @@ pub fn register_aggregate_methods(
         // so a constructed value flows where the specific type is required — matching both the old
         // struct ctor and the old record `defn`'s `-> ~fqdn`.
         {
+            // Arc 294 item 9a — the ctor codegen flip: the bare type name (`agg.name`)
+            // becomes a KWARGS macro (emitted from wat, see the aggregate macros in
+            // Record.wat/core.wat); the POSITIONAL ctor this loop mints moves to the
+            // type-name PRIME `:ns::T'`. Both the `name:` field and the `sym.functions`
+            // registration key move together — this is THE ONE ctor source, now at the prime.
+            let ctor_name = format!("{}'", agg.name);
             let all_param_names: Vec<String> = agg.fields.iter().map(|(n, _)| n.clone()).collect();
             let all_param_types: Vec<crate::types::TypeExpr> =
                 agg.fields.iter().map(|(_, t)| t.clone()).collect();
@@ -1147,7 +1153,7 @@ pub fn register_aggregate_methods(
                 new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), crate::rust_caller_span!()));
             }
             let ctor_func = Function {
-                name: Some(agg.name.clone()),
+                name: Some(ctor_name.clone()),
                 params: all_param_names,
                 type_params: agg.type_params.clone(),
                 param_types: all_param_types,
@@ -1157,14 +1163,14 @@ pub fn register_aggregate_methods(
                 body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, crate::rust_caller_span!()))),
                 closed_env: None,
             };
-            if sym.functions.contains_key(&agg.name) {
+            if sym.functions.contains_key(&ctor_name) {
                 return Err(RuntimeError {
                     span: crate::rust_caller_span!(),
-                    kind: RuntimeErrorKind::DuplicateDefine(agg.name.clone()),
+                    kind: RuntimeErrorKind::DuplicateDefine(ctor_name.clone()),
                 }
                 .into());
             }
-            sym.functions.insert(agg.name.clone(), Arc::new(ctor_func));
+            sym.functions.insert(ctor_name, Arc::new(ctor_func));
         }
 
         // Emit ONE accessor per OWN field with the correct absolute index.

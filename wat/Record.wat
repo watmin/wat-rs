@@ -92,6 +92,19 @@
 ;; nature-dispatched ctor). Drop the :wat::core::Record::of wrapper + field-extraction
 ;; let; bare field syms splice directly as positional args to aggregate-new.
 ;; Arc 291 hygiene preserved: raw-ch/nf/syms dance keeps scope-tagged AST nodes.
+;;
+;; Arc 294 item 9a — CONSTRUCTION ERGONOMICS FLIP. The bare type name `~fqdn` is now the
+;; KWARGS macro (order-free `(:ns::T :field 1 …)`); the raw positional ctor moved to the
+;; PRIME `:ns::T'` (minted in `register_aggregate_methods`, runtime.rs). This macro now
+;; emits a `do` of TWO forms: the `recordtype` decl (unchanged) + a companion `defmacro`
+;; at the bare `~fqdn` that thin-forwards to `:wat::core::kwargs-lower` in its pure-
+;; positional mode (sentinel `:wat::core::agg-positional`) — mirrors `:wat::core::defn`'s
+;; own companion-emission template (wat/core.wat, the kwargs branch) at a shallower depth
+;; (no $impl fn / Coords / grant-handles — just the reorder-and-call).
+;;
+;; The companion QUASIQUOTES the kwargs-lower call (returns the form; does not evaluate
+;; kwargs-lower itself) — a data-skip past the F5 purity gate, proven by the arc-294
+;; de-risk (`derisk_agg_kwargs.wat`).
 (:wat::core::defmacro :wat::core::defrecord
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
@@ -103,11 +116,50 @@
   ;; The old expand-time `raw-ch/nf/syms` groups-of-3 walk (registry-blind, choked on `~@`)
   ;; is gone along with the whole lazy-seq / arc-118 concern.
   ;;
-  ;; The macro now expands to the bare `recordtype` decl — NO `do` wrapper. A `do` wrapping
-  ;; only a type decl would be emptied by `register_types` (which strips type decls from a
-  ;; `do` body), leaving `(:wat::core::do)` → "do requires at least one form".
-  `(:wat::core::recordtype ~fqdn :wat::core::Record
-     [~@fields]))
+  ;; NOTE: the kwargs-companion field-name extraction below walks `fields` at THIS macro's
+  ;; own expansion time — BEFORE `~@:Surface` splices are resolved (that happens later, at
+  ;; type-registration, in `parse_aggregate_fields_with_splices`). A splice-bearing field
+  ;; vector (e.g. wat/telemetry.wat's `Metric`/`Log`) is therefore NOT correctly handled by
+  ;; this extraction — a known Phase-A gap, not silently patched over here.
+  (:wat::core::let
+    [field-ch     (:wat::core::ast->children fields)
+     field-len    (:wat::core::length field-ch)
+     n-fields     (:wat::core::i64::/ field-len 3)
+     fname-nodes  (:wat::core::foldl
+                    (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                      (:wat::core::conj acc
+                        (:wat::core::Option/expect
+                          (:wat::core::get field-ch (:wat::core::i64::* i 3))
+                          "defrecord kwargs companion: fname index")))
+                    (:wat::core::Vector :wat::WatAST)
+                    (:wat::core::range 0 n-fields))
+     field-names-ast-vec (:wat::core::with-children fields fname-nodes)
+     fqdn-str      (:wat::core::keyword/to-string fqdn)
+     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-str "'"))
+     ns-parts      (:wat::core::string::split fqdn-str "::")
+     n-ns-parts    (:wat::core::length ns-parts)
+     ns-lead       (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                       (:wat::core::conj acc
+                         (:wat::core::Option/expect (:wat::core::get ns-parts i) "defrecord kwargs companion: ns-part index")))
+                     (:wat::core::Vector :wat::core::String)
+                     (:wat::core::range 0 (:wat::core::i64::- n-ns-parts 1)))
+     ns-joined     (:wat::core::string::join "::" ns-lead)
+     ns-colon-str  (:wat::core::string::concat ":" (:wat::core::string::concat ns-joined "::"))
+     call-args-sym (:wat::core::symbol-node "call-args")]
+    ;; The macro now expands to `(do recordtype companion)` — NOT emptied by `register_types`
+    ;; (which strips only the type decl from a `do` body): the companion `defmacro` survives.
+    `(:wat::core::do
+       (:wat::core::recordtype ~fqdn :wat::core::Record
+         [~@field-ch])
+       (:wat::core::defmacro ~fqdn
+         [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+         -> :wat::WatAST
+         (:wat::core::let
+           [~(:wat::core::symbol-node "_kl-impl") (:wat::core::keyword-node ~prime-kw-str)
+            ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
+            ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node ~ns-colon-str)]
+           `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args))))))
 
 ;; Arc 293.R2.2 — accessor emission removed from BASE macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for
@@ -120,6 +172,10 @@
 ;; nature-dispatched ctor). The entire hologram quasiquote (former lines ~157-197)
 ;; is DELETED — build_holon_hologram in Rust now derives the hologram internally.
 ;; Arc 291 hygiene preserved: raw-ch/nf/syms dance keeps scope-tagged AST nodes.
+;;
+;; Arc 294 item 9a — CONSTRUCTION ERGONOMICS FLIP (same shape as the BASE macro above;
+;; only the `recordtype` parent differs: `:wat::holon::Record` vs `:wat::core::Record`).
+;; See the BASE macro's comments for the full rationale + the splice-field known gap.
 (:wat::core::defmacro :wat::holon::defrecord
   [fqdn   <- :wat::WatAST
    fields <- :wat::WatAST]
@@ -127,9 +183,43 @@
   ;; Arc 293 surface-splice — constructor `defn` DELETED (see the BASE macro above). The
   ;; holon ctor is minted in `register_aggregate_methods` from the registered fields; the
   ;; `aggregate-new` body is nature-blind and derives the hologram internally for HolonRecord.
-  ;; Bare `recordtype` decl — NO `do` wrapper (see the BASE macro's note).
-  `(:wat::core::recordtype ~fqdn :wat::holon::Record
-     [~@fields]))
+  (:wat::core::let
+    [field-ch     (:wat::core::ast->children fields)
+     field-len    (:wat::core::length field-ch)
+     n-fields     (:wat::core::i64::/ field-len 3)
+     fname-nodes  (:wat::core::foldl
+                    (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                      (:wat::core::conj acc
+                        (:wat::core::Option/expect
+                          (:wat::core::get field-ch (:wat::core::i64::* i 3))
+                          "holon defrecord kwargs companion: fname index")))
+                    (:wat::core::Vector :wat::WatAST)
+                    (:wat::core::range 0 n-fields))
+     field-names-ast-vec (:wat::core::with-children fields fname-nodes)
+     fqdn-str      (:wat::core::keyword/to-string fqdn)
+     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-str "'"))
+     ns-parts      (:wat::core::string::split fqdn-str "::")
+     n-ns-parts    (:wat::core::length ns-parts)
+     ns-lead       (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                       (:wat::core::conj acc
+                         (:wat::core::Option/expect (:wat::core::get ns-parts i) "holon defrecord kwargs companion: ns-part index")))
+                     (:wat::core::Vector :wat::core::String)
+                     (:wat::core::range 0 (:wat::core::i64::- n-ns-parts 1)))
+     ns-joined     (:wat::core::string::join "::" ns-lead)
+     ns-colon-str  (:wat::core::string::concat ":" (:wat::core::string::concat ns-joined "::"))
+     call-args-sym (:wat::core::symbol-node "call-args")]
+    `(:wat::core::do
+       (:wat::core::recordtype ~fqdn :wat::holon::Record
+         [~@field-ch])
+       (:wat::core::defmacro ~fqdn
+         [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+         -> :wat::WatAST
+         (:wat::core::let
+           [~(:wat::core::symbol-node "_kl-impl") (:wat::core::keyword-node ~prime-kw-str)
+            ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
+            ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node ~ns-colon-str)]
+           `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args))))))
 
 ;; Arc 293.R2.2 — accessor emission removed from HOLONIC macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for

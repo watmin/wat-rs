@@ -35,7 +35,7 @@
 
 ;; ─── regression sentinels ─────────────────────────────────────────────────────
 (:wat::core::defn :user::probe08 [] -> :wat::core::bool
-  (:wat::core::conforms? (:my::Circle 1.0) :my::Circle))
+  (:wat::core::conforms? (:my::Circle :radius 1.0) :my::Circle))
 
 (:wat::core::defn :user::probe09 [] -> :wat::core::bool
   (:wat::core::conforms? 1 :wat::core::i64))

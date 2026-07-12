@@ -13,18 +13,18 @@
                   :record (:wat::query::mem-store'::Record (:wat::core::PersistentVector)))
      store      (:wat::kernel::connect' (:wat::query::mem-store'::Handle/addr h))
      empty-ik   (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
-     ik-a       (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey "u#1" "v1"))
-     ik-c       (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey "u#1" "v2"))
+     ik-a       (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
+     ik-c       (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))
      input-rows (:wat::core::Vector :wat::query::StoredRow
-                  (:wat::query::StoredRow "u#1" "a" "{:v 1}" ik-a)
-                  (:wat::query::StoredRow "u#1" "b" "{:v 2}" empty-ik)
-                  (:wat::query::StoredRow "u#1" "c" "{:v 3}" ik-c)
-                  (:wat::query::StoredRow "u#1" "d" "{:v 4}" empty-ik)
-                  (:wat::query::StoredRow "u#1" "e" "{:v 5}" empty-ik))
+                  (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
+                  (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik)
+                  (:wat::query::StoredRow :pk "u#1" :sk "c" :data "{:v 3}" :index-keys ik-c)
+                  (:wat::query::StoredRow :pk "u#1" :sk "d" :data "{:v 4}" :index-keys empty-ik)
+                  (:wat::query::StoredRow :pk "u#1" :sk "e" :data "{:v 5}" :index-keys empty-ik))
 
      es-resp    (:wat::query::Store/ensure-schema store
-                  (:wat::query::Store::EnsureSchemaRequest (:wat::query::TableSchema "pk" "sk")
-                    (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema "by-v" "pk" "sk" "ipk" "isk"))))
+                  (:wat::query::Store::EnsureSchemaRequest (:wat::query::TableSchema :pk "pk" :sk "sk")
+                    (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
      put-resp   (:wat::query::Store/put store (:wat::query::Store::PutRequest input-rows))
 
      page1-resp (:wat::query::Store/scan store (:wat::query::Store::ScanRequest "u#1" "a" "z" 2 :wat::core::None))

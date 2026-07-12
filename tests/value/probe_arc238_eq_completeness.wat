@@ -7,10 +7,10 @@
 ;; ─── Records ──────────────────────────────────────────────────────────────────
 
 (:wat::core::defn :t::record-equal [] -> :wat::core::bool
-  (:wat::core::= (:my::Pt 1 2) (:my::Pt 1 2)))
+  (:wat::core::= (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 2)))
 
 (:wat::core::defn :t::record-unequal-value [] -> :wat::core::bool
-  (:wat::core::= (:my::Pt 1 2) (:my::Pt 1 9)))
+  (:wat::core::= (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 9)))
 
 ;; ─── HashMap ──────────────────────────────────────────────────────────────────
 

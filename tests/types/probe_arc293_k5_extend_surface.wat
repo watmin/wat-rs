@@ -31,7 +31,7 @@
 ;; to-record into each pair tier; the default `dbl` rides both (Option A) — works ONLY via extend-surface:
 (:wat::core::defn :k5::demo [] -> :wat::core::i64
   (:wat::core::let
-    [p  (:k5::Pt 21)
+    [p  (:k5::Pt :x 21)
      cr (:wat::core::to-record  p :k5::HasX)        ; -> :k5::HasX$core-record  {x 21}
      hr (:wat::holon::to-record p :k5::HasX)]       ; -> :k5::HasX$holon-record {x 21}
     (:wat::core::i64::+

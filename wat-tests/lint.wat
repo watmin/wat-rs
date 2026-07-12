@@ -21,7 +21,7 @@
   ;; all returning true, with `false` as the terminator.
   (:wat::core::let
     [src "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))"
-     sf  (:wat::source::File "t.wat" src)
+     sf  (:wat::source::File :path "t.wat" :source src)
      files (:wat::core::Vector :wat::source::File sf)
      findings (:wat::lint::lint-source files)]
     (:wat::core::do
@@ -45,13 +45,13 @@
   (:wat::core::let
     [;; a: single if — one branch, no chain
      src-a "(:wat::core::if (:wat::core::= x \"a\") true false)"
-     sf-a  (:wat::source::File "a.wat" src-a)
+     sf-a  (:wat::source::File :path "a.wat" :source src-a)
      ;; b: two ifs over different vars — var changes, so not a single-var ladder
      src-b "(:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= y \"b\") true false))"
-     sf-b  (:wat::source::File "b.wat" src-b)
+     sf-b  (:wat::source::File :path "b.wat" :source src-b)
      ;; c: 2-deep chain over same var — below >=3 threshold
      src-c "(:wat::core::if (:wat::core::= z \"a\") true (:wat::core::if (:wat::core::= z \"b\") true false))"
-     sf-c  (:wat::source::File "c.wat" src-c)
+     sf-c  (:wat::source::File :path "c.wat" :source src-c)
      files (:wat::core::Vector :wat::source::File sf-a sf-b sf-c)
      findings (:wat::lint::lint-source files)]
     (:wat::test::assert-eq (:wat::core::length findings) 0)))
@@ -86,8 +86,8 @@
   ;; deporder/verify must produce a violation; violations->findings must map it
   ;; to a Finding with rule == "load-order".
   (:wat::core::let
-    [a     (:wat::source::File "a.wat" "(:t::caller (:t::f))")
-     b     (:wat::source::File "b.wat" "(:wat::core::defn :t::f [] -> :wat::core::i64 1)")
+    [a     (:wat::source::File :path "a.wat" :source "(:t::caller (:t::f))")
+     b     (:wat::source::File :path "b.wat" :source "(:wat::core::defn :t::f [] -> :wat::core::i64 1)")
      files (:wat::core::Vector :wat::source::File a b)
      viols (:wat::deporder::verify files)
      rule-zero-findings (:wat::lint::violations->findings viols)]
@@ -112,7 +112,7 @@
   ;; textbook hand-rolled template that `format` cures.
   (:wat::core::let
     [src "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" of \" b))"
-     sf  (:wat::source::File "t.wat" src)
+     sf  (:wat::source::File :path "t.wat" :source src)
      files (:wat::core::Vector :wat::source::File sf)
      findings (:wat::lint::lint-source files)]
     (:wat::core::do
@@ -140,10 +140,10 @@
   (:wat::core::let
     [;; a: all-literal — both args are string literals
      src-a "(:wat::core::string::concat \"a\" \"b\")"
-     sf-a  (:wat::source::File "a.wat" src-a)
+     sf-a  (:wat::source::File :path "a.wat" :source src-a)
      ;; b: all-value — both args are symbols (non-literals)
      src-b "(:wat::core::string::concat a b)"
-     sf-b  (:wat::source::File "b.wat" src-b)
+     sf-b  (:wat::source::File :path "b.wat" :source src-b)
      files (:wat::core::Vector :wat::source::File sf-a sf-b)
      findings (:wat::lint::lint-source files)]
     (:wat::test::assert-eq (:wat::core::length findings) 0)))
@@ -192,15 +192,15 @@
   (:wat::core::let
     [;; Part A: bare-symbol concat
      src-a "(:wat::core::defn :u::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" y: \" b))"
-     sf-a  (:wat::source::File "a.wat" src-a)
+     sf-a  (:wat::source::File :path "a.wat" :source src-a)
      fixed-a (:wat::lint::lint-fix-file sf-a)
      ;; Part B: compound-slot concat
      src-b "(:wat::core::defn :u::h [n <- :wat::core::i64] -> :wat::core::String (:wat::core::string::concat \"n=\" (:wat::core::i64::to-string n)))"
-     sf-b  (:wat::source::File "b.wat" src-b)
+     sf-b  (:wat::source::File :path "b.wat" :source src-b)
      fixed-b (:wat::lint::lint-fix-file sf-b)
      ;; Part C: same-symbol-twice dedup
      src-c "(:wat::core::defn :u::k [x <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"pre:\" x \"-\" x))"
-     sf-c  (:wat::source::File "c.wat" src-c)
+     sf-c  (:wat::source::File :path "c.wat" :source src-c)
      fixed-c (:wat::lint::lint-fix-file sf-c)]
     (:wat::core::do
       ;; Part A: must contain format call with {a}/{b} slots and kwargs
@@ -244,7 +244,7 @@
   ;; defn-body one to format; no string::concat survives.
   (:wat::core::let
     [src "(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String (:wat::core::let [s (:wat::core::ast-name x) nm (:wat::core::string::concat s \"::Op\")] nm)) (:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a))"
-     sf  (:wat::source::File "t.wat" src)
+     sf  (:wat::source::File :path "t.wat" :source src)
      fixed (:wat::lint::lint-fix-file sf)]
     (:wat::core::do
       ;; defmacro-body concat must become interpolate
@@ -268,10 +268,10 @@
   ;; lint-fix-file (no edits applied means source is returned unchanged).
   (:wat::core::let
     [src-ladder "(:wat::core::defn :t::f [x <- :wat::core::String] -> :wat::core::bool (:wat::core::if (:wat::core::= x \"a\") true (:wat::core::if (:wat::core::= x \"b\") true (:wat::core::if (:wat::core::= x \"c\") true false))))"
-     sf-ladder  (:wat::source::File "t.wat" src-ladder)
+     sf-ladder  (:wat::source::File :path "t.wat" :source src-ladder)
      fixed      (:wat::lint::lint-fix-file sf-ladder)
      src-clean  "(:wat::core::defn :t::add [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ a b))"
-     sf-clean   (:wat::source::File "clean.wat" src-clean)
+     sf-clean   (:wat::source::File :path "clean.wat" :source src-clean)
      fixed-clean (:wat::lint::lint-fix-file sf-clean)]
     (:wat::core::do
       ;; Part A: fixed source must contain "contains?" and "HashSet"

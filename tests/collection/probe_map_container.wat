@@ -45,13 +45,13 @@
 
 (:wat::core::defn :p::base-record-assoc-field-updated [] -> :wat::core::i64
   (:wat::core::let
-    [pt  (:probe::mr::Pt 3 4)
+    [pt  (:probe::mr::Pt :x 3 :y 4)
      pt2 (:wat::core::assoc pt :y 99)]
     (:probe::mr::Pt/y pt2)))
 
 (:wat::core::defn :p::base-record-assoc-preserves-other-fields [] -> :wat::core::i64
   (:wat::core::let
-    [c  (:probe::mr::Coord 10 20)
+    [c  (:probe::mr::Coord :x 10 :y 20)
      c2 (:wat::core::assoc c :y 99)]
     (:probe::mr::Coord/x c2)))
 
@@ -59,7 +59,7 @@
 
 (:wat::core::defn :p::holonic-record-assoc-field-updated [] -> :wat::core::i64
   (:wat::core::let
-    [v  (:probe::mr::Volt 10)
+    [v  (:probe::mr::Volt :value 10)
      v2 (:wat::core::assoc v :value 77)]
     (:probe::mr::Volt/value v2)))
 
@@ -67,36 +67,36 @@
 
 (:wat::core::defn :p::record-get-existing-field [] -> (:wat::core::Option :wat::core::Value)
   (:wat::core::let
-    [s (:probe::rgal::Sensor 42 "temp")]
+    [s (:probe::rgal::Sensor :id 42 :label "temp")]
     (:wat::core::get s :id)))
 
 (:wat::core::defn :p::record-get-missing-field [] -> (:wat::core::Option :wat::core::Value)
   (:wat::core::let
-    [s (:probe::rgal::Sensor2 7)]
+    [s (:probe::rgal::Sensor2 :id 7)]
     (:wat::core::get s :no-such-field)))
 
 ;; ── Record contains? ──
 
 (:wat::core::defn :p::record-contains-existing [] -> :wat::core::bool
   (:wat::core::let
-    [n (:probe::rgal::Node 1 2)]
+    [n (:probe::rgal::Node :x 1 :y 2)]
     (:wat::core::contains? n :x)))
 
 (:wat::core::defn :p::record-contains-missing [] -> :wat::core::bool
   (:wat::core::let
-    [n (:probe::rgal::Node2 5)]
+    [n (:probe::rgal::Node2 :x 5)]
     (:wat::core::contains? n :z)))
 
 ;; ── Record length ──
 
 (:wat::core::defn :p::record-length [] -> :wat::core::i64
   (:wat::core::let
-    [t (:probe::rgal::Triple 1 2 3)]
+    [t (:probe::rgal::Triple :a 1 :b 2 :c 3)]
     (:wat::core::length t)))
 
 ;; ── Record empty? ──
 
 (:wat::core::defn :p::record-empty-nonempty [] -> :wat::core::bool
   (:wat::core::let
-    [p (:probe::rgal::Pair 10 20)]
+    [p (:probe::rgal::Pair :a 10 :b 20)]
     (:wat::core::empty? p)))

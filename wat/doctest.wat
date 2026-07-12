@@ -54,8 +54,8 @@
                                   (:wat::core::concat acc
                                     (:wat::core::Vector :wat::doctest::Failure
                                       (:wat::doctest::Failure
-                                        (:wat::intrinsic::Example/fqdn ex)
-                                        "doctested @example on a non-pure∧deterministic intrinsic")))
+                                        :fqdn (:wat::intrinsic::Example/fqdn ex)
+                                        :reason "doctested @example on a non-pure∧deterministic intrinsic")))
                                   acc)
                           expected-ast (:wat::core::Option/expect  
                                           (:wat::intrinsic::Example/expected ex)
@@ -70,8 +70,8 @@
             (:wat::core::concat acc1
               (:wat::core::Vector :wat::doctest::Failure
                 (:wat::doctest::Failure
-                  (:wat::intrinsic::Example/fqdn ex)
-                  "@example result did not match #=>")))
+                  :fqdn (:wat::intrinsic::Example/fqdn ex)
+                  :reason "@example result did not match #=>")))
             acc1))
         ;; run=false: skip
         acc))

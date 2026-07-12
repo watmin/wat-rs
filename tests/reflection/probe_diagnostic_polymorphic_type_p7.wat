@@ -4,4 +4,4 @@
 (:wat::core::defrecord :myapp::Voltage [magnitude <- :wat::core::f64])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
-  (:wat::core::type (:myapp::Voltage 5.0)))
+  (:wat::core::type (:myapp::Voltage :magnitude 5.0)))

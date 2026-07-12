@@ -17,5 +17,5 @@
   :when
   [(:weather::ColdAndWindy (?c <- :celsius) (?k <- :kph))]
   :then
-  (:wat::rete::insert (:weather::WeatherAlert ?c ?k)))
+  (:wat::rete::insert (:weather::WeatherAlert :celsius ?c :kph ?k)))
 

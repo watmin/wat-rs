@@ -44,7 +44,7 @@
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
      addr (:wat::kernel::recv' svc)
      ;; hand the child its initial state over the lineage channel (parent→child — the NEW direction).
-     _    (:wat::kernel::send' svc (:user::Counter 1000))
+     _    (:wat::kernel::send' svc (:user::Counter :base 1000))
      ;; dial the capability; round-trip 5 -> base + 5 == 1005 (only if state0 crossed).
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c 5)

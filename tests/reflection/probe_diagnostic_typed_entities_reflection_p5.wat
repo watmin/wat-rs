@@ -8,7 +8,7 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-      [p          (:myapp::Point 3 4)
+      [p          (:myapp::Point :x 3 :y 4)
        h          (:wat::holon::to-holon p)
        right-opt  (:wat::holon::Bind/right h)
        right      (:wat::core::Option/expect right-opt "right missing")

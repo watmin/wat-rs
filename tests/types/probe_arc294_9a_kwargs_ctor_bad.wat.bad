@@ -1,0 +1,8 @@
+;; arc 294 item 9a — CONSTRUCTION ERGONOMICS FLIP: bare-positional construction of an
+;; aggregate ctor is RETIRED (the bare type name is now the kwargs macro). This fixture
+;; feeds RAW POSITIONAL args to the bare name — a LOCATED error is expected (the bare
+;; kwargs macro cannot reorder positional values against `:key` names).
+(:wat::core::defrecord :probe294abad::Pair [a <- :wat::core::i64  b <- :wat::core::i64])
+
+(:wat::core::defn :probe294abad::mk [] -> :probe294abad::Pair
+  (:probe294abad::Pair 1 2))

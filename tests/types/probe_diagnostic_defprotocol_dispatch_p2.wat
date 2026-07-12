@@ -14,4 +14,4 @@
   "voltage-after-dispatcher")
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
-  (:myapp::Formattable/format (:myapp::Voltage 5.0)))
+  (:myapp::Formattable/format (:myapp::Voltage :magnitude 5.0)))

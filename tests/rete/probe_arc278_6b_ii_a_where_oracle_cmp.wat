@@ -9,5 +9,5 @@
   [(:weather::Temperature (?c <- :celsius))
    (:wat::rete::where (:wat::core::> ?c 0))]
   :then
-  (:wat::rete::insert (:wg::Gate ?c)))
+  (:wat::rete::insert (:wg::Gate :celsius ?c)))
 

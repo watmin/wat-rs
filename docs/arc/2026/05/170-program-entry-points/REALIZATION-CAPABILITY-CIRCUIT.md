@@ -1391,6 +1391,14 @@ is ahead.*
 
 ## RESUME-HERE (curare CHECKPOINT — 2026-07-11c; arc 170 CAPABILITY CIRCUIT is COMPLETE — pivoting to 278 telemetry → the chaos engine)
 
+> ⚠️ **DETOUR IN FLIGHT (2026-07-12): arc 294 item 9a — the aggregate-construction flip (`bare = kwargs`, positional →
+> the `:ns::T'` prime).** This opened while building 278 T1b and is NOT finished — **the tree HEAD is a WIP commit with a
+> BROKEN stdlib freeze.** Read **`docs/arc/2026/06/294-holon-returns-to-vsa/RESUME-9a-FLIP.md` FIRST** — it is the live
+> map. Short version: the flip codegen + the 136-file `wat-fix` source migration are DONE + durable; a bounded tail of
+> *macro-generated* positional ctors still breaks the freeze (each self-named by a live DEBUG in `kwargs-lower`, each
+> fixed by the PRIME treatment). Last GREEN commit: `dec6269d`. Finish the tail → green freeze → floor → clean commit,
+> THEN return to the 278 T1b picture below (`journal'` service = T1b.2). The 170 circuit itself is still COMPLETE.
+
 ```clojure
 {:head   "ec319b1b — the CADENDO CRESCO + CERTVS PERGO realizations (the 2026-07-11 pair). Last CODE commit f20a8a1e
           (the bracket decomplection). ARC 170's capability circuit is CLOSED: C2 THE KILL (b1a17bf0), the DECOMPLECTION

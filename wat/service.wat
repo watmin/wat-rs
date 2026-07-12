@@ -222,9 +222,11 @@
      ;; arc 291 kwargs-start: renamed "d"→"record" so the default-init start kwarg is :record.
      d-sym          (:wat::core::symbol-node "record")
      s-sym          (:wat::core::symbol-node "s")
-     ;; state-new-kw: :<fqdn>::State — the bare struct ctor (arc 293.R2.3: /new annihilated)
+     ;; state-new-kw: :<fqdn>::State' — the PRIME positional ctor (arc 294 item 9a: the bare
+     ;; `:<fqdn>::State` is now the kwargs UX macro; generated machinery constructs via the prime,
+     ;; exactly as kwargs-lower does for its `::Kwargs` bundle).
      state-new-kw   (:wat::core::keyword/from-string
-                      (:wat::core::string::interpolate "{fqdn-str}::State" :fqdn-str fqdn-str))
+                      (:wat::core::string::interpolate "{fqdn-str}::State'" :fqdn-str fqdn-str))
      ;; init-fn-node: user-provided fn, or default, or macro-error
      init-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "init")
                       -> :wat::WatAST

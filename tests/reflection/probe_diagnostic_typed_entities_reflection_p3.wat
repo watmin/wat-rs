@@ -5,6 +5,6 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::Option<wat::holon::HolonAST>
   (:wat::core::let
-      [v (:myapp::Voltage 5.0)
+      [v (:myapp::Voltage :magnitude 5.0)
        h (:wat::holon::to-holon v)]
       (:wat::holon::Bind/right h)))

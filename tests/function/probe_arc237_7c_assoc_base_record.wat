@@ -6,4 +6,4 @@
 (:wat::core::defrecord :my::Voltage [value <- :wat::core::i64])
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:my::Voltage/value
-    (:wat::core::assoc (:my::Voltage 10) :value 42)))
+    (:wat::core::assoc (:my::Voltage :value 10) :value 42)))

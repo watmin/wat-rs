@@ -7,11 +7,11 @@
 (:wat::rete::defrule :weather::cold-and-windy
   :when [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 20))
          (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]
-  :then (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+  :then (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))
 (:wat::rete::defrule :weather::cold-temp
   :when [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 0))]
-  :then (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+  :then (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))
 (:wat::core::defn :weather::helper [] -> :wat::core::i64 42)
 (:wat::rete::defrule :other::windy
-  :when [(:weather::WindSpeed (?loc <- :location) (?k <- :kph))]
-  :then (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+  :when [(:weather::WindSpeed :kph (?loc <- :location) :location (?k <- :kph))]
+  :then (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))

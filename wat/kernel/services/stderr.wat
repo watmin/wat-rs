@@ -41,4 +41,4 @@
       (:wat::io::IOWriter/writeln out
         (:wat::kernel::services::StdErrService::Req/line req))]
     (:wat::kernel::services::StdErrService::Rep
-      (:wat::kernel::services::StdErrService::Req/thread-id req))))
+      :thread-id (:wat::kernel::services::StdErrService::Req/thread-id req))))

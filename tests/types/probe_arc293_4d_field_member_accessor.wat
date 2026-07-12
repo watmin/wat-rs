@@ -18,4 +18,4 @@
 ;; Call the FIELD member as an accessor THROUGH the surface — routes by runtime type to :t::Ball/color.
 (:wat::core::defn :t::hue [c <- :t::Colored] -> :wat::core::String (:t::Colored/color c))
 
-(:wat::core::defn :t::probe [] -> :wat::core::String (:t::hue (:t::Ball "red" 2.0)))
+(:wat::core::defn :t::probe [] -> :wat::core::String (:t::hue (:t::Ball :color "red" :radius 2.0)))

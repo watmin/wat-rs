@@ -5,7 +5,7 @@
   [secret <- :wat::core::i64
    name   <- :wat::core::i64])
 (:wat::core::defn :my::admin::mint [] -> :my::Vault
-  (:my::Vault 0 0))
+  (:my::Vault :secret 0 :name 0))
 (:wat::core::defn :my::auditor::audit
   [v <- :my::Vault] -> :wat::core::i64
   (:my::Vault/secret v))

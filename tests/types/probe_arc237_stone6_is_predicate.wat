@@ -32,14 +32,14 @@
 
 ;; ─── union (THE PAYLOAD) ──────────────────────────────────────────────────────
 (:wat::core::defn :user::probe07 [] -> :wat::core::bool
-  (:my::is-Shape? (:my::Circle 1.0)))
+  (:my::is-Shape? (:my::Circle :radius 1.0)))
 
 (:wat::core::defn :user::probe08 [] -> :wat::core::bool
-  (:my::is-Shape? (:my::Square 2.0)))
+  (:my::is-Shape? (:my::Square :side 2.0)))
 
 (:wat::core::defn :user::probe09 [] -> :wat::core::bool
   (:my::is-Shape? 1))
 
 ;; ─── record (regression: exists via Record.wat) ───────────────────────────────
 (:wat::core::defn :user::probe10 [] -> :wat::core::bool
-  (:my::is-Circle? (:my::Circle 1.0)))
+  (:my::is-Circle? (:my::Circle :radius 1.0)))

@@ -19,4 +19,4 @@
 (:wat::core::defn :geo::needs-sized [s <- :geo::Sized] -> :wat::core::nil nil)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:geo::needs-sized (:geo::Box 5)))
+  (:geo::needs-sized (:geo::Box :w 5)))

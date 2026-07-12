@@ -5,5 +5,5 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-      [v (:myapp::Voltage 5.0)]
+      [v (:myapp::Voltage :magnitude 5.0)]
       (:wat::holon::extract-classifier v)))

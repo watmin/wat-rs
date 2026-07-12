@@ -80,7 +80,7 @@
     [code       (:wat::core::first raw)
      diagnostic (:wat::core::second raw)
      message    (:wat::core::third raw)
-     fault      (:wat::sqlite'::Fault op code diagnostic message)]
+     fault      (:wat::sqlite'::Fault :op op :code code :diagnostic diagnostic :message message)]
     (:wat::core::if (:wat::core::or (:wat::core::= code 5) (:wat::core::= code 6))
       (:wat::sqlite'::Error::Transient fault)
       (:wat::core::if (:wat::core::= code 19)

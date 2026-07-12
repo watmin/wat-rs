@@ -6,4 +6,4 @@
 (:wat::core::defrecord :user::Probe [wat.started-at <- :wat::time::Instant])
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::time::epoch-millis
-    (:user::Probe/wat.started-at (:user::Probe (:wat::time::at-millis 1234)))))
+    (:user::Probe/wat.started-at (:user::Probe :wat.started-at (:wat::time::at-millis 1234)))))

@@ -22,5 +22,5 @@
 (:wat::core::defn :user::not-eq-eq [] -> :wat::core::bool (:wat::core::not= 1 1))
 
 ;; regression_eq_records_is_the_relational_case (2 assertions)
-(:wat::core::defn :user::eq-records-equal [] -> :wat::core::bool (:wat::core::= (:my::Pt 0 0) (:my::Pt 0 0)))
-(:wat::core::defn :user::eq-records-diff [] -> :wat::core::bool (:wat::core::= (:my::Pt 0 0) (:my::Pt 0 9)))
+(:wat::core::defn :user::eq-records-equal [] -> :wat::core::bool (:wat::core::= (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 0)))
+(:wat::core::defn :user::eq-records-diff [] -> :wat::core::bool (:wat::core::= (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 9)))

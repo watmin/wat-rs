@@ -60,7 +60,7 @@
     (:wat::query::sk-after-cursor? (:wat::query::StoredRow/sk row) cursor)))
 
 (:wat::core::defn :wat::query::StoredRow->Row [r <- :wat::query::StoredRow] -> :wat::query::Row
-  (:wat::query::Row (:wat::query::StoredRow/pk r) (:wat::query::StoredRow/sk r) (:wat::query::StoredRow/data r)))
+  (:wat::query::Row :pk (:wat::query::StoredRow/pk r) :sk (:wat::query::StoredRow/sk r) :data (:wat::query::StoredRow/data r)))
 
 ;; row's projected (ipk,isk) for a named index, if it declared one — None if the row never
 ;; projected into this GSI.
@@ -79,8 +79,8 @@
 
 (:wat::core::defn :wat::query::StoredRow->IndexRow
   [r <- :wat::query::StoredRow ik <- :wat::query::IndexKey] -> :wat::query::IndexRow
-  (:wat::query::IndexRow (:wat::query::StoredRow/pk r) (:wat::query::StoredRow/sk r)
-    (:wat::query::IndexKey/ipk ik) (:wat::query::IndexKey/isk ik) (:wat::query::StoredRow/data r)))
+  (:wat::query::IndexRow :pk (:wat::query::StoredRow/pk r) :sk (:wat::query::StoredRow/sk r)
+    :ipk (:wat::query::IndexKey/ipk ik) :isk (:wat::query::IndexKey/isk ik) :data (:wat::query::StoredRow/data r)))
 
 ;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
 ;; durable = one flat PersistentVector<StoredRow>; `put` conj's the batch on (rete-style pure

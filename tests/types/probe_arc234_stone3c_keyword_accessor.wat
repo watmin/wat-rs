@@ -9,15 +9,15 @@
 
 ;; ─── Probe 1: keyword accessor on single-field record ────────────────────────
 (:wat::core::defn :user::probe-1 [] -> :wat::core::f64
-  (:wat::core::let [v (:myapp::Voltage 5.0)] (:magnitude v)))
+  (:wat::core::let [v (:myapp::Voltage :magnitude 5.0)] (:magnitude v)))
 
 ;; ─── Probe 2: keyword accessor on multi-field record ─────────────────────────
 (:wat::core::defn :user::probe-2 [] -> :wat::core::String
-  (:wat::core::let [t (:myapp::Triple 7 "hello" true)] (:b t)))
+  (:wat::core::let [t (:myapp::Triple :a 7 :b "hello" :c true)] (:b t)))
 
 ;; ─── Probe 3: unknown field on record errors ──────────────────────────────────
 (:wat::core::defn :user::probe-3 [] -> :wat::core::f64
-  (:wat::core::let [v (:myapp::Voltage 5.0)] (:nonexistent v)))
+  (:wat::core::let [v (:myapp::Voltage :magnitude 5.0)] (:nonexistent v)))
 
 ;; ─── Probe 4: keyword accessor on hashmap key present ────────────────────────
 (:wat::core::defn :user::probe-4 [] -> :wat::core::i64

@@ -7,8 +7,8 @@
 
 (:wat::rete::defrule :w::watched
   :when
-  [(:w::Station (?loc <- :location))
+  [(:w::Station :location (?loc <- :location))
    (:wat::rete::exists (:w::Reading (?loc <- :location)))]
   :then
-  (:wat::rete::insert (:w::Watched ?loc)))
+  (:wat::rete::insert (:w::Watched :location ?loc)))
 

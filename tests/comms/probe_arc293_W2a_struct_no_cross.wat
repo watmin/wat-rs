@@ -30,7 +30,7 @@
          (:wat::core::forms
            (:wat::core::defstruct :w2a::S [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::kernel::pprintln (:w2a::S 99)))))]
+             (:wat::kernel::pprintln (:w2a::S :val 99)))))]
     (:w2a::S/val (:wat::kernel::recv' p))))
 
 ;; Record control probe — sends a base record over the wire.
@@ -40,7 +40,7 @@
          (:wat::core::forms
            (:wat::core::defrecord :w2a::R [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::kernel::pprintln (:w2a::R 42)))))]
+             (:wat::kernel::pprintln (:w2a::R :val 42)))))]
     (:w2a::R/val (:wat::kernel::recv' p))))
 
 ;; ── OUTBOUND: send' guard ─────────────────────────────────────────
@@ -60,7 +60,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [_ (:wat::kernel::readln -> :wat::core::String)] nil))))
-     _ (:wat::kernel::send' p (:w2a::R 42))]
+     _ (:wat::kernel::send' p (:w2a::R :val 42))]
     nil))
 
 ;; Thread control — a struct over a THREAD peer round-trips in-locus (no
@@ -71,6 +71,6 @@
     [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<w2a::S,w2a::S>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self))))
-     _   (:wat::kernel::send' peer (:w2a::S 99))
+     _   (:wat::kernel::send' peer (:w2a::S :val 99))
      got (:wat::kernel::recv' peer)]
     (:w2a::S/val got)))

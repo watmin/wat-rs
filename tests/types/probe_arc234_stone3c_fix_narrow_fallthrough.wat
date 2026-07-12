@@ -7,7 +7,7 @@
 
 ;; Probe 2: record receiver keyword accessor
 (:wat::core::defn :user::probe-2 [] -> :wat::core::f64
-  (:wat::core::let [v (:myapp::Voltage 5.0)] (:magnitude v)))
+  (:wat::core::let [v (:myapp::Voltage :magnitude 5.0)] (:magnitude v)))
 
 ;; Probe 3: hashmap receiver keyword accessor
 (:wat::core::defn :user::probe-3 [] -> :wat::core::i64
@@ -16,4 +16,4 @@
 
 ;; Probe 4: polymorphic receiver (record-typed param)
 (:wat::core::defn :user::pluck [v <- :wat::core::Record] -> :wat::core::f64 (:magnitude v))
-(:wat::core::defn :user::probe-4 [] -> :wat::core::f64 (:user::pluck (:myapp::Voltage 7.0)))
+(:wat::core::defn :user::probe-4 [] -> :wat::core::f64 (:user::pluck (:myapp::Voltage :magnitude 7.0)))

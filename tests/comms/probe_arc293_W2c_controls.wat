@@ -21,7 +21,7 @@
     [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<w2c_ctrl::S,w2c_ctrl::S>] -> :wat::core::nil
               (:wat::kernel::send' self (:wat::kernel::recv' self))))
-     _   (:wat::kernel::send' peer (:w2c_ctrl::S 99))
+     _   (:wat::kernel::send' peer (:w2c_ctrl::S :val 99))
      got (:wat::kernel::recv' peer)]
     (:w2c_ctrl::S/val got)))
 
@@ -33,4 +33,4 @@
          (:wat::core::forms
            (:wat::core::defrecord :w2c_ctrl::R [val <- :wat::core::i64])
            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))))]
-    (:wat::kernel::send' p (:w2c_ctrl::R 42))))
+    (:wat::kernel::send' p (:w2c_ctrl::R :val 42))))

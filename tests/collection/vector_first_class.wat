@@ -21,7 +21,7 @@
 (:wat::core::defn :vfc::struct-field-roundtrip [] -> :wat::core::String
   (:wat::core::let
     [v (:wat::holon::encode (:wat::holon::to-holon "x"))
-     e (:my::Engram "alpha" v)
+     e (:my::Engram :label "alpha" :vec v)
      retrieved (:my::Engram/vec e)]
     (:wat::core::if (:wat::core::= v retrieved) -> :wat::core::String "yes" "no")))
 

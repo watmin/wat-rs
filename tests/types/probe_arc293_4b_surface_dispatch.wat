@@ -26,5 +26,5 @@
 ;; THE DISPATCHER under test — one consumer, accepts ANY Shape, routes :Shape/area by type.
 (:wat::core::defn :t::describe [s <- :t::Shape] -> :wat::core::f64 (:t::Shape/area s))
 
-(:wat::core::defn :t::circle-area [] -> :wat::core::f64 (:t::describe (:t::Circle 2.0)))
-(:wat::core::defn :t::square-area [] -> :wat::core::f64 (:t::describe (:t::Square 3.0)))
+(:wat::core::defn :t::circle-area [] -> :wat::core::f64 (:t::describe (:t::Circle :radius 2.0)))
+(:wat::core::defn :t::square-area [] -> :wat::core::f64 (:t::describe (:t::Square :side 3.0)))

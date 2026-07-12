@@ -20,7 +20,7 @@
       (:wat::test::run-thread
         (:wat::core::do
           (:wat::core::let
-            [p (:my::Pair 7 9)
+            [p (:my::Pair :a 7 :b 9)
              form (:wat::core::struct->form p)
              _roundtrip (:wat::eval-ast! form)]
             ())))

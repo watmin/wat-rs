@@ -189,7 +189,7 @@
                             head-nm (:wat::core::ast-name
                                       (:wat::core::first (:wat::core::ast->children form)))
                             kind  (:wat::deporder::def-head-kind head-nm)]
-            (:wat::core::HashMap/assoc m dname (:wat::deporder::SymDef path kind)))
+            (:wat::core::HashMap/assoc m dname (:wat::deporder::SymDef :file path :kind kind)))
           m))
       sym-map
       forms)))
@@ -266,7 +266,7 @@
                       (:wat::core::if (:wat::core::i64::> def-pos ref-pos)
                         (:wat::core::concat viols
                           (:wat::core::Vector :wat::deporder::Violation
-                            (:wat::deporder::Violation path ref-pos def-path def-pos kwd)))
+                            (:wat::deporder::Violation :referencer path :referencer-pos ref-pos :definer def-path :definer-pos def-pos :symbol kwd)))
                         viols))))))))))
       (:wat::core::Vector :wat::deporder::Violation)
       all-refs)))
@@ -312,7 +312,7 @@
                                     (:wat::core::get pair 1) "stdlib-sources: get source")]
           (:wat::core::concat acc
             (:wat::core::Vector :wat::source::File
-              (:wat::source::File path source)))))
+              (:wat::source::File :path path :source source)))))
       (:wat::core::Vector :wat::source::File)
       (:wat::core::range 0 n))))
 

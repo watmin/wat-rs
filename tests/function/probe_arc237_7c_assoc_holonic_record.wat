@@ -6,4 +6,4 @@
 (:wat::holon::defrecord :my::HolonicVoltage [value <- :wat::core::i64])
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:my::HolonicVoltage/value
-    (:wat::core::assoc (:my::HolonicVoltage 10) :value 42)))
+    (:wat::core::assoc (:my::HolonicVoltage :value 10) :value 42)))

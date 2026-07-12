@@ -51,8 +51,8 @@
 ;; open-surface-typed call site.
 (:wat::test::deftest' :user::open_surface_dispatch ()
   (:wat::core::let
-    [sqlite-reason (:probe::as-reason-s (:probe::SqliteReason 2067 "INSERT INTO users ..."))
-     redis-reason  (:probe::as-reason-r (:probe::RedisReason  99   "SET k v"))
+    [sqlite-reason (:probe::as-reason-s (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))
+     redis-reason  (:probe::as-reason-r (:probe::RedisReason  :errno 99   :cmd "SET k v"))
      d-sqlite      (:probe::describe sqlite-reason)
      d-redis       (:probe::describe redis-reason)]
     (:wat::test::assert-eq d-sqlite "sqlite 2067")
@@ -64,4 +64,4 @@
 ;; NoMatchingClause. Left as a plain defn (not a deftest') so the Rust probe
 ;; can call it directly and assert on the RuntimeError shape.
 (:wat::core::defn :user::describe-unknown [] -> :wat::core::String
-  (:probe::describe (:probe::as-reason-m (:probe::MongoReason "app.users"))))
+  (:probe::describe (:probe::as-reason-m (:probe::MongoReason :nsp "app.users"))))

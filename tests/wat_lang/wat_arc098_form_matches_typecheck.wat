@@ -32,5 +32,5 @@
 (:wat::core::defn :t::test3-where [p <- :test::PaperResolved] -> :wat::core::bool
   (:wat::form::matches? p
     (:test::PaperResolved
-      (= ?outcome :outcome)
-      (:where (:wat::core::string::contains? ?outcome "Grace")))))
+      :outcome (= ?outcome :outcome)
+      :grace-residue (:where (:wat::core::string::contains? ?outcome "Grace")))))

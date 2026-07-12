@@ -11,5 +11,5 @@
   [(:weather::Temperature (?c <- :celsius))
    (:wat::rete::where (:test::big? ?c))]
   :then
-  (:wat::rete::insert (:wb::Gate ?c)))
+  (:wat::rete::insert (:wb::Gate :celsius ?c)))
 

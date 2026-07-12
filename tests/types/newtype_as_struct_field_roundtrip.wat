@@ -7,7 +7,7 @@
 (:wat::core::defn :my::compute [] -> :wat::core::String
   (:wat::core::let
     [p         (:my::trading::Price 99.5)
-     o         (:my::Order "BTC" p 7)
+     o         (:my::Order :label "BTC" :price p :qty 7)
      retrieved (:my::Order/price o)
      inner     (:my::trading::Price/0 retrieved)]
     (:wat::core::f64::to-string inner)))

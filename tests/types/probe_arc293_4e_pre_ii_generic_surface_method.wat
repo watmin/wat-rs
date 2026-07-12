@@ -20,4 +20,4 @@
 (:wat::core::extend-type :t::Id :t::Maker
   (make [self x] x))
 
-(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::Maker/make (:t::Id 1) 42))
+(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::Maker/make (:t::Id :tag 1) 42))

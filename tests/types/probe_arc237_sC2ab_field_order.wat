@@ -5,18 +5,18 @@
 (:wat::core::defrecord :my::Pt [x <- :wat::core::f64  y <- :wat::core::f64])
 
 ;; first_field_by_keyword
-(:wat::core::defn :user::first-field-by-keyword [] -> :wat::core::f64 (:x (:my::Pt 1.0 2.0)))
+(:wat::core::defn :user::first-field-by-keyword [] -> :wat::core::f64 (:x (:my::Pt :x 1.0 :y 2.0)))
 
 ;; second_field_by_keyword — the name-ORDER guard
-(:wat::core::defn :user::second-field-by-keyword [] -> :wat::core::f64 (:y (:my::Pt 1.0 2.0)))
+(:wat::core::defn :user::second-field-by-keyword [] -> :wat::core::f64 (:y (:my::Pt :x 1.0 :y 2.0)))
 
 ;; second_field_by_accessor
-(:wat::core::defn :user::second-field-by-accessor [] -> :wat::core::f64 (:my::Pt/y (:my::Pt 1.0 2.0)))
+(:wat::core::defn :user::second-field-by-accessor [] -> :wat::core::f64 (:my::Pt/y (:my::Pt :x 1.0 :y 2.0)))
 
 ;; assoc_second_field_by_name
 (:wat::core::defn :user::assoc-second-field-by-name [] -> :wat::core::f64
-  (:y (:wat::core::Record/assoc (:my::Pt 1.0 2.0) :y 9.0)))
+  (:y (:wat::core::Record/assoc (:my::Pt :x 1.0 :y 2.0) :y 9.0)))
 
 ;; assoc_second_leaves_first
 (:wat::core::defn :user::assoc-second-leaves-first [] -> :wat::core::f64
-  (:x (:wat::core::Record/assoc (:my::Pt 1.0 2.0) :y 9.0)))
+  (:x (:wat::core::Record/assoc (:my::Pt :x 1.0 :y 2.0) :y 9.0)))

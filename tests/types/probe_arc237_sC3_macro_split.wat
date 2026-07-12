@@ -11,23 +11,23 @@
 (:wat::core::defn :wh [v <- :wat::holon::Record] -> :wat::core::bool true)
 
 ;; ─── BASE flavor ──────────────────────────────────────────────────────────────
-(:wat::core::defn :user::base-construct-and-field [] -> :wat::core::i64 (:my::Pt/x (:my::Pt 1 2)))
-(:wat::core::defn :user::base-accessor [] -> :wat::core::i64 (:my::Pt/y (:my::Pt 1 2)))
-(:wat::core::defn :user::base-predicate-true [] -> :wat::core::bool (:my::is-Pt? (:my::Pt 1 2)))
-(:wat::core::defn :user::base-predicate-false [] -> :wat::core::bool (:my::is-Pt? (:my::HPt 1 2)))
-(:wat::core::defn :user::base-eq-equal [] -> :wat::core::bool (:wat::core::= (:my::Pt 1 2) (:my::Pt 1 2)))
-(:wat::core::defn :user::base-eq-diff [] -> :wat::core::bool (:wat::core::= (:my::Pt 1 2) (:my::Pt 1 9)))
-(:wat::core::defn :user::base-same-data [] -> :wat::core::bool (:wat::core::Record/same-data? (:my::Pt 1 2) (:my::Pt 1 2)))
+(:wat::core::defn :user::base-construct-and-field [] -> :wat::core::i64 (:my::Pt/x (:my::Pt :x 1 :y 2)))
+(:wat::core::defn :user::base-accessor [] -> :wat::core::i64 (:my::Pt/y (:my::Pt :x 1 :y 2)))
+(:wat::core::defn :user::base-predicate-true [] -> :wat::core::bool (:my::is-Pt? (:my::Pt :x 1 :y 2)))
+(:wat::core::defn :user::base-predicate-false [] -> :wat::core::bool (:my::is-Pt? (:my::HPt :x 1 :y 2)))
+(:wat::core::defn :user::base-eq-equal [] -> :wat::core::bool (:wat::core::= (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 2)))
+(:wat::core::defn :user::base-eq-diff [] -> :wat::core::bool (:wat::core::= (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 9)))
+(:wat::core::defn :user::base-same-data [] -> :wat::core::bool (:wat::core::Record/same-data? (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 2)))
 (:wat::core::defn :user::base-assoc-then-read [] -> :wat::core::i64
-  (:my::Pt/y (:wat::core::Record/assoc (:my::Pt 1 2) :y 9)))
+  (:my::Pt/y (:wat::core::Record/assoc (:my::Pt :x 1 :y 2) :y 9)))
 (:wat::core::defn :user::base-to-holon-errors [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:my::Pt 1 2)))
+  (:wat::holon::to-holon (:my::Pt :x 1 :y 2)))
 
 ;; ─── HOLONIC flavor ───────────────────────────────────────────────────────────
-(:wat::core::defn :user::holonic-construct-field [] -> :wat::core::i64 (:my::HPt/x (:my::HPt 7 8)))
-(:wat::core::defn :user::holonic-predicate-true [] -> :wat::core::bool (:my::is-HPt? (:my::HPt 7 8)))
+(:wat::core::defn :user::holonic-construct-field [] -> :wat::core::i64 (:my::HPt/x (:my::HPt :x 7 :y 8)))
+(:wat::core::defn :user::holonic-predicate-true [] -> :wat::core::bool (:my::is-HPt? (:my::HPt :x 7 :y 8)))
 (:wat::core::defn :user::holonic-to-holon-ok [] -> :wat::holon::HolonAST
-  (:wat::holon::to-holon (:my::HPt 1 2)))
+  (:wat::holon::to-holon (:my::HPt :x 1 :y 2)))
 
 ;; ─── Liskov — positive cases (type-check confirms these are valid) ─────────────
 (:wat::core::defn :fb [p <- :my::Pt] -> :wat::core::bool (:wb p))
@@ -36,6 +36,6 @@
 
 ;; ─── Cross-flavor ─────────────────────────────────────────────────────────────
 (:wat::core::defn :user::cross-flavor-same-data-true [] -> :wat::core::bool
-  (:wat::core::Record/same-data? (:my::Pt 0 0) (:my::HPt 0 0)))
+  (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::HPt :x 0 :y 0)))
 (:wat::core::defn :user::cross-flavor-eq-false [] -> :wat::core::bool
-  (:wat::core::= (:my::Pt 0 0) (:my::HPt 0 0)))
+  (:wat::core::= (:my::Pt :x 0 :y 0) (:my::HPt :x 0 :y 0)))

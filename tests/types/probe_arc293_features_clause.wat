@@ -18,4 +18,4 @@
 (:wat::core::defn :geo::name-of [c <- :geo::Colored] -> :wat::core::String
   (:geo::Colored/color c))
 (:wat::core::defn :geo::demo [] -> :wat::core::String
-  (:geo::name-of (:geo::Circle "red" 2.0)))
+  (:geo::name-of (:geo::Circle :color "red" :radius 2.0)))

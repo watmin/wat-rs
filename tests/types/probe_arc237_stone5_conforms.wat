@@ -10,11 +10,11 @@
 
 ;; probe_01: record conforms its own type → true
 (:wat::core::defn :user::probe01 [] -> :wat::core::bool
-  (:wat::core::conforms? (:my::Circle 1.0) :my::Circle))
+  (:wat::core::conforms? (:my::Circle :radius 1.0) :my::Circle))
 
 ;; probe_02: record does NOT conform a different record → false
 (:wat::core::defn :user::probe02 [] -> :wat::core::bool
-  (:wat::core::conforms? (:my::Circle 1.0) :my::Square))
+  (:wat::core::conforms? (:my::Circle :radius 1.0) :my::Square))
 
 ;; probe_03a: i64 value conforms :i64 → true
 (:wat::core::defn :user::probe03a [] -> :wat::core::bool
@@ -34,7 +34,7 @@
 
 ;; probe_05: union member conforms the union → true
 (:wat::core::defn :user::probe05 [] -> :wat::core::bool
-  (:wat::core::conforms? (:my::Circle 1.0) :my::Shape))
+  (:wat::core::conforms? (:my::Circle :radius 1.0) :my::Shape))
 
 ;; probe_06: non-member does NOT conform the union → false
 (:wat::core::defn :user::probe06 [] -> :wat::core::bool
@@ -75,7 +75,7 @@
 ;; probe_11a: Vector<Shape> with members → true (nested union-in-element)
 (:wat::core::defn :user::probe11a [] -> :wat::core::bool
   (:wat::core::conforms?
-    (:wat::core::Vector :my::Shape (:my::Circle 1.0) (:my::Square 2.0))
+    (:wat::core::Vector :my::Shape (:my::Circle :radius 1.0) (:my::Square :side 2.0))
     :wat::core::Vector<my::Shape>))
 
 ;; probe_11b: i64-vector does NOT conform Vector<Shape> → false

@@ -8,4 +8,4 @@
 (:wat::core::defrecord :env::Rec [host <- :wat::core::String])
 (:wat::core::defsurface :env::Portable :nature :wat::core::Record :features [])
 (:wat::core::defn :env::take [p <- :env::Portable] -> :wat::core::i64 42)
-(:wat::core::defn :env::feed [] -> :wat::core::i64 (:env::take (:env::Rec "h")))
+(:wat::core::defn :env::feed [] -> :wat::core::i64 (:env::take (:env::Rec :host "h")))

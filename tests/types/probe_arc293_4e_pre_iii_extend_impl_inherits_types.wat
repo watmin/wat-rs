@@ -17,6 +17,6 @@
 
 ;; bare GENERIC impl — body wraps x (typed :T from the surface) in a :t::Box<T>.
 (:wat::core::extend-type :t::Id :t::Maker
-  (make [self x] (:t::Box x)))
+  (make [self x] (:t::Box :v x)))
 
-(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::Box/v (:t::Maker/make (:t::Id 7) 42)))
+(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::Box/v (:t::Maker/make (:t::Id :tag 7) 42)))

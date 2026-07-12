@@ -5,12 +5,12 @@
 (:wat::core::defrecord :test::rd::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :user::write-pt [] -> :wat::core::String
-    (:wat::core::let [p (:test::rd::Pt 3 4)]
+    (:wat::core::let [p (:test::rd::Pt :x 3 :y 4)]
         (:wat::edn::write p)))
 
 (:wat::core::defn :user::roundtrip-eq [] -> :wat::core::bool
     (:wat::core::let
-        [p  (:test::rd::Pt 3 4)
+        [p  (:test::rd::Pt :x 3 :y 4)
          s  (:wat::edn::write p)
          p2 (:wat::edn::read s)]
         (:wat::core::= p p2)))

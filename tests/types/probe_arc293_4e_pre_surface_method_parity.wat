@@ -20,4 +20,4 @@
 
 (:wat::core::defn :t::use [m <- :t::Maker] -> :wat::core::i64 (:t::Maker/make m 42))
 
-(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::use (:t::Id 1)))
+(:wat::core::defn :t::probe [] -> :wat::core::i64 (:t::use (:t::Id :tag 1)))

@@ -44,8 +44,8 @@
 
 (:wat::core::defn :geo::demo [] -> :wat::core::String
   (:wat::core::string::concat
-    (:geo::describe (:geo::Circle "red" 2.0))
+    (:geo::describe (:geo::Circle :color "red" :radius 2.0))
     "  |  "
-    (:geo::describe (:geo::Square "blue" 3.0))
+    (:geo::describe (:geo::Square :color "blue" :side 3.0))
     "  |  "
     (:geo::describe (:wat::core::Vector :wat::core::i64 10 20 30))))

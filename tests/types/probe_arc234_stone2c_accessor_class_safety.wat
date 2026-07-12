@@ -9,21 +9,21 @@
 
 ;; ─── Probe 1: correct-class accessor returns value ────────────────────────────
 (:wat::core::defn :user::probe-1 [] -> :wat::core::f64
-  (:wat::core::let [v (:myapp::Voltage 42.5)] (:myapp::Voltage/magnitude v)))
+  (:wat::core::let [v (:myapp::Voltage :magnitude 42.5)] (:myapp::Voltage/magnitude v)))
 
 ;; ─── Probe 2+3: wrong-class receiver panics ──────────────────────────────────
 ;; Evaluating :user::probe-23 calls Voltage/magnitude on a Point → should panic.
 (:wat::core::defn :user::probe-23 [] -> :wat::core::f64
-  (:wat::core::let [p (:myapp::Point 3 4)] (:myapp::Voltage/magnitude p)))
+  (:wat::core::let [p (:myapp::Point :x 3 :y 4)] (:myapp::Voltage/magnitude p)))
 
 ;; ─── Probe 4: multi-field each accessor checks class ─────────────────────────
 ;; Evaluating :user::probe-4 calls Triple/b on an Other → should panic.
 (:wat::core::defn :user::probe-4 [] -> :wat::core::String
-  (:wat::core::let [o (:myapp::Other 99)] (:myapp::Triple/b o)))
+  (:wat::core::let [o (:myapp::Other :x 99)] (:myapp::Triple/b o)))
 
 ;; ─── Probe 5: predicate-gated pattern avoids panic ───────────────────────────
 (:wat::core::defn :user::probe-5 [] -> :wat::core::f64
-  (:wat::core::let [p (:myapp::Point 3 4)]
+  (:wat::core::let [p (:myapp::Point :x 3 :y 4)]
     (:wat::core::if
       (:myapp::is-Voltage? p)
       -> :wat::core::f64

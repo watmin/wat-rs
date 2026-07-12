@@ -20,7 +20,7 @@
 (:wat::core::defn :r2::want-core [x <- :wat::core::Record] -> :wat::core::i64 99)
 
 (:wat::core::defn :r2::probe [] -> :wat::core::i64
-  (:wat::core::let [_chk (:r2::want-core (:r2::HR 20))]
+  (:wat::core::let [_chk (:r2::want-core (:r2::HR :v 20))]
     (:wat::core::i64::+
-      (:wat::core::i64::+ (:r2::CR/v (:r2::CR 10)) (:r2::HR/v (:r2::HR 20)))
-      (:r2::ST/v (:r2::ST 30)))))
+      (:wat::core::i64::+ (:r2::CR/v (:r2::CR :v 10)) (:r2::HR/v (:r2::HR :v 20)))
+      (:r2::ST/v (:r2::ST :v 30)))))

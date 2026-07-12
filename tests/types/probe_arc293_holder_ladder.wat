@@ -20,6 +20,6 @@
 
 (:wat::core::defn :lad::demo [] -> :wat::core::String
   (:wat::core::string::concat
-    (:lad::greet (:lad::Person "alice"))                  ; record → :nature :Struct  (ladder accepts down)
+    (:lad::greet (:lad::Person :name "alice"))                  ; record → :nature :Struct  (ladder accepts down)
     " @ "
-    (:wat::core::str (:lad::when (:lad::Event 100)))))     ; holon  → :nature :Record  (ladder accepts down)
+    (:wat::core::str (:lad::when (:lad::Event :at 100)))))     ; holon  → :nature :Record  (ladder accepts down)

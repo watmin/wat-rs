@@ -79,57 +79,57 @@
 ;; (process/runner-count n) — post-spawn-fn/env-fn/max-message-bytes default; runner-count is n.
 (:wat::core::defn :wat::spawn::thread [] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
-    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
-    (:wat::program::cpu-count)))
+    :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::thread/init [f <- :wat::core::Fn()->wat::core::Record] -> :wat::spawn::ThreadOpts
-  (:wat::spawn::ThreadOpts f
-    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
-    (:wat::program::cpu-count)))
+  (:wat::spawn::ThreadOpts :init-fn f
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::thread/post-spawn [g <- :wat::core::Fn(wat::spawn::ThreadLaunch)->wat::core::nil] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
-    g
-    (:wat::program::cpu-count)))
+    :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
+    :post-spawn-fn g
+    :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::thread/runner-count [n <- :wat::core::i64] -> :wat::spawn::ThreadOpts
   (:wat::spawn::ThreadOpts
-    (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
-    (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
-    n))
+    :init-fn (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)
+    :runner-count n))
 
 (:wat::core::defn :wat::spawn::process [] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
-    "(:wat::program::EmptyEnv)"
-    524288  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
-    (:wat::program::cpu-count)))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :env-fn "(:wat::program::EmptyEnv)"
+    :max-message-bytes 524288  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
+    :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts f "(:wat::program::EmptyEnv)" 524288 (:wat::program::cpu-count)))  ;; DEFAULT-MAX-MESSAGE-BYTES
+  (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes 524288 :runner-count (:wat::program::cpu-count)))  ;; DEFAULT-MAX-MESSAGE-BYTES
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
-    s
-    524288  ;; DEFAULT-MAX-MESSAGE-BYTES
-    (:wat::program::cpu-count)))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :env-fn s
+    :max-message-bytes 524288  ;; DEFAULT-MAX-MESSAGE-BYTES
+    :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
-    "(:wat::program::EmptyEnv)"
-    n
-    (:wat::program::cpu-count)))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :env-fn "(:wat::program::EmptyEnv)"
+    :max-message-bytes n
+    :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/runner-count [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
-    (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
-    "(:wat::program::EmptyEnv)"
-    524288  ;; DEFAULT-MAX-MESSAGE-BYTES
-    n))
+    :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
+    :env-fn "(:wat::program::EmptyEnv)"
+    :max-message-bytes 524288  ;; DEFAULT-MAX-MESSAGE-BYTES
+    :runner-count n))
 
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────
 ;; A caller holding an abstract :wat::spawn::Locus value reads the pool count without a
@@ -329,7 +329,7 @@
                 (:wat::spawn::Bound/listener b)
                 (:wat::core::Vector :wat::kernel::Peer'<R,S>)
                 (:wat::core::apply -> :St init ship []) [])))]
-      (:wat::spawn::Launched sp (:wat::spawn::Bound/address b)))))
+      (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
 ;; prepend `(def :wat::spawn::service-locus (process))` (the transport literal lives HERE,
@@ -350,4 +350,4 @@
        lu   (:wat::kernel::recv' svc)
        addr (:wat::core::apply -> :wat::kernel::Address'<S,R> lu-addr-kw lu [])
        _    (:wat::kernel::send' svc ship)]
-      (:wat::spawn::Launched svc addr))))
+      (:wat::spawn::Launched :handle svc :address addr))))

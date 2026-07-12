@@ -10,4 +10,4 @@
     (:wat::core::apply -> :wat::core::String mangled-kw [self])))
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
-  (:myapp::Formattable/format (:myapp::Unhandled 42)))
+  (:myapp::Formattable/format (:myapp::Unhandled :v 42)))

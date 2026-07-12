@@ -5,8 +5,8 @@
 (:wat::core::defn :probe::compute [] -> :wat::core::bool
   (:wat::core::conforms?
     (:wat::program::Env/user.program
-      (:wat::program::Env (:wat::time::now) (:wat::time::now) 0 0
-        :wat::program::PeerKind::process 1 (:wat::program::EmptyEnv)))
+      (:wat::program::Env :wat.started-at (:wat::time::now) :wat.peer-started-at (:wat::time::now) :wat.process-id 0 :wat.os-thread-id 0
+        :wat.peer-kind :wat::program::PeerKind::process :wat.cpu-count 1 :user.program (:wat::program::EmptyEnv)))
     :wat::core::Record))
 
 ;; seam: run by invoke_user_main; asserts user.program defaults to :wat::program::EmptyEnv.

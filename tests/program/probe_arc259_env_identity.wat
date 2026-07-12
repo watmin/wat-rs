@@ -4,8 +4,8 @@
 ;; c01-compute: construct Env with process-id=12345, return the process-id field.
 (:wat::core::defn :probe::c01-compute [] -> :wat::core::i64
   (:wat::program::Env/wat.process-id
-    (:wat::program::Env (:wat::time::now) (:wat::time::now) 12345 67890
-      :wat::program::PeerKind::process 1 (:wat::program::EmptyEnv))))
+    (:wat::program::Env :wat.started-at (:wat::time::now) :wat.peer-started-at (:wat::time::now) :wat.process-id 12345 :wat.os-thread-id 67890
+      :wat.peer-kind :wat::program::PeerKind::process :wat.cpu-count 1 :user.program (:wat::program::EmptyEnv))))
 
 ;; seam: run by invoke_user_main; reads both id fields for effect — accessor errors if
 ;; the seam did not stamp them.

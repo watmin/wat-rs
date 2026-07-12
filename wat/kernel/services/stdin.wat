@@ -80,8 +80,8 @@
       -> :wat::kernel::services::StdInService::Rep
     ((:wat::core::Some line)
       (:wat::kernel::services::StdInService::Rep
-        (:wat::kernel::services::StdInService::Req/thread-id req)
-        line))
+        :thread-id (:wat::kernel::services::StdInService::Req/thread-id req)
+        :line line))
     (:wat::core::None
       ;; EOF on fd 0: client (parent process / pipe writer) disconnected.
       ;; Per lock-step doctrine + feedback_silent_disconnect_hang, this

@@ -3,6 +3,6 @@
   [offset <- :wat::core::i64])
 (:wat::core::defn :my::make-adder [] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
   (:wat::core::let
-              [cfg (:my::Config 10)]
+              [cfg (:my::Config :offset 10)]
               (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+ n (:my::Config/offset cfg)))))

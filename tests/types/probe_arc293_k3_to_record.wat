@@ -20,7 +20,7 @@
 
 (:wat::core::defn :k3::demo [] -> :wat::core::i64
   (:wat::core::let
-    [p  (:k3::Pt 3 4)
+    [p  (:k3::Pt :x 3 :y 4)
      cr (:wat::core::to-record  p :k3::Planar)    ; -> :k3::Planar$core-record  {x 3 y 4}
      hr (:wat::holon::to-record p :k3::Planar)]   ; -> :k3::Planar$holon-record {x 3 y 4} + hologram
     (:wat::core::i64::+

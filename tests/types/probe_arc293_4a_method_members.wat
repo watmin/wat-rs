@@ -27,4 +27,4 @@
 ;; no declaration at Sq.
 (:wat::core::defn :t::accept [s <- :t::Shape] -> :wat::core::bool true)
 
-(:t::accept (:t::Sq "red" 3.0))
+(:t::accept (:t::Sq :color "red" :side 3.0))

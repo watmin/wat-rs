@@ -69,23 +69,23 @@
    (:wat::rete::where (:wat::core::not ?post-arrow))
    (:wat::rete::where (:wat::core::not (:fix::type-shaped-keyword-str? ?name)))]
   :then
-  (:wat::rete::insert (:fix::HeadConv ?offset ?len ?name)))
+  (:wat::rete::insert (:fix::HeadConv :offset ?offset :len ?len :name ?name)))
 
 ;; arrow→conv: kind=symbol ∧ (name="<-" ∨ name="->") → deduce ArrowConv(offset, len).
 ;;   The drive emits the literal ":-".
 (:wat::rete::defrule :fix::arrow->conv
   :when
   [(:fix::Node
-     (?offset <- :offset)
-     (?len    <- :len)
-     (?kind   <- :kind)
-     (?name   <- :name)
-     (:wat::core::= ?kind "symbol"))
+     :kind (?offset <- :offset)
+     :name (?len    <- :len)
+     :offset (?kind   <- :kind)
+     :len (?name   <- :name)
+     :post-arrow (:wat::core::= ?kind "symbol"))
    (:wat::rete::where (:wat::core::or
                         (:wat::core::= ?name "<-")
                         (:wat::core::= ?name "->")))]
   :then
-  (:wat::rete::insert (:fix::ArrowConv ?offset ?len)))
+  (:wat::rete::insert (:fix::ArrowConv :offset ?offset :len ?len)))
 
 ;; type-keyword→conv: kind=keyword ∧ (post-arrow ∨ type-shaped)
 ;;   → deduce TypeConv(offset, len, name). The drive turns name into (keyword/to-type-form name).
@@ -102,5 +102,5 @@
                         ?post-arrow
                         (:fix::type-shaped-keyword-str? ?name)))]
   :then
-  (:wat::rete::insert (:fix::TypeConv ?offset ?len ?name)))
+  (:wat::rete::insert (:fix::TypeConv :offset ?offset :len ?len :name ?name)))
 

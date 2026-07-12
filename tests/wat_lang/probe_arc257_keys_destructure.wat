@@ -9,13 +9,13 @@
 ;; Probe 1: single-field keys-destructure → f64(5.0)
 (:wat::core::defn :t::probe1-single-field [] -> :wat::core::f64
   (:wat::core::let
-      [v (:myapp::Voltage 5.0)
+      [v (:myapp::Voltage :magnitude 5.0)
        {:keys [magnitude]} v]
       magnitude))
 
 ;; Probe 2: multi-field keys-destructure → String("hello")
 (:wat::core::defn :t::probe2-multi-field [] -> :wat::core::String
   (:wat::core::let
-      [t (:myapp::Triple 7 "hello" true)
+      [t (:myapp::Triple :a 7 :b "hello" :c true)
        {:keys [a b c]} t]
       b))

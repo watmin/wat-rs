@@ -9,5 +9,5 @@
   [(:weather::Temperature (?c <- :celsius))
    (:wat::rete::where (:wat::core::record? (:wat::io::IOReader/open-file "x")))]
   :then
-  (:wat::rete::insert (:wf::Gate ?c)))
+  (:wat::rete::insert (:wf::Gate :celsius ?c)))
 

@@ -9,4 +9,4 @@
   [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::core::< ?c 20))
    (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::core::> ?k 30))]
   :then
-  (:wat::rete::insert (:weather::ColdAndWindy ?loc)))
+  (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))

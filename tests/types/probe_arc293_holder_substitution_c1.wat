@@ -3,5 +3,5 @@
 (:wat::core::defrecord :geo::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 (:wat::core::defn :u::wants-record [r <- :wat::core::Record] -> :wat::core::Record r)
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:u::wants-record (:geo::Pt 1 2))
+  (:u::wants-record (:geo::Pt :x 1 :y 2))
   nil)

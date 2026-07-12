@@ -22,30 +22,30 @@
 (:wat::core::defn :probe::expect-scan
   [resp <- :wat::query::Store::ScanResponse] -> :wat::query::Page
   (:wat::core::match resp -> :wat::query::Page
-    ((:wat::query::Store::ScanResponse::Success rows cursor) (:wat::query::Page rows cursor))
+    ((:wat::query::Store::ScanResponse::Success rows cursor) (:wat::query::Page :rows rows :next-cursor cursor))
     (_ (:wat::kernel::assertion-failed! "scan failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::expect-scan-index
   [resp <- :wat::query::Store::ScanIndexResponse] -> :wat::query::IndexPage
   (:wat::core::match resp -> :wat::query::IndexPage
-    ((:wat::query::Store::ScanIndexResponse::Success rows cursor) (:wat::query::IndexPage rows cursor))
+    ((:wat::query::Store::ScanIndexResponse::Success rows cursor) (:wat::query::IndexPage :rows rows :next-cursor cursor))
     (_ (:wat::kernel::assertion-failed! "scan-index failed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::run-ops [store <- :wat::query::Store] -> :probe::RunResult
   (:wat::core::let
     [empty-ik (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
-     ik-a     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey "u#1" "v1"))
-     ik-c     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey "u#1" "v2"))
+     ik-a     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
+     ik-c     (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))
      rows     (:wat::core::Vector :wat::query::StoredRow
-                (:wat::query::StoredRow "u#1" "a" "{:v 1}" ik-a)
-                (:wat::query::StoredRow "u#1" "b" "{:v 2}" empty-ik)
-                (:wat::query::StoredRow "u#1" "c" "{:v 3}" ik-c)
-                (:wat::query::StoredRow "u#1" "d" "{:v 4}" empty-ik)
-                (:wat::query::StoredRow "u#1" "e" "{:v 5}" empty-ik))
+                (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
+                (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik)
+                (:wat::query::StoredRow :pk "u#1" :sk "c" :data "{:v 3}" :index-keys ik-c)
+                (:wat::query::StoredRow :pk "u#1" :sk "d" :data "{:v 4}" :index-keys empty-ik)
+                (:wat::query::StoredRow :pk "u#1" :sk "e" :data "{:v 5}" :index-keys empty-ik))
      _es      (:wat::core::match
                 (:wat::query::Store/ensure-schema store
-                  (:wat::query::Store::EnsureSchemaRequest (:wat::query::TableSchema "pk" "sk")
-                    (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema "by-v" "pk" "sk" "ipk" "isk"))))
+                  (:wat::query::Store::EnsureSchemaRequest (:wat::query::TableSchema :pk "pk" :sk "sk")
+                    (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
                 -> :wat::core::nil
                 ((:wat::query::Store::EnsureSchemaResponse::Success) nil)
                 (_ (:wat::kernel::assertion-failed! "ensure-schema failed" :wat::core::None :wat::core::None)))
@@ -63,7 +63,7 @@
      ipage    (:probe::expect-scan-index
                 (:wat::query::Store/scan-index store
                   (:wat::query::Store::ScanIndexRequest "by-v" "u#1" "v1" "v2" 10 :wat::core::None)))]
-    (:probe::RunResult page1 page2 page3 ipage)))
+    (:probe::RunResult :page1 page1 :page2 page2 :page3 page3 :ipage ipage)))
 
 (:wat::test::deftest' :user::sqlite_store_differential ()
   (:wat::core::let

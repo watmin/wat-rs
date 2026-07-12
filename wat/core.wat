@@ -605,7 +605,17 @@
                          (:wat::core::get kvflat (:wat::core::i64::* ki 2))
                          "kwargs-lower: kv-key index OOB")
                        ks
-                       (:wat::core::ast-name kn)
+                       ;; DEBUG (arc294 item 9a — REMOVE once all generated-ctor culprits are fixed):
+                       ;; when a POSITIONAL (non-key) arg reaches the reorder, name the culprit type.
+                       ;; impl-kw is the prime type keyword being constructed → the failing aggregate.
+                       (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind kn) "keyword") true
+                                         (:wat::core::if (:wat::core::= (:wat::core::ast-kind kn) "symbol") true
+                                           (:wat::core::= (:wat::core::ast-kind kn) "string")))
+                         -> :wat::core::String
+                         (:wat::core::ast-name kn)
+                         (:wat::core::macro-error (:wat::core::string::concat
+                           "DEBUG-9a positional-arg-in-reorder impl=" (:wat::core::write-forms impl-kw)
+                           " kn-kind=" (:wat::core::ast-kind kn))))
                        ;; Strip leading ":" from ":foo-bar" → "foo-bar"
                        ;; (string::strip-leading-colon is a defn, not in is_pure_total;
                        ;;  callers always provide keywords so the colon is always present)
@@ -643,7 +653,10 @@
         (:wat::core::if (:wat::core::= (:wat::core::ast-name kwargs-ty) ":wat::core::agg-positional")
           -> :wat::WatAST
           `(~impl-kw ~@pos ~@ovals)
-          `(~impl-kw ~@pos (~kwargs-ty ~@ovals)))))))
+          ;; Arc 294 item 9a — kwargs-lower is the machinery that KNOWS: it holds the reordered
+          ;; values positionally, so it constructs the `::Kwargs` bundle through the PRIME
+          ;; `:<name>::Kwargs'` (bare is now the kwargs UX macro). Uniform flip, no exemption.
+          `(~impl-kw ~@pos (~(:wat::core::keyword-node (:wat::core::string::concat (:wat::core::ast-name kwargs-ty) "'")) ~@ovals)))))))
 
 ;; ─── Named-function binding ───────────────────────────────────────
 ;;
@@ -1675,10 +1688,54 @@
 ;;
 ;; Load-order note: structtype is a Rust type-registration head, always known
 ;; before any macro expansion runs. No ordering gap.
+;;
+;; Arc 294 item 9a — CONSTRUCTION ERGONOMICS FLIP (same shape/rationale as
+;; `:wat::core::defrecord` / `:wat::holon::defrecord` in wat/Record.wat — see there for the
+;; full comment). `args` is `[name-kw, meta-map?, fields-vec]` (2 or 3 items, per
+;; `parse_structtype`/`parse_aggregate`); the field-vector is always the LAST arg. Same
+;; splice-field known gap as the record macros (this extraction runs at defstruct's own
+;; macro-expansion time, before `~@:Surface` splices resolve at type-registration).
 (:wat::core::defmacro :wat::core::defstruct
   [& args <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
-  `(:wat::core::structtype ~@args))
+  (:wat::core::let
+    [fqdn         (:wat::core::first args)
+     fields       (:wat::core::Option/expect (:wat::core::last args) "defstruct: missing field-vector")
+     field-ch     (:wat::core::ast->children fields)
+     field-len    (:wat::core::length field-ch)
+     n-fields     (:wat::core::i64::/ field-len 3)
+     fname-nodes  (:wat::core::foldl
+                    (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                      (:wat::core::conj acc
+                        (:wat::core::Option/expect
+                          (:wat::core::get field-ch (:wat::core::i64::* i 3))
+                          "defstruct kwargs companion: fname index")))
+                    (:wat::core::Vector :wat::WatAST)
+                    (:wat::core::range 0 n-fields))
+     field-names-ast-vec (:wat::core::with-children fields fname-nodes)
+     fqdn-str      (:wat::core::keyword/to-string fqdn)
+     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-str "'"))
+     ns-parts      (:wat::core::string::split fqdn-str "::")
+     n-ns-parts    (:wat::core::length ns-parts)
+     ns-lead       (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                       (:wat::core::conj acc
+                         (:wat::core::Option/expect (:wat::core::get ns-parts i) "defstruct kwargs companion: ns-part index")))
+                     (:wat::core::Vector :wat::core::String)
+                     (:wat::core::range 0 (:wat::core::i64::- n-ns-parts 1)))
+     ns-joined     (:wat::core::string::join "::" ns-lead)
+     ns-colon-str  (:wat::core::string::concat ":" (:wat::core::string::concat ns-joined "::"))
+     call-args-sym (:wat::core::symbol-node "call-args")]
+    `(:wat::core::do
+       (:wat::core::structtype ~@args)
+       (:wat::core::defmacro ~fqdn
+         [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+         -> :wat::WatAST
+         (:wat::core::let
+           [~(:wat::core::symbol-node "_kl-impl") (:wat::core::keyword-node ~prime-kw-str)
+            ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
+            ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node ~ns-colon-str)]
+           `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args))))))
 
 ;; ─── Arc 293 K5: extend-surface — default method impls over both pair tiers ────
 ;;
@@ -1743,4 +1800,4 @@
 (:wat::core::defmacro :wat::core::Fault/of
   [msg <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::Fault ~msg (:wat::kernel::here) (:wat::core::Vector :wat::core::Error)))
+  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) :causes (:wat::core::Vector :wat::core::Error)))

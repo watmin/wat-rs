@@ -260,15 +260,15 @@
                                "(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer {lits}) {var})"
                                :lits (:wat::core::string::join " " lits)
                                :var var-name)
-                    fe      (:wat::lint::FixEdit ln co end-ln end-co new-text)]
+                    fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
     (:wat::lint::Finding
-      "nested-if-=-ladder"
-      file
-      ln
-      co
-      "warn"
-      msg
-      (:wat::core::Some fe))))
+      :rule "nested-if-=-ladder"
+      :file file
+      :line ln
+      :col co
+      :severity "warn"
+      :message msg
+      :fix (:wat::core::Some fe))))
 
 ;; rule-nested-if-=-ladder-form — run the ladder rule on ONE form (recursive walk).
 ;; Detects the ladder at the top level OR nested anywhere inside the form.
@@ -481,7 +481,7 @@
                         end-co  (:wat::core::Option/expect  
                                     (:wat::core::HashMap/get ep :col)
                                     "concat-format-fix: end :col")
-                        fe      (:wat::lint::FixEdit ln co end-ln end-co new-text)]
+                        fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
         (:wat::core::Some fe))
       ;; ineligible (compound slot or special-char literal) — report-only
       :wat::core::None)))
@@ -508,13 +508,13 @@
                             (:wat::core::i64::to-string n-vals)
                             " value(s) — use (:wat::core::format \"…{name}…\" :name v …) instead")]
     (:wat::lint::Finding
-      "concat-abuse"
-      file
-      ln
-      co
-      "warn"
-      msg
-      (:wat::lint::concat-format-fix form in-defmacro?))))
+      :rule "concat-abuse"
+      :file file
+      :line ln
+      :col co
+      :severity "warn"
+      :message msg
+      :fix (:wat::lint::concat-format-fix form in-defmacro?))))
 
 ;; rule-concat-abuse-form — run the concat-abuse rule on ONE form (recursive walk).
 ;; Detects concat-abuse at the top level OR nested anywhere inside the form.
@@ -589,12 +589,12 @@
   [v <- :wat::deporder::Violation]
   -> :wat::lint::Finding
   (:wat::lint::Finding
-    "load-order"
-    (:wat::deporder::Violation/referencer v)
-    0
-    0
-    "error"
-    (:wat::core::string::concat
+    :rule "load-order"
+    :file (:wat::deporder::Violation/referencer v)
+    :line 0
+    :col 0
+    :severity "error"
+    :message (:wat::core::string::concat
       "load-order violation: "
       (:wat::deporder::Violation/referencer v)
       " (pos "
@@ -605,7 +605,7 @@
       (:wat::core::i64::to-string (:wat::deporder::Violation/definer-pos v))
       ") which loads later — symbol: "
       (:wat::deporder::Violation/symbol v))
-    :wat::core::None))
+    :fix :wat::core::None))
 
 ;; violations->findings — map Violations to rule-zero Findings.
 (:wat::core::defn :wat::lint::violations->findings

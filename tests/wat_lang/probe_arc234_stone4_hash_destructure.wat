@@ -10,13 +10,13 @@
 ;; Probe 1: single-field record destructure → f64(5.0)
 (:wat::core::defn :t::probe1-single-field [] -> :wat::core::f64
   (:wat::core::let
-      [{mag :magnitude} (:myapp::Voltage 5.0)]
+      [{mag :magnitude} (:myapp::Voltage :magnitude 5.0)]
       mag))
 
 ;; Probe 2: multi-field record destructure → String("hello")
 (:wat::core::defn :t::probe2-multi-field [] -> :wat::core::String
   (:wat::core::let
-      [{x :a  y :b  z :c} (:myapp::Triple 7 "hello" true)]
+      [{x :a  y :b  z :c} (:myapp::Triple :a 7 :b "hello" :c true)]
       y))
 
 ;; Probe 3: HashMap destructure with present key (Some) → i64(8080)
@@ -36,6 +36,6 @@
 ;; Probe 6: multiple destructures in same let → f64(10.5)
 (:wat::core::defn :t::probe6-multiple [] -> :wat::core::f64
   (:wat::core::let
-      [{m :magnitude} (:myapp::Voltage 3.5)
-       {c :count}     (:myapp::Counter 7)]
+      [{m :magnitude} (:myapp::Voltage :magnitude 3.5)
+       {c :count}     (:myapp::Counter :count 7)]
       (:wat::core::+ m (:wat::core::i64/to-f64 c))))

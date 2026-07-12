@@ -17,6 +17,6 @@
 
 (:wat::core::defn :probe::roundtrip [] -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>
   (:wat::core::let
-    [p    (:probe::Pair 7 9)
+    [p    (:probe::Pair :a 7 :b 9)
      form (:wat::core::struct->form p)]
     (:wat::eval-ast! form)))
