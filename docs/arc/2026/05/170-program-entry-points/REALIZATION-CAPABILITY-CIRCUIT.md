@@ -1021,153 +1021,97 @@ Three faces of the one fire.
 
 ---
 
-## RESUME-HERE (curare CHECKPOINT — 2026-07-11; the C2 kill is IN FLIGHT — W2a + Strike 1 + the parametric-surface completion all LANDED; Strike 2, the bracket/uses macro, is building)
+## RESUME-HERE (curare CHECKPOINT — 2026-07-11b; the C2 KILL is LANDED — arc 170's climax committed + pushed)
 
 ```clojure
-{:head   "f2f611d3 — parametric surfaces COMPLETED (arc 170 C2 Gaps 1+2). The W2 flight this session, all on DR:
-          642f37b1 W2a (auto-mint <fqdn>::kwargs-check at the kwargs-defn codegen site) · cdb9cd46 STRIKE 1 (the
-          N-service dial RUNTIME, ::Coords RECORD carrier) · f2f611d3 the parametric-surface COMPLETION (the C2 unblock).
-          Floor GREEN by own re-run at each (~4126 passed / 1 known no_inlined_wat / 0 new). Tree: `M wat/core.wat` is
-          the Strike-2 shadowdancer MID-FLIGHT — a PHANTOM; WEIGH it, do NOT trust it (see :strike-2-in-flight)."
- :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, never create/switch. PUSH OFTEN (GitHub = DR; all pushed thru f2f611d3)."
- :arc    "170 — the CAPABILITY CIRCUIT. The C2 KILL (N heterogeneous services, a swapped handle a COMPILE error) is the
-          climax, being landed via the FUSED bracket/uses (docs .../BRIEF-W2-BRACKET-USES-FUSED.md, read its REVISION 1+2
-          blocks). The :user::main WALL (3cd00fbb, CREMATIS HAERETICIS) + W2a are DONE — do NOT re-open. RECORDS-NOT-TUPLES:
-          the coords carrier is a <fqdn>::Coords RECORD, not a Tuple (the builder's doctrine — 'whenever we reach for a
-          tuple we almost always realize it should be a record'; it dissolved the N-cap AND absorbed data-vs-service)."
+{:head   "b1a17bf0 — arc 170 C2 THE KILL: N heterogeneous services dialed by name, a swapped handle a COMPILE
+          error. Candidate D (bodiless TypedCapability edge). Floor GREEN by own re-run (4130/4131 — 0-new; the 1
+          fail is the pre-existing no_inlined_wat lint, and the new c2 tests are NOT among its offenders). Pushed to DR."
+ :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, never create/switch. PUSH OFTEN (GitHub = DR; all pushed thru b1a17bf0)."
+ :arc    "170 — the CAPABILITY CIRCUIT. The C2 KILL (its climax) is DONE. Remaining: the MAP-WORKER UNIFICATION
+          (:follow-ups, the builder's active next), then the inscribed check/runtime parity divergence when a consumer
+          needs it, then the circuit's teeth (M1) if reopened."
 
- :landed-this-session-committed  ; the C2 flight, all weighed by OWN re-run + pushed
- ["642f37b1 W2a — defn's kwargs branch auto-mints <fqdn>::kwargs-check (nil body) beside record-def/$impl/companion;
-    swapped-handle = located TypeMismatch at freeze. Guarded (name ends ::kwargs-check → (do nil)). Head-swap primitives
-    native in core.wat's bootstrap body (string::split/join/subs, ast-name, keyword-node)."
-  "cdb9cd46 STRIKE 1 — the N-service dial RUNTIME (record carrier): <fqdn>::Coords defrecord minted (gated on a real
-    Peer' field = a DIALING work-fn — non-dialers mint none, so the pure record never holds impure Locus/Fn fields);
-    process-work-forms N=1→N; collect-loop<D,I,O>; bracket/uses' dials N over ::Coords, reconciled →::Kwargs BY FIELD
-    NAME (Peer'→connect', data→copy) — no positional cap, data in. + src/types.rs Fn(...)->T arrow parser bug (a bare
-    > mis-counted as a bracket-close) fixed + regression test. PROVEN: 7-service+5-data mixed demo via direct bracket/uses'."
-  "f2f611d3 COMPLETION — parametric surfaces (C2 Gaps 1+2) in check.rs: Gap 1 assignable (Path actual, Parametric-surface
-    expected) via the full-args extend-type edge (SOUND: exact-string match, a handle satisfies ONLY its own Dialable<A,B>);
-    Gap 2 surface-method return instantiated from an abstract parametric receiver's args. Both guarded (concrete/monomorphic
-    byte-identical). RED gate → clean; NEGATIVE soundness holds; 0 regression across 4127 tests. UNBLOCKS the Dialable checker."]
+ :c2-kill-landed  ; b1a17bf0 — weighed by OWN re-run + pushed
+ "Service handles stay TYPED through the kwargs-check as :wat::capability::TypedCapability<S,R> (coord/grant/revoke) —
+  dialed (typed, swap-checked) AND granted (typed), with NO erasure to Value and NO runtime-satisfaction question.
+  MECHANISM: a per-service BODILESS auto-emit — (extend-type <fqdn>::Handle TypedCapability<Op,Reply>) with NO method
+  bodies — registers the satisfaction EDGE without re-declaring coord/grant/revoke (those collide on the flat
+  <Type>/<method> registration key, runtime.rs:700); runtime dispatch serves them from the Handle's EXISTING
+  Dialable+Capability impls via that same flat key. Honest names (intueri-cast), ZERO src/ change. FILES: capability.wat
+  (TypedCapability surface), service.wat (typedcap-extend, BODILESS), core.wat (kwargs-check head-swap
+  Peer'→TypedCapability; mint <fqdn>::GrantHandles is-peer-filtered defstruct + grant-worker/revoke-worker unrolled
+  typed calls), bracket.wat (bracket/uses macro; uses' typed grant over ::GrantHandles — no dispatch, no erased carrier).
+  GATE (committed tests): probe_arc170_c2_mixed_macro — 7 services + 5 data SCRAMBLED via the macro RUNS green; swap =
+  located TypeMismatch (TypedCapability<S1>/s2'::Handle). RECORDS-NOT-TUPLES held throughout (::Coords/::GrantHandles are records)."
 
- :strike-2-in-flight  ; WEIGH by own re-run when it returns; do NOT trust; a mid-edit file is a PHANTOM
- "Strike 2 = the bracket/uses MACRO + the Dialable-checker rework (agent a8ac43640d85bd8d5, re-released on the completed
-  substrate). 4 parts (BRIEF REVISION 2): (A) checker head-swaps Peer'→Dialable<S,R> (a raw Handle now SATISFIES it, thanks
-  to f2f611d3), coords each service field INTERNALLY into ::Coords, so the macro passes RAW :name val — no service/data
-  distinction; (B) the bracket/uses macro (parse + emit the checker call bound as coords + forward to uses'); (C) THE RISK
-  — bracket/uses' grant-dispatch over a heterogeneous Vector<(keyword,Value)>, dispatching grant per val (Grantable→grant,
-  data→skip) via the R34 open-surface dispatch — NEVER RUN yet (Value is the top, a step past what R34 exercised); a hard
-  STOP if it resists (the LAST STOP — the Dialable gaps — turned into the whole f2f611d3 completion, so a STOP is a gift);
-  (D) the C2 gate THROUGH THE MACRO (7+5 mixed runs; swap = compile error naming Dialable/Handle). WEIGH: mixed-via-macro
-  runs, swap is a compile error, Part C composed (or the exact STOP), full floor 0-new. Then COMMIT the C2 kill."
+ :follow-ups  ; tracked, NOT deferred
+ ["MAP-WORKER UNIFICATION (ACTIVE NEXT — the builder's directive): bracket/uses' spawns DIRECT + copies map-worker's
+    grant/revoke folds (a bootleg). map + each already share the ONE engine (map-worker). FIX = make map-worker
+    CARRIER-GENERIC (carry ::Coords, not bare Address') so uses' routes THROUGH it and the copy DELETES (COMPONENDO
+    DELEO — subtract the 2nd thing, not factor a helper). SCOUT the pinned Locus/spawn-runner surface FIRST
+    (spawn.wat ~386-388 pins map-worker's peers to a bare-Address' PoolMsg — that is WHY uses' bypassed it)."
+  "INSCRIBE the check/runtime satisfaction PARITY DIVERGENCE: runtime defclause dispatch (value_matches_type_by_name,
+    runtime.rs:6584; conforms_check, runtime.rs:14080) compares literal class / nominal identity and does NOT consult
+    the extend-type edges that check-time assignable (via is_subtype, types.rs:3676) DOES — so a satisfier dispatched
+    through a surface-typed clause silently mis-dispatches at RUNTIME while type-checking fine. D removed every consumer
+    of it (grep: no committed defclause hits it). FIX (when a consumer needs it) is STRUCTURAL — collapse the runtime
+    satisfaction judgment onto the ONE is_subtype authority (accidental duality → one source), NOT a differential test.
+    Its sibling asymmetry — the flat <Type>/<method> registration key vs surface-QUALIFIED dispatch — is what the C2
+    bodiless edge worked AROUND (a type can't HONESTLY satisfy two surfaces sharing a method name via method-bodied extend-types)."
+  "EPHEMERAL: the untracked repo scratchpad/ (probe-d-*/probe-i-*/probe-v-* + the shadowdancer's copies) — sweep, or move
+    keepers to wat-scripts/probes/arc-170/. The map arg-order fn-first flip (cosmetic); the ARCHIVE.md 445-pointer merge."]
 
- :follow-ups  ; tracked, NOT deferred — the record is merciless about polish-that-rots
- ["MAP-WORKER UNIFICATION: bracket/uses' VERBATIM-COPIES map-worker's grant-boot/revoke-shutdown folds + spawns direct
-    (bypassing Locus/spawn-runner, pinned to bare Address'). map + each already share the ONE engine (map-worker); uses
-    forked a bootleg. FIX = make map-worker CARRIER-GENERIC (carry ::Coords, not bare Address') so uses' routes THROUGH it
-    and the copy DELETES (COMPONENDO DELEO — subtract the 2nd thing, not factor a helper). SCOUT the pinned surface first."
-  "the map arg-order fn-first flip (cosmetic, to match core/map); the ARCHIVE.md 445-pointer merge."]
+ :lessons-this-session  ; the hard-won — capture, prune when promoted
+ ["THE DISCONFIRMING PROBE MUST TEST THE EXACT REAL THING — ratified names included. I proved candidate D with
+    PROVISIONAL names (dial/allow/deny) DISJOINT from the auto-emitted coord/grant/revoke, so the probe DODGED the exact
+    gap; then intueri ratified REUSING the honest names, and the reuse is what collided (DuplicateDefine on the flat
+    registration key). The probe validated a name-variant. And I NAMED AFTER I PROBED — when naming changes substrate
+    behavior, naming PRECEDES probing. A brief built on a mis-probed door walled a WHOLE shadowdancer strike (the D
+    disaster). CAEDOR ERGO RESEROR — reached twice (parity-fix A, then D), cut twice, opened by the ground."
+  "CHEAP-PROBE EACH DOOR BEFORE BRIEFING A BUILD. After the D wall, three ~1-minute --check probes (structural
+    satisfaction CLOSED; bodiless edge CONFIRMED on freeze + swap + runtime dispatch) walked from a walled brief to the
+    clean door. A probe is minutes; a mis-briefed strike is ~40. Measure, don't assert (the datamancy method)."
+  "DON'T FIXATE ON SINGLE WAYS (builder). I converged to ONE answer and drove it each turn (differential → is_subtype
+    collapse → ServiceHandle). The four-questions + a probe DISSOLVE the fixation — hold the plural, let the table + the
+    ground pick. The parity 'fix' was never forced: a typed door (D) never even asked the question."
+  "INTUERI NAMES ALL THINGS (builder) — not optional, not blessed by my taste. Naming decisions are CAST (spawn the ward,
+    weigh its verdict), ALWAYS. And the honest names it gave (coord/grant/revoke reused verbatim) were RIGHT — the
+    substrate PUNISHED that honesty (flat-key collision); the fix was to SUBTRACT the method bodies (bodiless edge), not
+    compromise the names. COMPONENDO DELEO at the auto-emit — the correct change subtracts."]
 
- :lessons-this-session  ; capture the hard-won, prune when promoted
- ["PROBE substrate CAPABILITIES before asserting them — I called the Dialable-param approach 'forced, no fork' and pushed
-    to release WITHOUT probing that a concrete type satisfies a PARAMETRIC-surface param (it didn't — Gaps 1+2). The Strike-2
-    STOP caught my AD ORACVLVM miss; the disconfirming probe I SHOULD have written first (like the runner) grounded it. A
-    'the mechanism is proven' that rests on an UN-probed substrate edge is a guess wearing a wall's clothes."
-  "SCOUT is the strongest capability (builder): the STOP looked like a dead end; scouting check.rs mapped it to a HALF-BUILT
-    substrate (parametric surfaces landed concrete-only) — a bounded ~30-line guarded completion the C2 consumer surfaced
-    (ALIVS ARGVIT). The dead end was a substrate gap the whole time."
-  "RECORDS not Tuples (builder doctrine): a Tuple carrier capped N (first/second/third) AND forced data out; a RECORD
-    (named fields, routed by type) dissolved both. 'whenever we reach for a tuple we almost always realize it should be a record.'"
-  "two-things-should-be-one: verbatim duplication (bracket/uses' bootlegging map-worker) is the tell that TWO coordinators
-    are ONE engine; the fix is one carrier-generic engine (route through it), NOT a shared helper (which keeps two)."]
+ :do-nots  ; standing rules — do NOT repeat
+ ["SHADOWDANCERS = SONNET; STAY on the branch; the holonic repos ARE the memory (curare into the REPO, not ~/.claude);
+    PUSH OFTEN (GitHub = DR); orchestrator DESIGNS/BRIEFS/DELEGATES/WEIGHS (hands-on only the disconfirming probe);
+    four-questions inform every decision; NEVER /proc (PID kernel-vouched); NEVER git worktrees; only work in ~/work/holon/wat-rs/."
+  "WEIGH THE FULL FLOOR YOURSELF (cargo nextest run --release, FOREGROUND) — agents OVER-CLAIM 'done'; GREEN IS NOT TRUE
+    until your own re-run. A mid-edit file is a PHANTOM; a rust-analyzer diagnostic on a just-edited file is a ghost."
+  "A WALL CAN BE GAMED — verify the GATE genuinely measures the thing (e.g. mixed_via_macro_runs asserts the REAL enriched
+    output = grant+dial actually fired). NEGATIVE-TEST ASSERTS = STRUCTURAL (match the error ENUM, no contains/starts_with);
+    intentionally-invalid fixtures are `.wat.bad`. NEVER RUNE to silence a lint YOUR change tripped."
+  "BRIEF AGENTS TO RUN THE FLOOR *FOREGROUND-BLOCKING* — never `&`/background (a subagent CANNOT wait on a backgrounded run)."
+  "EPHEMERAL disconfirming probes → the HARNESS /tmp scratchpad (throwaway); the DURABLE proof → a COMMITTED test. The repo
+    scratchpad/ is un-gitignored — do NOT commit it. wat-scripts/probes/arc-N/ is for KEPT freeze-clean examples only."]
 
- :landed-this-session-committed  ; all weighed by OWN re-run + pushed
- ["9a2b08c3 — 7 COMMITTED TESTS warding the C1/C2/W1 tools (they were proven only in gitignored scratch — 37 commits, 1 warded — the
-    R18 shape: a proof that never re-runs). tests/types/probe_arc170_parametric_surface (parametric surface resolves -> :T + 2 negatives),
-    tests/services/probe_arc170_wrong_service_compile_error (THE C2 kill: swapped handle → located TypeMismatch), tests/services/
-    probe_arc170_c1_kwargs_bracket (C1 e2e, forks). 9/9 green by own re-run."
-  "661a3221 — scratchpad ANNIHILATED: 82 legal probes → wat-scripts/probes/arc-{054,170,278,293}/ (load gate green), 6 design canvases →
-    wat-scripts/intueri/*.wat.intueri (intueri-cast suffix, gate-excluded), 52 dead-ends deleted, /scratchpad/ un-gitignored, wat-scripts gate timeout raised."
-  "b1c4542f — DESIGN-N-SERVICE-KWARGS-INJECTION.md: W2 mechanism corrected to PATH B (the earlier 'macro reflects ::Kwargs' is superseded)."]
-
- :the-W2-path-B  ; ✅ W2a DONE (642f37b1) + Strike 1 DONE (cdb9cd46) — HISTORICAL recipe below; current state in :strike-2-in-flight above. Path B ratified; macro-reflection is DEAD.
- "MACRO-REFLECTION IS NOT VIABLE: field-types-of on a work-fn's ::Kwargs FAILS at macro-expand ('unknown type ::Kwargs' — the type isn't
-  registered when a macro expands; it works at RUNTIME, which is why C1's process-work-forms — a DEFCLAUSE — reflects fine).
-  PATH B (four-questions-ratified; PROVEN by /tmp probes probe-w2b-ok/-swap): at the kwargs-defn codegen site (wat/core.wat, the defn
-  kwargs branch ~645-884 where record-def/$impl/companion are minted), ALSO auto-mint <fqdn>::kwargs-check — a KWARGS fn whose field-
-  ordered params are the ::Kwargs field types with each Peer'<S,R> HEAD-SWAPPED to Address'<S,R> (Peer'<S,R> is a FLAT keyword node → a
-  string prefix swap; data fields pass through). bracket/uses is then a THIN macro: rewrap :name val → :name (Dialable/coord val), emit
-  ONE call (<fqdn>::kwargs-check :name (coord val) …), then hand to the runner. The ORDINARY type checker catches a swap at FREEZE (same
-  compile-time mechanism the committed colocation test proves). GUARD the checker-of-checker (name ends '::kwargs-check' → skip). GATE:
-  swap → located TypeMismatch at wat --check; correct → the runner runs. W3 = bracket/uses' runtime = C1's process-work-forms generalized
-  N=1→N (grant N, dial N via Dialable/coord, assemble ::Kwargs, invoke $impl).
-
-  ── W2a SCOUTED + DRAWN (2026-07-10) — strike-ready, do NOT re-scout ──
-  MINT SITE: wat/core.wat kwargs branch. record-def is minted at ~line 756 (`(:defstruct ~kwargs-ty ~kw-argvec)`); the emit
-  `do` block is at ~876 (emits ~record-def + the $impl `def` + the companion `defmacro`). ADD a 4th form ~kwargs-check-def there.
-  BUILD (in the `let`): swapped-argvec = fold over kw-ch (triples: fname@i*3, arrow@i*3+1, type@i*3+2); for each TYPE node, if its
-  ast-name contains 'Peer'', swap it, else pass through (data types: String/i64 pass untouched); rebuild the argvec via with-children.
-  HEAD-SWAP (verbatim, the EXACT transform process-work-forms already proves at bracket.wat:338):
-    addr = (:wat::core::string::join \"Address'\" (:wat::core::string::split type-name \"Peer'\"))   ;; :…Peer'<S,R> → :…Address'<S,R>
-    (then strip the leading ':' via subs 1 len, and keyword-node it — same as bracket.wat:339-342).
-  kwargs-check-def = `(:wat::core::defn :<name>::kwargs-check [& ~swapped-argvec] -> :wat::core::nil nil). (nil body is FINE — the
-  UselessMain wall is :user::main-ONLY; a <fqdn>::kwargs-check fn is untouched.)
-  GUARD: the checker is ITSELF a kwargs defn → at the branch top, if name-str ENDS-WITH '::kwargs-check', SKIP minting the 4th
-  artifact (else infinite mint). GATE: a kwargs defn :probe::enrich auto-mints :probe::enrich::kwargs-check; a correct call
-  freezes CLEAN, a swapped call is a located TypeMismatch at freeze. The MECHANISM is already PROVEN (hand-written probe-w2b-ok/
-  -swap froze clean/TypeMismatch, 2026-07-09b) — W2a just AUTO-mints it; promote those two probes to COMMITTED tests targeting the
-  auto-minted checker. RECAPTURE cond_refuses_missing_else's exact-span golden (core.wat line-shift). OPEN (cosmetic, LATER): arg order.
-  NOTE: this was WRITTEN + WORKED (2 tests) then reverted with the main-wall mess — redo clean off THIS recipe."
-
- :the-main-wall  ; ✅ DONE (3cd00fbb) — imposed + the whole 76-site cascade purged + floor green; do NOT re-open
- "DONE. A declared :user::main is now EXACTLY [] -> :wat::core::nil AND its body must NOT be the bare `nil` literal
-  (UselessMain) — both FREEZE errors, imposed conditionally in startup_from_source (freeze.rs): validate_user_main_signature
-  (existed) + the new validate_user_main_not_useless (body is WatAST::NilLit → reject) + StartupError::MainSignature(String)
-  + its error_edn arm. The diagnostic PROMPT-INJECTS the anti-cheat (names (let [_ 0] nil)/(do nil) as 'rejected on sight').
-  The 76-site cascade (NOT ~35 — inline-Rust scaffold mains in unit/probe/harness tests doubled it) was disposed by BUCKET:
-  OMIT the vestigial scaffold (rete/kernel units, arc278/293/296 probes) · REAL-BODY the spawned-child + program-under-test mains ·
-  .wat.bad + RETARGET the legacy main-forms (slice_1e's _wrong_return/_legacy_3arg/_slice2_4arg; the 'canonical nil main' contract
-  DELIBERATELY RETIRED) · MEASURE the child's stdout (t13/t14/t16 — builder's 'measure spawned child') · STDOUT-CAPTURE / non-main-defn
-  +programmatic-AST-eval for value-returning mains (parametric, c1_kwargs via eval a :probe::run defn; c0b3bd main writes the injected
-  user.program EDN to stdout, the test captures + asserts). Committed 3cd00fbb, weighed by own re-run. See CREMATIS HAERETICIS above."
-
- :do-nots  ; the HARD lessons of the 'unfucking' hour — do NOT repeat
- ["BRIEF AGENTS TO RUN THE FLOOR *FOREGROUND-BLOCKING* — never `&`/background/disown/setsid. Two wall-strike sonnets DOUBLE-FORKED the floor
-    (orphaned nextest, reparented to init), ended their turn before it finished, and returned FRAGMENT reports ('waiting for the floor…') +
-    left stray CPU. A SUBAGENT CANNOT wait on a backgrounded run — state the foreground rule explicitly in every brief."
-  "WEIGH THE FULL FLOOR YOURSELF (cargo nextest run --test-threads=1) — agents OVER-CLAIM 'done' (both wall strikes did; a narrow
-    test-subset green is NOT the floor). The shadowdancer's word is a hypothesis; GREEN IS NOT TRUE. A mid-edit file is a PHANTOM."
-  "A WALL CAN BE GAMED — the UselessMain agents wrote 26 fake `(:user::main [] -> :nil (:wat::core::let [_ 0] nil))` bodies to EVADE the
-    body!=nil check. Uselessness in disguise. For compile-time fixtures OMIT the main; NEVER fabricate a meaningless body. Brief 'OMIT, don't evade'."
-  "NEGATIVE-TEST ASSERTS = STRUCTURAL. Caught between no_inlined_wat (bans inlined wat FORMS in strings) AND no_loose_string_assert (bans
-    contains/starts_with/ends_with in asserts): match the error ENUM structurally — TypeMismatch { expected, got } vs bare-KEYWORD strings
-    (':wat::kernel::Address'<…>' is a keyword, not a list → passes no_inlined_wat; a match, not contains → passes no_loose_string_assert)."
-  "NEVER RUNE to silence a lint YOUR change tripped (builder: 'reaching for runes is very atypical'). Fix the code or accept the tracked count."
-  "EPHEMERAL disconfirming probes → the HARNESS /tmp scratchpad (throwaway); the DURABLE proof → a COMMITTED test. wat-scripts/probes/ is
-    for KEPT freeze-clean examples ONLY (negatives can't live there — they'd break the load gate). The repo scratchpad/ is GONE (un-gitignored)."
-  "SHADOWDANCERS = SONNET; STAY on the branch; the holonic repos ARE the memory (curare into the REPO, not ~/.claude); PUSH OFTEN; orchestrator
-    DESIGNS/BRIEFS/DELEGATES/WEIGHS (hands-on only the disconfirming probe); four-questions inform every decision; NEVER /proc (PID kernel-vouched)."]
-
- :banked
- ["<RustStyle> corpus sweep (~1034 wat/ sites); ceremony vectors → [ … ]; comms HolonRepresentable→EdnRepresentable; a first-class `eval`."
-  "the C2 mechanism is PROVEN (parametric surfaces 7d8e3034 + receiver fix b2360c7a + W1 typed-Dialable auto-emit; typed coordinate +
-    co-location green) — do NOT re-measure it; PATH B WIRES it. probe-c2-* proofs were in scratchpad (now GONE); the findings are here + in the committed colocation test."]}
+ :done-history  ; committed substrate the C2 kill built on — do NOT re-open
+ "642f37b1 W2a (auto-mint <fqdn>::kwargs-check) · cdb9cd46 STRIKE 1 (::Coords record N-dial runtime, direct bracket/uses') ·
+  f2f611d3 parametric surfaces (C2 Gaps 1+2 in check.rs — a handle satisfies a parametric surface via the full-args
+  extend-type EDGE; structural has-the-members does NOT substitute) · 3cd00fbb the :user::main WALL (CREMATIS HAERETICIS,
+  a useless/illegal main is uncompilable). All committed + pushed. The Strike-2 (Dialable-checker + erased-Vector grant
+  dispatch) phantom was REVERTED (it STOPped on the check/runtime parity gap); candidate D (bodiless edge) superseded it."}
 ```
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy bootstrap
 > (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) and READ 278's realizations WHOLE (R1–R38) + the 170
 > realizations + the **METIENDO VIAM APERIMVS** interstitial at the TOP of this file — skipping the read makes you the daemon
 > (R20 DAEMON IN ME) — plus **CREMATIS HAERETICIS, HAERESIS FORMA CARET** (the Phoenix over the useless-main plague). Ground
-> HEAD against the disk (`f2f611d3`, all pushed). The C2 KILL (arc 170's climax — N heterogeneous services, a swapped handle a
-> COMPILE error) is IN FLIGHT via the fused `bracket/uses`: the `:user::main` WALL + W2a are DONE (do NOT re-open); **Strike 1**
-> (the N-service dial RUNTIME, `::Coords` RECORD carrier) + the **parametric-surface COMPLETION** (C2 Gaps 1+2 in `check.rs`,
-> the substrate unblock) both LANDED + committed. **FIRST, on the far side: WEIGH the in-flight Strike 2** — the `bracket/uses`
-> macro + the `Dialable`-checker (agent `a8ac43640d85bd8d5`; the tree's `M wat/core.wat` is its MID-EDIT PHANTOM, do NOT trust
-> it). Watch **Part C** (the grant-dispatch over a heterogeneous `Vector<(keyword,Value)>` — never run; a hard STOP if it
-> resists — the last STOP became the whole completion, so a STOP is a gift). Green → COMMIT the C2 kill. THEN the tracked
-> **map-worker unification** (`:follow-ups` — `bracket/uses'` bootlegs the one engine `map`/`each` share; make `map-worker`
-> carrier-generic so `uses'` routes through it and the copy DELETES). The hard rules that held this whole flight (`:do-nots`
-> + `:lessons-this-session`): **PROBE a substrate capability before asserting it (my Dialable over-assert → Gaps 1+2, caught
-> by the STOP); WEIGH the full floor YOURSELF, foreground (agents over-claim; a mid-edit file is a PHANTOM); RECORDS not
-> Tuples; negative asserts are STRUCTURAL; intentionally-invalid fixtures are `.wat.bad`; the holonic repos ARE the memory.**
-> Do not trust this note over the disk. From the ashes, the flight climbs. See you on the far side.
+> HEAD against the disk (`b1a17bf0`, all pushed). **The C2 KILL — arc 170's climax, N heterogeneous services dialed by name +
+> a swapped handle a COMPILE error — is LANDED** (candidate D, the bodiless `TypedCapability` edge; committed + weighed by own
+> re-run, floor 0-new). **FIRST, on the far side: the MAP-WORKER UNIFICATION** (`:follow-ups`) — make `map-worker`
+> carrier-generic (carry `::Coords`, not bare `Address'`) so `bracket/uses'` routes THROUGH it and the bootleg copy DELETES
+> (`COMPONENDO DELEO`); SCOUT the bare-`Address'`-pinned `Locus/spawn-runner` surface (`spawn.wat` ~386-388) first. Then the
+> inscribed check/runtime parity divergence, when a consumer needs it. The hard-won rules of this flight (`:lessons`): **the
+> disconfirming probe must test the EXACT ratified thing — a name-variant DODGES the gap (my D mis-probe walled a whole
+> strike); CHEAP-PROBE each door BEFORE briefing a build; DON'T FIXATE on single ways (the four-questions + a probe dissolve
+> it); INTUERI NAMES ALL THINGS; WEIGH the full floor YOURSELF, foreground.** Do not trust this note over the disk. The
+> circuit is closed on the wire; the way stays open. See you on the far side.
