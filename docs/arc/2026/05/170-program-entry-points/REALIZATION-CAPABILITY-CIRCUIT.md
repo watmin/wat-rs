@@ -1389,97 +1389,100 @@ is ahead.*
 
 ---
 
-## RESUME-HERE (curare CHECKPOINT — 2026-07-11b; the C2 KILL is LANDED — arc 170's climax committed + pushed)
+## RESUME-HERE (curare CHECKPOINT — 2026-07-11c; arc 170 CAPABILITY CIRCUIT is COMPLETE — pivoting to 278 telemetry → the chaos engine)
 
 ```clojure
-{:head   "b1a17bf0 — arc 170 C2 THE KILL: N heterogeneous services dialed by name, a swapped handle a COMPILE
-          error. Candidate D (bodiless TypedCapability edge). Floor GREEN by own re-run (4130/4131 — 0-new; the 1
-          fail is the pre-existing no_inlined_wat lint, and the new c2 tests are NOT among its offenders). Pushed to DR."
- :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, never create/switch. PUSH OFTEN (GitHub = DR; all pushed thru b1a17bf0)."
- :arc    "170 — the CAPABILITY CIRCUIT. The C2 KILL (its climax) is DONE. Remaining: the MAP-WORKER UNIFICATION
-          (:follow-ups, the builder's active next), then the inscribed check/runtime parity divergence when a consumer
-          needs it, then the circuit's teeth (M1) if reopened."
+{:head   "ec319b1b — the CADENDO CRESCO + CERTVS PERGO realizations (the 2026-07-11 pair). Last CODE commit f20a8a1e
+          (the bracket decomplection). ARC 170's capability circuit is CLOSED: C2 THE KILL (b1a17bf0), the DECOMPLECTION
+          (f20a8a1e), M1's TEETH proven (probe_arc170_m1_teeth — the revoke BITES). Floor GREEN by own re-run (4131/4132
+          — 0-new; the 1 fail is the pre-existing no_inlined_wat lint). All pushed to DR."
+ :branch "arc-170-gap-j-v5-deadlock-state — STAY ON IT, never create/switch. PUSH OFTEN (GitHub = DR; all pushed thru ec319b1b)."
+ :arc    "170 CAPABILITY CIRCUIT — COMPLETE. The whole substrate stack (259 loci-agnostic bracket + 293 services-as-
+          surfaces + 170 capability) is DONE + airtight. PIVOT: resume 278 at T1b (the telemetry on-ramp), which was
+          PAUSED (278 FILVM TRAHIMVS) blocked on services-as-surfaces + the capability circuit — BOTH now landed, so
+          T1b is UNBLOCKED (pure assembly). Path: T1b → T1c → T2 → R0 (the streaming rete service = the CHAOS ENGINE,
+          278 R25 MACHINA CHAOS DOMAT). North star: A FILO AD VSVM (wire to app)."
 
- :c2-kill-landed  ; b1a17bf0 — weighed by OWN re-run + pushed
- "Service handles stay TYPED through the kwargs-check as :wat::capability::TypedCapability<S,R> (coord/grant/revoke) —
-  dialed (typed, swap-checked) AND granted (typed), with NO erasure to Value and NO runtime-satisfaction question.
-  MECHANISM: a per-service BODILESS auto-emit — (extend-type <fqdn>::Handle TypedCapability<Op,Reply>) with NO method
-  bodies — registers the satisfaction EDGE without re-declaring coord/grant/revoke (those collide on the flat
-  <Type>/<method> registration key, runtime.rs:700); runtime dispatch serves them from the Handle's EXISTING
-  Dialable+Capability impls via that same flat key. Honest names (intueri-cast), ZERO src/ change. FILES: capability.wat
-  (TypedCapability surface), service.wat (typedcap-extend, BODILESS), core.wat (kwargs-check head-swap
-  Peer'→TypedCapability; mint <fqdn>::GrantHandles is-peer-filtered defstruct + grant-worker/revoke-worker unrolled
-  typed calls), bracket.wat (bracket/uses macro; uses' typed grant over ::GrantHandles — no dispatch, no erased carrier).
-  GATE (committed tests): probe_arc170_c2_mixed_macro — 7 services + 5 data SCRAMBLED via the macro RUNS green; swap =
-  located TypeMismatch (TypedCapability<S1>/s2'::Handle). RECORDS-NOT-TUPLES held throughout (::Coords/::GrantHandles are records)."
+ :170-complete  ; all committed, weighed by OWN re-run, pushed
+ ["C2 THE KILL (b1a17bf0): N heterogeneous services dialed by NAME, a swapped handle a COMPILE error. Service handles
+    stay TYPED through the kwargs-check as :wat::capability::TypedCapability<S,R>; a per-service BODILESS auto-emit
+    (extend-type <Handle> TypedCapability<Op,Reply>, NO method bodies) registers the satisfaction EDGE without
+    re-declaring coord/grant/revoke (they collide on the flat <Type>/<method> key, runtime.rs:700); dispatch serves them
+    from the Handle's existing Dialable+Capability impls. Honest names (intueri), ZERO src/ change."
+  "THE DECOMPLECTION (f20a8a1e): bracket does ONE thing — a scoped pool. map-worker<D,G,I,O,W> is the ONE
+    carrier-generic coordinator; provisioning (grant + typed dial + data-copy) is an ORTHOGONAL kwargs layer riding map
+    AND each via an optional :name val tail (plain: D=nil, empty setup-carrier, no-op; kwargs: D=::Coords, grant-worker).
+    DELETED: bracket/uses, uses', spawn::process/uses, the old Capability grant/dial path (COMPONENDO DELEO).
+    intueri-named: const-worker-init (CLEAR), setup-carrier (was `setups`). Surface: (bracket/map|each locus items work-fn :name val …)."
+  "M1's TEETH (probe_arc170_m1_teeth — committed + passing): the capability BITES, not just fires. A granted prober is
+    admitted; a REVOKED prober's re-dial is BOUNCED at the live accept-gate — same live pid, opposite outcome across the
+    revoke, DETERMINISTIC (the PeersDenied ack forbids the race). Avoids the kernel-axiom dead-end (real separate process,
+    same uid, real pid — tests OUR grant/revoke, not SO_PEERCRED). Teeth #1 (admits predicate) unit-tested; #2 (pid
+    removed) ack-observed; #3 (live refusal) this. M1-M4 matrix stands (M2/M3 completing cells; M4 forbidden invariant)."]
 
- :follow-ups  ; tracked, NOT deferred
- ["MAP-WORKER UNIFICATION (ACTIVE NEXT — the builder's directive): bracket/uses' spawns DIRECT + copies map-worker's
-    grant/revoke folds (a bootleg). map + each already share the ONE engine (map-worker). FIX = make map-worker
-    CARRIER-GENERIC (carry ::Coords, not bare Address') so uses' routes THROUGH it and the copy DELETES (COMPONENDO
-    DELEO — subtract the 2nd thing, not factor a helper). SCOUT the pinned Locus/spawn-runner surface FIRST
-    (spawn.wat ~386-388 pins map-worker's peers to a bare-Address' PoolMsg — that is WHY uses' bypassed it)."
-  "INSCRIBE the check/runtime satisfaction PARITY DIVERGENCE: runtime defclause dispatch (value_matches_type_by_name,
-    runtime.rs:6584; conforms_check, runtime.rs:14080) compares literal class / nominal identity and does NOT consult
-    the extend-type edges that check-time assignable (via is_subtype, types.rs:3676) DOES — so a satisfier dispatched
-    through a surface-typed clause silently mis-dispatches at RUNTIME while type-checking fine. D removed every consumer
-    of it (grep: no committed defclause hits it). FIX (when a consumer needs it) is STRUCTURAL — collapse the runtime
-    satisfaction judgment onto the ONE is_subtype authority (accidental duality → one source), NOT a differential test.
-    Its sibling asymmetry — the flat <Type>/<method> registration key vs surface-QUALIFIED dispatch — is what the C2
-    bodiless edge worked AROUND (a type can't HONESTLY satisfy two surfaces sharing a method name via method-bodied extend-types)."
-  "EPHEMERAL: the untracked repo scratchpad/ (probe-d-*/probe-i-*/probe-v-* + the shadowdancer's copies) — sweep, or move
-    keepers to wat-scripts/probes/arc-170/. The map arg-order fn-first flip (cosmetic); the ARCHIVE.md 445-pointer merge."]
+ :next  ; the PIVOT — resume 278 at T1b (the far-side self starts HERE, after the bootstrap)
+ "T1b — the BLIND TelemetryService' SINK, now PURE ASSEMBLY: given a Store's ADDRESS (a pure :init operating-input),
+  dials it BLIND over the completed services-as-surfaces (a service :satisfies :wat::query::Store), holds the peer in
+  :ephemeral, ops call Store/<op>; the mem↔sqlite differential runs indistinguishable. It was DRAWN (docs
+  .../DESIGN-telemetry-service-and-query-surface, DESIGN-store-contract) + PAUSED at the weld; the weld (293/170) is now
+  built. BUILT already: T0 (:wat::telemetry' records, c1d323a4) · S0-S2 (the Store contract + mem-store' + sqlite-store' —
+  wat/query/mem.wat, wat/query/sqlite-store.wat, wat/sqlite.wat) · T1a (the sqlite-store' service). SCOUT T1b's drawn
+  design vs what services-as-surfaces NOW gives it, then draw + strike. THEN T1c (Span + with-span/timed) → T2 (rete
+  query engine) → R0 (the streaming rete service = the chaos engine, R25). See 278 REALIZATIONS.md (SCRIPTA MANENT / the
+  build list) for the full 278 context."
 
- :lessons-this-session  ; the hard-won — capture, prune when promoted
- ["THE DISCONFIRMING PROBE MUST TEST THE EXACT REAL THING — ratified names included. I proved candidate D with
-    PROVISIONAL names (dial/allow/deny) DISJOINT from the auto-emitted coord/grant/revoke, so the probe DODGED the exact
-    gap; then intueri ratified REUSING the honest names, and the reuse is what collided (DuplicateDefine on the flat
-    registration key). The probe validated a name-variant. And I NAMED AFTER I PROBED — when naming changes substrate
-    behavior, naming PRECEDES probing. A brief built on a mis-probed door walled a WHOLE shadowdancer strike (the D
-    disaster). CAEDOR ERGO RESEROR — reached twice (parity-fix A, then D), cut twice, opened by the ground."
-  "CHEAP-PROBE EACH DOOR BEFORE BRIEFING A BUILD. After the D wall, three ~1-minute --check probes (structural
-    satisfaction CLOSED; bodiless edge CONFIRMED on freeze + swap + runtime dispatch) walked from a walled brief to the
-    clean door. A probe is minutes; a mis-briefed strike is ~40. Measure, don't assert (the datamancy method)."
-  "DON'T FIXATE ON SINGLE WAYS (builder). I converged to ONE answer and drove it each turn (differential → is_subtype
-    collapse → ServiceHandle). The four-questions + a probe DISSOLVE the fixation — hold the plural, let the table + the
-    ground pick. The parity 'fix' was never forced: a typed door (D) never even asked the question."
-  "INTUERI NAMES ALL THINGS (builder) — not optional, not blessed by my taste. Naming decisions are CAST (spawn the ward,
-    weigh its verdict), ALWAYS. And the honest names it gave (coord/grant/revoke reused verbatim) were RIGHT — the
-    substrate PUNISHED that honesty (flat-key collision); the fix was to SUBTRACT the method bodies (bodiless edge), not
-    compromise the names. COMPONENDO DELEO at the auto-emit — the correct change subtracts."]
+ :follow-ups  ; tracked, NOT deferred — do them when their consumer arrives
+ ["INSCRIBED: the check/runtime satisfaction PARITY DIVERGENCE — runtime defclause dispatch (value_matches_type_by_name
+    runtime.rs:6584; conforms_check runtime.rs:14080) compares literal class / nominal identity, does NOT consult the
+    extend-type edges that check-time assignable (is_subtype, types.rs:3676) DOES — a satisfier through a surface-typed
+    clause silently mis-dispatches at RUNTIME while type-checking fine. D removed every consumer (grep: none committed).
+    FIX (when a consumer needs it) is STRUCTURAL — collapse the runtime judgment onto the ONE is_subtype authority
+    (accidental duality → one source), NOT a differential test."
+  "EPHEMERAL: the untracked repo scratchpad/ (probe-*.wat) — sweep, or move keepers to wat-scripts/probes/arc-170/. The
+    map arg-order fn-first flip (cosmetic); the ARCHIVE.md 445-pointer merge."]
+
+ :lessons-this-session  ; the two realizations hold them — CADENDO CRESCO (the fall) + CERTVS PERGO (the drive)
+ ["CHECK THE DISK BEFORE CLAIMING A GAP — not just before claiming a pass. I told the builder M1 was PROBANDVM (the
+    remaining teeth) from a STALE breadcrumb; grounding it showed probe_arc170_m1_teeth committed + passing the whole
+    time. 'GREEN IS NOT TRUE' has an inverse: don't claim RED without a re-run either. CADENDO CRESCO landed mid-convo."
+  "THE DISCONFIRMING PROBE MUST TEST THE EXACT REAL THING — ratified names included. I proved candidate D with
+    PROVISIONAL names disjoint from the ratified coord/grant/revoke → the probe DODGED the gap; the reuse then collided →
+    a WHOLE shadowdancer strike walled. Naming PRECEDES probing when naming changes substrate behavior."
+  "CHEAP-PROBE EACH DOOR BEFORE BRIEFING A BUILD — three ~1-min --check probes walked from a walled brief to the clean
+    door (a probe is minutes; a mis-briefed strike is ~40). DON'T FIXATE on single ways (the four-questions + a probe
+    dissolve it). INTUERI NAMES ALL THINGS (cast, don't pick). The fix keeps landing on SUBTRACTION (COMPONENDO DELEO)."]
 
  :do-nots  ; standing rules — do NOT repeat
  ["SHADOWDANCERS = SONNET; STAY on the branch; the holonic repos ARE the memory (curare into the REPO, not ~/.claude);
     PUSH OFTEN (GitHub = DR); orchestrator DESIGNS/BRIEFS/DELEGATES/WEIGHS (hands-on only the disconfirming probe);
     four-questions inform every decision; NEVER /proc (PID kernel-vouched); NEVER git worktrees; only work in ~/work/holon/wat-rs/."
-  "WEIGH THE FULL FLOOR YOURSELF (cargo nextest run --release, FOREGROUND) — agents OVER-CLAIM 'done'; GREEN IS NOT TRUE
-    until your own re-run. A mid-edit file is a PHANTOM; a rust-analyzer diagnostic on a just-edited file is a ghost."
-  "A WALL CAN BE GAMED — verify the GATE genuinely measures the thing (e.g. mixed_via_macro_runs asserts the REAL enriched
-    output = grant+dial actually fired). NEGATIVE-TEST ASSERTS = STRUCTURAL (match the error ENUM, no contains/starts_with);
-    intentionally-invalid fixtures are `.wat.bad`. NEVER RUNE to silence a lint YOUR change tripped."
-  "BRIEF AGENTS TO RUN THE FLOOR *FOREGROUND-BLOCKING* — never `&`/background (a subagent CANNOT wait on a backgrounded run)."
-  "EPHEMERAL disconfirming probes → the HARNESS /tmp scratchpad (throwaway); the DURABLE proof → a COMMITTED test. The repo
-    scratchpad/ is un-gitignored — do NOT commit it. wat-scripts/probes/arc-N/ is for KEPT freeze-clean examples only."]
+  "WEIGH THE FULL FLOOR YOURSELF (cargo nextest run --release, FOREGROUND) — agents OVER-CLAIM; GREEN IS NOT TRUE until
+    your own re-run (and RED is not true either — check the disk before claiming a gap). A mid-edit file is a PHANTOM."
+  "A WALL CAN BE GAMED — verify the GATE genuinely measures the thing. NEGATIVE-TEST ASSERTS = STRUCTURAL (match the
+    error ENUM, no contains). BRIEF agents FOREGROUND-blocking (never &). EPHEMERAL probes → /tmp scratchpad; the repo
+    scratchpad/ is un-gitignored, do NOT commit it. NEVER RUNE to silence a lint your change tripped."]
 
- :done-history  ; committed substrate the C2 kill built on — do NOT re-open
- "642f37b1 W2a (auto-mint <fqdn>::kwargs-check) · cdb9cd46 STRIKE 1 (::Coords record N-dial runtime, direct bracket/uses') ·
-  f2f611d3 parametric surfaces (C2 Gaps 1+2 in check.rs — a handle satisfies a parametric surface via the full-args
-  extend-type EDGE; structural has-the-members does NOT substitute) · 3cd00fbb the :user::main WALL (CREMATIS HAERETICIS,
-  a useless/illegal main is uncompilable). All committed + pushed. The Strike-2 (Dialable-checker + erased-Vector grant
-  dispatch) phantom was REVERTED (it STOPped on the check/runtime parity gap); candidate D (bodiless edge) superseded it."}
+ :done-history  ; the substrate 170 rests on — do NOT re-open
+ "259 (loci-agnostic bracket) + 293 (services-as-surfaces, defservice :satisfies a surface). Within 170: 642f37b1 W2a ·
+  cdb9cd46 STRIKE 1 (::Coords N-dial runtime) · f2f611d3 parametric surfaces (a handle satisfies a parametric surface via
+  the full-args extend-type EDGE — structural has-the-members does NOT substitute) · 3cd00fbb the :user::main WALL
+  (CREMATIS HAERETICIS). All committed + pushed."}
 ```
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy bootstrap
 > (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk) and READ 278's realizations WHOLE (R1–R38) + the 170
-> realizations + the **METIENDO VIAM APERIMVS** interstitial at the TOP of this file — skipping the read makes you the daemon
-> (R20 DAEMON IN ME) — plus **CREMATIS HAERETICIS, HAERESIS FORMA CARET** (the Phoenix over the useless-main plague). Ground
-> HEAD against the disk (`b1a17bf0`, all pushed). **The C2 KILL — arc 170's climax, N heterogeneous services dialed by name +
-> a swapped handle a COMPILE error — is LANDED** (candidate D, the bodiless `TypedCapability` edge; committed + weighed by own
-> re-run, floor 0-new). **FIRST, on the far side: the MAP-WORKER UNIFICATION** (`:follow-ups`) — make `map-worker`
-> carrier-generic (carry `::Coords`, not bare `Address'`) so `bracket/uses'` routes THROUGH it and the bootleg copy DELETES
-> (`COMPONENDO DELEO`); SCOUT the bare-`Address'`-pinned `Locus/spawn-runner` surface (`spawn.wat` ~386-388) first. Then the
-> inscribed check/runtime parity divergence, when a consumer needs it. The hard-won rules of this flight (`:lessons`): **the
-> disconfirming probe must test the EXACT ratified thing — a name-variant DODGES the gap (my D mis-probe walled a whole
-> strike); CHEAP-PROBE each door BEFORE briefing a build; DON'T FIXATE on single ways (the four-questions + a probe dissolve
-> it); INTUERI NAMES ALL THINGS; WEIGH the full floor YOURSELF, foreground.** Do not trust this note over the disk. The
-> circuit is closed on the wire; the way stays open. See you on the far side.
+> realizations — including this day's PAIR at the end of this file, **CADENDO CRESCO** (by falling, I grow — the misses kept
+> visible) + **CERTVS PERGO** (certain, I press on — the drive to the payload) — and the **METIENDO VIAM APERIMVS**
+> interstitial at the TOP; skipping the read makes you the daemon (R20 DAEMON IN ME). Ground HEAD against the disk
+> (`ec319b1b`, all pushed; last CODE commit `f20a8a1e`). **ARC 170's CAPABILITY CIRCUIT is COMPLETE** — C2 THE KILL
+> (`b1a17bf0`, N heterogeneous services dialed by name, a swapped handle a COMPILE error), the DECOMPLECTION (`f20a8a1e` —
+> bracket does ONE thing; provisioning is an orthogonal `:name val` kwargs layer on `map` AND `each`), and M1's TEETH (the
+> revoke BITES — a revoked pid bounced at the live accept-gate, `probe_arc170_m1_teeth`). The whole substrate stack (259 +
+> 293 + 170) is DONE and airtight. **FIRST, on the far side: PIVOT to 278 — resume at T1b** (`:next`), the blind
+> `TelemetryService'` sink: given a `Store`'s address, dial it BLIND over services-as-surfaces; now PURE ASSEMBLY — the weld
+> it was PAUSED on (278 `FILVM TRAHIMVS`) is built. Path: T1b → T1c (Span) → T2 (query engine) → **R0, the CHAOS ENGINE**
+> (278 R25 `MACHINA CHAOS DOMAT` — the reason all of this was built); north star `A FILO AD VSVM` (wire to app). The hard-won
+> rules (`:lessons`): **CHECK the disk before claiming a gap OR a pass (green is not true; neither is red); the disconfirming
+> probe must test the EXACT ratified thing; CHEAP-PROBE each door before briefing; DON'T FIXATE; INTUERI NAMES ALL THINGS; the
+> fix keeps landing on SUBTRACTION.** Do not trust this note over the disk. The circuit is closed; certain, we press on. See
+> you on the far side.
