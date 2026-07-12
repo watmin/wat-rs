@@ -17,12 +17,12 @@ use wat::runtime::{Environment, Value};
 // A `let` that hand-builds a 2-node Session and exposes `s`; the caller appends the body expression.
 const SESSION: &str = "\
 (:wat::core::let \
-  [n0 (:wat::rete::RootJoinNode 0 (:wat::core::PersistentVector 1) (:wat::core::PersistentVector)) \
-   n1 (:wat::rete::ProductionNode 1 \"rule-1\") \
+  [n0 (:wat::rete::RootJoinNode' 0 (:wat::core::PersistentVector 1) (:wat::core::PersistentVector)) \
+   n1 (:wat::rete::ProductionNode' 1 \"rule-1\") \
    net (:wat::core::PersistentMap 0 n0 1 n1) \
    em  (:wat::core::PersistentMap) \
    ev  (:wat::core::PersistentVector) \
-   s   (:wat::rete::Session net ev em em em ev 2)] \
+   s   (:wat::rete::Session' net ev em em em ev 2)] \
   ";
 
 #[test]

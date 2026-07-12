@@ -19,10 +19,10 @@ const RULES: &str = "\
    ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
    ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
    ra1   (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   ruleA (:wat::rete::Rule \"A\" (:wat::core::PersistentVector ca1 ca2) (:wat::core::PersistentVector ra1))\
+   ruleA (:wat::rete::Rule' \"A\" (:wat::core::PersistentVector ca1 ca2) (:wat::core::PersistentVector ra1))\
    cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))\
    rb1   (:wat::core::quote (:wat::rete::insert (:weather::WeatherAlert ?loc)))\
-   ruleB (:wat::rete::Rule \"B\" (:wat::core::PersistentVector cb1) (:wat::core::PersistentVector rb1))\
+   ruleB (:wat::rete::Rule' \"B\" (:wat::core::PersistentVector cb1) (:wat::core::PersistentVector rb1))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector ruleA ruleB))";
 
 fn ev(expr: &str) -> Value {

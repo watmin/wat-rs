@@ -2841,7 +2841,7 @@ mod tests {
         let session = parse_and_eval(
             "(:wat::core::let \
                [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))\
-                rule  (:wat::rete::Rule \"r\" (:wat::core::PersistentVector cond) (:wat::core::PersistentVector))\
+                rule  (:wat::rete::Rule' \"r\" (:wat::core::PersistentVector cond) (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
                 sess1 (:wat::rete::insert sess0 (:user::Temp 25))]\
               sess1)"
@@ -2931,7 +2931,7 @@ mod tests {
             "(:wat::core::let \
                [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
                 c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
-                rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+                rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
                 sess1 (:wat::rete::insert sess0 (:user::Temperature 15 \"Oslo\"))\
                 sess2 (:wat::rete::insert sess1 (:user::WindSpeed 45 \"Oslo\"))]\
@@ -3016,7 +3016,7 @@ mod tests {
             "(:wat::core::let \
                [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
                 c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
-                rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+                rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
                 sess1 (:wat::rete::insert sess0 (:user::Temperature 15 \"Oslo\"))\
                 sess2 (:wat::rete::insert sess1 (:user::WindSpeed 45 \"Bergen\"))]\
@@ -3089,7 +3089,7 @@ mod tests {
             "(:wat::core::let \
                [c1 (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
                 c2 (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
-                rule (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+                rule (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
                 s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
                 s1 (:wat::rete::insert s0 (:user::Temperature 15 \"Oslo\"))\
                 s2 (:wat::rete::insert s1 (:user::Temperature 10 \"Bergen\"))\

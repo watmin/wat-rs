@@ -135,8 +135,13 @@
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::core::keyword/to-string fqdn)
-     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-str "'"))
-     ns-parts      (:wat::core::string::split fqdn-str "::")
+     ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
+     ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
+     ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
+     fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
+     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
+     ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
@@ -152,7 +157,7 @@
     `(:wat::core::do
        (:wat::core::recordtype ~fqdn :wat::core::Record
          [~@field-ch])
-       (:wat::core::defmacro ~fqdn
+       (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
          -> :wat::WatAST
          (:wat::core::let
@@ -197,8 +202,13 @@
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::core::keyword/to-string fqdn)
-     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-str "'"))
-     ns-parts      (:wat::core::string::split fqdn-str "::")
+     ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
+     ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
+     ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
+     fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
+     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
+     ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
@@ -212,7 +222,7 @@
     `(:wat::core::do
        (:wat::core::recordtype ~fqdn :wat::holon::Record
          [~@field-ch])
-       (:wat::core::defmacro ~fqdn
+       (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
          -> :wat::WatAST
          (:wat::core::let

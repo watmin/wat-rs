@@ -30,10 +30,10 @@ fn setup(wind_loc: &str) -> String {
    ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
    ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))\
    ra1   (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   ruleA (:wat::rete::Rule \"A\" (:wat::core::PersistentVector ca1 ca2) (:wat::core::PersistentVector ra1))\
+   ruleA (:wat::rete::Rule' \"A\" (:wat::core::PersistentVector ca1 ca2) (:wat::core::PersistentVector ra1))\
    cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))\
    rb1   (:wat::core::quote (:wat::rete::insert (:weather::WeatherAlert ?loc)))\
-   ruleB (:wat::rete::Rule \"B\" (:wat::core::PersistentVector cb1) (:wat::core::PersistentVector rb1))\
+   ruleB (:wat::rete::Rule' \"B\" (:wat::core::PersistentVector cb1) (:wat::core::PersistentVector rb1))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector ruleA ruleB))\
    sess1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
    sess2 (:wat::rete::insert sess1 (:weather::WindSpeed 45 \"{wind_loc}\"))\

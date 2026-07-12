@@ -605,17 +605,7 @@
                          (:wat::core::get kvflat (:wat::core::i64::* ki 2))
                          "kwargs-lower: kv-key index OOB")
                        ks
-                       ;; DEBUG (arc294 item 9a — REMOVE once all generated-ctor culprits are fixed):
-                       ;; when a POSITIONAL (non-key) arg reaches the reorder, name the culprit type.
-                       ;; impl-kw is the prime type keyword being constructed → the failing aggregate.
-                       (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind kn) "keyword") true
-                                         (:wat::core::if (:wat::core::= (:wat::core::ast-kind kn) "symbol") true
-                                           (:wat::core::= (:wat::core::ast-kind kn) "string")))
-                         -> :wat::core::String
-                         (:wat::core::ast-name kn)
-                         (:wat::core::macro-error (:wat::core::string::concat
-                           "DEBUG-9a positional-arg-in-reorder impl=" (:wat::core::write-forms impl-kw)
-                           " kn-kind=" (:wat::core::ast-kind kn))))
+                       (:wat::core::ast-name kn)
                        ;; Strip leading ":" from ":foo-bar" → "foo-bar"
                        ;; (string::strip-leading-colon is a defn, not in is_pure_total;
                        ;;  callers always provide keywords so the colon is always present)
@@ -1714,8 +1704,15 @@
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
      fqdn-str      (:wat::core::keyword/to-string fqdn)
-     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-str "'"))
-     ns-parts      (:wat::core::string::split fqdn-str "::")
+     ;; Arc 294 item 9a — a GENERIC type name (`:ns::T<A,B>`) registers its kwargs
+     ;; companion macro + references its positional prime under the BARE name
+     ;; (`:ns::T` / `:ns::T'`), matching register_aggregate_methods (runtime.rs:
+     ;; `format!("{}'", agg.name)`, params dropped). The `<…>` rides ONLY on the
+     ;; structtype registration (`~@args` below), which carries the params through.
+     fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
+     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
+     ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
                      (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
@@ -1728,7 +1725,7 @@
      call-args-sym (:wat::core::symbol-node "call-args")]
     `(:wat::core::do
        (:wat::core::structtype ~@args)
-       (:wat::core::defmacro ~fqdn
+       (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
          -> :wat::WatAST
          (:wat::core::let

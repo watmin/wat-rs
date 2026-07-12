@@ -995,7 +995,10 @@ fn invoke_user_main_orchestrated(
     let user_program_val = match user_program {
         Some(v) => v,
         None => eval_in_frozen(
-            &crate::parse_one!("(:wat::program::EmptyEnv)")
+            // Arc 294 item 9a — internal boot machinery evals the ctor form directly (no
+            // macro expansion), so it targets the positional PRIME `:EmptyEnv'` (the bare
+            // name is now the kwargs companion macro, which never runs on this path).
+            &crate::parse_one!("(:wat::program::EmptyEnv')")
                 .expect("arc 209 C0b.3b-d: EmptyEnv ctor parses"),
             frozen,
             &crate::runtime::Environment::new(),
@@ -1007,7 +1010,8 @@ fn invoke_user_main_orchestrated(
         .bind_unknown_span("user-program", crate::value::TrackedValue::from(user_program_val))
         .build();
     let env_src = format!(
-        "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process {cpu_count} user-program)"
+        // Arc 294 item 9a — direct-eval boot machinery → positional PRIME `:Env'`.
+        "(:wat::program::Env' (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process {cpu_count} user-program)"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");

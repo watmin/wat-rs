@@ -209,8 +209,8 @@
   []
   -> :wat::holon::lru::HologramCacheService::MetricsCadence<wat::core::nil>
   (:wat::holon::lru::HologramCacheService::MetricsCadence
-    nil
-    (:wat::core::fn
+    :gate nil
+    :tick (:wat::core::fn
       [gate <- :wat::core::nil _stats <- :wat::holon::lru::HologramCacheService::Stats] -> :(wat::core::nil,wat::core::bool)
       (:wat::core::Tuple gate false))))
 
@@ -226,7 +226,7 @@
 (:wat::core::defn :wat::holon::lru::HologramCacheService::Stats/zero
   []
   -> :wat::holon::lru::HologramCacheService::Stats
-  (:wat::holon::lru::HologramCacheService::Stats 0 0 0 0 0))
+  (:wat::holon::lru::HologramCacheService::Stats :lookups 0 :hits 0 :misses 0 :puts 0 :cache-size 0))
 
 ;; ─── Service state — cache + running stats ─────────────────────
 ;;
@@ -308,12 +308,12 @@
               "HologramCacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::holon::lru::HologramCacheService::Stats
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/lookups stats) n)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-count)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-count)
-              (:wat::holon::lru::HologramCacheService::Stats/puts stats)
-              (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))]
-          (:wat::holon::lru::HologramCacheService::State cache stats')))
+              :lookups (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/lookups stats) n)
+              :hits (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-count)
+              :misses (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-count)
+              :puts (:wat::holon::lru::HologramCacheService::Stats/puts stats)
+              :cache-size (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))]
+          (:wat::holon::lru::HologramCacheService::State :cache cache :stats stats')))
       ((:wat::holon::lru::HologramCacheService::Request::Put entries)
         (:wat::core::let
           [;; HologramCache/put returns :unit (not Option eviction).
@@ -340,12 +340,12 @@
               "HologramCacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::holon::lru::HologramCacheService::Stats
-              (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
-              (:wat::holon::lru::HologramCacheService::Stats/hits stats)
-              (:wat::holon::lru::HologramCacheService::Stats/misses stats)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/puts stats) n)
-              (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))]
-          (:wat::holon::lru::HologramCacheService::State cache stats'))))))
+              :lookups (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
+              :hits (:wat::holon::lru::HologramCacheService::Stats/hits stats)
+              :misses (:wat::holon::lru::HologramCacheService::Stats/misses stats)
+              :puts (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/puts stats) n)
+              :cache-size (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))]
+          (:wat::holon::lru::HologramCacheService::State :cache cache :stats stats'))))))
 
 ;; ─── Tick the metrics window — advance gate, emit+reset on fire ──
 ;;
@@ -376,22 +376,22 @@
      gate' (:wat::core::first tick)
      fired (:wat::core::second tick)
      cadence'
-      (:wat::holon::lru::HologramCacheService::MetricsCadence gate' tick-fn)]
+      (:wat::holon::lru::HologramCacheService::MetricsCadence :gate gate' :tick tick-fn)]
     (:wat::core::if fired -> :wat::holon::lru::HologramCacheService::Step<G>
       (:wat::core::let
         [cache
           (:wat::holon::lru::HologramCacheService::State/cache state)
          final-stats
           (:wat::holon::lru::HologramCacheService::Stats
-            (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
-            (:wat::holon::lru::HologramCacheService::Stats/hits stats)
-            (:wat::holon::lru::HologramCacheService::Stats/misses stats)
-            (:wat::holon::lru::HologramCacheService::Stats/puts stats)
-            (:wat::holon::lru::HologramCache/len cache))
+            :lookups (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
+            :hits (:wat::holon::lru::HologramCacheService::Stats/hits stats)
+            :misses (:wat::holon::lru::HologramCacheService::Stats/misses stats)
+            :puts (:wat::holon::lru::HologramCacheService::Stats/puts stats)
+            :cache-size (:wat::holon::lru::HologramCache/len cache))
          _ (reporter (:wat::holon::lru::HologramCacheService::Report::Metrics final-stats))
          state'
           (:wat::holon::lru::HologramCacheService::State
-            cache (:wat::holon::lru::HologramCacheService::Stats/zero))]
+            :cache cache :stats (:wat::holon::lru::HologramCacheService::Stats/zero))]
         (:wat::core::Tuple state' cadence'))
       (:wat::core::Tuple state cadence'))))
 
@@ -449,7 +449,7 @@
         cap)
      initial
       (:wat::holon::lru::HologramCacheService::State
-        cache (:wat::holon::lru::HologramCacheService::Stats/zero))]
+        :cache cache :stats (:wat::holon::lru::HologramCacheService::Stats/zero))]
     (:wat::holon::lru::HologramCacheService/loop-step
       initial driver-pairs reporter metrics-cadence)))
 

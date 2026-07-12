@@ -23,7 +23,7 @@ fn setup(wind_loc: &str) -> String {
     format!("\
    c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
    c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
-   rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+   rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
    sess1 (:wat::rete::insert sess0 (:user::Temperature 15 \"Oslo\"))\
    sess2 (:wat::rete::insert sess1 (:user::WindSpeed 45 \"{wind_loc}\"))\
@@ -97,7 +97,7 @@ fn join_drops_on_mismatched_loc() {
 const SETUP_2X2: &str = "\
    c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
    c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
-   rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+   rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
    s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
    s1 (:wat::rete::insert s0 (:user::Temperature 15 \"Oslo\"))\
    s2 (:wat::rete::insert s1 (:user::Temperature 10 \"Bergen\"))\

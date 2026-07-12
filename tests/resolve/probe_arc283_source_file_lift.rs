@@ -18,7 +18,7 @@ fn source_file_is_at_the_neutral_home() {
     let world = startup_bare().expect("startup");
     // Construct a :wat::source::File and read its path back through the accessor.
     let ast = wat::parse_one!(
-        "(:wat::source::File/path (:wat::source::File \"t.wat\" \"(:t::f)\"))"
+        "(:wat::source::File/path (:wat::source::File' \"t.wat\" \"(:t::f)\"))"
     ).expect("parse the File ctor + accessor");
     let got = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!(":wat::source::File undefined at HEAD: {e:?}"))

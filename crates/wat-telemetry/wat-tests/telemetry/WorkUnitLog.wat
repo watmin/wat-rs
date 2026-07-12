@@ -137,9 +137,9 @@
                (:wat-telemetry::log-test::empty-tags))
             logger
              (:wat::telemetry::WorkUnitLog
-               handle
-               (:wat-telemetry::log-test::default-caller)
-               (:wat-telemetry::log-test::fixed-now-fn))]
+               :handle handle
+               :caller (:wat-telemetry::log-test::default-caller)
+               :now-fn (:wat-telemetry::log-test::fixed-now-fn))]
            (body logger wu stub-rx))]
        (:wat::core::Tuple d kw)))
 

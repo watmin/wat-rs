@@ -30,7 +30,7 @@ const HANDBUILT_FIRED: &str = "\
    c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
    c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
    rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   rule  (:wat::rete::Rule \"weather::cold-and-windy\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+   rule  (:wat::rete::Rule' \"weather::cold-and-windy\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
    s1    (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
    s2    (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\

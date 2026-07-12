@@ -20,7 +20,7 @@ use wat::runtime::{Environment, Value};
 
 const SETUP: &str = "\
    cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))\
-   rule  (:wat::rete::Rule \"r\" (:wat::core::PersistentVector cond) (:wat::core::PersistentVector))\
+   rule  (:wat::rete::Rule' \"r\" (:wat::core::PersistentVector cond) (:wat::core::PersistentVector))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
    sess1 (:wat::rete::insert sess0 (:user::Temp 25))\
    fired (:wat::rete::fire-rules sess1)\

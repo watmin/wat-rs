@@ -37,8 +37,8 @@
    cap    <- :wat::core::i64]
   -> :wat::holon::lru::HologramCache
   (:wat::holon::lru::HologramCache
-    (:wat::holon::Hologram/make filter)
-    (:wat::lru::LocalCache::new cap)))
+    :hologram (:wat::holon::Hologram/make filter)
+    :lru (:wat::lru::LocalCache::new cap)))
 
 ;; ─── put — insert + LRU bookkeeping ──────────────────────────────
 ;;

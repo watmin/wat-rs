@@ -231,7 +231,7 @@
     [t
       (:test::svc-tel-null-translator)
      result
-      (t (:wat::telemetry::Stats 1 2 3))]
+      (t (:wat::telemetry::Stats :batches 1 :entries 2 :max-batch-size 3))]
     (:wat::test::assert-eq (:wat::core::length result) 0)))
 
 
@@ -241,7 +241,7 @@
     [t
       (:test::svc-tel-active-translator)
      result
-      (t (:wat::telemetry::Stats 0 0 0))]
+      (t (:wat::telemetry::Stats :batches 0 :entries 0 :max-batch-size 0))]
     (:wat::test::assert-eq (:wat::core::first result) -1)))
 
 
@@ -259,8 +259,8 @@
         (:wat::core::Vector :wat::core::i64 7)
         (:test::svc-tel-null-translator)
         (:wat::telemetry::MetricsCadence
-          0
-          (:wat::core::fn
+          :gate 0
+          :tick (:wat::core::fn
             [g <- :wat::core::i64 _s <- :wat::telemetry::Stats] -> :(wat::core::i64,wat::core::bool)
             (:wat::core::Tuple 0 false))))
      driver
@@ -319,8 +319,8 @@
         (:wat::core::Vector :wat::core::i64 10 20 30)
         (:test::svc-tel-null-translator)
         (:wat::telemetry::MetricsCadence
-          0
-          (:wat::core::fn
+          :gate 0
+          :tick (:wat::core::fn
             [g <- :wat::core::i64 _s <- :wat::telemetry::Stats] -> :(wat::core::i64,wat::core::bool)
             (:wat::core::Tuple 0 false))))
      driver
@@ -342,8 +342,8 @@
         (:wat::core::Vector :wat::core::i64 100 200)
         (:test::svc-tel-active-translator)
         (:wat::telemetry::MetricsCadence
-          0
-          (:wat::core::fn
+          :gate 0
+          :tick (:wat::core::fn
             [g <- :wat::core::i64 _s <- :wat::telemetry::Stats] -> :(wat::core::i64,wat::core::bool)
             (:wat::core::Tuple 0 true))))
      driver

@@ -41,7 +41,7 @@ fn gen_expr(depth: usize, width: usize, fire_verb: &str) -> String {
              \n  r{k}c2 (:wat::core::quote (:casc::Tag{p} (?id <- :id)))\
              \n  r{k}t1 (:wat::core::quote (:wat::rete::insert (:casc::Stage{k} ?id)))\
              \n  r{k}t2 (:wat::core::quote (:wat::rete::insert (:casc::Tag{k} ?id)))\
-             \n  rule{k} (:wat::rete::Rule \"r{k}\" (:wat::core::PersistentVector r{k}c1 r{k}c2) (:wat::core::PersistentVector r{k}t1 r{k}t2))\n"
+             \n  rule{k} (:wat::rete::Rule' \"r{k}\" (:wat::core::PersistentVector r{k}c1 r{k}c2) (:wat::core::PersistentVector r{k}t1 r{k}t2))\n"
         ));
     }
     binds.push_str("  s0 (:wat::rete::compile (:wat::core::PersistentVector");

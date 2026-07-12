@@ -150,8 +150,8 @@
   []
   -> :wat::lru::MetricsCadence<wat::core::nil>
   (:wat::lru::MetricsCadence
-    nil
-    (:wat::core::fn
+    :gate nil
+    :tick (:wat::core::fn
       [gate <- :wat::core::nil _stats <- :wat::lru::Stats] -> :(wat::core::nil,wat::core::bool)
       (:wat::core::Tuple gate false))))
 
@@ -166,7 +166,7 @@
 (:wat::core::defn :wat::lru::Stats/zero
   []
   -> :wat::lru::Stats
-  (:wat::lru::Stats 0 0 0 0 0))
+  (:wat::lru::Stats :lookups 0 :hits 0 :misses 0 :puts 0 :cache-size 0))
 
 ;; ─── Service state — cache + running stats ─────────────────────
 ;;
@@ -235,12 +235,12 @@
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::lru::Stats
-              (:wat::core::i64::+ (:wat::lru::Stats/lookups stats) n)
-              (:wat::core::i64::+ (:wat::lru::Stats/hits stats) hit-count)
-              (:wat::core::i64::+ (:wat::lru::Stats/misses stats) miss-count)
-              (:wat::lru::Stats/puts stats)
-              (:wat::lru::Stats/cache-size stats))]
-          (:wat::lru::State cache stats')))
+              :lookups (:wat::core::i64::+ (:wat::lru::Stats/lookups stats) n)
+              :hits (:wat::core::i64::+ (:wat::lru::Stats/hits stats) hit-count)
+              :misses (:wat::core::i64::+ (:wat::lru::Stats/misses stats) miss-count)
+              :puts (:wat::lru::Stats/puts stats)
+              :cache-size (:wat::lru::Stats/cache-size stats))]
+          (:wat::lru::State :cache cache :stats stats')))
       ((:wat::lru::Request::Put entries)
         (:wat::core::let
           [;; Arc 118.2a — side-effecting-only pass (result discarded). `dorun (map f coll)`
@@ -266,12 +266,12 @@
               "CacheService/handle: reply-tx disconnected — client died mid-request?")
            stats'
             (:wat::lru::Stats
-              (:wat::lru::Stats/lookups stats)
-              (:wat::lru::Stats/hits stats)
-              (:wat::lru::Stats/misses stats)
-              (:wat::core::i64::+ (:wat::lru::Stats/puts stats) n)
-              (:wat::lru::Stats/cache-size stats))]
-          (:wat::lru::State cache stats'))))))
+              :lookups (:wat::lru::Stats/lookups stats)
+              :hits (:wat::lru::Stats/hits stats)
+              :misses (:wat::lru::Stats/misses stats)
+              :puts (:wat::core::i64::+ (:wat::lru::Stats/puts stats) n)
+              :cache-size (:wat::lru::Stats/cache-size stats))]
+          (:wat::lru::State :cache cache :stats stats'))))))
 
 
 ;; ─── Tick the metrics window — advance gate, emit+reset on fire ──
@@ -292,22 +292,22 @@
      gate' (:wat::core::first tick)
      fired (:wat::core::second tick)
      cadence'
-      (:wat::lru::MetricsCadence gate' tick-fn)]
+      (:wat::lru::MetricsCadence :gate gate' :tick tick-fn)]
     (:wat::core::if fired -> :wat::lru::Step<K,V,G>
       (:wat::core::let
         [cache
           (:wat::lru::State/cache state)
          final-stats
           (:wat::lru::Stats
-            (:wat::lru::Stats/lookups stats)
-            (:wat::lru::Stats/hits stats)
-            (:wat::lru::Stats/misses stats)
-            (:wat::lru::Stats/puts stats)
-            (:wat::lru::LocalCache::len cache))
+            :lookups (:wat::lru::Stats/lookups stats)
+            :hits (:wat::lru::Stats/hits stats)
+            :misses (:wat::lru::Stats/misses stats)
+            :puts (:wat::lru::Stats/puts stats)
+            :cache-size (:wat::lru::LocalCache::len cache))
          _ (reporter (:wat::lru::Report::Metrics final-stats))
          state'
           (:wat::lru::State
-            cache (:wat::lru::Stats/zero))]
+            :cache cache :stats (:wat::lru::Stats/zero))]
         (:wat::core::Tuple state' cadence'))
       (:wat::core::Tuple state cadence'))))
 
@@ -363,7 +363,7 @@
       (:wat::lru::LocalCache::new capacity)
      initial
       (:wat::lru::State
-        cache (:wat::lru::Stats/zero))]
+        :cache cache :stats (:wat::lru::Stats/zero))]
     (:wat::lru::loop-step
       initial driver-pairs reporter metrics-cadence)))
 

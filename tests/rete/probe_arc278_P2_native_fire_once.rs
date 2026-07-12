@@ -17,7 +17,7 @@ fn staged(wind_loc: &str) -> String {
    c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
    c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))\
    rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+   rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
    s0    (:wat::rete::compile (:wat::core::PersistentVector rule))\
    s1    (:wat::rete::insert s0 (:weather::Temperature 15 \"Oslo\"))\
    s2    (:wat::rete::insert s1 (:weather::WindSpeed 45 \"{wind_loc}\"))")
@@ -76,7 +76,7 @@ const STAGED_2X2: &str = "\
    c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
    c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))\
    rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   rule  (:wat::rete::Rule \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+   rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
    s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
    s1 (:wat::rete::insert s0 (:weather::Temperature 15 \"Oslo\"))\
    s2 (:wat::rete::insert s1 (:weather::Temperature 10 \"Bergen\"))\

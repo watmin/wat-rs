@@ -611,7 +611,8 @@ pub fn spawn_thread_peer(
                 )
                 .build();
             let peer_env_src = format!(
-                "(:wat::program::Env (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread {cpu_count} user-program)"
+                // Arc 294 item 9a — direct-eval boot machinery → positional PRIME `:Env'`.
+                "(:wat::program::Env' (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::thread {cpu_count} user-program)"
             );
             let peer_env_ast = crate::parse_one!(&peer_env_src)
                 .expect("arc 259: peer env constructor form parses");
@@ -693,7 +694,7 @@ pub fn spawn_thread_peer(
     // Arc 209 C0b.3b-c — owner-side post-spawn hook (mirror of init_fn, owner side).
     // Build the empty ThreadLaunch record and apply the hook for effects before returning.
     // Uses the same format→parse_one!→eval pattern as the peer-env build above (:448).
-    let launch_ast = crate::parse_one!("(:wat::spawn::ThreadLaunch)")
+    let launch_ast = crate::parse_one!("(:wat::spawn::ThreadLaunch')")
         .expect("arc 209 C0b.3b-c: ThreadLaunch ctor form parses");
     let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
         .map_err(|e| RuntimeError {
@@ -866,7 +867,7 @@ pub fn spawn_process_peer(
     // Arc 209 C0b.3b-c — owner-side post-spawn hook. Build ProcessLaunch{pid}
     // and apply the hook for effects before returning the wrapped peer.
     // Uses the same format→parse_one!→eval pattern as spawn_thread_peer.
-    let launch_src = format!("(:wat::spawn::ProcessLaunch {child_pid})");
+    let launch_src = format!("(:wat::spawn::ProcessLaunch' {child_pid})");
     let launch_ast = crate::parse_one!(&launch_src)
         .expect("arc 209 C0b.3b-c: ProcessLaunch ctor form parses");
     let launch = crate::runtime::eval(&launch_ast, &Environment::new(), sym)
@@ -936,7 +937,7 @@ mod tests {
 
         // Build a default init-fn: 0-arg, returns EmptyEnv (the default thunk).
         let init_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv))",
+            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv'))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),
         )
@@ -1046,7 +1047,7 @@ mod tests {
 
         // Build a default init-fn for the blocker test.
         let init_world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv))",
+            "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv'))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),
         )

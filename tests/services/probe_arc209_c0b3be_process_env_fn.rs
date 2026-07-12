@@ -20,7 +20,7 @@
 //!    a bespoke `:wat::core::Record` SUBTYPE flows — the gate is a variant match, not `== :wat::core::Record`).
 //! 2. `resolves_bare_fn_by_applying_it`     — `"(fn [] -> :wat::core::Record (:app::Env 7))"` → `app::Env`
 //!    (the 0-arg fn is applied).
-//! 3. `default_empty_env_resolves`          — `"(:wat::program::EmptyEnv)"` → `wat::program::EmptyEnv`.
+//! 3. `default_empty_env_resolves`          — `"(:wat::program::EmptyEnv')"` → `wat::program::EmptyEnv`.
 //! 4. `non_record_non_fn_is_an_error`       — `"(:wat::core::+ 1 2)"` → Err (must be a record).
 //!
 //! RED at HEAD: `resolve_env_program` does not exist (the dispatch is inline in
@@ -66,7 +66,7 @@ fn resolves_bare_fn_by_applying_it() {
 
 #[test]
 fn default_empty_env_resolves() {
-    let got = resolve_env_program(&world(), "(:wat::program::EmptyEnv)").expect("resolve default");
+    let got = resolve_env_program(&world(), "(:wat::program::EmptyEnv')").expect("resolve default");
     assert_class(got, "wat::program::EmptyEnv", "EmptyEnv default");
 }
 

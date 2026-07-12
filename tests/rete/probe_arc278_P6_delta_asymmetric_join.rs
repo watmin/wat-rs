@@ -66,10 +66,10 @@ fn chain_expr(n: usize, query_type: &str) -> String {
     let r2c2 = "(:wat::core::quote (:chain::A (?k <- :k)))";
     let r2t = "(:wat::core::quote (:wat::rete::insert (:chain::C ?k)))";
     let mut binds = format!(
-        "  r1 (:wat::rete::Rule \"r1\" \
+        "  r1 (:wat::rete::Rule' \"r1\" \
              (:wat::core::PersistentVector {r1c}) \
              (:wat::core::PersistentVector {r1t}))\n\
-         r2 (:wat::rete::Rule \"r2\" \
+         r2 (:wat::rete::Rule' \"r2\" \
              (:wat::core::PersistentVector {r2c1} {r2c2}) \
              (:wat::core::PersistentVector {r2t}))\n\
          s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2))\n"
@@ -118,15 +118,15 @@ fn chain_c_five_inputs_equals_oracle() {
 
 fn triple_expr(n: usize, query_type: &str) -> String {
     let rules = "\
-        r1 (:wat::rete::Rule \"r1\" \
+        r1 (:wat::rete::Rule' \"r1\" \
              (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k <- :k)))) \
              (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::B ?k)))))\n\
-        r2 (:wat::rete::Rule \"r2\" \
+        r2 (:wat::rete::Rule' \"r2\" \
              (:wat::core::PersistentVector \
                (:wat::core::quote (:tri::B (?k <- :k))) \
                (:wat::core::quote (:tri::A (?k <- :k)))) \
              (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::C ?k)))))\n\
-        r3 (:wat::rete::Rule \"r3\" \
+        r3 (:wat::rete::Rule' \"r3\" \
              (:wat::core::PersistentVector \
                (:wat::core::quote (:tri::C (?k <- :k))) \
                (:wat::core::quote (:tri::B (?k <- :k)))) \
@@ -178,7 +178,7 @@ fn triple_cascade_all_types_equal_oracle() {
 fn xyz_expr(n: usize, query_type: &str) -> String {
     // Rule: X(?k) ⋈ Y(?k) → Z(?k).  X is the first (left) condition, Y is the second (right).
     let rule = "\
-        r1 (:wat::rete::Rule \"r1\" \
+        r1 (:wat::rete::Rule' \"r1\" \
              (:wat::core::PersistentVector \
                (:wat::core::quote (:xyz::X (?k <- :k))) \
                (:wat::core::quote (:xyz::Y (?k <- :k)))) \

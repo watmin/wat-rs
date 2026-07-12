@@ -12981,7 +12981,16 @@ fn infer_aggregate_new_check(
     let ty = if let WatAST::Keyword(k, _) = &args[0] {
         let bare_k: &str = if let Some(pos) = k.find('<') { &k[..pos] } else { k.as_str() };
         // Look up the ctor scheme — its ret IS the specific type in the correct form.
-        if let Some(scheme) = env.get(bare_k) {
+        //
+        // Arc 294 item 9a — the positional ctor scheme moved to the type-name PRIME
+        // (`:X'`); the bare `:X` is now the kwargs companion MACRO, which registers no
+        // type scheme. `aggregate-new`'s class arg is the bare `:X` (the flip codegen at
+        // runtime.rs pushes `agg.name`), so resolve the ret via the PRIME scheme first —
+        // its ret is the correct parametric self-type (`:X<S,R>`), which the bare-path
+        // fallback loses for generic aggregates (body `:X` ≠ declared `:X<S,R>`). Fall
+        // back to the bare scheme (any pre-flip / non-flipped aggregate), then the path.
+        let prime_k = format!("{}'", bare_k);
+        if let Some(scheme) = env.get(&prime_k).or_else(|| env.get(bare_k)) {
             scheme.ret.clone()
         } else {
             // No scheme registered yet (will error at resolve time); return the bare path.

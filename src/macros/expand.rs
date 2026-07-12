@@ -47,16 +47,21 @@ pub fn expand_all(
             // subsequent forms in the stream can invoke the new macro) and strip them
             // from the `do` body, keeping the remaining non-defmacro children.
             let rebuilt = hoist_defmacros_from_do(expanded, registry)?;
-            // After hoisting, the do may have become a single-child do or still be
-            // a multi-child do — push it either way; `eval_do` handles both.
-            // EXCEPT: if hoisting stripped EVERY body form (a generator whose do
-            // contained only defmacros, at any nesting depth — the depth-unbounded
-            // sole-macro case), the do is now empty. An empty `(do)` is a no-op (its
-            // registrations are already done) AND the checker rejects "do requires at
-            // least one form" — so elide it entirely.
-            match &rebuilt {
-                WatAST::List(items, _) if items.len() <= 1 => { /* empty do — elide */ }
-                _ => out.push(rebuilt),
+            // A macro-emission `do` is a registration WRAPPER, never a value-position
+            // do (see `hoist_defmacros_from_do`'s contract): its surviving children —
+            // after the defmacro siblings were hoisted out — are all top-level
+            // declaration/registration forms (structtype/def/extend-type/Record::def).
+            // SPLICE them up into the top-level form stream so each registers as its
+            // own top-level declaration, exactly as if emitted at top level. Leaving
+            // them wrapped in a `(do …)` makes it a value-position do whose declaration
+            // children a later registration pass strips, emptying the do and tripping
+            // the checker's "do requires ≥1 form" wall (arc 294 item 9a: the defstruct/
+            // defrecord kwargs companion emits precisely `(do (structtype …) (defmacro
+            // …))`). skip(1) drops the `do` head; the all-defmacro case (items == [do])
+            // splices nothing — the same elision the empty-do check gave before.
+            match rebuilt {
+                WatAST::List(items, _) => out.extend(items.into_iter().skip(1)),
+                other => out.push(other),
             }
         } else {
             out.push(expanded);
@@ -181,58 +186,45 @@ pub(super) fn expand_form(
 
     match form {
         WatAST::List(items, list_span) => {
-            // Arc 029 / 030: do NOT recurse into bodies of forms that
-            // carry DATA rather than evaluable code:
-            // - `(:wat::core::quasiquote X)` — macro template; inner
-            //   "macro calls" are deferred until the enclosing macro
-            //   fires. Pre-emptive expansion would corrupt the template.
-            // - `(:wat::core::quote X)` — literal AST value; X is data,
-            //   not code. Recursing would eagerly expand macro calls
-            //   that the user wanted to observe, not execute. Arc 030
-            //   macroexpand primitives rely on quote preserving the
-            //   raw form.
+            // Data forms — NOT expanded. quasiquote/quote/literal carry DATA, not code;
+            // recursing would eagerly expand macro calls the caller means to observe or
+            // template, not execute (arc 029/030; the macroexpand primitives rely on it).
             if let Some(WatAST::Keyword(head, _)) = items.first() {
-                // Arc 294.b — `:wat::holon::literal` is data, not expanded.
                 if head == ":wat::core::quasiquote" || head == ":wat::core::quote" || head == ":wat::holon::literal" {
                     return Ok(WatAST::List(items, list_span));
                 }
             }
 
-            // Recurse into children first. This gives us the shape
-            // (expanded-head expanded-args...) — any inner macro calls
-            // resolved before we check the outer for a macro call.
-            let expanded_children: super::ExpandBatch = items
-                .into_iter()
-                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym))
-                .collect();
-            let expanded_children = expanded_children?;
-
-            // Arc 249 Stone 249.4a — keyword/of is now a registered wat macro in
-            // core.wat; Rust built-in DELETED. Dispatch falls through to the
-            // registered-macro path below.
-
-            // Is the (now-expanded) head a registered macro?
-            if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
+            // ── Full-Lisp macro dispatch (arc 294 item 9a): a macro receives its args RAW.
+            // Standard homoiconic semantics: if the head names a registered macro, expand
+            // THIS call with the caller's *unexpanded* arg forms, then re-expand the macro
+            // OUTPUT to fixpoint (the `return expand_form(...)`). Arg forms that flow into
+            // the output as code get expanded there, in the caller's context — identical to
+            // the old children-first result for ordinary code. What differs: args a macro
+            // QUOTES or treats as DATA (rete `defrule` patterns; any user DSL) reach it
+            // untouched, because we no longer eagerly expand them before the macro fires.
+            // The output fixpoint IS the macro engine; dropping the extra input-expansion
+            // pass makes wat a full Lisp — and needs NO "these args are data" allowlist:
+            // user macros get the same semantics for free (no built-in form is blessed).
+            //
+            // Pre-flip this deviation was invisible — type-keywords were FUNCTIONS, which
+            // the eager pass leaves alone; the construction flip turned every aggregate
+            // type-keyword into a MACRO, exposing (and here removing) it.
+            if let Some(WatAST::Keyword(head, _)) = items.first() {
                 if let Some(def) = registry.get(head) {
-                    // Macro call — expand this call site. Pass the
-                    // outer list's span so the expansion can inherit
-                    // it (call-site span, per arc 016 slice 1
-                    // DESIGN: generated forms inherit the caller's
-                    // span).
-                    let args = expanded_children[1..].to_vec();
+                    let args = items[1..].to_vec();
                     let expanded = expand_macro_call(def, args, list_span.clone(), env, sym)?;
-                    // Re-expand the result to fixpoint.
                     return expand_form(expanded, registry, expansion_depth + 1, env, sym);
                 }
             }
 
             // Arc 300.1 — faithful-Clojure dual surface: a namespaced Symbol head
-            // (`wat.core/defn`) dispatches to the macro exactly as its keyword FQDN
-            // (`:wat::core::defn`) would. Additive — the Keyword-head path above is
-            // untouched; this fires ONLY when the head is a `/`-bearing Symbol that
-            // maps to a registered macro. A namespaced symbol that is NOT a macro
-            // falls through to `normalize_symbol_refs` (call-position ref rewriting).
-            if let Some(WatAST::Symbol(ident, sym_span)) = expanded_children.first() {
+            // (`wat.core/defn`) dispatches exactly as its keyword FQDN (`:wat::core::defn`)
+            // would, with the same RAW-args semantics. A `/`-bearing symbol that is NOT a
+            // macro falls through to the child-recursion (its call-position ref rewriting
+            // happens downstream). The macro's own body ignores the head token, so no head
+            // rewrite is needed here — only the raw tail args flow in.
+            if let Some(WatAST::Symbol(ident, _)) = items.first() {
                 if ident.as_str().contains('/') {
                     let slash_pos = ident.as_str().rfind('/').unwrap();
                     let primary = crate::edn_shim::ns_to_wat_path(
@@ -240,17 +232,21 @@ pub(super) fn expand_form(
                         &ident.as_str()[slash_pos + 1..],
                     );
                     if let Some(def) = registry.get(&primary) {
-                        let kw_span = sym_span.clone();
-                        let mut new_children = expanded_children;
-                        new_children[0] = WatAST::Keyword(primary, kw_span);
-                        let args = new_children[1..].to_vec();
+                        let args = items[1..].to_vec();
                         let expanded = expand_macro_call(def, args, list_span.clone(), env, sym)?;
                         return expand_form(expanded, registry, expansion_depth + 1, env, sym);
                     }
                 }
             }
 
-            // Not a macro call — preserve the outer list's span.
+            // NOT a macro call — recurse into children so nested macros in ordinary code
+            // (function-call args, let bindings, vector/map elements) still expand. A
+            // non-macro head is a function or special form; its sub-forms are code.
+            let expanded_children: super::ExpandBatch = items
+                .into_iter()
+                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym))
+                .collect();
+            let expanded_children = expanded_children?;
             Ok(WatAST::List(expanded_children, list_span))
         }
         // Arc 167 slice 1 — recurse into vector children so a

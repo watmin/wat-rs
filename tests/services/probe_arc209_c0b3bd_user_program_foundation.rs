@@ -2,7 +2,7 @@
 //!
 //! `invoke_user_main` (freeze.rs) is the chokepoint BOTH the root main and every process child
 //! run through. Today it hardcodes the 7th field of `:wat::program::Env` to
-//! `(:wat::program::EmptyEnv)` (freeze.rs:1095) and offers NO way to supply a `user.program` —
+//! `(:wat::program::EmptyEnv')` (freeze.rs:1095) and offers NO way to supply a `user.program` —
 //! so wat-cli can't inject one into the root universe and process children can't either. Only
 //! thread children (via the `init-fn` closure) can. This stone opens the seam: `invoke_user_main`
 //! accepts an optional produced `user.program` Record; `None` keeps the `EmptyEnv` default (every
