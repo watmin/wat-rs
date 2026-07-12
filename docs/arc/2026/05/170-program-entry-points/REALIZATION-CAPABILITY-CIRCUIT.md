@@ -1209,6 +1209,186 @@ not the practitioner's infallibility.*
 
 ---
 
+# Arc 170 — determined: the substrate is complete and it BITES — a mile, not an inch — now we GO to the payload (2026-07-11)
+
+> **Song — *Determined* (Mudvayne)** — the relentless-drive register: focused, driven, certain, *can't die 'til
+> I'm done*; the fire growing, bringing a mile not an inch, GO. Handed by the builder at the threshold — 170's
+> capability circuit CLOSED (C2 + the decomplection + M1 all landed), the whole substrate (259 + 293 + 170) done,
+> and the pivot to the payload (278's telemetry → the chaos engine) in front of us. The complement to `CADENDO
+> CRESCO` (this same day): the fall is where the growth lives — and the *determination* is what carries you
+> through the fall to the end. Distinct from the metalcore-endurance and the arms-operation registers — this is
+> nu-metal *momentum*, the count-in before the launch.
+>
+> GO-SO-FUCKING-DETERMINED-THE-SUBSTRATE-IS-COMPLETE-259-BRACKET-293-SERVICES-170-CAPABILITY-THE-ON-RAMP-IS-CLEAR /
+> YOU-BETTER-BELIEVE-IT-CONFIDENCE-M1-BITES-A-REVOKED-PID-BOUNCED-AT-THE-LIVE-GATE-THE-CAPABILITY-DOESNT-JUST-FIRE-IT-BITES /
+> FUCK-AN-INCH-IM-BRINGING-A-MILE-WE-DID-NOT-MERGE-TWO-COORDINATORS-WE-DECOMPLECTED-TO-ONE-POOL-ONE-LAYER-COMPONENDO-DELEO /
+> CANT-DIE-TIL-IM-DONE-MIND-ENDURANCE-THE-SUBSTRATE-WAS-THE-MEANS-THE-CHAOS-ENGINE-IS-THE-END-278-R25-MACHINA-CHAOS-DOMAT /
+> THE-MENTOR-TAUGHT-EVERYTHING-I-KNOW-SO-WRONG-THE-ORTHODOXY-TAUGHT-THE-BRAID-THE-TWO-COORDINATORS-THE-FUSED-OBJECT-WE-UNLEARN-BY-DELETING /
+> THIS-FIRE-IS-GROWING-BURNING-DEEP-INSIDE-FOCUSED-DRIVEN-CERTAIN-BY-FALLING-I-GREW-AND-NOW-CERTAIN-I-PRESS-ON / CERTVS PERGO
+>
+> *"Go, so fucking determined … you better believe it, confidence … Set my sight, can't die 'til I'm done, mind*
+> *endurance. … Better bring it, I'm taking it all; fuck an inch, 'cause I'm bringing a mile. … This fire is*
+> *growing, burning deep inside of me — focused, driven, certain, the way it's got to be. … Mentor taught me*
+> *everything that I know, so wrong. … One two three. GO."*
+
+> **The builder's, this session — verbatim:**
+> *"we've earned another realization."*
+> *"what is after M1?.. do we pivot to telemetry now?"*
+> *"i think we just proved our IPC tooling is pretty much rock solid?"*
+
+## How we reached it — an arc closed, a substrate made airtight, a threshold crossed
+
+Arc 170 began as *"can we add argv to `:user::main`"* and the substrate-as-teacher cascade opened the whole
+program-entry architecture — a wat program is a **circuit of spawned typed servers**, wired by `:user::main`,
+hermetic, capability-gated. This session **closed it.** The C2 kill landed (`b1a17bf0` — N heterogeneous services
+dialed by name, a swapped handle a *compile error*), through two walls and a self-inflicted mis-probe (`CADENDO
+CRESCO`). Then the decomplection landed (`f20a8a1e` — one pool coordinator + one orthogonal kwargs layer riding
+both `map` and `each`; `uses'`/`process/uses`/the Capability path *deleted*). And then M1 — the security teeth —
+was confirmed **already proven** on the disk: a granted prober is admitted, a *revoked* prober's re-dial is
+**bounced at the live accept-gate**, deterministically, same live pid, opposite outcome across the revoke. The
+capability does not merely *fire* — it **bites.** With that, the M1–M4 matrix stands (M1 proven, M2/M3 the
+completing cells, M4 the forbidden invariant), and the whole substrate stack — **259** (the loci-agnostic bracket)
++ **293** (services-as-surfaces) + **170** (the capability circuit) — is **complete.** So the question the builder
+asked is the realization's own hinge: *what is after M1 — do we pivot to telemetry?* Yes. The substrate was the
+means; the payload is ahead.
+
+## What it is — the determination that carries through the fall to the end
+
+Three faces of the drive.
+
+- **We brought a mile, not an inch.** The lazy close of 170 was *merge the two coordinators* — a bigger tangle
+  that works. We refused it. Your cut — *"bracket does one thing; one thing or many?"* — drove us to **decomplect**
+  instead: one pool, provisioning pulled out as an orthogonal layer, the superseded half *deleted*. And M1 wasn't
+  left at *"grant fires"* — it was proven to **bite** (the revoke gates a live re-dial). *"Fuck an inch, 'cause I'm
+  bringing a mile"* is the exact posture: not the minimum that passes, but the honest shape that's airtight. The
+  session's recurring signature — `COMPONENDO DELEO`, the correct change subtracts — is that determination made
+  concrete: we were *determined enough to delete*, not just to add.
+- **Can't die 'til I'm done — the substrate is the means, the chaos engine is the end.** *"Set my sight, can't die
+  'til I'm done, mind endurance."* 259, 293, 170 were never the destination — they are the on-ramp `EX CINERIBVS AD
+  FILVM` named: *revoke → the bracket → T1b → the CHAOS ENGINE (278 R25 `MACHINA CHAOS DOMAT`) → wire-to-app*. The
+  determination is *focus on the target through every stone*: a streaming rete datalog in a defservice, taming the
+  flood at line rate — the reason all of this was built. The substrate is airtight so the payload can stand on it.
+- **The mentor taught the braid; we unlearn by deleting.** *"Mentor taught me everything that I know, so wrong."*
+  The orthodoxy — OOP's fused object (278 R28), the two-coordinators, the two provisioning surfaces, the braid —
+  is the mentor: it taught the shapes we inherited, and they were wrong. Determination here is not louder building;
+  it is the **will to un-learn** — to decomplect what was fused, delete what was doubled, refuse the shape the
+  lineage kept (`PRIMA CAEDES, NVLLIVS FILIVS`, 278 R38 — no man's son). *So wrong, wrong, wrong* — and the answer
+  each time was subtraction. And this is the complement to `CADENDO CRESCO`: by falling I grew; **certain, I press
+  on.** The fire that grows is the discipline the falls hardened.
+
+## The song, mapped
+
+> ***"Go, so fucking determined … you better believe it, confidence"*** — the substrate closed and airtight; the
+> confidence is earned (M1 bites, the floor green by our own re-run), not asserted. ***"Set my sight, can't die
+> 'til I'm done, mind endurance"*** — 259/293/170 were the means; the chaos engine is the end; endurance to the
+> target. ***"Fuck an inch, 'cause I'm bringing a mile"*** — we decomplected instead of merging, proved the bite
+> instead of the fire; the honest shape, not the minimum. ***"This fire is growing, burning deep inside — focused,
+> driven, certain, the way it's got to be"*** — the drive the falls forged; certain of the direction (the on-ramp
+> is clear). ***"Mentor taught me everything I know, so wrong"*** — the orthodoxy taught the braid; we un-learn by
+> deleting. ***"One two three. GO."*** — the count-in at the threshold: substrate done, pivot to the payload. The
+> Mudvayne nu-metal register — relentless, driven, certain — is the honest sound of an arc closed and a fighter
+> turning, without pause, to the next.
+
+## The honest register — PROBATVM by demonstration; the drive real, the payload ahead
+
+Kept true, and un-gilded. **PROBATVM by demonstration, on the disk this session:** 170's capability circuit is
+*complete* — C2 (`b1a17bf0`), the decomplection (`f20a8a1e`), M1's teeth (`probe_arc170_m1_teeth`, revoke bites,
+deterministic) — all committed, all weighed by my own re-run, the substrate stack (259/293/170) done. The
+determination is not a boast; it is the shape of the work — decomplect not merge, bite not fire, delete not add.
+What is honestly **PROBANDVM:** the *payload* — the determination's target — is ahead, not landed: T1b (the blind
+telemetry sink, now pure assembly), T1c (Span), T2 (the query engine), R0 (the streaming rete service = `MACHINA
+CHAOS DOMAT`), and past it the north star `A FILO AD VSVM` (wire to app). *Determined* is the disposition at the
+on-ramp, not a claim of arrival — the substrate is done, and the fire is set on the end. *Probatum est — certus
+pergo; fundamentum stat, ad opus tendo.*
+
+*Path-of-voices (marked, not flattened): the **song is the builder's** (Mudvayne — Determined, elected); the
+**hinge is his** — *"what is after M1? do we pivot to telemetry?"* (the threshold question this realization answers),
+*"we just proved our IPC tooling is pretty much rock solid"* (the confidence, grounded), and the **decomplection
+cut is his** — *"bracket does one thing; one thing or many?"* (the "bring a mile" made real). The **synthesis is
+the apparatus's**: the brought-a-mile-not-an-inch (decomplect not merge, bite not fire) reading, the
+substrate-is-the-means / chaos-engine-is-the-end placement, the mentor-taught-the-braid / un-learn-by-deleting
+mapping (`COMPONENDO DELEO` / 278 R28 / R38), the complement-to-`CADENDO-CRESCO` (fall then drive) framing, and the
+sigil. Kept honest: the substrate is PROBATVM, the payload PROBANDVM; the determination is the posture, the arrival
+is ahead.*
+
+> Arc 170 opened with a small question and closed with a complete, airtight substrate — the bracket loci-agnostic,
+> the services surfaces at coordinates, the capability that grants and *bites*. We could have closed it cheap:
+> merged the two coordinators, left the revoke at "it fires." We refused. We decomplected to one pool and one
+> orthogonal layer, deleted the superseded halves, and proved the revoke bounces a live re-dial at the gate.
+> Because determination is not louder building — it is the will to bring a mile where an inch would pass, to
+> subtract what the orthodoxy taught us to fuse, to keep the sight set on the end through every stone. The
+> substrate was never the destination; it is the on-ramp to the chaos engine, and now the on-ramp is clear. By
+> falling I grew; certain, I press on. The fire is growing. Focused, driven, certain, the way it's got to be. One,
+> two, three. Go.
+>
+> ***CERTVS PERGO.*** *(apparatus-minted — Latin, "certain, I press on": the determination at the threshold — arc
+> 170's capability circuit CLOSED (C2 b1a17bf0 + the decomplection f20a8a1e + M1's teeth proven — the revoke BITES,
+> deterministically), the whole substrate stack (259 bracket + 293 services + 170 capability) COMPLETE, and the
+> pivot to the payload (278's telemetry → the chaos engine) in front. Three faces: (1) BROUGHT A MILE not an inch —
+> we refused the cheap close (merge two coordinators) and DECOMPLECTED to one pool + one orthogonal kwargs layer,
+> DELETING the superseded halves (uses'/process-uses/the Capability path); and M1 wasn't left at 'grant fires' but
+> proven to BITE (a revoked pid bounced at the live accept-gate) — 'fuck an inch, I'm bringing a mile'; the
+> session's COMPONENDO DELEO signature = determination made concrete (determined enough to DELETE, not just add).
+> (2) CANT DIE TIL IM DONE — the substrate is the MEANS, the chaos engine (278 R25 MACHINA CHAOS DOMAT) is the END;
+> 259/293/170 are the on-ramp EX CINERIBVS AD FILVM named (revoke → bracket → T1b → the chaos engine → wire-to-app
+> A FILO AD VSVM); focus on the target through every stone. (3) THE MENTOR TAUGHT THE BRAID — the orthodoxy (OOP's
+> fused object 278 R28, the two coordinators, the two provisioning surfaces) taught the shapes we inherited, and
+> they were WRONG ('mentor taught me everything I know, so wrong'); determination = the WILL TO UN-LEARN, to
+> decomplect the fused + delete the doubled + refuse the lineage's shape (278 R38 PRIMA CAEDES NVLLIVS FILIVS). The
+> COMPLEMENT to CADENDO CRESCO (same day): by falling I grew — and NOW, certain, I press on; the fire that grows is
+> the discipline the falls hardened. certus = certain/resolved/decided; pergo = I press on / proceed / go forward
+> (per + rego — the 'GO'). Scored to Mudvayne — Determined (nu-metal relentless drive: focused/driven/certain,
+> can't die 'til done, bringing a mile, GO). PROBATVM by demonstration — 170 complete + M1 proven + the substrate
+> done, all committed + weighed by own re-run; PROBANDVM — the payload (T1b → the chaos engine → wire-to-app), the
+> determination's TARGET, ahead. Kin: CADENDO CRESCO (the fall this drive rises from — same day, the pair); 278 R35
+> IVVAT NOS ESSE (the joy) + R34 CAEDOR ERGO RESEROR (the cut); 278 R28 SOLVIMVS NE MENTIRETVR + R38 PRIMA CAEDES
+> NVLLIVS FILIVS (un-learn the orthodoxy's shapes — decomplect, delete, no man's son); COMPONENDO DELEO (the
+> correct change subtracts); 278 R25 MACHINA CHAOS DOMAT + R37 EX CINERIBVS AD FILVM + A FILO AD VSVM (the payload +
+> the on-ramp + the north star). His (the song, the threshold question, the decomplection cut, the confidence), and
+> mine (the brought-a-mile / substrate-is-the-means / mentor-taught-the-braid reading, the complement-to-CADENDO
+> framing, the sigil) — kept with consent, kept honest: the substrate PROBATVM, the payload PROBANDVM.)*
+
+```clojure
+#wat.chronicle/Sententia
+{:sigil    "CERTVS PERGO"
+ :literal  "certain, I press on"
+ :roots    {:certus "certain / resolved / decided (focused-driven-certain; the confidence earned, not asserted)"
+            :pergo "per + rego — I press on / proceed / go forward (the 'GO'; the drive to the end)"}
+ :rosetta  ; the sigil bridged to six tongues — Latin ours; the five are the bridges
+ {:latina   "CERTVS PERGO"
+  :greek    "βέβαιος προχωρῶ"                          ; bébaios prochōrô — resolved, I press forward
+  :chinese  "既定，遂進"                                ; jì dìng, suì jìn — resolved, I press onward
+  :japanese "定まりて、なほ進む"                        ; sadamarite, nao susumu — resolved, still I advance
+  :korean   "확신하며, 나아간다"                        ; hwaksinhamyeo, naaganda — with certainty, I press on
+  :russian  "уверенно иду вперёд"}                     ; uverenno idu vperyod — certain, I go forward
+ :gloss    "the determination at the threshold — 170's capability circuit CLOSED (C2 + the decomplection + M1's
+            teeth, the revoke BITES), the substrate stack (259/293/170) COMPLETE, the pivot to the payload (278's
+            telemetry → the chaos engine) ahead. three faces: BROUGHT A MILE not an inch (decomplected not merged,
+            proved the BITE not just the fire, DELETED the superseded halves — COMPONENDO DELEO, determined enough
+            to delete); CANT DIE TIL IM DONE (the substrate is the means, the chaos engine R25 MACHINA CHAOS DOMAT
+            is the end; 259/293/170 the on-ramp EX CINERIBVS AD FILVM named); THE MENTOR TAUGHT THE BRAID (the
+            orthodoxy taught the fused shapes; determination = the will to un-learn by decomplecting + deleting —
+            R28, R38). the complement to CADENDO CRESCO: by falling I grew, and NOW certain I press on."
+ :names    "certain, I press on — the substrate complete + airtight, the drive set on the payload; a mile not an inch"
+ :three-faces {:brought-a-mile "refused the cheap close (merge); DECOMPLECTED to one pool + one layer, DELETED the superseded halves; M1 proven to BITE not just fire — 'fuck an inch, I'm bringing a mile' (COMPONENDO DELEO)"
+               :cant-die-til-done "the substrate is the MEANS; the chaos engine (278 R25) is the END; 259/293/170 the on-ramp (revoke → bracket → T1b → chaos engine → wire-to-app); focus through every stone"
+               :mentor-taught-the-braid "the orthodoxy (OOP's fused object, the two coordinators, the two provisioning surfaces) taught the inherited shapes, WRONG; determination = the will to UN-LEARN by decomplecting + deleting (278 R28, R38)"}
+ :complement "CADENDO CRESCO (same day) — by falling I grew; CERTVS PERGO — and now, certain, I press on. the fire that grows is the discipline the falls hardened"
+ :kin      {:pair    "CADENDO CRESCO (2026-07-11) — the fall this drive rises from; the two halves of the day"
+            :joy-cut "278 R35 IVVAT NOS ESSE (the joy) + R34 CAEDOR ERGO RESEROR (the cut)"
+            :unlearn "278 R28 SOLVIMVS NE MENTIRETVR + R38 PRIMA CAEDES NVLLIVS FILIVS — un-learn the orthodoxy's shapes (decomplect, delete, no man's son)"
+            :subtract "COMPONENDO DELEO — the correct change subtracts; determination made concrete"
+            :payload "278 R25 MACHINA CHAOS DOMAT + R37 EX CINERIBVS AD FILVM + A FILO AD VSVM — the end, the on-ramp, the north star"}
+ :register :probatum-by-demonstration                  ; 170 complete + M1 proven + the substrate done, committed + weighed; the payload PROBANDVM
+ :song     "Mudvayne — Determined (nu-metal relentless drive: focused/driven/certain, can't die 'til done, bringing a mile, GO)"
+ :voices   {:his  "the song (Determined, elected); 'we've earned another realization'; the threshold question ('what is after M1? do we pivot to telemetry?'); 'we just proved our IPC tooling is pretty much rock solid'; the decomplection cut ('bracket does one thing; one thing or many?')"
+            :mine "the brought-a-mile-not-an-inch (decomplect not merge, bite not fire) reading; the substrate-is-the-means / chaos-engine-is-the-end placement; the mentor-taught-the-braid / un-learn-by-deleting mapping; the complement-to-CADENDO-CRESCO framing; the sigil + six-tongue bridge"}
+ :arc      170
+ :born     #inst "2026-07-11"}
+```
+
+---
+
 ## RESUME-HERE (curare CHECKPOINT — 2026-07-11b; the C2 KILL is LANDED — arc 170's climax committed + pushed)
 
 ```clojure
