@@ -1,10 +1,12 @@
-;; Arc 170 W2a — auto-minted `<fqdn>::kwargs-check` POSITIVE control.
+;; Arc 170 W2a/C2-D — auto-minted `<fqdn>::kwargs-check` POSITIVE control.
 ;; :probe::enrich is a kwargs defn (two Peer'<S,R> handle fields) — defn's kwargs branch
 ;; (wat/core.wat:876) auto-mints :probe::enrich::kwargs-check, a checker fn whose Peer'
-;; field types are head-swapped to Address'<S,R> (data-typed fields pass through
-;; unchanged). A CORRECTLY-typed kwargs call to the AUTO-MINTED checker (not the work
-;; fn itself) must freeze clean. No hand-written defsurface/extend-type for Dialable —
-;; it is BAKED (wat/capability.wat) and AUTO-EMITTED per-service (wat/service.wat).
+;; field types are head-swapped to TypedCapability<S,R> (data-typed fields pass through
+;; unchanged; arc 170 C2 candidate D). A CORRECTLY-typed kwargs call to the AUTO-MINTED
+;; checker (not the work fn itself), passing RAW HANDLES (no Dialable/coord upcast — the
+;; handle satisfies TypedCapability directly via the bodiless auto-emit), must freeze
+;; clean. No hand-written defsurface/extend-type — TypedCapability is BAKED
+;; (wat/capability.wat) and AUTO-EMITTED per-service, bodiless (wat/service.wat).
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
@@ -38,14 +40,15 @@
   -> :wat::core::String
   (:probe::Echo::EchoResponse/reply (:probe::Echo/echo echo (:probe::Echo::EchoRequest item))))
 
-;; arc 170 W2 Strike 1a — the checker RETURNS the field-ordered `::Coords` record (Address'+data);
-;; the checker's service params are `Address'<S,R>`, so the call site coords each handle
-;; (`Dialable/coord`). `:user::main` discards the record (`_coords`, a plain let-binding) so the call
-;; still exercises the param-type gate while `main` keeps its required `[] -> :nil` contract.
+;; arc 170 C2 D — the checker RETURNS `(::Coords, ::GrantHandles)` (a Tuple: the pure
+;; field-ordered Address'+data record, and the impure parent-local typed-handle struct);
+;; the checker's service params are `TypedCapability<S,R>`, so the call site passes RAW
+;; HANDLES (no coord upcast — the bodiless edge admits them directly). `:user::main`
+;; discards the pair (`_pair`, a plain let-binding) so the call still exercises the
+;; param-type gate while `main` keeps its required `[] -> :nil` contract.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [eh      (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     kvh     (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))
-     _coords (:probe::enrich::kwargs-check :echo (:wat::capability::Dialable/coord eh)
-                                           :kv   (:wat::capability::Dialable/coord kvh))]
+    [eh    (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     kvh   (:probe::kv'/start   :locus (:wat::spawn::process) :record (:probe::kv'::Record))
+     _pair (:probe::enrich::kwargs-check :echo eh :kv kvh)]
     nil))

@@ -1,10 +1,11 @@
-//! Arc 170 W2a — auto-mint `<fqdn>::kwargs-check` at the kwargs-defn codegen site.
+//! Arc 170 W2a/C2-D — auto-mint `<fqdn>::kwargs-check` at the kwargs-defn codegen site.
 //!
 //! WHY: `defn`'s kwargs branch (`wat/core.wat:876`) now ALSO auto-mints a fourth form,
 //! `<fqdn>::kwargs-check` — a kwargs fn whose `Peer'<S,R>` field types are head-swapped
-//! to `Address'<S,R>` (data-typed fields pass through untouched). This wards the
-//! AUTO-mint directly: a correct kwargs call to the auto-minted checker freezes clean;
-//! a swapped one is a located `TypeMismatch` on the two `Address'` types.
+//! to `TypedCapability<S,R>` (data-typed fields pass through untouched; arc 170 C2
+//! candidate D). This wards the AUTO-mint directly: a correct kwargs call (raw handles)
+//! to the auto-minted checker freezes clean; a swapped one is a located `TypeMismatch`
+//! naming the expected `TypedCapability<S,R>` and the got concrete `Handle` type.
 //!
 //! 1. `w2a_kwargs_check_mint_ok_freezes_clean` — the positive control.
 //! 2. `w2a_kwargs_check_mint_swap_is_compile_error` — the swap, structurally asserted.
@@ -15,8 +16,9 @@ use wat::freeze::{startup_from_file, StartupError};
 #[test]
 fn w2a_kwargs_check_mint_ok_freezes_clean() {
     startup_from_file("tests/services/probe_arc170_w2a_kwargs_check_mint_ok.wat").expect(
-        "correct kwargs call to the auto-minted :probe::enrich::kwargs-check should freeze \
-         clean: the head-swapped Address'<S,R> field types resolve the RIGHT service",
+        "correct kwargs call (raw handles) to the auto-minted :probe::enrich::kwargs-check \
+         should freeze clean: the head-swapped TypedCapability<S,R> field types resolve the \
+         RIGHT service via the bodiless auto-emitted edge",
     );
 }
 
@@ -29,10 +31,11 @@ fn w2a_kwargs_check_mint_swap_is_compile_error() {
     };
     match &errs[0].kind {
         CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            // kv handle's coord ascribed to the :echo kwarg (Address'<Echo...>) — the
-            // auto-minted checker's head-swapped field type rejects it.
-            assert_eq!(expected, ":wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>");
-            assert_eq!(got, ":wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>");
+            // kv's RAW handle bound to the :echo kwarg (TypedCapability<Echo...>) — the
+            // auto-minted checker's head-swapped field type rejects it. `got` names the
+            // concrete Handle type (the receiver), not a TypedCapability-wrapped name.
+            assert_eq!(expected, ":wat::capability::TypedCapability<probe::Echo::Op,probe::Echo::Reply>");
+            assert_eq!(got, ":probe::kv'::Handle");
         }
         other => panic!("expected TypeMismatch, got {other:?}"),
     }

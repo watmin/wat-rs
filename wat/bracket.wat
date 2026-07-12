@@ -597,12 +597,22 @@
 ;; carries ONLY the SERVICE handles (data kwargs need no grant — they copy as EDN, not dial).
 ;; PROCESS ONLY (dialing a service needs the firm process boundary — the whole point of this
 ;; stone; a thread locus never needs to dial at all).
-(:wat::core::defn :wat::bracket::uses'<D,I,O>
-  [locus   <- :wat::spawn::ProcessOpts
-   uses    <- :wat::core::Vector<(wat::core::keyword,wat::capability::Capability)>
-   items   <- :wat::core::Vector<I>
-   work-fn <- :wat::core::keyword
-   coords  <- :D]
+;;
+;; Arc 170 C2 D — `uses` (the erased `Vector<(keyword,Capability)>` grant carrier) is REPLACED
+;; by the TYPED `::GrantHandles` struct + a matching typed `grant-fn`/`revoke-fn` pair (the
+;; auto-minted `<fqdn>::grant-worker`/`revoke-worker`, unrolled `TypedCapability/grant|revoke`
+;; calls over the literal service-field list — no dispatch, no erasure). `grant-fn`/`revoke-fn`
+;; are taken BY VALUE as a bare keyword (keyword-auto-upgrades-to-Fn at the call site, same as
+;; `map-worker`'s own `work-fn`/`worker-init` params) so the caller (the `bracket/uses` macro)
+;; just forwards the auto-minted keywords straight through.
+(:wat::core::defn :wat::bracket::uses'<D,G,I,O>
+  [locus         <- :wat::spawn::ProcessOpts
+   grant-handles <- :G
+   grant-fn      <- :wat::core::Fn(G,wat::core::i64)->wat::core::nil
+   revoke-fn     <- :wat::core::Fn(G,wat::core::i64)->wat::core::nil
+   items         <- :wat::core::Vector<I>
+   work-fn       <- :wat::core::keyword
+   coords        <- :D]
   -> :wat::core::Vector<O>
   (:wat::core::let
     [m      (:wat::core::length items)
@@ -614,14 +624,10 @@
                   -> :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>
                 (:wat::core::let
                   [p (:wat::kernel::spawn-program' locus forms)
-                   ;; GRANT-BOOT — verbatim copy of map-worker's own fold (name-blind, UNCHANGED).
+                   ;; GRANT-BOOT — TYPED: one call to the auto-minted grant-worker (no fold
+                   ;; over an erased vector; grant-worker itself is the per-field unroll).
                    _ (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
-                       ((:wat::core::Some pid)
-                         (:wat::core::foldl
-                           (:wat::core::fn [_acc <- :wat::core::nil  g <- :(wat::core::keyword,wat::capability::Capability)] -> :wat::core::nil
-                             (:wat::capability::Capability/grant (:wat::core::second g) (:wat::core::Vector :wat::core::i64 pid)))
-                           nil
-                           uses))
+                       ((:wat::core::Some pid) (grant-fn grant-handles pid))
                        (:wat::core::None nil))
                    ;; SETUP-DIAL — arc 170 C2 Strike 1c: ONE Setup(coords), not N per-handle
                    ;; Setups. `coords` is already the field-ordered, concretely-typed Tuple —
@@ -632,18 +638,13 @@
               (:wat::core::range 0 n))
      pairs   (:wat::bracket::collect-loop peers items
                (:wat::core::Vector :(wat::core::i64,O)) n 0 m)
-     ;; REVOKE-SHUTDOWN — verbatim copy of map-worker's own fold (UNCHANGED).
+     ;; REVOKE-SHUTDOWN — TYPED, mirrors grant-boot above.
      _revoke (:wat::core::foldl
                (:wat::core::fn [_acc <- :wat::core::nil
                                 p    <- :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>]
                  -> :wat::core::nil
                  (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
-                   ((:wat::core::Some pid)
-                     (:wat::core::foldl
-                       (:wat::core::fn [_a <- :wat::core::nil  g <- :(wat::core::keyword,wat::capability::Capability)] -> :wat::core::nil
-                         (:wat::capability::Capability/revoke (:wat::core::second g) (:wat::core::Vector :wat::core::i64 pid)))
-                       nil
-                       uses))
+                   ((:wat::core::Some pid) (revoke-fn grant-handles pid))
                    (:wat::core::None nil)))
                nil
                peers)
@@ -655,6 +656,47 @@
       (:wat::core::fn [pr <- :(wat::core::i64,O)] -> :O
         (:wat::core::second pr))
       sorted)))
+
+;; ── bracket/uses — the user-facing macro over uses' (arc 170 C2 D) ──────────────────────────
+;;
+;; `(bracket/uses locus items work-fn :name val …)` — RAW `:name val` kwarg pairs (service
+;; handles + data values, any order): the full end-user surface over the checker + `uses'`.
+;; Expands to:
+;;   (let [pair    (<base>::kwargs-check :name val …)     ;; auto-minted checker call — forwards
+;;         coords  (first pair)                            ;;   the SAME kw/val forms verbatim
+;;         handles (second pair)]
+;;     (uses' locus handles <base>::grant-worker <base>::revoke-worker items work-fn coords))
+;; `work-fn` must be a literal keyword AST node (not a runtime value) — its base name string is
+;; read at MACRO-EXPANSION time (`ast-name`, same idiom `:wat::core::defn` itself uses on its
+;; own `name` param) to build the three auto-minted coordinates (`::kwargs-check`,
+;; `::grant-worker`, `::revoke-worker`) — no reflection, no defclause dispatch (unlike
+;; `process-work-forms`, which runs at PARENT RUNTIME over a shipped-to-child forms vector; this
+;; macro instead expands into the PARENT's own compiled code, where the checker call and the
+;; `uses'` grant-boot/dial all actually happen).
+(:wat::core::defmacro :wat::bracket::uses
+  [locus <- :wat::WatAST
+   items <- :wat::WatAST
+   work-fn <- :wat::WatAST
+   & kwpairs <- :wat::core::Vector<wat::WatAST>]
+  -> :wat::WatAST
+  (:wat::core::let
+    [work-fn-name  (:wat::core::ast-name work-fn)
+     base-str      (:wat::core::string::subs work-fn-name 1 (:wat::core::string::length work-fn-name))
+     checker-kw    (:wat::core::keyword-node
+                      (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::kwargs-check")))
+     grant-fn-kw   (:wat::core::keyword-node
+                      (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::grant-worker")))
+     revoke-fn-kw  (:wat::core::keyword-node
+                      (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::revoke-worker")))
+     checker-call  `(~checker-kw ~@kwpairs)
+     pair-sym      (:wat::core::fresh-symbol "pair")
+     coords-sym    (:wat::core::fresh-symbol "coords")
+     handles-sym   (:wat::core::fresh-symbol "handles")]
+    `(:wat::core::let
+       [~pair-sym    ~checker-call
+        ~coords-sym  (:wat::core::first ~pair-sym)
+        ~handles-sym (:wat::core::second ~pair-sym)]
+       (:wat::bracket::uses' ~locus ~handles-sym ~grant-fn-kw ~revoke-fn-kw ~items ~work-fn ~coords-sym))))
 
 ;; ── map — thin wrapper over map-worker (Ruby's Parallel.map) ─────────────────
 ;;

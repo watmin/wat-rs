@@ -929,6 +929,59 @@
          ;; branch — the `is-check` suffix guard stops the infinite mint (no Coords/checker for a
          ;; `::kwargs-check`). Otherwise gate on being a dialing (Peer'-bearing) work-fn.
          mint-coords? (:wat::core::if is-check false has-peer-field)
+         ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — Peer'<S,R> → TypedCapability<S,R> ──
+         ;; A SECOND head-swap, parallel to `swapped-ch` (Address') but targeting the combined
+         ;; `:wat::capability::TypedCapability<S,R>` surface (capability.wat) instead. This is
+         ;; the checker's OWN param typing (so `bracket/uses` passes RAW HANDLES typed as
+         ;; TypedCapability — caught by the bodiless-edge assignability check — never erased,
+         ;; never a bare Address'). `swapped-ch`/`swapped-argvec` (Address') is UNCHANGED and
+         ;; still used only for `::Coords`'s field TYPES (the pure crossing carrier). The needle
+         ;; is the FULL "wat::kernel::Peer'" (not bare "Peer'"): Address' shares Peer's
+         ;; `wat::kernel::` namespace so the bare swap works there, but TypedCapability lives in
+         ;; `wat::capability::` — the whole qualified head must relocate, not just the tail.
+         capswapped-ch (:wat::core::foldl
+                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> j <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                            (:wat::core::let
+                              [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2d capswapped-ch index")
+                               is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
+                               nm      (:wat::core::ast-name child)
+                               is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer'") false)
+                               swapped (:wat::core::if is-peer
+                                         (:wat::core::keyword-node
+                                           (:wat::core::string::join "wat::capability::TypedCapability"
+                                             (:wat::core::string::split nm "wat::kernel::Peer'")))
+                                         child)]
+                              (:wat::core::conj acc swapped)))
+                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::range 0 kw-len))
+         capswapped-argvec (:wat::core::with-children kw-argvec capswapped-ch)
+         ;; ── ::GrantHandles — the impure, is-peer-FILTERED parent-local carrier ──────────────
+         ;; A `defstruct` (impure-permitting, like `::Kwargs` itself) of ONLY the service fields,
+         ;; each typed `TypedCapability<Si,Ri>` (capswapped). Data fields never enter it — they
+         ;; carry no capability to grant. Read `kw-ch`'s ORIGINAL (unswapped) type per field —
+         ;; same is-peer test as `has-peer-field`, applied per-field here.
+         grant-handles-ty-str (:wat::core::string::concat name-str "::GrantHandles")
+         grant-handles-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" grant-handles-ty-str))
+         gh-field-triples (:wat::core::foldl
+                             (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                               (:wat::core::let
+                                 [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d gh-field: fname index")
+                                  orig-ty    (:wat::core::Option/expect
+                                               (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                               "w2d gh-field: type index")
+                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                                  cap-ty     (:wat::core::Option/expect
+                                               (:wat::core::get capswapped-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                               "w2d gh-field: capswapped type index")]
+                                 (:wat::core::if is-peer
+                                   (:wat::core::conj (:wat::core::conj (:wat::core::conj acc fname-node) arrow-sym) cap-ty)
+                                   acc)))
+                             (:wat::core::Vector :wat::WatAST)
+                             (:wat::core::range 0 n-kw-fields))
+         grant-handles-field-vec (:wat::core::with-children kw-argvec gh-field-triples)
+         grant-handles-def (:wat::core::if mint-coords?
+                              `(:wat::core::defstruct ~grant-handles-kw ~grant-handles-field-vec)
+                              `(:wat::core::do nil))
          ;; ── the Coords record + checker forms (guarded) ──
          ;; GUARD NO-OP = (do nil), NOT an empty (do): an empty `(:wat::core::do)` is ILLEGAL —
          ;; "do form requires at least one form; got zero". `(do nil)` has one form, evaluates to
@@ -936,16 +989,101 @@
          coords-def (:wat::core::if mint-coords?
                       `(:wat::core::defrecord ~coords-kw ~swapped-argvec)
                       `(:wat::core::do nil))
-         ;; The checker's body constructs `(::Coords field-1 field-2 …)` in DECLARED field order,
-         ;; reusing `fname-nodes` (the SAME symbol-node objects bound as the field names inside
-         ;; `swapped-argvec` — hygienic by construction, mirrors the $impl let-binder reuse above).
-         ;; The gate (param types stay `Address'<S,R>` → a swapped coord TypeMismatches) and the
-         ;; coord-assembly (this body) are ONE act; the field-ordering falls out of the kwargs
-         ;; mechanism the checker itself rides (kwargs-lower reorders `:name`s to field order).
+         ;; The checker's body now builds BOTH carriers and returns them as a Tuple:
+         ;; (::Coords field-1 …) — a service field is coord'd off the TypedCapability param
+         ;; (`TypedCapability/coord`) before entering the pure Address'-typed Coords record; a
+         ;; data field passes through unchanged (same as before).
+         ;; (::GrantHandles svc-field-1 …) — the RAW TypedCapability-typed params, direct, no
+         ;; coord call — these stay live/granted-through, never erased.
+         ;; Reuses `fname-nodes` (the SAME symbol-node objects bound as the checker's OWN param
+         ;; names via `capswapped-argvec` — hygienic by construction, mirrors the $impl
+         ;; let-binder reuse above). The gate (param types are now `TypedCapability<S,R>` → a
+         ;; swapped handle TypeMismatches) and the carrier-assembly (this body) are ONE act.
+         coords-ctor-args (:wat::core::foldl
+                             (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                               (:wat::core::let
+                                 [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d coords-ctor-args: fname index")
+                                  orig-ty    (:wat::core::Option/expect
+                                               (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                               "w2d coords-ctor-args: type index")
+                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                                  arg-form   (:wat::core::if is-peer
+                                               `(:wat::capability::TypedCapability/coord ~fname-node)
+                                               fname-node)]
+                                 (:wat::core::conj acc arg-form)))
+                             (:wat::core::Vector :wat::WatAST)
+                             (:wat::core::range 0 n-kw-fields))
+         gh-ctor-args (:wat::core::foldl
+                        (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                          (:wat::core::let
+                            [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d gh-ctor-args: fname index")
+                             orig-ty    (:wat::core::Option/expect
+                                          (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                          "w2d gh-ctor-args: type index")
+                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")]
+                            (:wat::core::if is-peer (:wat::core::conj acc fname-node) acc)))
+                        (:wat::core::Vector :wat::WatAST)
+                        (:wat::core::range 0 n-kw-fields))
+         pair-ty-str  (:wat::core::string::concat "("
+                        (:wat::core::string::concat coords-ty-str
+                          (:wat::core::string::concat "," (:wat::core::string::concat grant-handles-ty-str ")"))))
+         pair-ty-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" pair-ty-str))
          kwargs-check-def (:wat::core::if mint-coords?
-                            `(:wat::core::defn ~kwargs-check-kw [& ~swapped-argvec] -> ~coords-kw
-                               (~coords-kw ~@fname-nodes))
-                            `(:wat::core::do nil))]
+                            `(:wat::core::defn ~kwargs-check-kw [& ~capswapped-argvec] -> ~pair-ty-kw
+                               (:wat::core::Tuple (~coords-kw ~@coords-ctor-args) (~grant-handles-kw ~@gh-ctor-args)))
+                            `(:wat::core::do nil))
+         ;; ── <fqdn>::grant-worker / revoke-worker — unrolled typed grant|revoke over the
+         ;; literal service-field list of ::GrantHandles. `handles-sym`/`pid-sym` are reused
+         ;; (by identity) between the defn's own param binders and the body's call forms —
+         ;; hygienic, mirrors `grantable-self-sym`/`grantable-pids-sym` in wat/service.wat.
+         grant-worker-name-str  (:wat::core::string::concat name-str "::grant-worker")
+         revoke-worker-name-str (:wat::core::string::concat name-str "::revoke-worker")
+         grant-worker-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" grant-worker-name-str))
+         revoke-worker-kw (:wat::core::keyword-node (:wat::core::string::concat ":" revoke-worker-name-str))
+         gw-handles-sym (:wat::core::symbol-node "handles")
+         gw-pid-sym     (:wat::core::symbol-node "pid")
+         grant-calls (:wat::core::foldl
+                       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                         (:wat::core::let
+                           [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d grant-calls: fname index")
+                            orig-ty    (:wat::core::Option/expect
+                                         (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                         "w2d grant-calls: type index")
+                            is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                            fname-str  (:wat::core::ast-name fname-node)
+                            acc-kw     (:wat::core::keyword-node
+                                         (:wat::core::string::concat ":"
+                                           (:wat::core::string::concat grant-handles-ty-str
+                                             (:wat::core::string::concat "/" fname-str))))
+                            call-form  `(:wat::capability::TypedCapability/grant (~acc-kw ~gw-handles-sym) (:wat::core::Vector :wat::core::i64 ~gw-pid-sym))]
+                           (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
+                       (:wat::core::Vector :wat::WatAST)
+                       (:wat::core::range 0 n-kw-fields))
+         revoke-calls (:wat::core::foldl
+                        (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                          (:wat::core::let
+                            [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d revoke-calls: fname index")
+                             orig-ty    (:wat::core::Option/expect
+                                          (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                          "w2d revoke-calls: type index")
+                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer'")
+                             fname-str  (:wat::core::ast-name fname-node)
+                             acc-kw     (:wat::core::keyword-node
+                                          (:wat::core::string::concat ":"
+                                            (:wat::core::string::concat grant-handles-ty-str
+                                              (:wat::core::string::concat "/" fname-str))))
+                             call-form  `(:wat::capability::TypedCapability/revoke (~acc-kw ~gw-handles-sym) (:wat::core::Vector :wat::core::i64 ~gw-pid-sym))]
+                            (:wat::core::if is-peer (:wat::core::conj acc call-form) acc)))
+                        (:wat::core::Vector :wat::WatAST)
+                        (:wat::core::range 0 n-kw-fields))
+         grant-worker-def (:wat::core::if mint-coords?
+                            `(:wat::core::defn ~grant-worker-kw [~gw-handles-sym <- ~grant-handles-kw ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
+                               (:wat::core::do ~@grant-calls))
+                            `(:wat::core::do nil))
+         revoke-worker-def (:wat::core::if mint-coords?
+                              `(:wat::core::defn ~revoke-worker-kw [~gw-handles-sym <- ~grant-handles-kw ~gw-pid-sym <- :wat::core::i64] -> :wat::core::nil
+                                 (:wat::core::do ~@revoke-calls))
+                              `(:wat::core::do nil))]
         ;; Arc 260.1b: emit record-def + $impl fn (under :<name>$impl) + companion defmacro (:name)
         ;; The companion macro is a THIN FORWARDER to :wat::core::kwargs-lower (Part B dedup).
         ;; Values baked in at defn-expansion time via ~ (depth-1 unquotes from the outer quasiquote):
@@ -981,7 +1119,10 @@
                 ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node (:wat::core::string::concat ":" ~name-str))]
                `(:wat::core::kwargs-lower ~_kl-impl ~_kl-kty ~_kl-fvec ~_kl-np ~_kl-ns ~@call-args)))
            ~coords-def                  ;; ← W2 record redirect: <fqdn>::Coords (before the checker refs it).
-           ~kwargs-check-def))          ;; ← W2a. Order-independent (the checker refs only literal Address' types).
+           ~grant-handles-def           ;; ← C2 D: <fqdn>::GrantHandles (before the checker refs it).
+           ~kwargs-check-def            ;; ← W2a/C2 D. Order-independent (refs only literal Coords/GrantHandles types).
+           ~grant-worker-def            ;; ← C2 D: <fqdn>::grant-worker.
+           ~revoke-worker-def))         ;; ← C2 D: <fqdn>::revoke-worker.
       ;; ── BACKWARD-COMPAT PASS-THROUGH (no kwargs section) ────────────────────
       `(:wat::core::def ~name (:wat::core::fn ~@rest)))))
 

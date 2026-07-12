@@ -44,3 +44,26 @@
 (:wat::core::defsurface :wat::capability::Dialable<S,R> :nature :wat::core::Struct
   :features
   [(coord [self <- :wat::capability::Dialable<S,R>] -> :wat::kernel::Address'<S,R>)])
+
+;; TypedCapability<S,R> (arc 170 C2 candidate D) — a THIRD, combined surface every service's
+;; `<fqdn>::Handle` also satisfies, via a THIRD auto-emitted extend-type that is deliberately
+;; BODILESS (wat/service.wat's typedcap-extend, beside grantable-extend/dialable-extend). It
+;; unions Dialable's typed `coord` with Capability's `grant`/`revoke` under ONE surface so a
+;; service handle can flow through the N-service kwargs-check TYPED (never erased to a bare
+;; Value/Capability) and still be both dialed and granted through that one typed param. A
+;; bodiless extend-type registers the satisfaction EDGE only (assignability) — it does NOT
+;; re-declare grant/coord/revoke (that would collide with grantable-extend/dialable-extend's
+;; own method bodies on the flat `<Type>/<method>` registration key, DuplicateDefine). Runtime
+;; dispatch instead serves TypedCapability/coord|grant|revoke off the Handle's EXISTING
+;; Capability+Dialable method bodies via that same flat key — a surface-method call resolves
+;; by the RECEIVER's concrete type, regardless of which surface named it. Proven this session:
+;; scratchpad/probe-v-bodiless.wat (freezes clean, no DuplicateDefine), probe-v-swap.wat (a
+;; wrong-service handle is a located TypeMismatch), probe-v-run.wat (TypedCapability/coord
+;; dispatches at runtime through the flat key). Method names reused verbatim from Dialable/
+;; Capability (coord, grant, revoke) — safe because a handle only ever calls THROUGH one
+;; qualified surface at a time; there is no unqualified-call ambiguity to resolve.
+(:wat::core::defsurface :wat::capability::TypedCapability<S,R> :nature :wat::core::Struct
+  :features
+  [(coord  [self <- :wat::capability::TypedCapability<S,R>] -> :wat::kernel::Address'<S,R>)
+   (grant  [self <- :wat::capability::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
+   (revoke [self <- :wat::capability::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])

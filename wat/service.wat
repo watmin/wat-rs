@@ -1196,7 +1196,22 @@
                        (:wat::core::string::concat "::Op,"
                          (:wat::core::string::concat proto-str "::Reply>")))))
      dialable-extend `(:wat::core::extend-type ~handle-name ~dialable-ty
-                         (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))]
+                         (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
+
+     ;; ── arc 170 C2 D: auto-emit the THIRD, BODILESS TypedCapability<S,R> extend-type ─────
+     ;; Registers the satisfaction EDGE only — no method bodies (that's the whole point: a
+     ;; third re-declaration of coord/grant/revoke here would collide with grantable-extend/
+     ;; dialable-extend's own bodies on the flat `<Type>/<method>` key, DuplicateDefine).
+     ;; Runtime dispatch serves TypedCapability/coord|grant|revoke off THIS SAME Handle's
+     ;; Capability+Dialable bodies above via that flat key. Mirrors dialable-ty's Op/Reply
+     ;; wiring exactly (proto-str namespace, not fqdn-str — same reasoning as line ~1192).
+     ;; Shape proven scratchpad/probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat.
+     typedcap-ty (:wat::core::keyword/from-string
+                   (:wat::core::string::concat "wat::capability::TypedCapability<"
+                     (:wat::core::string::concat proto-str
+                       (:wat::core::string::concat "::Op,"
+                         (:wat::core::string::concat proto-str "::Reply>")))))
+     typedcap-extend `(:wat::core::extend-type ~handle-name ~typedcap-ty)]
 
     ;; Assemble the final `do`:
     ;;   record + state defs (durable/ephemeral projections)
@@ -1226,4 +1241,5 @@
        ~resume-fn
        ~handle-record
        ~grantable-extend
-       ~dialable-extend)))
+       ~dialable-extend
+       ~typedcap-extend)))

@@ -1,17 +1,13 @@
-;; Arc 170 C2 — Strike 1 (RUNTIME) hand-wired MIXED proof — NO `bracket/uses` macro (Strike 2).
+;; Arc 170 C2 — Strike 2: the C2 gate THROUGH THE `bracket/uses` MACRO (mixed 7 services + 5 data).
 ;;
-;; 12 kwargs: 7 heterogeneous `Peer'` SERVICE kwargs (s1..s7, each dialed) + 5 DATA kwargs
-;; (d1..d5, copied as EDN). Proves the record-carrier runtime in one shot:
-;;  - NO service-count cap (N=7 > the retired first/second/third=3 positional-accessor limit) —
-;;    the coords carrier is now the NAMED record `:probe::enrich::Coords`, reconciled BY FIELD NAME.
-;;  - the DATA path — 5 data fields ride inside the same record, copied (not dialed), routed off
-;;    `field-types-of` (Peer'-vs-not) in the generated dial-runner.
-;;
-;; Chain exercised end to end:
-;;  - Strike 1a (wat/core.wat): the kwargs-defn site mints `:probe::enrich::Coords` (a defrecord,
-;;    head-swapped Peer'→Address', same field names/order as ::Kwargs) + the checker
-;;    `:probe::enrich::kwargs-check` that RETURNS that record (its return value IS `coords` below).
-;;  - Strike 1b (wat/bracket.wat process-work-forms): the N-generalized, cap-free dial-runner that
+;; The full user surface in one form: (bracket/uses (process) items work-fn :name val …) with RAW
+;; `:name val` pairs (handles for the 7 services, values for the 5 data), SCRAMBLED order. Proves:
+;;  - Part A: the checker takes `Dialable<S,R>` → raw handles type-check; it coords services internally.
+;;  - Part B: the macro parses + expands to `(let [coords (…kwargs-check :name val…)] (uses' …))`.
+;;  - Part C: `uses'`'s grant-boot dispatches the heterogeneous `[(Tuple :name val) …]` per val
+;;    (7 service handles granted, 5 data values skipped) — mixed service+data in ONE strike.
+;;  - the Strike-1 dial runtime (unchanged): ::Coords → ::Kwargs by field name, dial 7 + copy 5.
+;; Expect ["a|s1:as2:as3:as4:as5:as6:as7:aD1D2D3D4D5" "b|s1:b…s7:bD1D2D3D4D5"].
 ;;    reconciles ::Coords → ::Kwargs by field name (connect' the 7 Peer' fields, copy the 5 data).
 ;;  - Strike 1c (wat/bracket.wat :wat::bracket::uses'): ONE `PoolMsg::Setup(coords-record)` per worker.
 
@@ -111,6 +107,7 @@
         (:wat::core::string::concat svc dat)))))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
+;; THROUGH THE MACRO: raw handles + data, scrambled order, no Dialable/coord wrapping.
 (:wat::core::defn :probe::run [] -> :wat::core::Vector<wat::core::String>
   (:wat::core::let
     [h1 (:probe::s1'/start :locus (:wat::spawn::process) :record (:probe::s1'::Record))
@@ -119,23 +116,7 @@
      h4 (:probe::s4'/start :locus (:wat::spawn::process) :record (:probe::s4'::Record))
      h5 (:probe::s5'/start :locus (:wat::spawn::process) :record (:probe::s5'::Record))
      h6 (:probe::s6'/start :locus (:wat::spawn::process) :record (:probe::s6'::Record))
-     h7 (:probe::s7'/start :locus (:wat::spawn::process) :record (:probe::s7'::Record))
-     ;; Strike 1a/C2-D's checker — the gate AND the carrier-assembly are ONE act. Kwargs are
-     ;; ORDER-FREE (scrambled here on purpose); RAW HANDLES (no Dialable/coord upcast — a
-     ;; handle satisfies TypedCapability<S,R> directly via the bodiless auto-emit); the checker
-     ;; reorders to field order and returns `(::Coords, ::GrantHandles)`.
-     pair    (:probe::enrich::kwargs-check
-               :d2 "D2" :s3 h3 :s1 h1
-               :d5 "D5" :s7 h7 :d1 "D1"
-               :s2 h2 :s5 h5
-               :d4 "D4" :s4 h4 :d3 "D3"
-               :s6 h6)
-     coords  (:wat::core::first pair)
-     handles (:wat::core::second pair)]
-    (:wat::bracket::uses' (:wat::spawn::process)
-      handles
-      :probe::enrich::grant-worker
-      :probe::enrich::revoke-worker
-      ["a" "b"]
-      :probe::enrich
-      coords)))
+     h7 (:probe::s7'/start :locus (:wat::spawn::process) :record (:probe::s7'::Record))]
+    (:wat::bracket::uses (:wat::spawn::process) ["a" "b"] :probe::enrich
+      :d2 "D2" :s3 h3 :s1 h1 :d5 "D5" :s7 h7 :d1 "D1"
+      :s2 h2 :s5 h5 :d4 "D4" :s4 h4 :d3 "D3" :s6 h6)))
