@@ -44,13 +44,19 @@
     nil))
 
 ;; ── map-worker: with a constant worker-init (ignoring the id), equals map ─────
+;; Arc 170 gap J — map-worker absorbed `uses'`'s provisioning params; a plain caller passes
+;; `nil` grant-handles, a no-op grant-fn/revoke-fn pair, and an EMPTY `Vector<D>` (no Setup).
 (:wat::test::deftest' :wat-tests::bracket::map-worker-ignoring-wid-equals-map
   ()
   (:wat::test::assert-eq
     (:wat::bracket::map-worker (:wat::spawn::thread)
       (:wat::core::Vector :wat::core::i64 1 2 3)
       (:wat::core::fn [_wid <- :wat::core::i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2))))
+        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))
+      nil
+      (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
+      (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
+      (:wat::core::Vector :wat::core::nil))
     (:wat::core::Vector :wat::core::i64 2 4 6)))
 
 ;; ── each-worker: per-runner side-effect pool, returns nil ─────────────────────
@@ -60,5 +66,9 @@
     (:wat::bracket::each-worker (:wat::spawn::thread)
       (:wat::core::range 0 5)
       (:wat::core::fn [_wid <- :wat::core::i64] -> :wat::core::Fn(wat::core::i64)->wat::core::i64
-        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2))))
+        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::* x 2)))
+      nil
+      (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
+      (:wat::core::fn [_g <- :wat::core::nil _pid <- :wat::core::i64] -> :wat::core::nil nil)
+      (:wat::core::Vector :wat::core::nil))
     nil))

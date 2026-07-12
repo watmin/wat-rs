@@ -111,6 +111,6 @@
      h5 (:probe::s5'/start :locus (:wat::spawn::process) :record (:probe::s5'::Record))
      h6 (:probe::s6'/start :locus (:wat::spawn::process) :record (:probe::s6'::Record))
      h7 (:probe::s7'/start :locus (:wat::spawn::process) :record (:probe::s7'::Record))]
-    (:wat::bracket::uses (:wat::spawn::process) ["a" "b"] :probe::enrich
+    (:wat::bracket::map (:wat::spawn::process) ["a" "b"] :probe::enrich
       :d2 "D2" :s3 h3 :s1 h2 :d5 "D5" :s7 h7 :d1 "D1"
       :s2 h1 :s5 h5 :d4 "D4" :s4 h4 :d3 "D3" :s6 h6)))

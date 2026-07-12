@@ -132,10 +132,12 @@
                :s6 h6)
      coords  (:wat::core::first pair)
      handles (:wat::core::second pair)]
-    (:wat::bracket::uses' (:wat::spawn::process)
+    ;; Arc 170 gap J — `uses'` folded into `map-worker` (param order: locus items worker-init
+    ;; grant-handles grant-fn revoke-fn setups; setups is the 0-or-1-element Setup fold vector).
+    (:wat::bracket::map-worker (:wat::spawn::process)
+      ["a" "b"]
+      (:wat::core::fn [_worker-id <- :wat::core::i64] -> :wat::core::keyword :probe::enrich)
       handles
       :probe::enrich::grant-worker
       :probe::enrich::revoke-worker
-      ["a" "b"]
-      :probe::enrich
-      coords)))
+      (:wat::core::Vector :probe::enrich::Coords coords))))

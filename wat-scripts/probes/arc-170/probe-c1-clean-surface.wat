@@ -1,6 +1,7 @@
 ;; Arc 170 Strike C1 — THE GATE. A full clean-surface run: a kwargs work-fn
-;; ([item & [echo <- Peer'<...>]]) dialed via a NAMED (process/uses :echo eh)
-;; locus, run through bracket/map with the CLEAN base name (never $impl).
+;; ([item & [echo <- Peer'<...>]]) dialed via bracket/map's OWN `:name val` tail
+;; (arc 170 gap J — provisioning rides map/each directly; `process/uses` retired),
+;; run through bracket/map with the CLEAN base name (never $impl).
 ;; EXPECT (green): ["echo:a" "echo:b" "echo:c"]
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
@@ -26,6 +27,5 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [eh    (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
-     locus (:wat::spawn::process/uses :echo eh)
-     out   (:wat::bracket::map locus ["a" "b" "c"] :probe::work)]
+     out   (:wat::bracket::map (:wat::spawn::process) ["a" "b" "c"] :probe::work :echo eh)]
     (:wat::kernel::println out)))
