@@ -1797,26 +1797,6 @@ fn synthesize_surface_protocol(
     ]
 }
 
-/// Arc 278 S4c — extract the `:messages [ … ]` form children of a `defsurface` form.
-/// Post-expansion these are `recordtype`/`defenum` type-decl forms (the `defrecord` macro
-/// has already expanded). Returns empty when the surface carries no `:messages` clause.
-fn extract_surface_message_forms(form: &WatAST) -> Vec<WatAST> {
-    if let WatAST::List(items, _) = form {
-        let mut it = items.iter();
-        while let Some(node) = it.next() {
-            if let WatAST::Keyword(k, _) = node {
-                if k == ":messages" {
-                    if let Some(WatAST::Vector(msgs, _)) = it.next() {
-                        return msgs.clone();
-                    }
-                    return vec![];
-                }
-            }
-        }
-    }
-    vec![]
-}
-
 /// Arc 278 S4c — build the `<S>::surface-forms` carrier: a 0-arg `defn` returning a
 /// `Vector<WatAST>` of the peer surface's own forms (here, the whole post-expansion
 /// `defsurface` form). `defservice` concats `(<S>::surface-forms)` into its shipped
@@ -1905,20 +1885,19 @@ fn register_types_impl(
                 let derived = if let TypeDef::Surface(ref surf) = def {
                     // Arc 293 K3-revise — the backing record PAIR ($core-record / $holon-record).
                     let mut d = derive_surface_backing_records(surf);
-                    // Arc 278 S4c — a peer surface's `:messages` type-decls (`recordtype`/`defenum`,
-                    // post-expansion) register with the SAME privilege as the surface (via the shared
-                    // `register` closure). They are the protocol a `:satisfies` service ships; they
-                    // must exist in BOTH the parent (its client face type-checks against them) and the
-                    // forked child (its serve loop resolves them at a fresh startup).
+                    // Arc 294 item 9a — a peer surface's `:messages` type-decls (`recordtype`/
+                    // `defenum`, post-expansion) now register via the ONE ordinary top-level
+                    // path: `expand_all`'s `hoist_surface_messages` (src/macros/expand.rs)
+                    // already spliced each `:messages` child to the top-level form stream
+                    // BEFORE this defsurface form, registering its kwargs-companion `defmacro`
+                    // and letting it register HERE through the ordinary `classify_type_decl`/
+                    // `parse_type_decl` arm above — `register_aggregate_methods` (freeze/env.rs
+                    // step 6.8a) then mints its ctor + accessors for free. Registering them a
+                    // second time here (the retired Way 2) would DuplicateDefine. Still build
+                    // the carrier below: the child re-hoists `:messages` identically at its own
+                    // fresh `expand_all` (wat/service.wat:1027-1130).
                     if surf.nature == Some(crate::types::Nature::Peer) {
                         if let Some(ref sform) = surface_form_clone {
-                            for msg_form in extract_surface_message_forms(sform) {
-                                if let Some(msg_head) = classify_type_decl(&msg_form) {
-                                    let msg_span = msg_form.span().clone();
-                                    let msg_def = parse_type_decl(msg_head, msg_form, msg_span, env)?;
-                                    d.push(msg_def);
-                                }
-                            }
                             // The carrier ships the whole (post-expansion) defsurface form; the child
                             // re-registers messages + re-synthesizes `::Op`/`::Reply` from it identically.
                             surface_carrier = Some((surf.name.clone(), build_surface_forms_carrier(&surf.name, sform.clone(), decl_span.clone())));

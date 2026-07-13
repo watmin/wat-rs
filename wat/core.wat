@@ -907,6 +907,10 @@
          ;; names + order as `::Kwargs`. Reuses the `swapped-argvec` field nodes verbatim.
          coords-ty-str (:wat::core::string::concat name-str "::Coords")
          coords-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" coords-ty-str))
+         ;; arc 294 9a kwargs flip: bare aggregate name is now the KWARGS MACRO; the POSITIONAL
+         ;; ctor moved to the type-name PRIME. This is GENERATED code constructing a just-minted
+         ;; aggregate positionally (see kwargs-check-def below) — use the prime, never the bare name.
+         coords-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat coords-ty-str "'")))
          ;; has-peer-field?: does the kwargs section declare ≥1 `Peer'<S,R>` field? This is the
          ;; SEMANTIC gate for "is this a DIALING work-fn" — the ONLY kind that needs a `::Coords`
          ;; dial-carrier (services are declared `Peer'` and dialed; data fields ride along). Read
@@ -971,6 +975,8 @@
          ;; same is-peer test as `has-peer-field`, applied per-field here.
          grant-handles-ty-str (:wat::core::string::concat name-str "::GrantHandles")
          grant-handles-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" grant-handles-ty-str))
+         ;; arc 294 9a kwargs flip: positional ctor of this just-minted aggregate moves to the prime.
+         grant-handles-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat grant-handles-ty-str "'")))
          gh-field-triples (:wat::core::foldl
                              (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
                                (:wat::core::let
@@ -1039,7 +1045,7 @@
          pair-ty-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" pair-ty-str))
          kwargs-check-def (:wat::core::if mint-coords?
                             `(:wat::core::defn ~kwargs-check-kw [& ~capswapped-argvec] -> ~pair-ty-kw
-                               (:wat::core::Tuple (~coords-kw ~@coords-ctor-args) (~grant-handles-kw ~@gh-ctor-args)))
+                               (:wat::core::Tuple (~coords-prime-kw ~@coords-ctor-args) (~grant-handles-prime-kw ~@gh-ctor-args)))
                             `(:wat::core::do nil))
          ;; ── <fqdn>::grant-worker / revoke-worker — unrolled typed grant|revoke over the
          ;; literal service-field list of ::GrantHandles. `handles-sym`/`pid-sym` are reused

@@ -294,6 +294,10 @@
                        (:wat::core::string::concat ":wat::core::Option<" (:wat::core::string::concat kwargs-ty-str ">")))
        ret-kw        (:wat::core::keyword-node (:wat::core::string::concat ":" ret-t))
        kwargs-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" kwargs-ty-str))
+       ;; kwargs-prime-kw: the POSITIONAL ctor for the just-defined ::Kwargs aggregate. Post-flip,
+       ;; the bare `kwargs-kw` name is the KWARGS MACRO (unresolved as a positional call) — generated
+       ;; construction must go through the type-name PRIME, mirroring core.wat's coords-prime-kw.
+       kwargs-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat kwargs-ty-str "'")))
        ;; kwargs-ctor-args: one form per ::Kwargs field, DECLARED order, each read off the ::Coords
        ;; record BY NAME (`(:<base>::Coords/<field> deps)`). A Peer'-typed field (its ::Kwargs type
        ;; is a Peer'<S,R> — an `ast-kind` "list" whose head names Peer') gets `connect'`ed
@@ -334,7 +338,7 @@
           (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
             ((:wat::bracket::PoolMsg::Setup deps)
               (:user::bracket::dial-runner self
-                (:wat::core::Some (~kwargs-kw ~@kwargs-ctor-args))))
+                (:wat::core::Some (~kwargs-prime-kw ~@kwargs-ctor-args))))
             ((:wat::bracket::PoolMsg::Work pair)
               (:wat::core::let
                 [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")

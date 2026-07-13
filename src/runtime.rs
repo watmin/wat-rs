@@ -1163,14 +1163,17 @@ pub fn register_aggregate_methods(
                 body: FunctionBody::Wat(Arc::new(WatAST::List(new_body_items, crate::rust_caller_span!()))),
                 closed_env: None,
             };
-            if sym.functions.contains_key(&ctor_name) {
-                return Err(RuntimeError {
-                    span: crate::rust_caller_span!(),
-                    kind: RuntimeErrorKind::DuplicateDefine(ctor_name.clone()),
-                }
-                .into());
+            // Arc 294 item 9a follow-up — conform to `register_defines`' collision
+            // policy (lines 530-549 above): silent-skip on re-walk. A forked bracket
+            // worker legitimately re-registers a surface it was shipped (the
+            // `surface-forms` carrier exists precisely so the child re-registers the
+            // protocol), so a name collision here is an expected same-aggregate
+            // re-walk, not an error. The TypeEnv is the authoritative collision
+            // check for aggregate *types*; this loop only mints derived functions
+            // from already-registered types, so re-minting the identical ctor is safe.
+            if !sym.functions.contains_key(&ctor_name) {
+                sym.functions.insert(ctor_name, Arc::new(ctor_func));
             }
-            sym.functions.insert(ctor_name, Arc::new(ctor_func));
         }
 
         // Emit ONE accessor per OWN field with the correct absolute index.
@@ -1269,13 +1272,12 @@ pub fn register_aggregate_methods(
                 body: FunctionBody::Wat(Arc::new(accessor_body)),
                 closed_env: None,
             };
-            if sym.functions.contains_key(&accessor_path) {
-                return Err(RuntimeError {
-                    span: crate::rust_caller_span!(),
-                    kind: RuntimeErrorKind::DuplicateDefine(accessor_path),
-                }.into());
+            // Same collision policy as the ctor mint above — silent-skip on a
+            // same-aggregate re-walk (e.g. a forked bracket worker re-registering
+            // its shipped surface-forms).
+            if !sym.functions.contains_key(&accessor_path) {
+                sym.functions.insert(accessor_path, Arc::new(accessor_func));
             }
-            sym.functions.insert(accessor_path, Arc::new(accessor_func));
         }
     }
     Ok(())

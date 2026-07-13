@@ -37,37 +37,112 @@ pub fn expand_all(
     let mut out = Vec::with_capacity(forms.len());
     for form in forms {
         let expanded = expand_form(form, registry, 0, env, sym)?;
-        if is_defmacro_form(&expanded) {
-            let def = parse_defmacro_form(expanded)?;
-            registry.register(def)?;
-        } else if is_do_containing_defmacro(&expanded) {
-            // Arc 260.1b — a macro-generating-macro (e.g. defn's kwargs branch) may
-            // emit a `do` form whose children include a `defmacro` registration. Walk
-            // the `do`'s children: register any defmacro children immediately (so
-            // subsequent forms in the stream can invoke the new macro) and strip them
-            // from the `do` body, keeping the remaining non-defmacro children.
-            let rebuilt = hoist_defmacros_from_do(expanded, registry)?;
-            // A macro-emission `do` is a registration WRAPPER, never a value-position
-            // do (see `hoist_defmacros_from_do`'s contract): its surviving children —
-            // after the defmacro siblings were hoisted out — are all top-level
-            // declaration/registration forms (structtype/def/extend-type/Record::def).
-            // SPLICE them up into the top-level form stream so each registers as its
-            // own top-level declaration, exactly as if emitted at top level. Leaving
-            // them wrapped in a `(do …)` makes it a value-position do whose declaration
-            // children a later registration pass strips, emptying the do and tripping
-            // the checker's "do requires ≥1 form" wall (arc 294 item 9a: the defstruct/
-            // defrecord kwargs companion emits precisely `(do (structtype …) (defmacro
-            // …))`). skip(1) drops the `do` head; the all-defmacro case (items == [do])
-            // splices nothing — the same elision the empty-do check gave before.
-            match rebuilt {
-                WatAST::List(items, _) => out.extend(items.into_iter().skip(1)),
-                other => out.push(other),
-            }
+        if is_defsurface_form(&expanded) {
+            // Arc 294 item 9a — a defsurface's `:messages` children are `defrecord`/
+            // `defenum` calls; `expand_form`'s child-recursion (above) already expanded
+            // each `defrecord` into its `(do (recordtype …)(defmacro …))` kwargs companion,
+            // but left it NESTED inside the `:messages` vector, where this loop's own
+            // `is_do_containing_defmacro` check (below) never looks — the surface form
+            // itself is not a `do`. Route the SAME hoist-and-splice treatment the ordinary
+            // top-level `do` case gets (`hoist_top_level_form`) over each `:messages`
+            // child, so the message records get the ONE registration path (Way 1): their
+            // companion macro registers, and their `recordtype`/`defenum` decl splices to
+            // top level — BEFORE the surface form, so the surface's `:features` method
+            // sigs can resolve them. The `:messages` vector inside the surface form is
+            // left untouched: `defservice`'s shipped `surface-forms` carrier re-hoists it
+            // identically in the forked child (wat/service.wat:1027-1130).
+            let (hoisted, surface_form) = hoist_surface_messages(expanded, registry)?;
+            out.extend(hoisted);
+            out.push(surface_form);
         } else {
-            out.push(expanded);
+            out.extend(hoist_top_level_form(expanded, registry)?);
         }
     }
     Ok(out)
+}
+
+/// Returns `true` if `form` is a `(:wat::core::defsurface ...)` form.
+fn is_defsurface_form(form: &WatAST) -> bool {
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            return head == ":wat::core::defsurface";
+        }
+    }
+    false
+}
+
+/// Process one already-expanded top-level form for hoisting: register a bare
+/// top-level `defmacro`, hoist-and-splice a `do`-wrapped macro-companion (the
+/// defstruct/defrecord kwargs-companion shape), or pass the form through
+/// unchanged. Returns the 0-or-more forms that belong at the top level, in
+/// order. Factored out of `expand_all`'s per-form loop (arc 294 item 9a) so
+/// `hoist_surface_messages` can apply the IDENTICAL treatment to a
+/// `defsurface`'s `:messages` children, which arrive in the same shapes.
+fn hoist_top_level_form(
+    expanded: WatAST,
+    registry: &mut MacroRegistry,
+) -> Result<Vec<WatAST>, MacroError> {
+    if is_defmacro_form(&expanded) {
+        let def = parse_defmacro_form(expanded)?;
+        registry.register(def)?;
+        Ok(vec![])
+    } else if is_do_containing_defmacro(&expanded) {
+        // Arc 260.1b — a macro-generating-macro (e.g. defn's kwargs branch) may
+        // emit a `do` form whose children include a `defmacro` registration. Walk
+        // the `do`'s children: register any defmacro children immediately (so
+        // subsequent forms in the stream can invoke the new macro) and strip them
+        // from the `do` body, keeping the remaining non-defmacro children.
+        let rebuilt = hoist_defmacros_from_do(expanded, registry)?;
+        // A macro-emission `do` is a registration WRAPPER, never a value-position
+        // do (see `hoist_defmacros_from_do`'s contract): its surviving children —
+        // after the defmacro siblings were hoisted out — are all top-level
+        // declaration/registration forms (structtype/def/extend-type/Record::def).
+        // SPLICE them up into the top-level form stream so each registers as its
+        // own top-level declaration, exactly as if emitted at top level. Leaving
+        // them wrapped in a `(do …)` makes it a value-position do whose declaration
+        // children a later registration pass strips, emptying the do and tripping
+        // the checker's "do requires ≥1 form" wall (arc 294 item 9a: the defstruct/
+        // defrecord kwargs companion emits precisely `(do (structtype …) (defmacro
+        // …))`). skip(1) drops the `do` head; the all-defmacro case (items == [do])
+        // splices nothing — the same elision the empty-do check gave before.
+        match rebuilt {
+            WatAST::List(items, _) => Ok(items.into_iter().skip(1).collect()),
+            other => Ok(vec![other]),
+        }
+    } else {
+        Ok(vec![expanded])
+    }
+}
+
+/// Arc 294 item 9a — walk a `(:wat::core::defsurface … :messages [ <children> ] …)`
+/// form's `:messages` vector (if present) and hoist each child through
+/// [`hoist_top_level_form`] (registering companion `defmacro`s, collecting the
+/// surviving `recordtype`/`defenum` decls to splice to top level). Returns the
+/// hoisted top-level forms and the surface form itself UNCHANGED (its `:messages`
+/// vector still carries the original post-expansion children — the carrier
+/// re-hoists them the same way in the forked child). A no-`:messages` surface
+/// (non-peer natures) yields no hoisted forms, a no-op.
+fn hoist_surface_messages(
+    surface_form: WatAST,
+    registry: &mut MacroRegistry,
+) -> Result<(Vec<WatAST>, WatAST), MacroError> {
+    let mut hoisted = Vec::new();
+    if let WatAST::List(items, _) = &surface_form {
+        let mut it = items.iter();
+        while let Some(node) = it.next() {
+            if let WatAST::Keyword(k, _) = node {
+                if k == ":messages" {
+                    if let Some(WatAST::Vector(msgs, _)) = it.next() {
+                        for child in msgs.iter().cloned() {
+                            hoisted.extend(hoist_top_level_form(child, registry)?);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    Ok((hoisted, surface_form))
 }
 
 /// Returns `true` if `form` is a `(:wat::core::do ...)` form that contains a
