@@ -9995,8 +9995,11 @@ fn eval_struct_to_form(
             } }.into());
         }
     };
-    // Build constructor keyword: `:class::Foo` from class `class::Foo` (colon-free, no /new — arc 293.R2.3).
-    let constructor = format!(":{}", s.class);
+    // Build constructor keyword: `:class::Foo'` from class `class::Foo` (colon-free, no /new — arc 293.R2.3).
+    // Arc 294 item 9a: this is a GENERATED positional re-construction form — the bare
+    // name is now the kwargs companion macro, so generated/machinery code must use the
+    // positional PRIME (mirrors the `encode_struct` fix in closure_extract.rs).
+    let constructor = format!(":{}'", s.class);
     let span = crate::rust_caller_span!();
     let mut items = Vec::with_capacity(s.fields.len() + 1);
     items.push(WatAST::Keyword(constructor, span.clone()));

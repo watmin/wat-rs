@@ -42,8 +42,8 @@ pub fn expand_all(
             // `defenum` calls; `expand_form`'s child-recursion (above) already expanded
             // each `defrecord` into its `(do (recordtype …)(defmacro …))` kwargs companion,
             // but left it NESTED inside the `:messages` vector, where this loop's own
-            // `is_do_containing_defmacro` check (below) never looks — the surface form
-            // itself is not a `do`. Route the SAME hoist-and-splice treatment the ordinary
+            // `is_do_or_let_containing_defmacro` check (below) never looks — the surface
+            // form itself is not a `do`/`let`. Route the SAME hoist-and-splice treatment the ordinary
             // top-level `do` case gets (`hoist_top_level_form`) over each `:messages`
             // child, so the message records get the ONE registration path (Way 1): their
             // companion macro registers, and their `recordtype`/`defenum` decl splices to
@@ -73,11 +73,12 @@ fn is_defsurface_form(form: &WatAST) -> bool {
 
 /// Process one already-expanded top-level form for hoisting: register a bare
 /// top-level `defmacro`, hoist-and-splice a `do`-wrapped macro-companion (the
-/// defstruct/defrecord kwargs-companion shape), or pass the form through
-/// unchanged. Returns the 0-or-more forms that belong at the top level, in
-/// order. Factored out of `expand_all`'s per-form loop (arc 294 item 9a) so
-/// `hoist_surface_messages` can apply the IDENTICAL treatment to a
-/// `defsurface`'s `:messages` children, which arrive in the same shapes.
+/// defstruct/defrecord kwargs-companion shape), hoist-in-place a `let`-wrapped
+/// one, or pass the form through unchanged. Returns the 0-or-more forms that
+/// belong at the top level, in order. Factored out of `expand_all`'s per-form
+/// loop (arc 294 item 9a) so `hoist_surface_messages` can apply the IDENTICAL
+/// treatment to a `defsurface`'s `:messages` children, which arrive in the
+/// same shapes.
 fn hoist_top_level_form(
     expanded: WatAST,
     registry: &mut MacroRegistry,
@@ -86,27 +87,60 @@ fn hoist_top_level_form(
         let def = parse_defmacro_form(expanded)?;
         registry.register(def)?;
         Ok(vec![])
-    } else if is_do_containing_defmacro(&expanded) {
+    } else if is_do_or_let_containing_defmacro(&expanded) {
         // Arc 260.1b — a macro-generating-macro (e.g. defn's kwargs branch) may
         // emit a `do` form whose children include a `defmacro` registration. Walk
         // the `do`'s children: register any defmacro children immediately (so
         // subsequent forms in the stream can invoke the new macro) and strip them
         // from the `do` body, keeping the remaining non-defmacro children.
-        let rebuilt = hoist_defmacros_from_do(expanded, registry)?;
-        // A macro-emission `do` is a registration WRAPPER, never a value-position
-        // do (see `hoist_defmacros_from_do`'s contract): its surviving children —
-        // after the defmacro siblings were hoisted out — are all top-level
-        // declaration/registration forms (structtype/def/extend-type/Record::def).
-        // SPLICE them up into the top-level form stream so each registers as its
-        // own top-level declaration, exactly as if emitted at top level. Leaving
-        // them wrapped in a `(do …)` makes it a value-position do whose declaration
-        // children a later registration pass strips, emptying the do and tripping
-        // the checker's "do requires ≥1 form" wall (arc 294 item 9a: the defstruct/
-        // defrecord kwargs companion emits precisely `(do (structtype …) (defmacro
-        // …))`). skip(1) drops the `do` head; the all-defmacro case (items == [do])
-        // splices nothing — the same elision the empty-do check gave before.
+        //
+        // Arc 294 item 9a follow-on (Gap: "companion trapped in a nested `let`
+        // body") — a `defstruct`/`defrecord` call sitting in a top-level `let`
+        // body (instead of `do`) expands to the SAME `(do (structtype …)
+        // (defmacro …))` companion shape, just one level deeper. The container
+        // itself is `let`-headed, and `let` (unlike `do`) introduces bindings —
+        // its body cannot be freely spliced to the top level (that would drop
+        // any body form's dependency on the let's bound variables out of
+        // scope). `hoist_defmacros_from_container` handles both container kinds
+        // uniformly, but only a `do` container's surviving children are eligible
+        // for the top-level splice below; a `let` keeps its wrapper.
+        let rebuilt = hoist_defmacros_from_container(expanded, registry)?;
         match rebuilt {
-            WatAST::List(items, _) => Ok(items.into_iter().skip(1).collect()),
+            WatAST::List(items, span) => {
+                let is_do = matches!(
+                    items.first(),
+                    Some(WatAST::Keyword(h, _)) if h == ":wat::core::do"
+                );
+                if is_do {
+                    // A macro-emission `do` is a registration WRAPPER, never a
+                    // value-position do (see `hoist_defmacros_from_container`'s
+                    // contract): its surviving children — after the defmacro
+                    // siblings were hoisted out — are all top-level
+                    // declaration/registration forms (structtype/def/extend-type/
+                    // Record::def). SPLICE them up into the top-level form stream
+                    // so each registers as its own top-level declaration, exactly
+                    // as if emitted at top level. Leaving them wrapped in a `(do
+                    // …)` makes it a value-position do whose declaration children
+                    // a later registration pass strips, emptying the do and
+                    // tripping the checker's "do requires ≥1 form" wall (arc 294
+                    // item 9a: the defstruct/defrecord kwargs companion emits
+                    // precisely `(do (structtype …) (defmacro …))`). skip(1) drops
+                    // the `do` head; the all-defmacro case (items == [do])
+                    // splices nothing — the same elision the empty-do check gave
+                    // before.
+                    Ok(items.into_iter().skip(1).collect())
+                } else {
+                    // `let` — keep the form wrapped. Its now-unwrapped, defmacro-
+                    // free body (e.g. a bare `structtype` sibling flattened up
+                    // from what used to be a nested `(do (structtype …)
+                    // (defmacro …))`) is exactly what `register_types`'
+                    // `splice_type_decls` / `register_defines`' do/let-body
+                    // recursion (arc 170 slice 3 Gap J) already know how to walk
+                    // and register downstream — no second registration path
+                    // needed.
+                    Ok(vec![WatAST::List(items, span)])
+                }
+            }
             other => Ok(vec![other]),
         }
     } else {
@@ -145,39 +179,71 @@ fn hoist_surface_messages(
     Ok((hoisted, surface_form))
 }
 
-/// Returns `true` if `form` is a `(:wat::core::do ...)` form that contains a
-/// `(:wat::core::defmacro ...)` at ANY `do`-nesting depth. Used by `expand_all`
-/// to detect macro-generating-macros (e.g. `defn`'s kwargs branch) that emit
-/// their `defmacro` registration inside a `do` wrapper.
+/// The body-start index for a do/let container: a `do`'s body begins right
+/// after its head keyword (index 1); a `let`'s body begins after its head AND
+/// its bindings vector (index 2). `None` for anything else. Shared by
+/// [`is_do_or_let_containing_defmacro`] and [`hoist_defmacros_from_container`]
+/// so the two can never drift on which items are "head/bindings" vs "body".
+fn container_body_start(head: &str) -> Option<usize> {
+    match head {
+        ":wat::core::do" => Some(1),
+        ":wat::core::let" => Some(2),
+        _ => None,
+    }
+}
+
+/// Returns `true` if `form` is a `(:wat::core::do ...)` or `(:wat::core::let
+/// [...] ...)` form that contains a `(:wat::core::defmacro ...)` at ANY
+/// do/let-nesting depth (in the BODY only — a `let`'s bindings vector is never
+/// walked). Used by `expand_all` to detect macro-generating-macros (e.g.
+/// `defn`'s kwargs branch, or a `defstruct`/`defrecord` invocation) that emit
+/// their `defmacro` registration inside a do/let wrapper.
 ///
-/// Recurses through nested `do`s: a macro that emits a macro that emits a macro
-/// (e.g. `defservice` → a kwargs `defn` → its companion `defmacro`) nests the
-/// `defmacro` two `do`s deep. The check is depth-unbounded — it does not count
-/// levels (one rung → a fixpoint), so self-emission composes at any nesting.
-fn is_do_containing_defmacro(form: &WatAST) -> bool {
+/// Recurses through nested do/lets: a macro that emits a macro that emits a
+/// macro (e.g. `defservice` → a kwargs `defn` → its companion `defmacro`, or a
+/// `defstruct` invocation sitting in a top-level `let` body → its own `(do
+/// (structtype …) (defmacro …))` companion) nests the `defmacro` further down.
+/// The check is depth-unbounded — it does not count levels (one rung → a
+/// fixpoint), so self-emission composes at any nesting, in any do/let mix.
+fn is_do_or_let_containing_defmacro(form: &WatAST) -> bool {
     if let WatAST::List(items, _) = form {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
-            if head == ":wat::core::do" {
+            if let Some(body_start) = container_body_start(head) {
                 return items
                     .iter()
-                    .skip(1)
-                    .any(|child| is_defmacro_form(child) || is_do_containing_defmacro(child));
+                    .skip(body_start)
+                    .any(|child| is_defmacro_form(child) || is_do_or_let_containing_defmacro(child));
             }
         }
     }
     false
 }
 
-/// Walk a `(:wat::core::do ...)` form, registering any `defmacro` at ANY
-/// `do`-nesting depth and stripping it from the body; non-defmacro children are
-/// kept in order. Returns the rebuilt `do` form. Called only when
-/// `is_do_containing_defmacro` returns true.
+/// Walk a `(:wat::core::do ...)` / `(:wat::core::let [...] ...)` form,
+/// registering any `defmacro` at ANY do/let-nesting depth and stripping it
+/// from the body; non-defmacro children are kept in order. Returns the
+/// rebuilt form (same head — `do` stays `do`, `let` stays `let` with its
+/// bindings vector untouched). Called only when
+/// `is_do_or_let_containing_defmacro` returns true.
 ///
-/// Recurses into nested `do` children that themselves contain a `defmacro` (the
-/// macros-emitting-macros-emitting-macros case): a child `(do … (defmacro …))`
-/// is rebuilt by hoisting from it too, so a `defmacro` born any number of
-/// macro-emission hops deep still registers. Depth-unbounded by construction.
-fn hoist_defmacros_from_do(
+/// Recurses into nested do/let children that themselves contain a `defmacro`
+/// (the macros-emitting-macros-emitting-macros case, or a `defstruct` call
+/// buried in a nested `let`): a child `(do … (defmacro …))` / `(let […] …
+/// (defmacro …))` is rebuilt by hoisting from it too, so a `defmacro` born any
+/// number of macro-emission hops deep still registers. Depth-unbounded by
+/// construction.
+///
+/// Flatten policy differs by the CHILD's own kind, not the parent's: a
+/// surviving `do` child is flattened — spliced directly into the parent's
+/// body — because a `do` introduces no bindings, so its children are
+/// semantically identical whether nested or hoisted flat. A surviving `let`
+/// child is kept WRAPPED — its body may read the let's bound variables, and
+/// splicing would drop them out of scope — so it's pushed back as a single
+/// (now defmacro-free) `let` form. This mirrors `register_types`'
+/// `splice_type_decls` (arc 170 slice 3 Gap J), which applies the identical
+/// do-flattens/let-wraps distinction one stage later, for type decls instead
+/// of macro registrations.
+fn hoist_defmacros_from_container(
     form: WatAST,
     registry: &mut MacroRegistry,
 ) -> Result<WatAST, MacroError> {
@@ -185,29 +251,37 @@ fn hoist_defmacros_from_do(
         WatAST::List(items, span) => (items, span),
         other => return Ok(other), // guard: caller guarantees it's a List
     };
+    let body_start = match items.first() {
+        Some(WatAST::Keyword(head, _)) => match container_body_start(head) {
+            Some(n) => n,
+            None => return Ok(WatAST::List(items, span)), // guard: not a do/let
+        },
+        _ => return Ok(WatAST::List(items, span)),
+    };
     let mut new_items = Vec::with_capacity(items.len());
     let mut iter = items.into_iter();
-    // Keep the `do` keyword head.
-    if let Some(head) = iter.next() {
-        new_items.push(head);
+    // Keep the head keyword (and, for `let`, the bindings vector) untouched.
+    for _ in 0..body_start {
+        if let Some(head_or_bindings) = iter.next() {
+            new_items.push(head_or_bindings);
+        }
     }
     for child in iter {
         if is_defmacro_form(&child) {
             let def = parse_defmacro_form(child)?;
             registry.register(def)?;
-        } else if is_do_containing_defmacro(&child) {
-            // A defmacro nested in a child `do` (a macro emitted by a macro
-            // emitted by a macro). Recurse to register the nested defmacro, then
-            // FLATTEN the nested do's surviving children up into THIS do — so the
-            // emitted `def`/`Record::def` siblings land at the same registerable
-            // level as the single-emission case. Left buried in a nested do they
-            // would be evaluated as runtime expressions, not registered as
-            // definitions (a `Record::def` would try to eval its field names).
-            // A do is only flattened here because it CONTAINS a defmacro — i.e. it
-            // is a macro-emission wrapper, never a value-position do.
-            let rebuilt = hoist_defmacros_from_do(child, registry)?;
+        } else if is_do_or_let_containing_defmacro(&child) {
+            // A defmacro nested in a child do/let (a macro emitted by a macro
+            // emitted by a macro, or a defstruct/defrecord invocation sitting
+            // in a nested let body). Recurse to register the nested defmacro,
+            // then apply the do-flattens/let-wraps policy documented above.
+            let rebuilt = hoist_defmacros_from_container(child, registry)?;
+            let is_do = matches!(
+                &rebuilt,
+                WatAST::List(inner, _) if matches!(inner.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::do")
+            );
             match rebuilt {
-                WatAST::List(inner, _) => new_items.extend(inner.into_iter().skip(1)),
+                WatAST::List(inner, _) if is_do => new_items.extend(inner.into_iter().skip(1)),
                 other => new_items.push(other),
             }
         } else {
