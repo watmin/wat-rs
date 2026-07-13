@@ -36,15 +36,15 @@ fn count(fire_fn: &str, inserts: &[&str]) -> Result<i64, String> {
     }
 }
 
-const STATION_ONLY: &[&str] = &["(:w::Station \"Oslo\")"];
-const STATION_ONE_READING: &[&str] = &["(:w::Station \"Oslo\")", "(:w::Reading \"Oslo\" 1)"];
+const STATION_ONLY: &[&str] = &["(:w::Station :location \"Oslo\")"];
+const STATION_ONE_READING: &[&str] = &["(:w::Station :location \"Oslo\")", "(:w::Reading :location \"Oslo\" :value 1)"];
 const STATION_THREE_READINGS: &[&str] = &[
-    "(:w::Station \"Oslo\")",
-    "(:w::Reading \"Oslo\" 1)",
-    "(:w::Reading \"Oslo\" 2)",
-    "(:w::Reading \"Oslo\" 3)",
+    "(:w::Station :location \"Oslo\")",
+    "(:w::Reading :location \"Oslo\" :value 1)",
+    "(:w::Reading :location \"Oslo\" :value 2)",
+    "(:w::Reading :location \"Oslo\" :value 3)",
 ];
-const STATION_READING_ELSEWHERE: &[&str] = &["(:w::Station \"Oslo\")", "(:w::Reading \"Bergen\" 1)"];
+const STATION_READING_ELSEWHERE: &[&str] = &["(:w::Station :location \"Oslo\")", "(:w::Reading :location \"Bergen\" :value 1)"];
 
 /// 1 — DIFFERENTIAL, exists passes (≥1 match): native == oracle, both 1.
 #[test]

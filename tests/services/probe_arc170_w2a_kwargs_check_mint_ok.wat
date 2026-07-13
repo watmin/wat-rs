@@ -18,7 +18,7 @@
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+              (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages
@@ -30,7 +30,7 @@
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Kv::GetResponse (:probe::Kv::GetRequest/k req))))])
+              (:probe::Kv::GetResponse :v (:probe::Kv::GetRequest/k req))))])
 
 ;; the kwargs work-fn -> AUTO-mints :probe::enrich::kwargs-check
 (:wat::core::defn :probe::enrich
@@ -38,7 +38,7 @@
    & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
       kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
   -> :wat::core::String
-  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo echo (:probe::Echo::EchoRequest item))))
+  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item))))
 
 ;; arc 170 C2 D — the checker RETURNS `(::Coords, ::GrantHandles)` (a Tuple: the pure
 ;; field-ordered Address'+data record, and the impure parent-local typed-handle struct);

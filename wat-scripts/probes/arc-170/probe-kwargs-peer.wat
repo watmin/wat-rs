@@ -20,8 +20,8 @@
   -> :wat::core::String
   (:probe::Echo::Resp/reply
     (:probe::Echo/echo echo
-      (:probe::Echo::Req
-        (:probe::Kv::GetResp/v (:probe::Kv/get kv (:probe::Kv::GetReq item)))))))
+      (:probe::Echo::Req :msg
+        (:probe::Kv::GetResp/v (:probe::Kv/get kv (:probe::Kv::GetReq :k item)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println "kwargs work-fn with Peer' kwargs: defined + type-checked ok"))

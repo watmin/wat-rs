@@ -34,8 +34,8 @@
                            (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))
                            (:wat-tests::RespCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::resp-counter::State (:wat-tests::resp-counter::Record c))
-         (:wat-tests::RespCounter::IncrementResponse c))))  ]
+         (:wat-tests::resp-counter::State :durable (:wat-tests::resp-counter::Record :count c))
+         (:wat-tests::RespCounter::IncrementResponse :value c))))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
   ;; decoupled from the ::Record. Read count through State/durable.
   :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> :wat::core::i64
@@ -47,9 +47,9 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::resp-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::resp-counter::Record 0))
+      [h (:wat-tests::resp-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::resp-counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::resp-counter::Handle/addr h))
-       _ (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest 7))
+       _ (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest :n 7))
        final (:wat-tests::resp-counter/stop h)]
       final)
     7))
@@ -59,9 +59,9 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::resp-counter/start :locus (:wat::spawn::process) :record (:wat-tests::resp-counter::Record 0))
+      [h (:wat-tests::resp-counter/start :locus (:wat::spawn::process) :record (:wat-tests::resp-counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::resp-counter::Handle/addr h))
-       _ (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest 7))
+       _ (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest :n 7))
        final (:wat-tests::resp-counter/stop h)]
       final)
     7))

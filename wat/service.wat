@@ -487,6 +487,11 @@
                      (:wat::core::string::interpolate "{fqdn-str}/start" :fqdn-str fqdn-str))
      handle-name   (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{fqdn-str}::Handle" :fqdn-str fqdn-str))
+     ;; handle-new-kw: :<fqdn>::Handle' — the PRIME positional ctor (arc 294 item 9a: the bare
+     ;; `:<fqdn>::Handle` is now the kwargs UX macro; generated machinery constructs via the prime,
+     ;; exactly as state-new-kw does for the State struct — see start-body/resume-body below).
+     handle-new-kw (:wat::core::keyword/from-string
+                     (:wat::core::string::interpolate "{fqdn-str}::Handle'" :fqdn-str fqdn-str))
      ;; Parametric type keywords for serve's typed params. Arc 293 S2 — Op/Reply are the
      ;; PROTOCOL's (proto-str), so a :satisfies service's serve/client peers share the
      ;; surface's uniform Address'<S::Op,S::Reply>. (proto-str = fqdn-str for the :ops path.)
@@ -1121,8 +1126,8 @@
                                  (:wat::core::keyword/from-string ~serve-name-str)
                                  (~service-forms-kw)
                                  (:wat::core::keyword/from-string ~extract-addr-name-str))]
-                      (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
-                                    (:wat::spawn::Launched/address ~lr-sym)))
+                      (~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
+                                      (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
 
      ;; ── arc 291 4b-ii: resume fn (mirror of start, ships Admin::Resume instead of Admin::Init) ──
@@ -1144,8 +1149,8 @@
                                   (:wat::core::keyword/from-string ~serve-name-str)
                                   (~service-forms-kw)
                                   (:wat::core::keyword/from-string ~extract-addr-name-str))]
-                       (~handle-name (:wat::spawn::Launched/handle ~lr-sym)
-                                     (:wat::spawn::Launched/address ~lr-sym)))
+                       (~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
+                                       (:wat::spawn::Launched/address ~lr-sym)))
      resume-fn      `(:wat::core::defn ~resume-name ~resume-params -> ~handle-name ~resume-body)
 
      ;; ── C.3: Handle record ───────────────────────────────────────────────────────

@@ -19,7 +19,7 @@
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+              (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
 
 ;; abstract parametric-surface param + coord on it (Gap 2 return + Gap 1 accepting the handle)
 (:wat::core::defn :probe::takes-dialable

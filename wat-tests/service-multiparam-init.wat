@@ -28,11 +28,11 @@
   :init (:wat::core::fn [record <- :wat-tests::offset-counter::Record
                          offset <- :wat::core::i64]
           -> :wat-tests::offset-counter::State
-          (:wat-tests::offset-counter::State record offset))
+          (:wat-tests::offset-counter::State :durable record :base offset))
   :impls
   [(total [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::OffsetCounter::TotalResponse
+       (:wat-tests::OffsetCounter::TotalResponse :value
          (:wat::core::i64::+
            (:wat-tests::offset-counter::Record/count (:wat-tests::offset-counter::State/durable s))
            (:wat-tests::offset-counter::State/base s)))))])
@@ -46,7 +46,7 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::thread)
-           :record (:wat-tests::offset-counter::Record 5) :offset 100)
+           :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
       (:wat-tests::OffsetCounter::TotalResponse/value r))
@@ -58,7 +58,7 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::offset-counter/start :locus (:wat::spawn::process)
-           :record (:wat-tests::offset-counter::Record 5) :offset 100)
+           :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
       (:wat-tests::OffsetCounter::TotalResponse/value r))

@@ -20,14 +20,14 @@
   :ephemeral []
   :impls
   [(get-object [s req]
-     (:wat::service::Outcome::Reply s (:my::Svc::GetObjectResponse (:my::Svc::GetObjectRequest/n req))))])
+     (:wat::service::Outcome::Reply s (:my::Svc::GetObjectResponse :value (:my::Svc::GetObjectRequest/n req))))])
 
 ;; End-to-end through the KEBAB client method `:my::svc/get-object` (multi-word); echoes the
 ;; request's n back as the response value (42), proving the whole multi-word wiring resolved.
 (:wat::core::defn :user::req-id [] -> :wat::core::i64
   (:wat::core::let
-    [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record 0))
+    [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
      c (:wat::kernel::connect' (:my::svc::Handle/addr h))
-     r (:my::svc/get-object c (:my::Svc::GetObjectRequest 42))
+     r (:my::svc/get-object c (:my::Svc::GetObjectRequest :n 42))
      _ (:my::svc/stop h)]
     (:my::Svc::GetObjectResponse/value r)))

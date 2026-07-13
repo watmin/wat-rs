@@ -12,11 +12,11 @@
   :ephemeral [seed <- :wat::core::i64]
   :init (:wat::core::fn [record <- :probe::seedy'::Record  seed <- :wat::core::i64]
           -> :probe::seedy'::State
-          (:probe::seedy'::State record seed))
+          (:probe::seedy'::State :durable record :seed seed))
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:probe::Seedy::GetResponse (:probe::seedy'::State/seed s))))])
+       (:probe::Seedy::GetResponse :v (:probe::seedy'::State/seed s))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

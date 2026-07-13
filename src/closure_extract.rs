@@ -2093,7 +2093,11 @@ fn encode_struct(
         }
     });
     // Arc 293.R2.3 — bare struct/newtype ctor; `/new` annihilated.
-    let constructor = format!(":{}", sv.class);
+    // Arc 294 item 9a — the flip made the bare type name a kwargs MACRO; this is CODEGEN
+    // (a captured struct value serialized to a wat form, decoded via eval in the child with
+    // no macro expansion), and it emits fields POSITIONALLY, so it targets the positional
+    // PRIME `:T'` (a plain ctor fn) — the reserved machinery form.
+    let constructor = format!(":{}'", sv.class);
     let mut out = Vec::with_capacity(sv.fields.len() + 1);
     out.push(WatAST::Keyword(constructor, span.clone()));
     for (i, f) in sv.fields.iter().enumerate() {

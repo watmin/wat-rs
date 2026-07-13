@@ -35,21 +35,21 @@ fn world(gate: &str) -> String {
             (?s <- (:w::sum-of-squares ?v) :from (:w::Reading (?loc <- :location) (?v <- :value)))\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
-           (:wat::rete::insert (:w::Flagged ?loc)))"
+           (:wat::rete::insert (:w::Flagged :location ?loc)))"
     )
 }
 
 fn flagged_count(fire_fn: &str, gate: &str, readings: &[i64]) -> Result<i64, String> {
     let reading_inserts: String = readings
         .iter()
-        .map(|v| format!("             session (:wat::rete::insert session (:w::Reading \"Oslo\" {v}))\n"))
+        .map(|v| format!("             session (:wat::rete::insert session (:w::Reading :location \"Oslo\" :value {v}))\n"))
         .collect();
     let run = format!(
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
              session (:wat::rete::compile rules)\n\
-             session (:wat::rete::insert session (:w::Station \"Oslo\"))\n\
+             session (:wat::rete::insert session (:w::Station :location \"Oslo\"))\n\
 {reading_inserts}\
              fired   (:wat::rete::{fire_fn} session)]\n\
             (:wat::rete::query fired :w::Flagged)))"
@@ -105,7 +105,7 @@ fn fence_rejects_impure_fold() {
            [(:w::Reading (?loc <- :location) (?v <- :value))\n\
             (?s <- (:w::bad-fold ?v) :from (:w::Reading (?loc2 <- :location) (?v2 <- :value)))]\n\
            :then\n\
-           (:wat::rete::insert (:w::Flagged ?loc)))\n\
+           (:wat::rete::insert (:w::Flagged :location ?loc)))\n\
          ";
     let w = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .expect("world should freeze (the impure fold is defined; the rule using it is the violation)");

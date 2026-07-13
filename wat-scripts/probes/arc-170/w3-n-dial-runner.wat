@@ -16,7 +16,7 @@
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+              (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages
@@ -28,7 +28,7 @@
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Kv::GetResponse (:probe::Kv::GetRequest/k req))))])
+              (:probe::Kv::GetResponse :v (:probe::Kv::GetRequest/k req))))])
 
 ;; The hand-written N=2 dial-runner — the shape W3's codegen would emit. Item I = String,
 ;; O = String. The carrier D = Tuple<Address'<Echo>, Address'<Kv>>; ctx holds the dialed pair.

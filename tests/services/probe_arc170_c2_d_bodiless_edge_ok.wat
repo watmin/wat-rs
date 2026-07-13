@@ -18,7 +18,7 @@
              (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 (:wat::service::defservice :probe::echo' :satisfies :probe::Echo :durable [] :ephemeral []
-  :impls [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+  :impls [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
 (:wat::core::defsurface :probe::TypedCapability<S,R> :nature :wat::core::Struct
   :features
   [(coord  [self <- :probe::TypedCapability<S,R>] -> :wat::kernel::Address'<S,R>)

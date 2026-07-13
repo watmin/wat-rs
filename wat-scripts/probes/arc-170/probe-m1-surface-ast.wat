@@ -11,14 +11,14 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [wf (:wat::core::fn [c <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>  s <- :wat::core::String]
              -> :wat::core::String
-           (:probe::Echo::EchoResponse/reply (:probe::Echo/echo c (:probe::Echo::EchoRequest s))))
+           (:probe::Echo::EchoResponse/reply (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s))))
      forms (:wat::kernel::fn-forms wf (:wat::core::keyword/from-string "user::bracket::work-fn"))]
     (:wat::core::foldl
       (:wat::core::fn [_a <- :wat::core::nil  f <- :wat::WatAST] -> :wat::core::nil

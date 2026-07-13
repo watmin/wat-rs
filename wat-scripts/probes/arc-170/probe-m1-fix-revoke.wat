@@ -21,7 +21,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -42,11 +42,11 @@
                              :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)
                      addr (:wat::kernel::recv' self)
                      c1   (:wat::kernel::connect' addr)
-                     er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest "hi"))
+                     er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))
                      _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er1))
                      _sig (:wat::kernel::recv' self)
                      c2   (:wat::kernel::connect' addr)
-                     er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest "hi"))
+                     er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))
                      _2   (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er2))]
                     nil))))
      _   (:wat::core::match (:wat::kernel::peer-pid prober) -> :wat::core::nil

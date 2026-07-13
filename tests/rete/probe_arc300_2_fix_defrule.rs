@@ -48,7 +48,7 @@ fn fire_one(node_ctor: &str, query_tail: &str) -> String {
 fn head_keyword_deduces_headconv() {
     let world = startup_beside(file!()).expect("world freezes with fact model + rules");
     // :wat::core::defrecord — head keyword, not post-arrow, not type-shaped.
-    let node = r#"(:fix::Node "keyword" ":wat::core::defrecord" 1 21 false)"#;
+    let node = r#"(:fix::Node :kind "keyword" :name ":wat::core::defrecord" :offset 1 :len 21 :post-arrow false)"#;
     let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
     assert_eq!(count, Value::i64(1), "one HeadConv deduced; got {count:?}");
     // The fact carries the RAW name (pure — no transform in :then).
@@ -66,7 +66,7 @@ fn head_keyword_deduces_headconv() {
 fn post_arrow_keyword_is_not_headconv() {
     let world = startup_beside(file!()).expect("world freezes");
     // post-arrow=true → excluded from head-keyword→conv (the ¬post-arrow guard).
-    let node = r#"(:fix::Node "keyword" ":wat::core::String" 10 18 true)"#;
+    let node = r#"(:fix::Node :kind "keyword" :name ":wat::core::String" :offset 10 :len 18 :post-arrow true)"#;
     let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
     assert_eq!(count, Value::i64(0), "post-arrow keyword is not a HeadConv; got {count:?}");
 }
@@ -76,7 +76,7 @@ fn post_arrow_keyword_is_not_headconv() {
 #[test]
 fn left_arrow_deduces_arrowconv() {
     let world = startup_beside(file!()).expect("world freezes");
-    let node = r#"(:fix::Node "symbol" "<-" 0 2 false)"#;
+    let node = r#"(:fix::Node :kind "symbol" :name "<-" :offset 0 :len 2 :post-arrow false)"#;
     let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::ArrowConv))"));
     assert_eq!(count, Value::i64(1), "'<-' deduces one ArrowConv; got {count:?}");
     let off = ev(&world, &fire_one(node,
@@ -87,7 +87,7 @@ fn left_arrow_deduces_arrowconv() {
 #[test]
 fn right_arrow_deduces_arrowconv() {
     let world = startup_beside(file!()).expect("world freezes");
-    let node = r#"(:fix::Node "symbol" "->" 5 2 false)"#;
+    let node = r#"(:fix::Node :kind "symbol" :name "->" :offset 5 :len 2 :post-arrow false)"#;
     let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::ArrowConv))"));
     assert_eq!(count, Value::i64(1), "'->' also deduces an ArrowConv; got {count:?}");
 }
@@ -95,7 +95,7 @@ fn right_arrow_deduces_arrowconv() {
 #[test]
 fn non_arrow_symbol_deduces_nothing() {
     let world = startup_beside(file!()).expect("world freezes");
-    let node = r#"(:fix::Node "symbol" "path" 10 4 false)"#;
+    let node = r#"(:fix::Node :kind "symbol" :name "path" :offset 10 :len 4 :post-arrow false)"#;
     let arrows = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::ArrowConv))"));
     let heads = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
     assert_eq!(arrows, Value::i64(0), "non-arrow symbol → no ArrowConv; got {arrows:?}");
@@ -108,7 +108,7 @@ fn non_arrow_symbol_deduces_nothing() {
 fn post_arrow_keyword_deduces_typeconv() {
     let world = startup_beside(file!()).expect("world freezes");
     // :wat::core::String immediately after "<-" → post-arrow=true → TypeConv (not type-shaped, but post-arrow).
-    let node = r#"(:fix::Node "keyword" ":wat::core::String" 10 18 true)"#;
+    let node = r#"(:fix::Node :kind "keyword" :name ":wat::core::String" :offset 10 :len 18 :post-arrow true)"#;
     let count = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::TypeConv))"));
     assert_eq!(count, Value::i64(1), "post-arrow keyword deduces a TypeConv; got {count:?}");
     let name = ev(&world, &fire_one(node,
@@ -121,7 +121,7 @@ fn post_arrow_keyword_deduces_typeconv() {
 fn type_shaped_keyword_deduces_typeconv_even_when_not_post_arrow() {
     let world = startup_beside(file!()).expect("world freezes");
     // A structurally-type-shaped keyword (Vector<...>) is a TypeConv even at head position.
-    let node = r#"(:fix::Node "keyword" ":wat::core::Vector<wat::core::i64>" 0 30 false)"#;
+    let node = r#"(:fix::Node :kind "keyword" :name ":wat::core::Vector<wat::core::i64>" :offset 0 :len 30 :post-arrow false)"#;
     let types = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::TypeConv))"));
     let heads = ev(&world, &fire_one(node, "(:wat::core::length (:wat::rete::query fired :fix::HeadConv))"));
     assert_eq!(types, Value::i64(1), "type-shaped keyword deduces a TypeConv; got {types:?}");

@@ -12,7 +12,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+              (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
 
 ;; bare-D PoolMsg (the parent-side shape)
 (:wat::core::defenum :probe::PoolMsg<I> :wat::enum::Pure

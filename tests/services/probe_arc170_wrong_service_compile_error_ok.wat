@@ -14,7 +14,7 @@
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+              (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages
@@ -26,7 +26,7 @@
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Kv::GetResponse (:probe::Kv::GetRequest/k req))))])
+              (:probe::Kv::GetResponse :v (:probe::Kv::GetRequest/k req))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

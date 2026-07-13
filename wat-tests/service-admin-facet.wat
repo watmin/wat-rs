@@ -35,8 +35,8 @@
                            (:wat-tests::admin-counter::Record/count (:wat-tests::admin-counter::State/durable s))
                            (:wat-tests::AdminCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::admin-counter::State (:wat-tests::admin-counter::Record c))
-         (:wat-tests::AdminCounter::IncrementResponse c))))])
+         (:wat-tests::admin-counter::State :durable (:wat-tests::admin-counter::Record :count c))
+         (:wat-tests::AdminCounter::IncrementResponse :value c))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.
@@ -46,9 +46,9 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::admin-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::admin-counter::Record 0))
+      [h (:wat-tests::admin-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::admin-counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::admin-counter::Handle/addr h))
-       _ (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest 7))
+       _ (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest :n 7))
        final (:wat-tests::admin-counter/stop h)]
       (:wat-tests::admin-counter::Record/count final))
     7))
@@ -58,9 +58,9 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::admin-counter/start :locus (:wat::spawn::process) :record (:wat-tests::admin-counter::Record 0))
+      [h (:wat-tests::admin-counter/start :locus (:wat::spawn::process) :record (:wat-tests::admin-counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::admin-counter::Handle/addr h))
-       _ (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest 7))
+       _ (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest :n 7))
        final (:wat-tests::admin-counter/stop h)]
       (:wat-tests::admin-counter::Record/count final))
     7))

@@ -19,7 +19,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; a typed helper: the param pins the reconstructed addr's S,R (unify ? = Echo::Op/Reply).
@@ -27,7 +27,7 @@
   [a <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>] -> :wat::core::String
   (:wat::core::let
     [c  (:wat::kernel::connect' a)
-     er (:probe::Echo/echo c (:probe::Echo::EchoRequest "roundtrip"))]
+     er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "roundtrip"))]
     (:probe::Echo::EchoResponse/reply er)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

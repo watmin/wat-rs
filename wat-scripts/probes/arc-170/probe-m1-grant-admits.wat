@@ -26,7 +26,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -51,7 +51,7 @@
                             :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)
                      addr (:wat::kernel::recv' self)
                      c    (:wat::kernel::connect' addr)
-                     er   (:probe::Echo/echo c (:probe::Echo::EchoRequest "hi"))
+                     er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
                      _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er))]
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).

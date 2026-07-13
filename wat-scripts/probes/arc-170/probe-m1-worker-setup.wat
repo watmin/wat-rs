@@ -16,7 +16,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; the union the worker recv's: Setup hands the address; Work is one unit of work.
@@ -51,7 +51,7 @@
                     ((:probe::Msg::Work s)
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")
-                         er (:probe::Echo/echo c (:probe::Echo::EchoRequest s))               ;; via the HELD peer
+                         er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s))               ;; via the HELD peer
                          _  (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er))]
                         (:probe::serve self held)))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil

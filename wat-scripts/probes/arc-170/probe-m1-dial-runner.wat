@@ -14,7 +14,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; PARENT-side PoolMsg alias: bare-D Setup so we can send the erased address.
@@ -35,7 +35,7 @@
                 (:wat::core::defn :user::bracket::work-fn
                   [c <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>  s <- :wat::core::String]
                   -> :wat::core::String
-                  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo c (:probe::Echo::EchoRequest s))))
+                  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::bracket::process-dial-runner
                     (:wat::program::self-peer

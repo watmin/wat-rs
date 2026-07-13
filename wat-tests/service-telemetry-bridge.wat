@@ -39,15 +39,15 @@
   :impls
   [(record [s req]
      (:wat::service::Outcome::Reply
-       (:wat-tests::recorder::State
-         (:wat-tests::recorder::Record
+       (:wat-tests::recorder::State :durable
+         (:wat-tests::recorder::Record :total
            (:wat::core::i64::+
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
              (:wat-tests::Recorder::RecordRequest/n req))))
-       (:wat-tests::Recorder::RecordResponse true)))
+       (:wat-tests::Recorder::RecordResponse :ok true)))
    (total [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::Recorder::TotalResponse
+       (:wat-tests::Recorder::TotalResponse :value
          (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)))))])
 
 ;; ── the worker service — wears :wat-tests::Worker, dials a :wat-tests::Recorder peer ─────────────
@@ -60,14 +60,14 @@
   :init (:wat::core::fn [record        <- :wat-tests::worker::Record
                          recorder-addr <- :wat::kernel::Address'<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
           -> :wat-tests::worker::State
-          (:wat-tests::worker::State record (:wat::kernel::connect' recorder-addr)))
+          (:wat-tests::worker::State :durable record :recorder (:wat::kernel::connect' recorder-addr)))
   :impls
   [(work [s req]
      (:wat::core::let
        [_ (:wat-tests::Recorder/record
             (:wat-tests::worker::State/recorder s)
-            (:wat-tests::Recorder::RecordRequest (:wat-tests::Worker::WorkRequest/n req)))]
-       (:wat::service::Outcome::Reply s (:wat-tests::Worker::WorkResponse true))))])
+            (:wat-tests::Recorder::RecordRequest :n (:wat-tests::Worker::WorkRequest/n req)))]
+       (:wat::service::Outcome::Reply s (:wat-tests::Worker::WorkResponse :done true))))])
 
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
 ;; start threads the LIVE recorder address as the worker's 2nd start arg (the :init operating-input).
@@ -75,13 +75,13 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [rh (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record 0))
+      [rh (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record :total 0))
        wh (:wat-tests::worker/start :locus (:wat::spawn::thread)
-            :record (:wat-tests::worker::Record 0)
+            :record (:wat-tests::worker::Record :job-count 0)
             :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
-       _  (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest 5))
-       _2 (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest 3))
+       _  (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
+       _2 (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 3))
        rc (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
        r  (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
       (:wat-tests::Recorder::TotalResponse/value r))
@@ -93,17 +93,17 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [rh   (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record 0))
+      [rh   (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record :total 0))
        wh   (:wat-tests::worker/start :locus (:wat::spawn::thread)
-              :record (:wat-tests::worker::Record 0)
+              :record (:wat-tests::worker::Record :job-count 0)
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc   (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
-       _    (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest 5))
+       _    (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
        snap (:wat-tests::worker/hibernate wh)
        wh2  (:wat-tests::worker/resume :locus (:wat::spawn::thread) :record snap
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc2  (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh2))
-       _2   (:wat-tests::Worker/work wc2 (:wat-tests::Worker::WorkRequest 3))
+       _2   (:wat-tests::Worker/work wc2 (:wat-tests::Worker::WorkRequest :n 3))
        rc   (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
        r    (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
       (:wat-tests::Recorder::TotalResponse/value r))

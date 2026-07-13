@@ -21,17 +21,17 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:my::Counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
+       (:my::Counter::GetResponse :value (:my::counter::Record/count (:my::counter::State/durable s)))))
    (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c))
-                                      (:my::Counter::IncrementResponse c))))])
+       (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
+                                      (:my::Counter::IncrementResponse :value c))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h  (:my::counter/start :locus (:wat::spawn::process) :record (:my::counter::Record 0))
+    [h  (:my::counter/start :locus (:wat::spawn::process) :record (:my::counter::Record :count 0))
      c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
-     _  (:my::Counter/increment c (:my::Counter::IncrementRequest 5))
+     _  (:my::Counter/increment c (:my::Counter::IncrementRequest :n 5))
      r  (:my::Counter/get c (:my::Counter::GetRequest))]
     (:my::Counter::GetResponse/value r)))

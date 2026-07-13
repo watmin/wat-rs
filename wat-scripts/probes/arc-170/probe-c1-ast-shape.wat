@@ -12,7 +12,7 @@
    & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]]
   -> :wat::core::String
   (:probe::Echo::EchoResponse/reply
-    (:probe::Echo/echo echo (:probe::Echo::EchoRequest item))))
+    (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

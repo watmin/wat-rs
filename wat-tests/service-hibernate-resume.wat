@@ -36,8 +36,8 @@
                            (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s))
                            (:wat-tests::HibCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::hib-counter::State (:wat-tests::hib-counter::Record c))
-         (:wat-tests::HibCounter::IncrementResponse c))))  ]
+         (:wat-tests::hib-counter::State :durable (:wat-tests::hib-counter::Record :count c))
+         (:wat-tests::HibCounter::IncrementResponse :value c))))  ]
   ;; :stop projects State → i64 (the count) via State/durable
   :stop (:wat::core::fn [s <- :wat-tests::hib-counter::State] -> :wat::core::i64
           (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s))))
@@ -48,13 +48,13 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::hib-counter::Record 0))
+      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::hib-counter::Record :count 0))
        c     (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h))
-       _     (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest 7))
+       _     (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest :n 7))
        snap  (:wat-tests::hib-counter/hibernate h)
        h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::thread) :record snap)
        c2    (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2))
-       _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest 3))
+       _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest :n 3))
        final (:wat-tests::hib-counter/stop h2)]
       final)
     10))
@@ -64,13 +64,13 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::process) :record (:wat-tests::hib-counter::Record 0))
+      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::process) :record (:wat-tests::hib-counter::Record :count 0))
        c     (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h))
-       _     (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest 7))
+       _     (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest :n 7))
        snap  (:wat-tests::hib-counter/hibernate h)
        h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::process) :record snap)
        c2    (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2))
-       _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest 3))
+       _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest :n 3))
        final (:wat-tests::hib-counter/stop h2)]
       final)
     10))

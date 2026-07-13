@@ -25,21 +25,21 @@ fn world(acc: &str, gate: &str) -> String {
             {acc}\n\
             (:wat::rete::where {gate})]\n\
            :then\n\
-           (:wat::rete::insert (:w::Busy ?loc ?n)))"
+           (:wat::rete::insert (:w::Busy :location ?loc :n ?n)))"
     )
 }
 
 fn busy_count(fire_fn: &str, acc: &str, gate: &str, readings: &[(&str, i64)]) -> Result<i64, String> {
     let reading_inserts: String = readings
         .iter()
-        .map(|(loc, v)| format!("             session (:wat::rete::insert session (:w::Reading \"{loc}\" {v}))\n"))
+        .map(|(loc, v)| format!("             session (:wat::rete::insert session (:w::Reading :location \"{loc}\" :value {v}))\n"))
         .collect();
     let run = format!(
         "(:wat::core::length\n\
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :w)\n\
              session (:wat::rete::compile rules)\n\
-             session (:wat::rete::insert session (:w::Station \"Oslo\"))\n\
+             session (:wat::rete::insert session (:w::Station :location \"Oslo\"))\n\
 {reading_inserts}\
              fired   (:wat::rete::{fire_fn} session)]\n\
             (:wat::rete::query fired :w::Busy)))"

@@ -17,7 +17,7 @@
 (:wat::service::defservice :probe::echo'
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req] (:wat::service::Outcome::Reply s
-                          (:probe::Echo::EchoResponse (:probe::Echo::EchoRequest/msg req))))])
+                          (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -9,7 +9,7 @@
   [peer <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
    item <- :wat::core::String]
   -> :wat::core::String
-  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo peer (:probe::Echo::EchoRequest item))))
+  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo peer (:probe::Echo::EchoRequest :msg item))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

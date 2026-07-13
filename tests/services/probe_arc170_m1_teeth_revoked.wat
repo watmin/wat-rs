@@ -24,7 +24,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
@@ -48,11 +48,11 @@
                              :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)
                      addr (:wat::kernel::recv' self)                                  ;; A's addr (down)
                      c1   (:wat::kernel::connect' addr)
-                     er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest "hi"))     ;; dial #1 — ADMITTED
+                     er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))     ;; dial #1 — ADMITTED
                      _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er1)) ;; report "echo:hi" UP
                      _sig (:wat::kernel::recv' self)                                  ;; BLOCK for re-dial (2nd addr)
                      c2   (:wat::kernel::connect' addr)
-                     er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest "hi"))     ;; dial #2 — after revoke: BOUNCED → RAISE → die (before the send below)
+                     er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))     ;; dial #2 — after revoke: BOUNCED → RAISE → die (before the send below)
                      _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er2))] ;; dial #2 reply UP — ONLY reached if ADMITTED. makes the test DISCRIMINATE: if the revoke ever regressed, dial #2 admits, this fires, the owner's r2 = "echo:hi" → compute Ok → the test (asserts Err) goes RED. without it, the prober's clean exit ALSO disconnects the channel → recv' raises → Err either way (vacuous).
                     nil))))
      r2  (:wat::core::match (:wat::kernel::peer-pid prober) -> :wat::core::String

@@ -20,12 +20,12 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:my::Counter::GetResponse (:my::counter::Record/count (:my::counter::State/durable s)))))
+       (:my::Counter::GetResponse :value (:my::counter::Record/count (:my::counter::State/durable s)))))
    (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c))
-                                      (:my::Counter::IncrementResponse c))))])
+       (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
+                                      (:my::Counter::IncrementResponse :value c))))])
 
 ;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
 ;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
@@ -48,9 +48,9 @@
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer'<my::Counter::Reply,my::Counter::Op>)
-                (:my::counter::State (:my::counter::Record 0)))))
+                (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest 5)))
+     _    (:wat::kernel::send' c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5)))
      r1   (:wat::kernel::recv' c)
      _    (:wat::kernel::send' c (:my::Counter::Op::Get (:my::Counter::GetRequest)))
      r2   (:wat::kernel::recv' c)]

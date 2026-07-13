@@ -31,7 +31,7 @@
   [(get [s req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::SeededCounter::GetResponse
-         (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])
+         :value (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; start takes the Record (seeded-counter::Record 42); init defaults to State/new(d).
@@ -39,7 +39,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record 42))
+      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record :count 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
       (:wat-tests::SeededCounter::GetResponse/value r))
@@ -51,7 +51,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record 42))
+      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record :count 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
       (:wat-tests::SeededCounter::GetResponse/value r))

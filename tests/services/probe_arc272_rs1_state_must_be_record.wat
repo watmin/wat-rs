@@ -16,13 +16,13 @@
   :impls
   [(increment [s req]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s)) (:my::Counter::IncrementRequest/n req))]
-       (:wat::service::Outcome::Reply (:my::counter::State (:my::counter::Record c)) (:my::Counter::IncrementResponse c))))])
+       (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c)) (:my::Counter::IncrementResponse :count c))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [h     (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record 0))
+    [h     (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record :count 0))
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
-     _     (:my::counter/increment c (:my::Counter::IncrementRequest 5))
+     _     (:my::counter/increment c (:my::Counter::IncrementRequest :n 5))
      ;; arc 291 3a-ii-β: stop is owner-only — takes the Handle (h), not the client peer (c).
      ;; arc 291 4b-ii: stop returns ::Record (durable soul); read count via Record/count.
      final (:my::counter/stop h)]

@@ -14,7 +14,7 @@
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
+              (:probe::Echo::EchoResponse :reply
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :probe::work
@@ -22,7 +22,7 @@
    & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]]
   -> :wat::core::String
   (:probe::Echo::EchoResponse/reply
-    (:probe::Echo/echo echo (:probe::Echo::EchoRequest item))))
+    (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

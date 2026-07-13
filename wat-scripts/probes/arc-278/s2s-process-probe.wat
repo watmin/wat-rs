@@ -26,7 +26,7 @@
   :impls
   [(echo [s req]
      (:wat::service::Outcome::Reply s
-       (:probe::Echo::EchoResponse
+       (:probe::Echo::EchoResponse :reply
          (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
@@ -49,14 +49,14 @@
           [record    <- :probe::caller'::Record
            echo-addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
           -> :probe::caller'::State
-          (:probe::caller'::State record (:wat::kernel::connect' echo-addr)))
+          (:probe::caller'::State :record record :echo (:wat::kernel::connect' echo-addr)))
   :impls
   [(run [s req]
      (:wat::core::let
        [echo (:probe::caller'::State/echo s)
-        er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest "hi"))
+        er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg "hi"))
         out  (:probe::Echo::EchoResponse/reply er)]
-       (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse out))))])
+       (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse :out out))))])
 
 ;; ── the crossing: start both on PROCESSES, dial caller', which dials echo' ───────
 ;; arc 278: caller' births on a PROCESS whose post-spawn hook grants caller's own pid to

@@ -42,14 +42,14 @@
             -> :wat::core::keyword
             ((:wat::spawn::ServiceEvent::Message _idx mm) mm)
             (_ :no-tick))]
-       (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse m))))])
+       (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse :fired m))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::timer::env-grab-on-thread
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record 0))
+      [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
       (:wat-tests::Deadline::WaitTickResponse/fired r))
@@ -60,7 +60,7 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record 0))
+      [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
       (:wat-tests::Deadline::WaitTickResponse/fired r))

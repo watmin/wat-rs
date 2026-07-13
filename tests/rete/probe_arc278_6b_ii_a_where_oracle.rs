@@ -25,7 +25,7 @@ fn run_count(world_path: &str, ns: &str, gate_type: &str, celsius: i64) -> Resul
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules {ns})\n\
              session (:wat::rete::compile rules)\n\
-             session (:wat::rete::insert session (:weather::Temperature {celsius} \"Oslo\"))\n\
+             session (:wat::rete::insert session (:weather::Temperature :celsius {celsius} :location \"Oslo\"))\n\
              fired   (:wat::rete::fire-rules-spec session)]\n\
             (:wat::rete::query fired {gate_type})))"
     );

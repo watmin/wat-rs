@@ -33,24 +33,24 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::Counter::GetResponse
+       (:wat-tests::Counter::GetResponse :value
          (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)))))
    (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+
                            (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s))
                            (:wat-tests::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
-         (:wat-tests::counter::State (:wat-tests::counter::Record c))
-         (:wat-tests::Counter::IncrementResponse c))))])
+         (:wat-tests::counter::State :durable (:wat-tests::counter::Record :count c))
+         (:wat-tests::Counter::IncrementResponse :value c))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::service::counter-on-thread
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::counter/start :locus (:wat::spawn::thread) :record (:wat-tests::counter::Record 0))
+      [h (:wat-tests::counter/start :locus (:wat::spawn::thread) :record (:wat-tests::counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
-       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest 5))
+       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
        r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
       (:wat-tests::Counter::GetResponse/value r))
     5))
@@ -60,9 +60,9 @@
   ()
   (:wat::test::assert-eq
     (:wat::core::let
-      [h (:wat-tests::counter/start :locus (:wat::spawn::process) :record (:wat-tests::counter::Record 0))
+      [h (:wat-tests::counter/start :locus (:wat::spawn::process) :record (:wat-tests::counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
-       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest 5))
+       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
        r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
       (:wat-tests::Counter::GetResponse/value r))
     5))

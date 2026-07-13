@@ -521,8 +521,10 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             }
         };
         for m in &msg_items {
-            // Each message is a type-decl List `(<head> :Name …)`; its slot-1 keyword is the name.
-            if let WatAST::List(mi, _) = m {
+            // Each message is a type-decl `(<head> :Name …)`; slot-1 keyword is the name. Post
+            // the arc-294 flip, defrecord/defstruct expand to a `(do (recordtype :Name …) …)`
+            // companion, so unwrap a leading `do` to its declaration child first.
+            if let WatAST::List(mi, _) = unwrap_message_decl(m) {
                 if let Some(WatAST::Keyword(mn, _)) = mi.get(1) {
                     message_names.push(mn.clone());
                 }
@@ -540,7 +542,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
         // fail to resolve at the forked child's fresh startup (the fork-failure class, one level deeper).
         for m in &msg_items {
             let mut refs: Vec<String> = Vec::new();
-            collect_message_form_type_refs(m, &mut refs);
+            collect_message_form_type_refs(unwrap_message_decl(m), &mut refs);
             for r in refs {
                 // Only namespaced user types are protocol messages; skip stdlib + type vars.
                 if !r.contains("::") || r.starts_with(":wat::") {
@@ -741,6 +743,25 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
 /// both the stdlib head and the user arg). Type NAMES (slot-1 keyword), enum variant keywords, and the
 /// `:wat::enum::*` purity marker are NOT `<-`-preceded, so they are correctly skipped. Recurses into
 /// every nested List/Vector so enum variant vectors are reached.
+/// Arc 294 item 9a — a `:messages` decl is a defrecord/defstruct/defenum, and after the
+/// aggregate flip a defrecord/defstruct EXPANDS to a kwargs-companion `(:wat::core::do
+/// (:wat::core::recordtype :Name …) (:wat::core::defmacro :Name …))`. Unwrap a leading
+/// `do` to its first declaration child so both the type NAME (slot-1 keyword) and the
+/// field type refs are read from the recordtype/structtype/defenum, not the `do` head or
+/// the companion defmacro. defenum (no companion) passes through unchanged.
+fn unwrap_message_decl(form: &WatAST) -> &WatAST {
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(h, _)) = items.first() {
+            if h == ":wat::core::do" {
+                if let Some(child) = items.get(1) {
+                    return unwrap_message_decl(child);
+                }
+            }
+        }
+    }
+    form
+}
+
 fn collect_message_form_type_refs(form: &WatAST, out: &mut Vec<String>) {
     let children = match form {
         WatAST::List(items, _) => items,
