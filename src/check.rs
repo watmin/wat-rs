@@ -6341,6 +6341,13 @@ fn infer_list(
 
         let (param_types, ret_type) = instantiate(scheme, fresh);
 
+        // Arc 294 item 9a — user-facing errors from this scheme-resolved call
+        // report the CANONICAL name. `k` may be a generated aggregate-ctor
+        // PRIME (the kwargs flip's lowering target); `canonical_ctor_callee`
+        // strips the prime back to the bare aggregate name when (and only
+        // when) that's genuinely what `k` is. See its doc comment.
+        let callee = canonical_ctor_callee(k, env);
+
         // Arc 150 — variadic-define call: when the callee's scheme
         // has rest_param_type set, accept `args.len() >= fixed arity`
         // and unify each rest-arg against the rest-param's element
@@ -6362,7 +6369,7 @@ fn infer_list(
             // Variadic branch: `args.len() >= param_types.len()`.
             if args.len() < param_types.len() {
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                    callee: k.clone(),
+                    callee: callee.clone(),
                     expected: param_types.len(),
                     got: args.len()
                 } });
@@ -6388,7 +6395,7 @@ fn infer_list(
                 if let Some(arg_ty) = arg_ty {
                     if !assignable(&arg_ty, expected, subst, env) {
                         local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: k.clone(),
+                            callee: callee.clone(),
                             param: format!("#{}", i + 1),
                             expected: format_type(&apply_subst(expected, subst)),
                             got: format_type(&apply_subst(&arg_ty, subst))
@@ -6413,7 +6420,7 @@ fn infer_list(
                     // `assignable` consults is_subtype first, falls to unify (binds vars).
                     if !assignable(&arg_ty, &elem_inst, subst, env) {
                         local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                            callee: k.clone(),
+                            callee: callee.clone(),
                             param: format!("#{} (rest)", j + 1),
                             expected: format_type(&apply_subst(&elem_inst, subst)),
                             got: format_type(&apply_subst(&arg_ty, subst))
@@ -6427,7 +6434,7 @@ fn infer_list(
 
         if args.len() != param_types.len() {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                callee: k.clone(),
+                callee: callee.clone(),
                 expected: param_types.len(),
                 got: args.len()
             } });
@@ -6448,7 +6455,7 @@ fn infer_list(
             if let Some(arg_ty) = arg_ty {
                 if !assignable(&arg_ty, expected, subst, env) {
                     local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                        callee: k.clone(),
+                        callee: callee.clone(),
                         param: format!("#{}", i + 1),
                         expected: format_type(&apply_subst(expected, subst)),
                         got: format_type(&apply_subst(&arg_ty, subst))
@@ -12929,6 +12936,35 @@ fn record_of_specific_type(class_arg: &WatAST, env: &CheckEnv) -> Option<TypeExp
                 .collect(),
         })
     }
+}
+
+/// Arc 294 item 9a — canonicalize a call-site callee name for user-facing
+/// CheckErrors (`:callee` field + the `Display`-rendered `:message`, which is
+/// derived from `:callee`; see `check/error.rs` `ArityMismatch`/`TypeMismatch`
+/// Display arms).
+///
+/// The kwargs-construction flip lowers a bare aggregate construction
+/// `(:T v)` to the POSITIONAL PRIME ctor `(:T' v)`. The prime is
+/// generated-code-only and must NEVER appear in a message the user reads —
+/// so when a call-site arity/type CheckError is built against a scheme
+/// resolved under the prime name, report the canonical bare name instead.
+///
+/// Guarded narrowly to avoid over-stripping: only strips a trailing `'`
+/// (before any `<...>` type-arg suffix) when the bare stem is a REGISTERED
+/// Aggregate type — i.e. `k` is genuinely a generated aggregate-ctor prime.
+/// A legitimate user-defined name that happens to end in `'` but is not a
+/// registered aggregate's prime is returned unchanged.
+fn canonical_ctor_callee(k: &str, env: &CheckEnv) -> String {
+    let (stem, suffix) = match k.find('<') {
+        Some(pos) => (&k[..pos], &k[pos..]),
+        None => (k, ""),
+    };
+    if let Some(bare) = stem.strip_suffix('\'') {
+        if matches!(env.types().get(bare), Some(crate::types::TypeDef::Aggregate(_))) {
+            return format!("{}{}", bare, suffix);
+        }
+    }
+    k.to_string()
 }
 
 /// Arc 294.c.2a — type inference for `:wat::core::aggregate-new`.
