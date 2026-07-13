@@ -1391,13 +1391,15 @@ is ahead.*
 
 ## RESUME-HERE (curare CHECKPOINT — 2026-07-11c; arc 170 CAPABILITY CIRCUIT is COMPLETE — pivoting to 278 telemetry → the chaos engine)
 
-> ⚠️ **DETOUR IN FLIGHT (2026-07-12): arc 294 item 9a — the aggregate-construction flip (`bare = kwargs`, positional →
-> the `:ns::T'` prime).** This opened while building 278 T1b and is NOT finished — **the tree HEAD is a WIP commit with a
-> BROKEN stdlib freeze.** Read **`docs/arc/2026/06/294-holon-returns-to-vsa/RESUME-9a-FLIP.md` FIRST** — it is the live
-> map. Short version: the flip codegen + the 136-file `wat-fix` source migration are DONE + durable; a bounded tail of
-> *macro-generated* positional ctors still breaks the freeze (each self-named by a live DEBUG in `kwargs-lower`, each
-> fixed by the PRIME treatment). Last GREEN commit: `dec6269d`. Finish the tail → green freeze → floor → clean commit,
-> THEN return to the 278 T1b picture below (`journal'` service = T1b.2). The 170 circuit itself is still COMPLETE.
+> ⚠️ **DETOUR IN FLIGHT (2026-07-12→): arc 294 item 9a — the aggregate-construction flip.** It cascaded far beyond a
+> ctor flip: bare type name = a MACRO now (not a value), so it rippled into **FULL LISP** (macros get raw args),
+> `eval_in_frozen` READ→EXPAND→EVAL, rete RHS kwargs, `return-type-of`, defsurface message registration, + a
+> whole-corpus kwargs migration (two agent fleets). Read **`docs/arc/2026/06/294-holon-returns-to-vsa/RESUME-9a-KWARGS.md`
+> FIRST** — it is the live map (design is LOCKED: kwargs everywhere; prime = generated code only). Floor: **645 → 131
+> failing**; committed + pushed **`0181901a`** (tree clean, freeze GREEN, builds fine). DIAGNOSE the remaining by
+> RUNNING ONE test with `--no-capture` and READING the rich error (never grep-speculate). Current root: defsurface
+> `:messages` registration (`src/types.rs::extract_surface_message_forms`) — the service cluster. Finish → floor green
+> → clean commit → item 9a DONE → return to 278 T1b.2 (`journal'`). The 170 circuit itself is still COMPLETE.
 
 ```clojure
 {:head   "ec319b1b — the CADENDO CRESCO + CERTVS PERGO realizations (the 2026-07-11 pair). Last CODE commit f20a8a1e
