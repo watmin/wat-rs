@@ -442,11 +442,27 @@ pub(crate) fn build_insert_fact(
     // class = keyword stripped of leading ':' (Arc 293.R2.1: colon-free).
     let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
 
-    // Resolve each fact-form arg via resolve_operand with empty fact-fields/names.
-    // RHS has no current fact — :field references are malformed; only ?var + literal resolve.
-    // None → unresolved operand → RuntimeError (a malformed rule, not a silent drop).
-    let mut fields: Vec<Value> = Vec::with_capacity(fact_items.len().saturating_sub(1));
-    for arg in &fact_items[1..] {
+    // Arc 294 item 9a — a defrule :then RHS fact-form may be written in KWARGS form
+    // `(:Type :field1 v1 :field2 v2)` (the flip's encouraged form, symmetric with the
+    // field-named :when patterns) or the legacy positional `(:Type v1 v2)`. build_insert_fact
+    // is a pure fire-time fn with no type registry, so for the kwargs form it takes the
+    // VALUES in written order, skipping the :field keywords — fields are authored in the
+    // type's declaration order (both the kwargs migration and the macro companion emit
+    // declaration order). Follow-up: compile-time reorder-by-name (field-names-of) would make
+    // an out-of-declaration-order kwargs RHS correct rather than positionally mapped.
+    let args = &fact_items[1..];
+    let is_kwargs = args.len() >= 2
+        && args.len() % 2 == 0
+        && args.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
+    let value_asts: Vec<&WatAST> = if is_kwargs {
+        args.iter().skip(1).step_by(2).collect()
+    } else {
+        args.iter().collect()
+    };
+    // Resolve each value via resolve_operand with empty fact-fields/names.
+    // RHS has no current fact — only ?var + literal resolve; None → malformed rule.
+    let mut fields: Vec<Value> = Vec::with_capacity(value_asts.len());
+    for arg in value_asts {
         match resolve_operand(arg, &[], &[], bindings) {
             Some(v) => fields.push(v),
             None => {
