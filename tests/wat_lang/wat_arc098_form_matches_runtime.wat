@@ -41,42 +41,42 @@
 ; comparison_lt — 7.5 < 5.0 = false; 3.0 < 5.0 = true
 (:wat::core::defn :t::test4-lt-high [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 7.5)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (< ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (< ?gr 5.0)))))
 (:wat::core::defn :t::test4-lt-low [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 3.0)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (< ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (< ?gr 5.0)))))
 
 ; comparison_gt — 7.5 > 5.0 = true; 3.0 > 5.0 = false
 (:wat::core::defn :t::test4-gt-high [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 7.5)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (> ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (> ?gr 5.0)))))
 (:wat::core::defn :t::test4-gt-low [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 3.0)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (> ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (> ?gr 5.0)))))
 
 ; comparison_le — 7.5 <= 5.0 = false; 3.0 <= 5.0 = true
 (:wat::core::defn :t::test4-le-high [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 7.5)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (<= ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (<= ?gr 5.0)))))
 (:wat::core::defn :t::test4-le-low [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 3.0)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (<= ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (<= ?gr 5.0)))))
 
 ; comparison_ge — 7.5 >= 5.0 = true; 3.0 >= 5.0 = false
 (:wat::core::defn :t::test4-ge-high [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 7.5)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (>= ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (>= ?gr 5.0)))))
 (:wat::core::defn :t::test4-ge-low [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 3.0)]
-    (:wat::form::matches? p (:test::PaperResolved :outcome (= ?gr :grace-residue) :grace-residue (>= ?gr 5.0)))))
+    (:wat::form::matches? p (:test::PaperResolved (= ?gr :grace-residue) (>= ?gr 5.0)))))
 
 ; not_eq_works — Loss != Grace
 (:wat::core::defn :t::test5-not-eq [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Loss" :grace-residue 1.0)]
     (:wat::form::matches? p
       (:test::PaperResolved
-        :outcome (= ?o :outcome)
-        :grace-residue (:not= ?o "Grace")))))
+        (= ?o :outcome)
+        (:not= ?o "Grace")))))
 
 ; and_both_must_hold
 (:wat::core::defn :t::test6-and-pass [] -> :wat::core::bool
@@ -99,58 +99,58 @@
 (:wat::core::defn :t::test7-or-low [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 3.0)]
     (:wat::form::matches? p (:test::PaperResolved
-      :outcome (= ?gr :grace-residue)
-      :grace-residue (:or (> ?gr 100.0) (< ?gr 5.0))))))
+      (= ?gr :grace-residue)
+      (:or (> ?gr 100.0) (< ?gr 5.0))))))
 (:wat::core::defn :t::test7-or-high [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 150.0)]
     (:wat::form::matches? p (:test::PaperResolved
-      :outcome (= ?gr :grace-residue)
-      :grace-residue (:or (> ?gr 100.0) (< ?gr 5.0))))))
+      (= ?gr :grace-residue)
+      (:or (> ?gr 100.0) (< ?gr 5.0))))))
 (:wat::core::defn :t::test7-or-mid [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 50.0)]
     (:wat::form::matches? p (:test::PaperResolved
-      :outcome (= ?gr :grace-residue)
-      :grace-residue (:or (> ?gr 100.0) (< ?gr 5.0))))))
+      (= ?gr :grace-residue)
+      (:or (> ?gr 100.0) (< ?gr 5.0))))))
 
 ; not_inverts
 (:wat::core::defn :t::test8-not-grace [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Grace" :grace-residue 5.0)]
     (:wat::form::matches? p (:test::PaperResolved
-      :outcome (= ?o :outcome) :grace-residue (:not (= ?o "Loss"))))))
+      (= ?o :outcome) (:not (= ?o "Loss"))))))
 (:wat::core::defn :t::test8-not-loss [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Loss" :grace-residue 5.0)]
     (:wat::form::matches? p (:test::PaperResolved
-      :outcome (= ?o :outcome) :grace-residue (:not (= ?o "Loss"))))))
+      (= ?o :outcome) (:not (= ?o "Loss"))))))
 
 ; where_uses_arbitrary_wat_expression
 (:wat::core::defn :t::test9-where-pass [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Graceful" :grace-residue 7.5)]
     (:wat::form::matches? p (:test::PaperResolved
-      :outcome (= ?o :outcome)
-      :grace-residue (:where (:wat::core::string::contains? ?o "Grace"))))))
+      (= ?o :outcome)
+      (:where (:wat::core::string::contains? ?o "Grace"))))))
 
 ; where_can_fail
 (:wat::core::defn :t::test10-where-fail [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Loss" :grace-residue 7.5)]
     (:wat::form::matches? p (:test::PaperResolved
-      :outcome (= ?o :outcome)
-      :grace-residue (:where (:wat::core::string::contains? ?o "Grace"))))))
+      (= ?o :outcome)
+      (:where (:wat::core::string::contains? ?o "Grace"))))))
 
 ; struct_type_mismatch_returns_false
 (:wat::core::defn :t::test11-struct-mismatch [] -> :wat::core::bool
-  (:wat::core::let [o (:test::Other :value 42)]
+  (:wat::core::let [o (:test::Other :x 42)]
     (:wat::form::matches? o
       (:test::PaperResolved
-        :outcome (= ?gr :grace-residue)
-        :grace-residue (> ?gr 5.0)))))
+        (= ?gr :grace-residue)
+        (> ?gr 5.0)))))
 
 ; option_none_subject_returns_false
 (:wat::core::defn :t::test12-option-none [] -> :wat::core::bool
   (:wat::core::let [maybe :wat::core::None]
     (:wat::form::matches? maybe
       (:test::PaperResolved
-        :outcome (= ?gr :grace-residue)
-        :grace-residue (> ?gr 5.0)))))
+        (= ?gr :grace-residue)
+        (> ?gr 5.0)))))
 
 ; option_some_subject_unwraps_one_level
 (:wat::core::defn :t::test13-option-some [] -> :wat::core::bool
@@ -158,15 +158,15 @@
                    maybe (:wat::core::Some p)]
     (:wat::form::matches? maybe
       (:test::PaperResolved
-        :outcome (= ?gr :grace-residue)
-        :grace-residue (> ?gr 5.0)))))
+        (= ?gr :grace-residue)
+        (> ?gr 5.0)))))
 
 ; non_struct_subject_returns_false
 (:wat::core::defn :t::test14-non-struct [] -> :wat::core::bool
   (:wat::form::matches? 42
     (:test::PaperResolved
-      :outcome (= ?gr :grace-residue)
-      :grace-residue (> ?gr 5.0))))
+      (= ?gr :grace-residue)
+      (> ?gr 5.0))))
 
 ; binding_visible_in_later_clauses_including_where
 (:wat::core::defn :t::test15-binding-where [] -> :wat::core::bool

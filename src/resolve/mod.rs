@@ -80,7 +80,7 @@
 //! warded home. Pure structural move; zero behavior change. The vigilatum stamp
 //! (top of this file) was earned at 251.1's ward close — see the SCORE it cites.
 
-mod boundary;
+pub(crate) mod boundary;
 mod error;
 mod normalize;
 mod quote;

@@ -289,6 +289,30 @@ pub(super) fn expand_form(
                 }
             }
 
+            // `:wat::form::matches?` — substrate special form, never a registered macro
+            // itself. Only the subject (items[1]) is code; the pattern (items[2..]) is
+            // DSL data owned by check.rs's `infer_form_matches` grammar walker (arc 098).
+            // Reuses `resolve::boundary`'s ALREADY-established classification
+            // (`Boundary::MatchesSubject`, consulted by the resolve-time `walk`/`normalize`
+            // passes) so this doesn't drift into a second, hand-rolled copy of the same
+            // language fact. Without this, full-Lisp child-recursion (below) walks into
+            // the pattern and — post arc 294 item 9a's construction flip — finds an
+            // aggregate-shaped pattern head (e.g. `:test::PaperResolved`) that is now a
+            // registered kwargs companion macro, firing `kwargs-lower` on raw DSL clauses
+            // as if they were kv-pairs.
+            if let Some(WatAST::Keyword(head, _)) = items.first() {
+                if matches!(crate::resolve::boundary::quote_boundary(head), crate::resolve::boundary::Boundary::MatchesSubject) {
+                    let mut iter = items.into_iter();
+                    let mut new_items = Vec::with_capacity(2);
+                    new_items.push(iter.next().expect("head keyword just matched"));
+                    if let Some(subject) = iter.next() {
+                        new_items.push(expand_form(subject, registry, expansion_depth + 1, env, sym)?);
+                    }
+                    new_items.extend(iter); // pattern (items[2..]) — DSL data, untouched
+                    return Ok(WatAST::List(new_items, list_span));
+                }
+            }
+
             // ── Full-Lisp macro dispatch (arc 294 item 9a): a macro receives its args RAW.
             // Standard homoiconic semantics: if the head names a registered macro, expand
             // THIS call with the caller's *unexpanded* arg forms, then re-expand the macro

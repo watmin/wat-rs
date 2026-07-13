@@ -8,19 +8,31 @@
 //!   form's arguments or a `match` arm's pattern as if they were calls.
 //! - [`super::normalize`] rewrites namespaced symbol refs (`wat.core/+` →
 //!   `:wat::core::+`) — it must not rewrite a symbol sitting in a data position.
+//! - [`crate::macros::expand::expand_form`] (arc 294 item 9a) — full-Lisp macro
+//!   expansion recurses into every non-macro form's children; it must not treat a
+//!   `matches?` pattern's aggregate-shaped head (e.g. `:test::PaperResolved`, now a
+//!   kwargs companion macro post-flip) as a macro CALL, feeding raw DSL clauses to
+//!   `kwargs-lower` as if they were kv-pairs.
 //!
-//! Both passes ask the same question — "what is the argument-evaluation shape of
+//! These passes ask the same question — "what is the argument-evaluation shape of
 //! this head?" — and historically each answered it with its own `if`-chain. The
 //! chains **drifted** (arc 251.1 ward): `normalize` silently lacked the
 //! `match`/`cond`/`matches?` boundaries that `walk` carried, so the two encodings
 //! of one language fact diverged. This module is the decomplected answer: one
-//! [`Boundary`] classification, consulted by both. The traversal itself stays in
-//! each pass (one borrows the tree to push errors, the other consumes it to
-//! rebuild) — but the *classification* lives here exactly once.
+//! [`Boundary`] classification, consulted by all three. The traversal itself stays
+//! in each pass (one borrows the tree to push errors, one consumes it to rebuild,
+//! one consumes it to macro-expand) — but the *classification* lives here exactly
+//! once.
 //!
-//! The payoff is structural, not stylistic: both passes match on [`Boundary`]
-//! **exhaustively**, so adding a future special-form boundary is a compile error
-//! in every pass until it is handled. Drift becomes unrepresentable.
+//! The payoff is structural, not stylistic: `walk` and `normalize` match on
+//! [`Boundary`] **exhaustively**, so adding a future special-form boundary is a
+//! compile error in both until it is handled. `expand_form` consults only the
+//! [`Boundary::MatchesSubject`] variant it needs (arc 294 item 9a) rather than
+//! matching exhaustively — its quote/quasiquote/literal data-forms are already
+//! handled by an earlier, differently-scoped check (they return the whole form
+//! unexpanded, including any nested unquote-escapes a template caller means to
+//! observe rather than execute; see `expand_form`'s doc), so folding them into
+//! this same classification is future work, not this fix's scope.
 
 /// The argument-evaluation shape of a special-form list head.
 ///
@@ -28,7 +40,7 @@
 /// rewritten) and which are **data** (to be left untouched). The doc on each
 /// variant is the single specification of that form's boundary; the passes
 /// implement the traversal, but neither re-decides the classification.
-pub(super) enum Boundary {
+pub(crate) enum Boundary {
     /// `:wat::core::quote` / `:wat::core::forms` / `:wat::core::define` — every
     /// argument is captured as data; no child is code. (`define` is retired at
     /// the checker, but the resolver still must not walk its body.)
@@ -52,7 +64,7 @@ pub(super) enum Boundary {
 ///
 /// This is the ONE place the boundary-head set is encoded. Both the call-head
 /// resolution walk and the symbol-ref normalization pass route through it.
-pub(super) fn quote_boundary(head: &str) -> Boundary {
+pub(crate) fn quote_boundary(head: &str) -> Boundary {
     match head {
         // Arc 294.b — body is data (same as quote); no symbol resolution inside.
         ":wat::core::quote" | ":wat::core::forms" | ":wat::core::define" | ":wat::holon::literal" => Boundary::AllData,
