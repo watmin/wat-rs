@@ -9,11 +9,11 @@
 The 9a flip (bare aggregate name = **kwargs macro**; positional demoted to the type-name **PRIME `:ns::T'`**, which is
 **generated-code-only, NEVER user-facing**) is a large, deep migration because a type name flipped from a *value* (ctor
 fn) to a *macro*. **Locked design (do not relitigate):** kwargs everywhere a human writes; the prime `:T'` is reserved
-for GENERATED code only (macro output, Rust codegen). Floor progress: **645 → 131 → 76 failing**. **Committed + pushed:
-`617a9ade`** (branch `arc-170-gap-j-v5-deadlock-state` — STAY ON IT; builds clean, tree clean but for the un-gitignored
-`scratchpad/` which is ephemeral / do-not-commit). Checkpoint chain this session: `0181901a`(131) → `8e4f0637`(docs) →
-`292f9451`(:messages+prime+silent-skip, 131→100) → `b6d0bc37`(matches?-as-data, 100→79) → `617a9ade`(wrong-kwargs
-fixtures, 79→76). Target end state (builder): **all passing + skips + exactly ONE failure** — the known
+for GENERATED code only (macro output, Rust codegen). Floor progress: **645 → 131 → 73 failing**. **Committed + pushed:
+`c55dd6a1`** (branch `arc-170-gap-j-v5-deadlock-state` — STAY ON IT; builds clean, tree clean but for the un-gitignored
+`scratchpad/` which is ephemeral / do-not-commit). Checkpoint chain: `0181901a`(131) → `292f9451`(:messages+prime+silent-skip,
+→100) → `b6d0bc37`(matches?-as-data, →79) → `617a9ade`(wrong-kwargs fixtures, →76) → `892c3a0d`(curare) →
+`58eb45ff`(check-error prime-leak canonicalized, →74) → `c55dd6a1`(kwargs companion for BAKED Rust aggregates, →73). Target end state (builder): **all passing + skips + exactly ONE failure** — the known
 `no_inlined_wat_in_tests::tests_carry_no_inlined_wat` lint. There are **no pre-existing timeouts** — the
 `wat_process_peer_ipc_round_trip` timeout counts as a real failure to resolve.
 
@@ -63,20 +63,24 @@ wat errors are VERY rich (`#wat.resolve/UnresolvedReferences {… :path … :spa
 
 Distinct roots (from the fixture strike's grounded split; the shape has shifted from prime-flips to substrate + fixtures):
 
-1. **Check-error leaks the prime** (2 tests + likely `.wat.bad` goldens) — `structs::constructor_{arity,field_type}_mismatch`:
-   the CheckError correctly fires but `:callee` reports `:my::market::Bar'` (the prime) not the canonical `:my::market::Bar`.
-   **Doctrine violation** (prime = generated-only, never user-facing). Fix in `src/check.rs` error construction — strip
-   the prime / report canonical. (Orchestrator reads this as clearly-correct, not a fork.)
-2. **Rust-native builtin struct lacks a kwargs companion** — `structs::builtin_capacity_exceeded_struct_is_usable`:
-   `:wat::holon::CapacityExceeded` (Rust-registered, not `defstruct`'d) → `UnknownFunction`. A GENUINE member of the
-   "Rust-registered aggregate has no kwargs companion" class (the original option-C instinct). Targeted substrate fix
-   (wire the companion for Rust-native builtin structs); OPEN whether to generalize via `register_aggregate_methods`.
+1. **Check-error leaks the prime** — ✅ DONE (`58eb45ff`). `src/check.rs::canonical_ctor_callee` strips the prime from
+   user-facing check-error callees (guarded: only when the bare stem is a registered aggregate). 74.
+2. **Rust-native builtin kwargs companion** — ✅ DONE for the BAKED builtins (`c55dd6a1`). `register_aggregate_kwargs_companions`
+   (`src/macros/parse.rs`) iterates `TypeEnv::with_builtins()`'s aggregates at the pre-expand seam (`freeze/env.rs:108`) and
+   mints a `kwargs-lower`-forwarding companion for each lacking one (skip-if-present). Builder ratified the GENERAL fix.
+   Reusable generator: `aggregate_kwargs_companion_source(bare_name, field_names)`. 73. (User-namespace Rust-SYNTHESIZED
+   aggregates — Op/Reply/State/Record — are a DISTINCT root, see #4.)
 3. **do/let-splice struct registration** (4) — `probe_do_splice_struct::*` (ctor not registered under bare name),
    `probe_let_splice_struct::*` (worse — `UnresolvedReference` at freeze). Struct ctors spliced in a top-level `do`/`let`
    don't register post-flip. Splice/registration interaction with the flip.
-4. **arc293 struct/surface codegen** (6) — `probe_arc293_{decl_a_aggregatetype,decl_b1_ctor_codegen×2,k2_surface_record_emission,struct_to_form_roundtrip,surface_splice}`
-   — `UnresolvedReference "not a builtin, not a registered function"`. ctor-codegen / surface-record-emission don't
-   produce resolvable ctors post-flip.
+4. **arc293 codegen (~12)** — `probe_arc293_{decl_a_aggregatetype,decl_b1_ctor_codegen×2,k2_surface_record_emission,struct_to_form_roundtrip,surface_splice}`
+   — `UnresolvedReference "not a builtin"` on a bare-name construction of a type declared via the LOW-LEVEL
+   `recordtype`/`aggregatetype`/`structtype` primitive. **CORRECTED read (builder, this session): a raw `recordtype` is the
+   machinery primitive `defstruct`/`defrecord` expand TO — an INTERNAL/macro-crafting act, so the prime is the LEGITIMATE
+   form.** The codemod wrongly kwargs-ified these (the fixture's own comment shows the original was positional
+   `(:test::db::BR 7 8)`); the fix is a FIXTURE correction → the PRIME `(:test::db::BR' 7 8)`, NOT minting companions for
+   raw primitives (which would blur the internal/user boundary — raw recordtype = prime-only, no companion, per the design).
+   Do this per-test: some (surface-record-emission, struct_to_form, surface_splice) may have a different root — `--no-capture` each.
 5. **wat-scripts load** (17 files) — `wat::lint wat_scripts_fixes_load`: same wrong/un-migrated-kwargs class OUTSIDE
    `tests/` (`wat-scripts/fixes/to-faithful-clojure-{net,rete}.wat`, `wat-scripts/perf/{grid/*,matrix/*,deep-cascade}.wat`,
    `wat-scripts/probes/arc-170/*`). Bigger files (full RETE nets, perf grids) — its own dedicated pass.
