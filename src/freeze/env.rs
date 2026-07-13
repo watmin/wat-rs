@@ -20,7 +20,10 @@ use std::collections::HashMap;
 
 use crate::ast::WatAST;
 use crate::check::{validate_aggregate_containment, validate_arc170_legacy_callsites, validate_bare_legacy_primitives, CheckError, CheckErrors};
-use crate::macros::{expand_all, register_defmacros, register_stdlib_defmacros, MacroRegistry};
+use crate::macros::{
+    expand_all, register_aggregate_kwargs_companions, register_defmacros,
+    register_stdlib_defmacros, MacroRegistry,
+};
 use crate::resolve::{normalize_symbol_refs, resolve_references};
 use crate::runtime::{
     preregister_acronyms, preregister_stdlib_defclause_stub,
@@ -89,6 +92,20 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     let mut macros = MacroRegistry::new();
     let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
     let post_macro_reg = register_defmacros(user_forms, &mut macros)?;
+
+    // Arc 294 item 9a — class closure: an aggregate registered directly in Rust
+    // (`TypeEnv::with_builtins()` — `register_builtin_types` + the `inventory`
+    // `EdnSchema` drain) never flows through a wat `defstruct`/`defrecord`
+    // invocation, so it never gets a kwargs companion macro minted the way a
+    // wat-declared aggregate does. Mint one here, structurally, for every such
+    // aggregate that doesn't already have one (skip-if-present — a wat-emitted
+    // companion, were one somehow already registered under the same bare name,
+    // is never clobbered). MUST run before `expand_all` below: that's the pass
+    // that actually resolves `(:T :field v ...)` call sites into the companion's
+    // `kwargs-lower` forward. `TypeEnv::with_builtins()` is self-contained (no
+    // stdlib/user forms needed) so it's safe to construct this early, ahead of
+    // step 5's real `types` build.
+    register_aggregate_kwargs_companions(&crate::types::TypeEnv::with_builtins(), &mut macros)?;
 
     // ORDER LOAD-BEARING: macro_eval purity (src/macros/eval.rs) depends on
     // expand_all preceding register_defines. See freeze.rs header comment.

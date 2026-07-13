@@ -253,3 +253,96 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
 // `parse_argspec_triples` (Stone 241.1's canonical parser) is now the third major consumer
 // after fn (Stones 241.2) and defclause (Stone 241.3/241.4).
 // Per `feedback_hard_cut_admits_no_bypasses` — no compatibility shim.
+
+// ─── Arc 294 item 9a — Rust-registered-aggregate kwargs companion class closure ──
+//
+// A wat `defstruct`/`defrecord` invocation mints its own kwargs companion macro
+// at ITS OWN macro-expansion time (`wat/core.wat:1694` — the `(:wat::core::do
+// (:wat::core::structtype ~@args) (:wat::core::defmacro ~fqdn-bare-kw ...))`
+// shape). An aggregate registered directly in Rust (`TypeEnv::with_builtins()`
+// via `register_builtin_types`, including the `inventory`-driven `EdnSchema`
+// drain) never goes through that macro, so it never gets a companion — bare
+// kwargs construction (`(:wat::holon::CapacityExceeded :cost 200 :budget 100)`)
+// fails `UnknownFunction`. This closes the class structurally: every
+// `TypeDef::Aggregate` the baked `TypeEnv` knows about gets a companion, full
+// stop — no aggregate can lack one.
+//
+// The synthesized companion is byte-for-byte the same THIN FORWARDER shape
+// `defstruct`'s macro emits (proven by hand in a scratch probe before this
+// code existed — see arc 294 item 9a strike notes): a `defmacro` whose body
+// bakes in the prime ctor keyword, the field-name vector, and the
+// pascal->kebab-in namespace, then forwards the call args to
+// `:wat::core::kwargs-lower`. It does NOT mint the ctor — `register_aggregate_methods`
+// (runtime.rs) already mints the prime `:T'` for every aggregate unconditionally.
+//
+// Rendered as wat SOURCE TEXT and routed through the real parser +
+// `parse_defmacro_form` (rather than hand-rolled `WatAST` construction) so the
+// synthesized macro is provably identical in shape to what a human — or
+// `defstruct` — would author, and so it passes the same definition-time
+// hygiene/purity validation (`validate_macro_definition`) every other macro does.
+pub fn register_aggregate_kwargs_companions(
+    types: &crate::types::TypeEnv,
+    registry: &mut MacroRegistry,
+) -> Result<(), MacroError> {
+    use crate::types::TypeDef;
+
+    for (_key, def) in types.iter() {
+        let agg = match def {
+            TypeDef::Aggregate(a) => a,
+            _ => continue,
+        };
+        // Skip-if-present — never clobber a companion a wat `defstruct`/`defrecord`
+        // already registered under this bare name. Determined the only way the
+        // registry exposes: `MacroRegistry::contains`.
+        if registry.contains(&agg.name) {
+            continue;
+        }
+        let source = aggregate_kwargs_companion_source(&agg.name, agg.field_names());
+        let form = crate::parse_one!(&source).map_err(|e| MacroError {
+            span: crate::rust_caller_span!(),
+            kind: MacroErrorKind::MalformedDefmacro {
+                reason: format!(
+                    "internal: synthesized kwargs companion for {} failed to parse: {:?}",
+                    agg.name, e
+                ),
+            },
+        })?;
+        let macro_def = parse_defmacro_form(form)?;
+        // `register_stdlib` — every candidate here comes from `TypeEnv::with_builtins()`,
+        // which seeds substrate (`:wat::*`-prefixed) types exclusively, so the companion
+        // needs the same reserved-prefix bypass the literal stdlib defmacro path gets.
+        registry.register_stdlib(macro_def)?;
+    }
+    Ok(())
+}
+
+/// Render the companion `defmacro` source for aggregate `bare_name` with
+/// `field_names` in declaration order — the exact shape `defstruct`'s macro
+/// (`wat/core.wat:1694`) generates for the `(:wat::core::defmacro ~fqdn-bare-kw
+/// ...)` half (the `structtype` half is skipped: the aggregate is already
+/// registered).
+fn aggregate_kwargs_companion_source<'a>(
+    bare_name: &str,
+    field_names: impl Iterator<Item = &'a str>,
+) -> String {
+    let prime = format!("{bare_name}'");
+    let ns = {
+        let mut parts: Vec<&str> = bare_name.split("::").collect();
+        parts.pop(); // drop the type-name leaf, keep the namespace lead
+        format!("{}::", parts.join("::"))
+    };
+    let fields: Vec<&str> = field_names.collect();
+    format!(
+        "(:wat::core::defmacro {bare_name} \
+           [& call-args <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST \
+           (:wat::core::let \
+             [_kl-impl (:wat::core::keyword-node \"{prime}\") \
+              _kl-fvec (:wat::core::quote [{fields}]) \
+              _kl-ns (:wat::core::keyword-node \"{ns}\")] \
+             `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args)))",
+        bare_name = bare_name,
+        prime = prime,
+        fields = fields.join(" "),
+        ns = ns,
+    )
+}
