@@ -119,17 +119,34 @@
   ;; NOTE: the kwargs-companion field-name extraction below walks `fields` at THIS macro's
   ;; own expansion time — BEFORE `~@:Surface` splices are resolved (that happens later, at
   ;; type-registration, in `parse_aggregate_fields_with_splices`). A splice-bearing field
-  ;; vector (e.g. wat/telemetry.wat's `Metric`/`Log`) is therefore NOT correctly handled by
-  ;; this extraction — a known Phase-A gap, not silently patched over here.
+  ;; vector (e.g. wat/telemetry.wat's `Metric`/`Log`) therefore has its `~@:Surface` elements
+  ;; SKIPPED here (never `ast-name`d — they are not field names) — the companion bakes only
+  ;; the record's OWN literal `name <- :T` fields; the full post-splice field list (own +
+  ;; spliced) is minted later at type-registration for the prime ctor + accessors. Mirrors
+  ;; the splice-node shape check in `parse_aggregate_fields_with_splices` / `splice_target`
+  ;; (src/types/defstruct.rs:326 — `(:wat::core::unquote-splicing :Surface)`).
   (:wat::core::let
     [field-ch     (:wat::core::ast->children fields)
-     field-len    (:wat::core::length field-ch)
+     clean-field-ch
+     (:wat::core::foldl
+       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+         (:wat::core::let
+           [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "defrecord kwargs companion: field-ch index")
+            is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
+                        (:wat::core::= (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children item))) ":wat::core::unquote-splicing")
+                        false)]
+           (:wat::core::if is-splice
+             acc
+             (:wat::core::conj acc item))))
+       (:wat::core::Vector :wat::WatAST)
+       (:wat::core::range 0 (:wat::core::length field-ch)))
+     field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::core::i64::/ field-len 3)
      fname-nodes  (:wat::core::foldl
                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
                       (:wat::core::conj acc
                         (:wat::core::Option/expect
-                          (:wat::core::get field-ch (:wat::core::i64::* i 3))
+                          (:wat::core::get clean-field-ch (:wat::core::i64::* i 3))
                           "defrecord kwargs companion: fname index")))
                     (:wat::core::Vector :wat::WatAST)
                     (:wat::core::range 0 n-fields))
@@ -190,13 +207,29 @@
   ;; `aggregate-new` body is nature-blind and derives the hologram internally for HolonRecord.
   (:wat::core::let
     [field-ch     (:wat::core::ast->children fields)
-     field-len    (:wat::core::length field-ch)
+     ;; Arc 294 item 9a fix (surface-splice regression) — see the BASE macro above for the
+     ;; full rationale: skip `~@:Surface` splice elements before the name/<-/type triple
+     ;; walk, so the companion bakes only the record's OWN literal fields.
+     clean-field-ch
+     (:wat::core::foldl
+       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+         (:wat::core::let
+           [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "holon defrecord kwargs companion: field-ch index")
+            is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
+                        (:wat::core::= (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children item))) ":wat::core::unquote-splicing")
+                        false)]
+           (:wat::core::if is-splice
+             acc
+             (:wat::core::conj acc item))))
+       (:wat::core::Vector :wat::WatAST)
+       (:wat::core::range 0 (:wat::core::length field-ch)))
+     field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::core::i64::/ field-len 3)
      fname-nodes  (:wat::core::foldl
                     (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
                       (:wat::core::conj acc
                         (:wat::core::Option/expect
-                          (:wat::core::get field-ch (:wat::core::i64::* i 3))
+                          (:wat::core::get clean-field-ch (:wat::core::i64::* i 3))
                           "holon defrecord kwargs companion: fname index")))
                     (:wat::core::Vector :wat::WatAST)
                     (:wat::core::range 0 n-fields))

@@ -28,7 +28,11 @@
    value <- :wat::core::i64])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [m (:probe::Metric "market-eval" "u-123" 456 "requests" 7)]
+  ;; Arc 294 item 9a — the bare name is now the kwargs companion (order-free
+  ;; `:field value` pairs); raw positional construction over the merged
+  ;; (spliced + own) field list goes through the PRIME, minted at type-
+  ;; registration from the REGISTERED (post-splice) fields.
+  (:wat::core::let [m (:probe::Metric' "market-eval" "u-123" 456 "requests" 7)]
     ;; a spliced field (from Scope) + a spliced field (from Named) + the own field
     (:wat::kernel::println (:probe::Metric/namespace m))
     (:wat::kernel::println (:probe::Metric/name m))
