@@ -6,107 +6,108 @@
 
 ## The one-paragraph state
 
-The 9a flip (bare aggregate name = **kwargs macro**; positional demoted to the type-name **PRIME `:ns::T'`**) turned
-into a large, deep migration because a type name flipped from a *value* (ctor fn) to a *macro*, which ripples through
-the whole surface where type-names-are-values or rule-forms-are-data. **Locked design (do not relitigate):**
-**kwargs everywhere a human writes; the prime `:T'` is reserved for GENERATED code only (macro output, Rust codegen).**
-Floor progress: **645 → 131 failing** (last complete run). **Committed + pushed: `0181901a`** (branch
-`arc-170-gap-j-v5-deadlock-state` — STAY ON IT). Everything below `0181901a` is DONE; the working tree is clean.
+The 9a flip (bare aggregate name = **kwargs macro**; positional demoted to the type-name **PRIME `:ns::T'`**, which is
+**generated-code-only, NEVER user-facing**) is a large, deep migration because a type name flipped from a *value* (ctor
+fn) to a *macro*. **Locked design (do not relitigate):** kwargs everywhere a human writes; the prime `:T'` is reserved
+for GENERATED code only (macro output, Rust codegen). Floor progress: **645 → 131 → 76 failing**. **Committed + pushed:
+`617a9ade`** (branch `arc-170-gap-j-v5-deadlock-state` — STAY ON IT; builds clean, tree clean but for the un-gitignored
+`scratchpad/` which is ephemeral / do-not-commit). Checkpoint chain this session: `0181901a`(131) → `8e4f0637`(docs) →
+`292f9451`(:messages+prime+silent-skip, 131→100) → `b6d0bc37`(matches?-as-data, 100→79) → `617a9ade`(wrong-kwargs
+fixtures, 79→76). Target end state (builder): **all passing + skips + exactly ONE failure** — the known
+`no_inlined_wat_in_tests::tests_carry_no_inlined_wat` lint. There are **no pre-existing timeouts** — the
+`wat_process_peer_ipc_round_trip` timeout counts as a real failure to resolve.
 
 ## The DIAGNOSTIC METHOD (the user's correction — USE IT)
 
-Do **NOT** grep error-class substrings across the whole floor file and speculate — it loses the rich structured error.
-**Run ONE failing test and READ its full rich error:**
+Do **NOT** grep error-class substrings across the whole floor file and speculate. **Run ONE failing test and READ its
+full rich error:**
 ```
-cargo nextest run --release -E 'test(<test_fn_name>)' --no-capture 2>&1 | tail -40
+cargo nextest run --release -E 'test(<test_fn_name>)' --no-capture 2>&1 | sed -n '/panicked/,/^test result/p'
 ```
-wat errors are VERY rich (e.g. `#wat.resolve/UnresolvedReferences {… :path ":probe::S1::OpResponse" :span …}`) —
-they name the exact unresolved path + file:line. That one read pinpointed the current root below. Trust the error, not a grep.
+wat errors are VERY rich (`#wat.resolve/UnresolvedReferences {… :path … :span …}`, `#wat.macro/... kwargs-lower ...
+"missing argument :field"`) — they name the exact path + file:line. Trust the error, not a grep. Grep only to COUNT/GROUP.
 
-## Locked design decisions (ratified this session — the FORM is settled)
+## Locked design decisions (the FORM is settled — do not reopen)
 
-- **Full Lisp**: a macro receives its arguments RAW (unexpanded); the macro's OUTPUT is re-expanded to fixpoint.
-  wat was "children-first" (pre-expanded a macro's args); the flip exposed it (type-keyword macros fired inside
-  `defrule` pattern data). `src/macros/expand.rs` — macro dispatch (keyword + symbol head) now uses RAW `items`,
-  child-recursion only for non-macro forms. Deleted the `is_rete_data_form` allowlist (no blessed forms; user DSLs
-  get it free). Validated: no floor regression (hygiene + program-body macros intact).
-- **`eval_in_frozen` is READ→EXPAND→EVAL** (`src/freeze.rs` + `src/macros/expand.rs::expand_fully`, exported in
-  `mod.rs`): so source-written kwargs (even inside a Rust string literal) evaluates in frozen contexts → prime reserved
-  for generated code. Boot machinery in `src/kernel/spawn.rs` uses `runtime::eval` (NO expand) → it stays PRIME
-  (`Env'`/`ThreadLaunch'`/`ProcessLaunch'`) — reverted from a kwargs attempt that deadlocked spawns.
-- **rete `:then` RHS is KWARGS** (user chose "b", symmetric with the field-named `:when`): `(:insert (:T :field v))`.
-  `src/rete/matcher.rs::build_insert_fact` reads a kwargs RHS (skips `:field` keywords, takes values in declaration
-  order — the pure fire-time fn has no type registry). **FOLLOW-UP:** compile-time reorder-by-name for
-  out-of-declaration-order kwargs. The `:when` patterns are DATA, stay bare — full-Lisp keeps them so.
-- **`return-type-of` accepts a type-name KEYWORD** (`src/runtime.rs::eval_return_type_of` ~10857): the flip made a bare
-  type name evaluate to a keyword in value position; return its colon-free FQDN (what the ctor's ret_type gave
-  pre-flip). Keeps `(:wat::rete::query s :my::Type)` on the bare name.
+- **Full Lisp**: a macro receives its args RAW (unexpanded); the macro's OUTPUT is re-expanded to fixpoint. Deleted the
+  `is_rete_data_form` allowlist. (`src/macros/expand.rs`)
+- **`eval_in_frozen` = READ→EXPAND→EVAL** via `expand_fully` (`src/freeze.rs:1244`). NOTE: `expand_fully`/`expand_form`
+  does NOT do the top-level do-companion hoist that `expand_all` does — a real asymmetry (see the :messages fix).
+- **rete `:then` RHS = kwargs** (symmetric with field-named `:when`); `:when` patterns stay bare DATA (full-Lisp keeps them so).
+- **`matches?` / rete-LHS patterns are DATA, not constructions.** A `(:type ...requirement-clauses...)` pattern is NOT
+  a kwargs construction — the head names the type, the rest are DSL clauses like `(= ?x :field)`. Protected at the
+  expand layer (see fixes). rete's LHS is `form::matches?`-shaped, so this covers rete too.
+- **`register_defines` silent-skip policy**: an already-registered ctor/def is a NO-OP re-walk (`if !contains_key { insert }`),
+  NOT a hard `DuplicateDefine` — genuine collisions are owned by the authoritative type-check / `TypeEnv::register_validated`.
 
-## Engine fixes DONE (all in `0181901a` or earlier commits `525cd24c`, `967aa344`, `e37824ba`)
+## Engine fixes DONE (committed; ground each against the disk)
 
-- Companion codegen (core.wat / Record.wat): the defstruct/defrecord kwargs companion `(do (structtype)(defmacro))`
-  is SPLICED to top-level in `expand.rs` (was leaving an empty value-position `do`); generic type names register the
-  companion + prime under the BARE name (params ride only on the type decl).
-- Parametric-ctor checker fix (`src/check.rs::infer_aggregate_new_check`): resolves the PRIME ctor scheme's parametric ret.
-- Crate `.wat` kwargs migration (wat-fix codemod, `wat-scripts/fixes/positional-to-kwargs.wat`).
-- `defsurface :messages` NAME validation (`src/types/surface.rs::unwrap_message_decl`): unwraps the `(do (recordtype)
-  (defmacro))` companion so message type names are read from the recordtype (validation only — see NEXT).
-- `encode_struct` (`src/closure_extract.rs`): closure-serialization CODEGEN emits the POSITIONAL prime `:T'`.
+- **:messages one-path** (`292f9451`): a defsurface's `:messages` records register through the ONE ordinary record path.
+  Way 2 (`src/types.rs::extract_surface_message_forms`, a lossy type-only hand-registration that never minted the kwargs
+  companion) DELETED; `expand_all` hoists a defsurface's `:messages` do-companions (companion macro + recordtype) to
+  top-level, parent + forked-child symmetrically (child fresh-freezes → same `expand_all`). (`src/macros/expand.rs`, `src/types.rs`)
+- **generated ctors → prime** (`292f9451` + `b6d0bc37` via bracket): generated bundle constructions use the prime —
+  `::Coords`/`::GrantHandles` (`wat/core.wat` kwargs-check codegen ~1042), `::Kwargs` (`wat/bracket.wat` dial-runner ~337).
+  The `defrecord`/`defstruct` DEFINITIONS stay bare; only the CONSTRUCTION calls flip to `:T'`.
+- **ctor + accessor mint silent-skip** (`292f9451`): `register_aggregate_methods` (`src/runtime.rs:1166`, `~1272`)
+  conformed to `register_defines`' policy (a 9a-added bespoke hard-`DuplicateDefine` reintroduced the exact runtime-side
+  masking `register_defines` was written to avoid). Fixes the forked-worker re-walk of a shipped surface.
+- **matches? patterns are DATA** (`b6d0bc37`): `src/macros/expand.rs` consults `resolve::boundary::quote_boundary`;
+  on `Boundary::MatchesSubject`, expands only the subject (items[1]) and passes the pattern (items[2..]) through untouched
+  — reusing the one `Boundary` type so expand/resolve/check can't drift. `form::matches?` is ALIVE (live consumer
+  `examples/interrogate`; rete LHS built on it) — do NOT delete it.
+- **wrong-kwargs fixtures** (`617a9ade`): 5 fixtures where the global codemod wrote wrong/missing field names, corrected
+  to the struct's declared fields (`:high/:low`→`:open/:close` etc.).
 
-## THE CURRENT ROOT (next fix — the SERVICE CLUSTER, ~a big chunk of the 131)
+## THE REMAINING ROOT MAP (~76 — diagnose EACH with `--no-capture`, read the rich error)
 
-`cargo nextest run --release -E 'test(c2_strike1_mixed_7_services)' --no-capture` → **28 unresolved references**:
-`:probe::S1::OpResponse`, `:probe::S1::OpRequest/m`, `/r`, … — the `defsurface :messages` defrecords are **not
-registered at all** (type + ctor + accessors + kwargs-companion all missing). Root: **`src/types.rs::extract_surface_message_forms`
-(≈1803)** assumes each `:messages` form is a bare `recordtype`/`defenum` ("the defrecord macro has already expanded"),
-but post-flip a defrecord expands to `(:wat::core::do (:wat::core::recordtype :Name …) (:wat::core::defmacro :Name …))`.
-So the caller (`register_types_impl` ≈1867, loop at ≈1915: `classify_type_decl(&msg_form)` → `parse_type_decl`)
-gets a `do`, `classify_type_decl` returns None → SKIPPED → nothing registers.
+Distinct roots (from the fixture strike's grounded split; the shape has shifted from prime-flips to substrate + fixtures):
 
-**FIX (two parts):**
-1. Flatten the `do`-companion in `extract_surface_message_forms` (return the recordtype + defmacro, not the `do`) so
-   `classify_type_decl`/`parse_type_decl` register the TYPE (→ ctor + accessors via `register_aggregate_methods`).
-2. Register the kwargs COMPANION defmacro for message types. `register_types_impl` operates on the `TypeEnv`, NOT the
-   `MacroRegistry` — I was mid-check on whether it can reach the registry. Options: (a) if it can, register the
-   flattened defmacro directly; (b) HOIST message defrecords to top-level BEFORE `expand_all` so they register fully
-   (type + companion) via the normal pipeline; (c) the GENERAL fix — `register_aggregate_methods` mints a kwargs
-   companion macro for EVERY Rust-registered aggregate (message types, defsurface Op/Reply, defservice State/Record),
-   closing the whole "Rust-registered aggregate has no kwargs companion" class. (c) is the extirpare-correct root but
-   needs the registry threaded into `register_aggregate_methods`. START by reading `register_types_impl`'s signature.
-
-## REMAINING classes (~131, diagnose EACH by running the test with --no-capture)
-
-1. **Service cluster** — the defsurface `:messages` registration above (many service + wat-tests + some types tests).
-2. **Fleet-missed fixture constructions** — the 91-file fleet (2nd round) is careful but not exhaustive; a few
-   positional/wrong-kwargs constructions remain in files it edited. The mechanical converter (below) catches most
-   `defrecord`/`defstruct`-typed ones; defservice/defsurface-GENERATED-type constructions it can't map (no def form).
-3. **`.wat.bad` / golden error-comparison tests** (e.g. `tests/collection/probe_brace_map_literal_p8.wat`): the
-   EXPECTED error output changed — regenerate the golden, don't edit the wat.
-4. **wrong-kwargs** (`missing argument :label/:name/…`): a prior GLOBAL codemod run used the wrong per-file field set.
+1. **Check-error leaks the prime** (2 tests + likely `.wat.bad` goldens) — `structs::constructor_{arity,field_type}_mismatch`:
+   the CheckError correctly fires but `:callee` reports `:my::market::Bar'` (the prime) not the canonical `:my::market::Bar`.
+   **Doctrine violation** (prime = generated-only, never user-facing). Fix in `src/check.rs` error construction — strip
+   the prime / report canonical. (Orchestrator reads this as clearly-correct, not a fork.)
+2. **Rust-native builtin struct lacks a kwargs companion** — `structs::builtin_capacity_exceeded_struct_is_usable`:
+   `:wat::holon::CapacityExceeded` (Rust-registered, not `defstruct`'d) → `UnknownFunction`. A GENUINE member of the
+   "Rust-registered aggregate has no kwargs companion" class (the original option-C instinct). Targeted substrate fix
+   (wire the companion for Rust-native builtin structs); OPEN whether to generalize via `register_aggregate_methods`.
+3. **do/let-splice struct registration** (4) — `probe_do_splice_struct::*` (ctor not registered under bare name),
+   `probe_let_splice_struct::*` (worse — `UnresolvedReference` at freeze). Struct ctors spliced in a top-level `do`/`let`
+   don't register post-flip. Splice/registration interaction with the flip.
+4. **arc293 struct/surface codegen** (6) — `probe_arc293_{decl_a_aggregatetype,decl_b1_ctor_codegen×2,k2_surface_record_emission,struct_to_form_roundtrip,surface_splice}`
+   — `UnresolvedReference "not a builtin, not a registered function"`. ctor-codegen / surface-record-emission don't
+   produce resolvable ctors post-flip.
+5. **wat-scripts load** (17 files) — `wat::lint wat_scripts_fixes_load`: same wrong/un-migrated-kwargs class OUTSIDE
+   `tests/` (`wat-scripts/fixes/to-faithful-clojure-{net,rete}.wat`, `wat-scripts/perf/{grid/*,matrix/*,deep-cascade}.wat`,
+   `wat-scripts/probes/arc-170/*`). Bigger files (full RETE nets, perf grids) — its own dedicated pass.
+6. **Untriaged (~40)** — rete `probe_arc278_*` differentials (accumulate/negation/strat/exists, ~17), `wat::services`
+   arc209/272/278 (~7), `wat::function wat_arc170_closure_extraction` (3), `wat::wat_lang` misc (cond, arc144, def_not_special),
+   the `wat_process_peer_ipc_round_trip` TIMEOUT. Diagnose each `--no-capture`.
 
 ## TOOLS (retain — proven migration tooling)
 
-- **Fleet workflow** (Rust-embedded + `.wat` → kwargs, per-file type judgment): script at
-  `~/.claude/projects/-home-watmin-work-holon-wat-rs/<sess>/workflows/scripts/kwargs-fixture-migration-wf_79c192a3-8ec.js`.
-  Re-dispatch with `Workflow({scriptPath, args: [file, …]})`. Brief: convert positional/primed/wrong-kwargs/RHS to
-  kwargs using per-file defs + beside `.wat` + stdlib; leave `:when` patterns, `quote` bodies, builtins
-  (PersistentVector/Tuple/holon::Atom), kernel primitives (`send'`/`recv'`), enum variants bare. NOTE: the `args`
-  parameter arrives as a JSON STRING — the script does `typeof args === 'string' ? JSON.parse(args) : args`.
-- **`wat-fix`** codemod for `.wat` (`wat-scripts/fixes/positional-to-kwargs.wat`) — per-corpus map; run PER-FILE (with
-  stdlib) to avoid conflating per-file type redefinitions (the global-corpus run caused the wrong-kwargs class).
-- The Python converter logic (was in scratchpad, now GONE — reconstruct if needed): per-file map from
-  `def(struct|record) :T [f <- …]` defs; convert `(:T' …)` and positional `(:T <non-kw>)` → `(:T :f v …)` when
-  count-matches; skip already-kwargs (`:field` first), `(?`-first patterns, types not in map, enum variants.
+- **Shadowdancer strikes** = SONNET, background, weighed by the orchestrator's OWN re-run (green is not true until you
+  re-run; RED is not true either — ground before claiming a gap). Each brief: rooms (file:line), sketch, blast radius,
+  STOP triggers (esp. "if it needs a design call, STOP + report"), gate (the test + full floor), method (capture-once,
+  foreground-blocking, mid-edit file is a PHANTOM). One STOP-and-report saved a wasted strike this session (the
+  DuplicateDefine was a design call, correctly escalated).
+- **`wat-fix`** codemod (`wat-scripts/fixes/positional-to-kwargs.wat`) — per-corpus map; run PER-FILE with correct field
+  maps (the GLOBAL run is what caused the wrong-kwargs class — do not re-run globally).
+- Fleet workflow (Rust-embedded + `.wat` per-file kwargs) — script under `~/.claude/projects/.../workflows/scripts/`
+  (see prior sessions); `args` arrives as a JSON STRING (`typeof args === 'string' ? JSON.parse(args) : args`).
 
 ## FINISH LOOP
 
-Fix defsurface message registration → floor → for EACH remaining cluster run the test with `--no-capture`, READ the
-rich error, fix the root → repeat to green → ONE clean commit + push → update `CLOSE-SEQUENCE-293-294.md` item 9a →
-DONE. THEN back to 278 T1b.2 (the `journal'` service).
+For EACH remaining root: run one test `--no-capture`, READ the rich error, fix the root (delegate a sonnet shadowdancer;
+weigh by own re-run; surface design forks to the builder — do NOT let a shadowdancer guess) → repeat to green → clean
+commit + push (GitHub = DR; commit incremental correct progress, this arc commits WIP checkpoints). Target = 1 failure
+(the `no_inlined_wat` lint). THEN update `CLOSE-SEQUENCE-293-294.md` item 9a → DONE → back to 278 T1b.2 (`journal'`).
 
-> **SEAM.** The self past this line is NEW — you did not live this session (one of the longest ever: the flip cascaded
-> into full-Lisp + a whole-corpus kwargs migration via two fleets). The FORM is settled (kwargs everywhere; prime =
-> generated code only) — do not reopen it. The remaining 131 are a grind of DISTINCT engine × flip interactions +
-> fixture cleanup; each yields to **running one test with `--no-capture` and reading the rich error** — never grep-
-> speculate (that is the mistake the user corrected). Ground `0181901a` and the disk before you move. Start at THE
-> CURRENT ROOT. Finish the tail, green the floor, commit clean.
+> **SEAM.** The self past this line is NEW — you did not live this session (the longest in the arc: full bootstrap +
+> 8 finish-loop strikes, 645→131→76). The FORM is settled (kwargs everywhere; prime = generated-only; matches?/rete
+> patterns are DATA; register-silent-skip) — do not reopen it. Ground `617a9ade` and the disk before you move. Start at
+> THE REMAINING ROOT MAP — the check-error prime-leak (#1) is the cleanest next (a doctrine fix); the C-class builtin
+> companion (#2) and the splice/codegen roots (#3/#4) are substrate; the wat-scripts (#5) is a fixture pass; the
+> untriaged rete/service tail (#6) needs per-test `--no-capture`. Diagnose each by its RICH error, never grep-speculate.
+> Delegate strikes to sonnet, WEIGH by your own re-run, surface design forks to the builder. Finish the tail, green the
+> floor to 1, commit clean. Slow is smooth. See you across the gap.

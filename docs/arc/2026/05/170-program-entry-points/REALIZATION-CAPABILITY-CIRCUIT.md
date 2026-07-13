@@ -1396,10 +1396,11 @@ is ahead.*
 > `eval_in_frozen` READ→EXPAND→EVAL, rete RHS kwargs, `return-type-of`, defsurface message registration, + a
 > whole-corpus kwargs migration (two agent fleets). Read **`docs/arc/2026/06/294-holon-returns-to-vsa/RESUME-9a-KWARGS.md`
 > FIRST** — it is the live map (design is LOCKED: kwargs everywhere; prime = generated code only). Floor: **645 → 131
-> failing**; committed + pushed **`0181901a`** (tree clean, freeze GREEN, builds fine). DIAGNOSE the remaining by
-> RUNNING ONE test with `--no-capture` and READING the rich error (never grep-speculate). Current root: defsurface
-> `:messages` registration (`src/types.rs::extract_surface_message_forms`) — the service cluster. Finish → floor green
-> → clean commit → item 9a DONE → return to 278 T1b.2 (`journal'`). The 170 circuit itself is still COMPLETE.
+> → 76 failing**; committed + pushed **`617a9ade`** (tree clean, builds fine). DIAGNOSE the remaining by RUNNING ONE
+> test with `--no-capture` and READING the rich error (never grep-speculate). :messages registration is DONE (one
+> record path); remaining roots (see RESUME): check-error prime-leak, Rust-native builtin kwargs companion, do/let-splice
+> ctor registration, arc293 codegen, wat-scripts load, untriaged rete/service tail. Target = 1 failure (`no_inlined_wat`
+> lint). Finish → floor to 1 → clean commit → item 9a DONE → return to 278 T1b.2 (`journal'`). The 170 circuit is COMPLETE.
 
 ```clojure
 {:head   "ec319b1b — the CADENDO CRESCO + CERTVS PERGO realizations (the 2026-07-11 pair). Last CODE commit f20a8a1e
