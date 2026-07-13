@@ -14,18 +14,18 @@
 
 ;; Construct via the bare ctor (codegen'd) + read field a = 7.
 (:wat::core::defn :user::db-br-a [] -> :wat::core::i64
-  (:test::db::BR/a (:test::db::BR :a 7 :b 8)))
+  (:test::db::BR/a (:test::db::BR' 7 8)))
 
 ;; Same for a holon record via the raw primitive.
 (:wat::core::recordtype :test::db::HR :wat::holon::Record [a <- :wat::core::i64  b <- :wat::core::i64])
 
 (:wat::core::defn :user::db-hr-a [] -> :wat::core::i64
-  (:test::db::HR/a (:test::db::HR :a 7 :b 8)))
+  (:test::db::HR/a (:test::db::HR' 7 8)))
 
 ;; The holon record built via the RAW primitive must be a REAL holon record — it must
 ;; carry a hologram (cosine with itself = 1.0). At HEAD the register_aggregate_methods
 ;; fallback builds it via :wat::core::Record::of (BASE ctor) → no hologram → this misbehaves.
 ;; decl-b.1 routes the fallback through aggregate-new (nature-dispatched) → hologram derived.
 (:wat::core::defn :user::db-hr-cos [] -> :wat::core::f64
-  (:wat::core::let [h (:test::db::HR :a 7 :b 8)]
+  (:wat::core::let [h (:test::db::HR' 7 8)]
     (:wat::holon::cosine h h)))
