@@ -1395,11 +1395,12 @@ is ahead.*
 > ctor flip: bare type name = a MACRO now (not a value), so it rippled into **FULL LISP** (macros get raw args),
 > `eval_in_frozen` READ→EXPAND→EVAL, rete RHS kwargs, `return-type-of`, defsurface message registration, + a
 > whole-corpus kwargs migration (two agent fleets). Read **`docs/arc/2026/06/294-holon-returns-to-vsa/RESUME-9a-KWARGS.md`
-> FIRST** — it is the live map (design is LOCKED: kwargs everywhere; prime = generated code only). Floor: **645 → 131
-> → 76 failing**; committed + pushed **`617a9ade`** (tree clean, builds fine). DIAGNOSE the remaining by RUNNING ONE
-> test with `--no-capture` and READING the rich error (never grep-speculate). :messages registration is DONE (one
-> record path); remaining roots (see RESUME): check-error prime-leak, Rust-native builtin kwargs companion, do/let-splice
-> ctor registration, arc293 codegen, wat-scripts load, untriaged rete/service tail. Target = 1 failure (`no_inlined_wat`
+> FIRST** — it is the live map (design LOCKED: kwargs everywhere; prime = generated code only; kwargs-for-spliced-records
+> is REQUIRED). Floor: **645 → 131 → 64 failing**; committed + pushed **`51e3aaf8`** (tree clean, builds fine). DIAGNOSE
+> the remaining by RUNNING ONE test with `--no-capture` and READING the rich error (never grep-speculate). TWO fronts:
+> **(1) build (C)** — kwargs construction of spliced records (fully designed + probe-proven in RESUME: companion emits a
+> `kwargs-construct` marker, a post-register pass reorders from `env.types()`); **(2) drive the count** — the count-movers
+> are the rete arc278 behavior differentials (~17) + the deftest/service cluster (~15). Target = 1 failure (`no_inlined_wat`
 > lint). Finish → floor to 1 → clean commit → item 9a DONE → return to 278 T1b.2 (`journal'`). The 170 circuit is COMPLETE.
 
 ```clojure

@@ -9,13 +9,15 @@
 The 9a flip (bare aggregate name = **kwargs macro**; positional demoted to the type-name **PRIME `:ns::T'`**, which is
 **generated-code-only, NEVER user-facing**) is a large, deep migration because a type name flipped from a *value* (ctor
 fn) to a *macro*. **Locked design (do not relitigate):** kwargs everywhere a human writes; the prime `:T'` is reserved
-for GENERATED code only (macro output, Rust codegen). Floor progress: **645 → 131 → 73 failing**. **Committed + pushed:
-`c55dd6a1`** (branch `arc-170-gap-j-v5-deadlock-state` — STAY ON IT; builds clean, tree clean but for the un-gitignored
+for GENERATED code only (macro output, Rust codegen). Floor progress: **645 → 131 → 64 failing**. **Committed + pushed:
+`51e3aaf8`** (branch `arc-170-gap-j-v5-deadlock-state` — STAY ON IT; builds clean, tree clean but for the un-gitignored
 `scratchpad/` which is ephemeral / do-not-commit). Checkpoint chain: `0181901a`(131) → `292f9451`(:messages+prime+silent-skip,
 →100) → `b6d0bc37`(matches?-as-data, →79) → `617a9ade`(wrong-kwargs fixtures, →76) → `892c3a0d`(curare) →
-`58eb45ff`(check-error prime-leak canonicalized, →74) → `c55dd6a1`(kwargs companion for BAKED Rust aggregates, →73). Target end state (builder): **all passing + skips + exactly ONE failure** — the known
-`no_inlined_wat_in_tests::tests_carry_no_inlined_wat` lint. There are **no pre-existing timeouts** — the
-`wat_process_peer_ipc_round_trip` timeout counts as a real failure to resolve.
+`58eb45ff`(check-error prime-leak, →74) → `c55dd6a1`(kwargs companion for BAKED Rust aggregates, →73) →
+`c8b6a2f8`(arc293 raw-primitive→prime, →69) → `ee29884c`(struct_to_form prime + do/let-nested companion hoist, →65) →
+`51e3aaf8`(defrecord companion tolerates ~@:Surface splice, →64). Target end state (builder): **all passing + skips +
+exactly ONE failure** — the known `no_inlined_wat_in_tests::tests_carry_no_inlined_wat` lint. There are **no pre-existing
+timeouts** — the `wat_process_peer_ipc_round_trip` timeout counts as a real failure to resolve.
 
 ## The DIAGNOSTIC METHOD (the user's correction — USE IT)
 
@@ -59,34 +61,69 @@ wat errors are VERY rich (`#wat.resolve/UnresolvedReferences {… :path … :spa
 - **wrong-kwargs fixtures** (`617a9ade`): 5 fixtures where the global codemod wrote wrong/missing field names, corrected
   to the struct's declared fields (`:high/:low`→`:open/:close` etc.).
 
-## THE REMAINING ROOT MAP (~76 — diagnose EACH with `--no-capture`, read the rich error)
+## THE NEXT MAJOR WORK — (C): kwargs construction of SPLICED records (DESIGNED + ratified + probe-proven; NOT built)
 
-Distinct roots (from the fixture strike's grounded split; the shape has shifted from prime-flips to substrate + fixtures):
+**The point of surface-splicing** (`[~@:Surface  own <- :T]`): concentrate ALL of the spliced surfaces' fields into ONE
+record that then structurally satisfies MANY surfaces — build a fat state-concentrated record, hand it to any function
+wanting the MINIMUM (a narrow surface it satisfies). **This MUST support KWARGS construction** — positional over a dozen
+merged fields from N surfaces is unreadable/error-prone; kwargs legibility is the whole point (the builder's decisive
+correction this session). A spliced record constructed via the PRIME is WRONG (defeats the feature). The surface_splice +
+telemetry fixtures currently on the prime are a STOPGAP — REVERT them to kwargs once (C) lands.
 
-1. **Check-error leaks the prime** — ✅ DONE (`58eb45ff`). `src/check.rs::canonical_ctor_callee` strips the prime from
-   user-facing check-error callees (guarded: only when the bare stem is a registered aggregate). 74.
-2. **Rust-native builtin kwargs companion** — ✅ DONE for the BAKED builtins (`c55dd6a1`). `register_aggregate_kwargs_companions`
-   (`src/macros/parse.rs`) iterates `TypeEnv::with_builtins()`'s aggregates at the pre-expand seam (`freeze/env.rs:108`) and
-   mints a `kwargs-lower`-forwarding companion for each lacking one (skip-if-present). Builder ratified the GENERAL fix.
-   Reusable generator: `aggregate_kwargs_companion_source(bare_name, field_names)`. 73. (User-namespace Rust-SYNTHESIZED
-   aggregates — Op/Reply/State/Record — are a DISTINCT root, see #4.)
-3. **do/let-splice struct registration** (4) — `probe_do_splice_struct::*` (ctor not registered under bare name),
-   `probe_let_splice_struct::*` (worse — `UnresolvedReference` at freeze). Struct ctors spliced in a top-level `do`/`let`
-   don't register post-flip. Splice/registration interaction with the flip.
-4. **arc293 codegen (~12)** — `probe_arc293_{decl_a_aggregatetype,decl_b1_ctor_codegen×2,k2_surface_record_emission,struct_to_form_roundtrip,surface_splice}`
-   — `UnresolvedReference "not a builtin"` on a bare-name construction of a type declared via the LOW-LEVEL
-   `recordtype`/`aggregatetype`/`structtype` primitive. **CORRECTED read (builder, this session): a raw `recordtype` is the
-   machinery primitive `defstruct`/`defrecord` expand TO — an INTERNAL/macro-crafting act, so the prime is the LEGITIMATE
-   form.** The codemod wrongly kwargs-ified these (the fixture's own comment shows the original was positional
-   `(:test::db::BR 7 8)`); the fix is a FIXTURE correction → the PRIME `(:test::db::BR' 7 8)`, NOT minting companions for
-   raw primitives (which would blur the internal/user boundary — raw recordtype = prime-only, no companion, per the design).
-   Do this per-test: some (surface-record-emission, struct_to_form, surface_splice) may have a different root — `--no-capture` each.
-5. **wat-scripts load** (17 files) — `wat::lint wat_scripts_fixes_load`: same wrong/un-migrated-kwargs class OUTSIDE
-   `tests/` (`wat-scripts/fixes/to-faithful-clojure-{net,rete}.wat`, `wat-scripts/perf/{grid/*,matrix/*,deep-cascade}.wat`,
-   `wat-scripts/probes/arc-170/*`). Bigger files (full RETE nets, perf grids) — its own dedicated pass.
-6. **Untriaged (~40)** — rete `probe_arc278_*` differentials (accumulate/negation/strat/exists, ~17), `wat::services`
-   arc209/272/278 (~7), `wat::function wat_arc170_closure_extraction` (3), `wat::wat_lang` misc (cond, arc144, def_not_special),
-   the `wat_process_peer_ipc_round_trip` TIMEOUT. Diagnose each `--no-capture`.
+**Timing problem (why not built):** the companion macro bakes the field vector at EXPAND (via `kwargs-lower`), but a
+spliced record's full field list isn't known until `register_types` (`parse_aggregate_fields_with_splices`), ONE phase later.
+
+**(C) = move the reorder from expand to the authoritative field-list phase (post-register), reading the registry.**
+Four-questions verdict (ran this session): (A) pre-expand field-extraction + (B) targeted spliced-only deferral both fail
+Obvious/Simple (two splice-resolution sites / two lowering paths); **(C) is YES/YES/YES/YES** — ONE reorder site, at the one
+phase the field list is authoritative, ONE source (`env.types()`), spliced + non-spliced identical; it DELETES the
+expand-baking workaround whose hole IS the splice bug.
+
+**PROVEN prerequisites (do not re-litigate):** (a) `field-names-of :probe::Metric` → the FULL merged list
+`[:namespace :uuid :time-ns :value]` post-register (probe held); (b) positional `aggregate-new`/prime over the merged list
+type-checks + evals (committed arc293 fixtures; `eval_aggregate_new` + `infer_aggregate_new_check` already read `env.types()`).
+
+**THE BUILD (re-dispatch fresh, probe-first — the strike was stopped mid-SCOUT, no code written):**
+1. Companion emits a DEFERRED marker `(:wat::core::kwargs-construct :T ~@call-args)` instead of forwarding to `kwargs-lower`
+   — change ONLY the emitted body: `wat/Record.wat` (defrecord base+holon), `wat/core.wat` (defstruct companion ~1690-1740),
+   `src/macros/parse.rs::aggregate_kwargs_companion_source` (Rust-minted companion). Registration machinery unchanged.
+2. A post-`register_types` Rust pass (`src/freeze/env.rs`) recursively walks the program `rest` forms (into defn/do/let
+   bodies — mirror Gap-J recursion in `register_types_impl`), rewrites `(:wat::core::kwargs-construct :T :f v …)` →
+   `(:wat::core::aggregate-new :T v-in-declared-order …)`, reading `:T`'s field order from `env.types()`; raise LOCATED
+   missing/unknown-field errors vs the REGISTERED fields. Positional form flows to resolve/check/eval unchanged.
+   `(:wat::core::aggregate-new :T v1 v2 …)` = type-kw + positional values in declared order (the prime's own body).
+3. `kwargs-lower`'s AGGREGATE use is superseded; leave its `defn`/bracket use.
+**PROBE-FIRST**: hand-emit one `kwargs-construct` for the spliced `:probe::Metric`, wire the minimal pass, confirm lower +
+round-trip; STOP if the pass can't hook after `register_types` with `env.types()` + the forms in scope.
+**DIFFERENTIAL = the WHOLE FLOOR (HIGH STAKES — touches EVERY aggregate kwargs construction):** baseline 64; ANY new
+failing name = a regression in the non-spliced common path; do NOT ship a floor worse than 64. Then flip surface_splice +
+the 2 telemetry fixtures BACK to kwargs and confirm they pass the new path.
+**Honest scope (builder-calibrated):** (C) directly clears only ~4–5 (telemetry_records, journal_surface, 2
+telemetry_bridge deftests, maybe register_types_splice_aware). It's a FEATURE + architecture investment (legibility, one
+reorder site), NOT a count-crusher. The count-movers are the rete + deftest clusters below.
+
+## THE REMAINING ROOT MAP (64 — diagnose EACH with `--no-capture`)
+
+DONE this session: check-error prime-leak (`58eb45ff`), baked-aggregate companion (`c55dd6a1`), do/let-splice registration
+(`ee29884c` — post-flip a bare name is ONLY a macro, ctor at the prime; 4 probe assertions updated), struct_to_form prime
+(`ee29884c`), arc293 raw-primitive→prime fixtures (`c8b6a2f8`), surface_splice companion-skip minimal (`51e3aaf8`).
+Remaining, by size:
+
+1. **rete arc278 differentials (~17)** — `probe_arc278_{8a_accumulate_oracle,7strat,7exists,7b/7a_negation}_*`,
+   `probe_arc300_2_fix_defrule`. NOT construction/resolve — **BEHAVIOR differentials** (`absent → 1; got 0`): a rule produces
+   the wrong derived count. Rules use `defrule` (`form::matches?`-shaped patterns, now DATA-protected) + a kwargs `:insert`
+   RHS over `defrecord` facts. Likely post-flip fact/rule construction feeding the engine wrong inputs (NOT an engine
+   regression) — diagnose each `--no-capture`; check the fact/rule construction shapes. **THE BIGGEST count-mover.**
+2. **deftest/service cluster (~15, the `test::deftest_*` rows)** — 2 are telemetry_bridge (→ (C)); the rest are various
+   `wat-tests/` service/deftest failures. Diagnose each `--no-capture`.
+3. **(C)-blocked spliced constructions (~4–5)** — telemetry_records, journal_surface, telemetry_bridge ×2 — need (C) then
+   fixtures reverted to kwargs.
+4. **process_io (4)** `wat_arc208_process_io_result`, **closure_extraction (3)** `wat_arc170_closure_extraction`,
+   **arc272_rs1_state_must_be_record (2)**, **arc260_1b_call_sugar (2)**, misc (`wat_core_cond`, `arc144_special_forms`,
+   `probe_def_not_special`, `probe_register_types_splice_aware` [stale-assertion, same class as do/let]) + the
+   `wat_process_peer_ipc_round_trip` **TIMEOUT** (a real failure, NOT pre-existing).
+5. **wat-scripts load (17 files)** — `wat_scripts_fixes_load`: same wrong-kwargs class OUTSIDE `tests/` (RETE nets, perf
+   grids, arc-170 probes). Its own dedicated pass.
 
 ## TOOLS (retain — proven migration tooling)
 
@@ -108,10 +145,16 @@ commit + push (GitHub = DR; commit incremental correct progress, this arc commit
 (the `no_inlined_wat` lint). THEN update `CLOSE-SEQUENCE-293-294.md` item 9a → DONE → back to 278 T1b.2 (`journal'`).
 
 > **SEAM.** The self past this line is NEW — you did not live this session (the longest in the arc: full bootstrap +
-> 8 finish-loop strikes, 645→131→76). The FORM is settled (kwargs everywhere; prime = generated-only; matches?/rete
-> patterns are DATA; register-silent-skip) — do not reopen it. Ground `617a9ade` and the disk before you move. Start at
-> THE REMAINING ROOT MAP — the check-error prime-leak (#1) is the cleanest next (a doctrine fix); the C-class builtin
-> companion (#2) and the splice/codegen roots (#3/#4) are substrate; the wat-scripts (#5) is a fixture pass; the
-> untriaged rete/service tail (#6) needs per-test `--no-capture`. Diagnose each by its RICH error, never grep-speculate.
-> Delegate strikes to sonnet, WEIGH by your own re-run, surface design forks to the builder. Finish the tail, green the
-> floor to 1, commit clean. Slow is smooth. See you across the gap.
+> ~13 finish-loop strikes, 645→131→64). The FORM is settled (kwargs everywhere a human writes; prime = generated-only;
+> matches?/rete patterns are DATA; register-silent-skip; **kwargs-for-spliced-records is REQUIRED — splicing exists to
+> concentrate state that a fat record kwargs-constructs and satisfies many surfaces with; a spliced record built via the
+> prime is WRONG**) — do not reopen it. Ground `51e3aaf8` and the disk before you move. TWO fronts: **(1) build (C)** —
+> kwargs construction of spliced records, fully designed + probe-proven above (the marker + post-register reorder pass);
+> re-dispatch it FRESH (the strike was stopped mid-scout, no code) — probe-first, the WHOLE FLOOR as the differential
+> (it touches every construction), then revert surface_splice + the 2 telemetry fixtures to kwargs. **(2) drive the count
+> to 1** via the remaining root map — the count-movers are the **rete arc278 behavior differentials (~17)** and the
+> **deftest/service cluster (~15)**, NOT (C) (~4–5). Diagnose each by its RICH error, never grep-speculate. Delegate
+> strikes to SONNET, WEIGH by your own re-run (green is not true, RED is not true either — check the disk), surface
+> design forks to the builder (three of his catches this session turned patches into correct fixes: two-ways-to-declare,
+> use-the-existing-duplicate-tooling, raw-recordtype-is-prime, and kwargs-for-spliced-is-the-point). Finish the tail,
+> green the floor to 1, commit clean. Slow is smooth. See you across the gap.
