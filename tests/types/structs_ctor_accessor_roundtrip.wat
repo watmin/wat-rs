@@ -4,7 +4,7 @@
    close <- :wat::core::f64])
 (:wat::core::defn :my::compute [] -> :wat::core::f64
   (:wat::core::let
-    [b (:my::market::Bar :high 1.0 :low 2.0)
+    [b (:my::market::Bar :open 1.0 :close 2.0)
      o (:my::market::Bar/open b)
      c (:my::market::Bar/close b)]
     (:wat::core::f64::- c o)))

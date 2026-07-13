@@ -18,7 +18,7 @@
 (:wat::core::defn :user::sweep-file
   [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let [src   (:wat::io::read-file path)
-                    fixed (:wat::lint::lint-fix-file (:wat::source::File path src))]
+                    fixed (:wat::lint::lint-fix-file (:wat::source::File :path path :source src))]
     (:wat::core::if (:wat::core::= src fixed)
       nil
       (:wat::core::do
