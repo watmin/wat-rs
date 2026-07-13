@@ -167,6 +167,25 @@ pub fn expand_once(
     Ok(form)
 }
 
+/// Fully expand a single form to fixpoint with an IMMUTABLE registry — the eval-time
+/// READ→EXPAND→EVAL step (`eval_in_frozen` and the boot/machinery source-eval sites).
+///
+/// Unlike [`expand_all`] (the startup pass, which registers defmacros through a `&mut`
+/// registry), this expands an *expression for evaluation*: no new macros are defined
+/// (mutation forms are refused upstream by the caller), so the registry is borrowed
+/// shared. Recurses into children and fixpoints via [`expand_form`] (full-Lisp raw-args
+/// semantics). This is what lets a source-written kwargs construction — even one inside
+/// a Rust string literal handed to `eval_in_frozen` — expand and evaluate; the prime
+/// `:T'` is then needed only in *generated* code (macro output), never in written source.
+pub fn expand_fully(
+    form: WatAST,
+    registry: &MacroRegistry,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<WatAST, MacroError> {
+    expand_form(form, registry, 0, env, sym)
+}
+
 /// Expand a single form. Recursively expands children, then checks
 /// whether the resulting node is itself a macro call; if so, expand it,
 /// and continue to fixpoint.

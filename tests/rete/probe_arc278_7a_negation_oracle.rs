@@ -37,14 +37,14 @@ fn count(inserts: &[&str]) -> Result<i64, String> {
 /// 1 — `:not` PASSES when the negated fact is ABSENT: Temp(Oslo), no Maintenance → 1 Unattended.
 #[test]
 fn negation_passes_when_absent() {
-    let r = count(&["(:weather::Temperature -5 \"Oslo\")"]);
+    let r = count(&["(:weather::Temperature :celsius -5 :location \"Oslo\")"]);
     assert!(matches!(r, Ok(1)), "no Maintenance at Oslo → 1 Unattended; got {r:?}");
 }
 
 /// 2 — `:not` BLOCKS when the negated fact is PRESENT and MATCHES: Temp(Oslo) + Maintenance(Oslo) → 0.
 #[test]
 fn negation_blocks_when_present_matching() {
-    let r = count(&["(:weather::Temperature -5 \"Oslo\")", "(:ops::Maintenance \"Oslo\")"]);
+    let r = count(&["(:weather::Temperature :celsius -5 :location \"Oslo\")", "(:ops::Maintenance :location \"Oslo\")"]);
     assert!(matches!(r, Ok(0)), "Maintenance at Oslo → 0 Unattended; got {r:?}");
 }
 
@@ -52,6 +52,6 @@ fn negation_blocks_when_present_matching() {
 /// Temp(Oslo) + Maintenance(Bergen) → the Bergen maintenance does NOT match ?loc=Oslo → 1 Unattended.
 #[test]
 fn negation_passes_when_present_different_binding() {
-    let r = count(&["(:weather::Temperature -5 \"Oslo\")", "(:ops::Maintenance \"Bergen\")"]);
+    let r = count(&["(:weather::Temperature :celsius -5 :location \"Oslo\")", "(:ops::Maintenance :location \"Bergen\")"]);
     assert!(matches!(r, Ok(1)), "Maintenance at Bergen ≠ Oslo → 1 Unattended; got {r:?}");
 }

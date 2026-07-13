@@ -29,7 +29,7 @@ fn world(threshold: i64) -> String {
             (:weather::WindSpeed   (?loc <- :location) (?k <- :kph))\n\
             (:wat::rete::where (:wat::core::> ?c {threshold}))]\n\
            :then\n\
-           (:wat::rete::insert (:weather::ColdAndWindy ?loc)))"
+           (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))"
     )
 }
 
@@ -41,8 +41,8 @@ fn count(world_src: &str, fire_fn: &str) -> Result<i64, String> {
           (:wat::core::let\n\
             [rules   (:wat::rete::collect-rules :weather)\n\
              session (:wat::rete::compile rules)\n\
-             session (:wat::rete::insert session (:weather::Temperature -5 \"Oslo\"))\n\
-             session (:wat::rete::insert session (:weather::WindSpeed    45 \"Oslo\"))\n\
+             session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
+             session (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\"))\n\
              fired   (:wat::rete::{fire_fn} session)]\n\
             (:wat::rete::query fired :weather::ColdAndWindy)))"
     );

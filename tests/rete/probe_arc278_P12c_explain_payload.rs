@@ -19,10 +19,10 @@ fn nav(body: &str) -> Value {
         "(:wat::core::let\n\
           [rules   (:wat::rete::collect-rules :weather)\n\
            session (:wat::rete::compile rules)\n\
-           session (:wat::rete::insert session (:weather::Temperature -5 \"Oslo\"))\n\
-           session (:wat::rete::insert session (:weather::WindSpeed    40 \"Oslo\"))\n\
+           session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
+           session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
            ex      (:wat::rete::fire-rules-explain session)\n\
-           root    (:wat::rete::explain ex (:weather::ColdAndWindy -5 40))\n\
+           root    (:wat::rete::explain ex (:weather::ColdAndWindy :celsius -5 :kph 40))\n\
            step0   (:wat::core::nth (:wat::rete::DerivationNode/via root) 0)]\n\
           {body})"
     );

@@ -998,7 +998,7 @@ fn invoke_user_main_orchestrated(
             // Arc 294 item 9a — internal boot machinery evals the ctor form directly (no
             // macro expansion), so it targets the positional PRIME `:EmptyEnv'` (the bare
             // name is now the kwargs companion macro, which never runs on this path).
-            &crate::parse_one!("(:wat::program::EmptyEnv')")
+            &crate::parse_one!("(:wat::program::EmptyEnv)")
                 .expect("arc 209 C0b.3b-d: EmptyEnv ctor parses"),
             frozen,
             &crate::runtime::Environment::new(),
@@ -1011,7 +1011,7 @@ fn invoke_user_main_orchestrated(
         .build();
     let env_src = format!(
         // Arc 294 item 9a — direct-eval boot machinery → positional PRIME `:Env'`.
-        "(:wat::program::Env' (:wat::time::at-nanos {boot_nanos}) (:wat::time::now) {pid} {tid} :wat::program::PeerKind::process {cpu_count} user-program)"
+        "(:wat::program::Env :wat.started-at (:wat::time::at-nanos {boot_nanos}) :wat.peer-started-at (:wat::time::now) :wat.process-id {pid} :wat.os-thread-id {tid} :wat.peer-kind :wat::program::PeerKind::process :wat.cpu-count {cpu_count} :user.program user-program)"
     );
     let env_ast = crate::parse_one!(&env_src)
         .expect("arc 259: the program-env constructor form parses");
@@ -1234,7 +1234,20 @@ pub fn eval_in_frozen(
     env: &Environment,
 ) -> Result<TrackedValue, RuntimeError> {
     refuse_mutation_forms(ast)?;
-    crate::runtime::eval(ast, env, frozen.symbols())
+    // READ→EXPAND→EVAL (arc 294 item 9a — full Lisp). Expand macros against the frozen
+    // registry BEFORE eval, so a source-written form (a kwargs construction, a user
+    // macro/DSL — even inside a Rust string literal) evaluates correctly here, exactly
+    // as it would at startup. Without this, `eval_in_frozen` was READ→EVAL and callers
+    // had to reach for the positional prime `:T'`; with it, written source is kwargs and
+    // the prime is reserved for GENERATED code. Mutation forms are refused on BOTH the
+    // raw and the expanded form (a macro could expand to a def/defmacro).
+    let expanded = crate::macros::expand_fully(ast.clone(), &frozen.macros, env, frozen.symbols())
+        .map_err(|e| RuntimeError {
+            span: ast.span().clone(),
+            kind: RuntimeErrorKind::MacroExpansionFailed { op: "eval_in_frozen".into(), cause: Box::new(e) },
+        })?;
+    refuse_mutation_forms(&expanded)?;
+    crate::runtime::eval(&expanded, env, frozen.symbols())
 }
 
 /// Digest-verified eval — the wat `(:wat::eval-digest! ...)`

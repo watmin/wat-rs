@@ -23,8 +23,8 @@ fn run_with_explained(body: &str) -> Value {
         "(:wat::core::let\n\
           [rules   (:wat::rete::collect-rules :weather)\n\
            session (:wat::rete::compile rules)\n\
-           session (:wat::rete::insert session (:weather::Temperature -5 \"Oslo\"))\n\
-           session (:wat::rete::insert session (:weather::WindSpeed    40 \"Oslo\"))\n\
+           session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
+           session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
            ex      (:wat::rete::fire-rules-explain session)]\n\
           {body})"
     );

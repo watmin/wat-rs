@@ -34,9 +34,9 @@ fn count(fire_fn: &str, inserts: &[&str]) -> Result<i64, String> {
     }
 }
 
-const ABSENT: &[&str] = &["(:weather::Temperature -5 \"Oslo\")"];
-const PRESENT_MATCH: &[&str] = &["(:weather::Temperature -5 \"Oslo\")", "(:ops::Maintenance \"Oslo\")"];
-const PRESENT_DIFF: &[&str] = &["(:weather::Temperature -5 \"Oslo\")", "(:ops::Maintenance \"Bergen\")"];
+const ABSENT: &[&str] = &["(:weather::Temperature :celsius -5 :location \"Oslo\")"];
+const PRESENT_MATCH: &[&str] = &["(:weather::Temperature :celsius -5 :location \"Oslo\")", "(:ops::Maintenance :location \"Oslo\")"];
+const PRESENT_DIFF: &[&str] = &["(:weather::Temperature :celsius -5 :location \"Oslo\")", "(:ops::Maintenance :location \"Bergen\")"];
 
 /// 1 — DIFFERENTIAL, negation passes (absent): native == oracle, both 1.
 #[test]

@@ -45,7 +45,7 @@ fn alpha_match_binds_and_constrains() {
     let got = ev(&w, &format!(
         "(:wat::core::PersistentMap/get \
            (:wat::core::Option/expect \
-             (:wat::rete::alpha-match {COND} (:user::Temp 25)) \"matched\") \
+             (:wat::rete::alpha-match {COND} (:user::Temp :value 25)) \"matched\") \
            \"?t\")"
     ));
     assert_eq!(
@@ -58,7 +58,7 @@ fn alpha_match_binds_and_constrains() {
 fn alpha_match_rejects_failed_constraint() {
     let w = world();
     // 15 binds ?t but 15 > 20 is false → None (no-error, not a raise).
-    let got = ev(&w, &format!("(:wat::rete::alpha-match {COND} (:user::Temp 15))"));
+    let got = ev(&w, &format!("(:wat::rete::alpha-match {COND} (:user::Temp :value 15))"));
     assert!(is_none_option(&got), "failed constraint → None; got {got:?}");
 }
 
@@ -67,7 +67,7 @@ fn alpha_match_rejects_wrong_type() {
     let w = world();
     // Condition head :user::Other ≠ fact type :user::Temp → None.
     let got = ev(&w, &format!(
-        "(:wat::rete::alpha-match (:wat::core::quote (:user::Other (?t <- :value))) (:user::Temp 25))"
+        "(:wat::rete::alpha-match (:wat::core::quote (:user::Other (?t <- :value))) (:user::Temp :value 25))"
     ));
     assert!(is_none_option(&got), "wrong fact type → None; got {got:?}");
 }

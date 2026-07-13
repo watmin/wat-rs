@@ -10856,6 +10856,17 @@ fn eval_return_type_of(
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let f = match v {
         Value::wat__core__fn(f) => f,
+        // Arc 294 item 9a — the construction flip made a bare aggregate type name a MACRO
+        // (its positional ctor moved to the prime `:T'`), so a bare type name in VALUE
+        // position now evaluates to a KEYWORD, not the ctor fn it used to be. The
+        // return-type-of a ctor WAS the constructed type itself; so for a type-name
+        // keyword, return that type's colon-free FQDN directly — exactly what reading the
+        // ctor's `ret_type` yielded pre-flip. Keeps `(:wat::rete::query session :my::Type)`
+        // working with the bare type name (the encouraged form), no prime at the call site.
+        Value::wat__core__keyword(k) => {
+            let fqdn = k.strip_prefix(':').unwrap_or(&k).to_string();
+            return Ok(Value::String(Arc::new(fqdn)));
+        }
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),

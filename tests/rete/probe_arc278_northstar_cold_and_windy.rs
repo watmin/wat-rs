@@ -29,8 +29,8 @@ const RUN: &str = "\
   (:wat::core::let\n\
     [rules    (:wat::rete::collect-rules :weather)\n\
      session  (:wat::rete::compile rules)\n\
-     session  (:wat::rete::insert session (:weather::Temperature 15 \"Oslo\"))\n\
-     session  (:wat::rete::insert session (:weather::WindSpeed    45 \"Oslo\"))\n\
+     session  (:wat::rete::insert session (:weather::Temperature :celsius 15 :location \"Oslo\"))\n\
+     session  (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\"))\n\
      fired    (:wat::rete::fire-rules session)]\n\
     (:wat::rete::query fired :weather::ColdAndWindy)))";
 

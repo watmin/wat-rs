@@ -64,10 +64,10 @@ fn explain_cold_and_windy_reaches_its_two_inputs() {
     (:wat::core::let\n\
       [rules   (:wat::rete::collect-rules :weather)\n\
        session (:wat::rete::compile rules)\n\
-       session (:wat::rete::insert session (:weather::Temperature -5 \"Oslo\"))\n\
-       session (:wat::rete::insert session (:weather::WindSpeed    40 \"Oslo\"))\n\
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
+       session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
        fired   (:wat::rete::fire-rules-explain session)]\n\
-      (:wat::rete::explain fired (:weather::ColdAndWindy -5 40)))))");
+      (:wat::rete::explain fired (:weather::ColdAndWindy :celsius -5 :kph 40)))))");
     assert!(matches!(n, Value::i64(2)), "ColdAndWindy's why-tree must reach 2 input facts (Temperature, WindSpeed); got {n:?}");
 }
 
@@ -83,9 +83,9 @@ fn explain_weather_alert_has_one_derived_support() {
     (:wat::core::let\n\
       [rules   (:wat::rete::collect-rules :weather)\n\
        session (:wat::rete::compile rules)\n\
-       session (:wat::rete::insert session (:weather::Temperature -5 \"Oslo\"))\n\
-       session (:wat::rete::insert session (:weather::WindSpeed    40 \"Oslo\"))\n\
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
+       session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
        fired   (:wat::rete::fire-rules-explain session)]\n\
-      (:wat::rete::explain fired (:weather::WeatherAlert -5 40)))))");
+      (:wat::rete::explain fired (:weather::WeatherAlert :celsius -5 :kph 40)))))");
     assert!(matches!(n, Value::i64(1)), "WeatherAlert's why-tree has exactly 1 supporting fact (the derived ColdAndWindy); got {n:?}");
 }

@@ -30,10 +30,10 @@ const HANDBUILT_FIRED: &str = "\
    c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
    c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
    rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   rule  (:wat::rete::Rule' \"weather::cold-and-windy\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+   rule  (:wat::rete::Rule :name \"weather::cold-and-windy\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-   s1    (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
-   s2    (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
+   s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+   s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
    fired (:wat::rete::fire-rules s2)";
 
 // ── query ───────────────────────────────────────────────────────────────────
@@ -78,8 +78,8 @@ fn defrule_rule_fires_end_to_end() {
         "(:wat::core::let [\
            rules (:wat::core::PersistentVector (:weather::cold-and-windy))\
            sess0 (:wat::rete::compile rules)\
-           s1    (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
-           s2    (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
+           s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+           s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
            fired (:wat::rete::fire-rules s2)]\
            (:wat::core::length (:wat::rete::query fired :weather::ColdAndWindy)))");
     assert_eq!(got, Value::i64(1), "a defrule'd rule compiles + fires + derives end to end; got {got:?}");

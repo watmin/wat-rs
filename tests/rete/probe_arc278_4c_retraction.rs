@@ -20,10 +20,10 @@ const RULES: &str = "\
    ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
    ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
    ra1   (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   ruleA (:wat::rete::Rule' \"A\" (:wat::core::PersistentVector ca1 ca2) (:wat::core::PersistentVector ra1))\
+   ruleA (:wat::rete::Rule :name \"A\" :lhs (:wat::core::PersistentVector ca1 ca2) :rhs (:wat::core::PersistentVector ra1))\
    cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))\
    rb1   (:wat::core::quote (:wat::rete::insert (:weather::WeatherAlert ?loc)))\
-   ruleB (:wat::rete::Rule' \"B\" (:wat::core::PersistentVector cb1) (:wat::core::PersistentVector rb1))\
+   ruleB (:wat::rete::Rule :name \"B\" :lhs (:wat::core::PersistentVector cb1) :rhs (:wat::core::PersistentVector rb1))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector ruleA ruleB))";
 
 fn ev(expr: &str) -> Value {
@@ -65,8 +65,8 @@ fn fire_keeps_input_facts_distinct_from_derived() {
     // assert Temp+Wind at Oslo, fire. Session.facts must hold the 2 INPUT facts and NO derived ColdAndWindy.
     let setup = format!(
         "(:wat::core::let [{RULES}\
-           s1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
-           s2 (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
+           s1 (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+           s2 (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
            fired (:wat::rete::fire-rules s2)]"
     );
     // input facts present (Temperature kept):
@@ -86,10 +86,10 @@ fn fire_keeps_input_facts_distinct_from_derived() {
 fn retract_removes_derived_consequence() {
     let setup = format!(
         "(:wat::core::let [{RULES}\
-           s1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
-           s2 (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
+           s1 (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+           s2 (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
            f0 (:wat::rete::fire-rules s2)\
-           s3 (:wat::rete::retract f0 (:weather::Temperature 15 \"Oslo\"))\
+           s3 (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
            fired (:wat::rete::fire-rules s3)]"
     );
     assert_eq!(ev(&format!("{setup} {})", derived_of("weather::ColdAndWindy"))), Value::i64(0),
@@ -102,10 +102,10 @@ fn retract_removes_derived_consequence() {
 fn retract_cascades_transitively() {
     let setup = format!(
         "(:wat::core::let [{RULES}\
-           s1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
-           s2 (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
+           s1 (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+           s2 (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
            f0 (:wat::rete::fire-rules s2)\
-           s3 (:wat::rete::retract f0 (:weather::Temperature 15 \"Oslo\"))\
+           s3 (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
            fired (:wat::rete::fire-rules s3)]"
     );
     // WA depended on CW which depended on Temp → retracting Temp takes the whole chain down.
@@ -119,12 +119,12 @@ fn retract_cascades_transitively() {
 fn retract_leaves_independent_derivations() {
     let setup = format!(
         "(:wat::core::let [{RULES}\
-           s1 (:wat::rete::insert sess0 (:weather::Temperature 15 \"Oslo\"))\
-           s2 (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))\
-           s3 (:wat::rete::insert s2 (:weather::Temperature 10 \"Bergen\"))\
-           s4 (:wat::rete::insert s3 (:weather::WindSpeed 50 \"Bergen\"))\
+           s1 (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+           s2 (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
+           s3 (:wat::rete::insert s2 (:weather::Temperature :celsius 10 :location \"Bergen\"))\
+           s4 (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location \"Bergen\"))\
            f0 (:wat::rete::fire-rules s4)\
-           s5 (:wat::rete::retract f0 (:weather::Temperature 15 \"Oslo\"))\
+           s5 (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
            fired (:wat::rete::fire-rules s5)]"
     );
     // Oslo's CW drops; Bergen's CW survives (its support is intact).

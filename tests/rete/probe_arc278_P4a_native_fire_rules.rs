@@ -27,10 +27,10 @@ fn single_rule(wind_loc: &str) -> String {
    c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
    c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))\
    rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs1))\
+   rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\
    s0    (:wat::rete::compile (:wat::core::PersistentVector rule))\
-   s1    (:wat::rete::insert s0 (:weather::Temperature 15 \"Oslo\"))\
-   s2    (:wat::rete::insert s1 (:weather::WindSpeed 45 \"{wind_loc}\"))")
+   s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+   s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"{wind_loc}\"))")
 }
 
 fn single_count(wind_loc: &str, fire_verb: &str) -> Value {
@@ -64,13 +64,13 @@ const CASCADE: &str = "\
    ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
    ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))\
    rhsA  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   ruleA (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector ca1 ca2) (:wat::core::PersistentVector rhsA))\
+   ruleA (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector ca1 ca2) :rhs (:wat::core::PersistentVector rhsA))\
    cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))\
    rhsB  (:wat::core::quote (:wat::rete::insert (:weather::WeatherAlert ?loc)))\
-   ruleB (:wat::rete::Rule' \"alert\" (:wat::core::PersistentVector cb1) (:wat::core::PersistentVector rhsB))\
+   ruleB (:wat::rete::Rule :name \"alert\" :lhs (:wat::core::PersistentVector cb1) :rhs (:wat::core::PersistentVector rhsB))\
    s0    (:wat::rete::compile (:wat::core::PersistentVector ruleA ruleB))\
-   s1    (:wat::rete::insert s0 (:weather::Temperature 15 \"Oslo\"))\
-   s2    (:wat::rete::insert s1 (:weather::WindSpeed 45 \"Oslo\"))";
+   s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
+   s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))";
 
 fn cascade_count(ty: &str, fire_verb: &str) -> Value {
     ev(&format!(

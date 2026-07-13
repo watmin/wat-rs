@@ -66,19 +66,19 @@ fn chain_expr(n: usize, query_type: &str) -> String {
     let r2c2 = "(:wat::core::quote (:chain::A (?k <- :k)))";
     let r2t = "(:wat::core::quote (:wat::rete::insert (:chain::C ?k)))";
     let mut binds = format!(
-        "  r1 (:wat::rete::Rule' \"r1\" \
-             (:wat::core::PersistentVector {r1c}) \
-             (:wat::core::PersistentVector {r1t}))\n\
-         r2 (:wat::rete::Rule' \"r2\" \
-             (:wat::core::PersistentVector {r2c1} {r2c2}) \
-             (:wat::core::PersistentVector {r2t}))\n\
+        "  r1 (:wat::rete::Rule :name \"r1\" \
+             :lhs (:wat::core::PersistentVector {r1c}) \
+             :rhs (:wat::core::PersistentVector {r1t}))\n\
+         r2 (:wat::rete::Rule :name \"r2\" \
+             :lhs (:wat::core::PersistentVector {r2c1} {r2c2}) \
+             :rhs (:wat::core::PersistentVector {r2t}))\n\
          s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2))\n"
     );
     let mut prev = 0usize;
     for i in 1..=n {
         let cur = i;
         binds.push_str(&format!(
-            "  s{cur} (:wat::rete::insert s{prev} (:chain::A {i}))\n"
+            "  s{cur} (:wat::rete::insert s{prev} (:chain::A :k {i}))\n"
         ));
         prev = cur;
     }
@@ -118,24 +118,24 @@ fn chain_c_five_inputs_equals_oracle() {
 
 fn triple_expr(n: usize, query_type: &str) -> String {
     let rules = "\
-        r1 (:wat::rete::Rule' \"r1\" \
-             (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k <- :k)))) \
-             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::B ?k)))))\n\
-        r2 (:wat::rete::Rule' \"r2\" \
-             (:wat::core::PersistentVector \
+        r1 (:wat::rete::Rule :name \"r1\" \
+             :lhs (:wat::core::PersistentVector (:wat::core::quote (:tri::A (?k <- :k)))) \
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::B ?k)))))\n\
+        r2 (:wat::rete::Rule :name \"r2\" \
+             :lhs (:wat::core::PersistentVector \
                (:wat::core::quote (:tri::B (?k <- :k))) \
                (:wat::core::quote (:tri::A (?k <- :k)))) \
-             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::C ?k)))))\n\
-        r3 (:wat::rete::Rule' \"r3\" \
-             (:wat::core::PersistentVector \
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::C ?k)))))\n\
+        r3 (:wat::rete::Rule :name \"r3\" \
+             :lhs (:wat::core::PersistentVector \
                (:wat::core::quote (:tri::C (?k <- :k))) \
                (:wat::core::quote (:tri::B (?k <- :k)))) \
-             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::D ?k)))))\n\
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:tri::D ?k)))))\n\
         s0 (:wat::rete::compile (:wat::core::PersistentVector r1 r2 r3))\n";
     let mut binds = rules.to_string();
     let mut prev = 0usize;
     for i in 1..=n {
-        binds.push_str(&format!("  s{i} (:wat::rete::insert s{prev} (:tri::A {i}))\n"));
+        binds.push_str(&format!("  s{i} (:wat::rete::insert s{prev} (:tri::A :k {i}))\n"));
         prev = i;
     }
     format!(
@@ -178,11 +178,11 @@ fn triple_cascade_all_types_equal_oracle() {
 fn xyz_expr(n: usize, query_type: &str) -> String {
     // Rule: X(?k) ⋈ Y(?k) → Z(?k).  X is the first (left) condition, Y is the second (right).
     let rule = "\
-        r1 (:wat::rete::Rule' \"r1\" \
-             (:wat::core::PersistentVector \
+        r1 (:wat::rete::Rule :name \"r1\" \
+             :lhs (:wat::core::PersistentVector \
                (:wat::core::quote (:xyz::X (?k <- :k))) \
                (:wat::core::quote (:xyz::Y (?k <- :k)))) \
-             (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:xyz::Z ?k)))))\n\
+             :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:xyz::Z ?k)))))\n\
         s0 (:wat::rete::compile (:wat::core::PersistentVector r1))\n";
     let mut binds = rule.to_string();
     let mut prev = 0usize;
@@ -190,12 +190,12 @@ fn xyz_expr(n: usize, query_type: &str) -> String {
     // X seeds the left memory BEFORE Y arrives on the right.
     for i in 1..=n {
         let idx = prev + 1;
-        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::X {i}))\n"));
+        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::X :k {i}))\n"));
         prev = idx;
     }
     for i in 1..=n {
         let idx = prev + 1;
-        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::Y {i}))\n"));
+        binds.push_str(&format!("  s{idx} (:wat::rete::insert s{prev} (:xyz::Y :k {i}))\n"));
         prev = idx;
     }
     format!(

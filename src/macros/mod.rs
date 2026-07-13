@@ -108,7 +108,7 @@ pub mod error_edn;
 
 pub use error::{MacroError, MacroErrorKind};
 pub use registry::{MacroDef, MacroRegistry};
-pub use expand::{expand_all, expand_once};
+pub use expand::{expand_all, expand_fully, expand_once};
 pub use parse::{register_defmacros, register_stdlib_defmacros};
 pub use expand::EXPANSION_DEPTH_LIMIT;
 

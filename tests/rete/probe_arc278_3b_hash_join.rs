@@ -23,10 +23,10 @@ fn setup(wind_loc: &str) -> String {
     format!("\
    c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
    c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
-   rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+   rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
    sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-   sess1 (:wat::rete::insert sess0 (:user::Temperature 15 \"Oslo\"))\
-   sess2 (:wat::rete::insert sess1 (:user::WindSpeed 45 \"{wind_loc}\"))\
+   sess1 (:wat::rete::insert sess0 (:user::Temperature :celsius 15 :location \"Oslo\"))\
+   sess2 (:wat::rete::insert sess1 (:user::WindSpeed :kph 45 :location \"{wind_loc}\"))\
    fired (:wat::rete::fire-rules sess2)\
    network (:wat::rete::Session/network fired)\
    bmem  (:wat::rete::Session/beta-memory fired)\
@@ -97,12 +97,12 @@ fn join_drops_on_mismatched_loc() {
 const SETUP_2X2: &str = "\
    c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
    c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
-   rule  (:wat::rete::Rule' \"cw\" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector))\
+   rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector))\
    s0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-   s1 (:wat::rete::insert s0 (:user::Temperature 15 \"Oslo\"))\
-   s2 (:wat::rete::insert s1 (:user::Temperature 10 \"Bergen\"))\
-   s3 (:wat::rete::insert s2 (:user::WindSpeed 45 \"Oslo\"))\
-   s4 (:wat::rete::insert s3 (:user::WindSpeed 50 \"Bergen\"))\
+   s1 (:wat::rete::insert s0 (:user::Temperature :celsius 15 :location \"Oslo\"))\
+   s2 (:wat::rete::insert s1 (:user::Temperature :celsius 10 :location \"Bergen\"))\
+   s3 (:wat::rete::insert s2 (:user::WindSpeed :kph 45 :location \"Oslo\"))\
+   s4 (:wat::rete::insert s3 (:user::WindSpeed :kph 50 :location \"Bergen\"))\
    fired (:wat::rete::fire-rules s4)\
    network (:wat::rete::Session/network fired)\
    bmem  (:wat::rete::Session/beta-memory fired)\

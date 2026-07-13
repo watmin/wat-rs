@@ -75,7 +75,7 @@ fn injected_user_program_flows_to_main() {
         .expect("startup should succeed (C0b.3b-d: user.program injection foundation)");
     // Build the injected user.program Record in the frozen world.
     let injected = eval_in_frozen(
-        &wat::parse_one!("(:user::MyEnv 42)").expect("parse MyEnv ctor"),
+        &wat::parse_one!("(:user::MyEnv :token 42)").expect("parse MyEnv ctor"),
         &world,
         &Environment::new(),
     )

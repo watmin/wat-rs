@@ -52,8 +52,8 @@ fn compile_shares_prefix_and_wires_the_chain() {
   [c1  (:wat::core::quote (:Temperature (= ?t :value))) \
    c2a (:wat::core::quote (:Humidity    (= ?h :value))) \
    c2b (:wat::core::quote (:Pressure    (= ?p :value))) \
-   rA  (:wat::rete::Rule' \"rA\" (:wat::core::PersistentVector c1 c2a) (:wat::core::PersistentVector)) \
-   rB  (:wat::rete::Rule' \"rB\" (:wat::core::PersistentVector c1 c2b) (:wat::core::PersistentVector)) \
+   rA  (:wat::rete::Rule :name \"rA\" :lhs (:wat::core::PersistentVector c1 c2a) :rhs (:wat::core::PersistentVector)) \
+   rB  (:wat::rete::Rule :name \"rB\" :lhs (:wat::core::PersistentVector c1 c2b) :rhs (:wat::core::PersistentVector)) \
    sess (:wat::rete::compile (:wat::core::PersistentVector rA rB))] \
   (:wat::rete::render-dag sess))";
     let r = render(prog);
@@ -78,7 +78,7 @@ fn compile_single_rule_wires_a_connected_chain() {
     let prog = "\
 (:wat::core::let \
   [c1 (:wat::core::quote (:Temperature (= ?t :value))) \
-   rC (:wat::rete::Rule' \"rC\" (:wat::core::PersistentVector c1) (:wat::core::PersistentVector)) \
+   rC (:wat::rete::Rule :name \"rC\" :lhs (:wat::core::PersistentVector c1) :rhs (:wat::core::PersistentVector)) \
    sess (:wat::rete::compile (:wat::core::PersistentVector rC))] \
   (:wat::rete::render-dag sess))";
     let r = render(prog);

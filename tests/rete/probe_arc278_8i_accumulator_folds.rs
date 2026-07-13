@@ -1,7 +1,7 @@
 //! Arc 278 — Stone 8-i: the wat accumulator fold library (`:wat::rete::acc::*`), standalone.
 //! RED at HEAD (the acc fold fns don't exist). GREEN when 8-i lands. Contract: DESIGN-STONE-8-accumulators.md.
 //!
-//! The accumulators are PURE WAT FOLDS over a `PV<Element>` (an Element = `(:wat::rete::Element' fact bindings)`);
+//! The accumulators are PURE WAT FOLDS over a `PV<Element>` (an Element = `(:wat::rete::Element :fact fact :bindings bindings)`);
 //! value-folds read a BOUND `?var` (a string key) from each element's bindings map. `mean` = `sum / count`
 //! (composition). Each fold returns `Option<Value>`: `None` = no token on empty (min/max/mean of nothing);
 //! `Some(v)` otherwise (count/sum emit `Some(0)` on empty; all/distinct → empty; group-by → empty map).
@@ -17,7 +17,7 @@ use wat::runtime::{Environment, Value};
 fn run(body: &str) -> Result<Value, String> {
     let mk = |bytes: i64, port: i64, src: &str| {
         format!(
-            "(:wat::rete::Element' (:net::Packet \"{src}\") \
+            "(:wat::rete::Element :fact (:net::Packet :src \"{src}\") :bindings \
              (:wat::core::PersistentMap/assoc \
                (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) \"?bytes\" {bytes}) \
                \"?port\" {port}))"
