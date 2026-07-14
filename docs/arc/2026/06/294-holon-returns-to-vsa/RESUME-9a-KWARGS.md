@@ -72,16 +72,16 @@
 > post-register pattern, `aggregate-new` + `infer_aggregate_new_check` (arc294). DIFFERENTIAL = WHOLE FLOOR (touches every
 > construction; both probes prove it safe). Expected: 52 → ~48.
 >
-> **RESUME THE IN-FLIGHT (C) BUILD (if a gap hit mid-build — the shadowdancer commits NOTHING):** the safe floor is
-> committed+pushed at `43839be0` (wall+extension+census+brief+probes+this breadcrumb). The (C) build lands as UNCOMMITTED
-> edits in the working tree (new `src/freeze/kwargs_construct.rs` the rewrite pass; the 4 companion edits; the promoted
-> probes). (1) `git status` — if the (C) edits are present, WEIGH them per `BRIEF-C-kwargs-construct-splice.md`'s gate
-> (build clean; the 4 surface-splice tests green = stdlib loads; the un-lowered-marker LOUD-error test green; WHOLE-FLOOR
-> failing-SET diff vs `43839be0` baseline = ZERO new, the 4 targets cleared → ~48). GREEN → commit+push. Broken/incomplete
-> → re-strike from `BRIEF-C`. (2) if the edits are ABSENT/lost → just re-run the build from `BRIEF-C` (design+probes are
-> committed; nothing but mechanical work is redoable). Do NOT trust a mid-edit rustc/rust-analyzer diagnostic (a `dead_code`
-> / `unlinked-file` cascade during the build is a PHANTOM — the pass exists but isn't wired yet). This PIVOT supersedes the
-> "(C) first" ordering in the SEAM below.
+> **(C) BUILD ATTEMPTED + ABANDONED this session — tree REVERTED to clean `c5391e9a`.** The 1st shadowdancer strike at
+> (C) flailed (builder called it, boarding a flight); its uncommitted edits (8 tracked files + `kwargs_construct.rs` + the
+> promoted probes) were DISCARDED (`git checkout` + `rm`) — NOT salvageable, and worthless to debug vs a fresh re-strike
+> (R21: never fight the same boss twice on a bad runner). **Nothing of value lost:** the (C) DESIGN + both GREEN foundation
+> probes (`scratchpad/c_probe.wat` → `facility|42`, `scratchpad/c_equiv.wat` → `1|2|3`) + the full `BRIEF-C-kwargs-construct-splice.md`
+> are all committed on DR. **(C) REDESIGNED — the marker+rewrite-pass approach FLAILED (rewrite walk couldn't reach nested/stdlib constructions; a stale-binary repro showed even a nested USER ctor un-lowered). REDESIGN: `kwargs-construct` is a LIVE check/eval form (reorder kwargs by `env.types()` + construct, mirroring `aggregate-new` + the wall's `reorder_kwargs_by_field_name`) — NO pass, NO hook, NO reject; coverage is FREE because check/eval traverse every construction at every depth in every residue. Brief `BRIEF-C-kwargs-construct-LIVE-FORM.md` (SUPERSEDES the marker brief). RE-STRIKE FRESH from the v2 brief** — probe-first is already done+committed; just
+> re-run the build (a NEW shadowdancer, tighter brief — the flail suggests the brief may need sharpening: watch WHERE it
+> flailed, likely the rewrite-pass wiring / the un-lowered-marker error arms; consider splitting into smaller strikes:
+> (C1) companion→marker at the 4 sites + the marker's loud check/eval reject, then (C2) the rewrite pass). Floor UNCHANGED
+> at **52** (`c5391e9a`, clean, below baseline-64). This PIVOT supersedes the "(C) first" ordering in the SEAM below.
 
 ## The one-paragraph state
 
