@@ -50,6 +50,13 @@
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
 pub(crate) mod env;
+// `pub`, not `pub(crate)` — unlike `env` (a genuinely internal builder), `validator` is the
+// extension point ITSELF: any crate depending on `wat` must be able to name
+// `wat::freeze::validator::{FreezeValidator, FreezeValidatorError}` to `inventory::submit!`
+// its own freeze-time validator (mirrors `crate::restriction_entry`, which is `pub mod` at
+// the crate root for the same reason — see `tests/reflection/wat_arc198_slice2_stone_1_inventory_wiring.rs`
+// for the cross-crate submission proof this same shape supports).
+pub mod validator;
 
 use crate::ast::WatAST;
 use crate::check::{check_program, CheckErrors};
@@ -519,10 +526,14 @@ pub enum StartupError {
     Type(TypeError),
     Resolve(ResolveError),
     Check(CheckErrors),
-    /// Arc 294 item 9a (DESIGN-rete-defrule-wall.md) — the post-register `defrule` wall
-    /// (`crate::rete::validate::validate_rete_rules`) found a malformed `:when` clause /
-    /// unknown field-ref / RHS arity mismatch. Located `#wat.rete/*` errors.
-    Rete(crate::rete::validate::ReteCheckErrors),
+    /// A registered [`crate::freeze::validator::FreezeValidator`] (drained at `build_env`
+    /// step 7.8) found a problem. Arc 294 item 9a's `defrule` wall
+    /// (`crate::rete::validate::validate_rete_rules`) is the first registered consumer — a
+    /// malformed `:when` clause / unknown field-ref / RHS arity mismatch surfaces here,
+    /// still tagged `#wat.rete/*` (the boxed error's `to_edn()` preserves its concrete
+    /// namespace by dynamic dispatch). Any crate depending on `wat` can register its own
+    /// freeze-time validator the same way.
+    Validator(Box<dyn crate::freeze::validator::FreezeValidatorError>),
     /// A user `define` collided with a builtin or another user
     /// define during registration. Surfaces `register_defines`'s
     /// errors as-is.
@@ -646,11 +657,6 @@ impl From<ResolveError> for StartupError {
 impl From<CheckErrors> for StartupError {
     fn from(e: CheckErrors) -> Self {
         StartupError::Check(e)
-    }
-}
-impl From<crate::rete::validate::ReteCheckErrors> for StartupError {
-    fn from(e: crate::rete::validate::ReteCheckErrors) -> Self {
-        StartupError::Rete(e)
     }
 }
 impl From<RuntimeError> for StartupError {

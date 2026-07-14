@@ -303,14 +303,23 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             .map_err(|e| StartupError::Runtime(Box::new(e)))?;
     }
 
-    // 7.8 — Arc 294 item 9a (DESIGN-rete-defrule-wall.md) — the `defrule` freeze wall.
-    // Post-register (types are authoritative), post-resolve (the quoted :when/:then
-    // survive `resolve` un-mangled — proven by `rete_wall_probe` below): walk every
-    // `defrule`'s expanded `make-rule` call, validate its `:when` conditions and `:then`
-    // inserts against `types`, and REWRITE `:then` kwargs to declaration order in place.
-    // A malformed rule is now a LOCATED `#wat.rete/*` freeze error instead of a silent
-    // fire-time `None` / scrambled fact (the 9a codemod's corruption class).
-    crate::rete::validate::validate_rete_rules(&mut residue, &types).map_err(StartupError::Rete)?;
+    // 7.8 — Arc 294 item 9a (DESIGN-rete-defrule-wall.md) lifted into a pluggable
+    // `FreezeValidator` extension point (mirrors step 6.8's `RestrictionEntry` drain, same
+    // fn): drain every `inventory`-registered freeze-time validator against the SAME
+    // post-register (types are authoritative), post-resolve (quoted :when/:then survive
+    // `resolve` un-mangled — proven by `rete_wall_probe` below) `residue` + `types` +
+    // `symbols`. The `defrule` wall (`crate::rete::validate::validate_rete_rules`) is the
+    // FIRST registered consumer (see its `inventory::submit!` in `src/rete/validate.rs`) —
+    // it still walks every `defrule`'s expanded `make-rule` call, validates `:when`/`:then`
+    // against `types`, and REWRITES `:then` kwargs to declaration order in place. A
+    // malformed rule is a LOCATED `#wat.rete/*` freeze error (dynamic dispatch through the
+    // box preserves the concrete namespace) instead of a silent fire-time `None` / scrambled
+    // fact (the 9a codemod's corruption class). Any OTHER crate depending on `wat` can
+    // register its own validator the same way — zero special-casing for the rete wall here.
+    // rune:sequi(ambient-context) — inventory::iter is link-time static state.
+    for v in inventory::iter::<crate::freeze::validator::FreezeValidator> {
+        (v.validate)(&mut residue, &types, &symbols).map_err(StartupError::Validator)?;
+    }
 
     Ok(EnvBundle {
         types,

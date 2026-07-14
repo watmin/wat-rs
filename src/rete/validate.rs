@@ -274,6 +274,23 @@ pub(crate) fn validate_rete_rules(residue: &mut [WatAST], types: &TypeEnv) -> Re
     }
 }
 
+// ─── Registration (the pluggable extension point) ────────────────────────────────────────────
+//
+// The wall used to be hardcoded into `build_env` step 7.8 (`src/freeze/env.rs`); it is now the
+// FIRST registered `FreezeValidator` (`crate::freeze::validator`), drained generically
+// alongside any other crate's registration — mirrors `RestrictionEntry`'s
+// `inventory::submit!` shape (`src/restriction_entry.rs`). `validate_rete_rules`'s signature
+// and logic are UNCHANGED; only the caller (the drain in `build_env`) moved.
+inventory::submit! {
+    crate::freeze::validator::FreezeValidator {
+        name: "wat.rete/defrule-wall",
+        validate: |residue, types, _symbols| {
+            validate_rete_rules(residue, types)
+                .map_err(|e| Box::new(e) as Box<dyn crate::freeze::validator::FreezeValidatorError>)
+        },
+    }
+}
+
 /// Recursive descent for `(:wat::rete::make-rule name (quote [:when…]) (quote [:then…]))`
 /// calls — mirrors `find_make_rule` in the `rete_wall_probe` (`src/freeze/env.rs`), but
 /// mutable (S3 rewrites `:then` in place) and exhaustive (every rule in `forms`, not just
@@ -678,9 +695,14 @@ mod tests {
     /// `rete_wall_probe`) — an injected bare-keyword `:celsius` clause — must now freeze
     /// with a LOCATED error naming the rule, instead of silently passing through.
     ///
-    /// `build_env` hooks `validate_rete_rules` internally (`src/freeze/env.rs` step 7.8), so
-    /// the located error surfaces as `build_env`'s own `Err(StartupError::Rete(..))` — the
-    /// end-to-end proof the hook fires, not just the bare fn in isolation.
+    /// `build_env` hooks the `defrule` wall via the generic `FreezeValidator` inventory drain
+    /// now (`src/freeze/env.rs` step 7.8), so the located error surfaces as `build_env`'s own
+    /// `Err(StartupError::Validator(..))` — the end-to-end proof the drain fires, not just the
+    /// bare fn in isolation. The boxed error carries no `Any` bound (a multi-consumer registry
+    /// has no reason to let a caller downcast back to one specific validator's concrete error
+    /// type), so the located-error shape is asserted on the wire EDN text — this is also the
+    /// namespace-preservation proof: a corrupt rule STILL tags `#wat.rete/MalformedClause`
+    /// through the box, not a generic tag.
     #[test]
     fn corrupt_when_clause_is_a_located_error() {
         let src = r#"
@@ -693,22 +715,20 @@ mod tests {
   (:wat::rete::insert (:alert::Unattended :location ?loc)))
 "#;
         let forms = crate::parse_all!(src).expect("parse");
-        let errs = match build_env(forms) {
-            Err(crate::freeze::StartupError::Rete(errs)) => errs,
-            Err(other) => panic!("expected StartupError::Rete; got {other:?}"),
+        let boxed = match build_env(forms) {
+            Err(crate::freeze::StartupError::Validator(e)) => e,
+            Err(other) => panic!("expected StartupError::Validator; got {other:?}"),
             Ok(_) => panic!("the injected bare-keyword clause must be a located freeze error"),
         };
-        assert!(!errs.0.is_empty(), "at least one located error");
-        // Every error names the offending rule.
-        for e in &errs.0 {
-            assert!(
-                matches!(
-                    &e.kind,
-                    ReteCheckErrorKind::MalformedClause { rule, .. } if rule == "alert::unattended"
-                ),
-                "unexpected error kind: {e:?}"
-            );
-        }
+        let edn = wat_edn::write(&boxed.to_edn());
+        assert!(
+            edn.contains("wat.rete/MalformedClause"),
+            "expected a #wat.rete/MalformedClause error; got: {edn}"
+        );
+        assert!(
+            edn.contains("alert::unattended"),
+            "every error must name the offending rule; got: {edn}"
+        );
     }
 
     /// A correct defrule (no corruption) freezes clean.
@@ -744,16 +764,16 @@ mod tests {
   (:wat::rete::insert (:alert::Unattended :location ?loc)))
 "#;
         let forms = crate::parse_all!(src).expect("parse");
-        let errs = match build_env(forms) {
-            Err(crate::freeze::StartupError::Rete(errs)) => errs,
-            Err(other) => panic!("expected StartupError::Rete; got {other:?}"),
+        let boxed = match build_env(forms) {
+            Err(crate::freeze::StartupError::Validator(e)) => e,
+            Err(other) => panic!("expected StartupError::Validator; got {other:?}"),
             Ok(_) => panic!("bad field-ref must be a located freeze error"),
         };
-        assert!(errs.0.iter().any(|e| matches!(
-            &e.kind,
-            ReteCheckErrorKind::UnknownField { field, available_fields, .. }
-                if field == "not-a-field" && available_fields.iter().any(|f| f == "location")
-        )));
+        let edn = wat_edn::write(&boxed.to_edn());
+        assert!(
+            edn.contains("wat.rete/UnknownField") && edn.contains("not-a-field") && edn.contains("location"),
+            "expected a #wat.rete/UnknownField error naming `not-a-field` + `location`; got: {edn}"
+        );
     }
 
     /// S3 — a `:then` kwargs RHS written OUT of declaration order gets REWRITTEN in the

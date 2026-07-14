@@ -36,6 +36,9 @@ use crate::freeze::StartupError;
 /// - `Resolve` → `ResolveError::to_edn` (vector of structured references).
 /// - `Check` → `CheckErrors::to_edn` (`#wat.kernel/CheckErrors {:errors […]}`,
 ///   each `CheckError` a navigable tagged value).
+/// - `Validator` → the boxed [`crate::freeze::validator::FreezeValidatorError`]'s own
+///   `to_edn` by dynamic dispatch — a registered `FreezeValidator` (e.g. the rete `defrule`
+///   wall) keeps its own namespace tag (`#wat.rete/…`) through the box.
 /// - `Stdlib` → `StdlibError::to_edn` (Pattern A, span + fields).
 ///
 /// The phase is inferable from the returned tag's variant name (the same
@@ -54,7 +57,7 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
         StartupError::Type(e) => e.to_edn(),
         StartupError::Resolve(e) => e.to_edn(),
         StartupError::Check(e) => e.to_edn(),
-        StartupError::Rete(e) => e.to_edn(),
+        StartupError::Validator(e) => e.to_edn(),
         StartupError::Stdlib(e) => e.to_edn(),
         // SigmaFn carries a bare String message (no span, no kind, no
         // structured fields — see `StartupError::SigmaFn(String)`), so a
@@ -148,7 +151,10 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.message(),
             SE::Resolve(e) => e.message(),
             SE::Check(e) => e.message(),
-            SE::Rete(e) => e.message(),
+            // The boxed FreezeValidatorError carries ToEdn + Debug + Display, not WatError
+            // (a validator crate never needs to hand-write message/location/causes/variant) —
+            // so the concise message is derived from its Display, first line only.
+            SE::Validator(e) => crate::to_edn::first_line(e.to_string()),
             SE::Stdlib(e) => e.message(),
             SE::SigmaFn(msg) => crate::to_edn::first_line(msg.clone()),
             SE::MainSignature(msg) => crate::to_edn::first_line(msg.clone()),
@@ -165,7 +171,10 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.location(),
             SE::Resolve(e) => e.location(),
             SE::Check(e) => e.location(),
-            SE::Rete(e) => e.location(),
+            // No single primary span at the aggregate level — mirrors ReteCheckErrors's own
+            // WatError::location (always Nil; per-error spans live inside `variant()`'s
+            // nested `:errors` vector, same as before this lift).
+            SE::Validator(_) => OwnedValue::Nil,
             SE::Stdlib(e) => e.location(),
             SE::SigmaFn(_) => OwnedValue::Nil,
             SE::MainSignature(_) => OwnedValue::Nil,
@@ -182,7 +191,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.causes(),
             SE::Resolve(e) => e.causes(),
             SE::Check(e) => e.causes(),
-            SE::Rete(e) => e.causes(),
+            SE::Validator(_) => OwnedValue::Vector(vec![]),
             SE::Stdlib(e) => e.causes(),
             SE::SigmaFn(_) => OwnedValue::Vector(vec![]),
             SE::MainSignature(_) => OwnedValue::Vector(vec![]),
@@ -203,7 +212,10 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.variant(),
             SE::Resolve(e) => e.variant(),
             SE::Check(e) => e.variant(),
-            SE::Rete(e) => e.variant(),
+            // Same pattern as MacroError::variant() above: strip :span from the boxed
+            // error's own to_edn() output. The concrete namespace (e.g. #wat.rete/…) survives
+            // by dynamic dispatch — the box never re-tags it.
+            SE::Validator(e) => crate::to_edn::strip_span_from_tagged(e.to_edn()),
             SE::Stdlib(e) => e.variant(),
             SE::SigmaFn(msg) => tagged(
                 "SigmaFnError",

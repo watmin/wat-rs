@@ -10,18 +10,39 @@
 > NOTHING screamed because a `:when` pattern is DATA the matcher lenient-`None`s (Clara convention, `matcher.rs:201-204,
 > 297-301`) and `:then` kwargs are taken POSITIONALLY unvalidated/un-reordered (`matcher.rs:445-461` + the `:451`
 > follow-up). Builder ruling: *"set the heretics ablaze, the shadowdancers will find them by their screams — all the
-> silent rete failures die now — one way to enforce correctness, a half-wall is a very bad idea."* So the fix is NOT
-> fixture-reverts — it is the extirpare root: **one post-register freeze pass** (`src/rete/validate.rs`, hooked in
-> `src/freeze/env.rs` post-`register_types`) that validates+normalizes every `defrule`'s `:when`/`:then` against the
-> registry → a malformed rule is a LOCATED freeze error, and the floor ENUMERATES the whole corrupt-fixture backlog by
-> scream. It **folds in (C)'s reorder** (the `:then` reorder-by-name IS (C)'s `reorder_kwargs_by_field_name`, single-
-> sourced). Docs on disk: `DESIGN-rete-defrule-wall.md` + `BRIEF-rete-defrule-wall.md`. Disconfirming probe GREEN
-> (`src/freeze/env.rs::rete_wall_probe` — reach make-rule in residue + quote survives resolve + field-order via colon-
-> key). **A SONNET shadowdancer is BUILDING the wall (uncommitted, mid-flight — WEIGH by own re-run, do not trust).**
-> After the wall lands + is weighed: run floor → census the screamers → fan out fixes (`:when`→positional DATA;
-> `:then`→the reorder accepts kwargs). Then (C) proper + revert surface_splice/telemetry primes. Tree also has an
-> uncommitted 7a fixture revert (`probe_arc278_7a_negation_oracle.wat` :when→positional, already green — a done census
-> fix). This PIVOT supersedes the "(C) first" ordering in the SEAM below.
+> silent rete failures die now — one way to enforce correctness, a half-wall is a very bad idea."* The fix is NOT
+> fixture-reverts — it is the extirpare root: **one post-register freeze pass** that validates+normalizes every
+> `defrule`'s `:when`/`:then` against the registry → a malformed rule is a LOCATED `#wat.rete/*` freeze error, and the
+> floor ENUMERATES the whole corrupt-fixture backlog by scream. It **folds in (C)'s reorder** (`:then` reorder-by-name
+> = (C)'s `reorder_kwargs_by_field_name`, single-sourced). Docs: `DESIGN-rete-defrule-wall.md` + `BRIEF-rete-defrule-wall.md`.
+>
+> **WALL LANDED + WEIGHED GREEN — committed + pushed `d6bbc11a`.** S1 shared `classify_rete_clause` (matcher +
+> validator, one grammar); S2 `validate_rete_rules` (`src/rete/validate.rs`, hooked `env.rs` step 7.8); S3
+> `reorder_kwargs_by_field_name`. Own `#wat.rete` error family (`StartupError::Rete`, ToEdn namespace-tagged). Weighed by
+> OWN re-run: build clean, oracle+kernel UNTOUCHED (R22), 6 validate tests + `rete_wall_probe` green, ZERO non-rete
+> regressions (4 low-index suspects fail on baseline too, ground-checked via stash). **Floor 64 → 76 BY DESIGN** — the
+> census: wrong-count fails reshaped to located errors + hidden corruption revealed (`5b_collect_rules`); `build_env`
+> fails atomically per world, so one bad rule screams the whole shared fixture.
+>
+> **MODULARIZE DONE + WEIGHED GREEN (committed this checkpoint) — the wall is a pluggable `FreezeValidator` inventory
+> extension point** (builder: *"make this modular before we continue — we know it works"*). Mirrors `RestrictionEntry`
+> inventory pattern: `src/freeze/validator.rs` = `FreezeValidator{name, validate: fn(&mut Vec<WatAST>,&TypeEnv,
+> &SymbolTable)->Result<(),Box<dyn FreezeValidatorError>>}` + `inventory::collect!` (`pub mod` — cross-crate reachable,
+> the whole point); `env.rs` step 7.8 drains `inventory::iter::<FreezeValidator>`; the rete wall `inventory::submit!`s
+> itself as the FIRST consumer (PRIMVS VSVS — dogfood, no special-casing). One-path error: `StartupError::Rete` folded
+> → `StartupError::Validator(Box<dyn FreezeValidatorError>)`; the boxed error preserves `#wat.rete` via dyn dispatch
+> (PROVEN by `tests/rete/probe_freeze_validator_lift_rete_namespace` through the full `startup_beside` pipeline). Pure
+> refactor CONFIRMED by own re-run: build clean, floor failing SET identical (all known census + baseline buckets, zero
+> surprise; the 1-test count wobble was a service-timeout flake). Now ANY crate depending on `wat` registers its own
+> freeze-time validator the same way — types-via-`EdnSchema` + validators-via-`FreezeValidator`. FOLLOW-ON captured in
+> `DESIGN-rete-defrule-wall.md`: a `priority` field if two validators ever mutate the same forms (one now → moot).
+>
+> **AFTER modularize lands + weighed:** the CENSUS — fix the ~5 screaming rete fixtures (`5b_collect_rules`,
+> `arc300_2_fix_defrule`, `7b`/`7exists`/`7strat`, `8a_accumulate`) → `:when` reverts to positional DATA (correct form
+> recoverable from git pre-flip; the wall's located errors name each bad clause), `:then` kwargs now just work (wall
+> reorders). Efficient kill path = orchestrator does the mechanical git-reverts, weighs each; escalate only `arc300_2`/`8a`
+> if non-mechanical. Drive count down. THEN (C) proper + revert surface_splice/telemetry primes. This PIVOT supersedes
+> the "(C) first" ordering in the SEAM below.
 
 ## The one-paragraph state
 
