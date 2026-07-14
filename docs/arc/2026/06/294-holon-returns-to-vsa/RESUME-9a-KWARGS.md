@@ -70,8 +70,18 @@
 > marker → `(:aggregate-new :T v-reordered)` via the wall's `reorder_kwargs_by_field_name` (`validate.rs:239`) +
 > `env.types()` (splice-resolved); un-lowered marker = LOUD check/eval error (extirpare). REUSES: the wall's reorder +
 > post-register pattern, `aggregate-new` + `infer_aggregate_new_check` (arc294). DIFFERENTIAL = WHOLE FLOOR (touches every
-> construction; both probes prove it safe). Expected: 52 → ~48. WEIGH by own re-run, floor-set diff vs baseline, do not trust.
-> This PIVOT supersedes the "(C) first" ordering in the SEAM below.
+> construction; both probes prove it safe). Expected: 52 → ~48.
+>
+> **RESUME THE IN-FLIGHT (C) BUILD (if a gap hit mid-build — the shadowdancer commits NOTHING):** the safe floor is
+> committed+pushed at `43839be0` (wall+extension+census+brief+probes+this breadcrumb). The (C) build lands as UNCOMMITTED
+> edits in the working tree (new `src/freeze/kwargs_construct.rs` the rewrite pass; the 4 companion edits; the promoted
+> probes). (1) `git status` — if the (C) edits are present, WEIGH them per `BRIEF-C-kwargs-construct-splice.md`'s gate
+> (build clean; the 4 surface-splice tests green = stdlib loads; the un-lowered-marker LOUD-error test green; WHOLE-FLOOR
+> failing-SET diff vs `43839be0` baseline = ZERO new, the 4 targets cleared → ~48). GREEN → commit+push. Broken/incomplete
+> → re-strike from `BRIEF-C`. (2) if the edits are ABSENT/lost → just re-run the build from `BRIEF-C` (design+probes are
+> committed; nothing but mechanical work is redoable). Do NOT trust a mid-edit rustc/rust-analyzer diagnostic (a `dead_code`
+> / `unlinked-file` cascade during the build is a PHANTOM — the pass exists but isn't wired yet). This PIVOT supersedes the
+> "(C) first" ordering in the SEAM below.
 
 ## The one-paragraph state
 
