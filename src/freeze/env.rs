@@ -303,6 +303,15 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             .map_err(|e| StartupError::Runtime(Box::new(e)))?;
     }
 
+    // 7.8 — Arc 294 item 9a (DESIGN-rete-defrule-wall.md) — the `defrule` freeze wall.
+    // Post-register (types are authoritative), post-resolve (the quoted :when/:then
+    // survive `resolve` un-mangled — proven by `rete_wall_probe` below): walk every
+    // `defrule`'s expanded `make-rule` call, validate its `:when` conditions and `:then`
+    // inserts against `types`, and REWRITE `:then` kwargs to declaration order in place.
+    // A malformed rule is now a LOCATED `#wat.rete/*` freeze error instead of a silent
+    // fire-time `None` / scrambled fact (the 9a codemod's corruption class).
+    crate::rete::validate::validate_rete_rules(&mut residue, &types).map_err(StartupError::Rete)?;
+
     Ok(EnvBundle {
         types,
         macros,
@@ -353,5 +362,105 @@ fn preregister_extend_type_in_do_let(
             Ok(())
         }
         _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod rete_wall_probe {
+    //! Disconfirming probe for DESIGN-rete-defrule-wall.md — proves the wall's three load-bearing
+    //! assumptions BEFORE a shadowdancer builds it:
+    //!   (1) build_env's `residue` (post-register, post-resolve) holds the defrule's expanded
+    //!       `make-rule` call, reachable as WatAST;
+    //!   (2) the quoted :when/:then survive `resolve` UN-MANGLED (head keyword + clause list intact,
+    //!       and `resolve` does NOT choke on the free `?loc`/`<-` inside the quote);
+    //!   (3) the head fact-type's field ORDER reads from env.types() (the validate + reorder core).
+    //! Fail here → STOP; the wall's post-register hook is not where the design assumes.
+    //!
+    //! Arc 294 item 9a — the wall landed (`crate::rete::validate::validate_rete_rules`, hooked
+    //! in `build_env` step 7.8, below). This probe's fixture is now a CORRECT rule: with the
+    //! wall live, `build_env` itself raises `StartupError::Rete(..)` on the 9a codemod's
+    //! injected-keyword corruption this probe originally carried — a corrupt fixture here would
+    //! make `build_env` fail, defeating the reachability assertions this probe exists to prove.
+    //! The corruption-is-caught proof now lives in `src/rete/validate.rs`'s own test module
+    //! (`corrupt_when_clause_is_a_located_error`, same fixture, asserting the located error).
+    use super::*;
+    use crate::ast::WatAST;
+
+    fn find_make_rule(forms: &[WatAST]) -> Option<&Vec<WatAST>> {
+        for f in forms {
+            if let WatAST::List(items, _) = f {
+                if let Some(WatAST::Keyword(k, _)) = items.first() {
+                    if k == ":wat::rete::make-rule" {
+                        return Some(items);
+                    }
+                }
+                if let Some(found) = find_make_rule(items) {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+
+    fn quote_vec(form: &WatAST) -> &[WatAST] {
+        // form = (:wat::core::quote [<items>...]) → the Vector's items
+        if let WatAST::List(items, _) = form {
+            if let Some(WatAST::Vector(v, _)) = items.get(1) {
+                return v.as_slice();
+            }
+        }
+        &[]
+    }
+
+    #[test]
+    fn probe_hook_reaches_rule_forms_and_field_order() {
+        // A CORRECT defrule — the wall (validate_rete_rules, hooked below) now runs INSIDE
+        // build_env, so a corrupt :when here would make build_env itself fail (proven
+        // separately by src/rete/validate.rs's own test module).
+        let src = r#"
+(:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
+(:wat::core::defrecord :alert::Unattended    [location <- :wat::core::String])
+(:wat::rete::defrule :alert::unattended
+  :when
+  [(:weather::Temperature (?loc <- :location) (?c <- :celsius))]
+  :then
+  (:wat::rete::insert (:alert::Unattended :location ?loc)))
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        let env = build_env(forms).expect("build_env must not choke on the quoted rule interior");
+
+        // (1)+(2): reach the make-rule + its quoted :when, un-mangled by resolve.
+        let mr = find_make_rule(&env.residue).expect("make-rule reachable in residue");
+        let when = quote_vec(&mr[2]); // child[2] = (:wat::core::quote [conds])
+        assert!(!when.is_empty(), "the :when quote survives resolve as a non-empty vector");
+        let cond_items = match &when[0] {
+            WatAST::List(i, _) => i,
+            other => panic!("cond0 is a List; got {other:?}"),
+        };
+        let head = match &cond_items[0] {
+            WatAST::Keyword(k, _) => k.as_str(),
+            other => panic!("cond head is a Keyword; got {other:?}"),
+        };
+        assert_eq!(head, ":weather::Temperature", "cond head keyword intact through resolve");
+
+        // (3): the head type's field ORDER reads from the registry — the validate + reorder core.
+        // The registry key carries the leading colon (matcher.rs:126: format!(":{}", class_fqdn)).
+        let td = env
+            .types
+            .get(":weather::Temperature")
+            .expect("registered record in env.types() (colon-prefixed key)");
+        let fields: Vec<&str> = match td {
+            crate::types::TypeDef::Aggregate(a) => a.field_names().collect(),
+            other => panic!("Temperature is an Aggregate; got {other:?}"),
+        };
+        assert_eq!(fields, vec!["celsius", "location"], "field names in declaration order");
+
+        // The clause itself is a well-formed bind — `(?loc <- :location)`, a List, not a bare
+        // keyword (the shape the 9a corruption injected; see `src/rete/validate.rs`'s
+        // `corrupt_when_clause_is_a_located_error` for that case).
+        assert!(
+            matches!(&cond_items[1], WatAST::List(_, _)),
+            "a well-formed bind clause is a List; got {:?}", cond_items[1]
+        );
     }
 }

@@ -519,6 +519,10 @@ pub enum StartupError {
     Type(TypeError),
     Resolve(ResolveError),
     Check(CheckErrors),
+    /// Arc 294 item 9a (DESIGN-rete-defrule-wall.md) — the post-register `defrule` wall
+    /// (`crate::rete::validate::validate_rete_rules`) found a malformed `:when` clause /
+    /// unknown field-ref / RHS arity mismatch. Located `#wat.rete/*` errors.
+    Rete(crate::rete::validate::ReteCheckErrors),
     /// A user `define` collided with a builtin or another user
     /// define during registration. Surfaces `register_defines`'s
     /// errors as-is.
@@ -642,6 +646,11 @@ impl From<ResolveError> for StartupError {
 impl From<CheckErrors> for StartupError {
     fn from(e: CheckErrors) -> Self {
         StartupError::Check(e)
+    }
+}
+impl From<crate::rete::validate::ReteCheckErrors> for StartupError {
+    fn from(e: crate::rete::validate::ReteCheckErrors) -> Self {
+        StartupError::Rete(e)
     }
 }
 impl From<RuntimeError> for StartupError {

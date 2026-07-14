@@ -190,45 +190,162 @@ fn eval_clauses(
     Some(current)
 }
 
+/// Arc 294 item 9a (DESIGN-rete-defrule-wall.md, design call 1 — "one grammar, shared") —
+/// the rete-DSL clause/condition-wrapper shape space, recognized identically whether the
+/// caller is the runtime matcher (`eval_clause`, below) or the freeze-time validator
+/// (`crate::rete::validate::validate_rete_rules`). A single source for "what shape is
+/// this form" closes the drift hole that let the 9a codemod's injected bare-keyword
+/// clauses classify as `Unrecognized` (silently `None`'d at fire time) instead of a
+/// located freeze error.
+///
+/// Covers BOTH grammar levels the rete DSL actually has:
+/// - within-condition CLAUSES (`Bind`, `Constraint`, `And`, `Or`, `Not`, `Where`) — the
+///   shapes `eval_clause` classifies today (this extraction is behavior-identical).
+/// - top-level `:when`-entry WRAPPERS (`Not`, `Exists`, `Where`, `Accumulate`) — shapes
+///   `eval_clause` never actually receives (compile-condition, `wat/rete.wat`, consumes
+///   them into NegationNode/ExistsNode/AccumulateNode/TestNode topology before alpha-match
+///   ever runs), but the validator's top-level `:when` walk needs to recognize them too, via
+///   this SAME function, rather than a second hand-rolled keyword-matcher (the drift risk
+///   design call 1 rules out). `eval_clause`'s new dispatch maps `Exists`/`Accumulate` to
+///   `None` — identical to the pre-extraction default arm, since those shapes never reach it.
+///
+/// `#[allow(dead_code)]`: `Where`'s payload and `Accumulate`'s `var`/`acc_form` are held for
+/// shape-completeness (a future consumer — e.g. a wider validator scope, room 7's own
+/// enumeration — reads them) even though today's two consumers (`eval_clause`, which always
+/// maps these shapes to `None`/skips the fields, and the validator, which only reads
+/// `Accumulate.from`) don't read every field.
+#[allow(dead_code)]
+pub(crate) enum ReteClauseShape<'a> {
+    /// `(?v <- :field)` — a fresh/cross-condition-join bind.
+    Bind { var: &'a str, field: &'a str },
+    /// `(:wat::core::<op> a b)` — a binary FQDN comparison; operands unresolved (the
+    /// caller resolves each via `resolve_operand`).
+    Constraint {
+        op: &'a str,
+        lhs: &'a WatAST,
+        rhs: &'a WatAST,
+    },
+    /// `(:wat::rete::and c1 c2 …)` — clause-level conjunction (within one condition).
+    And(&'a [WatAST]),
+    /// `(:wat::rete::or c1 c2 …)` — clause-level disjunction (within one condition).
+    Or(&'a [WatAST]),
+    /// `(:wat::rete::not inner)` — dual duty: a clause-level negated sub-clause (within one
+    /// condition, `eval_clause` consumes this) OR a top-level negated condition wrapper (the
+    /// validator's `:when`-entry walk consumes this) — same 2-item shape, disambiguated by
+    /// the caller's own position in the walk, not by this classifier.
+    Not(&'a WatAST),
+    /// `(:wat::rete::exists inner)` — top-level-only existential condition wrapper.
+    Exists(&'a WatAST),
+    /// `(:wat::rete::where expr)` — dual duty like `Not`: a clause-level STOP arm (`eval_clause`
+    /// always `None`s it — stone 6 territory) or the top-level `where` fence.
+    Where(&'a WatAST),
+    /// `(?result-var <- (<acc-form>) :from (<inner>))` — top-level-only accumulate wrapper.
+    Accumulate {
+        var: &'a str,
+        acc_form: &'a WatAST,
+        from: &'a WatAST,
+    },
+    /// Not a recognized rete-DSL shape at any level. `eval_clause` maps this to `None`
+    /// (Clara no-error); the freeze-time validator maps this to a located
+    /// `#wat.rete/MalformedClause` error.
+    Unrecognized,
+}
+
+/// Classify a single rete-DSL form (a `:when` clause OR a top-level `:when`-entry wrapper)
+/// by SHAPE alone — no fact/registry access, no bindings. See [`ReteClauseShape`].
+pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
+    let items = match clause {
+        WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
+        // Not a non-empty list — cannot be any recognized shape (e.g. a bare keyword,
+        // the exact injected-`:celsius` corruption the wall exists to catch).
+        _ => return ReteClauseShape::Unrecognized,
+    };
+
+    match &items[0] {
+        // ── symbol-headed: bind or accumulate ────────────────────────────────
+        WatAST::Symbol(head_ident, _) => {
+            let var_name = head_ident.as_str();
+            if !var_name.starts_with('?') {
+                return ReteClauseShape::Unrecognized;
+            }
+            // Bind: (?v <- :field) — [Symbol(?v), Symbol(<-), Keyword(:field)].
+            if items.len() == 3 {
+                let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
+                if is_arrow {
+                    if let Some(field_kw) = keyword_payload(&items[2]) {
+                        let field = field_kw.strip_prefix(':').unwrap_or(field_kw);
+                        return ReteClauseShape::Bind { var: var_name, field };
+                    }
+                }
+                return ReteClauseShape::Unrecognized;
+            }
+            // Accumulate: (?result <- (acc-form) :from (inner)) — 5 items, `:from` at [3].
+            if items.len() == 5 {
+                let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
+                let is_from = matches!(&items[3], WatAST::Keyword(k, _) if k.as_str() == ":from");
+                if is_arrow && is_from {
+                    return ReteClauseShape::Accumulate {
+                        var: var_name,
+                        acc_form: &items[2],
+                        from: &items[4],
+                    };
+                }
+            }
+            ReteClauseShape::Unrecognized
+        }
+
+        // ── keyword-headed clause ─────────────────────────────────────────────
+        WatAST::Keyword(head_kw, _) => match head_kw.as_str() {
+            // ── constraint: (:wat::core::<op> a b) ───────────────────────────
+            ":wat::core::=" | ":wat::core::not=" | ":wat::core::<" | ":wat::core::>"
+            | ":wat::core::<=" | ":wat::core::>=" => {
+                if items.len() == 3 {
+                    ReteClauseShape::Constraint { op: head_kw.as_str(), lhs: &items[1], rhs: &items[2] }
+                } else {
+                    ReteClauseShape::Unrecognized
+                }
+            }
+            // ── combinators ──────────────────────────────────────────────────
+            ":wat::rete::and" => ReteClauseShape::And(&items[1..]),
+            ":wat::rete::or" => ReteClauseShape::Or(&items[1..]),
+            ":wat::rete::not" => {
+                if items.len() == 2 { ReteClauseShape::Not(&items[1]) } else { ReteClauseShape::Unrecognized }
+            }
+            ":wat::rete::exists" => {
+                if items.len() == 2 { ReteClauseShape::Exists(&items[1]) } else { ReteClauseShape::Unrecognized }
+            }
+            ":wat::rete::where" => {
+                if items.len() == 2 { ReteClauseShape::Where(&items[1]) } else { ReteClauseShape::Unrecognized }
+            }
+            // Unknown head keyword → unrecognised clause shape.
+            _ => ReteClauseShape::Unrecognized,
+        },
+
+        // Non-symbol, non-keyword head → unrecognised clause shape.
+        _ => ReteClauseShape::Unrecognized,
+    }
+}
+
 /// Classify and evaluate a single clause. Returns `Some(updated_bindings)` on
 /// success, `None` on mismatch or unresolvable operand.
+///
+/// Arc 294 item 9a — re-pointed at the shared [`classify_rete_clause`] (S1 extraction).
+/// BEHAVIOR-IDENTICAL to the pre-extraction hand-rolled match: `Exists`/`Accumulate` never
+/// actually reach this fn at fire time (compile-condition consumes them earlier), so mapping
+/// them to `None` here matches the prior default-arm outcome exactly.
 fn eval_clause(
     clause: &WatAST,
     fact_fields: &[Value],
     field_names: &[String],
     bindings: rpds::HashTrieMapSync<Value, Value>,
 ) -> Option<rpds::HashTrieMapSync<Value, Value>> {
-    let items = match clause {
-        WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
-        // A clause that is not a non-empty list cannot be classified → None.
-        _ => return None,
-    };
-
-    match &items[0] {
+    match classify_rete_clause(clause) {
         // ── bind clause: (?v <- :field) ──────────────────────────────────────
-        // Shape: [Symbol(?v), Symbol(<-), Keyword(:field)]
-        WatAST::Symbol(head_ident, _) => {
-            let var_name = head_ident.as_str();
-            // A symbol-headed clause must look like `(?v <- :field)`.
-            // The ?-prefix signals a logic variable; anything else is unrecognised → None.
-            if !var_name.starts_with('?') {
-                return None;
-            }
-            if items.len() != 3 {
-                return None;
-            }
-            // Second element must be the arrow symbol `<-`.
-            let is_arrow = matches!(&items[1], WatAST::Symbol(s, _) if s.as_str() == "<-");
-            if !is_arrow {
-                return None;
-            }
-            // Third element must be a field keyword `:field`.
-            let field_kw = keyword_payload(&items[2])?;
-            let field_name = field_kw.strip_prefix(':').unwrap_or(field_kw);
-            let field_value = read_fact_field(fact_fields, field_names, field_name)?;
+        ReteClauseShape::Bind { var, field } => {
+            let field_value = read_fact_field(fact_fields, field_names, field)?;
             // Bind ?v → field value. If ?v was already bound in this condition,
             // treat it as a constraint: the bound value must equal the field value.
-            let key = Value::String(Arc::new(var_name.to_string()));
+            let key = Value::String(Arc::new(var.to_string()));
             match bindings.get(&key) {
                 Some(existing) if existing != &field_value => None, // conflict
                 Some(_) => Some(bindings),                          // already bound, equal
@@ -236,73 +353,58 @@ fn eval_clause(
             }
         }
 
-        // ── keyword-headed clause ─────────────────────────────────────────────
-        WatAST::Keyword(head_kw, _) => match head_kw.as_str() {
-            // ── constraint: (:wat::core::<op> a b) ───────────────────────────
-            // FQDN comparison ops; operands resolved from {bindings, field, literal}.
-            ":wat::core::=" => {
-                let (a, b) = resolve_binary_operands(items, fact_fields, field_names, &bindings)?;
-                if a == b { Some(bindings) } else { None }
-            }
-            ":wat::core::not=" => {
-                let (a, b) = resolve_binary_operands(items, fact_fields, field_names, &bindings)?;
-                if a != b { Some(bindings) } else { None }
-            }
-            ":wat::core::<" => {
-                let (a, b) = resolve_binary_operands(items, fact_fields, field_names, &bindings)?;
-                if compare_values(&a, &b)? == std::cmp::Ordering::Less { Some(bindings) } else { None }
-            }
-            ":wat::core::>" => {
-                let (a, b) = resolve_binary_operands(items, fact_fields, field_names, &bindings)?;
-                if compare_values(&a, &b)? == std::cmp::Ordering::Greater { Some(bindings) } else { None }
-            }
-            ":wat::core::<=" => {
-                let (a, b) = resolve_binary_operands(items, fact_fields, field_names, &bindings)?;
-                if compare_values(&a, &b)? != std::cmp::Ordering::Greater { Some(bindings) } else { None }
-            }
-            ":wat::core::>=" => {
-                let (a, b) = resolve_binary_operands(items, fact_fields, field_names, &bindings)?;
-                if compare_values(&a, &b)? != std::cmp::Ordering::Less { Some(bindings) } else { None }
-            }
+        // ── constraint: (:wat::core::<op> a b) ───────────────────────────────
+        // FQDN comparison ops; operands resolved from {bindings, field, literal}.
+        ReteClauseShape::Constraint { op, lhs, rhs } => {
+            let a = resolve_operand(lhs, fact_fields, field_names, &bindings)?;
+            let b = resolve_operand(rhs, fact_fields, field_names, &bindings)?;
+            let holds = match op {
+                ":wat::core::=" => a == b,
+                ":wat::core::not=" => a != b,
+                ":wat::core::<" => compare_values(&a, &b)? == std::cmp::Ordering::Less,
+                ":wat::core::>" => compare_values(&a, &b)? == std::cmp::Ordering::Greater,
+                ":wat::core::<=" => compare_values(&a, &b)? != std::cmp::Ordering::Greater,
+                ":wat::core::>=" => compare_values(&a, &b)? != std::cmp::Ordering::Less,
+                // classify_rete_clause only ever produces Constraint for the 6 ops above.
+                _ => unreachable!("classify_rete_clause: Constraint op outside the recognized set"),
+            };
+            if holds { Some(bindings) } else { None }
+        }
 
-            // ── combinators ──────────────────────────────────────────────────
-            // :wat::rete::and — every sub-clause holds (thread bindings left→right).
-            ":wat::rete::and" => {
-                eval_clauses(&items[1..], fact_fields, field_names, bindings)
-            }
-            // :wat::rete::or — ≥1 sub-clause holds. Bindings from a branch
-            // do NOT survive past the `or` (which branch won is ambiguous).
-            ":wat::rete::or" => {
-                let entry = bindings;
-                for sub in &items[1..] {
-                    if eval_clause(sub, fact_fields, field_names, entry.clone()).is_some() {
-                        return Some(entry);
-                    }
+        // ── combinators ──────────────────────────────────────────────────────
+        // :wat::rete::and — every sub-clause holds (thread bindings left→right).
+        ReteClauseShape::And(subs) => eval_clauses(subs, fact_fields, field_names, bindings),
+        // :wat::rete::or — ≥1 sub-clause holds. Bindings from a branch
+        // do NOT survive past the `or` (which branch won is ambiguous).
+        ReteClauseShape::Or(subs) => {
+            let entry = bindings;
+            for sub in subs {
+                if eval_clause(sub, fact_fields, field_names, entry.clone()).is_some() {
+                    return Some(entry);
                 }
-                None
             }
-            // :wat::rete::not — the sub-clause must NOT hold. Bindings from
-            // the negated branch are discarded (no values to bind from a failed match).
-            ":wat::rete::not" => {
-                if items.len() != 2 {
-                    return None;
-                }
-                let sub_matched = eval_clause(&items[1], fact_fields, field_names, bindings.clone()).is_some();
-                if sub_matched { None } else { Some(bindings) }
-            }
+            None
+        }
+        // :wat::rete::not — the sub-clause must NOT hold. Bindings from
+        // the negated branch are discarded (no values to bind from a failed match).
+        ReteClauseShape::Not(sub) => {
+            let sub_matched = eval_clause(sub, fact_fields, field_names, bindings.clone()).is_some();
+            if sub_matched { None } else { Some(bindings) }
+        }
 
-            // ── STOP: :wat::rete::where is stone 6 ───────────────────────────
-            // Arbitrary-expression eval belongs in a TestNode (stone 6), not here.
-            // Reaching this arm means the caller used a `where` clause in a v1 condition.
-            // Return None (Clara no-error: unhandled clause = no match).
-            ":wat::rete::where" => None,
+        // ── STOP: :wat::rete::where is stone 6 ───────────────────────────────
+        // Arbitrary-expression eval belongs in a TestNode (stone 6), not here.
+        // Reaching this arm means the caller used a `where` clause in a v1 condition.
+        // Return None (Clara no-error: unhandled clause = no match).
+        ReteClauseShape::Where(_) => None,
 
-            // Unknown head keyword → unrecognised clause shape → None.
-            _ => None,
-        },
+        // `exists`/`accumulate` are top-level `:when`-entry wrappers, consumed entirely by
+        // compile-condition (wat/rete.wat) before alpha-match runs — they never legitimately
+        // reach a condition's clause list. Matches the pre-extraction default-arm outcome.
+        ReteClauseShape::Exists(_) | ReteClauseShape::Accumulate { .. } => None,
 
-        // Non-symbol, non-keyword head → unrecognised clause shape → None.
-        _ => None,
+        // Unrecognised clause shape → None.
+        ReteClauseShape::Unrecognized => None,
     }
 }
 
@@ -347,21 +449,6 @@ pub(crate) fn resolve_operand(
         // v1 operand. These are `where`-territory (stone 6).
         _ => None,
     }
-}
-
-/// Resolve both operands of a binary clause `[head a b]`.
-fn resolve_binary_operands(
-    items: &[WatAST],
-    fact_fields: &[Value],
-    field_names: &[String],
-    bindings: &rpds::HashTrieMapSync<Value, Value>,
-) -> Option<(Value, Value)> {
-    if items.len() != 3 {
-        return None;
-    }
-    let a = resolve_operand(&items[1], fact_fields, field_names, bindings)?;
-    let b = resolve_operand(&items[2], fact_fields, field_names, bindings)?;
-    Some((a, b))
 }
 
 // ─── Public entry point: RHS insert-form evaluator ───────────────────────────

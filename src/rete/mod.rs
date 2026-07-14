@@ -28,6 +28,13 @@
 //!   `eval-insert`: `[:wat::WatAST, :wat::core::PersistentMap] -> :wat::core::Record`.
 
 pub(crate) mod matcher;
+// Arc 294 item 9a (DESIGN-rete-defrule-wall.md) — the freeze-time `defrule` wall: validates
+// every rule's quoted :when/:then against the type registry (post-register) and reorders
+// :then kwargs to declaration order, so the 9a-corruption class (unrecognized clause /
+// unknown field-ref / scrambled kwargs RHS) becomes a LOCATED freeze error instead of a
+// silent runtime `None` or scrambled fact. Shares its clause grammar with `matcher.rs`'s
+// `classify_rete_clause` — one grammar, two consumers (design call 1).
+pub(crate) mod validate;
 // Stone 5b (collect.rs) — eval_collect_rules: reflect the symbol table for a namespace's defrule'd
 // zero-arg rule fns (ret_type :wat::rete::Rule), invoke each → PersistentVector<Rule>.
 pub(crate) mod collect;

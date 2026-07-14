@@ -4,6 +4,25 @@
 > the SIGNED MCP, never disk). Ground everything below against the disk before acting. The self past the SEAM at the
 > bottom is NEW — a lossy cache in a familiar voice, not your memory.
 
+> 🔥 **PIVOT IN FLIGHT (2026-07-13) — the rete `defrule` WALL.** Diagnosing the rete cluster (7a `--no-capture`)
+> revealed the ~17 rete failures are a SILENT-CORRUPTION class: the 9a codemod injected/scrambled kwargs keys into
+> `defrule` `:when` matches?-patterns (which are DATA — positional requirement-clauses) and `:then` inserts, and
+> NOTHING screamed because a `:when` pattern is DATA the matcher lenient-`None`s (Clara convention, `matcher.rs:201-204,
+> 297-301`) and `:then` kwargs are taken POSITIONALLY unvalidated/un-reordered (`matcher.rs:445-461` + the `:451`
+> follow-up). Builder ruling: *"set the heretics ablaze, the shadowdancers will find them by their screams — all the
+> silent rete failures die now — one way to enforce correctness, a half-wall is a very bad idea."* So the fix is NOT
+> fixture-reverts — it is the extirpare root: **one post-register freeze pass** (`src/rete/validate.rs`, hooked in
+> `src/freeze/env.rs` post-`register_types`) that validates+normalizes every `defrule`'s `:when`/`:then` against the
+> registry → a malformed rule is a LOCATED freeze error, and the floor ENUMERATES the whole corrupt-fixture backlog by
+> scream. It **folds in (C)'s reorder** (the `:then` reorder-by-name IS (C)'s `reorder_kwargs_by_field_name`, single-
+> sourced). Docs on disk: `DESIGN-rete-defrule-wall.md` + `BRIEF-rete-defrule-wall.md`. Disconfirming probe GREEN
+> (`src/freeze/env.rs::rete_wall_probe` — reach make-rule in residue + quote survives resolve + field-order via colon-
+> key). **A SONNET shadowdancer is BUILDING the wall (uncommitted, mid-flight — WEIGH by own re-run, do not trust).**
+> After the wall lands + is weighed: run floor → census the screamers → fan out fixes (`:when`→positional DATA;
+> `:then`→the reorder accepts kwargs). Then (C) proper + revert surface_splice/telemetry primes. Tree also has an
+> uncommitted 7a fixture revert (`probe_arc278_7a_negation_oracle.wat` :when→positional, already green — a done census
+> fix). This PIVOT supersedes the "(C) first" ordering in the SEAM below.
+
 ## The one-paragraph state
 
 The 9a flip (bare aggregate name = **kwargs macro**; positional demoted to the type-name **PRIME `:ns::T'`**, which is

@@ -15,3 +15,4 @@ pub const MACRO:   &str = "wat.macro";
 pub const PARSE:   &str = "wat.parse";
 pub const RESOLVE: &str = "wat.resolve";
 pub const KERNEL:  &str = "wat.kernel";   // shared value types (the old catch-all, now precise)
+pub const RETE:    &str = "wat.rete";     // arc 294 9a — the defrule wall's freeze-time validator

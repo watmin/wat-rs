@@ -54,6 +54,7 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
         StartupError::Type(e) => e.to_edn(),
         StartupError::Resolve(e) => e.to_edn(),
         StartupError::Check(e) => e.to_edn(),
+        StartupError::Rete(e) => e.to_edn(),
         StartupError::Stdlib(e) => e.to_edn(),
         // SigmaFn carries a bare String message (no span, no kind, no
         // structured fields — see `StartupError::SigmaFn(String)`), so a
@@ -147,6 +148,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.message(),
             SE::Resolve(e) => e.message(),
             SE::Check(e) => e.message(),
+            SE::Rete(e) => e.message(),
             SE::Stdlib(e) => e.message(),
             SE::SigmaFn(msg) => crate::to_edn::first_line(msg.clone()),
             SE::MainSignature(msg) => crate::to_edn::first_line(msg.clone()),
@@ -163,6 +165,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.location(),
             SE::Resolve(e) => e.location(),
             SE::Check(e) => e.location(),
+            SE::Rete(e) => e.location(),
             SE::Stdlib(e) => e.location(),
             SE::SigmaFn(_) => OwnedValue::Nil,
             SE::MainSignature(_) => OwnedValue::Nil,
@@ -179,6 +182,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.causes(),
             SE::Resolve(e) => e.causes(),
             SE::Check(e) => e.causes(),
+            SE::Rete(e) => e.causes(),
             SE::Stdlib(e) => e.causes(),
             SE::SigmaFn(_) => OwnedValue::Vector(vec![]),
             SE::MainSignature(_) => OwnedValue::Vector(vec![]),
@@ -199,6 +203,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             SE::Type(e) => e.variant(),
             SE::Resolve(e) => e.variant(),
             SE::Check(e) => e.variant(),
+            SE::Rete(e) => e.variant(),
             SE::Stdlib(e) => e.variant(),
             SE::SigmaFn(msg) => tagged(
                 "SigmaFnError",
