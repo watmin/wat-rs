@@ -37,12 +37,25 @@
 > freeze-time validator the same way — types-via-`EdnSchema` + validators-via-`FreezeValidator`. FOLLOW-ON captured in
 > `DESIGN-rete-defrule-wall.md`: a `priority` field if two validators ever mutate the same forms (one now → moot).
 >
-> **AFTER modularize lands + weighed:** the CENSUS — fix the ~5 screaming rete fixtures (`5b_collect_rules`,
-> `arc300_2_fix_defrule`, `7b`/`7exists`/`7strat`, `8a_accumulate`) → `:when` reverts to positional DATA (correct form
-> recoverable from git pre-flip; the wall's located errors name each bad clause), `:then` kwargs now just work (wall
-> reorders). Efficient kill path = orchestrator does the mechanical git-reverts, weighs each; escalate only `arc300_2`/`8a`
-> if non-mechanical. Drive count down. THEN (C) proper + revert surface_splice/telemetry primes. This PIVOT supersedes
-> the "(C) first" ordering in the SEAM below.
+> **CENSUS DONE + WEIGHED GREEN — committed + pushed `5ebe1cc1`.** The rete silent-corruption class is DEAD. A sonnet
+> fixed all 5 corrupt fixtures (`5b_collect_rules`, `300_2_fix_defrule`, `7b`, `7exists`, `7strat`) PURELY from the wall's
+> located `#wat.rete/MalformedClause` errors (RVINA ERVDIT dogfood proven end-to-end): delete the injected `:field`
+> keyword tokens from `:when`/`:not`/`:exists`; binds + `:then` kwargs untouched (keyword-only, verified by own re-run).
+> **Big finding: the "~17 rete BEHAVIOR differentials" the RESUME feared were engine bugs were CORRUPTION all along** —
+> the wall proved them mechanical (corrupt `:when` never matched → rule never fired → wrong count). Rete binary 29→6 failed.
+>
+> **FLOOR: 64 (baseline) → 76 (wall census) → 52 failing (`4092 passed / 51 failed / 1 timed out`)** — BELOW baseline.
+> Three stones this front, all pushed: `d6bbc11a` wall · `4e85b03c` FreezeValidator extension point · `5ebe1cc1` census.
+>
+> **REMAINING ROAD TO 1 (the ~52 — all NON-rete-corruption; separate classes):** deftest/service cluster (`test::deftest_*`
+> ~15, the biggest) · process_io (`wat_arc208` 4) · closure_extraction (3) · arc272/arc260/arc209 clusters · the
+> (C)/store/accumulate differentials (`8a_accumulate` 4 real, `sqlite_store_differential` + `smem_roundtrip` + `telemetry_records`
+> + `journal_surface` — sqlite_store hits a `kwargs-lower ast-name` malformed-form at `wat/Record.wat:184`/`core.wat:608`,
+> the SURFACE-SPLICE class → this is the (C) work) · misc (`wat_core_cond`, `arc144`, `def_not_special`, `register_types_splice_aware`,
+> `diagnostic_c3`, `declaration_form_lift`, `closure_body_prelude_lift`, `brace_map_literal`, `decl_kwargs_minted_record`) ·
+> the lint rows (`no_inlined_wat` = the ONE allowed final failure; `no_loose_string_assert`) · the `peer_ipc` TIMEOUT.
+> These are FRESH diagnoses (different roots than the rete corruption) — the surface-splice/(C) cluster and the
+> deftest/service cluster are the next count-movers. This PIVOT supersedes the "(C) first" ordering in the SEAM below.
 
 ## The one-paragraph state
 
