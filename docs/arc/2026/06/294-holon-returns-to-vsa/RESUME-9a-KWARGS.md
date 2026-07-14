@@ -55,7 +55,23 @@
 > `diagnostic_c3`, `declaration_form_lift`, `closure_body_prelude_lift`, `brace_map_literal`, `decl_kwargs_minted_record`) ·
 > the lint rows (`no_inlined_wat` = the ONE allowed final failure; `no_loose_string_assert`) · the `peer_ipc` TIMEOUT.
 > These are FRESH diagnoses (different roots than the rete corruption) — the surface-splice/(C) cluster and the
-> deftest/service cluster are the next count-movers. This PIVOT supersedes the "(C) first" ordering in the SEAM below.
+> deftest/service cluster are the next count-movers.
+>
+> **(C) NOW IN FLIGHT (2nd count-mover front) — kwargs-construct deferral for SPLICED records.** Diagnosed: all 4
+> surface-splice failures (`telemetry_records`, `sqlite_store_differential`, `smem_roundtrip`, `journal_surface`) are
+> ONE root — the defrecord/defstruct COMPANION bakes its field-vec at EXPAND + forwards to `kwargs-lower`
+> (`Record.wat:184`), but a spliced record's `~@:Scope` isn't resolved until `register_types`, so `ast-name` chokes
+> (`core.wat:608`) and the spliced stdlib (`telemetry'`/`mem-store'`/`sqlite-store'`/`Journal`) can't load. This IS (C).
+> **Both foundation probes GREEN (own re-run):** `aggregate-new` over a SPLICED record works (`facility|42`, spliced+own
+> accessors resolve); and for NON-spliced, kwargs companion == out-of-order-kwargs == `aggregate-new` (`1|2|3`) → uniform
+> defer is SAFE on the common path. Build (SONNET IN FLIGHT, brief `BRIEF-C-kwargs-construct-splice.md`): companion emits
+> `(:kwargs-construct :T ~@call-args)` at 4 sites (`Record.wat:184`+`265`, `core.wat:1741`, `parse.rs:342`) instead of the
+> kwargs-lower forward; a post-register rewrite pass (`env.rs` step 7.8, before the FreezeValidator drain) lowers each
+> marker → `(:aggregate-new :T v-reordered)` via the wall's `reorder_kwargs_by_field_name` (`validate.rs:239`) +
+> `env.types()` (splice-resolved); un-lowered marker = LOUD check/eval error (extirpare). REUSES: the wall's reorder +
+> post-register pattern, `aggregate-new` + `infer_aggregate_new_check` (arc294). DIFFERENTIAL = WHOLE FLOOR (touches every
+> construction; both probes prove it safe). Expected: 52 → ~48. WEIGH by own re-run, floor-set diff vs baseline, do not trust.
+> This PIVOT supersedes the "(C) first" ordering in the SEAM below.
 
 ## The one-paragraph state
 
