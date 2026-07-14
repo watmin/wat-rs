@@ -76,11 +76,11 @@
 (:wat::rete::defrule :fix::arrow->conv
   :when
   [(:fix::Node
-     :kind (?offset <- :offset)
-     :name (?len    <- :len)
-     :offset (?kind   <- :kind)
-     :len (?name   <- :name)
-     :post-arrow (:wat::core::= ?kind "symbol"))
+     (?offset <- :offset)
+     (?len    <- :len)
+     (?kind   <- :kind)
+     (?name   <- :name)
+     (:wat::core::= ?kind "symbol"))
    (:wat::rete::where (:wat::core::or
                         (:wat::core::= ?name "<-")
                         (:wat::core::= ?name "->")))]

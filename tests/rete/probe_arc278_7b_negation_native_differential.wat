@@ -7,8 +7,8 @@
 
 (:wat::rete::defrule :alert::unattended
   :when
-  [(:weather::Temperature :celsius (?loc <- :location) :location (?c <- :celsius))
-   (:wat::rete::not (:ops::Maintenance :location (?loc <- :location)))]
+  [(:weather::Temperature (?loc <- :location) (?c <- :celsius))
+   (:wat::rete::not (:ops::Maintenance (?loc <- :location)))]
   :then
   (:wat::rete::insert (:alert::Unattended :location ?loc)))
 

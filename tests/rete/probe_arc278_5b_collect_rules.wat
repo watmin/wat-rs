@@ -13,5 +13,5 @@
   :then (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))
 (:wat::core::defn :weather::helper [] -> :wat::core::i64 42)
 (:wat::rete::defrule :other::windy
-  :when [(:weather::WindSpeed :kph (?loc <- :location) :location (?k <- :kph))]
+  :when [(:weather::WindSpeed (?loc <- :location) (?k <- :kph))]
   :then (:wat::rete::insert (:weather::ColdAndWindy :location ?loc)))
