@@ -83,73 +83,48 @@
 > (C1) companion→marker at the 4 sites + the marker's loud check/eval reject, then (C2) the rewrite pass). Floor UNCHANGED
 > at **52** (`c5391e9a`, clean, below baseline-64). This PIVOT supersedes the "(C) first" ordering in the SEAM below.
 >
-> **⚡ CRASH-PROP DETOUR (2026-07-14/15, BUILDER PRIORITY — surfaced by the (C) build, which flailed BECAUSE it couldn't
-> see its own crash).** Root (grounded): a connect'd client's CONNECTION peer has NO crash channel *by construction*
-> (`runtime.rs:26623` "Bare Peer' has no crash channel (it is a connection peer, not a spawned worker)"). So a thread-
-> OR-process service that crashes surfaces to its client's `recv'` only as "channel disconnected" — the REAL reason
-> lost. Worker peers (from `spawn`) DO propagate (thread `crash_tx`/`crash_rx`; process `err`/fd2 → the SPAWNER); it's
-> the **connect'd CLIENT** (the services-as-surfaces normal case) that's blind. Builder: *"we absolutely need crash
-> strings to propagate — critical info."* + *"threads and processes should be basically identical in everything but
-> shared memory"* (R31/R32 loci-agnostic — a crash surfaces the same near or far). Brief: `BRIEF-crash-channel-on-
-> connection-peer.md` (committed `a0e5b083`).
+> **⚖️ CRASH-PROP DETOUR — CLOSED BY BUILDER RULING (2026-07-15). NET CHANGE: ZERO. Do NOT reopen this.**
+> The detour began because the (C) build couldn't see why its service died (`recv'` → "channel disconnected", the real
+> reason lost). Across this session it grew a side-channel design (`stash`: per-connection crash channel shipped across
+> `connect'`), then an in-band design (reuse `resp_tx` + a `__PeerCrash__` sentinel) — which was BUILT, tested green
+> (thread tier, `3582032f`), and then **REVERTED (`git revert`) because it was never necessary.** `src/` is back to
+> byte-identical pre-change. Both designs were mechanisms to re-deliver a string the substrate ALREADY delivers.
 >
-> **PROBE VERDICT (a 2-hr probe — its work is PRESERVED, NOT discarded): BOTH tiers' gap confirmed empirically;
-> THREAD tier PROVEN feasible.** The probe BUILT a minimal working wiring — `connect'` (`ThreadAddress::connect`,
-> `kernel/address.rs`) ships a per-connection `crash_tx` as a 3rd element of the EXISTING connect-request rendezvous
-> Tuple → `accept'`/`poll'`/`select'` register it in a thread-local (`spawn.rs`) → `spawn_thread_peer`'s crash arms
-> drain+fan it → `Peer::recv_or_crash` surfaces via the existing `PeerRecvError::Crashed`/`classify_peer_death`; send-
-> before-drop holds (thread-local outside the unwound stack). REBUILT + RERAN GREEN (comms 77/77, kernel 402/402, zero
-> new). **This wiring is in `git stash@{0}`** ("crash-prop: thread-tier PROVEN…") — 5 src files + 4 tests, 187 ins/10 del,
-> with 2 mid-state compile errors (E0063 `peer.rs:274` missing `crash` field, E0425 `address.rs:103`
-> `PROBE_CRASH_TX_TYPE_PATH`) from its final edits. RECOVER it (`git stash pop`) as the full build's foundation; do NOT
-> re-derive from scratch. Tree is clean+buildable at `a0e5b083` (= 5e8a6e6f + the brief).
+> **THE RULING (builder):** *"i don't think we need to prop the crashes to blind callers — we have the thing who
+> creates a peer and its like an administrative interface"* + *"we spent a lot of time getting the IPC solid like a
+> month ago — it felt like we were just capturing the err string and dropping it."* **A crash reason is an
+> ADMINISTRATIVE fact.** It belongs on the ADMIN channel, delivered to whoever CREATED the peer — NOT to arbitrary
+> dialers. A blind dialer (a client holding only a coordinate `Address'` / connection `Peer'`, no `Handle` — e.g. an
+> arc-170 capability grantee, or an s2s `:peers` dialer) sees "the connection closed", and that is the CORRECT and
+> COMPLETE information for a non-administrator. Do not leak operator-level detail to callers with no standing to act.
 >
-> **⚡⚡ IN-BAND PIVOT (2026-07-15, BUILDER STEER "we over-engineered threads; processes just use what we built;
-> threads and processes should be basically identical but for shared memory"): the side-channel design was
-> OVER-ENGINEERED and is SUPERSEDED.** The stash@{1} proof minted a NEW String crash channel and shipped it across
-> `connect'` (`address.rs`+`listener.rs`+rendezvous 3-tuple+RustOpaque) — WHEN THE REPLY CHANNEL (`resp_tx`) ALREADY
-> SITS ON THE SERVICE SIDE at `accept'`. **New design (grounded + PROVED this session): reuse `resp_tx` — one reserved
-> crash-sentinel FRAME rides the EXISTING data channel as the connection's final frame; `recv'`/`select'` recognize it
-> → `Crashed(reason)`.** Thread: `accept'` clones the service-side `resp_tx` into a thread-local; `spawn_thread_peer`'s
-> catch drains+sends the sentinel before the owner `crash_tx` (the clone keeps the channel alive past the wat `conn`
-> EvalBreak unwind-drop). Process: identical — `emit_structured_exit` (`verbs.rs:126`, child still holds sockets before
-> `_exit`) writes the same sentinel frame on active client sockets ("just an edn string"). Brief:
-> `BRIEF-crash-prop-IN-BAND-SYMMETRIC.md` (SUPERSEDES `BRIEF-crash-channel-on-connection-peer.md`).
+> **THE WIRES ALREADY EXIST (grounded — this is why the net change is zero):** thread reason → `crash_tx` → the owner
+> `Thread'` peer's `crash_rx` (`spawn.rs:564`, `:690`); process reason → panic hook → stderr → dup2'd `err_tx` → the
+> bundle's `err_rx` (`spawn.rs:856`, *"the parent holds err_rx on the bundle and selects over it"*). The `Handle`
+> CARRIES that peer: `handle <- Peer'<Admin,Status>` — *"Thread' and Process' both satisfy this field"* (the admin
+> channel) + `addr` (for client `connect'`). And **`recv'` on that peer ALREADY surfaces `Crashed(reason)`** (the
+> worker-peer arm, arc 259). The string is captured and delivered correctly. It is then DROPPED — by us.
 >
-> **GAP + MECHANISM BOTH PROBED GREEN this session.** Gap: the crashing-handler probe (c0b1 shape, `assertion-failed!`
-> between `recv'` and `send'`) confirmed the client sees only "channel disconnected." Mechanism: the minimal thread
-> wiring (`accept'` clone → `spawn` catch drain+send → `recv'` sentinel-recognize) made the client's `recv'` surface the
-> FULL structured envelope (`#wat.kernel/AssertionFailure {:message … :actual … :expected … :frames …}`) IN-BAND —
-> comms probe GREEN. **Delta: 3 files / 72 ins vs stash@{1}'s 5 files / 187.** The over-engineering was real. The proven
-> in-band wiring is preserved in **`git stash`** ("crash-prop IN-BAND mechanism PROVEN…"); the side-channel proof is the
-> older stash ("thread-tier PROVEN connection-peer crash channel…") — KEPT as fallback only. Probe files:
-> `scratchpad/crashprop/scratch_crashprop_probe.{wat,rs}`.
+> **THE REAL PROBLEM (the builder's diagnosis — this is the ONLY thing left):** *"or is that blind caller the one in
+> the test who doesn't know why a failure happened — we are mitigating tests with opaque failures"*. **YES.** The
+> motivating failures are NOT blind callers. GROUNDED: `probe_arc278_smem_roundtrip.wat:12-14` and
+> `probe_arc278_journal_surface.wat:20-21` both do `h (<svc>/start :locus (thread) …)` then
+> `(connect' (<svc>::Handle/addr h))` — **they hold the Handle, i.e. they ARE the administrator.** The crash reason is
+> sitting in `h`'s admin channel, ONE `recv'` AWAY, and the test recv's on the CONNECTION and reports "channel
+> disconnected". So the work is TEST/ADMIN ERGONOMICS — make the holder of the admin interface READ the wire it already
+> holds — NOT a substrate mechanism. Scope it as such if it's picked up.
 >
-> **✅ THREAD HALF LANDED + WEIGHED GREEN — committed + pushed `3582032f`.** Reserved `Value::Enum`
-> `:wat::kernel::__PeerCrash__` sentinel; `accept'` (`listener.rs:243`) AND the `poll'`/2-arg-`select'` twin
-> (`wrap_connect_request`, `runtime.rs`) register a `resp_tx` clone in the `ACTIVE_CONN_SENDERS` thread-local;
-> `spawn_thread_peer`'s BOTH death arms (panic + `Ok(Err(re))`) drain+send before the owner `crash_tx`; `recv'` +
-> `select'` recognize it via ONE shared `peer_crash_sentinel_reason` (anti-drift). **KEY CATCH: `defservice`'s serve
-> loop uses `poll'` (`wat/service.wat:774`), NOT plain `accept'`** — registering only at `CrossbeamListener::accept`
-> would have MISSED every real service; the `wrap_connect_request` twin is what makes defservices propagate.
-> Tests `tests/comms/probe_arc294_crashprop_inband.{wat,rs}` cover all three paths (recv' full envelope · poll' real
-> serve-loop · select' → `:Lost` not `:Closed`). **Floor weighed by OWN re-run + a PRISTINE baseline run: failing SET
-> byte-identical (52 == 52, `comm` empty BOTH directions), 4092 → 4095 passed (+3 new). ZERO new failures.**
-> (Method note: strip ANSI *and* the `(n/4147)` counter — which can carry a leading space — before `comm`, else the
-> diff compares timings and every line reads as "new.")
+> **FOR THE NEXT SELF — the anti-pattern to not repeat (I burned a session on it):** I invented a gap ("the connection
+> peer has no crash channel") and never asked WHO ALREADY HAS THE REASON. Both probes I wrote had client == spawner —
+> i.e. they held the admin interface and I ignored it, then concluded the substrate was missing a wire. I also reasoned
+> two false mechanisms into existence off UNREAD code (a "the fd dies in the unwind → we need a `dup`" story, and its
+> equally-wrong correction). Ground the WIRES before designing a mechanism; when a string is "lost", first ask where it
+> was already delivered. Superseded docs (kept for history, do NOT build from them): `BRIEF-crash-channel-on-connection-
+> peer.md`, `BRIEF-crash-prop-IN-BAND-SYMMETRIC.md`. The two stashes (side-channel proof, in-band proof) are DEAD —
+> drop them.
 >
-> **PROCESS TIER = THE NEXT STRIKE (SCOUTED, grounded — builder: *"they should be damn near identical"* — CONFIRMED).**
-> The child runs its body inside `catch_unwind` before `_exit` (`src/process/child.rs` / `spawn_lifelined`) — that is
-> the SYMMETRIC broadcast seam, the mirror of `spawn_thread_peer`'s catch. Port: (1) register active client socket
-> senders (`comms::process::Sender<String>`) at the process accept (`SocketListener::accept` `listener.rs:305+` + the
-> process `poll'` path) — mirror of `ACTIVE_CONN_SENDERS`; (2) broadcast the sentinel at the child's `catch_unwind`
-> before `_exit` (the child still holds its UDS sockets there); (3) the client's `recv'` already decodes via
-> `decode_trusted_wire` → **the SAME `peer_crash_sentinel_reason` predicate, unchanged**. **The one real delta:** the
-> process wire is `String` (EDN), so the sentinel `Value::Enum` gets EDN-encoded on send (`value_to_edn_string`).
-> **OPEN QUESTION a probe must settle FIRST:** does the child's returned-`RuntimeError` path (not just panic) reach
-> that catch? Same gap-then-mechanism discipline (confirm the gap with a crashing process service + connect'd client,
-> THEN wire). THEN (C) resumes (`BRIEF-C-kwargs-construct-LIVE-FORM.md` — crash-prop makes its debugging trivial).
-
+> **NEXT: (C) resumes** — `BRIEF-C-kwargs-construct-LIVE-FORM.md`. If it flails blind again, the fix is to READ the
+> service's admin channel (`h`'s peer) — not to build propagation.
 ## The one-paragraph state
 
 The 9a flip (bare aggregate name = **kwargs macro**; positional demoted to the type-name **PRIME `:ns::T'`**, which is
