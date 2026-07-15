@@ -4018,6 +4018,11 @@ fn dispatch_keyword_head_value(
         // (no precomputed arg). struct-new / Record::of / holon::Record::of all route
         // through this; their of-func registrations stay until 294.c.2b.
         ":wat::core::aggregate-new" => eval_aggregate_new(args, list_span, env, sym),
+        // Arc 294 item (C) — `:wat::core::kwargs-construct` is the LIVE kwargs form the
+        // defrecord/defstruct companion emits: it resolves `:T`'s (splice-merged) field
+        // order from the registry, reorders the kwargs, then constructs like aggregate-new.
+        // Signature: (:wat::core::kwargs-construct :T :f v :f v …) — or positional passthrough.
+        ":wat::core::kwargs-construct" => eval_kwargs_construct(args, list_span, env, sym),
         // Arc 293 K3-revise — the TWO projection verbs (the PAIR): project a satisfier's
         // surface attributes into a new backing record at the pure tier the caller names.
         // Projection is ONE-WAY UP — you never project down to a struct (you already have
@@ -14676,31 +14681,48 @@ fn eval_aggregate_new(
             } }.into());
         }
     };
+    // args[1..] are the positional field values in declared order.
+    construct_aggregate(&type_name, &args[1..], OP, list_span, env, sym)
+}
+
+/// Shared aggregate-constructor tail — evaluates `value_asts` in declared order and
+/// builds the nature-appropriate `AggregateValue` for the type named by `type_name`
+/// (a keyword like `:ns::T` or `:ns::T<A,B>`). Single-sourced across the two arms:
+/// `eval_aggregate_new` (positional / prime path) and `eval_kwargs_construct` (after
+/// the kwargs reorder). Arc 294 item (C).
+fn construct_aggregate(
+    type_name: &str,
+    value_asts: &[WatAST],
+    op: &'static str,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     // Strip leading ':' and any type-params suffix `<…>` → colon-free bare class
     // for AggregateValue.class and TypeEnv lookup.  The macro-expanded form may
     // carry the full keyword (e.g. `:r2::HR<T>`) because the defrecord/defstruct
     // macro template uses `~fqdn` verbatim; TypeEnv keys store the bare name only.
-    let bare_name: &str = if let Some(pos) = type_name.find('<') { &type_name[..pos] } else { &type_name };
+    let bare_name: &str = if let Some(pos) = type_name.find('<') { &type_name[..pos] } else { type_name };
     let class = bare_name.trim_start_matches(':').to_string();
     // TypeEnv key has leading ':'.
     let type_key = format!(":{}", class);
 
-    // Evaluate args[1..] as the field values.
-    let mut fields: Vec<Value> = Vec::with_capacity(args.len().saturating_sub(1));
-    for arg in &args[1..] {
+    // Evaluate the value ASTs as the field values.
+    let mut fields: Vec<Value> = Vec::with_capacity(value_asts.len());
+    for arg in value_asts {
         fields.push(eval_inner(arg, env, sym)?.value_owned());
     }
 
     // Look up the TypeDef in the TypeEnv.
     let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-        head: OP.into(),
-        reason: "aggregate-new requires the type registry (startup via freeze)".into(),
+        head: op.into(),
+        reason: "aggregate construction requires the type registry (startup via freeze)".into(),
     } })?;
     let agg = match types.get(&type_key) {
         Some(crate::types::TypeDef::Aggregate(a)) => a,
         _ => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
+                head: op.into(),
                 reason: format!(
                     "type {} is not a registered aggregate (struct, record, or holon record)",
                     type_key
@@ -14713,7 +14735,7 @@ fn eval_aggregate_new(
     let expected_count = agg.fields.len();
     if fields.len() != expected_count {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: format!("{} (constructing {})", OP, type_key),
+            op: format!("{} (constructing {})", op, type_key),
             expected: expected_count,
             got: fields.len(),
         } }.into());
@@ -14728,7 +14750,7 @@ fn eval_aggregate_new(
         }
         crate::types::Nature::HolonRecord => {
             let field_names: Vec<String> = agg.field_names().map(|s| s.to_string()).collect();
-            let ctx = require_encoding_ctx(OP, sym, list_span)?;
+            let ctx = require_encoding_ctx(op, sym, list_span)?;
             let hologram = build_holon_hologram(&class, &field_names, &fields, ctx, list_span)?;
             Ok(Value::Aggregate(Arc::new(AggregateValue::holon_record(
                 class,
@@ -14740,6 +14762,121 @@ fn eval_aggregate_new(
         // nature-root for `:nature`-bound surfaces, satisfied by a dialed `Peer'`, not constructed
         // via aggregate-new); exhaustiveness only, unreachable at runtime.
         crate::types::Nature::Peer => unreachable!("TypeDef::Aggregate never carries Nature::Peer"),
+    }
+}
+
+/// Arc 294 item (C) — `:wat::core::kwargs-construct` is the LIVE kwargs-construction
+/// form the defrecord/defstruct companion now emits (replacing the expand-time
+/// `kwargs-lower` forward whose baked field-vector is WRONG for a SPLICED record).
+///
+/// `(:wat::core::kwargs-construct :T :f1 v1 :f2 v2 …)` — arg[0] is the bare `:T`
+/// keyword; args[1..] are KWARGS. It resolves `:T`'s declared field order from the
+/// (splice-merged, post-register) `sym.types()`, reorders the value-ASTs into that
+/// order via the shared `reorder_kwargs_by_field_name`, then constructs exactly like
+/// `aggregate-new`. Coverage is free: `eval` already traverses every construction at
+/// every depth in every residue, so a spliced ctor resolves wherever eval finds it.
+///
+/// If args[1..] are POSITIONAL (the prime path / generated code — no leading-keyword
+/// kv shape), they pass straight through to positional construction, mirroring
+/// `build_insert_fact`'s kwargs-vs-positional test (`matcher.rs`).
+fn eval_kwargs_construct(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::kwargs-construct";
+    if args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: 0,
+        } }.into());
+    }
+
+    // arg[0]: the type keyword `:T` (literal keyword, not evaluated).
+    let type_name = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "first argument must be a keyword literal (the aggregate's type name); got {}",
+                    other.variant_name()
+                ),
+            } }.into());
+        }
+    };
+
+    let rest = &args[1..];
+    // Distinguish kwargs (`:f v :f v …`) from positional values — the SAME test
+    // `build_insert_fact` uses (`matcher.rs`): an even count of args whose every
+    // slot-0-of-pair is a keyword is kwargs; anything else is positional.
+    let is_kwargs = rest.len() >= 2
+        && rest.len() % 2 == 0
+        && rest.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
+
+    if is_kwargs {
+        // Resolve declared field order from the (splice-merged) registry.
+        let bare_name: &str = if let Some(pos) = type_name.find('<') { &type_name[..pos] } else { &type_name };
+        let class = bare_name.trim_start_matches(':').to_string();
+        let type_key = format!(":{}", class);
+        let types = sym.types().ok_or_else(|| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "kwargs-construct requires the type registry (startup via freeze)".into(),
+        } })?;
+        let agg = match types.get(&type_key) {
+            Some(crate::types::TypeDef::Aggregate(a)) => a,
+            _ => {
+                return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "type {} is not a registered aggregate (struct, record, or holon record)",
+                        type_key
+                    ),
+                } }.into());
+            }
+        };
+        let field_order: Vec<&str> = agg.field_names().collect();
+        // Build (field-name-without-colon, value-AST) pairs.
+        let mut kv: Vec<(&str, WatAST)> = Vec::with_capacity(rest.len() / 2);
+        for pair in rest.chunks(2) {
+            let fname = match &pair[0] {
+                WatAST::Keyword(k, _) => k.strip_prefix(':').unwrap_or(k.as_str()),
+                // is_kwargs guarantees every slot-0-of-pair is a keyword.
+                _ => unreachable!("is_kwargs guarantees a keyword at each kv key"),
+            };
+            kv.push((fname, pair[1].clone()));
+        }
+        let reordered = crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv)
+            .map_err(|bad| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "unknown field :{} for aggregate {} (declared fields: {})",
+                    bad, type_key, field_order.join(", ")
+                ),
+            } })?;
+        construct_aggregate(&type_name, &reordered, OP, list_span, env, sym)
+    } else if rest.len() <= 1 {
+        // Zero- or single-arg construction — baseline `kwargs-lower`'s "is-pt" passthrough:
+        // a lone value/record (or empty) flows straight to positional construction, so a
+        // wrong-arity/wrong-type single arg produces the proper located error (NOT a bare-
+        // positional rejection). `(:T v)`, `(:T)`, `(:T some-record)`.
+        construct_aggregate(&type_name, rest, OP, list_span, env, sym)
+    } else {
+        // Arc 294 item 9a — the bare aggregate name is the KWARGS macro; raw positional
+        // construction is RETIRED (positional belongs to the prime `:T'`, which routes
+        // through `aggregate-new` directly, NOT through this form). Reaching here means a
+        // user wrote `(:T v1 v2 …)` at the bare name — a LOCATED rejection, preserving the
+        // flip doctrine (kwargs everywhere a human writes; the prime for generated code).
+        Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "bare-positional construction of {} is retired (the bare name is the kwargs \
+                 macro); write kwargs `({} :field value …)` or use the positional prime `{}'`",
+                type_name, type_name, type_name
+            ),
+        } }.into())
     }
 }
 

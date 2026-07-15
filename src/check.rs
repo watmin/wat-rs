@@ -5545,6 +5545,18 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 294 item (C) — the LIVE kwargs-construction form the aggregate companion
+            // emits. Validates kwargs field names ∈ :T (via the shared reorder helper),
+            // infers each value for side effects, and returns the concrete `:T` — mirroring
+            // `aggregate-new`'s check after a kwargs reorder. Positional args pass through.
+            ":wat::core::kwargs-construct" => {
+                let (val, mut errs) = infer_kwargs_construct_check(head_span, args, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 293 K3-revise — the TWO projection verbs (the PAIR). `:wat::core::to-struct`
             // is RETIRED (293 K3-revise); projection is ONE-WAY UP, never down.
             // Each takes two args: x (evaluated) and :S (literal surface keyword).
@@ -13039,6 +13051,162 @@ fn infer_aggregate_new_check(
     };
 
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+/// Arc 294 item (C) — type inference for `:wat::core::kwargs-construct`, the LIVE
+/// kwargs-construction form the defrecord/defstruct companion emits.
+///
+/// `(:wat::core::kwargs-construct :T :f1 v1 :f2 v2 …)` — arg[0] is the bare `:T`
+/// keyword; args[1..] are KWARGS. This is exactly what the OLD companion produced via
+/// `kwargs-lower` → the prime-ctor CALL `(:T' <reordered values>)`, so we reproduce
+/// that check BYTE-EQUIVALENTLY: reorder the value-ASTs into declared order (via the
+/// shared `reorder_kwargs_by_field_name`, validating each field ∈ :T) and then run the
+/// SAME `infer` over a synthetic `(:T' <reordered>)` list. Reusing the call path is what
+/// keeps generic self-construction (e.g. `Launched<S,R,Sh,Lu>` in `spawn.wat`) correct:
+/// the prime scheme is INSTANTIATED with fresh vars + unified against the args, which a
+/// raw `scheme.ret.clone()` (the aggregate-new-check shortcut) would NOT do — its bound
+/// type-vars mismatch the fn signature's even when `format_type` displays identically.
+///
+/// POSITIONAL args[1..] (the prime path / generated code) pass straight through as
+/// `(:T' <args>)`, mirroring `build_insert_fact`'s kwargs-vs-positional test.
+fn infer_kwargs_construct_check(
+    head_span: &Span,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    const CALLEE: &str = ":wat::core::kwargs-construct";
+
+    if args.is_empty() {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch { callee: CALLEE.into(), expected: 1, got: 0 },
+        });
+        return CheckResult::errs(local_errors);
+    }
+
+    // arg[0] must be the type keyword `:T`; if not, infer everything for side effects
+    // and fall back to a fresh var (mirrors `infer_aggregate_new_check`'s non-static arm).
+    let type_kw = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => {
+            for a in args.iter() {
+                let _ = infer(a, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+            }
+            let ty = fresh.fresh();
+            return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
+        }
+    };
+    let bare_k: &str = if let Some(pos) = type_kw.find('<') { &type_kw[..pos] } else { type_kw.as_str() };
+    let type_key = if bare_k.starts_with(':') { bare_k.to_string() } else { format!(":{}", bare_k) };
+    // The prime ctor keyword the old `kwargs-lower` forwarded to (no type-params suffix,
+    // matching `register_aggregate_methods`' `format!("{}'", agg.name)`).
+    let prime_kw = format!("{}'", bare_k);
+    let prime_head = WatAST::Keyword(prime_kw, args[0].span().clone());
+
+    let rest = &args[1..];
+    // Same kwargs-vs-positional test the eval arm + `build_insert_fact` use.
+    let is_kwargs = rest.len() >= 2
+        && rest.len() % 2 == 0
+        && rest.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
+
+    // Build the value ASTs in DECLARED order (the prime ctor takes positional values).
+    let ordered: Vec<WatAST> = if is_kwargs {
+        // Field order comes from the registered (splice-merged) aggregate.
+        let field_order: Vec<&str> = match env.types().get(&type_key) {
+            Some(crate::types::TypeDef::Aggregate(a)) => a.field_names().collect(),
+            _ => {
+                // Unknown/non-aggregate type — infer values for side effects and defer the
+                // "not a ctor" diagnosis to the synthetic call (`:T'` will be unknown too).
+                Vec::new()
+            }
+        };
+        if field_order.is_empty() {
+            // No registry field order to reorder against; pass kwargs values in written order.
+            rest.iter().skip(1).step_by(2).cloned().collect()
+        } else {
+            let mut kv: Vec<(&str, WatAST)> = Vec::with_capacity(rest.len() / 2);
+            for pair in rest.chunks(2) {
+                if let WatAST::Keyword(fk, _) = &pair[0] {
+                    kv.push((fk.strip_prefix(':').unwrap_or(fk.as_str()), pair[1].clone()));
+                }
+            }
+            match crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv) {
+                Ok(v) => v,
+                Err(bad) => {
+                    local_errors.push(CheckError {
+                        span: head_span.clone(),
+                        kind: CheckErrorKind::MalformedForm {
+                            head: CALLEE.into(),
+                            reason: format!(
+                                "unknown field :{} for aggregate {} (declared fields: {})",
+                                bad, type_key, field_order.join(", ")
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                    // Best-effort: infer the supplied values for side effects, return concrete :T.
+                    for pair in rest.chunks(2) {
+                        if pair.len() == 2 {
+                            let _ = infer(&pair[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                        }
+                    }
+                    let ty = if let Some(scheme) = env.get(&format!("{}'", bare_k)).or_else(|| env.get(bare_k)) {
+                        scheme.ret.clone()
+                    } else {
+                        TypeExpr::Path(bare_k.to_string())
+                    };
+                    return CheckResult::partial_with(ty, local_errors);
+                }
+            }
+        }
+    } else if rest.len() <= 1 {
+        // Zero- or single-arg construction — baseline `kwargs-lower`'s "is-pt" passthrough:
+        // a lone value/record flows to `(:T' arg)`, so arity/type errors surface properly.
+        rest.to_vec()
+    } else {
+        // Arc 294 item 9a — bare-positional construction is RETIRED (the bare name is the
+        // kwargs macro; positional belongs to the prime `:T'`, checked via `aggregate-new`
+        // directly, never this form). A LOCATED rejection, preserving the flip doctrine.
+        for arg in rest.iter() {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::MalformedForm {
+                head: CALLEE.into(),
+                reason: format!(
+                    "bare-positional construction of {} is retired (the bare name is the kwargs \
+                     macro); write kwargs `({} :field value …)` or use the positional prime `{}'`",
+                    type_key, type_key, type_key
+                ),
+                remedies: vec![],
+            },
+        });
+        let ty = if let Some(scheme) = env.get(&format!("{}'", bare_k)).or_else(|| env.get(bare_k)) {
+            scheme.ret.clone()
+        } else {
+            TypeExpr::Path(bare_k.to_string())
+        };
+        return CheckResult::partial_with(ty, local_errors);
+    };
+
+    // Reproduce the old `kwargs-lower` lowering: infer `(:T' <ordered values>)`, reusing
+    // the whole call path (scheme instantiation + unification + concrete-ret).
+    let mut synthetic_items: Vec<WatAST> = Vec::with_capacity(ordered.len() + 1);
+    synthetic_items.push(prime_head);
+    synthetic_items.extend(ordered);
+    let synthetic = WatAST::List(synthetic_items, head_span.clone());
+
+    let (val, mut errs) = infer(&synthetic, env, locals, fresh, subst).into_parts();
+    local_errors.append(&mut errs);
+    match val {
+        Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+        None => CheckResult::errs(local_errors),
+    }
 }
 
 /// Arc 293 K3-revise — type inference for the TWO projection verbs (the PAIR):

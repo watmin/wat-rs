@@ -1717,6 +1717,8 @@
      ;; structtype registration (`~@args` below), which carries the params through.
      fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
      fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     ;; Arc 294 item (C) — the bare `:T` keyword STRING for the live `kwargs-construct`.
+     bare-kw-str   (:wat::core::string::concat ":" fqdn-bare-str)
      prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
@@ -1734,11 +1736,10 @@
        (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
          -> :wat::WatAST
+         ;; Arc 294 item (C) — LIVE `kwargs-construct` over the bare `:T` (see Record.wat's BASE macro).
          (:wat::core::let
-           [~(:wat::core::symbol-node "_kl-impl") (:wat::core::keyword-node ~prime-kw-str)
-            ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
-            ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node ~ns-colon-str)]
-           `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args))))))
+           [~(:wat::core::symbol-node "_kc-type") (:wat::core::keyword-node ~bare-kw-str)]
+           `(:wat::core::kwargs-construct ~_kc-type ~@call-args))))))
 
 ;; ─── Arc 293 K5: extend-surface — default method impls over both pair tiers ────
 ;;

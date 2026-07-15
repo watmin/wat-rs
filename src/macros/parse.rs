@@ -323,26 +323,19 @@ pub fn register_aggregate_kwargs_companions(
 /// registered).
 fn aggregate_kwargs_companion_source<'a>(
     bare_name: &str,
-    field_names: impl Iterator<Item = &'a str>,
+    _field_names: impl Iterator<Item = &'a str>,
 ) -> String {
-    let prime = format!("{bare_name}'");
-    let ns = {
-        let mut parts: Vec<&str> = bare_name.split("::").collect();
-        parts.pop(); // drop the type-name leaf, keep the namespace lead
-        format!("{}::", parts.join("::"))
-    };
-    let fields: Vec<&str> = field_names.collect();
+    // Arc 294 item (C) — emit the LIVE `kwargs-construct` form over the bare `:T`
+    // keyword; check/eval resolve `:T`'s (splice-merged, post-register) field order off
+    // the registry and reorder the kwargs there. Replaces the expand-time `kwargs-lower`
+    // forward (baked field-vector), whose hole is the SPLICED-record bug — so the
+    // field-name vector + prime + ns constants this used to bake are no longer needed.
     format!(
         "(:wat::core::defmacro {bare_name} \
            [& call-args <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST \
            (:wat::core::let \
-             [_kl-impl (:wat::core::keyword-node \"{prime}\") \
-              _kl-fvec (:wat::core::quote [{fields}]) \
-              _kl-ns (:wat::core::keyword-node \"{ns}\")] \
-             `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args)))",
+             [_kc-type (:wat::core::keyword-node \"{bare_name}\")] \
+             `(:wat::core::kwargs-construct ~_kc-type ~@call-args)))",
         bare_name = bare_name,
-        prime = prime,
-        fields = fields.join(" "),
-        ns = ns,
     )
 }

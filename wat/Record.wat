@@ -157,6 +157,9 @@
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
      fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
      fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     ;; Arc 294 item (C) — the bare `:T` keyword STRING, spliced into the companion's
+     ;; live `kwargs-construct` form (check/eval read the field order off the registry).
+     bare-kw-str   (:wat::core::string::concat ":" fqdn-bare-str)
      prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
@@ -177,11 +180,14 @@
        (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
          -> :wat::WatAST
+         ;; Arc 294 item (C) — emit the LIVE `kwargs-construct` form over the bare `:T`
+         ;; keyword; check/eval resolve `:T`'s (splice-merged, post-register) field order
+         ;; and reorder the kwargs there. Replaces the expand-time `kwargs-lower` forward,
+         ;; whose baked field-vector is WRONG for a SPLICED record (the splice isn't
+         ;; resolved until `register_types`).
          (:wat::core::let
-           [~(:wat::core::symbol-node "_kl-impl") (:wat::core::keyword-node ~prime-kw-str)
-            ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
-            ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node ~ns-colon-str)]
-           `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args))))))
+           [~(:wat::core::symbol-node "_kc-type") (:wat::core::keyword-node ~bare-kw-str)]
+           `(:wat::core::kwargs-construct ~_kc-type ~@call-args))))))
 
 ;; Arc 293.R2.2 — accessor emission removed from BASE macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for
@@ -240,6 +246,8 @@
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
      fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
      fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" fqdn-bare-str))
+     ;; Arc 294 item (C) — the bare `:T` keyword STRING for the live `kwargs-construct`.
+     bare-kw-str   (:wat::core::string::concat ":" fqdn-bare-str)
      prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
@@ -258,11 +266,10 @@
        (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
          -> :wat::WatAST
+         ;; Arc 294 item (C) — LIVE `kwargs-construct` over the bare `:T` (see the BASE macro).
          (:wat::core::let
-           [~(:wat::core::symbol-node "_kl-impl") (:wat::core::keyword-node ~prime-kw-str)
-            ~(:wat::core::symbol-node "_kl-fvec") (:wat::core::quote ~field-names-ast-vec)
-            ~(:wat::core::symbol-node "_kl-ns")   (:wat::core::keyword-node ~ns-colon-str)]
-           `(:wat::core::kwargs-lower ~_kl-impl :wat::core::agg-positional ~_kl-fvec 0 ~_kl-ns ~@call-args))))))
+           [~(:wat::core::symbol-node "_kc-type") (:wat::core::keyword-node ~bare-kw-str)]
+           `(:wat::core::kwargs-construct ~_kc-type ~@call-args))))))
 
 ;; Arc 293.R2.2 — accessor emission removed from HOLONIC macro.
 ;; register_aggregate_methods (runtime.rs) now mints all field accessors for

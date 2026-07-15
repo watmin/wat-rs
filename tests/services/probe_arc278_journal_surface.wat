@@ -20,14 +20,15 @@
     [h       (:probe::toy-journal'/start :locus (:wat::spawn::thread) :record (:probe::toy-journal'::Record))
      journal (:wat::kernel::connect' (:probe::toy-journal'::Handle/addr h))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
+     ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
      m       (:wat::telemetry'::Metric
-               "probe-ns"                          ;; namespace     (spliced from Scope)
-               (:wat::core::Uuid/nil)               ;; uuid          (spliced)
-               tags                                 ;; tags          (spliced)
-               123                                  ;; time-ns       (spliced)
-               100                                  ;; start-time-ns (own)
-               :requests                            ;; name          (own)
-               (:wat::telemetry'::Numeric::I64 7)   ;; value         (own)
-               :wat::telemetry'::Unit::Count)        ;; unit          (own)
+               :namespace     "probe-ns"                      ;; spliced from Scope
+               :uuid          (:wat::core::Uuid/nil)          ;; spliced
+               :tags          tags                            ;; spliced
+               :time-ns       123                             ;; spliced
+               :start-time-ns 100                             ;; own
+               :name          :requests                       ;; own
+               :value         (:wat::telemetry'::Numeric::I64 7) ;; own
+               :unit          :wat::telemetry'::Unit::Count)    ;; own
      batch   (:wat::core::Vector :wat::telemetry'::Metric m)]
     (:wat::telemetry'::Journal/write-metrics journal (:wat::telemetry'::Journal::WriteMetricsRequest batch))))
