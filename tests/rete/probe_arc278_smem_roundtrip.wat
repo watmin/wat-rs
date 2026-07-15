@@ -23,16 +23,21 @@
                   (:wat::query::StoredRow :pk "u#1" :sk "e" :data "{:v 5}" :index-keys empty-ik))
 
      es-resp    (:wat::query::Store/ensure-schema store
-                  (:wat::query::Store::EnsureSchemaRequest (:wat::query::TableSchema :pk "pk" :sk "sk")
-                    (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
+                  (:wat::query::Store::EnsureSchemaRequest
+                    :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
+                    :indexes (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
      put-resp   (:wat::query::Store/put store (:wat::query::Store::PutRequest input-rows))
 
-     page1-resp (:wat::query::Store/scan store (:wat::query::Store::ScanRequest "u#1" "a" "z" 2 :wat::core::None))
-     page2-resp (:wat::query::Store/scan store (:wat::query::Store::ScanRequest "u#1" "a" "z" 2 (:wat::core::Some "b")))
-     page3-resp (:wat::query::Store/scan store (:wat::query::Store::ScanRequest "u#1" "a" "z" 2 (:wat::core::Some "d")))
+     page1-resp (:wat::query::Store/scan store
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor :wat::core::None))
+     page2-resp (:wat::query::Store/scan store
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Some "b")))
+     page3-resp (:wat::query::Store/scan store
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Some "d")))
 
      ipage-resp (:wat::query::Store/scan-index store
-                  (:wat::query::Store::ScanIndexRequest "by-v" "u#1" "v1" "v2" 10 :wat::core::None))]
+                  (:wat::query::Store::ScanIndexRequest
+                    :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor :wat::core::None))]
 
     (:wat::core::match es-resp -> :wat::core::nil
       ((:wat::query::Store::EnsureSchemaResponse::Success) nil)

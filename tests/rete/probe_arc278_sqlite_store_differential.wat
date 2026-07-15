@@ -44,8 +44,9 @@
                 (:wat::query::StoredRow :pk "u#1" :sk "e" :data "{:v 5}" :index-keys empty-ik))
      _es      (:wat::core::match
                 (:wat::query::Store/ensure-schema store
-                  (:wat::query::Store::EnsureSchemaRequest (:wat::query::TableSchema :pk "pk" :sk "sk")
-                    (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
+                  (:wat::query::Store::EnsureSchemaRequest
+                    :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
+                    :indexes (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
                 -> :wat::core::nil
                 ((:wat::query::Store::EnsureSchemaResponse::Success) nil)
                 (_ (:wat::kernel::assertion-failed! "ensure-schema failed" :wat::core::None :wat::core::None)))
@@ -55,14 +56,18 @@
                 (_ (:wat::kernel::assertion-failed! "put failed" :wat::core::None :wat::core::None)))
 
      page1    (:probe::expect-scan
-                (:wat::query::Store/scan store (:wat::query::Store::ScanRequest "u#1" "a" "z" 2 :wat::core::None)))
+                (:wat::query::Store/scan store
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor :wat::core::None)))
      page2    (:probe::expect-scan
-                (:wat::query::Store/scan store (:wat::query::Store::ScanRequest "u#1" "a" "z" 2 (:wat::core::Some "b"))))
+                (:wat::query::Store/scan store
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Some "b"))))
      page3    (:probe::expect-scan
-                (:wat::query::Store/scan store (:wat::query::Store::ScanRequest "u#1" "a" "z" 2 (:wat::core::Some "d"))))
+                (:wat::query::Store/scan store
+                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Some "d"))))
      ipage    (:probe::expect-scan-index
                 (:wat::query::Store/scan-index store
-                  (:wat::query::Store::ScanIndexRequest "by-v" "u#1" "v1" "v2" 10 :wat::core::None)))]
+                  (:wat::query::Store::ScanIndexRequest
+                    :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor :wat::core::None)))]
     (:probe::RunResult :page1 page1 :page2 page2 :page3 page3 :ipage ipage)))
 
 (:wat::test::deftest' :user::sqlite_store_differential ()
@@ -75,8 +80,9 @@
      ;; law), connect'; the dialed peer IS the Store. The durable Record carries the path
      ;; (":memory:") + the declared GSI-name set ("by-v").
      sh           (:wat::query::sqlite-store'/start :locus (:wat::spawn::thread)
-                    :record (:wat::query::sqlite-store'::Record ":memory:"
-                              (:wat::core::Vector :wat::core::String "by-v")))
+                    :record (:wat::query::sqlite-store'::Record
+                              :path        ":memory:"
+                              :index-names (:wat::core::Vector :wat::core::String "by-v")))
      sqlite-store (:wat::kernel::connect' (:wat::query::sqlite-store'::Handle/addr sh))
 
      mem-result    (:probe::run-ops mem-store)
