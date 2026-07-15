@@ -104,18 +104,34 @@
 > `PROBE_CRASH_TX_TYPE_PATH`) from its final edits. RECOVER it (`git stash pop`) as the full build's foundation; do NOT
 > re-derive from scratch. Tree is clean+buildable at `a0e5b083` (= 5e8a6e6f + the brief).
 >
-> **PROCESS tier (BUILDER STEER — simpler than the probe framed it):** the crash reason is JUST AN EDN STRING already
-> written to stderr/fd2 by the panic hook. Route THAT string to the connect'd client as a final crash-tagged frame on
-> the data socket — reply-XOR-crash per request (never concurrent, mirrors the process `err`'s Ok-XOR-Err), so the
-> probe's `!Clone`-single-writer "shareable Sender vs SCM_RIGHTS" fork is OVER-FRAMED; it's one more string send. NOT
-> a heavy plumbing decision.
+> **⚡⚡ IN-BAND PIVOT (2026-07-15, BUILDER STEER "we over-engineered threads; processes just use what we built;
+> threads and processes should be basically identical but for shared memory"): the side-channel design was
+> OVER-ENGINEERED and is SUPERSEDED.** The stash@{1} proof minted a NEW String crash channel and shipped it across
+> `connect'` (`address.rs`+`listener.rs`+rendezvous 3-tuple+RustOpaque) — WHEN THE REPLY CHANNEL (`resp_tx`) ALREADY
+> SITS ON THE SERVICE SIDE at `accept'`. **New design (grounded + PROVED this session): reuse `resp_tx` — one reserved
+> crash-sentinel FRAME rides the EXISTING data channel as the connection's final frame; `recv'`/`select'` recognize it
+> → `Crashed(reason)`.** Thread: `accept'` clones the service-side `resp_tx` into a thread-local; `spawn_thread_peer`'s
+> catch drains+sends the sentinel before the owner `crash_tx` (the clone keeps the channel alive past the wat `conn`
+> EvalBreak unwind-drop). Process: identical — `emit_structured_exit` (`verbs.rs:126`, child still holds sockets before
+> `_exit`) writes the same sentinel frame on active client sockets ("just an edn string"). Brief:
+> `BRIEF-crash-prop-IN-BAND-SYMMETRIC.md` (SUPERSEDES `BRIEF-crash-channel-on-connection-peer.md`).
 >
-> **THE FULL BUILD (tier-symmetric, resume here):** recover `stash@{0}`; (1) clean the thread wiring (the thread-local
-> bridge → a cleaner seam if possible; fix the 2 compile errors); (2) PROCESS = write the EDN crash string as a final
-> frame to the connect'd client (builder steer); (3) `select'`'s bare-`Peer'` arm (`runtime.rs:26623-26636`) also needs
-> the `classify_peer_death` treatment for parity (the probe did only single-`recv'`); (4) a `#wat.kernel/…` crash
-> reason surfaces at the client's `recv'`/`select'` for a crashing thread AND process service — NOT `ChannelDisconnected`.
-> Whole-floor differential (baseline `a0e5b083` ~52, ZERO new). THEN (C) resumes (crash-prop makes its debugging trivial).
+> **GAP + MECHANISM BOTH PROBED GREEN this session.** Gap: the crashing-handler probe (c0b1 shape, `assertion-failed!`
+> between `recv'` and `send'`) confirmed the client sees only "channel disconnected." Mechanism: the minimal thread
+> wiring (`accept'` clone → `spawn` catch drain+send → `recv'` sentinel-recognize) made the client's `recv'` surface the
+> FULL structured envelope (`#wat.kernel/AssertionFailure {:message … :actual … :expected … :frames …}`) IN-BAND —
+> comms probe GREEN. **Delta: 3 files / 72 ins vs stash@{1}'s 5 files / 187.** The over-engineering was real. The proven
+> in-band wiring is preserved in **`git stash`** ("crash-prop IN-BAND mechanism PROVEN…"); the side-channel proof is the
+> older stash ("thread-tier PROVEN connection-peer crash channel…") — KEPT as fallback only. Probe files:
+> `scratchpad/crashprop/scratch_crashprop_probe.{wat,rs}`.
+>
+> **THE FULL BUILD (tier-symmetric, resume here):** pop the IN-BAND stash as the foundation; (1) harden the thread
+> sentinel (a reserved `Value::Enum __PeerCrash__` not the probe's String-prefix); (2) `select'`'s bare-`Peer'` arm
+> (`runtime.rs:26623-26645`) recognizes the sentinel too (the probe did only single-`recv'`); (3) PROCESS tier =
+> `emit_structured_exit` writes the sentinel frame on active client sockets + a socket registry mirroring
+> `ACTIVE_CONN_SENDERS` + the client-side decode; (4) ONE shared sentinel predicate for both tiers (anti-drift, like
+> `classify_peer_death`). Whole-floor differential (baseline `9e9b778c` ~52, ZERO new). THEN (C) resumes (crash-prop
+> makes its debugging trivial).
 
 ## The one-paragraph state
 
