@@ -125,6 +125,24 @@
 >
 > **NEXT: (C) resumes** — `BRIEF-C-kwargs-construct-LIVE-FORM.md`. If it flails blind again, the fix is to READ the
 > service's admin channel (`h`'s peer) — not to build propagation.
+>
+> **(C) RE-DISPATCHED (2026-07-15) to a shadowdancer from the LIVE-FORM brief.** Diagnosis re-confirmed on
+> `probe_arc278_telemetry_records` (`--no-capture`): `kwargs-lower — program body eval failed` at `wat/Record.wat:184`
+> → `ast-name requires a Symbol/Keyword/StringLit` at `wat/core.wat:608` (the spliced companion bakes its field-vec at
+> expand; ast-name chokes pre-splice-resolve). Foundation sites all present + matching the brief: reorder helper
+> `src/rete/validate.rs:239`; aggregate-new dispatch `runtime.rs:4020` / `check.rs:5540`; eval `runtime.rs:14657`; check
+> `check.rs:12988`. Baseline floor **52** (51 failed / 1 timed out) at HEAD `3f88c27f`. Weigh by OWN re-run + whole-floor
+> differential (extract failing-set by stripping ANSI AND the `( n/total)` counter — leading-space variant — before
+> `comm`, else you diff timings and see phantom regressions).
+>
+> **DEFTEST/SERVICE CLUSTER — a SEPARATE root from (C), GROUNDED today (do NOT fold into (C)).** `deftest_wat_tests_service_counter_on_thread`
+> FAILS, `..._on_process` PASSES — SAME test body, only the service locus differs (`wat-tests/service-locus-parity.wat`).
+> Read the real reason cleanly off the ADMIN peer (`recv' (counter::Handle/handle h)`, zero substrate changes):
+> `#wat.runtime/UnknownFunction {:path ":wat-tests::counter::State"}` at the `increment` handler's `(counter::State :durable …)`
+> construction. So the minted `::State` kwargs COMPANION is unregistered in the THREAD (shared-world) freeze but present in
+> the PROCESS (fresh child) freeze — a locus-parity / companion-registration gap, NOT the spliced-record ast-name symptom
+> of (C). The connection `recv'` masks it as "channel disconnected"; the admin interface carries the true reason (the
+> substrate is correct — see the CLOSED crash-prop ruling above). Diagnose this cluster on its own after (C).
 ## The one-paragraph state
 
 The 9a flip (bare aggregate name = **kwargs macro**; positional demoted to the type-name **PRIME `:ns::T'`**, which is
