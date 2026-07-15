@@ -20835,6 +20835,11 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
             }.into());
         }
     };
+    // arc294 crash-prop: register a clone of resp_tx (the data channel back to the client)
+    // so a poll'/2-arg-select' service — defservice's serve loop uses poll' — propagates its
+    // crash reason in-band to this connect'd client, mirroring the plain accept' path
+    // (CrossbeamListener::accept). Without this, only bare-accept' clients get the reason.
+    crate::kernel::spawn::register_conn_sender(resp_tx.clone());
     // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
     use crate::kernel::peer::Peer;
     use crate::kernel::spawn::PEER_TYPE_PATH;
@@ -26005,16 +26010,32 @@ fn eval_peer_recv_prime(
                                 })
                             })
                         }
-                        Some(peer) => peer.recv().map_err(|_| {
-                            RuntimeError {
+                        // arc294 crash-prop: a connection Peer' has no crash channel, but
+                        // a crashing service sends an in-band crash-sentinel frame on the
+                        // reused resp_tx (spawn_thread_peer's death path). Recognize it via
+                        // the shared predicate → surface the REAL reason, not a generic
+                        // disconnect. Mirrors the worker-peer Crashed arm above.
+                        Some(peer) => match peer.recv() {
+                            Ok(v) => match crate::kernel::spawn::peer_crash_sentinel_reason(&v) {
+                                Some(reason) => Err(RuntimeError {
+                                    span: list_span.clone(),
+                                    kind: RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason,
+                                    },
+                                }
+                                .into()),
+                                None => Ok(v),
+                            },
+                            Err(_) => Err(RuntimeError {
                                 span: list_span.clone(),
                                 kind: RuntimeErrorKind::MalformedForm {
                                     head: OP.into(),
                                     reason: "recv failed: peer closed / channel disconnected".into(),
                                 },
                             }
-                            .into()
-                        }),
+                            .into()),
+                        },
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
@@ -26620,20 +26641,29 @@ fn eval_peer_select_prime(
             sel.recv(*rx);
         }
 
-        // Bare Peer' has no crash channel (it is a connection peer, not a spawned worker).
-        // EOF = clean disconnect only → :Closed. :Lost is for spawned workers (process/thread tier).
+        // Bare Peer' has no crash channel, but a crashing service sends an in-band
+        // crash-sentinel frame on the reused resp_tx (arc294 crash-prop, spawn_thread_peer's
+        // death path). A recognized sentinel Message → :Lost (carrying the reason), mirroring
+        // the spawned-worker crash arm; a plain EOF is still a clean disconnect → :Closed.
         const SELECT_EVENT_TYPE_PEER: &str = ":wat::spawn::ServiceEvent";
         match sel.select() {
             crate::comms::SelectOutcome::Recv { index, result } => {
                 let peer_idx = index.0 as i64;
                 match result {
-                    Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
-                        type_path: SELECT_EVENT_TYPE_PEER.into(),
-                        variant_name: "Message".into(),
-                        fields: vec![Value::i64(peer_idx), msg],
-                    }))),
+                    Ok(msg) => match crate::kernel::spawn::peer_crash_sentinel_reason(&msg) {
+                        Some(reason) => Ok(Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE_PEER.into(),
+                            variant_name: "Lost".into(),
+                            fields: vec![Value::i64(peer_idx), message_only_failure(reason)],
+                        }))),
+                        None => Ok(Value::Enum(Arc::new(EnumValue {
+                            type_path: SELECT_EVENT_TYPE_PEER.into(),
+                            variant_name: "Message".into(),
+                            fields: vec![Value::i64(peer_idx), msg],
+                        }))),
+                    },
                     Err(_) => {
-                        // EOF — bare connection peer left gracefully (no crash channel).
+                        // EOF — bare connection peer left gracefully (no crash frame sent).
                         Ok(Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE_PEER.into(),
                             variant_name: "Closed".into(),

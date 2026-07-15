@@ -237,6 +237,10 @@ impl CommListener for CrossbeamListener {
                 .into());
             }
         };
+        // arc294 crash-prop: register a clone of resp_tx (the data channel back to the
+        // client) on THIS service thread, so spawn_thread_peer's death path can send an
+        // in-band crash-sentinel frame on it after a mid-request crash unwinds `conn`.
+        crate::kernel::spawn::register_conn_sender(resp_tx.clone());
         // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
         Ok(Peer::from_thread(resp_tx, req_rx))
     }
