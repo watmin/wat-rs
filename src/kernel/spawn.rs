@@ -151,82 +151,6 @@ pub const LISTENER_TYPE_PATH: &str = ":wat::kernel::Listener'";
 /// both thread and process tiers now produce the same `Address` entity.
 pub const ADDRESS_TYPE_PATH: &str = ":wat::kernel::Address'";
 
-// ─── arc294 — connection-peer crash propagation (in-band, thread tier) ─────────
-//
-// A connect'd client's connection `Peer'` has no crash channel by construction
-// (`runtime.rs`, the "bare Peer' has no crash channel" arms). When a service
-// crashes mid-request, its `conn` (holding `resp_tx` to the client) is dropped
-// during the `EvalBreak` unwind, so the client's `recv'`/`select'` see only EOF —
-// the real reason is lost.
-//
-// The fix reuses the reply channel that ALREADY sits on the service side: at
-// `accept'` a clone of `resp_tx` is registered here (a thread-local, on the
-// service thread), so it survives the wat `conn` binding's unwind-drop.
-// `spawn_thread_peer`'s post-`catch_unwind` code (same OS thread) drains the
-// registry and sends a reserved crash-sentinel FRAME in-band on each surviving
-// clone BEFORE the owner `crash_tx` — the clone keeps the channel alive, so the
-// client receives the reason instead of EOF. `recv'`/`select'` recognize the
-// sentinel via `peer_crash_sentinel_reason` and surface `Crashed`/`Lost`.
-//
-// This reuses the existing data channel — NO new channel, NO `connect'` crossing.
-// The process tier mirrors this in-band shape (BRIEF-crash-prop-IN-BAND-SYMMETRIC.md).
-
-/// Reserved `type_path` for the in-band crash-sentinel frame carried on a
-/// connection's data channel. A legitimate reply can never collide: this is a
-/// `:wat::kernel::`-namespaced internal enum no surface declares.
-pub const PEER_CRASH_SENTINEL_TYPE_PATH: &str = ":wat::kernel::__PeerCrash__";
-
-thread_local! {
-    /// Per-(service-)thread registry of accepted connections' `resp_tx` clones,
-    /// populated by `CrossbeamListener::accept`, drained by `broadcast_crash_frame`
-    /// on this thread's death. Clones held here outlive the wat `conn` binding's
-    /// `EvalBreak` unwind-drop, keeping each client channel open for the final frame.
-    static ACTIVE_CONN_SENDERS:
-        std::cell::RefCell<Vec<crate::comms::thread::Sender<crate::value::Value>>> =
-        std::cell::RefCell::new(Vec::new());
-}
-
-/// Register a clone of a just-accepted connection's `resp_tx` on THIS (service)
-/// thread. Called by `CrossbeamListener::accept`.
-pub(crate) fn register_conn_sender(tx: crate::comms::thread::Sender<crate::value::Value>) {
-    ACTIVE_CONN_SENDERS.with(|c| c.borrow_mut().push(tx));
-}
-
-/// Build the reserved crash-sentinel frame carrying `reason`.
-fn crash_sentinel_frame(reason: &str) -> crate::value::Value {
-    crate::value::Value::Enum(Arc::new(crate::value::EnumValue {
-        type_path: PEER_CRASH_SENTINEL_TYPE_PATH.to_string(),
-        variant_name: "Crashed".to_string(),
-        fields: vec![crate::value::Value::String(Arc::new(reason.to_string()))],
-    }))
-}
-
-/// Drain the registry and send the crash-sentinel frame in-band on each surviving
-/// `resp_tx` clone. Called by `spawn_thread_peer`'s death arms BEFORE the owner
-/// `crash_tx` send (send-before-drop: the clones here are outside the unwound stack).
-pub(crate) fn broadcast_crash_frame(reason: &str) {
-    let frame = crash_sentinel_frame(reason);
-    ACTIVE_CONN_SENDERS.with(|c| {
-        for tx in c.borrow_mut().drain(..) {
-            let _ = tx.send(frame.clone());
-        }
-    });
-}
-
-/// The ONE shared predicate both `recv'` and `select'` consume (anti-drift):
-/// if `v` is the reserved crash-sentinel frame, return its reason string.
-pub(crate) fn peer_crash_sentinel_reason(v: &crate::value::Value) -> Option<String> {
-    if let crate::value::Value::Enum(e) = v {
-        if e.type_path == PEER_CRASH_SENTINEL_TYPE_PATH {
-            if let Some(crate::value::Value::String(s)) = e.fields.first() {
-                return Some((**s).clone());
-            }
-            return Some(String::new());
-        }
-    }
-    None
-}
-
 // ─── Process peer bundle ──────────────────────────────────────────────────────
 
 /// Outcome of `ProcessPeerBundle::recv`: a value from the Ok arm or an error
@@ -735,8 +659,6 @@ pub fn spawn_thread_peer(
                         Some(a) => crate::panic_hook::assertion_failure_envelope(&a),
                         None => message,
                     };
-                    // fan the crash reason in-band to connect'd clients before the owner crash_tx.
-                    broadcast_crash_frame(&reason);
                     let _ = crash_tx.send(reason);
                 }
                 // wat RuntimeError out of the body — a genuine death; carry its reason so
@@ -744,10 +666,7 @@ pub fn spawn_thread_peer(
                 // apply_function already unwraps EvalSignals (TailCall/try/option), so the
                 // Err here is a bare RuntimeError.
                 Ok(Err(re)) => {
-                    let reason = re.to_string();
-                    // fan the crash reason in-band to connect'd clients before the owner crash_tx.
-                    broadcast_crash_frame(&reason);
-                    let _ = crash_tx.send(reason);
+                    let _ = crash_tx.send(re.to_string());
                 }
                 // Clean exit — no crash reason to carry.
                 Ok(Ok(_)) => {}
