@@ -125,13 +125,30 @@
 > older stash ("thread-tier PROVEN connection-peer crash channel…") — KEPT as fallback only. Probe files:
 > `scratchpad/crashprop/scratch_crashprop_probe.{wat,rs}`.
 >
-> **THE FULL BUILD (tier-symmetric, resume here):** pop the IN-BAND stash as the foundation; (1) harden the thread
-> sentinel (a reserved `Value::Enum __PeerCrash__` not the probe's String-prefix); (2) `select'`'s bare-`Peer'` arm
-> (`runtime.rs:26623-26645`) recognizes the sentinel too (the probe did only single-`recv'`); (3) PROCESS tier =
-> `emit_structured_exit` writes the sentinel frame on active client sockets + a socket registry mirroring
-> `ACTIVE_CONN_SENDERS` + the client-side decode; (4) ONE shared sentinel predicate for both tiers (anti-drift, like
-> `classify_peer_death`). Whole-floor differential (baseline `9e9b778c` ~52, ZERO new). THEN (C) resumes (crash-prop
-> makes its debugging trivial).
+> **✅ THREAD HALF LANDED + WEIGHED GREEN — committed + pushed `3582032f`.** Reserved `Value::Enum`
+> `:wat::kernel::__PeerCrash__` sentinel; `accept'` (`listener.rs:243`) AND the `poll'`/2-arg-`select'` twin
+> (`wrap_connect_request`, `runtime.rs`) register a `resp_tx` clone in the `ACTIVE_CONN_SENDERS` thread-local;
+> `spawn_thread_peer`'s BOTH death arms (panic + `Ok(Err(re))`) drain+send before the owner `crash_tx`; `recv'` +
+> `select'` recognize it via ONE shared `peer_crash_sentinel_reason` (anti-drift). **KEY CATCH: `defservice`'s serve
+> loop uses `poll'` (`wat/service.wat:774`), NOT plain `accept'`** — registering only at `CrossbeamListener::accept`
+> would have MISSED every real service; the `wrap_connect_request` twin is what makes defservices propagate.
+> Tests `tests/comms/probe_arc294_crashprop_inband.{wat,rs}` cover all three paths (recv' full envelope · poll' real
+> serve-loop · select' → `:Lost` not `:Closed`). **Floor weighed by OWN re-run + a PRISTINE baseline run: failing SET
+> byte-identical (52 == 52, `comm` empty BOTH directions), 4092 → 4095 passed (+3 new). ZERO new failures.**
+> (Method note: strip ANSI *and* the `(n/4147)` counter — which can carry a leading space — before `comm`, else the
+> diff compares timings and every line reads as "new.")
+>
+> **PROCESS TIER = THE NEXT STRIKE (SCOUTED, grounded — builder: *"they should be damn near identical"* — CONFIRMED).**
+> The child runs its body inside `catch_unwind` before `_exit` (`src/process/child.rs` / `spawn_lifelined`) — that is
+> the SYMMETRIC broadcast seam, the mirror of `spawn_thread_peer`'s catch. Port: (1) register active client socket
+> senders (`comms::process::Sender<String>`) at the process accept (`SocketListener::accept` `listener.rs:305+` + the
+> process `poll'` path) — mirror of `ACTIVE_CONN_SENDERS`; (2) broadcast the sentinel at the child's `catch_unwind`
+> before `_exit` (the child still holds its UDS sockets there); (3) the client's `recv'` already decodes via
+> `decode_trusted_wire` → **the SAME `peer_crash_sentinel_reason` predicate, unchanged**. **The one real delta:** the
+> process wire is `String` (EDN), so the sentinel `Value::Enum` gets EDN-encoded on send (`value_to_edn_string`).
+> **OPEN QUESTION a probe must settle FIRST:** does the child's returned-`RuntimeError` path (not just panic) reach
+> that catch? Same gap-then-mechanism discipline (confirm the gap with a crashing process service + connect'd client,
+> THEN wire). THEN (C) resumes (`BRIEF-C-kwargs-construct-LIVE-FORM.md` — crash-prop makes its debugging trivial).
 
 ## The one-paragraph state
 
