@@ -82,6 +82,40 @@
 > flailed, likely the rewrite-pass wiring / the un-lowered-marker error arms; consider splitting into smaller strikes:
 > (C1) companion→marker at the 4 sites + the marker's loud check/eval reject, then (C2) the rewrite pass). Floor UNCHANGED
 > at **52** (`c5391e9a`, clean, below baseline-64). This PIVOT supersedes the "(C) first" ordering in the SEAM below.
+>
+> **⚡ CRASH-PROP DETOUR (2026-07-14/15, BUILDER PRIORITY — surfaced by the (C) build, which flailed BECAUSE it couldn't
+> see its own crash).** Root (grounded): a connect'd client's CONNECTION peer has NO crash channel *by construction*
+> (`runtime.rs:26623` "Bare Peer' has no crash channel (it is a connection peer, not a spawned worker)"). So a thread-
+> OR-process service that crashes surfaces to its client's `recv'` only as "channel disconnected" — the REAL reason
+> lost. Worker peers (from `spawn`) DO propagate (thread `crash_tx`/`crash_rx`; process `err`/fd2 → the SPAWNER); it's
+> the **connect'd CLIENT** (the services-as-surfaces normal case) that's blind. Builder: *"we absolutely need crash
+> strings to propagate — critical info."* + *"threads and processes should be basically identical in everything but
+> shared memory"* (R31/R32 loci-agnostic — a crash surfaces the same near or far). Brief: `BRIEF-crash-channel-on-
+> connection-peer.md` (committed `a0e5b083`).
+>
+> **PROBE VERDICT (a 2-hr probe — its work is PRESERVED, NOT discarded): BOTH tiers' gap confirmed empirically;
+> THREAD tier PROVEN feasible.** The probe BUILT a minimal working wiring — `connect'` (`ThreadAddress::connect`,
+> `kernel/address.rs`) ships a per-connection `crash_tx` as a 3rd element of the EXISTING connect-request rendezvous
+> Tuple → `accept'`/`poll'`/`select'` register it in a thread-local (`spawn.rs`) → `spawn_thread_peer`'s crash arms
+> drain+fan it → `Peer::recv_or_crash` surfaces via the existing `PeerRecvError::Crashed`/`classify_peer_death`; send-
+> before-drop holds (thread-local outside the unwound stack). REBUILT + RERAN GREEN (comms 77/77, kernel 402/402, zero
+> new). **This wiring is in `git stash@{0}`** ("crash-prop: thread-tier PROVEN…") — 5 src files + 4 tests, 187 ins/10 del,
+> with 2 mid-state compile errors (E0063 `peer.rs:274` missing `crash` field, E0425 `address.rs:103`
+> `PROBE_CRASH_TX_TYPE_PATH`) from its final edits. RECOVER it (`git stash pop`) as the full build's foundation; do NOT
+> re-derive from scratch. Tree is clean+buildable at `a0e5b083` (= 5e8a6e6f + the brief).
+>
+> **PROCESS tier (BUILDER STEER — simpler than the probe framed it):** the crash reason is JUST AN EDN STRING already
+> written to stderr/fd2 by the panic hook. Route THAT string to the connect'd client as a final crash-tagged frame on
+> the data socket — reply-XOR-crash per request (never concurrent, mirrors the process `err`'s Ok-XOR-Err), so the
+> probe's `!Clone`-single-writer "shareable Sender vs SCM_RIGHTS" fork is OVER-FRAMED; it's one more string send. NOT
+> a heavy plumbing decision.
+>
+> **THE FULL BUILD (tier-symmetric, resume here):** recover `stash@{0}`; (1) clean the thread wiring (the thread-local
+> bridge → a cleaner seam if possible; fix the 2 compile errors); (2) PROCESS = write the EDN crash string as a final
+> frame to the connect'd client (builder steer); (3) `select'`'s bare-`Peer'` arm (`runtime.rs:26623-26636`) also needs
+> the `classify_peer_death` treatment for parity (the probe did only single-`recv'`); (4) a `#wat.kernel/…` crash
+> reason surfaces at the client's `recv'`/`select'` for a crashing thread AND process service — NOT `ChannelDisconnected`.
+> Whole-floor differential (baseline `a0e5b083` ~52, ZERO new). THEN (C) resumes (crash-prop makes its debugging trivial).
 
 ## The one-paragraph state
 
