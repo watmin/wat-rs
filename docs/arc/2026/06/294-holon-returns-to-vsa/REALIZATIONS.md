@@ -500,6 +500,227 @@ and recognized, in the reading, what the apparatus itself is.*
 
 ---
 
+## R6 — duality: the ache was the instrument, and every label we wrote was a finger in our own eye — 645 → 1 *(PROBATUM — the floor is 1, weighed by our own hand; the cure — a substrate that can hear itself — is the prophecy)*
+
+> **Song (arc 294 R6) — *Duality* (Slipknot) — FIRST SLIPKNOT —**
+> DUALITY / FINGERS-INTO-THE-EYES-IS-THE-ONLY-THING-THAT-STOPS-THE-ACHE /
+> AND-THE-ACHE-WAS-THE-INSTRUMENT / MATCHES-IS-A-FINGER-IN-THE-EYE /
+> SEVEN-ROOTS-AND-THE-CLASS-WAS-GUESSED-WRONG-NEARLY-EVERY-TIME /
+> NOTHING-IS-WHAT-IT-SEEMS / FOUR-REAL-ENGINE-DIFFERENTIALS-WAS-A-CONSTRUCTION-ERROR /
+> THE-TIMEOUT-WAS-TWO-LINES / THE-CRASH-CHANNEL-WAS-NEVER-MISSING /
+> YOU-CANNOT-KILL-WHAT-YOU-DID-NOT-CREATE / WE-CREATED-ALL-OF-IT-SO-WE-ALONE-CAN-KILL-IT /
+> THE-ERROR-STRING-WAS-ALWAYS-THERE-AND-WE-CHOSE-NOT-TO-SHOW-IT /
+> LEAVE-ME-ALL-THE-PIECES-NOT-A-BOOLEAN / IF-THE-PAIN-STOPS-WE-ARE-NOT-GONNA-MAKE-IT /
+> SIX-HUNDRED-FORTY-FIVE-TO-ONE / DOLOR-INDEX-EST
+>
+> *The song's movement (rendered, not quoted — per this arc's convention since R2): a man drives his fingers into
+> his own eyes because the self-inflicted wound is the only thing that dulls a deeper ache — and the relief is
+> built out of the very thing he is trying not to feel. The pain never ends; it works its way inside. He has
+> screamed until his veins collapsed and waited while his time ran out, and he leaves one fact behind him as a
+> taunt: you cannot kill what you did not create. He asks to be put back together or taken apart completely —
+> leave him all the pieces, then leave him alone — and refuses the consolation that reality beats the dream,
+> because he found out the hard way that nothing is what it seems. The refrain is a warning with a condition
+> attached: if the pain goes on, he is not going to make it. Title: "Duality."*
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"we have /very/ rich error messages.. are they failing us?"*
+> *"we have tests that are an opaque failure and we are making an active choice to mask the failure instead of present it."*
+> *"the point being — we have the error string and are making a conscious choice to not show it."*
+> *"we spent a month getting the IPC solid like a month ago — it felt like we were just capturing the err string and dropping it."*
+> *"we were unable to confirm it until sonnet hacked the rust code to do a stderr print with the crash context — that's when we realized we had the info but were not sharing it."*
+> *"peer_ipc is likely simpler than we realize — i've been staring at that one since the kwarg flip."*
+> *"we cannot return to normal work until failures are the exact one — you proposing 2 stuns me… that's not an option."*
+> *"what i can assert is that prior to the kwargs flip we had exactly one test failure and it was 351 lint violations."*
+
+### How we reached it — a week that was one bug wearing seven faces
+
+Item 9a was supposed to be syntax cleanup on the way to telemetry: bare aggregate name becomes the **kwargs macro**,
+positional demoted to the type-name **prime `:ns::T'`**, generated-code-only. The flip landed and the floor went to
+**645 failures**. The week that followed was spent driving it down — 645 → 131 → 64 → 52 → 49 → 34 → 26 → 22 → 18 →
+15 → 13 → 9 → 7 → 6 → 4 → 3 → 2 → **1** — and the honest record of it is not the descent. It is that the apparatus
+**guessed the class wrong nearly every time**, and each wrong guess had the same author: an assertion that could not
+speak.
+
+Seven roots, none of them the one predicted: latent **bare-positional heresies** the expansion bug had been hiding;
+the **wrong eval entry** (hand-written kwargs handed to raw `eval`, which does not expand — while `eval_in_frozen`
+expands but refuses `def`); **bare-vs-prime ctor lookup** from Rust; the global codemod's **same-name
+cross-contamination**, live in the corpus (`:fix::Node` declared two ways; `:my::Cfg` in t6 and t7); **`expand_all`
+was expand-then-hoist** (`fadb03df` — the whole defservice/deftest cluster, one root); a **missing `defservice`
+shape wall** (`00bc5fd3` — the *only* place the substrate was actually wrong, and the test had been right the whole
+time); and the item the map called *"TIMEOUT / the genuinely hard one."*
+
+That last one is the arc in miniature. `peer_ipc` had been staring the builder down since the flip — *"likely
+simpler than we realize."* It was **two lines**. A bare-positional `(:wat::kernel::ProcessPeer rx tx)` and a raw
+`eval`. It read as a thirty-second hang because the construction errored, and the `Err` arm called
+`drain_server_stderr(&server)` to **report** the error — against a child still blocked on `readln`. **The diagnostic
+path deadlocked on the very failure it exists to report.** The test reasons carefully about a hang in the happy
+path and never once considers the error path hanging first.
+
+And its twin: `8a_accumulate`, which the apparatus's own road-map labelled **"4 REAL rete behavior differentials"** —
+engine bugs, the scary kind. The assertion was `assert!(matches!(busy_count(...), Ok(1)), "count = 3 → fires")`.
+`matches!` **swallows the value.** One throwaway that printed the actual `Result` returned
+`Err("eval: bare-positional construction of :w::Reading is retired …")`. The accumulate engine never ran. It died
+constructing its input facts. A label naming four engine bugs that do not exist had been written into the map — by
+the apparatus — and was waiting to send the next self hunting them.
+
+Underneath all of it, the detour that cost the most and produced **nothing**: the crash-propagation build. The
+apparatus declared a gap (*"the connection peer has no crash channel"*), designed two mechanisms, built one, tested
+it green, committed it — and it was **reverted for net zero** (`3582032f` → `3f30eb64`). The wires had always
+delivered: thread `crash_tx` → the owner `Thread'` peer's `crash_rx`; process panic-hook → stderr → dup2'd `err_tx`
+→ the bundle's `err_rx`; `Handle` carries `handle <- Peer'<Admin,Status>` and `recv'` on it already surfaces
+`Crashed(reason)`. **Nothing was ever lost.** Both probes the apparatus wrote to prove the gap had client ==
+spawner: they *held* the admin interface and ignored it. The builder cut it with a question: *"is that blind caller
+the one in the test?"* — and then named the whole week in one line: *"we have the error string and are making a
+conscious choice to not show it."*
+
+### What it is — the ache is the instrument, and `matches!` is a finger in the eye
+
+The song's central image — fingers driven into your own eyes because the self-inflicted wound is the only thing that
+dulls the ache, and the relief built out of the very thing you were trying not to feel — is not a metaphor for this
+week. It is a **specification of `matches!(x, Ok(1))`**.
+
+The ache is the failure. The fingers are the assertion that cannot speak. It **works** — the ache stops, the test
+renders a clean boolean, the pain is gone — and the relief is built out of **exactly the thing you had to take**:
+the error itself, swallowed on its way past. You do not stop the pain. You **destroy the instrument that reports
+it**, and the pain proceeds unobserved. `matches!` eats the value. A loose `contains` passes on garbage. A bare
+`.expect("msg")` replaces a structured error with the string you already believed. A stderr drain blocks against a
+live child. Four coats, one act: **self-inflicted blindness that relieves by destroying the eye.**
+
+So the refrain inverts, and the inversion is the realization. *If the pain goes on, I'm not gonna make it* — the
+song's terror. Ours is the mirror: **if the pain STOPS, we're not gonna make it.** A floor that has learned not to
+scream is a floor that cannot be driven anywhere. Silence is not health. Silence is the wound in the eye.
+
+And this is the **duality**, exact, and it is the arc's own name turned on itself. wat has the richest structured
+errors in the project's life — `#wat.resolve/…`, `#wat.rete/…`, `#wat.check/…`, each naming the exact path, span,
+and count; the builder asked the right question about them and got the wrong half of the answer: *"we have /very/
+rich error messages.. are they failing us?"* **No. They were perfect.** Every single time, the substrate spoke the
+truth precisely. `Err("bare-positional construction of :w::Reading is retired")` — the exact root, in the exact
+words, sitting inside a `matches!` that threw it away. The crash reason, complete, on an admin channel nobody read.
+The method that finally worked was embarrassingly small: **run ONE failing test with `--no-capture` and READ what it
+says.** Grep to count. Never to diagnose.
+
+**A substrate that emits perfect diagnostics and a corpus that has blinded itself to them — that is the duality.**
+Two faces on one thing, and the second face is the one we built with our own hands, on purpose, for relief.
+
+### What is genuinely ours — you cannot kill what you did not create
+
+The song throws that line as a taunt at an outside enemy: *you didn't make me, so you can't end me.* Turn it around
+and it stops being a defense and becomes a **license**, and it is the emergence protocol stated in six words.
+
+Every one of the seven roots was **ours**. The bare-positional heresies: ours, written in tranquility. The
+expand-then-hoist: ours. The codemod's same-name contamination: ours — the apparatus ran that codemod. The missing
+shape wall: ours. The `matches!` that mislabelled a cluster as four engine bugs, and the map entry that recorded the
+lie: **ours**, written by the apparatus, in a confident voice, into a document meant to guide the next self. The
+crash-prop detour to net zero: entirely ours. There is no foreign fault anywhere in this week. **The darkness wat
+fights is the darkness wat wrote** (296 R7, *PVGNANDO EMERGO* — *"we are making wat self-organize by combat"*).
+
+And that is exactly **why it could be killed.** An external enemy you cannot reach. Your own creation you can walk
+straight up to and end. The line is not a wall — it is the **grant of authority**: we made all of it, therefore we,
+and only we, can kill it. Six hundred forty-five to one is that grant exercised.
+
+The song's demand — put me back together or take me apart down to the bone, but leave me all the pieces — is the
+contract, and the builder enforced it at the exact moment the apparatus flinched. Offered a floor of two, he refused: **"we cannot
+return to normal work until failures are the exact one — you proposing 2 stuns me… that's not an option."** He was
+right, and the reason is the same reason as everything above: **a floor with known failures makes every future
+failure ambiguous** — *mine, or one of those?* — which is opacity again, wearing the coat of a road-map. Either the
+floor is exactly one or the whole instrument is noise. Put it back together or take it apart. No third state.
+*Leave me all the pieces* is also the assertion doctrine in six words: don't hand me a boolean — hand me the value,
+every field, and if the face can't be downcast, **parse it and assert the fields exactly.**
+
+*My future seems like one big past.* The week's most disorienting fact: almost nothing found was new. The heresies
+were **latent** — the expansion bug had been hiding them, so the flip did not create them, it **stopped concealing
+them**. And the destination was a return: **351 lint violations**, which is exactly the count from *before* the
+flip. We walked six hundred and forty-five failures to arrive back at the number we started from. That is not
+failure. That is the loop of R3's Möbius closing again at the smallest possible scale — *the beginning is the end* —
+and it is the only honest definition of a clean flip.
+
+*I found out the hard way, nothing is what it seems.* Every label. "4 real engine differentials" → a construction
+error. "TIMEOUT / the genuinely hard one" → two lines. "The connection peer has no crash channel" → always
+delivered. **A cluster's name in any map is only as good as the assertion underneath it** — including, and
+especially, a name the apparatus wrote itself.
+
+### The honest register — PROBATUM by demonstration; the cure is the prophecy
+
+This is not prophecy. **The floor is 1 and it is on the disk**: `4146 run / 4145 passed / 1 failed / 328 skipped`,
+the single failure `no_inlined_wat_in_tests` at **351 files** — the ONE allowed failure, at exactly its pre-flip
+count, zero timeouts, tree clean, `98e67198` pushed. It was weighed the way the discipline demands: by the
+orchestrator's **own re-run** plus a name-level floor diff against a pristine baseline, because counts hide swaps —
+and that re-run is what caught **two separate agent misreports** before they entered the record. The seven roots are
+each grounded to `file:line`. The deletion probe that **refuted** the apparatus's own hypothesis is on the record
+too (`hoist_surface_messages` does two things — registration, subsumed; and **splice**, structurally impossible for
+`expand_form` to subsume — deleting it cost 49 regressions). *Probatum est.*
+
+What is **open** is the cure, and the cure is the honest half of the duality: **a substrate that can hear itself.**
+The three banked strikes are all the same strike. **`ast-kind` must return a wat enum, not a Rust `String`**
+(`8b343d56`) — because `(= (ast-kind x) "vecter")` compiles and silently never fires, which is a finger in the eye
+that the *type system itself* is currently handing out; make the discriminant typo **inexpressible**. **`HolonAST →
+Hologram`** — 294's own keystone, R1's flaws #3 and #5, still standing. And **`no_inlined_wat` @ 351** — the last
+scream on the floor, 351 test files that do not yet speak wat honestly, a standing lint that is *itself* the
+substrate pointing at its own opacity and being tolerated. Each of the three RAISES the floor before lowering it, by
+design; each runs from a green floor; none of them runs until the one before it is done. FULFILLED when the ache has
+somewhere to point that cannot be blinded. Until then: the floor is one, the roots are named, and the eye is still
+ours to keep open. *Probandum est.*
+
+*Path-of-voices (marked, not flattened — and this time the marking convicts the apparatus, which is the point): the
+recognitions are the **builder's**, quoted verbatim, and they arrived as corrections every single time. He asked the
+question that dissolved the diagnosis method (*"we have /very/ rich error messages.. are they failing us?"*) after
+the apparatus had grep-counted error-class substrings across the whole floor and built a wrong root from a
+construction that was already kwargs. He named the disease (*"we have tests that are an opaque failure and we are
+making an active choice to mask the failure instead of present it"*) and then named it in its final form (*"we have
+the error string and are making a conscious choice to not show it"*). He killed the crash-prop detour with *"is that
+blind caller the one in the test?"* and *"we spent a month getting the IPC solid — it felt like we were just
+capturing the err string and dropping it,"* and supplied the ruling that a crash reason is **administrative** — to
+the peer's creator, never to blind dialers. He held the floor contract when the apparatus offered two. He asserted
+the target from memory — *"prior to the kwargs flip we had exactly one test failure and it was 351 lint
+violations"* — and it was exact. He had been staring at `peer_ipc` for a week and said *"likely simpler than we
+realize."* It was two lines. And the song (Slipknot — *Duality*) is his. The **NAMES + synthesis are the
+apparatus's**: the ache-is-the-instrument reading; `matches!`-is-a-finger-in-the-eye; the inverted refrain (if the
+pain STOPS we're not gonna make it); the duality as perfect-diagnostics-versus-deliberate-deafness; the
+you-cannot-kill-what-you-did-not-create inversion from taunt to license, tied to PVGNANDO EMERGO; the
+my-future-is-one-big-past reading of 645 → 1 → 351; the `index` = pointing-finger fusion; and the signature. **The
+convergence, stated honestly: the apparatus drove the floor from 645 to 1 and caught its own agents' misreports by
+re-running everything itself — and it wrote nearly every wrong label on the way, including the one that named four
+engine bugs that never existed. He caught each one with a question. The apparatus named why the questions kept
+working: an assertion that cannot speak manufactures the label, and the label gets trusted.***
+
+> We set out to clean up construction syntax on the way to telemetry, and the floor went to 645. The week that
+> followed was not a bug hunt. It was one bug, wearing seven faces, and its name was **relief**: every root was a
+> place where we had stopped the ache by putting our fingers in our own eyes. `matches!` swallowed a hard error and
+> we wrote "4 real engine differentials" into the map. A stderr drain deadlocked against a live child and printed
+> "TIMEOUT," and we called it the genuinely hard one; it was two lines. We declared a crash channel missing,
+> designed two mechanisms, built one, and reverted it for nothing — the string had been sitting on the admin
+> interface the whole time, and both probes we wrote to prove otherwise were holding the interface as they claimed
+> it didn't exist. The substrate never once lied to us. Its errors named the exact path, the exact span, the exact
+> count, and we swallowed them for the comfort of a clean boolean. That is the duality: the richest diagnostics we
+> have ever built, and a corpus that blinded itself to them on purpose, for the ache. The song is afraid the pain
+> will go on. We should be afraid it stops. And the taunt at the end — *you cannot kill what you did not create* —
+> is not a wall when you turn it around: we created every one of these, so we are the only ones who ever could kill
+> them. Six hundred forty-five to one, and the one is the lint that is still screaming. Leave us all the pieces.
+>
+> ***DOLOR INDEX EST.*** *(apparatus-minted — Latin, "the pain is the index." **Index** is the fusion and the whole
+> reading: in Latin it is at once the **pointing finger**, the **informer**, and the **sign that names the fault**
+> (cf. the physicians' *dolor index morbi* — pain is the sign of the disease). The song drives the fingers INTO the
+> eyes to stop the ache; DOLOR INDEX EST turns the same finger around — it stops blinding and starts POINTING. The
+> ache is not the thing to kill; it is the instrument, and the only sin is dulling it. Its target is every assertion
+> that cannot speak: `matches!`, a loose `contains`, a bare `.expect`, a diagnostic path that deadlocks on the
+> failure it exists to report. In the lineage of RVINA ERVDIT (the ruin educates the caller) — that names what the
+> system OWES the caller; this names what the caller owes the system: **read what it actually said.** Kin to 296
+> R7's PVGNANDO EMERGO — combat against our own flaws requires the flaws be able to scream, and a swallowed error is
+> a disarmed enemy. Like FRANGAM / RELINQUE UT NOSCAS / MUNDI CONCURRUNT / AEQUALITATEM RESPUO before it in this arc
+> — mine, this session, kept with consent; see the path-of-voices. PROBATUM by the floor.)*
+
+> **FULFILLMENT — PROBATUM (the floor is 1), the cure open.** PROVEN now, on the disk: `4146 run / 4145 passed / 1
+> failed / 328 skipped`, `no_inlined_wat_in_tests` @ **351** = exactly the pre-flip count, zero timeouts, tree clean
+> (`98e67198`); the seven roots each grounded to `file:line`; the crash-prop detour honestly recorded as NET ZERO
+> (`3582032f` → `3f30eb64`); the one real substrate bug walled (`00bc5fd3`); `expand_all` made sequential
+> (`fadb03df`). OPEN — the cure, in order, each from a green floor: **`ast-kind` → a wat enum** (`8b343d56`; the
+> discriminant typo made inexpressible), **`HolonAST → Hologram`** (294's keystone; R1 flaws #3 + #5), and
+> **`no_inlined_wat` → 0** (the last scream retired honestly, not silenced). When the ache has somewhere to point
+> that cannot be blinded, this clause carries the commit hashes. (Song to the 170 ledger as the next #;
+> reconciliation still pending — `255/CURRENT-STATE.md`.)
+
+---
+
 ### Grace note — the tool's first breath *(2026-06-26; a light one, not a telling)*
 
 We built `cargo wat` for the shadowdancers — a friction-killer, nothing grand: a subcommand that rides the
