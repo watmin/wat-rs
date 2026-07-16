@@ -46,7 +46,7 @@
 //! conversation, not the process lineage.
 
 use wat::ast::WatAST;
-use wat::freeze::{startup_bare, startup_beside};
+use wat::freeze::{eval_in_frozen, startup_bare, startup_beside};
 use wat::runtime::{eval, Environment, Value};
 
 /// Arc 170 slice 6 helper — wrap a child-program source string as a
@@ -163,7 +163,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
         (:wat::core::let
           [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
            tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer rx tx)]
+           peer (:wat::kernel::ProcessPeer :rx rx :tx tx)]
           (:wat::core::match (:wat::kernel::Process/println peer "hello")
             -> :wat::core::String
             ((:wat::core::Ok _)
@@ -185,7 +185,7 @@ fn process_peer_round_trips_string_via_real_subprocess() {
     // On the clean-shutdown failure path, Process/readln surfaces Err(chain)
     // via the match-on-Err arm, which calls assertion-failed! → RuntimeError.
     // The server stderr is surfaced for diagnostic via the Err(e) arm below.
-    let reply = match eval(&round_trip, &env, world.symbols()) {
+    let reply = match eval_in_frozen(&round_trip, &world, &env) {
         Ok(v) => v.value_owned(),
         Err(e) => {
             let stderr_text = drain_server_stderr(&server);
