@@ -135,7 +135,39 @@
 > differential (extract failing-set by stripping ANSI AND the `( n/total)` counter — leading-space variant — before
 > `comm`, else you diff timings and see phantom regressions).
 >
-> **DEFTEST/SERVICE CLUSTER — a SEPARATE root from (C), GROUNDED today (do NOT fold into (C)).** `deftest_wat_tests_service_counter_on_thread`
+> **🎯 DEFTEST/SERVICE CLUSTER ROOT — PROVEN (2026-07-15, minimal A/B repro). THE NEXT FRONT.**
+> **ROOT: `expand_all` is EXPAND-then-HOIST** (`src/macros/expand.rs:39-58`): `let expanded = expand_form(form,…)?`
+> expands a form FULLY — a `defservice`'s `serve` body INCLUDED — and only THEN does
+> `hoist_top_level_form(expanded, registry)` register the companion macros that same `do` mints
+> (`defservice` emits `(do ~record-def ~state-def … (defn ~serve-name … ~serve-body) …)`, `service.wat:1236-1245`).
+> So a handler that constructs its OWN minted `::State`/`::Record` expands BEFORE their companions register →
+> the construction stays RAW → `#wat.runtime/UnknownFunction` at eval. **THREAD fails; PROCESS passes because the
+> forked child RE-EXPANDS with the companions already hoisted** — `expand.rs:52` says it outright: *"defservice's
+> shipped `surface-forms` carrier re-hoists it identically in the forked child"*.
+>
+> **PROVEN by a 40-line minimal defservice A/B** (probe preserved: `scratchpad/expand-order/scratch_expand_order.{wat,rs}`
+> — it is the ACCEPTANCE TEST for the fix; promote it):
+> - `ping` (CONTROL — handler constructs nothing minted, returns `s` unchanged + a `:messages` response, which IS
+>   hoisted early via `hoist_surface_messages`) → **PASSES (`i64(1)`)**.
+> - `bump` (SUSPECT — handler constructs its own `(:probe::echo::State :durable (:probe::echo::Record :count 7))`)
+>   → **`unknown function: :probe::echo::State`**, read off the ADMIN peer.
+> - CONTROL-WITHIN-CONTROL: the SAME probe constructs `(:probe::echo::Record :count 0)` at `/start` in the CALLER's
+>   world and it WORKS. Identical type + kwargs form: registered in the caller's world, RAW inside the handler.
+>   → defservice-GENERIC, not stdlib/mem-store-specific.
+>
+> **PRECEDENT — this exact class was already fixed once for `defsurface`:** `hoist_surface_messages` (`292f9451`,
+> the `:messages` one-path fix) exists because `:messages` companions had the identical problem — `expand.rs:43-54`:
+> *"their companion macro registers … BEFORE the surface form, so the surface's `:features` method sigs can resolve
+> them."* `defservice`'s OWN minted `::Record`/`::State` companions need the same treatment relative to their sibling
+> `serve`/methods.
+>
+> **THE STRIKE:** a `hoist_service_decls` analog in `src/macros/expand.rs` — hoist + register defservice's minted
+> `::Record`/`::State` companions BEFORE the sibling `serve`/methods in the same `do` expand. **Blast radius: the
+> expand pipeline — EVERY defservice, and `expand_all` is upstream of everything → whole-floor differential, zero-new
+> bar.** **Prize: plausibly the whole `deftest_*`/service cluster (~15, the largest bucket) + `smem_roundtrip` +
+> `sqlite_store_differential` → floor 49 toward ~32.** Gate: the preserved A/B probe's `bump` turns GREEN.
+>
+> **(superseded detail, kept for the trail) — a SEPARATE root from (C), GROUNDED today (do NOT fold into (C)).** `deftest_wat_tests_service_counter_on_thread`
 > FAILS, `..._on_process` PASSES — SAME test body, only the service locus differs (`wat-tests/service-locus-parity.wat`).
 > Read the real reason cleanly off the ADMIN peer (`recv' (counter::Handle/handle h)`, zero substrate changes):
 > `#wat.runtime/UnknownFunction {:path ":wat-tests::counter::State"}` at the `increment` handler's `(counter::State :durable …)`
