@@ -25,7 +25,10 @@ fn do_struct_registers_in_type_env() {
     let world = startup_from_file("tests/macros/probe_register_types_splice_aware_do_struct.wat")
         .expect("startup failed");
     assert!(world.types().get(":diag::Point").is_some(), ":diag::Point must be registered in TypeEnv after Gap J");
-    assert!(world.symbols().get(":diag::Point").is_some(), ":diag::Point ctor stub must be present");
+    // Arc 294 item 9a: the BARE name is the kwargs MACRO, not a function; the positional
+    // ctor is THE PRIME (runtime.rs:1145 — "THE ONE ctor source, now at the prime").
+    assert!(world.symbols().get(":diag::Point'").is_some(),
+            ":diag::Point' ctor must be present (the bare name is the kwargs macro; the ctor is the prime)");
     assert!(world.symbols().get(":diag::origin").is_some(), ":diag::origin must be registered");
 }
 

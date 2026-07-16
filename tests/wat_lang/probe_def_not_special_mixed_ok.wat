@@ -19,7 +19,7 @@
       (:wat::core::defn :user::main [] -> :wat::core::nil
         (:wat::core::let
           [_ans :h::def-answer
-           _p   (:h::MixPoint8 1 2)
+           _p   (:h::MixPoint8 :x 1 :y 2)
            _d   :h::MixDir8::Up
            _a   (:h::MixAmount8 10)
            _n   (:h::mix-i64-fn8 7)]
