@@ -2039,12 +2039,25 @@ fn register_defalias(
     span: Span,
     check_reserved: bool,
 ) -> Result<(), RuntimeError> {
-    if check_reserved && crate::resolve::is_reserved_prefix(alias) {
-        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(alias.to_string()) }.into());
-    }
-    // Skip if already registered (idempotent).
-    if sym.functions.contains_key(alias) {
-        return Ok(());
+    // Phase-1 migration to the ONE gate (resolve::registration). check_reserved maps to
+    // Privilege; present -> NoOp (idempotent skip). A Duplicate can't arise (Existing is
+    // only Absent|Equivalent — this path doesn't compare definitions).
+    let existing = if sym.functions.contains_key(alias) {
+        crate::resolve::Existing::Equivalent
+    } else {
+        crate::resolve::Existing::Absent
+    };
+    let privilege = if check_reserved {
+        crate::resolve::Privilege::User
+    } else {
+        crate::resolve::Privilege::Stdlib
+    };
+    match crate::resolve::gate(alias, privilege, existing) {
+        crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => return Ok(()),
+        crate::resolve::Registration::Reserved => {
+            return Err(RuntimeError { span, kind: RuntimeErrorKind::ReservedPrefix(alias.to_string()) }.into());
+        }
+        crate::resolve::Registration::Insert => {}
     }
 
     // Case 1: target is a user-defined function already in sym.functions.
@@ -2221,25 +2234,38 @@ fn preregister_struct_accessors_from_form(
 
     // Constructor: bare `{type}` (arc 293.R2.3 — parity with records; `/new` annihilated)
     let constructor_path = type_base.to_string();
-    if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
-        let span = form.span().clone();
-        return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
-    }
-    if !sym.functions.contains_key(&constructor_path) {
-        sym.functions.insert(
-            constructor_path,
-            Arc::new(Function {
-                name: None,
-                params: Vec::new(),
-                type_params: Vec::new(),
-                param_types: Vec::new(),
-                ret_type: unit_type.clone(),
-                rest_param: None,
-                rest_param_type: None,
-                body: FunctionBody::Wat(stub_body.clone()),
-                closed_env: None,
-            }),
-        );
+    // Phase-1 migration to the ONE gate (struct constructor). present -> NoOp (skip).
+    let cons_existing = if sym.functions.contains_key(&constructor_path) {
+        crate::resolve::Existing::Equivalent
+    } else {
+        crate::resolve::Existing::Absent
+    };
+    let cons_priv = if check_reserved_prefix {
+        crate::resolve::Privilege::User
+    } else {
+        crate::resolve::Privilege::Stdlib
+    };
+    match crate::resolve::gate(&constructor_path, cons_priv, cons_existing) {
+        crate::resolve::Registration::Reserved => {
+            return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
+        }
+        crate::resolve::Registration::Insert => {
+            sym.functions.insert(
+                constructor_path,
+                Arc::new(Function {
+                    name: None,
+                    params: Vec::new(),
+                    type_params: Vec::new(),
+                    param_types: Vec::new(),
+                    ret_type: unit_type.clone(),
+                    rest_param: None,
+                    rest_param_type: None,
+                    body: FunctionBody::Wat(stub_body.clone()),
+                    closed_env: None,
+                }),
+            );
+        }
+        crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
     }
 
     // Stone 241.8 — defstruct field-vector shape:
@@ -2275,25 +2301,37 @@ fn preregister_struct_accessors_from_form(
                 _ => { idx += 3; continue; }
             };
             let accessor_path = format!("{}/{}", type_base, field_name);
-            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&accessor_path) {
-                let span = form.span().clone();
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(accessor_path) }.into());
-            }
-            if !sym.functions.contains_key(&accessor_path) {
-                sym.functions.insert(
-                    accessor_path,
-                    Arc::new(Function {
-                        name: None,
-                        params: Vec::new(),
-                        type_params: Vec::new(),
-                        param_types: Vec::new(),
-                        ret_type: unit_type.clone(),
-                        rest_param: None,
-                        rest_param_type: None,
-                        body: FunctionBody::Wat(stub_body.clone()),
-                        closed_env: None,
-                    }),
-                );
+            let acc_existing = if sym.functions.contains_key(&accessor_path) {
+                crate::resolve::Existing::Equivalent
+            } else {
+                crate::resolve::Existing::Absent
+            };
+            let acc_priv = if check_reserved_prefix {
+                crate::resolve::Privilege::User
+            } else {
+                crate::resolve::Privilege::Stdlib
+            };
+            match crate::resolve::gate(&accessor_path, acc_priv, acc_existing) {
+                crate::resolve::Registration::Reserved => {
+                    return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(accessor_path) }.into());
+                }
+                crate::resolve::Registration::Insert => {
+                    sym.functions.insert(
+                        accessor_path,
+                        Arc::new(Function {
+                            name: None,
+                            params: Vec::new(),
+                            type_params: Vec::new(),
+                            param_types: Vec::new(),
+                            ret_type: unit_type.clone(),
+                            rest_param: None,
+                            rest_param_type: None,
+                            body: FunctionBody::Wat(stub_body.clone()),
+                            closed_env: None,
+                        }),
+                    );
+                }
+                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
             idx += 3;
         }
@@ -2381,25 +2419,37 @@ fn preregister_enum_constructors_from_form(
         let is_tagged = matches!(variant_items.get(vi + 1), Some(WatAST::Vector(_, _)));
 
         let constructor_path = format!("{}::{}", type_base, variant_name);
-        if check_reserved_prefix && crate::resolve::is_reserved_prefix(&constructor_path) {
-            let span = form.span().clone();
-            return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
-        }
-        if !sym.functions.contains_key(&constructor_path) {
-            sym.functions.insert(
-                constructor_path,
-                Arc::new(Function {
-                    name: None,
-                    params: Vec::new(),
-                    type_params: Vec::new(),
-                    param_types: Vec::new(),
-                    ret_type: unit_type.clone(),
-                    rest_param: None,
-                    rest_param_type: None,
-                    body: FunctionBody::Wat(stub_body.clone()),
-                    closed_env: None,
-                }),
-            );
+        let cons_existing = if sym.functions.contains_key(&constructor_path) {
+            crate::resolve::Existing::Equivalent
+        } else {
+            crate::resolve::Existing::Absent
+        };
+        let cons_priv = if check_reserved_prefix {
+            crate::resolve::Privilege::User
+        } else {
+            crate::resolve::Privilege::Stdlib
+        };
+        match crate::resolve::gate(&constructor_path, cons_priv, cons_existing) {
+            crate::resolve::Registration::Reserved => {
+                return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
+            }
+            crate::resolve::Registration::Insert => {
+                sym.functions.insert(
+                    constructor_path,
+                    Arc::new(Function {
+                        name: None,
+                        params: Vec::new(),
+                        type_params: Vec::new(),
+                        param_types: Vec::new(),
+                        ret_type: unit_type.clone(),
+                        rest_param: None,
+                        rest_param_type: None,
+                        body: FunctionBody::Wat(stub_body.clone()),
+                        closed_env: None,
+                    }),
+                );
+            }
+            crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
         }
 
         // Advance: consume keyword + optional Vector.
@@ -2894,12 +2944,24 @@ fn preregister_fn_defs_in_do(
     // keyword; items[1..] are the body children.
     for child in &items[1..] {
         if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
-            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
-                let span = child.span().clone();
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path.clone(), func);
+            let existing = if sym.functions.contains_key(&path) {
+                crate::resolve::Existing::Equivalent
+            } else {
+                crate::resolve::Existing::Absent
+            };
+            let privilege = if check_reserved_prefix {
+                crate::resolve::Privilege::User
+            } else {
+                crate::resolve::Privilege::Stdlib
+            };
+            match crate::resolve::gate(&path, privilege, existing) {
+                crate::resolve::Registration::Reserved => {
+                    return Err(RuntimeError { span: child.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                }
+                crate::resolve::Registration::Insert => {
+                    sym.functions.insert(path.clone(), func);
+                }
+                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
@@ -2961,12 +3023,24 @@ fn preregister_fn_defs_in_let(
     // items[2..] = body forms (arc 168 multi-form body)
     for child in items.get(2..).unwrap_or(&[]) {
         if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
-            if check_reserved_prefix && crate::resolve::is_reserved_prefix(&path) {
-                let span = child.span().clone();
-                return Err(RuntimeError { span: span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path.clone(), func);
+            let existing = if sym.functions.contains_key(&path) {
+                crate::resolve::Existing::Equivalent
+            } else {
+                crate::resolve::Existing::Absent
+            };
+            let privilege = if check_reserved_prefix {
+                crate::resolve::Privilege::User
+            } else {
+                crate::resolve::Privilege::Stdlib
+            };
+            match crate::resolve::gate(&path, privilege, existing) {
+                crate::resolve::Registration::Reserved => {
+                    return Err(RuntimeError { span: child.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                }
+                crate::resolve::Registration::Insert => {
+                    sym.functions.insert(path.clone(), func);
+                }
+                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
@@ -6034,7 +6108,16 @@ pub fn parse_defclause_form(
 
     // Check for reserved prefix on :name (user-code guard; skipped for privileged stdlib calls
     // via allow_reserved=true). Stone 237.8b: stdlib defclauses live under :wat::core::*.
-    if !allow_reserved && crate::resolve::is_reserved_prefix(&name) {
+    // Phase-1 migration to the ONE gate (defclause). A standalone declaration guard with no
+    // adjacent dedup, so Existing::Absent — gate yields Reserved (reject) or proceeds.
+    if matches!(
+        crate::resolve::gate(
+            &name,
+            if allow_reserved { crate::resolve::Privilege::Stdlib } else { crate::resolve::Privilege::User },
+            crate::resolve::Existing::Absent,
+        ),
+        crate::resolve::Registration::Reserved
+    ) {
         return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(name) }.into());
     }
 
