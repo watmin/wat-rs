@@ -23,16 +23,21 @@
 //!
 //! This test FORKS (`spawn-program' (process)`).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
 #[test]
 fn mem_store_reserved_ns_service_round_trips_on_a_process_locus() {
     let world = startup_beside(file!())
         .expect("startup should succeed (mem-store' baked; the child re-bakes the same stdlib)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    // Look up + apply the co-located `:user::compute` directly (no inline wat string — keeps this
+    // off the no_inlined_wat lint; the actual round-trip logic lives in the sibling .wat).
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!(":user::compute not registered"))
+        .clone();
+    let got = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .unwrap_or_else(|e| panic!("mem-store' on a process locus raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(2)),

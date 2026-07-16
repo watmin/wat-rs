@@ -69,17 +69,29 @@ impl MacroRegistry {
     /// re-registration remains an error. Two `defmacro` forms with
     /// matching params + rest_param + body AST count as equivalent.
     pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
-        if !self.stdlib_privilege && crate::resolve::is_reserved_prefix(&def.name) {
-            return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::ReservedPrefix(def.name) });
-        }
-        if let Some(existing) = self.macros.get(&def.name) {
-            if macro_structurally_equivalent(existing, &def) {
-                return Ok(());
+        use crate::resolve::{gate, Existing, Privilege, Registration};
+        // Phase-1 migration to the ONE gate (resolve::registration). The privilege still
+        // sources from the ambient `stdlib_privilege` flag here; the collapse strike
+        // replaces that with an explicit threaded `Privilege`.
+        let privilege = if self.stdlib_privilege { Privilege::Stdlib } else { Privilege::User };
+        let existing = match self.macros.get(&def.name) {
+            None => Existing::Absent,
+            Some(e) if macro_structurally_equivalent(e, &def) => Existing::Equivalent,
+            Some(_) => Existing::Divergent,
+        };
+        match gate(&def.name, privilege, existing) {
+            Registration::Insert => {
+                self.macros.insert(def.name.clone(), def);
+                Ok(())
             }
-            return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) });
+            Registration::NoOp => Ok(()),
+            Registration::Duplicate => {
+                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) })
+            }
+            Registration::Reserved => {
+                Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::ReservedPrefix(def.name) })
+            }
         }
-        self.macros.insert(def.name.clone(), def);
-        Ok(())
     }
 
     /// Register a TRUSTED stdlib macro. Bypasses the reserved-prefix

@@ -541,11 +541,23 @@ pub fn register_defines(
             // Storage is pre-registration: binding_metadata is populated
             // at `register_defines` time alongside the fn pre-registration.
             let form_span = form.span().clone();
-            if crate::resolve::is_reserved_prefix(&path) {
-                return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path.clone(), func);
+            // Phase-1 migration to the ONE gate (resolve::registration). register_defines
+            // is the USER path (stdlib runtime defs go through register_stdlib_runtime_defs);
+            // presence maps to Equivalent → NoOp (skip the pre-register; `def`'s redef
+            // discipline in infer_def owns real divergence — a Duplicate never arises here).
+            let existing = if sym.functions.contains_key(&path) {
+                crate::resolve::Existing::Equivalent
+            } else {
+                crate::resolve::Existing::Absent
+            };
+            match crate::resolve::gate(&path, crate::resolve::Privilege::User, existing) {
+                crate::resolve::Registration::Reserved => {
+                    return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                }
+                crate::resolve::Registration::Insert => {
+                    sym.functions.insert(path.clone(), func);
+                }
+                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
             if let Some(meta) = metadata_opt {
                 sym.binding_metadata.insert(path, meta);
@@ -565,11 +577,20 @@ pub fn register_defines(
         // and later hitting the resolver with UnresolvedReference.
         } else if let Some((path, func)) = try_parse_user_variadic_def_fn_form(&form)? {
             let form_span = form.span().clone();
-            if crate::resolve::is_reserved_prefix(&path) {
-                return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
-            }
-            if !sym.functions.contains_key(&path) {
-                sym.functions.insert(path, func);
+            // Phase-1 migration to the ONE gate (user variadic def arm; see the fn-shape arm above).
+            let existing = if sym.functions.contains_key(&path) {
+                crate::resolve::Existing::Equivalent
+            } else {
+                crate::resolve::Existing::Absent
+            };
+            match crate::resolve::gate(&path, crate::resolve::Privilege::User, existing) {
+                crate::resolve::Registration::Reserved => {
+                    return Err(RuntimeError { span: form_span, kind: RuntimeErrorKind::ReservedPrefix(path) }.into());
+                }
+                crate::resolve::Registration::Insert => {
+                    sym.functions.insert(path, func);
+                }
+                crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => {}
             }
             rest.push(form);
         } else if let WatAST::List(ref do_items, _) = form {

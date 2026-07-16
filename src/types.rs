@@ -526,22 +526,29 @@ impl TypeEnv {
         privilege: RegistrationPrivilege,
     ) -> Result<(), TypeError> {
         let name = def.name().to_string();
-        if matches!(privilege, RegistrationPrivilege::User)
-            && crate::resolve::is_reserved_prefix(&name)
-        {
-            return Err(TypeError { span, kind: TypeErrorKind::ReservedPrefix { name } });
-        }
-        // Arc 054: idempotent re-declaration. If the same name is already
-        // registered with a byte-equivalent definition, the second
-        // registration is a no-op. Divergent re-declarations remain an
-        // error. Unblocks in-crate shims whose wat surface is delivered
-        // both via `wat_sources()` and on-disk loading (the natural
-        // pattern for lab-side shims like CandleStream).
-        if let Some(existing) = self.types.get(&name) {
-            if existing == &def {
-                return Ok(());
+        // Phase-1 migration to the ONE gate (resolve::registration). Privilege still
+        // sources from the RegistrationPrivilege param here; the collapse strike unifies
+        // it with the other mechanisms into one threaded Privilege. Equivalence is `==`
+        // (a byte-equivalent re-declaration is a no-op — Arc 054, e.g. an in-crate shim
+        // delivered both via wat_sources() and on-disk, OR a forked child re-baking).
+        let privilege = match privilege {
+            RegistrationPrivilege::User => crate::resolve::Privilege::User,
+            RegistrationPrivilege::Stdlib => crate::resolve::Privilege::Stdlib,
+        };
+        let existing = match self.types.get(&name) {
+            None => crate::resolve::Existing::Absent,
+            Some(e) if e == &def => crate::resolve::Existing::Equivalent,
+            Some(_) => crate::resolve::Existing::Divergent,
+        };
+        match crate::resolve::gate(&name, privilege, existing) {
+            crate::resolve::Registration::NoOp => return Ok(()),
+            crate::resolve::Registration::Duplicate => {
+                return Err(TypeError { span, kind: TypeErrorKind::DuplicateType { name } })
             }
-            return Err(TypeError { span, kind: TypeErrorKind::DuplicateType { name } });
+            crate::resolve::Registration::Reserved => {
+                return Err(TypeError { span, kind: TypeErrorKind::ReservedPrefix { name } })
+            }
+            crate::resolve::Registration::Insert => {}
         }
         // Reject cyclic aliases BEFORE insertion so `expand_alias` can
         // assume every alias in the registry is non-cyclic.
