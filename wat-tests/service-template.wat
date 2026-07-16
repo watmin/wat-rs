@@ -85,7 +85,7 @@
      [push-count <- :wat::core::i64
       ack-count  <- :wat::core::i64])
 
-   (:wat::core::defn :svc::State::fresh [] -> :svc::State (:svc::State 0 0))
+   (:wat::core::defn :svc::State::fresh [] -> :svc::State (:svc::State :push-count 0 :ack-count 0))
 
    ;; Reply channel for the Ack verb — unit reply. Aliased because it
    ;; recurs at every Ack call site (request body + caller's reply
@@ -141,8 +141,8 @@
             ;; into state computation.
             ((:svc::Request::Push _value)
               (:svc::State
-                (:wat::core::+ (:svc::State/push-count state) 1)
-                (:svc::State/ack-count state)))
+                :push-count (:wat::core::+ (:svc::State/push-count state) 1)
+                :ack-count  (:svc::State/ack-count state)))
 
             ;; Ack — confirm-receipt. Bump ack-count, send unit reply.
             ;; Per arc 110: client dropping its reply-rx mid-protocol is a
@@ -155,8 +155,8 @@
                     (:wat::kernel::send reply-tx ())
                     "Service/handle Ack: reply-tx disconnected — caller died?")]
                 (:svc::State
-                  (:svc::State/push-count state)
-                  (:wat::core::+ (:svc::State/ack-count state) 1))))
+                  :push-count (:svc::State/push-count state)
+                  :ack-count  (:wat::core::+ (:svc::State/ack-count state) 1))))
 
             ;; Get — read-only query. Send current state through reply-tx,
             ;; return state UNCHANGED. No counters bumped (a read should
@@ -443,7 +443,7 @@
 ;; Arc 293.W.2d: thread-tier make-channel is now exempt from the purity gate —
 ;; :svc::Request (an Impure enum) is accepted by make-channel in the thread tier.
 (:deftest :svc::test-svc-assert-state
-  (:test::svc-assert-state (:svc::State 3 1) 3 1))
+  (:test::svc-assert-state (:svc::State :push-count 3 :ack-count 1) 3 1))
 
 
 ;; Layer 3 — full-sequence proof.
