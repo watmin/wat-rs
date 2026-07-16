@@ -149,31 +149,58 @@ fn lookup_form_quasiquote_returns_special_form() {
     );
 }
 
+/// Does this WatAST carry `kw` as a keyword node, at any depth? A structural walk over
+/// WatAST — deliberately NOT a string search over a rendered face.
+fn watast_carries_keyword(node: &wat::ast::WatAST, kw: &str) -> bool {
+    use wat::ast::WatAST;
+    match node {
+        WatAST::Keyword(k, _) => k == kw,
+        WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
+            items.iter().any(|c| watast_carries_keyword(c, kw))
+        }
+        WatAST::Map(pairs, _) => pairs
+            .iter()
+            .any(|(k, v)| watast_carries_keyword(k, kw) || watast_carries_keyword(v, kw)),
+        _ => false,
+    }
+}
+
 #[test]
 fn lookup_form_struct_returns_special_form() {
-    // Arc 293.2-parity: :wat::core::defstruct is now a WAT MACRO (not a special form).
-    // lookup-define returns the macro definition (head :wat::core::defmacro); the macro
-    // body expands all args through to :wat::core::structtype (the new low-level primitive).
-    // Assert the CLAIM, not defstruct's whole body. The body legitimately grows: arc 294
-    // item 9a made it ALSO mint the bare-name kwargs companion, and (C) changed that
-    // companion's emit to `kwargs-construct`. Pinning the byte-exact body couples this
-    // 293.2-parity test to every unrelated defstruct codegen change (and it did — this
-    // test has been red since the flip). The companion's own emit is covered by the
-    // arc260/(C) probes; what THIS test owns is the parity claim above.
-    let define_line = def_str("defstruct");
+    // Arc 293.2-parity: :wat::core::defstruct is a WAT MACRO, not a special form.
+    //
+    // Proven WITHOUT the holon-ast face. `lookup-define` still renders through the OLD
+    // `watast_to_holon` path (`wat_edn_bridge.rs:22` calls it exactly that), and arc 294's
+    // own realizations name that face as scar tissue: flaw #3 "the `#wat-edn.holon/*` tags
+    // (scar tissue from a hologram-canonical wire)" and #5 "HolonAST-as-the-code-AST
+    // vestigial (WatAST took over)" — HolonAST reduces to Hologram. Pinning that rendering
+    // (inline or as a golden) would FOSSILIZE the very thing this arc exists to excise, and
+    // the golden wall refuses it outright ("STOP-1: refusing to capture a non-EDN face").
+    //
+    // So assert the CLAIM against the registries directly — WatAST all the way down.
+
+    // NOTE: defstruct is NOT absent from the special-form registry — it is registered
+    // there for its SIGNATURE grammar (special_forms.rs:192, `["<name>", "[<field> <-
+    // <type>]+"]`). It is BOTH: a signature entry AND a macro; `lookup-define` resolves
+    // to the macro. So the parity claim is about what it IS (a macro that lowers to
+    // structtype), asserted below against the macro registry — not about registry absence.
+
+    // 1. IS a registered macro — asserted exactly.
+    let world = startup_beside(file!()).expect("startup");
+    let def = world
+        .macros()
+        .get(":wat::core::defstruct")
+        .expect("Arc 293.2-parity: :wat::core::defstruct must be a REGISTERED MACRO");
+
+    // 2. Its body reaches the low-level primitive. A structural walk of the macro's own
+    //    WatAST body — no holon face, no string search over a rendering. The body itself
+    //    legitimately grows (9a made defstruct also mint the bare-name kwargs companion;
+    //    (C) changed that companion's emit), which is exactly why the OLD byte-pin went
+    //    stale twice; what this test owns is that defstruct still lowers to structtype.
     assert!(
-        define_line.contains("#wat-edn.holon/Keyword :wat::core::defmacro"),
-        "Arc 293.2-parity: defstruct must be a MACRO (lookup-define head :wat::core::defmacro), \
-         not a special form; got: {define_line}"
-    );
-    assert!(
-        define_line.contains("#wat-edn.holon/Keyword :wat::core::defstruct"),
-        "Arc 293.2-parity: the macro must be named :wat::core::defstruct; got: {define_line}"
-    );
-    assert!(
-        define_line.contains("#wat-edn.holon/Keyword :wat::core::structtype"),
-        "Arc 293.2-parity: defstruct's body must expand through to :wat::core::structtype \
-         (the low-level primitive); got: {define_line}"
+        watast_carries_keyword(&def.body, ":wat::core::structtype"),
+        "Arc 293.2-parity: defstruct's macro body must expand through to \
+         :wat::core::structtype (the low-level primitive)"
     );
 }
 
