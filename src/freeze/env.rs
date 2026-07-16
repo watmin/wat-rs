@@ -122,18 +122,17 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
             ),
         })?;
     // Expansion-born stdlib defmacros (e.g. a `defservice`'s `…/start` companion,
-    // emitted by a macro-generating-macro) register through `expand_all` ->
-    // `MacroRegistry::register`. Grant them the same reserved-prefix bypass the
-    // literal top-level path (`register_stdlib`) already has — STDLIB ONLY. User
-    // expansion below stays gated, so a mis-namespaced user macro still halts.
-    macros.set_stdlib_privilege(true);
-    let expanded_stdlib = expand_all(
+    // emitted by a macro-generating-macro) register through the ONE gate with an
+    // EXPLICIT `Privilege::Stdlib` (threaded, no ambient flag) — the stdlib bypass. The
+    // user pass below uses plain `expand_all` (Privilege::User), so a mis-namespaced
+    // user macro still halts.
+    let expanded_stdlib = crate::macros::expand::expand_all_with(
         stdlib_post_macros,
         &mut macros,
         &Environment::default(),
         &macro_sym,
+        crate::resolve::Privilege::Stdlib,
     )?;
-    macros.set_stdlib_privilege(false);
     let expanded_user = expand_all(
         post_macro_reg,
         &mut macros,

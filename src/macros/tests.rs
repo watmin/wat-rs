@@ -35,7 +35,7 @@ fn expand_keeping_defmacros(src: &str) -> super::ExpandBatch {
     let sym = crate::runtime::SymbolTable::default();
     let mut out = Vec::with_capacity(rest.len());
     for form in rest {
-        out.push(expand::expand_form(form, &mut reg, 0, &env, &sym)?);
+        out.push(expand::expand_form(form, &mut reg, 0, &env, &sym, crate::resolve::Privilege::User)?);
     }
     Ok(out)
 }
@@ -58,15 +58,14 @@ fn stdlib_privilege_bypasses_reserved_prefix_on_register() {
 
     // Unprivileged (the user-expansion path): a :wat:: macro still halts — the gate holds.
     let mut reg = MacroRegistry::new();
-    match reg.register(def.clone()) {
+    match reg.register(def.clone(), crate::resolve::Privilege::User) {
         Err(MacroError { kind: MacroErrorKind::ReservedPrefix(_), .. }) => {}
         other => panic!("expected ReservedPrefix without privilege; got {other:?}"),
     }
 
     // Privileged (the stdlib-expansion path): the same :wat:: macro registers — the fix.
-    reg.set_stdlib_privilege(true);
-    reg.register(def)
-        .expect("a :wat:: macro must register when the registry is stdlib-privileged");
+    reg.register(def, crate::resolve::Privilege::Stdlib)
+        .expect("a :wat:: macro must register when stdlib-privileged");
 }
 
 // ─── Quasiquote discriminant regression (item 1) ───────────────────

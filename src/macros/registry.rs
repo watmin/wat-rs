@@ -33,26 +33,11 @@ pub struct MacroDef {
 #[derive(Debug, Default, Clone)]
 pub struct MacroRegistry {
     pub(super) macros: HashMap<String, MacroDef>,
-    /// When true, [`register`](Self::register) bypasses the reserved-prefix gate.
-    /// Set only while expanding the BAKED STDLIB (see `freeze/env.rs`), so a
-    /// `:wat::` macro-generating-macro's expansion-born companion (e.g. a
-    /// `defservice`'s `…/start`) registers with the same privilege the literal
-    /// top-level path ([`register_stdlib`](Self::register_stdlib)) already grants.
-    /// Cleared for user expansion, so mis-namespaced user macros still halt.
-    /// Defaults false (unprivileged) — existing behavior is untouched unless set.
-    stdlib_privilege: bool,
 }
 
 impl MacroRegistry {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Set whether [`register`](Self::register) is privileged (bypasses the
-    /// reserved-prefix gate). The freeze pipeline sets this true around stdlib
-    /// expansion and false for user expansion.
-    pub fn set_stdlib_privilege(&mut self, on: bool) {
-        self.stdlib_privilege = on;
     }
 
     pub fn contains(&self, name: &str) -> bool {
@@ -63,17 +48,13 @@ impl MacroRegistry {
         self.macros.get(name)
     }
 
-    /// Register a macro. Errors on duplicate or reserved prefix.
-    ///
-    /// Arc 054: byte-equivalent re-registration is a no-op; divergent
-    /// re-registration remains an error. Two `defmacro` forms with
-    /// matching params + rest_param + body AST count as equivalent.
-    pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
-        use crate::resolve::{gate, Existing, Privilege, Registration};
-        // Phase-1 migration to the ONE gate (resolve::registration). The privilege still
-        // sources from the ambient `stdlib_privilege` flag here; the collapse strike
-        // replaces that with an explicit threaded `Privilege`.
-        let privilege = if self.stdlib_privilege { Privilege::Stdlib } else { Privilege::User };
+    /// Register a macro through the ONE gate (resolve::registration). `privilege` is
+    /// threaded EXPLICITLY from the expand phase (Stdlib for the baked-stdlib pass, User
+    /// for user source) — no ambient flag. Arc 054: a byte-equivalent re-registration is a
+    /// no-op; a divergent one errors DuplicateMacro; a new reserved-prefix name from User
+    /// errors ReservedPrefix.
+    pub fn register(&mut self, def: MacroDef, privilege: crate::resolve::Privilege) -> Result<(), MacroError> {
+        use crate::resolve::{gate, Existing, Registration};
         let existing = match self.macros.get(&def.name) {
             None => Existing::Absent,
             Some(e) if macro_structurally_equivalent(e, &def) => Existing::Equivalent,
@@ -94,24 +75,6 @@ impl MacroRegistry {
         }
     }
 
-    /// Register a TRUSTED stdlib macro. Bypasses the reserved-prefix
-    /// gate because stdlib forms live under `:wat::std::*` by design.
-    /// Still errors on duplicates. Intended for the baked stdlib
-    /// loader; user source paths through `register` where the prefix
-    /// check catches mis-namespaced user defmacros.
-    ///
-    /// Arc 054: idempotent re-declaration applies — byte-equivalent
-    /// re-registration is a no-op.
-    pub(super) fn register_stdlib(&mut self, def: MacroDef) -> Result<(), MacroError> {
-        if let Some(existing) = self.macros.get(&def.name) {
-            if macro_structurally_equivalent(existing, &def) {
-                return Ok(());
-            }
-            return Err(MacroError { span: def.span.clone(), kind: MacroErrorKind::DuplicateMacro(def.name) });
-        }
-        self.macros.insert(def.name.clone(), def);
-        Ok(())
-    }
 }
 
 /// Arc 054 — structural equivalence check for two `MacroDef` values.

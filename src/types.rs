@@ -400,12 +400,9 @@ pub struct TypeEnv {
     source_forms: HashMap<String, WatAST>,
 }
 
-/// Distinguishes user-source registration (subject to reserved-prefix gate)
-/// from stdlib registration (privileged to register `:wat::*` directly).
-enum RegistrationPrivilege {
-    User,
-    Stdlib,
-}
+// Privilege (user vs stdlib) is the shared `crate::resolve::Privilege` — the ONE bit
+// every registration path threads (was the local `RegistrationPrivilege`, collapsed in
+// the reserved-prefix-one-gate arc).
 
 impl TypeEnv {
     pub fn new() -> Self {
@@ -485,7 +482,7 @@ impl TypeEnv {
     /// `CyclicAlias` errors so consumers (humans + agents) navigate to
     /// the offending decl.
     pub fn register_with_span(&mut self, def: TypeDef, span: Span) -> Result<(), TypeError> {
-        self.register_validated(def, span, RegistrationPrivilege::User)
+        self.register_validated(def, span, crate::resolve::Privilege::User)
     }
 
     /// Register a TRUSTED stdlib type declaration. Bypasses the
@@ -512,7 +509,7 @@ impl TypeEnv {
         def: TypeDef,
         span: Span,
     ) -> Result<(), TypeError> {
-        self.register_validated(def, span, RegistrationPrivilege::Stdlib)
+        self.register_validated(def, span, crate::resolve::Privilege::Stdlib)
     }
 
     /// Shared guard chain for [`register_with_span`] and
@@ -523,18 +520,12 @@ impl TypeEnv {
         &mut self,
         def: TypeDef,
         span: Span,
-        privilege: RegistrationPrivilege,
+        privilege: crate::resolve::Privilege,
     ) -> Result<(), TypeError> {
         let name = def.name().to_string();
-        // Phase-1 migration to the ONE gate (resolve::registration). Privilege still
-        // sources from the RegistrationPrivilege param here; the collapse strike unifies
-        // it with the other mechanisms into one threaded Privilege. Equivalence is `==`
-        // (a byte-equivalent re-declaration is a no-op — Arc 054, e.g. an in-crate shim
-        // delivered both via wat_sources() and on-disk, OR a forked child re-baking).
-        let privilege = match privilege {
-            RegistrationPrivilege::User => crate::resolve::Privilege::User,
-            RegistrationPrivilege::Stdlib => crate::resolve::Privilege::Stdlib,
-        };
+        // The ONE gate (resolve::registration). Equivalence is `==` (a byte-equivalent
+        // re-declaration is a no-op — Arc 054, e.g. an in-crate shim delivered both via
+        // wat_sources() and on-disk, OR a forked child re-baking a stdlib form it holds).
         let existing = match self.types.get(&name) {
             None => crate::resolve::Existing::Absent,
             Some(e) if e == &def => crate::resolve::Existing::Equivalent,

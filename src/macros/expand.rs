@@ -17,11 +17,24 @@ pub const EXPANSION_DEPTH_LIMIT: usize = 512;
 
 /// Expand every macro call in `forms` to fixpoint. Returns the expanded
 /// AST list.
+/// Expand USER forms — the common case (macroexpand primitives, resolution, tests).
+/// Privileged stdlib expansion calls [`expand_all_with`] with `Privilege::Stdlib` directly
+/// (only `freeze/env.rs`'s stdlib pass). The privilege is explicit, never ambient.
 pub fn expand_all(
     forms: Vec<WatAST>,
     registry: &mut MacroRegistry,
     env: &Environment,
     sym: &SymbolTable,
+) -> super::ExpandBatch {
+    expand_all_with(forms, registry, env, sym, crate::resolve::Privilege::User)
+}
+
+pub fn expand_all_with(
+    forms: Vec<WatAST>,
+    registry: &mut MacroRegistry,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
 ) -> super::ExpandBatch {
     // Arc 029 slice 1: handle macro-generating-macros. A macro call
     // may expand to a `(:wat::core::defmacro ...)` registration for
@@ -36,7 +49,7 @@ pub fn expand_all(
     // macroexpand / macroexpand-1 primitives to find them).
     let mut out = Vec::with_capacity(forms.len());
     for form in forms {
-        let expanded = expand_form(form, registry, 0, env, sym)?;
+        let expanded = expand_form(form, registry, 0, env, sym, privilege)?;
         if is_defsurface_form(&expanded) {
             // Arc 294 item 9a — a defsurface's `:messages` children are `defrecord`/
             // `defenum` calls; `expand_form`'s child-recursion (above) already expanded
@@ -65,11 +78,11 @@ pub fn expand_all(
             // {:path ":S::Msg/field" :context "call head — not a builtin, not a registered
             // function"}` and `kwargs-construct: type :S::Msg is not a registered aggregate`.
             // Registration was never the complaint. Hoisting is a STAGE, not an ordering.
-            let (hoisted, surface_form) = hoist_surface_messages(expanded, registry)?;
+            let (hoisted, surface_form) = hoist_surface_messages(expanded, registry, privilege)?;
             out.extend(hoisted);
             out.push(surface_form);
         } else {
-            out.extend(hoist_top_level_form(expanded, registry)?);
+            out.extend(hoist_top_level_form(expanded, registry, privilege)?);
         }
     }
     Ok(out)
@@ -96,10 +109,11 @@ fn is_defsurface_form(form: &WatAST) -> bool {
 fn hoist_top_level_form(
     expanded: WatAST,
     registry: &mut MacroRegistry,
+    privilege: crate::resolve::Privilege,
 ) -> Result<Vec<WatAST>, MacroError> {
     if is_defmacro_form(&expanded) {
         let def = parse_defmacro_form(expanded)?;
-        registry.register(def)?;
+        registry.register(def, privilege)?;
         Ok(vec![])
     } else if is_do_or_let_containing_defmacro(&expanded) {
         // Arc 260.1b — a macro-generating-macro (e.g. defn's kwargs branch) may
@@ -118,7 +132,7 @@ fn hoist_top_level_form(
         // scope). `hoist_defmacros_from_container` handles both container kinds
         // uniformly, but only a `do` container's surviving children are eligible
         // for the top-level splice below; a `let` keeps its wrapper.
-        let rebuilt = hoist_defmacros_from_container(expanded, registry)?;
+        let rebuilt = hoist_defmacros_from_container(expanded, registry, privilege)?;
         match rebuilt {
             WatAST::List(items, span) => {
                 let is_do = matches!(
@@ -173,6 +187,7 @@ fn hoist_top_level_form(
 fn hoist_surface_messages(
     surface_form: WatAST,
     registry: &mut MacroRegistry,
+    privilege: crate::resolve::Privilege,
 ) -> Result<(Vec<WatAST>, WatAST), MacroError> {
     let mut hoisted = Vec::new();
     if let WatAST::List(items, _) = &surface_form {
@@ -182,7 +197,7 @@ fn hoist_surface_messages(
                 if k == ":messages" {
                     if let Some(WatAST::Vector(msgs, _)) = it.next() {
                         for child in msgs.iter().cloned() {
-                            hoisted.extend(hoist_top_level_form(child, registry)?);
+                            hoisted.extend(hoist_top_level_form(child, registry, privilege)?);
                         }
                     }
                     break;
@@ -260,6 +275,7 @@ fn is_do_or_let_containing_defmacro(form: &WatAST) -> bool {
 fn hoist_defmacros_from_container(
     form: WatAST,
     registry: &mut MacroRegistry,
+    privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
     let (items, span) = match form {
         WatAST::List(items, span) => (items, span),
@@ -283,13 +299,13 @@ fn hoist_defmacros_from_container(
     for child in iter {
         if is_defmacro_form(&child) {
             let def = parse_defmacro_form(child)?;
-            registry.register(def)?;
+            registry.register(def, privilege)?;
         } else if is_do_or_let_containing_defmacro(&child) {
             // A defmacro nested in a child do/let (a macro emitted by a macro
             // emitted by a macro, or a defstruct/defrecord invocation sitting
             // in a nested let body). Recurse to register the nested defmacro,
             // then apply the do-flattens/let-wraps policy documented above.
-            let rebuilt = hoist_defmacros_from_container(child, registry)?;
+            let rebuilt = hoist_defmacros_from_container(child, registry, privilege)?;
             let is_do = matches!(
                 &rebuilt,
                 WatAST::List(inner, _) if matches!(inner.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::do")
@@ -353,7 +369,7 @@ pub fn expand_fully(
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     let mut scratch = registry.clone();
-    expand_form(form, &mut scratch, 0, env, sym)
+    expand_form(form, &mut scratch, 0, env, sym, crate::resolve::Privilege::User)
 }
 
 /// Expand a single form. Recursively expands children, then checks
@@ -382,6 +398,7 @@ pub(super) fn expand_form(
     expansion_depth: usize,
     env: &Environment,
     sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
     if expansion_depth >= EXPANSION_DEPTH_LIMIT {
         return Err(MacroError {
@@ -418,7 +435,7 @@ pub(super) fn expand_form(
                     let mut new_items = Vec::with_capacity(2);
                     new_items.push(iter.next().expect("head keyword just matched"));
                     if let Some(subject) = iter.next() {
-                        new_items.push(expand_form(subject, registry, expansion_depth + 1, env, sym)?);
+                        new_items.push(expand_form(subject, registry, expansion_depth + 1, env, sym, privilege)?);
                     }
                     new_items.extend(iter); // pattern (items[2..]) — DSL data, untouched
                     return Ok(WatAST::List(new_items, list_span));
@@ -453,7 +470,7 @@ pub(super) fn expand_form(
                         let def = registry.get(head).expect("contains checked immediately above");
                         expand_macro_call(def, args, list_span.clone(), env, sym)?
                     };
-                    return expand_form(expanded, registry, expansion_depth + 1, env, sym);
+                    return expand_form(expanded, registry, expansion_depth + 1, env, sym, privilege);
                 }
             }
 
@@ -476,7 +493,7 @@ pub(super) fn expand_form(
                             let def = registry.get(&primary).expect("contains checked immediately above");
                             expand_macro_call(def, args, list_span.clone(), env, sym)?
                         };
-                        return expand_form(expanded, registry, expansion_depth + 1, env, sym);
+                        return expand_form(expanded, registry, expansion_depth + 1, env, sym, privilege);
                     }
                 }
             }
@@ -496,7 +513,7 @@ pub(super) fn expand_form(
                     for _ in 0..body_start {
                         match iter.next() {
                             Some(head_or_bindings) => out.push(expand_form(
-                                head_or_bindings, registry, expansion_depth + 1, env, sym,
+                                head_or_bindings, registry, expansion_depth + 1, env, sym, privilege,
                             )?),
                             // A `let` shorter than its own head+bindings is malformed; leave
                             // it to the checker's diagnostic rather than inventing one here.
@@ -504,12 +521,12 @@ pub(super) fn expand_form(
                         }
                     }
                     for child in iter {
-                        let expanded = expand_form(child, registry, expansion_depth + 1, env, sym)?;
+                        let expanded = expand_form(child, registry, expansion_depth + 1, env, sym, privilege)?;
                         if is_defmacro_form(&expanded) {
                             // The ONE registration path (`parse_defmacro_form` → `register`),
                             // the same pair `hoist_top_level_form` uses. Register-only: the
                             // form stays in `out` for the hoist pass to strip/splice.
-                            registry.register(parse_defmacro_form(expanded.clone())?)?;
+                            registry.register(parse_defmacro_form(expanded.clone())?, privilege)?;
                         }
                         out.push(expanded);
                     }
@@ -522,7 +539,7 @@ pub(super) fn expand_form(
             // non-macro head is a function or special form; its sub-forms are code.
             let expanded_children: super::ExpandBatch = items
                 .into_iter()
-                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym))
+                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym, privilege))
                 .collect();
             let expanded_children = expanded_children?;
             Ok(WatAST::List(expanded_children, list_span))
@@ -535,7 +552,7 @@ pub(super) fn expand_form(
         WatAST::Vector(items, vec_span) => {
             let expanded_children: super::ExpandBatch = items
                 .into_iter()
-                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym))
+                .map(|c| expand_form(c, registry, expansion_depth + 1, env, sym, privilege))
                 .collect();
             Ok(WatAST::Vector(expanded_children?, vec_span))
         }

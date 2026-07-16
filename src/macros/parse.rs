@@ -13,7 +13,7 @@ pub fn register_defmacros(
     for form in forms {
         if is_defmacro_form(&form) {
             let def = parse_defmacro_form(form)?;
-            registry.register(def)?;
+            registry.register(def, crate::resolve::Privilege::User)?;
         } else {
             rest.push(form);
         }
@@ -34,7 +34,7 @@ pub fn register_stdlib_defmacros(
     for form in forms {
         if is_defmacro_form(&form) {
             let def = parse_defmacro_form(form)?;
-            registry.register_stdlib(def)?;
+            registry.register(def, crate::resolve::Privilege::Stdlib)?;
         } else {
             rest.push(form);
         }
@@ -311,7 +311,7 @@ pub fn register_aggregate_kwargs_companions(
         // `register_stdlib` — every candidate here comes from `TypeEnv::with_builtins()`,
         // which seeds substrate (`:wat::*`-prefixed) types exclusively, so the companion
         // needs the same reserved-prefix bypass the literal stdlib defmacro path gets.
-        registry.register_stdlib(macro_def)?;
+        registry.register(macro_def, crate::resolve::Privilege::Stdlib)?;
     }
     Ok(())
 }
