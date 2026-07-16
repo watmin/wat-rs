@@ -672,6 +672,71 @@ fn validate_and_reorder_then(
 
 #[cfg(test)]
 mod tests {
+
+    /// The wall's rendered error, PARSED: assert the first error's variant tag and read a
+    /// named field. The boxed error has no `Any` bound (see the note on the tests below), so
+    /// the wire EDN is the only face available — but a SUBSTRING search over it is a loose
+    /// check the value does not deserve: it is deterministic, and `contains` would pass on
+    /// reordered fields or appended garbage. A whole-blob golden is the wrong tool too: each
+    /// error carries a `:span` into THIS file's own inline `r#"…"#` source, so the golden
+    /// would go stale on any edit above the test. Parsing pins the tag + named fields exactly
+    /// and leaves the span's VALUE free — while `rete_error_is_located` still proves it is
+    /// THERE, which is the wall's actual claim.
+    fn rete_error(edn: &str, variant: &str) -> Vec<(wat_edn::OwnedValue, wat_edn::OwnedValue)> {
+        use wat_edn::{Keyword, OwnedValue, Tag};
+        let parsed = wat_edn::parse_owned(edn).expect("the wall's error face must be EDN");
+        let errors = match parsed {
+            OwnedValue::Tagged(tag, body) => {
+                assert_eq!(tag, Tag::ns("wat.rete", "ReteCheckErrors"), "outer batch tag");
+                match *body {
+                    OwnedValue::Map(m) => m
+                        .into_iter()
+                        .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new("errors")))
+                        .map(|(_, v)| v)
+                        .expect("the batch must carry :errors"),
+                    other => panic!("expected a map body; got {other:?}"),
+                }
+            }
+            other => panic!("expected a tagged #wat.rete/ReteCheckErrors batch; got {other:?}"),
+        };
+        let first = match errors {
+            OwnedValue::Vector(mut xs) if !xs.is_empty() => xs.remove(0),
+            other => panic!("expected a non-empty :errors vector; got {other:?}"),
+        };
+        match first {
+            OwnedValue::Tagged(tag, body) => {
+                assert_eq!(tag, Tag::ns("wat.rete", variant), "error variant tag");
+                match *body {
+                    OwnedValue::Map(m) => m,
+                    other => panic!("expected a map body; got {other:?}"),
+                }
+            }
+            other => panic!("expected a tagged error; got {other:?}"),
+        }
+    }
+
+    /// Read one field of a parsed error as a String.
+    fn field_str(fields: &[(wat_edn::OwnedValue, wat_edn::OwnedValue)], name: &str) -> String {
+        use wat_edn::{Keyword, OwnedValue};
+        let v = fields
+            .iter()
+            .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new(name)))
+            .map(|(_, v)| v)
+            .unwrap_or_else(|| panic!("the error must carry :{name}"));
+        match v {
+            OwnedValue::String(s) => s.to_string(),
+            other => panic!(":{name} must be a String; got {other:?}"),
+        }
+    }
+
+    /// The wall's claim is a LOCATED error — prove the span is present without pinning it.
+    fn rete_error_is_located(fields: &[(wat_edn::OwnedValue, wat_edn::OwnedValue)]) -> bool {
+        use wat_edn::{Keyword, OwnedValue};
+        fields
+            .iter()
+            .any(|(k, v)| *k == OwnedValue::Keyword(Keyword::new("span")) && *v != OwnedValue::Nil)
+    }
+
     use super::*;
     use crate::freeze::env::build_env;
 
@@ -721,14 +786,9 @@ mod tests {
             Ok(_) => panic!("the injected bare-keyword clause must be a located freeze error"),
         };
         let edn = wat_edn::write(&boxed.to_edn());
-        assert!(
-            edn.contains("wat.rete/MalformedClause"),
-            "expected a #wat.rete/MalformedClause error; got: {edn}"
-        );
-        assert!(
-            edn.contains("alert::unattended"),
-            "every error must name the offending rule; got: {edn}"
-        );
+        let e = rete_error(&edn, "MalformedClause");
+        assert_eq!(field_str(&e, "rule"), "alert::unattended", "the error must name the offending rule");
+        assert!(rete_error_is_located(&e), "the wall's errors are LOCATED; got: {edn}");
     }
 
     /// A correct defrule (no corruption) freezes clean.
@@ -770,10 +830,10 @@ mod tests {
             Ok(_) => panic!("bad field-ref must be a located freeze error"),
         };
         let edn = wat_edn::write(&boxed.to_edn());
-        assert!(
-            edn.contains("wat.rete/UnknownField") && edn.contains("not-a-field") && edn.contains("location"),
-            "expected a #wat.rete/UnknownField error naming `not-a-field` + `location`; got: {edn}"
-        );
+        let e = rete_error(&edn, "UnknownField");
+        assert_eq!(field_str(&e, "rule"), "alert::unattended", "the error must name the offending rule");
+        assert_eq!(field_str(&e, "field"), "not-a-field", "the error must name the bad field-ref");
+        assert!(rete_error_is_located(&e), "the wall's errors are LOCATED; got: {edn}");
     }
 
     /// S3 — a `:then` kwargs RHS written OUT of declaration order gets REWRITTEN in the
