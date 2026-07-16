@@ -84,6 +84,7 @@ pub(crate) mod boundary;
 mod error;
 mod normalize;
 mod quote;
+mod registration;
 mod reserved;
 mod rust_use;
 mod walk;
@@ -92,6 +93,7 @@ mod walk;
 // macros/registry.rs, closure_extract.rs).
 pub use error::{ResolveError, UnresolvedReference};
 pub use normalize::normalize_symbol_refs;
+pub use registration::{gate, Existing, Privilege, Registration};
 pub use reserved::{is_reserved_prefix, reserved_prefix_list};
 pub use walk::resolve_references;
 

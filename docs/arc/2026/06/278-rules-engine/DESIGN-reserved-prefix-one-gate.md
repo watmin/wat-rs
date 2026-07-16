@@ -77,7 +77,9 @@ ordering silently breaks it.
 
 ## The one contract decision — the waist
 
-**ONE gate function.** Home: `src/resolve/reserved.rs` (beside `is_reserved_prefix`).
+**ONE gate function.** Home: a NEW dedicated module `src/resolve/registration.rs` (beside `reserved.rs`,
+which stays just the predicate) — NOT appended to `runtime.rs`/`types.rs`; the mono files import it. (Per
+the builder: new code lives in `src/<ns>/<name>.rs`; the mono files are coming down.)
 
 ```rust
 /// Privilege — the ONE bit, replacing stdlib_privilege / RegistrationPrivilege /
