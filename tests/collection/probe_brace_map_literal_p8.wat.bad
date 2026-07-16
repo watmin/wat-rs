@@ -6,6 +6,6 @@
    grace-residue <- :wat::core::f64])
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [p (:test214::PaperResult "kept" 3.14)
+    [p (:test214::PaperResult :outcome "kept" :grace-residue 3.14)
      {outcome grace-residue} p]
     outcome))
