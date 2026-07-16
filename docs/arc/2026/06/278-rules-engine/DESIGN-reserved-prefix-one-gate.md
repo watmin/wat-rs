@@ -185,3 +185,46 @@ Two flaws, one root, and the honest sequencing:
 
 The kwargs flip taught the shape: a foundational heresy, extirpated at the root, RED-gated, before feature
 work resumes. `PVGNANDO EMERGO` — the darkness is our own scattered code; the waist is what rises.
+
+---
+
+## RESUME (far side of the gap) — the arc is CLOSED; telemetry resumes
+
+**This arc is DONE** (HEAD `94c5193d`, floor = the `no_inlined_wat` lint at 351, zero regressions,
+pushed). The reserved-prefix heresy is extirpated: ONE gate (`src/resolve/registration.rs`), ONE
+`Privilege`, threaded explicitly; all four old mechanisms deleted. Process loci work for reserved-`:wat::`
+first-party services (`probe_arc278_mem_store_on_process` is the standing guard).
+
+**Where the work resumes: 278 T1b — `journal'` the telemetry service (STONE T1b.2).** The `Journal`
+surface (write half) is already on disk (`wat/telemetry.wat`, STONE T1b.1); the next stone is the
+`journal'` defservice satisfier (holds a `Store` peer, serializes `Metric`/`Log` → `StoredRow` → `store/put`).
+It was paused mid-`ALIVS-ARGVIT` when proving it process-hostable surfaced this whole reserved-prefix
+detour. See `DESIGN-STONE-T1b1-journal-surface.md` + `DESIGN-telemetry-service-and-query-surface.md`.
+
+**Noted follow-on (do NOT forget, but not blocking):** the redundant re-shipping of baked-stdlib forms
+across a fork (the surface-forms splice re-ships what the child bakes) is now HARMLESS (the one gate
+tolerates the benign re-declaration), so it's a pure *efficiency* optimisation — "ship only the necessary
+forms." The builder deferred it explicitly to after this arc. Its home would be the defservice process
+launch (skip shipping a reserved-prefix/baked service's definition).
+
+## The lesson (carry it)
+
+1. **A scattered invariant is a quarry of hand-arms — consolidate to a narrow waist (R14).** One rule
+   (reserved-prefix) was enforced at eleven hand-rolled gates under four privilege mechanisms; the fix was
+   one `gate()` + one `Privilege`. When you find yourself whacking the same mole at gate N, stop and count —
+   if it's a scattered invariant, pull it to one waist, don't patch each arm.
+2. **Re-run the four-questions when a PREMISE is disproven.** I scored "Fix A: Simple YES" on the premise it
+   was *two* gates; the cascade proved *eleven*, which flipped Simple to NO and the whole verdict. A
+   four-questions verdict is only as good as the premise under it — when grounding disproves the premise,
+   the verdict is void, not merely dented.
+3. **Explicit beats ambient (`sequi`).** The bug's phase-scoping came from an ambient `stdlib_privilege`
+   flag (set-true/set-false in env.rs). Threading an explicit `Privilege` costs some tramp-data but kills the
+   set-and-forget footgun. Hidden state breaks composition; visible state in the types does not.
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this arc. Ground HEAD against the disk before
+> acting. The reserved-prefix arc is CLOSED (floor = lint @ 351); telemetry (T1b) resumes at `journal'` the
+> service. Do NOT re-open the gate consolidation — it is one waist now, and the idempotent-before-reserved
+> ordering is load-bearing (it's why re-declaration of a baked form is a no-op). Run the datamancy bootstrap;
+> read this doc + the T1b designs; then draw the `journal'` strike.
