@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 use wat::ast::WatAST;
 use wat::check::CheckEnv;
-use wat::freeze::{startup_bare, startup_from_file};
+use wat::freeze::{eval_in_frozen, startup_bare, startup_from_file};
 use wat::runtime::{eval, Environment, Value};
 
 // ─── helpers ───────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     )
     .expect("println-AST parses");
 
-    let sent_result = eval(&println_ast, &env2, world.symbols())
+    let sent_result = eval_in_frozen(&println_ast, &world, &env2)
         .expect("Process/println eval should succeed").value_owned();
     let sent_inner = unwrap_ok(sent_result, "Process/println Ok");
     assert!(
@@ -192,7 +192,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
     )
     .expect("readln+drain AST parses");
 
-    let reply_result = eval(&readln_drain_ast, &env2, world.symbols())
+    let reply_result = eval_in_frozen(&readln_drain_ast, &world, &env2)
         .expect("Process/readln+drain eval should succeed").value_owned();
     let reply_inner = unwrap_ok(reply_result, "Process/readln Ok");
     match reply_inner {
@@ -225,16 +225,12 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
     let env2 = Environment::new().child().bind("server", wat::rust_caller_span!(), server.into()).build();
     let djoin_ast = wat::parse_one!("(:wat::kernel::Process/drain-and-join server)")
         .expect("drain-and-join AST parses");
-    let _djoin = eval(&djoin_ast, &env2, world.symbols())
+    let _djoin = eval_in_frozen(&djoin_ast, &world, &env2)
         .expect("Process/drain-and-join should succeed").value_owned();
 
     // Now re-spawn a fresh server that exits immediately and attempt
     // to write to it after a drain (guarantees dead peer).
-    let server2 = eval(
-        &build_spawn_process_call(IMMEDIATE_EXIT_SERVER),
-        &Environment::new(),
-        world.symbols(),
-    )
+    let server2 = eval(&build_spawn_process_call(IMMEDIATE_EXIT_SERVER), &Environment::new(), world.symbols())
     .expect("second spawn-process succeeds").value_owned();
 
     let env3 = Environment::new().child().bind("server2", wat::rust_caller_span!(), server2.into()).build();
@@ -255,7 +251,7 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
     )
     .expect("println-dead AST parses");
 
-    let outcome = eval(&println_dead_ast, &env3, world.symbols())
+    let outcome = eval_in_frozen(&println_dead_ast, &world, &env3)
         .expect("Process/println on dead peer should return Result, not panic").value_owned();
 
     let chain = unwrap_err_chain(outcome, "Process/println dead peer");
@@ -280,11 +276,7 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
     let world = startup_bare().expect("freeze should succeed");
 
     // Spawn a server that exits without printing anything.
-    let server = eval(
-        &build_spawn_process_call(IMMEDIATE_EXIT_SERVER),
-        &Environment::new(),
-        world.symbols(),
-    )
+    let server = eval(&build_spawn_process_call(IMMEDIATE_EXIT_SERVER), &Environment::new(), world.symbols())
     .expect("spawn-process succeeds").value_owned();
 
     let env = Environment::new().child().bind("server", wat::rust_caller_span!(), server.into()).build();
@@ -305,7 +297,7 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
     )
     .expect("readln-dead AST parses");
 
-    let outcome = eval(&readln_dead_ast, &env, world.symbols())
+    let outcome = eval_in_frozen(&readln_dead_ast, &world, &env)
         .expect("Process/readln on dead peer should return Result, not panic").value_owned();
 
     let chain = unwrap_err_chain(outcome, "Process/readln dead peer");
@@ -330,11 +322,7 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
     // Verify the variant name matches the substrate-vended enum.
     let world = startup_bare().expect("freeze should succeed");
 
-    let server = eval(
-        &build_spawn_process_call(IMMEDIATE_EXIT_SERVER),
-        &Environment::new(),
-        world.symbols(),
-    )
+    let server = eval(&build_spawn_process_call(IMMEDIATE_EXIT_SERVER), &Environment::new(), world.symbols())
     .expect("spawn-process succeeds").value_owned();
 
     let env = Environment::new().child().bind("server", wat::rust_caller_span!(), server.into()).build();
@@ -355,7 +343,7 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
     )
     .expect("readln chain AST parses");
 
-    let outcome = eval(&readln_chain_ast, &env, world.symbols())
+    let outcome = eval_in_frozen(&readln_chain_ast, &world, &env)
         .expect("Process/readln dead peer returns Result").value_owned();
 
     let chain = unwrap_err_chain(outcome, "T5 readln chain");
