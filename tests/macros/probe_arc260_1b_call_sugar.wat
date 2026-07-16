@@ -22,9 +22,12 @@
 (:wat::core::defn :user::via-map [] -> :wat::core::i64
   (:user::connect "h" {:port 443 :tls true}))
 
-;; explicit record (the escape hatch — 260.1a; must still work)
+;; explicit record (the escape hatch — 260.1a; must still work).
+;; Arc 294 item 9a: the bundle is built with KWARGS (the bare name is the kwargs macro;
+;; the positional prime is generated-code-only). The escape hatch is passing a PRE-BUILT
+;; ::Kwargs record instead of using the call sugar — how the record is built is orthogonal.
 (:wat::core::defn :user::via-record [] -> :wat::core::i64
-  (:user::connect "h" (:user::connect::Kwargs 443 true)))
+  (:user::connect "h" (:user::connect::Kwargs :port 443 :tls true)))
 
 (:wat::core::defn :user::pascal-fn
   [& [FooBar <- :wat::core::i64]]
