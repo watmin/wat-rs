@@ -44,11 +44,11 @@
 ;; Two LHS conditions: bind ?k off Item, then negate Bad on the same ?k. One RHS insert.
 (:wat::core::defn :neg::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
-    (:wat::rete::Rule "ok"
-      (:wat::core::PersistentVector
+    (:wat::rete::Rule :name "ok"
+      :lhs (:wat::core::PersistentVector
         (:wat::core::quasiquote (:neg::Item (?k <- :k)))
         (:wat::core::quasiquote (:wat::rete::not (:neg::Bad (?k <- :k)))))
-      (:wat::core::PersistentVector
+      :rhs (:wat::core::PersistentVector
         (:wat::core::quasiquote (:wat::rete::insert (:neg::Ok ?k)))))))
 
 ;; seed session items — stage Item(i) for every i in [0, items), plus Bad(i) for every EVEN i,
@@ -98,4 +98,4 @@
                     derived (:neg::derived-vector fired)
                     nat-ns  (:neg::ns-between n0 n1)]
     (:wat::kernel::println
-      (:grid::Result "negation" (:wat::core::PersistentVector items) derived nat-ns))))
+      (:grid::Result :axis "negation" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns))))

@@ -68,9 +68,9 @@
                     where-c   (:wat::core::quasiquote
                                 (:wat::rete::where (:wat::core::>= ?n (:wat::core::unquote threshold))))
                     ins       (:wat::core::quasiquote (:wat::rete::insert (:mf::Busy ?loc ?n)))]
-    (:wat::rete::Rule "min-finding"
-      (:wat::core::PersistentVector station-c acc-c where-c)
-      (:wat::core::PersistentVector ins))))
+    (:wat::rete::Rule :name "min-finding"
+      :lhs (:wat::core::PersistentVector station-c acc-c where-c)
+      :rhs (:wat::core::PersistentVector ins))))
 
 ;; i64-mod a b — non-negative modulo via truncating division (no native i64::mod/rem; only
 ;; + - * / exist — same idiom strat-neg.wat uses for its even test `(* (/ ?k 2) 2)`). a >= 0 and
@@ -142,4 +142,4 @@
                     derived   (:mf::derived-vector fired)
                     nat-ns    (:mf::ns-between n0 n1)]
     (:wat::kernel::println
-      (:grid::Result "min-finding" (:wat::core::PersistentVector stations threshold) derived nat-ns))))
+      (:grid::Result :axis "min-finding" :size (:wat::core::PersistentVector stations threshold) :derived derived :native-ns nat-ns))))

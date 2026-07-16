@@ -71,9 +71,9 @@
                                   (:wat::core::i64::- ?k
                                     (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
                     ins     (:wat::core::quasiquote (:wat::rete::insert (:nsh::Out ?k)))]
-    (:wat::rete::Rule (:wat::core::i64::to-string i)
-      (:wat::core::PersistentVector a-c b-c where-c)
-      (:wat::core::PersistentVector ins))))
+    (:wat::rete::Rule :name (:wat::core::i64::to-string i)
+      :lhs (:wat::core::PersistentVector a-c b-c where-c)
+      :rhs (:wat::core::PersistentVector ins))))
 
 ;; build-rules n — the N-rule set [r0 .. r(n-1)], folding build-rule over (range 0 n). Every rule
 ;; shares the leading [A]⋈[B] join-prefix; only the trailing literal differs (mirrors strat-neg's
@@ -133,4 +133,4 @@
                     derived (:nsh::derived-vector fired)
                     nat-ns  (:nsh::ns-between n0 n1)]
     (:wat::kernel::println
-      (:grid::Result "node-share" (:wat::core::PersistentVector rules-n items) derived nat-ns))))
+      (:grid::Result :axis "node-share" :size (:wat::core::PersistentVector rules-n items) :derived derived :native-ns nat-ns))))

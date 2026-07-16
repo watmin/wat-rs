@@ -47,14 +47,14 @@
 ;; a two-pattern LHS on r2 is the join, both binding ?k -> equi-join on k).
 (:wat::core::defn :asym::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
   (:wat::core::PersistentVector
-    (:wat::rete::Rule "r1"
-      (:wat::core::PersistentVector (:wat::core::quote (:asym::A (?k <- :k))))
-      (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:asym::B ?k)))))
-    (:wat::rete::Rule "r2"
-      (:wat::core::PersistentVector
+    (:wat::rete::Rule :name "r1"
+      :lhs (:wat::core::PersistentVector (:wat::core::quote (:asym::A (?k <- :k))))
+      :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:asym::B ?k)))))
+    (:wat::rete::Rule :name "r2"
+      :lhs (:wat::core::PersistentVector
         (:wat::core::quote (:asym::B (?k <- :k)))
         (:wat::core::quote (:asym::A (?k <- :k))))
-      (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:asym::C ?k)))))))
+      :rhs (:wat::core::PersistentVector (:wat::core::quote (:wat::rete::insert (:asym::C ?k)))))))
 
 ;; seed-items session items — stage A(i) for i in [0, items), threading the staging session.
 ;; Every A arrives (round 0) before ANY B/C is derived — the asymmetric-arrival condition.
@@ -109,4 +109,4 @@
                     derived (:asym::derived-vector fired)
                     nat-ns  (:asym::ns-between n0 n1)]
     (:wat::kernel::println
-      (:grid::Result "asym-join" (:wat::core::PersistentVector items) derived nat-ns))))
+      (:grid::Result :axis "asym-join" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns))))

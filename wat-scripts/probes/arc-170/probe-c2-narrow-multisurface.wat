@@ -13,6 +13,6 @@
   (fst [self] (:probe::Multi/i self)))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [m  (:probe::Multi 42 "hi")
+    [m  (:probe::Multi :i 42 :s "hi")
      ok (:wat::core::ann-form (:probe::Pair2/fst m) :wat::core::i64)]
     (:wat::kernel::println "narrowed2")))

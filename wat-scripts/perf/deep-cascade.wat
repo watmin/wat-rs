@@ -35,9 +35,9 @@
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::core::= ?m (:wat::core::unquote prev))))
                     t1 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Node (:wat::core::unquote k) ?id)))
                     t2 (:wat::core::quasiquote (:wat::rete::insert (:cascade::Tag  (:wat::core::unquote k) ?id)))]
-    (:wat::rete::Rule (:wat::core::i64::to-string k)
-      (:wat::core::PersistentVector c1 c2)
-      (:wat::core::PersistentVector t1 t2))))
+    (:wat::rete::Rule :name (:wat::core::i64::to-string k)
+      :lhs (:wat::core::PersistentVector c1 c2)
+      :rhs (:wat::core::PersistentVector t1 t2))))
 
 ;; build-rules depth — the rule set [rule1 .. rule depth], built by folding build-rule over (range 1 depth+1).
 (:wat::core::defn :perf::build-rules [depth <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
@@ -51,7 +51,7 @@
 (:wat::core::defn :perf::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert (:wat::rete::insert s (:cascade::Node 0 i)) (:cascade::Tag 0 i)))
+      (:wat::rete::insert (:wat::rete::insert s (:cascade::Node :level 0 :id i)) (:cascade::Tag :level 0 :id i)))
     session
     (:wat::core::range 0 width)))
 
@@ -85,4 +85,4 @@
                     wat-ns  (:perf::ns-between w0 w1)
                     nat-ns  (:perf::ns-between n0 n1)]
     ;; println is ∀T → EDN: hand it the Result record, the stdout service renders it to EDN.
-    (:wat::kernel::println (:perf::Result depth width derived deepest wat-ns nat-ns))))
+    (:wat::kernel::println (:perf::Result :depth depth :width width :derived derived :deepest deepest :wat-ns wat-ns :native-ns nat-ns))))

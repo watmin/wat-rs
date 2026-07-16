@@ -49,7 +49,7 @@
           [record    <- :probe::caller'::Record
            echo-addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
           -> :probe::caller'::State
-          (:probe::caller'::State :record record :echo (:wat::kernel::connect' echo-addr)))
+          (:probe::caller'::State :durable record :echo (:wat::kernel::connect' echo-addr)))
   :impls
   [(run [s req]
      (:wat::core::let

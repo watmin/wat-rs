@@ -117,7 +117,7 @@
 (:wat::core::defn :acc::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:acc::Reading g (:acc::val g j))))
+      (:wat::rete::insert s (:acc::Reading :g g :v (:acc::val g j))))
     session
     (:wat::core::range 0 W)))
 
@@ -171,4 +171,4 @@
                     derived (:acc::derived-vector fired)
                     nat-ns  (:acc::ns-between n0 n1)]
     (:wat::kernel::println
-      (:grid::Result "accum" (:wat::core::PersistentVector groups reads) derived nat-ns))))
+      (:grid::Result :axis "accum" :size (:wat::core::PersistentVector groups reads) :derived derived :native-ns nat-ns))))

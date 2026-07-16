@@ -22,6 +22,6 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [reason (:probe::as-reason (:probe::SqliteReason 2067 "INSERT INTO users ..."))   ; : :probe::Reason (concrete = Sqlite)
+    [reason (:probe::as-reason (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))   ; : :probe::Reason (concrete = Sqlite)
      d      (:probe::describe reason)]                                                 ; open-surface arg -> concrete clauses
     (:wat::kernel::println d)))                                                        ; want: "sqlite 2067"

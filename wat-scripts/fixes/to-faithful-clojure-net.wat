@@ -173,7 +173,7 @@
                                  (:wat::core::ast-end-span node)
                                  lines)]
           (:wat::core::Vector :fix::Node
-            (:fix::Node kind name off len slen parent child-idx)))
+            (:fix::Node :kind kind :name name :offset off :len len :span-len slen :parent parent :child-idx child-idx)))
         (:wat::core::Vector :fix::Node)))))
 
 ;; stage the facts: fold insert over the Node vector

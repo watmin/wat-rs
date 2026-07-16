@@ -75,7 +75,7 @@
   -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  j <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:ur::Reading loc (:ur::mod7 (:wat::core::i64::+ loc j)))))
+      (:wat::rete::insert s (:ur::Reading :loc loc :value (:ur::mod7 (:wat::core::i64::+ loc j)))))
     (:wat::rete::insert session (:ur::Station loc))
     (:wat::core::range 0 reads)))
 
@@ -128,4 +128,4 @@
                     derived (:ur::derived-vector fired)
                     nat-ns  (:ur::ns-between n0 n1)]
     (:wat::kernel::println
-      (:grid::Result "user-reduce" (:wat::core::PersistentVector locs reads) derived nat-ns))))
+      (:grid::Result :axis "user-reduce" :size (:wat::core::PersistentVector locs reads) :derived derived :native-ns nat-ns))))

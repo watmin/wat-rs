@@ -128,7 +128,7 @@
                     conds   (:wat::core::if (:wat::core::= lvl 0)
                               (:wat::core::PersistentVector item-c where-c)
                               (:wat::core::PersistentVector item-c (:strat::not-pattern (:wat::core::i64::- lvl 1))))]
-    (:wat::rete::Rule (:wat::core::i64::to-string lvl) conds (:wat::core::PersistentVector ins))))
+    (:wat::rete::Rule :name (:wat::core::i64::to-string lvl) :lhs conds :rhs (:wat::core::PersistentVector ins))))
 
 ;; build-rules strata — the rule set [rule0 .. rule(strata-1)], folding build-rule over
 ;; (range 1 strata) atop a seeded rule0 (mirrors deep-cascade.wat's build-rules exactly).
@@ -243,4 +243,4 @@
                     derived (:strat::derived-vector fired strata)
                     nat-ns  (:strat::ns-between n0 n1)]
     (:wat::kernel::println
-      (:grid::Result "strat-neg" (:wat::core::PersistentVector strata items) derived nat-ns))))
+      (:grid::Result :axis "strat-neg" :size (:wat::core::PersistentVector strata items) :derived derived :native-ns nat-ns))))

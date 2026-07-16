@@ -125,7 +125,7 @@
         (:wat::core::let [name (:wat::core::ast-name node)
                           off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                           len  (:wat::core::string::length name)]
-          (:wat::core::Vector :fix::Node (:fix::Node kind name off len prev-arrow?)))
+          (:wat::core::Vector :fix::Node (:fix::Node :kind kind :name name :offset off :len len :post-arrow prev-arrow?)))
         (:wat::core::Vector :fix::Node)))))
 
 (:wat::core::defn :fix::collect-nodes-seq

@@ -8,6 +8,6 @@
   (fst [self] (:probe::ISBox/i self)))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [b  (:probe::ISBox 42 "hi")
+    [b  (:probe::ISBox :i 42 :s "hi")
      ok (:wat::core::ann-form (:probe::Pair/fst b) :wat::core::i64)]
     (:wat::kernel::println "narrowed")))

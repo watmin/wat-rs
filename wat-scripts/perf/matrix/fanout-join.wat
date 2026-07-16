@@ -11,11 +11,11 @@
 (:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left k f)) (:fan::Right k f)))
+      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left :key k :lid f)) (:fan::Right :key k :rid f)))
     s
     (:wat::core::range 0 fanout)))
 
-(:fan::Pair 0 0 0)  ;; touch ctor (unused warning guard; harmless)
+(:fan::Pair :key 0 :lid 0 :rid 0)  ;; touch ctor (unused warning guard; harmless)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
@@ -24,7 +24,7 @@
                     c1   (:wat::core::quote (:fan::Left  (?k <- :key) (?l <- :lid)))
                     c2   (:wat::core::quote (:fan::Right (?k <- :key) (?r <- :rid)))
                     rhs  (:wat::core::quote (:wat::rete::insert (:fan::Pair ?k ?l ?r)))
-                    rule (:wat::rete::Rule "fan" (:wat::core::PersistentVector c1 c2) (:wat::core::PersistentVector rhs))
+                    rule (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
                     s0   (:wat::rete::compile (:wat::core::PersistentVector rule))
                     staged (:wat::core::foldl
                               (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session
@@ -34,4 +34,4 @@
                     n0 (:wat::time::now)  fn (:wat::rete::fire-rules' staged)       n1 (:wat::time::now)
                     pairs   (:wat::core::length (:wat::rete::query-by-type-string fn "fan::Pair"))
                     nat-ns  (:wat::core::i64::- (:wat::time::epoch-nanos n1) (:wat::time::epoch-nanos n0))]
-    (:wat::kernel::println (:perf::FanResult keys fanout pairs nat-ns))))
+    (:wat::kernel::println (:perf::FanResult :keys keys :fanout fanout :pairs pairs :native-ns nat-ns))))

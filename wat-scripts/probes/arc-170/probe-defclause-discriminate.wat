@@ -27,7 +27,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [known   (:probe::as-reason-s (:probe::SqliteReason 2067 "INSERT INTO users ..."))  ; : Reason, concrete = Sqlite
+    [known   (:probe::as-reason-s (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))  ; : Reason, concrete = Sqlite
      unknown (:probe::as-reason-m (:probe::MongoReason "app.users"))                     ; : Reason, concrete = Mongo
      d1 (:probe::describe known)      ; want "sqlite 2067"      (concrete clause wins over fallback)
      d2 (:probe::describe unknown)]   ; want "unknown backend"  (fallback catches the type with no clause)

@@ -24,7 +24,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [result (:probe::PutResult::Constraint (:probe::SqliteReason 2067 "INSERT INTO users ..."))  ; concrete into a Reason field
+    [result (:probe::PutResult::Constraint (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))  ; concrete into a Reason field
      d      (:wat::core::match result -> :wat::core::String
               ((:probe::PutResult::Success _)   "ok")
               ((:probe::PutResult::Constraint r)          ; r : :probe::Reason (the field type)
