@@ -8612,7 +8612,7 @@ fn infer_defclause(
     all_items.extend_from_slice(args);
     let form = WatAST::List(all_items, head_span.clone());
 
-    let cs = match crate::runtime::parse_defclause_form(&form, false) {
+    let cs = match crate::runtime::parse_defclause_form(&form, crate::resolve::Privilege::User) {
         Ok((_name, cs)) => cs,
         Err(e) => {
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
@@ -8931,7 +8931,7 @@ fn collect_and_register_splice_defs(
 /// parse fails or the name is already registered (when `idempotent=true`).
 fn register_defclause_from_form(form: &WatAST, env: &mut CheckEnv, idempotent: bool) -> bool {
     let span = form.span().clone();
-    let (name, cs) = match crate::runtime::parse_defclause_form(form, false) {
+    let (name, cs) = match crate::runtime::parse_defclause_form(form, crate::resolve::Privilege::User) {
         Ok(pair) => pair,
         Err(_) => return false,
     };

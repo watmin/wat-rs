@@ -508,7 +508,7 @@ pub fn register_defines(
         // a declaration form, not a value-producing expression).
         if let Some((alias, target)) = parse_defalias_form(&form) {
             let form_span = form.span().clone();
-            register_defalias(&alias, &target, sym, form_span, true)?;
+            register_defalias(&alias, &target, sym, form_span, crate::resolve::Privilege::User)?;
             // Consumed — defalias does not participate in expression-level inference.
             // The alias name is now in sym.functions; the checker resolves call sites.
             rest.push(form);
@@ -603,7 +603,7 @@ pub fn register_defines(
                 do_items.first(),
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
             ) {
-                preregister_fn_defs_in_do(do_items, sym, true)?;
+                preregister_fn_defs_in_do(do_items, sym, crate::resolve::Privilege::User)?;
             // Arc 170 Gap D — top-level `(:wat::core::let bindings body...)` splice.
             // Mirror of Gap C for `let`. The body forms live at items[2..] (per
             // arc 168 multi-form body). Peek into the body and pre-register any
@@ -614,7 +614,7 @@ pub fn register_defines(
                 do_items.first(),
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
             ) {
-                preregister_fn_defs_in_let(do_items, sym, true)?;
+                preregister_fn_defs_in_let(do_items, sym, crate::resolve::Privilege::User)?;
             } else if matches!(
                 do_items.first(),
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::defclause"
@@ -636,7 +636,7 @@ pub fn register_defines(
                 //
                 // Mirror pattern from try_parse_fn_shape_def (arc 166) + the
                 // preregister_fn_defs_in_do (arc 170 Gap C) stubs.
-                if let Ok((name, _cs)) = crate::runtime::parse_defclause_form(&form, false) {
+                if let Ok((name, _cs)) = crate::runtime::parse_defclause_form(&form, crate::resolve::Privilege::User) {
                     if !crate::resolve::is_reserved_prefix(&name)
                         && !sym.functions.contains_key(&name)
                     {
@@ -798,7 +798,7 @@ pub fn register_stdlib_runtime_defs(
         };
         match head {
             ":wat::core::defclause" => {
-                let (name, cs) = parse_defclause_form(form, true)?;
+                let (name, cs) = parse_defclause_form(form, crate::resolve::Privilege::Stdlib)?;
                 let value = Value::wat__core__clauses(cs);
                 sym.functions.remove(&name); // remove stub if pre-registered
                 sym.runtime_def_values.insert(name, value);
@@ -876,7 +876,7 @@ pub fn register_stdlib_runtime_defs(
 /// in `register_defines`. The real ClauseSet lands in `runtime_def_values` via
 /// `register_runtime_defs` at freeze time.
 pub fn preregister_stdlib_defclause_stub(form: &WatAST, sym: &mut SymbolTable) {
-    if let Ok((name, _cs)) = parse_defclause_form(form, true) {
+    if let Ok((name, _cs)) = parse_defclause_form(form, crate::resolve::Privilege::Stdlib) {
         if !sym.functions.contains_key(&name) {
             let stub_body = WatAST::NilLit(form.span().clone());
             let stub_fn = Arc::new(Function {
@@ -934,7 +934,7 @@ pub fn register_stdlib_defines(
             // Stone 241.12 — stdlib defalias native registration.
             // Stdlib is PRIVILEGED — reserved-prefix gate bypassed (check_reserved=false).
             let form_span = form.span().clone();
-            register_defalias(&alias, &target, sym, form_span, false)?;
+            register_defalias(&alias, &target, sym, form_span, crate::resolve::Privilege::Stdlib)?;
             // Consumed — defalias declaration form does not reach check_program.
             // The stdlib residue is DISCARDED after step 6 anyway, but being explicit
             // about NOT pushing to rest avoids any check-time exposure.
@@ -946,7 +946,7 @@ pub fn register_stdlib_defines(
                 do_items.first(),
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
             ) {
-                preregister_fn_defs_in_do(do_items, sym, false)?;
+                preregister_fn_defs_in_do(do_items, sym, crate::resolve::Privilege::Stdlib)?;
             // Arc 170 Gap D — top-level `(:wat::core::let ...)` splice.
             // Mirror of Gap C for `let`; bypasses the reserved-prefix check
             // since stdlib source is privileged.
@@ -954,7 +954,7 @@ pub fn register_stdlib_defines(
                 do_items.first(),
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
             ) {
-                preregister_fn_defs_in_let(do_items, sym, false)?;
+                preregister_fn_defs_in_let(do_items, sym, crate::resolve::Privilege::Stdlib)?;
             }
             rest.push(form);
         } else {
@@ -1941,7 +1941,7 @@ fn register_runtime_defs_form(
         // so dispatch falls through to runtime_def_values and picks up the real
         // ClauseSet rather than the 0-param stub.
         ":wat::core::defclause" => {
-            let (name, cs) = parse_defclause_form(form, false)?;
+            let (name, cs) = parse_defclause_form(form, crate::resolve::Privilege::User)?;
             let value = Value::wat__core__clauses(cs);
             sym.functions.remove(&name); // remove stub if pre-registered (Stone 237.3)
             sym.runtime_def_values.insert(name, value);
@@ -2037,7 +2037,7 @@ fn register_defalias(
     target: &str,
     sym: &mut SymbolTable,
     span: Span,
-    check_reserved: bool,
+    privilege: crate::resolve::Privilege,
 ) -> Result<(), RuntimeError> {
     // Phase-1 migration to the ONE gate (resolve::registration). check_reserved maps to
     // Privilege; present -> NoOp (idempotent skip). A Duplicate can't arise (Existing is
@@ -2046,11 +2046,6 @@ fn register_defalias(
         crate::resolve::Existing::Equivalent
     } else {
         crate::resolve::Existing::Absent
-    };
-    let privilege = if check_reserved {
-        crate::resolve::Privilege::User
-    } else {
-        crate::resolve::Privilege::Stdlib
     };
     match crate::resolve::gate(alias, privilege, existing) {
         crate::resolve::Registration::NoOp | crate::resolve::Registration::Duplicate => return Ok(()),
@@ -2209,7 +2204,7 @@ fn is_enum_form(form: &WatAST) -> bool {
 fn preregister_struct_accessors_from_form(
     form: &WatAST,
     sym: &mut SymbolTable,
-    check_reserved_prefix: bool,
+    privilege: crate::resolve::Privilege,
 ) -> Result<(), RuntimeError> {
     let items = match form {
         WatAST::List(items, _) => items,
@@ -2240,12 +2235,7 @@ fn preregister_struct_accessors_from_form(
     } else {
         crate::resolve::Existing::Absent
     };
-    let cons_priv = if check_reserved_prefix {
-        crate::resolve::Privilege::User
-    } else {
-        crate::resolve::Privilege::Stdlib
-    };
-    match crate::resolve::gate(&constructor_path, cons_priv, cons_existing) {
+    match crate::resolve::gate(&constructor_path, privilege, cons_existing) {
         crate::resolve::Registration::Reserved => {
             return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
         }
@@ -2306,12 +2296,7 @@ fn preregister_struct_accessors_from_form(
             } else {
                 crate::resolve::Existing::Absent
             };
-            let acc_priv = if check_reserved_prefix {
-                crate::resolve::Privilege::User
-            } else {
-                crate::resolve::Privilege::Stdlib
-            };
-            match crate::resolve::gate(&accessor_path, acc_priv, acc_existing) {
+            match crate::resolve::gate(&accessor_path, privilege, acc_existing) {
                 crate::resolve::Registration::Reserved => {
                     return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(accessor_path) }.into());
                 }
@@ -2368,7 +2353,7 @@ fn preregister_struct_accessors_from_form(
 fn preregister_enum_constructors_from_form(
     form: &WatAST,
     sym: &mut SymbolTable,
-    check_reserved_prefix: bool,
+    privilege: crate::resolve::Privilege,
 ) -> Result<(), RuntimeError> {
     let items = match form {
         WatAST::List(items, _) => items,
@@ -2424,12 +2409,7 @@ fn preregister_enum_constructors_from_form(
         } else {
             crate::resolve::Existing::Absent
         };
-        let cons_priv = if check_reserved_prefix {
-            crate::resolve::Privilege::User
-        } else {
-            crate::resolve::Privilege::Stdlib
-        };
-        match crate::resolve::gate(&constructor_path, cons_priv, cons_existing) {
+        match crate::resolve::gate(&constructor_path, privilege, cons_existing) {
             crate::resolve::Registration::Reserved => {
                 return Err(RuntimeError { span: form.span().clone(), kind: RuntimeErrorKind::ReservedPrefix(constructor_path) }.into());
             }
@@ -2938,7 +2918,7 @@ fn try_parse_user_variadic_def_fn_form(
 fn preregister_fn_defs_in_do(
     items: &[WatAST],
     sym: &mut SymbolTable,
-    check_reserved_prefix: bool,
+    privilege: crate::resolve::Privilege,
 ) -> Result<(), RuntimeError> {
     // items is the children of a do form — i.e. items[0] is the :wat::core::do
     // keyword; items[1..] are the body children.
@@ -2948,11 +2928,6 @@ fn preregister_fn_defs_in_do(
                 crate::resolve::Existing::Equivalent
             } else {
                 crate::resolve::Existing::Absent
-            };
-            let privilege = if check_reserved_prefix {
-                crate::resolve::Privilege::User
-            } else {
-                crate::resolve::Privilege::Stdlib
             };
             match crate::resolve::gate(&path, privilege, existing) {
                 crate::resolve::Registration::Reserved => {
@@ -2975,20 +2950,20 @@ fn preregister_fn_defs_in_do(
             // The form stays in `rest`; `register_struct_methods` (step 6a) will
             // overwrite these stubs with fully-typed Function entries after
             // `register_defines` returns.
-            preregister_struct_accessors_from_form(child, sym, check_reserved_prefix)?;
+            preregister_struct_accessors_from_form(child, sym, privilege)?;
         } else if is_enum_form(child) {
             // Arc 170 slice 3 Gap F-1 — pre-register enum variant constructor stubs.
             // The form stays in `rest`; `register_enum_methods` (step 6.5) will
             // insert the real unit_variants and tagged Function entries after
             // `register_defines` returns.
-            preregister_enum_constructors_from_form(child, sym, check_reserved_prefix)?;
+            preregister_enum_constructors_from_form(child, sym, privilege)?;
         } else if let WatAST::List(nested_items, _) = child {
             // Recurse into nested do forms.
             if matches!(
                 nested_items.first(),
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::do"
             ) {
-                preregister_fn_defs_in_do(nested_items, sym, check_reserved_prefix)?;
+                preregister_fn_defs_in_do(nested_items, sym, privilege)?;
             }
         }
     }
@@ -3016,7 +2991,7 @@ fn preregister_fn_defs_in_do(
 fn preregister_fn_defs_in_let(
     items: &[WatAST],
     sym: &mut SymbolTable,
-    check_reserved_prefix: bool,
+    privilege: crate::resolve::Privilege,
 ) -> Result<(), RuntimeError> {
     // items[0] = :wat::core::let keyword
     // items[1] = bindings vector
@@ -3027,11 +3002,6 @@ fn preregister_fn_defs_in_let(
                 crate::resolve::Existing::Equivalent
             } else {
                 crate::resolve::Existing::Absent
-            };
-            let privilege = if check_reserved_prefix {
-                crate::resolve::Privilege::User
-            } else {
-                crate::resolve::Privilege::Stdlib
             };
             match crate::resolve::gate(&path, privilege, existing) {
                 crate::resolve::Registration::Reserved => {
@@ -3053,19 +3023,19 @@ fn preregister_fn_defs_in_let(
             // Arc 170 slice 3 Gap F-1 — pre-register struct accessor stubs.
             // Mirror of the `do` arm: the form stays in `rest`; `register_struct_methods`
             // (step 6a) overwrites these stubs with fully-typed Function entries.
-            preregister_struct_accessors_from_form(child, sym, check_reserved_prefix)?;
+            preregister_struct_accessors_from_form(child, sym, privilege)?;
         } else if is_enum_form(child) {
             // Arc 170 slice 3 Gap F-1 — pre-register enum variant constructor stubs.
             // Mirror of the `do` arm: the form stays in `rest`; `register_enum_methods`
             // (step 6.5) inserts real unit_variants and tagged Function entries.
-            preregister_enum_constructors_from_form(child, sym, check_reserved_prefix)?;
+            preregister_enum_constructors_from_form(child, sym, privilege)?;
         } else if let WatAST::List(nested_items, _) = child {
             // Recurse into nested let forms in the body.
             if matches!(
                 nested_items.first(),
                 Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
             ) {
-                preregister_fn_defs_in_let(nested_items, sym, check_reserved_prefix)?;
+                preregister_fn_defs_in_let(nested_items, sym, privilege)?;
             }
         }
     }
@@ -6067,7 +6037,7 @@ fn parse_defclause_clause(
 /// Returns the name + Arc<ClauseSet> on success.
 pub fn parse_defclause_form(
     form: &WatAST,
-    allow_reserved: bool,
+    privilege: crate::resolve::Privilege,
 ) -> Result<(String, Arc<ClauseSet>), RuntimeError> {
     const HEAD: &str = ":wat::core::defclause";
     let form_span = form.span().clone();
@@ -6113,7 +6083,7 @@ pub fn parse_defclause_form(
     if matches!(
         crate::resolve::gate(
             &name,
-            if allow_reserved { crate::resolve::Privilege::Stdlib } else { crate::resolve::Privilege::User },
+            privilege,
             crate::resolve::Existing::Absent,
         ),
         crate::resolve::Registration::Reserved

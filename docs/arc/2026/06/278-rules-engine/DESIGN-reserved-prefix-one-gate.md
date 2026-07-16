@@ -1,7 +1,15 @@
 # DESIGN — the reserved-prefix gate, consolidated to exactly ONE waist
 
-> **STATUS: ratified design, unbuilt. A substrate-cleanup arc held in 278.** Telemetry (T1b) is PAUSED
-> until this lands — the builder: *"time to pivot and make exactly one… I'm not going to tolerate this
+> **STATUS: LANDED (2026-07-16). Floor back to exactly the `no_inlined_wat` lint at 351; zero regressions.**
+> Phase 1 (S1–S5): the one gate `resolve::registration::gate`, all eleven sites migrated — process loci
+> fixed (`probe_arc278_mem_store_on_process` green). Phase 2 (S6–S7): the four privilege mechanisms
+> (`stdlib_privilege` flag, `RegistrationPrivilege` enum, `check_reserved*`/`allow_reserved` bool params,
+> `register_stdlib`) collapsed into one explicit `crate::resolve::Privilege`, threaded from `env.rs`'s phase
+> split. The ambient flag — the footgun that caused the bug — is gone. Telemetry (T1b) can resume.
+>
+> *(Historical design below, unchanged.)*
+>
+> A substrate-cleanup arc held in 278. Telemetry (T1b) was PAUSED — the builder: *"time to pivot and make exactly one… I'm not going to tolerate this
 > heresy in our code… this is the same style of pivot as the kwargs issue."*
 >
 > **The heresy:** the reserved-prefix invariant (*"only privileged/baked-stdlib source may declare a
