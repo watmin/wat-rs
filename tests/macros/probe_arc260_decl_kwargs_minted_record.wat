@@ -9,6 +9,10 @@
   -> :wat::core::i64
   (:wat::core::i64::+ port (:wat::core::if tls -> :wat::core::i64 1 0)))
 
+;; Arc 294 item 9a: the bundle is built with KWARGS (the bare name is the kwargs macro;
+;; the positional prime is generated-code-only). "Constructs the record explicitly (no
+;; sugar)" is about passing a PRE-BUILT record rather than using the call sugar — how the
+;; record itself is built is orthogonal.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:user::connect "example.com" (:user::connect::Kwargs 443 true)))
+  (:user::connect "example.com" (:user::connect::Kwargs :port 443 :tls true)))
 

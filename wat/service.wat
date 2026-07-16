@@ -197,6 +197,23 @@
                           (:wat::core::HashMap/get clause-map "ephemeral")
                           "defservice: :ephemeral needs a value")
                         empty-vec)
+     ;; ── THE SHAPE WALL: :durable / :ephemeral take a FIELD VECTOR ────────────────
+     ;; Both clause values flow straight into `(defrecord ~record-ty ~durable-fields)` /
+     ;; the ::State defstruct. A NON-vector (e.g. a bare type keyword `:durable
+     ;; :wat::core::i64`) is UNEXPRESSIBLE: a service's soul is a set of named fields, not
+     ;; a scalar. Unwalled, the bad shape flowed into the emitted decl and was tolerated
+     ;; downstream instead of screaming here, at the site the author wrote.
+     _durable-shape   (:wat::core::if (:wat::core::= (:wat::core::ast-kind durable-fields) "vector")
+                        -> :wat::core::nil
+                        nil
+                        (:wat::core::macro-error
+                          "defservice: :durable takes a FIELD VECTOR [name <- :Type …] — a bare type keyword / scalar durable is unexpressible; the durable IS the soul: a set of named fields that crosses the wire and survives hibernation"))
+     _ephemeral-shape (:wat::core::if (:wat::core::= (:wat::core::ast-kind ephemeral-fields) "vector")
+                        -> :wat::core::nil
+                        nil
+                        (:wat::core::macro-error
+                          "defservice: :ephemeral takes a FIELD VECTOR [name <- :Type …] — a bare type keyword / scalar ephemeral is unexpressible"))
+
      ;; Is ephemeral non-empty? (child count > 0)
      ephemeral-len  (:wat::core::length (:wat::core::ast->children ephemeral-fields))
      has-ephemeral  (:wat::core::i64::> ephemeral-len 0)
