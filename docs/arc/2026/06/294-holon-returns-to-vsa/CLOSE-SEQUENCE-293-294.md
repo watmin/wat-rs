@@ -67,6 +67,9 @@ change is 294. A surface / holder-policy / declaration-shape change is 293. When
 7. ▷ **GAP-2 — one `aggregate assoc`** (struct gains functional update).
 8. ▷ **GAP-3/4 — uniform `aggregate->map` / `aggregate->form`** (struct→map, record→form).
 9. ▷ **294.c.2b — annihilate the of-funcs** — `struct-new`/`Record::of`/`holon::Record::of` die.
+9a. ✅ **DONE 2026-07-15 (floor closed at HEAD `6d6bc685`: 4146 run / 4145 passed / **1 failed** — the ONE
+    allowed `no_inlined_wat` lint at 351, exactly its pre-flip count; zero timeouts).** The flip is landed and
+    the corpus is migrated. See `RESUME-9a-KWARGS.md` for the closed-state map + what the week actually held.
 9a. ▷ **CONSTRUCTION ERGONOMICS — kwargs is the DEFAULT surface; positional is a reserved escape hatch; `/from-map`
     DIES (QUEUED 2026-06-29, builder).** Invert today's "bare = positional, `/from-map` = kwargs" → **bare = KWARGS**:
     `(ns::Agg :field-1 22 :field-2 true :field-N #{1 2 3})` is the common, self-documenting, order-free form (a macro
