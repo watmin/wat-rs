@@ -154,11 +154,26 @@ fn lookup_form_struct_returns_special_form() {
     // Arc 293.2-parity: :wat::core::defstruct is now a WAT MACRO (not a special form).
     // lookup-define returns the macro definition (head :wat::core::defmacro); the macro
     // body expands all args through to :wat::core::structtype (the new low-level primitive).
+    // Assert the CLAIM, not defstruct's whole body. The body legitimately grows: arc 294
+    // item 9a made it ALSO mint the bare-name kwargs companion, and (C) changed that
+    // companion's emit to `kwargs-construct`. Pinning the byte-exact body couples this
+    // 293.2-parity test to every unrelated defstruct codegen change (and it did — this
+    // test has been red since the flip). The companion's own emit is covered by the
+    // arc260/(C) probes; what THIS test owns is the parity claim above.
     let define_line = def_str("defstruct");
-    assert_eq!(
-        define_line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defmacro #wat-edn.holon/Keyword :wat::core::defstruct #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "&" #wat-edn.holon/Symbol "args" #wat-edn.holon/Symbol "<-" #wat-edn.holon/Keyword :AST<Vec<wat::WatAST>>] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :AST<wat::WatAST> #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::quasiquote #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::structtype #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::unquote-splicing #wat-edn.holon/Symbol "args"]]]]"#,
-        "Arc 293.2-parity: defstruct must be a macro expanding to structtype"
+    assert!(
+        define_line.contains("#wat-edn.holon/Keyword :wat::core::defmacro"),
+        "Arc 293.2-parity: defstruct must be a MACRO (lookup-define head :wat::core::defmacro), \
+         not a special form; got: {define_line}"
+    );
+    assert!(
+        define_line.contains("#wat-edn.holon/Keyword :wat::core::defstruct"),
+        "Arc 293.2-parity: the macro must be named :wat::core::defstruct; got: {define_line}"
+    );
+    assert!(
+        define_line.contains("#wat-edn.holon/Keyword :wat::core::structtype"),
+        "Arc 293.2-parity: defstruct's body must expand through to :wat::core::structtype \
+         (the low-level primitive); got: {define_line}"
     );
 }
 
