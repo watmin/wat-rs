@@ -35,7 +35,7 @@ fn expand_keeping_defmacros(src: &str) -> super::ExpandBatch {
     let sym = crate::runtime::SymbolTable::default();
     let mut out = Vec::with_capacity(rest.len());
     for form in rest {
-        out.push(expand::expand_form(form, &reg, 0, &env, &sym)?);
+        out.push(expand::expand_form(form, &mut reg, 0, &env, &sym)?);
     }
     Ok(out)
 }

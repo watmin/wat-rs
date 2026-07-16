@@ -247,7 +247,9 @@
   :ephemeral [conn <- :wat::sqlite'::Connection]
   :init (:wat::core::fn [record <- :wat::query::sqlite-store'::Record]
           -> :wat::query::sqlite-store'::State
-          (:wat::query::sqlite-store'::State record
+          (:wat::query::sqlite-store'::State
+            :durable record
+            :conn
             (:wat::core::let
               [path (:wat::query::sqlite-store'::Record/path record)
                conn (:wat::core::Result/expect (:wat::sqlite'::open path) "sqlite-store': open failed")

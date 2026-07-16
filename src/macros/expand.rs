@@ -45,12 +45,26 @@ pub fn expand_all(
             // `is_do_or_let_containing_defmacro` check (below) never looks — the surface
             // form itself is not a `do`/`let`. Route the SAME hoist-and-splice treatment the ordinary
             // top-level `do` case gets (`hoist_top_level_form`) over each `:messages`
-            // child, so the message records get the ONE registration path (Way 1): their
-            // companion macro registers, and their `recordtype`/`defenum` decl splices to
-            // top level — BEFORE the surface form, so the surface's `:features` method
-            // sigs can resolve them. The `:messages` vector inside the surface form is
-            // left untouched: `defservice`'s shipped `surface-forms` carrier re-hoists it
-            // identically in the forked child (wat/service.wat:1027-1130).
+            // child, so their `recordtype`/`defenum` decl splices to top level — BEFORE the
+            // surface form, so the surface's `:features` method sigs can resolve them. The
+            // `:messages` vector inside the surface form is left untouched: `defservice`'s
+            // shipped `surface-forms` carrier re-hoists it identically in the forked child
+            // (wat/service.wat:1027-1130).
+            //
+            // The SPLICE is what is load-bearing here, and it is why this arm SURVIVES now
+            // that `expand_form` registers sequentially (arc 294 item 9a — see its doc).
+            // Sequential registration subsumed this arm's *macro-registration* half: a
+            // `:messages` child's companion `defmacro` now registers during expansion, when
+            // the nested `(do (recordtype …)(defmacro …))` container's own body-walk reaches
+            // it. But expansion CANNOT do the other half: `expand_form` returns ONE form per
+            // form, so it can never lift a nested `recordtype`/`defenum` DECL out to the
+            // top-level stream — and only a top-level decl is walked by the downstream
+            // `register_types`/`register_defines` passes that mint the type and its
+            // accessors. Deleting this arm was measured (the whole floor): 49 regressions,
+            // and their errors name that exact half — `#wat.resolve/UnresolvedReference
+            // {:path ":S::Msg/field" :context "call head — not a builtin, not a registered
+            // function"}` and `kwargs-construct: type :S::Msg is not a registered aggregate`.
+            // Registration was never the complaint. Hoisting is a STAGE, not an ordering.
             let (hoisted, surface_form) = hoist_surface_messages(expanded, registry)?;
             out.extend(hoisted);
             out.push(surface_form);
@@ -320,9 +334,15 @@ pub fn expand_once(
 /// READ→EXPAND→EVAL step (`eval_in_frozen` and the boot/machinery source-eval sites).
 ///
 /// Unlike [`expand_all`] (the startup pass, which registers defmacros through a `&mut`
-/// registry), this expands an *expression for evaluation*: no new macros are defined
-/// (mutation forms are refused upstream by the caller), so the registry is borrowed
-/// shared. Recurses into children and fixpoints via [`expand_form`] (full-Lisp raw-args
+/// registry), this expands an *expression for evaluation*: the CALLER's registry must not
+/// change — `eval_in_frozen` holds a `&FrozenWorld`, and an eval-time form that mints a
+/// macro is refused by `refuse_mutation_forms` on the expansion anyway. So the caller's
+/// registry is borrowed shared and a THROWAWAY clone absorbs any expansion-time
+/// registration (arc 294 item 9a: `expand_form` now registers a `do`/`let` body's
+/// `defmacro` children as it walks, so a sibling can call them — see its doc). The clone
+/// dies with the call; the frozen world is untouched.
+///
+/// Recurses into children and fixpoints via [`expand_form`] (full-Lisp raw-args
 /// semantics). This is what lets a source-written kwargs construction — even one inside
 /// a Rust string literal handed to `eval_in_frozen` — expand and evaluate; the prime
 /// `:T'` is then needed only in *generated* code (macro output), never in written source.
@@ -332,15 +352,33 @@ pub fn expand_fully(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
-    expand_form(form, registry, 0, env, sym)
+    let mut scratch = registry.clone();
+    expand_form(form, &mut scratch, 0, env, sym)
 }
 
 /// Expand a single form. Recursively expands children, then checks
 /// whether the resulting node is itself a macro call; if so, expand it,
 /// and continue to fixpoint.
+///
+/// Arc 294 item 9a — **registration is SEQUENTIAL during expansion**. The engine's
+/// top-level promise (`expand_all`'s header: "Register each such form as it appears so
+/// subsequent forms in the stream can invoke the new macro") holds inside a `do`/`let`
+/// BODY too: a body child is expanded, any `defmacro` it *is* registers immediately, and
+/// only then is the next sibling expanded. Without this, a macro emitting ONE container
+/// that both mints a companion `defmacro` and USES it (a `defservice`'s `do`: its
+/// `::Record`/`::State` companions plus the `serve` defn whose handlers construct those
+/// types) left the construction RAW — the companion had not registered when the sibling
+/// was walked — and it died at eval with `UnknownFunction`. Sequential registration is
+/// depth-unbounded by recursion: a `defmacro` nested in a child `do`/`let` registers when
+/// THAT container's own body-walk reaches it.
+///
+/// The registration is register-ONLY: the `defmacro` form stays in the tree. Stripping and
+/// splicing remain [`hoist_top_level_form`]'s job, which runs after the whole form is
+/// expanded and needs to still SEE the `defmacro` to know the container is a registration
+/// wrapper. Its re-`register` of the same def is a no-op (arc 054 structural equivalence).
 pub(super) fn expand_form(
     form: WatAST,
-    registry: &MacroRegistry,
+    registry: &mut MacroRegistry,
     expansion_depth: usize,
     env: &Environment,
     sym: &SymbolTable,
@@ -402,10 +440,19 @@ pub(super) fn expand_form(
             // Pre-flip this deviation was invisible — type-keywords were FUNCTIONS, which
             // the eager pass leaves alone; the construction flip turned every aggregate
             // type-keyword into a MACRO, exposing (and here removing) it.
+            //
+            // Arc 294 item 9a (sequential registration): the `contains` probe + scoped
+            // `get` keep the `&MacroDef` borrow alive only until `expand_macro_call`
+            // returns the OWNED expansion; the registry is then free to be re-borrowed
+            // `&mut` for the output fixpoint (which may register the expansion's own
+            // `defmacro` children). Cheaper than cloning the MacroDef on every call.
             if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if let Some(def) = registry.get(head) {
+                if registry.contains(head) {
                     let args = items[1..].to_vec();
-                    let expanded = expand_macro_call(def, args, list_span.clone(), env, sym)?;
+                    let expanded = {
+                        let def = registry.get(head).expect("contains checked immediately above");
+                        expand_macro_call(def, args, list_span.clone(), env, sym)?
+                    };
                     return expand_form(expanded, registry, expansion_depth + 1, env, sym);
                 }
             }
@@ -423,11 +470,50 @@ pub(super) fn expand_form(
                         &ident.as_str()[..slash_pos],
                         &ident.as_str()[slash_pos + 1..],
                     );
-                    if let Some(def) = registry.get(&primary) {
+                    if registry.contains(&primary) {
                         let args = items[1..].to_vec();
-                        let expanded = expand_macro_call(def, args, list_span.clone(), env, sym)?;
+                        let expanded = {
+                            let def = registry.get(&primary).expect("contains checked immediately above");
+                            expand_macro_call(def, args, list_span.clone(), env, sym)?
+                        };
                         return expand_form(expanded, registry, expansion_depth + 1, env, sym);
                     }
+                }
+            }
+
+            // Arc 294 item 9a — a `do`/`let` BODY is a SEQUENCE, not a set: its children
+            // are walked one at a time, each child's own `defmacro` registering before the
+            // NEXT sibling is expanded (see this fn's doc for why). `container_body_start`
+            // is the shared head/bindings-vs-body fact (`do` → 1, `let` → 2), so this walk
+            // can never drift from `is_do_or_let_containing_defmacro` /
+            // `hoist_defmacros_from_container` on which items are body. The head keyword
+            // and (for `let`) the bindings vector are expanded exactly as the plain
+            // child-walk below would — only the BODY tail is order-sensitive.
+            if let Some(WatAST::Keyword(head, _)) = items.first() {
+                if let Some(body_start) = container_body_start(head) {
+                    let mut out = Vec::with_capacity(items.len());
+                    let mut iter = items.into_iter();
+                    for _ in 0..body_start {
+                        match iter.next() {
+                            Some(head_or_bindings) => out.push(expand_form(
+                                head_or_bindings, registry, expansion_depth + 1, env, sym,
+                            )?),
+                            // A `let` shorter than its own head+bindings is malformed; leave
+                            // it to the checker's diagnostic rather than inventing one here.
+                            None => break,
+                        }
+                    }
+                    for child in iter {
+                        let expanded = expand_form(child, registry, expansion_depth + 1, env, sym)?;
+                        if is_defmacro_form(&expanded) {
+                            // The ONE registration path (`parse_defmacro_form` → `register`),
+                            // the same pair `hoist_top_level_form` uses. Register-only: the
+                            // form stays in `out` for the hoist pass to strip/splice.
+                            registry.register(parse_defmacro_form(expanded.clone())?)?;
+                        }
+                        out.push(expanded);
+                    }
+                    return Ok(WatAST::List(out, list_span));
                 }
             }
 
