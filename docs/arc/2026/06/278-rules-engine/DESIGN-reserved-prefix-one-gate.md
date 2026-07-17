@@ -225,19 +225,27 @@ allow-list and `first` needs a List not a Vector). Tests: `probe_arc278_span_{su
 A `:wat::telemetry'::Samples` typealias (`Vector<i64>`) was added (compound types can't sit as a
 HashMap value-type ctor arg or a `match ->` annotation).
 
-**Next: T2 — the query/read path.** `journal'` gains `query-metrics`/`query-logs` (the read `:impls`);
-the `Journal` surface gains those two ops. **This is a SOURCE EDIT, not a capability gap** — `Journal`
-was designed with 4 ops and shipped with 2 (the write pair) only because the query ops reference
-`:wat::query::Query`/`Result` (the rete-as-datalog vocab, absent today) and S4c makes a satisfier
-implement every op. At T2 we just edit the ONE `Journal` declaration in `wat/telemetry.wat` to add the
-two ops + add the two impls to `journal'` (a normal edit; every fork re-bakes the same 4-op source — NOT
-a divergent runtime re-declaration). **There is NO `defsurface-extend` gap for us and NO reason to split
-`journal'`** — it stays one service that both writes and queries the store it holds (the design's intent).
-(An earlier note here wrongly framed this as a `defsurface-extend` prerequisite by conflating a source
-edit with a runtime re-declaration; corrected.) T2's REAL prerequisites: build the `:wat::query::Query`/
-`Result` vocabulary + the alpha-only rete filter (`Record → Lemma* → Deduction` per scanned page).
-Honest gaps carried: no write-logs-on-process test (redundant); `Span` `Nest` deferred (call-site `open`
-with a shared sink); close-on-error needs a wat unwind primitive (happy path always closes).
+**T2 is DONE — minimal CloudWatch is functionally COMPLETE (commit `ec553bf5`).** Write + query, metrics
++ logs. `journal'` gained `query-metrics`/`query-logs` (`wat/telemetry/journal.wat`); the `Journal`
+surface gained the two ops by a **SOURCE EDIT** to its one declaration (NOT a `defsurface-extend` gap —
+that was my error, conflating a source edit with a runtime re-declaration; and NOT a runtime re-declaration
+since every fork re-bakes the same 4-op source). **The read side is a filtered store scan + hydrate, NOT
+rete.** Request = namespace + `[time-lo,time-hi]` epoch-nanos + limit + cursor; the impl scans
+`PartitionKey{namespace,kind}` over the `#inst` sk range, hydrates each row via `:wat::edn::read`, returns
+the `Vector<Metric>`/`<Log>` + cursor. Test: `probe_arc278_journal_query` (broad window → 2, narrow → 1).
+
+**The rete correction (load-bearing — I got this badly wrong first):** rete is a **CONSUMER** of this
+telemetry (you instrument the rete engine with spans/metrics and query them back to find its bottleneck —
+S3-uses-CloudWatch), **NOT** the query engine. I had fixated on rete-as-datalog-query, coupling a
+general-purpose logs+metrics store to one engine; the builder cut it: *"cloudwatch isn't 's3's solution'…
+its a logs and metrics solution."* There is NO rete in the read path and no `Query`/`Result`/`Lemma` vocab.
+
+**The whole telemetry facility (278 T1b + Span + T2) is functionally complete.** Sink (`journal'`,
+backend+loci agnostic) + producer (`span'`/`with-span`/`timed`) + read (`query-*`). Honest gaps carried:
+`query-logs` implemented + symmetric to `query-metrics` but not separately probed; no write-logs-on-process
+test (redundant); `Span` `Nest` deferred (call-site `open`); close-on-error needs a wat unwind primitive.
+Possible next: aggregation/stat queries (CloudWatch GetMetricStatistics — Sum/Avg/period), dimension
+(tag) filters, or feeding the actual rete-bottleneck investigation the facility was built to serve.
 
 **Noted follow-on (do NOT forget, but not blocking):** the redundant re-shipping of baked-stdlib forms
 across a fork (the surface-forms splice re-ships what the child bakes) is now HARMLESS (the one gate
