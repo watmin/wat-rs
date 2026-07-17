@@ -41,31 +41,15 @@ fn call_i64(world: &wat::freeze::FrozenWorld, name: &str) -> i64 {
 fn constant_width_inst_sk_sorts_chronologically() {
     let world = startup_beside(file!())
         .expect("startup should succeed (telemetry PartitionKey/Kind baked; mem-store' baked)");
-    let joined = call_str(&world, ":user::scan-order");
+    let scanned = call_str(&world, ":user::scan-order");
 
-    // The three iso8601 timestamps in CHRONOLOGICAL order: 01.0 < 01.000000001 < 02.0. Put was
-    // out-of-order (late, early, mid); a sort-safe sk brings them back in this order.
-    let early = "1970-01-01T00:00:01.000000000Z";
-    let mid = "1970-01-01T00:00:01.000000001Z";
-    let late = "1970-01-01T00:00:02.000000000Z";
-    let (pe, pm, pl) = (
-        joined.find(early),
-        joined.find(mid),
-        joined.find(late),
-    );
-    assert!(
-        pe.is_some() && pm.is_some() && pl.is_some(),
-        "all three #inst sks should round-trip through scan; got: {joined}"
-    );
-    assert!(
-        pe < pm && pm < pl,
-        "scan must return #inst sks in chronological order (early < mid < late) — a second-boundary \
-         instant must NOT sort after a sub-second one; got: {joined}"
-    );
-    // And the stored form is the tagged #inst, round-trippable back to an Instant.
-    assert!(
-        joined.contains("#inst \""),
-        "sk should be stored as a tagged #inst form; got: {joined}"
+    // Put was out-of-order (late, early, mid). assert_edn_eq! parses both sides as EDN and compares
+    // the ORDERED vectors — proving chronological order (early < mid < late) AND that a
+    // constant-width #inst sk sorts a second-boundary instant correctly against a sub-second one.
+    wat::assert_edn_eq!(
+        scanned,
+        include_str!("probe_arc278_tagged_keys_store__scan_order.edn"),
+        "constant-width #inst sk sorts chronologically"
     );
 }
 

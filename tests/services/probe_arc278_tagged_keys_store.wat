@@ -49,12 +49,14 @@
              (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::String
       ((:wat::query::Store::ScanResponse::Success out _cursor)
-        (:wat::core::foldl
-          (:wat::core::fn [acc <- :wat::core::String r <- :wat::query::Row] -> :wat::core::String
-            (:wat::core::string::concat acc
-              (:wat::core::string::concat (:wat::query::Row/sk r) "|")))
-          ""
-          out))
+        ;; return the scanned sks as an EDN vector (ORDERED) — the .rs golden-compares it.
+        (:wat::edn::write
+          (:wat::core::foldl
+            (:wat::core::fn [acc <- (:wat::core::Vector :wat::core::String) r <- :wat::query::Row]
+              -> (:wat::core::Vector :wat::core::String)
+              (:wat::core::conj acc (:wat::query::Row/sk r)))
+            (:wat::core::Vector :wat::core::String)
+            out)))
       (_ "SCAN-FAILED"))))
 
 ;; ── TEST B — a #uuid GSI scan-index round-trips ──────────────────────────────────

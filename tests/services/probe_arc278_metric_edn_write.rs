@@ -25,12 +25,13 @@ fn a_metric_record_serializes_to_tagged_edn_via_edn_write() {
         other => panic!("expected a String from :wat::edn::write; got {other:?}"),
     };
     // A tagged-EDN render of the Metric must name the type and carry its field values.
-    assert!(
-        s.contains("Metric"),
-        "encoded EDN should carry the Metric type tag; got: {s}"
-    );
-    assert!(
-        s.contains("probe-ns") && s.contains("requests"),
-        "encoded EDN should carry the Metric's field values (namespace + name); got: {s}"
+    // Compare against the co-located golden .edn. assert_edn_eq! parses BOTH sides as EDN and
+    // compares structurally — so this also proves the render is well-formed EDN (a malformed
+    // "dangling nil" would fail parse_owned with STOP-1). The trailing `#…/Count nil` is the
+    // fieldless enum variant's valid tagged-nil payload, not a dangling map element.
+    wat::assert_edn_eq!(
+        s,
+        include_str!("probe_arc278_metric_edn_write__metric.edn"),
+        "Metric serializes to valid, deterministic tagged EDN"
     );
 }
