@@ -494,6 +494,12 @@
                      (:wat::core::string::interpolate "{proto-str}::Op" :proto-str proto-str))
      reply-name    (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{proto-str}::Reply" :proto-str proto-str))
+     ;; Arc 278 no-hidden-failures — the reserved PROTOCOL-TIER failure variant. Synthesized
+     ;; onto every `<S>::Reply` by `synthesize_surface_protocol` (src/types.rs). The serve loop
+     ;; replies `(Reply::Failed cause)` to a client whose message could not be decoded, and the
+     ;; generated client method surfaces it as an unignorable raise carrying the cause's reason.
+     reply-failed-kw (:wat::core::keyword/from-string
+                       (:wat::core::string::interpolate "{proto-str}::Reply::Failed" :proto-str proto-str))
      serve-name    (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{fqdn-str}::serve" :fqdn-str fqdn-str))
      ;; Arc 209 host-parity-4a — the serve fqdn as a STRING, spliced into start's
@@ -845,8 +851,28 @@
                          ~@serve-op-arms))
                      ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::std::list::remove-at clients idx) state))
-                     ((:wat::spawn::ServiceEvent::Lost idx _cause)
-                       (~serve-name self l (:wat::std::list::remove-at clients idx) state)))
+                     ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
+                     ;; evict it. But its `cause` must NOT vanish (the old `_cause` silently
+                     ;; swallowed the death reason — the exact masking this arc forbids). There
+                     ;; is no reply target (the peer is dead) and the lineage peer is a
+                     ;; request/reply admin channel we must not desync, so surface the reason on
+                     ;; the honest loud sink (stderr) BEFORE evicting + continuing to serve. The
+                     ;; RICHER client-facing recv'-EOF crash-reason surfacing is a separate
+                     ;; follow-on strike; this arm's contract here is simply: do not DROP it.
+                     ((:wat::spawn::ServiceEvent::Lost idx cause)
+                       (:wat::core::do
+                         (:wat::kernel::eprintln (:wat::kernel::Failure/message cause))
+                         (~serve-name self l (:wat::std::list::remove-at clients idx) state)))
+                     ;; arc 278 no-hidden-failures — a peer that sent an UNDECODABLE message is
+                     ;; STILL ALIVE (a bad message is not a death). Reply the rich decode reason
+                     ;; to THAT client as `Reply::Failed[cause]` (its generated method raises with
+                     ;; the reason — the caller is never left blind), and KEEP THE CLIENT + keep
+                     ;; serving (recur; do NOT remove-at — one client's garbage must never kill a
+                     ;; shared service, the DoS this arc pulls out by the root).
+                     ((:wat::spawn::ServiceEvent::Malformed idx cause)
+                       (:wat::core::do
+                         (:wat::kernel::send' (:wat::core::nth clients idx) (~reply-failed-kw cause))
+                         (~serve-name self l clients state))))
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- Peer'<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
@@ -885,6 +911,11 @@
                           method-params   `[c <- ~client-peer-ty req <- ~req-ty]
                           discard-sym     (:wat::core::symbol-node "_")
                           r-sym           (:wat::core::symbol-node "r")
+                          ;; arc 278 no-hidden-failures — the reserved protocol-tier `Reply::Failed`
+                          ;; (a decode failure) NEVER reaches this match: `recv'` surfaces it FIRST
+                          ;; as a catchable RuntimeError carrying the rich reason (the ONE uniform
+                          ;; surfacing point; a wat raise here would be an uncatchable panic). The
+                          ;; `_` arm stays for a GENUINE misroute (an off-protocol reply variant).
                           method-body     `(:wat::core::let
                                              [~discard-sym (:wat::kernel::send' c (~op-variant-kw req))
                                               ~r-sym (:wat::kernel::recv' c)]

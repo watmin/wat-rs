@@ -477,6 +477,16 @@
               "bracket collect-loop: runner {idx} crashed: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
+        ;; arc 278 no-hidden-failures — a pool runner sent an UNDECODABLE result. A bracket
+        ;; runner speaks a fixed (i64,O) protocol; garbage on that channel is a should-never-
+        ;; happen. Mirror :Lost — raise LOUD with the rich decode reason (never a `_` wildcard
+        ;; that would re-hide the failure this arc forbids).
+        ((:wat::spawn::ServiceEvent::Malformed idx cause)
+          (:wat::kernel::assertion-failed!
+            (:wat::core::string::interpolate
+              "bracket collect-loop: runner {idx} sent an undecodable result: {cause}"
+              :idx idx :cause (:wat::kernel::Failure/message cause))
+            :wat::core::None :wat::core::None))
         (:wat::spawn::ServiceEvent::Shutdown
           (:wat::kernel::assertion-failed!
             "bracket collect-loop: unexpected Shutdown event"

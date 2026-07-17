@@ -154,6 +154,14 @@
 ;;                  Failure diagnostic (ECONNRESET / ETIMEDOUT / …).
 ;;                  Emitted by the remote tier; thread poll' emits only
 ;;                  Shutdown/Connection/Message/Closed — :Lost is built for the union.
+;;   :Malformed   — peers[idx] sent a message the service COULD NOT DECODE (arc 278
+;;                  no-hidden-failures). The peer is STILL ALIVE — a bad message is
+;;                  NOT a death; `cause` is the first-class Failure carrying the rich
+;;                  decode reason (`unknown tag #probe/Note … no matching struct or
+;;                  enum in the type registry`). The serve loop replies the cause to
+;;                  the originating client and KEEPS SERVING (does NOT evict — distinct
+;;                  from :Lost). Emitted by the process/socket tier poll' (the only
+;;                  tier that decodes a wire; thread peers pass Values in-process).
 ;;
 ;; Type params: I = the type the server SENDS to peers (peer's recv type);
 ;;              O = the type the server RECEIVES from peers (peer's send type);
@@ -167,7 +175,8 @@
   :Connection [peer  <- :wat::kernel::Peer'<I,O>]
   :Message    [idx   <- :wat::core::i64  msg   <- :O]
   :Closed     [idx   <- :wat::core::i64]
-  :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])
+  :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]
+  :Malformed  [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
 
 ;; ── PoolMsg<D,I> — the universal pool wire message (arc 170 M1-pool) ──────────
 ;;

@@ -32,7 +32,13 @@
 (:wat::core::defn :user::reply-value [r <- :my::Counter::Reply] -> :wat::core::i64
   (:wat::core::match r -> :wat::core::i64
     ((:my::Counter::Reply::Get resp) (:my::Counter::GetResponse/value resp))
-    ((:my::Counter::Reply::Increment resp) (:my::Counter::IncrementResponse/value resp))))
+    ((:my::Counter::Reply::Increment resp) (:my::Counter::IncrementResponse/value resp))
+    ;; arc 278 no-hidden-failures — the reserved protocol-tier failure. Unreachable here
+    ;; (recv' surfaces Reply::Failed as a raise BEFORE this helper sees it), but the
+    ;; hand-written match must stay exhaustive + honest: surface the cause, never `_`-swallow.
+    ((:my::Counter::Reply::Failed cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause)
+        :wat::core::None :wat::core::None))))
 
 ;; Hand-drive the GENERATED serve (C.3 wraps start + clients). Mirrors c0b1b's thread-tier
 ;; driver: parent mints the listener, spawns serve with the captured listener + empty clients +

@@ -28,6 +28,7 @@
       ((:wat::spawn::ServiceEvent::Message _idx msg) msg)
       ((:wat::spawn::ServiceEvent::Closed _idx) :no-tick)
       ((:wat::spawn::ServiceEvent::Lost _idx _cause) :no-tick)
+      ((:wat::spawn::ServiceEvent::Malformed _idx _cause) :no-tick)  ;; arc 278 — unreachable for a timer
       (:wat::spawn::ServiceEvent::Shutdown :no-tick)
       ((:wat::spawn::ServiceEvent::Connection _peer) :no-tick)
       ((:wat::spawn::ServiceEvent::Admin _msg) :no-tick))

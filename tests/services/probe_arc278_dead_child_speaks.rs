@@ -2,39 +2,45 @@
 //!
 //! A `journal'` service forked to a PROCESS receives a client message it cannot decode (a `Log` whose
 //! `message` is the user record `:probe::Note`, absent from the forked child's baked type registry).
-//! At HEAD the child dies with a rich, located reason —
+//! BEFORE the fix, the child died with a rich, located reason —
 //!   "poll' (process tier): client message decode failed: ... unknown tag #probe/Note (body shape:
 //!    map); no matching struct or enum in the type registry"
-//! — that is written to an ALREADY-CLOSED err pipe (EPIPE) and LOST; the caller's `write-logs` `recv'`
-//! raises a MUTE "recv failed: peer closed / channel disconnected".
+//! — that was written to an ALREADY-CLOSED err pipe (EPIPE) and LOST; the caller's `write-logs` `recv'`
+//! raised a MUTE "recv failed: peer closed / channel disconnected".
 //!
 //! THE LAW: the caller's error must CARRY the reason. This differs from
 //! `probe_arc272_rs2_crash_surfaces_to_client`, which only asserts the crash *raises* (is_err) — a mute
-//! raise passes that. Here we assert the raise carries the REASON. RED at HEAD (mute); GREEN when the
-//! masking is pulled out by the root (RecvError carries a reason; the `|_|` discards bind the error; the
-//! crash channel survives the child's death; poll' replies-and-survives instead of dying).
+//! raise passes that. Here we assert the raise carries the REASON. GREEN via Mechanism A (the
+//! protocol-tier completion of the outcome-enum model): `poll'` returns a `ServiceEvent::Malformed`
+//! carrying the cause instead of raising; the serve loop replies `Reply::Failed{cause}` to the caller
+//! and keeps serving; `recv'` surfaces `Reply::Failed` as a raise carrying the cause.
 //!
 //! Run: cargo test --release -p wat --test services dead_child_speaks
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::startup_beside;
+use wat::runtime::apply_function;
 
-#[ignore = "RED gate for DESIGN-no-hidden-failures.md — un-ignore when the mask is pulled: the caller \
-            must carry the child's decode reason (unknown tag #probe/Note ...), not a mute 'peer closed'"]
 #[test]
 fn a_forked_service_that_cannot_decode_a_message_speaks_its_reason_to_the_caller() {
-    let world =
-        startup_beside(file!()).expect("startup should succeed (dead-child-speaks probe)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let world = startup_beside(file!()).expect("startup should succeed (dead-child-speaks probe)");
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .expect(":user::compute")
+        .clone();
 
     // The undecodable message MUST raise (not hang, not fake a value) — and, crucially, the raise MUST
     // carry the child's real reason, not a mute mask.
+    let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
     let err = result.expect_err(
         "write-logs of an undecodable payload across a process fork must RAISE (the child cannot decode it)",
     );
     let msg = format!("{err:?}");
     assert!(
+        // rune:lint(loose-assert) — the raised error embeds a per-run-variable source location
+        // (edn_shim.rs:LINE:COL); we assert the diagnostic SUBSTANCE (that it names the undecodable
+        // tag / decode failure) is present — a property over a variable message, the legitimately-loose
+        // case the lint documents, not a deterministic value that owes an exact assert_eq!.
         msg.contains("unknown tag")
             || msg.contains("decode failed")
             || msg.contains("no matching struct or enum"),

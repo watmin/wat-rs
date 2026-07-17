@@ -1714,7 +1714,8 @@ fn synthesize_surface_protocol(
     surface: &SurfaceDef,
     env: &TypeEnv,
     acronyms: &HashMap<String, Vec<String>>,
-) -> Vec<TypeDef> {
+    decl_span: &Span,
+) -> Result<Vec<TypeDef>, TypeError> {
     // Arc 278 S4c — the surface's namespace-scoped acronym set. Keyed by the surface's own
     // name (with leading colon), EXACTLY as `defservice :impls` keys its lookup on
     // `proto-str`/`surface-kw` (the satisfied surface's keyword string) — see
@@ -1738,7 +1739,7 @@ fn synthesize_surface_protocol(
         // carries no wire payload → this surface is not a clean protocol; synthesize nothing.
         let request_ty = match args.fixed_params.get(1) {
             Some((_, ty)) => ty.clone(),
-            None => return vec![],
+            None => return Ok(vec![]),
         };
 
         // The purity gate: BOTH request and response must cross (EDN-serializable). Any impure
@@ -1746,7 +1747,7 @@ fn synthesize_surface_protocol(
         if !crate::check::is_pure_type(&request_ty, env)
             || !crate::check::is_pure_type(ret, env)
         {
-            return vec![];
+            return Ok(vec![]);
         }
 
         // Variant name = PascalCase(method-name) via the EXISTING kebab→pascal conversion
@@ -1765,8 +1766,51 @@ fn synthesize_surface_protocol(
     }
 
     if !saw_method {
-        return vec![]; // pure data surface (fields only) — not a service.
+        return Ok(vec![]); // pure data surface (fields only) — not a service.
     }
+
+    // Arc 278 no-hidden-failures — the PROTOCOL-TIER failure floor. Each `<Op>Response` is
+    // already an outcome enum (:Success | :Transient | :Fatal), so failure is first-class AT
+    // THE OP TIER. But a decode failure is a TIER BELOW: the client message never resolves to
+    // any op (the whole `Op::<Method>(…)` fails to hydrate), so no `<Op>Response` can carry it.
+    // A reserved `Reply::Failed [cause <- :wat::kernel::Failure]` variant lays the missing
+    // floor: the serve loop replies it to the originating client and the generated client
+    // method surfaces it as an unignorable raise (wat/service.wat) — the service survives, and
+    // no caller is ever left blind. This completes the 293 outcome model; it is not a new
+    // paradigm.
+    //
+    // COLLISION — the reserved name `Failed` clashes if the surface declares a method that
+    // pascal-cases to `Failed` (an op literally named `failed`). That is a real conflict, not
+    // something to silently override: a user's `failed` op and the protocol-tier failure floor
+    // cannot both own `Reply::Failed`. Surface it (the surface must rename its op).
+    const RESERVED_FAILURE_VARIANT: &str = "Failed";
+    if reply_variants.iter().any(|v| match v {
+        EnumVariant::Tagged { name, .. } => name == RESERVED_FAILURE_VARIANT,
+        EnumVariant::Unit(name) => name == RESERVED_FAILURE_VARIANT,
+    }) {
+        return Err(TypeError {
+            span: decl_span.clone(),
+            kind: TypeErrorKind::MalformedVariant {
+                enum_name: format!("{}::Reply", surface.name),
+                offending: RESERVED_FAILURE_VARIANT.to_string(),
+                reason: format!(
+                    "surface {} declares an op that maps to the reserved reply variant \
+                     `{}`; `Reply::{}` is reserved for the protocol-tier decode-failure floor \
+                     (arc 278: a client message that never hydrates to any op is replied as \
+                     `Reply::Failed[cause]` and surfaced as a raise). Rename the op.",
+                    surface.name, RESERVED_FAILURE_VARIANT, RESERVED_FAILURE_VARIANT
+                ),
+                remedies: vec![],
+            },
+        });
+    }
+    reply_variants.push(EnumVariant::Tagged {
+        name: RESERVED_FAILURE_VARIANT.to_string(),
+        fields: vec![(
+            "cause".to_string(),
+            TypeExpr::Path(":wat::kernel::Failure".into()),
+        )],
+    });
 
     // Protocol enums live under the surface's own namespace: `:S::Op` / `:S::Reply`
     // (`surface.name` keeps the leading colon, e.g. `:probe::Kv`).
@@ -1776,10 +1820,10 @@ fn synthesize_surface_protocol(
     // STOP-COLLISION — never overwrite a user hand-declared protocol enum. If either name is
     // already registered, yield to the user's declaration (do not synthesize, do not error).
     if env.contains(&op_name) || env.contains(&reply_name) {
-        return vec![];
+        return Ok(vec![]);
     }
 
-    vec![
+    Ok(vec![
         TypeDef::Enum(EnumDef {
             name: op_name,
             type_params: vec![],
@@ -1792,7 +1836,7 @@ fn synthesize_surface_protocol(
             purity: Purity::Pure,
             variants: reply_variants,
         }),
-    ]
+    ])
 }
 
 /// Arc 278 S4c — build the `<S>::surface-forms` carrier: a 0-arg `defn` returning a
@@ -1903,7 +1947,7 @@ fn register_types_impl(
                     }
                     // Arc 293 S1 — the wire-protocol enums (`::Op` / `::Reply`) when the method
                     // sigs are pure. Same `register` closure → same privilege as the surface.
-                    d.extend(synthesize_surface_protocol(surf, env, acronyms));
+                    d.extend(synthesize_surface_protocol(surf, env, acronyms, &decl_span)?);
                     d
                 } else {
                     vec![]

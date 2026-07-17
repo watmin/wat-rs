@@ -5483,6 +5483,13 @@ fn dispatch_keyword_head_value(
                                             ], span.clone()),
                                         ], span.clone()),
                                     ], span.clone());
+                                    // Arc 278 no-hidden-failures — NB: a `Reply::Failed[cause]` reply
+                                    // (the reserved protocol-tier decode-failure) never reaches this
+                                    // synthesized match: `recv'` surfaces it FIRST as a catchable
+                                    // RuntimeError carrying the cause's reason (eval_peer_recv_prime).
+                                    // That is the ONE uniform surfacing point for both this Path-B
+                                    // intrinsic and the defservice client method — and it is catchable
+                                    // (a wat `assertion-failed!` here would be an uncatchable panic).
 
                                     return eval_inner(&forwarding_ast, &call_env, sym)
                                         .map(|tv| tv.value_owned());
@@ -26005,6 +26012,46 @@ fn eval_peer_pid(
 /// The EDN wire is self-describing (post-234.7: tagged records/structs/enums + typed
 /// scalars) so `decode_trusted_wire(edn, sym.types())` reconstructs the exact value
 /// with no declared target type. `-> :T` in a non-return position is illegal.
+/// Arc 278 no-hidden-failures — detect the reserved PROTOCOL-TIER failure reply.
+///
+/// `synthesize_surface_protocol` (types.rs) mints a reserved variant
+/// `<S>::Reply::Failed [cause <- :wat::kernel::Failure]` on every serviceable surface's
+/// `Reply` enum — the floor BELOW the per-op `<Op>Response` outcome enums: a client
+/// message that never hydrates to ANY op cannot be carried by an op's response, so the
+/// serve loop replies `Reply::Failed[cause]` to that client and keeps serving. `recv'`
+/// surfaces it HERE as a catchable raise carrying the cause's rich reason (`unknown tag
+/// #probe/Note … no matching struct or enum …`), so the caller is NEVER left blind. This
+/// is the ONE uniform surfacing point — it covers both the Path-B intrinsic peer-method
+/// dispatch and the defservice-generated client methods (both round-trip through `recv'`),
+/// and it is CATCHABLE (a wat-level `assertion-failed!` in a client method would be an
+/// uncatchable `panic_any`). Returns the reason when `v` IS a `*::Reply::Failed`, else None.
+fn reply_failed_reason(v: &Value) -> Option<String> {
+    let Value::Enum(e) = v else { return None };
+    if !(e.type_path.ends_with("::Reply") && e.variant_name == "Failed") {
+        return None;
+    }
+    // field[0] is the `:wat::kernel::Failure` record; ITS field[0] is the message String
+    // (message_only_failure: [message, location, frames, actual, expected]).
+    match e.fields.first() {
+        Some(Value::Aggregate(a)) if a.class == "wat::kernel::Failure" => match a.fields.first() {
+            Some(Value::String(s)) => Some((**s).clone()),
+            _ => Some(
+                "service replied Reply::Failed (protocol-tier decode failure) with an \
+                 unreadable cause"
+                    .to_string(),
+            ),
+        },
+        Some(other) => Some(format!(
+            "service replied Reply::Failed (protocol-tier decode failure); cause: {:?}",
+            other
+        )),
+        None => Some(
+            "service replied Reply::Failed (protocol-tier decode failure) with no cause"
+                .to_string(),
+        ),
+    }
+}
+
 fn eval_peer_recv_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -26229,6 +26276,16 @@ fn eval_peer_recv_prime(
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
+            // Arc 278 no-hidden-failures — a reserved protocol-tier `Reply::Failed` (the service
+            // could not decode our request) surfaces as a CATCHABLE raise carrying the real reason,
+            // never a mute value the client's match would misroute. Covers socket + thread tiers.
+            if let Some(reason) = reply_failed_reason(&result) {
+                return Err(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm { head: OP.into(), reason },
+                }
+                .into());
+            }
             Ok(result)
         }
         other => Err(RuntimeError {
@@ -27532,28 +27589,37 @@ fn eval_poll_prime(
                                         },
                                     })
                                 })?;
-                                let msg = crate::edn_shim::decode_trusted_wire(
+                                // Arc 278 no-hidden-failures — a client message we cannot
+                                // decode is NOT service-fatal. On decode failure, build the
+                                // rich reason as a first-class Failure and return
+                                // ServiceEvent::Malformed{idx, cause} INSTEAD of raising (the
+                                // old `?` here was the DoS: one bad message killed the whole
+                                // service, and its reason vanished on the EPIPE'd err pipe).
+                                // The serve loop replies the cause to THIS client (Reply::Failed)
+                                // and keeps serving — the peer is ALIVE.
+                                match crate::edn_shim::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
-                                )
-                                .map_err(|e| {
-                                    EvalBreak::from(RuntimeError {
-                                        span: list_span.clone(),
-                                        kind: RuntimeErrorKind::MalformedForm {
-                                            head: OP.into(),
-                                            reason: format!(
+                                ) {
+                                    // ServiceEvent::Message [idx <- i64  msg <- Value]
+                                    Ok(msg) => Value::Enum(Arc::new(EnumValue {
+                                        type_path: SELECT_EVENT_TYPE.into(),
+                                        variant_name: "Message".into(),
+                                        fields: vec![Value::i64(peer_idx), msg],
+                                    })),
+                                    // ServiceEvent::Malformed [idx <- i64  cause <- Failure]
+                                    Err(e) => Value::Enum(Arc::new(EnumValue {
+                                        type_path: SELECT_EVENT_TYPE.into(),
+                                        variant_name: "Malformed".into(),
+                                        fields: vec![
+                                            Value::i64(peer_idx),
+                                            message_only_failure(format!(
                                                 "poll' (process tier): client message decode failed: {}",
                                                 e
-                                            ),
-                                        },
-                                    })
-                                })?;
-                                // ServiceEvent::Message [idx <- i64  msg <- Value]
-                                Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE.into(),
-                                    variant_name: "Message".into(),
-                                    fields: vec![Value::i64(peer_idx), msg],
-                                }))
+                                            )),
+                                        ],
+                                    })),
+                                }
                             }
                             Err(_) => {
                                 // Output EOF — bare Peer' has no crash channel, so there
@@ -27712,27 +27778,34 @@ fn eval_poll_prime(
                                                                     },
                                                                 })
                                                             })?;
-                                                            let msg2 = crate::edn_shim::decode_trusted_wire(
+                                                            // Arc 278 no-hidden-failures — a client
+                                                            // message we cannot decode is NOT
+                                                            // service-fatal: return Malformed{idx,cause}
+                                                            // instead of raising (mirrors the main
+                                                            // client arm above).
+                                                            match crate::edn_shim::decode_trusted_wire(
                                                                 ws2,
                                                                 sym.types().map(|a| a.as_ref()),
-                                                            ).map_err(|e| {
-                                                                EvalBreak::from(RuntimeError {
-                                                                    span: list_span.clone(),
-                                                                    kind: RuntimeErrorKind::MalformedForm {
-                                                                        head: OP.into(),
-                                                                        reason: format!("poll' (process tier re-poll): client message decode failed: {}", e),
-                                                                    },
-                                                                })
-                                                            })?;
-                                                            Value::Enum(Arc::new(EnumValue {
-                                                                type_path: SELECT_EVENT_TYPE
-                                                                    .into(),
-                                                                variant_name: "Message".into(),
-                                                                fields: vec![
-                                                                    Value::i64(pidx),
-                                                                    msg2,
-                                                                ],
-                                                            }))
+                                                            ) {
+                                                                Ok(msg2) => Value::Enum(Arc::new(EnumValue {
+                                                                    type_path: SELECT_EVENT_TYPE
+                                                                        .into(),
+                                                                    variant_name: "Message".into(),
+                                                                    fields: vec![
+                                                                        Value::i64(pidx),
+                                                                        msg2,
+                                                                    ],
+                                                                })),
+                                                                Err(e) => Value::Enum(Arc::new(EnumValue {
+                                                                    type_path: SELECT_EVENT_TYPE
+                                                                        .into(),
+                                                                    variant_name: "Malformed".into(),
+                                                                    fields: vec![
+                                                                        Value::i64(pidx),
+                                                                        message_only_failure(format!("poll' (process tier re-poll): client message decode failed: {}", e)),
+                                                                    ],
+                                                                })),
+                                                            }
                                                         }
                                                         Err(_) => Value::Enum(Arc::new(
                                                             EnumValue {
