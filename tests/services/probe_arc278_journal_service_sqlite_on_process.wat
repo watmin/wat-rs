@@ -1,21 +1,26 @@
-;; Co-located fixture for probe_arc278_journal_service.rs — arc 278 STONE T1b.2 acceptance gate.
+;; Co-located fixture for probe_arc278_journal_service_sqlite_on_process.rs — arc 278 T1b.3 / U3.
 ;;
-;; The composition of everything the groundwork proved: `journal'` (a defservice holding a
-;; `:wat::query::Store` peer) is GIVEN a `mem-store'`, `write-metrics` a 1-Metric batch; then a
-;; SEPARATE client scans the same store back and we return the stored row's `data` (the Metric's
-;; tagged EDN). The .rs golden-compares it — proving the whole write path end-to-end.
+;; The REAL backend (sqlite) on a PROCESS fork — closes the deferred U3. Both sqlite-store' and
+;; journal' fork to processes; sqlite-store' opens its OWN Connection in its :init inside the child
+;; (THE CIRCUIT — a resource is opened by the worker that owns it; only the addr crosses the wire).
+;; journal' (a process child) dials sqlite-store' (another process child) via grant-before-dial.
+;;
+;; Same golden as the mem-on-process + thread-differential tiers — so sqlite ≡ mem on a fork too.
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [;; the backend store
-     sh      (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-               :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     saddr   (:wat::query::mem-store'::Handle/addr sh)
-     ;; journal', GIVEN the store's addr (dials it in :init, holds it in :ephemeral)
-     jh      (:wat::telemetry'::journal'/start :locus (:wat::spawn::thread)
+    [sh      (:wat::query::sqlite-store'/start :locus (:wat::spawn::process)
+               :record (:wat::query::sqlite-store'::Record
+                         :path ":memory:" :index-names (:wat::core::Vector :wat::core::String "by-uuid")))
+     saddr   (:wat::query::sqlite-store'::Handle/addr sh)
+     ;; journal' on a PROCESS; grant journal's child pid to sqlite-store's gate before :init dials.
+     jh      (:wat::telemetry'::journal'/start
+               :locus (:wat::spawn::process/post-spawn
+                        (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
+                          (:wat::query::sqlite-store'/grant sh
+                            (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
                :record (:wat::telemetry'::journal'::Record) :store-addr saddr)
      journal (:wat::kernel::connect' (:wat::telemetry'::journal'::Handle/addr jh))
-     ;; a test metric (same shape as the metric_edn golden — deterministic namespace -> deterministic pk)
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      m       (:wat::telemetry'::Metric
                :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags :time-ns 123
@@ -24,7 +29,6 @@
      batch   (:wat::core::Vector :wat::telemetry'::Metric m)
      _wr     (:wat::telemetry'::Journal/write-metrics journal
                (:wat::telemetry'::Journal::WriteMetricsRequest batch))
-     ;; verify through a SEPARATE client on the same store
      client  (:wat::kernel::connect' saddr)
      pk      (:wat::edn::write (:wat::telemetry'::PartitionKey
                                  :namespace "probe-ns" :kind :wat::telemetry'::Kind::Metric))

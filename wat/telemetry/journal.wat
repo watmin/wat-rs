@@ -66,13 +66,23 @@
   :ephemeral [store <- :wat::kernel::Peer'<wat::query::Store::Op,wat::query::Store::Reply>]
   ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
   :peers     [:wat::query::Store]
-  ;; :init connects to the given store (its Address' is a start operating-input, EDN — crosses a fork)
+  ;; :init connects to the given store (its Address' is a start operating-input, EDN — crosses a fork),
+  ;; then ENSURES the store's schema ONCE: the base table (pk, sk) + the by-uuid correlation GSI.
+  ;; journal' owns the schema because the store is domain-blind. A no-op on mem-store'; on
+  ;; sqlite-store' this CREATEs the table + index, so the later `put`s succeed (mem hid this need).
   :init (:wat::core::fn
           [record     <- :wat::telemetry'::journal'::Record
            store-addr <- :wat::kernel::Address'<wat::query::Store::Op,wat::query::Store::Reply>]
           -> :wat::telemetry'::journal'::State
-          (:wat::telemetry'::journal'::State
-            :durable record :store (:wat::kernel::connect' store-addr)))
+          (:wat::core::let
+            [store (:wat::kernel::connect' store-addr)
+             _es   (:wat::query::Store/ensure-schema store
+                     (:wat::query::Store::EnsureSchemaRequest
+                       :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
+                       :indexes (:wat::core::Vector :wat::query::IndexSchema
+                                  (:wat::query::IndexSchema
+                                    :name "by-uuid" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))]
+            (:wat::telemetry'::journal'::State :durable record :store store)))
   :impls
   [(write-metrics [s req]
      (:wat::core::let

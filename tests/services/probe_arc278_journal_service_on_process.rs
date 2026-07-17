@@ -26,7 +26,7 @@ fn journal_writes_a_metric_through_a_held_store_peer_on_a_process() {
     };
     wat::assert_edn_eq!(
         stored,
-        include_str!("probe_arc278_journal_service__stored_metric.edn"),
+        include_str!("probe_arc278_journal__stored_metric.edn"),
         "journal' stored the Metric's tagged EDN across a process fork (loci parity with the thread tier)"
     );
 }
