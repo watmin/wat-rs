@@ -46,6 +46,23 @@
   :Warn
   :Error)
 
+;; ─── Kind — which telemetry record a store partition holds (bare variants). ───────
+;; Discriminates the two record shapes at the partition-key level (metrics and logs
+;; are different shapes; the pk carries the kind so a namespace's metrics and logs
+;; partition distinctly).
+(:wat::core::defenum :wat::telemetry'::Kind :wat::enum::Pure
+  :Metric
+  :Log)
+
+;; ─── PartitionKey — the store partition key (the `pk`): a tagged, PARSEABLE key. ──
+;; Written via `:wat::edn::write` as `#wat.telemetry'/PartitionKey {:namespace … :kind …}`
+;; — self-describing AND round-trippable (an EDN reader hydrates it back to this record),
+;; unlike a `#`-delimited flat string which cannot be read back. Fields render in
+;; declaration order, so the partition groups hierarchically (namespace, then kind).
+(:wat::core::defrecord :wat::telemetry'::PartitionKey
+  [namespace <- :wat::core::String
+   kind      <- :wat::telemetry'::Kind])
+
 ;; ─── Scope — the EXACT surface every telemetry record satisfies (identity + when). ─
 ;; namespace (facility), uuid (correlation id), tags (dimensions), time-ns (event time).
 ;; Spliced into Metric/Log via `~@:wat::telemetry'::Scope`.
