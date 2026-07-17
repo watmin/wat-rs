@@ -7,6 +7,37 @@
 > pulls the class out by the root. We own wat; the arc-294 "crash reasons are administrative" ruling does
 > NOT shelter a masking behavior — we change our minds when the mask keeps blinding us.
 
+## STATUS — 2026-07-17 (Mechanism A LANDED + verified + pushed; the transport-tier twin is NEXT)
+
+**Half the law is real** (`66d6aed7`, pushed). The **alive-service-rejects-you** path is done —
+Mechanism A: `poll'` returns `ServiceEvent::Malformed{idx, cause}` instead of raising; the serve loop
+replies `Reply::Failed{cause}` and **keeps serving** (no more DoS); `recv'` surfaces `Reply::Failed` as
+a catchable raise carrying the reason. A reserved `Reply::Failed[cause <- Failure]` variant on every
+synthesized `<S>::Reply` (`types.rs synthesize_surface_protocol`) is the **protocol-tier completion**
+of the 293 outcome-enum model (op-tier failure = `<Op>Response::{Transient,Fatal}`; protocol-tier
+failure — "couldn't resolve your message to any op" — was the missing floor). Verified by own re-run:
+`probe_arc278_dead_child_speaks` GREEN (caller carries `unknown tag #probe/Note … no matching struct
+or enum`); floor 4168 passed / 1 failed = the standing `no_inlined_wat` lint at **351**, zero new;
+`no_loose_string_assert` PASS.
+
+**Sites addressed (of the table below):** #9 (`poll'` no longer service-fatal), #10 (the `_cause`
+discard), and the protocol-tier gap (there was no `Reply::Failed` at all).
+
+**TWO JUDGMENT CALLS awaiting the builder's ratification** (both grounded, non-blocking — see the
+`66d6aed7` message): **(1)** surfacing lives in `recv'`, not a client-method match arm — a wat
+`assertion-failed!` in a client method is `panic_any`, uncatchable by `eval_in_frozen`/`apply_function`;
+`recv'` is the only catchable, uniform point (this doc's step 3 / "room 8"). **(2)** `:Lost`'s cause is
+surfaced via `eprintln` (no reply target — the peer is dead; sending up the lineage `self` peer would
+desync the admin request/reply protocol).
+
+**NEXT — the transport-tier twin (the dead-service-speaks half):** a **genuinely crashed** service (a
+real handler panic, not a decode rejection) still EPIPEs its reason and `RecvError` still has no slot.
+Sites R, 1–8 remain: give `RecvError` a `Failed(String)` variant (`Disconnected` = clean EOF only); bind
+`|e|` at every `map_err(|_| Disconnected)` in `comms/process.rs`; thread the reason through `recv'`
+(`runtime.rs:26196/26219`, including `PeerRecvError::Crashed`); keep the crash channel's read end alive
+so the dying child's envelope lands instead of EPIPE-ing. Its RED gate: a probe where a service's
+HANDLER genuinely panics and the caller must carry *that* reason.
+
 ## The incident that surfaced it (grounded)
 
 `tests/services/probe_arc278_journal_logs_on_process` — a `journal'` service forked to a **process**;
