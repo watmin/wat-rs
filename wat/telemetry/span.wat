@@ -147,3 +147,52 @@
                 ((:wat::telemetry'::Journal::WriteMetricsResponse::Fatal err)
                   (:wat::telemetry'::Span::CloseResponse::Fatal err)))]
        (:wat::service::Outcome::Reply s cresp)))])
+
+;; ── the call-site macros (STONE Span.3) ──────────────────────────────────────────
+;; `timed` — the timing widget (Clojure `time` idiom): read the clock, run the body, feed
+;; name + elapsed-nanos to the PURE `Span/timed` op, return the body's value untouched. No closure
+;; enters the actor. `Span/timed` (the op) ≠ `:wat::telemetry'::timed` (this macro) — FQDN.
+(:wat::core::defmacro :wat::telemetry'::timed
+  [span <- :wat::WatAST  name <- :wat::WatAST  body <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::let
+    [start-sym   (:wat::core::fresh-symbol "start")
+     ret-sym     (:wat::core::fresh-symbol "ret")
+     elapsed-sym (:wat::core::fresh-symbol "elapsed")
+     t-sym       (:wat::core::fresh-symbol "t")]
+    `(:wat::core::let
+       [~start-sym   (:wat::time::epoch-nanos (:wat::time::now))
+        ~ret-sym     ~body
+        ~elapsed-sym (:wat::core::- (:wat::time::epoch-nanos (:wat::time::now)) ~start-sym)
+        ~t-sym       (:wat::telemetry'::Span/timed ~span
+                       (:wat::telemetry'::Span::TimedRequest :name ~name :nanos ~elapsed-sym))]
+       ~ret-sym)))
+
+;; `with-span` — acquire / use / guaranteed close, INLINE (the scope law: the span' handle must
+;; share one lexical scope with its use + close). binding = [span-name sink-addr namespace tags];
+;; mints uuid + start-time at the call site, starts + dials span', runs the body, closes.
+;; (Close-on-error needs a wat unwind primitive — a named follow-on; the happy path always closes.)
+(:wat::core::defmacro :wat::telemetry'::with-span
+  [span-name <- :wat::WatAST  sink-addr <- :wat::WatAST
+   namespace <- :wat::WatAST  tags <- :wat::WatAST  body <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::let
+    [uuid-sym   (:wat::core::fresh-symbol "uuid")
+     start-sym  (:wat::core::fresh-symbol "start")
+     rec-sym    (:wat::core::fresh-symbol "rec")
+     h-sym      (:wat::core::fresh-symbol "h")
+     result-sym (:wat::core::fresh-symbol "result")
+     close-sym  (:wat::core::fresh-symbol "close")]
+    `(:wat::core::let
+       [~uuid-sym  (:wat::core::Uuid/v4)
+        ~start-sym (:wat::time::epoch-nanos (:wat::time::now))
+        ~rec-sym   (:wat::telemetry'::span'::Record
+                     :namespace ~namespace :uuid ~uuid-sym :tags ~tags :start-time-ns ~start-sym
+                     :counters (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
+                     :durations (:wat::core::HashMap :wat::core::keyword :wat::telemetry'::Samples))
+        ~h-sym     (:wat::telemetry'::span'/start :locus (:wat::spawn::thread)
+                     :record ~rec-sym :sink-addr ~sink-addr)
+        ~span-name (:wat::kernel::connect' (:wat::telemetry'::span'::Handle/addr ~h-sym))
+        ~result-sym ~body
+        ~close-sym (:wat::telemetry'::Span/close ~span-name (:wat::telemetry'::Span::CloseRequest))]
+       ~result-sym)))
