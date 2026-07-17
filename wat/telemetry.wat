@@ -135,3 +135,48 @@
    ;; write a logs batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-logs [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::WriteLogsRequest]
      -> :wat::telemetry'::Journal::WriteLogsResponse)])
+
+;; ─── Span — arc 278 stone Span.1: the PRODUCER surface (a unit of work). ──────────
+;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.
+;; `incr`/`timed` accumulate PURE state (counters + duration samples); `log` writes through the sink
+;; NOW; `close` emits the accumulated counters + durations as Metrics to the sink (each counter -> 1
+;; Metric; each duration name -> count + sum Metrics) — so CloseResponse passes through the sink's
+;; write outcome (the shared :wat::query:: error vocab, derive-is-the-wall). `span'` (the satisfier,
+;; stone Span.2) holds a `:wat::telemetry'::Journal` peer. Nesting is a call-site `open` with the same
+;; sink (NOT a surface op). `timed` the OP (`Span/timed`) is distinct from the `timed` call-site widget
+;; macro (`:wat::telemetry'::timed`) — FQDN disambiguates.
+(:wat::core::defsurface :wat::telemetry'::Span :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :wat::telemetry'::Span::IncrRequest
+     [name <- :wat::core::keyword])
+   (:wat::core::defenum :wat::telemetry'::Span::IncrResponse :wat::enum::Pure :Ok [])
+
+   (:wat::core::defrecord :wat::telemetry'::Span::TimedRequest
+     [name <- :wat::core::keyword  nanos <- :wat::core::i64])
+   (:wat::core::defenum :wat::telemetry'::Span::TimedResponse :wat::enum::Pure :Ok [])
+
+   (:wat::core::defrecord :wat::telemetry'::Span::LogRequest
+     [caller  <- :wat::core::keyword
+      level   <- :wat::telemetry'::Level
+      message <- :wat::telemetry'::LogMessage])
+   (:wat::core::defenum :wat::telemetry'::Span::LogResponse :wat::enum::Pure :Ok [])
+
+   (:wat::core::defrecord :wat::telemetry'::Span::CloseRequest [])
+   (:wat::core::defenum :wat::telemetry'::Span::CloseResponse :wat::enum::Pure
+     :Done       []
+     :Constraint [err <- :wat::query::Constraint]
+     :Transient  [err <- :wat::query::Transient]
+     :Fatal      [err <- :wat::query::Fatal])]
+  :features
+  [;; increment a named counter by 1 — a PURE state transition (emitted on close).
+   (incr [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::IncrRequest]
+     -> :wat::telemetry'::Span::IncrResponse)
+   ;; record a duration sample (nanos) under a name — PURE (the timing widget already measured).
+   (timed [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::TimedRequest]
+     -> :wat::telemetry'::Span::TimedResponse)
+   ;; write a Log NOW through the sink, correlated by this span's scope.
+   (log [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::LogRequest]
+     -> :wat::telemetry'::Span::LogResponse)
+   ;; close the unit of work: emit accumulated counters + durations as Metrics to the sink.
+   (close [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::CloseRequest]
+     -> :wat::telemetry'::Span::CloseResponse)])
