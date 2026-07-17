@@ -428,12 +428,25 @@ fn tests_carry_no_inlined_wat() {
         violations.is_empty(),
         "\n\n🔥🔥🔥 INLINED-WAT IN TESTS — {} file(s) still carry a string literal that wat's own\n\
          reader parses as a form (surface-agnostic: rust-scheme `(:wat::core::…)` AND faithful\n\
-         Clojure `(wat.core/…)` both count). A test gets its world from a co-located `.wat`\n\
-         (`startup_beside(file!())`) for real wat-under-test, or from `startup_bare()` for an\n\
-         incidental world; a driver expression comes from the same fixture or a `.wat`-loaded\n\
-         helper, not an inline string. This is the fire — drive it to ZERO (test-infra\n\
-         annihilation, group by group). Literal-hit breakdown so far: {} format!-driver, {}\n\
-         faithful-surface, {} other parse-body. Offenders:\n\n{}\n",
+         Clojure `(wat.core/…)` both count).\n\
+         \n\
+         THE FIX — move the wat into a co-located `.wat` fixture and drive it lint-clean via ONE of\n\
+         two idioms. RUBRIC (which to reach for): docs/CONVENTIONS.md § 'Test idioms — EDN-over-stdio\n\
+         vs just-eval'. In short:\n\
+           • just-eval      — `call_beside(file!(), \":user::compute\")`: run a fixture's named entry\n\
+                              fn in-process, inspect its typed Result<Value, RuntimeError>. For a\n\
+                              VALUE/TYPE claim (a fn's return; a compile-time/freeze property, which\n\
+                              often needs only `startup_beside(file!())`, no call).\n\
+           • EDN-over-stdio — `run-hermetic` runs `:user::main` as a real process; it `println`s its\n\
+                              result as EDN and the test `edn::read`s it back (lossless round-trip).\n\
+                              For a PROGRAM claim (a crash/exit + reason, stdio effects, IPC fidelity,\n\
+                              cross-loci behavior).\n\
+         One-line: 'the PROGRAM does X' -> EDN-over-stdio ; 'this VALUE/TYPE is X' -> just-eval.\n\
+         A legitimately-inline case (e.g. a parser/reader test) earns a per-site\n\
+         `// rune:lint(no-inlined-wat) — <reason>` (the reason must earn it).\n\
+         \n\
+         Drive it to ZERO. Literal-hit breakdown so far: {} format!-driver, {} faithful-surface,\n\
+         {} other parse-body. Offenders:\n\n{}\n",
         violations.len(),
         format_driver_hits,
         faithful_surface_hits,

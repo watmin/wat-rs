@@ -905,6 +905,101 @@ break embedders. The matrix above governs new primitives.
   shipped surface. If INSCRIPTION and DESIGN disagree, INSCRIPTION
   wins.
 
+## Test idioms — EDN-over-stdio vs just-eval (the no-inlined-wat rubric)
+
+A test never inlines wat as a Rust string (`no_inlined_wat` forbids it). The wat lives in a
+co-located `.wat` fixture (`startup_beside(file!())`), and the test drives it one of two ways.
+Both are lint-clean; the choice follows **what the test is testing**, not taste.
+
+> **The organizing question: does the process boundary participate in what's under test?**
+> The boundary = a real process spawn + its stdio (which ships EDN) + its exit code. If the
+> boundary *is* (part of) the subject → **EDN-over-stdio**. If the subject is an in-process
+> value/type and the boundary would only add a spawn for nothing → **just-eval**.
+
+### The two idioms
+
+- **just-eval** — `call_beside(file!(), ":user::compute")` runs a fixture's named zero-arg entry
+  fn in-process and returns its typed `Result<Value, RuntimeError>`. The test inspects the typed
+  value (or `expect_err`s a raise) directly. No spawn. This is the *white-box* vantage: you invoke
+  a named entry and read what it returns.
+- **EDN-over-stdio** — `run-hermetic` runs `:user::main` as a real spawned process and returns a
+  `RunResult { stdout, stderr, failure }`. `:user::main` is `-> :wat::core::nil` by contract, so a
+  program *ships* its result: `(:wat::kernel::println value)` writes the value's EDN to stdout, and
+  the test `(:wat::edn::read line)` **decodes it back to the typed value** — a lossless structural
+  round-trip (records-are-EDN, arc 300; proven by `tests/comms/wat_arc113_raise_round_trip`). This
+  is the *black-box* vantage: you run the program and read its real stdio+exit interface, exactly
+  as a live consumer would — the honest integration test.
+
+### HARD constraints — these *force* the choice (can/can't, not preference)
+
+Reach for **EDN-over-stdio** when the subject can only exist as a program's observable behavior:
+- **A crash / exit / dying declaration** — a panic, `assertion-failed!`, terminal `eprintln`, a
+  service dying. Only a real process has an exit code, and only its stderr carries the reason;
+  in-process a panic just aborts the harness, so there is no "non-zero exit + reason" to assert.
+- **Stdio effects** — what the program prints, to which fd, in what order.
+- **Serialization / IPC fidelity** — the point *is* the encode→ship→decode round-trip surviving the wire.
+- **Process isolation / cross-loci** — spawning, forking, services on a process locus, grant-before-dial.
+
+Reach for **just-eval** when the subject can only be observed in-process:
+- **A value that cannot cross the wire** — an opaque `:rust::` handle, a live `Db`/socket, a `Peer'`,
+  a function value. It is impure/non-EDN by construction (293.W), so a process could not ship it —
+  you must inspect it in-process.
+- **A compile-time / type property** — does it freeze, does the checker reject it, what is inferred.
+  There is no runtime program; inspect the `FrozenWorld` / `StartupError` directly (often just
+  `startup_beside`, no call at all). A fixture that **must be rejected** (a parser / type / freeze
+  negative) is a `<probe>.wat.bad`, loaded by explicit path (`startup_from_file`, never
+  `startup_beside`), asserting the `Err` — see § *Intentionally-invalid fixtures* above.
+
+### SOFT default (only for the genuinely ambiguous case)
+
+A pure fn returning pure data, where either idiom would work: prefer **just-eval**. A pure return is
+identical in-process or over the wire, so the spawn buys no fidelity. Escalate to EDN-over-stdio only
+when the *claim itself* is "the program does X," not "this value is X."
+
+### Anti-patterns (each is the rubric violated)
+
+- Spawning a process for a pure unit check — a spawn for zero fidelity.
+- In-process'ing a crash/exit test — you cannot observe the exit code or the dying reason; you are
+  testing something weaker.
+- Reaching `call_beside` *past* a program's real interface into an internal helper to peek at
+  intermediate state — a caller-perspective violation (see below): test at the interface, not behind it.
+
+**One-line decision:** claim is *"the PROGRAM does X"* (crashes / prints / ships / survives the wire)
+→ EDN-over-stdio; claim is *"this VALUE or TYPE is X"* → just-eval.
+
+### The `.edn` golden — expected output, co-located (the `no_loose_string_assert` rubric)
+
+The mirror of the fixture rule, for the *assertion* side: when a test checks a full structured
+output, the EXPECTED value lives in a co-located golden `<probe>__<label>.edn`, compared with
+`wat::assert_edn_eq!(actual_edn, include_str!("<probe>__<label>.edn"))` — which parses BOTH sides as
+EDN and compares **structurally** (formatting-insensitive, structure-exact). This is what
+`no_loose_string_assert` demands: an exact structural match, not `assert!(s.contains("…"))` (which
+passes on reordered fields, malformed maps, and appended garbage).
+
+- **Reach for a golden** when the assertion is a deterministic structured value — a record, an enum,
+  a `RunResult`, a vector of rows. Capture the whole value once; compare exactly.
+- **Do NOT golden** a value that varies per run (a path / pid / hash / timestamp), or a targeted
+  absence over a large output — those are the legitimately-loose cases that earn a per-site
+  `// rune:lint(loose-assert) — <reason>` (cf. `dead_child_speaks`'s error-substring assert, whose
+  message embeds a variable source location).
+- **Regenerate, don't hand-edit** when the shape legitimately changes — the golden is captured from
+  the real output, never guessed.
+
+Together the co-located artifacts are a test's whole world — none inlined, each named off the probe so
+nothing names its own context:
+
+- **`<probe>.wat`** — the program / fixture (a *valid* wat program; a `.wat` is a promise it freezes).
+- **`<probe>.wat.bad`** — an intentionally-*invalid* fixture, for a "must be rejected" test; loaded by
+  explicit path, asserting the `Err` (§ *Intentionally-invalid fixtures*). Bad-ness is in the
+  extension, so every `*.wat` glob skips it by construction.
+- **`<probe>__<label>.edn`** — the expected-output golden (`assert_edn_eq!` + `include_str!`).
+- **`<probe>.rs`** — the driver.
+
+For an *incidental* world (a substrate test with no wat-under-test), `startup_bare()` carries no wat at
+all — the honest statement of "no fixture." That is the full test-authoring surface: the four
+co-located artifacts (or `startup_bare`), the two drive idioms (just-eval / EDN-over-stdio), and the
+two lints that enforce them (`no_inlined_wat`, `no_loose_string_assert`).
+
 ## Caller-perspective verification
 
 > **All code is measurable from the caller's perspective. That's

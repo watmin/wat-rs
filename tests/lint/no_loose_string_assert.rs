@@ -113,10 +113,16 @@ fn tests_carry_no_loose_string_assert() {
         violations.is_empty(),
         "\n\n🔥🔥🔥 LOOSE STRING ASSERTIONS — {} site(s) assert a value with contains/starts_with/\n\
          ends_with where an exact `assert_eq!` belongs. A loose check passes on reordered fields,\n\
-         malformed maps, and appended garbage. TIGHTEN each (deterministic value → byte-identical\n\
-         `assert_eq!`, captured not guessed), or EXEMPT a legitimately-loose one (value varies per\n\
-         run / property over a variable set / targeted absence) with `// rune:lint(loose-assert) —\n\
-         <reason>`. Drive it to ZERO. Offenders:\n\n{}\n",
+         malformed maps, and appended garbage.\n\
+         \n\
+         THE FIX (RUBRIC: docs/CONVENTIONS.md § 'Test idioms' -> 'The .edn golden'): a deterministic\n\
+         STRUCTURED value goes in a co-located `<probe>__<label>.edn` golden, compared via\n\
+         `wat::assert_edn_eq!(actual, include_str!(\"...edn\"))` (parses both sides, structure-exact) —\n\
+         capture the whole value, never guess. A scalar -> byte-identical `assert_eq!`. EXEMPT a\n\
+         legitimately-loose one (a value that varies per run: path/pid/hash/timestamp, or a targeted\n\
+         absence over a large output) with a per-site `// rune:lint(loose-assert) — <reason>`.\n\
+         \n\
+         Drive it to ZERO. Offenders:\n\n{}\n",
         violations.len(),
         violations.join("\n"),
     );
