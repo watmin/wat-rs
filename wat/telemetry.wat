@@ -23,6 +23,11 @@
 (:wat::core::typealias :wat::telemetry'::Tags
   (:wat::core::HashMap :wat::core::keyword :wat::core::String))
 
+;; ─── Samples — a span's duration samples (nanos) under one name. A bare keyword alias so it
+;; can name a HashMap value type + a `match ->` annotation (compound types can't sit there). ─
+(:wat::core::typealias :wat::telemetry'::Samples
+  (:wat::core::Vector :wat::core::i64))
+
 ;; ─── Numeric — a metric's value: an i64 count or an f64 gauge (fielded variants). ─
 ;; Variant names are :I64/:F64 (capitalized, per the sqlite Cell/Param exemplar): the
 ;; lowercase :i64/:f64 the design doc sketched collide with the RETIRED bare primitives

@@ -418,6 +418,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/telemetry/journal.wat",
         source: include_str!("../wat/telemetry/journal.wat"),
     },
+    // wat/telemetry/span.wat — `:wat::telemetry'::span'` (arc 278 Span.2), the PRODUCER service.
+    // `:satisfies :wat::telemetry'::Span`, HOLDS a `:wat::telemetry'::Journal` peer; accumulates
+    // counters/durations and emits them as Metrics on `close`. Loads after journal.wat.
+    WatSource {
+        path: "wat/telemetry/span.wat",
+        source: include_str!("../wat/telemetry/span.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
