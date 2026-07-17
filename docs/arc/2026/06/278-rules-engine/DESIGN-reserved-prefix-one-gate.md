@@ -225,14 +225,19 @@ allow-list and `first` needs a List not a Vector). Tests: `probe_arc278_span_{su
 A `:wat::telemetry'::Samples` typealias (`Vector<i64>`) was added (compound types can't sit as a
 HashMap value-type ctor arg or a `match ->` annotation).
 
-**Next: T2 — the query/read path** (`query-metrics`/`query-logs` + the rete-as-datalog filter;
-`journal'` gains the read `:impls`, the `Journal` surface grows). **Its prerequisite is the confirmed
-`defsurface-extend` gap** — `defsurface` is a native form with NO extend/reopen mode (growing a
-surface's members is a divergent re-declaration error), so growing the *shipped* `Journal` surface with
-the query ops needs that capability designed+built first (a real wat incompleteness to pivot on).
-T2 also needs the `:wat::query::Query`/`Result` rete vocabulary (absent today). Honest gaps carried:
-no write-logs-on-process test (redundant); `Span` `Nest` deferred (call-site `open` with a shared sink,
-needs a scope-detach primitive); close-on-error needs a wat unwind primitive (happy path always closes).
+**Next: T2 — the query/read path.** `journal'` gains `query-metrics`/`query-logs` (the read `:impls`);
+the `Journal` surface gains those two ops. **This is a SOURCE EDIT, not a capability gap** — `Journal`
+was designed with 4 ops and shipped with 2 (the write pair) only because the query ops reference
+`:wat::query::Query`/`Result` (the rete-as-datalog vocab, absent today) and S4c makes a satisfier
+implement every op. At T2 we just edit the ONE `Journal` declaration in `wat/telemetry.wat` to add the
+two ops + add the two impls to `journal'` (a normal edit; every fork re-bakes the same 4-op source — NOT
+a divergent runtime re-declaration). **There is NO `defsurface-extend` gap for us and NO reason to split
+`journal'`** — it stays one service that both writes and queries the store it holds (the design's intent).
+(An earlier note here wrongly framed this as a `defsurface-extend` prerequisite by conflating a source
+edit with a runtime re-declaration; corrected.) T2's REAL prerequisites: build the `:wat::query::Query`/
+`Result` vocabulary + the alpha-only rete filter (`Record → Lemma* → Deduction` per scanned page).
+Honest gaps carried: no write-logs-on-process test (redundant); `Span` `Nest` deferred (call-site `open`
+with a shared sink); close-on-error needs a wat unwind primitive (happy path always closes).
 
 **Noted follow-on (do NOT forget, but not blocking):** the redundant re-shipping of baked-stdlib forms
 across a fork (the surface-forms splice re-ships what the child bakes) is now HARMLESS (the one gate
