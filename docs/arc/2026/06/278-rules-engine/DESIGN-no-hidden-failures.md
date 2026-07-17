@@ -45,10 +45,51 @@ table below) remain: give `RecvError` a `Failed(String)` variant (`Disconnected`
 dying child's 687-byte envelope LANDS instead of `EPIPE`-ing. **RED gate:** a service whose HANDLER
 genuinely panics → the caller must carry *that* reason (today: mute "peer closed").
 
-**IN FLIGHT (cleanup crusade, orthogonal to the law):** migrate the ~169 `parse_one!("(:user::…)")`
-invocation stubs + the dozen ad-hoc `run_compute*` helpers to `call_beside`, draining `no_inlined_wat`
-toward its honest inline-*logic* floor. RED-gate: the count strictly decreases each batch, zero new
-failures.
+## RESUME (curare before compaction — 2026-07-18; HEAD `4118a7c5`, branch `arc-170-gap-j-v5-deadlock-state`, tree clean)
+
+Two threads are open. The law-closing one is recorded above (**★ THE OWED NEXT — the transport-tier
+twin**: `RecvError::Failed` + the `map_err(|_|)` sweep in `comms/process.rs` + the crash-channel `EPIPE`
+fix; its RED gate is a genuinely-panicking handler whose caller must carry the reason). The other is
+the crusade, in flight:
+
+### THE CRUSADE — drive `no_inlined_wat` from 351 → 0
+
+- **The "how" is locked in** (committed `4118a7c5`): the rubric is `docs/CONVENTIONS.md` § *Test idioms —
+  EDN-over-stdio vs just-eval*; **both lints now teach the fix at failure time** (`no_inlined_wat` points
+  at the rubric + names the two idioms; `no_loose_string_assert` points at the `.edn`-golden rule). The
+  `call_beside(file!(), ":user::…")` idiom is minted (`src/freeze.rs`, beside `startup_beside`).
+- **The work-list** (the 351 offenders by dir — get the live list via
+  `cargo nextest run --release -E 'test(no_inlined_wat_in_tests::tests_carry_no_inlined_wat)' --no-capture 2>&1 | grep 'tests/'`):
+  `types` 60 · `kernel` 39 · `rete` 34 · `collection` 31 · `resolve` 25 · `macros` 24 · `wat_lang` 24 ·
+  `services` 21 · `comms` 17 · `function` 17 · `value` 14 · `process` 12 · `program` 10 · `reflection` 10 ·
+  `diagnostics` 8 · `channel` 5 · `lint` 5.
+- **★ WAVE 0 WAS IN FLIGHT at compaction** — a background shadowdancer migrating `tests/reflection`
+  (calibrating the playbook before the wide fan-out). It likely did **not** survive teardown. FIRST:
+  `git status --short | grep tests/reflection` — if it landed changes, **WEIGH by your own re-run**
+  (`cargo nextest run -E 'test(reflection::)'` green · those files gone from the offender list ·
+  `no_loose_string_assert` still PASS · no new failures · no weakened assertions) then commit; if it
+  landed nothing, **re-launch wave 0** with the brief below.
+- **The migration brief (per dir, isolated → no conflicts):** for each offending file — tier by the
+  rubric (VALUE/TYPE → `call_beside`/`startup_beside`; PROGRAM/crash → EDN-over-stdio via `run-hermetic`
+  + `edn::read` the shipped stdout; must-reject → `.wat.bad` + explicit `startup_from_file`;
+  loose-`.contains` on a structured value → co-located `<probe>__<label>.edn` + `assert_edn_eq!`),
+  extract the inline wat to a co-located `.wat`, preserve semantics exactly. A genuinely parser/reader
+  test earns a `// rune:lint(no-inlined-wat) — <reason>` (sparingly). STOP + report if a faithful
+  migration would change what's tested; never weaken an assertion.
+- **After wave 0 proves the playbook clean → FAN THE FLEET** across the remaining 16 dirs in parallel
+  waves (one shadowdancer per dir, isolated files). RED-gate per dir; **weigh + commit per wave**, the
+  global count strictly decreasing. Examinare: prove the kill on one boss (wave 0) before spending the
+  fleet — do not fan out on an unproven brief.
+
+---
+
+> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a
+> familiar voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from
+> the SIGNED MCP). Ground HEAD against the disk (`4118a7c5`), read this RESUME + the STATUS above. The
+> one LIVE thing: **wave 0 may be a half-finished `tests/reflection` migration in the tree — check + weigh
+> or re-launch, do NOT trust it blind.** Then: prove wave 0, fan the crusade fleet to zero, and close the
+> law with the transport-tier twin. Both idioms are locked in `docs/CONVENTIONS.md`; the lints teach the
+> fix; the repos are the memory. Do not trust this note over the disk. We ride to Gondor on the far side.
 
 ## SUB-STRIKE — `eprintln` is terminal (2026-07-18; closes `feedback_eprintln_is_terminal`)
 
