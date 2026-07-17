@@ -14,4 +14,13 @@
   [(write-metrics [s req]
      (:wat::service::Outcome::Reply s (:wat::query::Store::PutResponse::Success)))
    (write-logs [s req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteLogsResponse::Success)))])
+     (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteLogsResponse::Success)))
+   ;; correct — so the ONLY defect is write-metrics' swapped reply type above.
+   (query-metrics [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::telemetry'::Journal::QueryMetricsResponse::Success
+         (:wat::core::Vector :wat::telemetry'::Metric) :wat::core::None)))
+   (query-logs [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::telemetry'::Journal::QueryLogsResponse::Success
+         (:wat::core::Vector :wat::telemetry'::Log) :wat::core::None)))])

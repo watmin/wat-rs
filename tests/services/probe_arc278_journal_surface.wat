@@ -11,7 +11,15 @@
   [(write-metrics [s req]
      (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteMetricsResponse::Success)))
    (write-logs [s req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteLogsResponse::Success)))])
+     (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteLogsResponse::Success)))
+   (query-metrics [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::telemetry'::Journal::QueryMetricsResponse::Success
+         (:wat::core::Vector :wat::telemetry'::Metric) :wat::core::None)))
+   (query-logs [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::telemetry'::Journal::QueryLogsResponse::Success
+         (:wat::core::Vector :wat::telemetry'::Log) :wat::core::None)))])
 
 ;; `:probe::run` — start the toy on a thread, dial it, call `write-metrics` with a 1-element
 ;; `Metric` batch, and return the raw response (the .rs asserts it is `WriteMetricsResponse::Success`).

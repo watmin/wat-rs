@@ -128,4 +128,65 @@
                   (:wat::telemetry'::Journal::WriteLogsResponse::Transient err))
                 ((:wat::query::Store::PutResponse::Fatal err)
                   (:wat::telemetry'::Journal::WriteLogsResponse::Fatal err)))]
-       (:wat::service::Outcome::Reply s wresp)))])
+       (:wat::service::Outcome::Reply s wresp)))
+
+   ;; query-metrics — scan the namespace's Metric partition over [time-lo, time-hi], hydrate each
+   ;; stored row back to a Metric (:wat::edn::read off the tag), page via cursor. NO rete.
+   (query-metrics [s req]
+     (:wat::core::let
+       [store (:wat::telemetry'::journal'::State/store s)
+        ns   (:wat::telemetry'::Journal::QueryMetricsRequest/namespace req)
+        lo   (:wat::telemetry'::Journal::QueryMetricsRequest/time-lo req)
+        hi   (:wat::telemetry'::Journal::QueryMetricsRequest/time-hi req)
+        lim  (:wat::telemetry'::Journal::QueryMetricsRequest/limit req)
+        cur  (:wat::telemetry'::Journal::QueryMetricsRequest/cursor req)
+        pk   (:wat::edn::write (:wat::telemetry'::PartitionKey :namespace ns :kind :wat::telemetry'::Kind::Metric))
+        resp (:wat::query::Store/scan store
+               (:wat::query::Store::ScanRequest :pk pk
+                 :sk-lo (:wat::telemetry'::time-sk lo) :sk-hi (:wat::telemetry'::time-sk hi)
+                 :limit lim :cursor cur))
+        qresp (:wat::core::match resp -> :wat::telemetry'::Journal::QueryMetricsResponse
+                ((:wat::query::Store::ScanResponse::Success rows next-cur)
+                  (:wat::telemetry'::Journal::QueryMetricsResponse::Success
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry'::Metric) row <- :wat::query::Row]
+                        -> (:wat::core::Vector :wat::telemetry'::Metric)
+                        (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
+                      (:wat::core::Vector :wat::telemetry'::Metric)
+                      rows)
+                    next-cur))
+                ((:wat::query::Store::ScanResponse::Transient err)
+                  (:wat::telemetry'::Journal::QueryMetricsResponse::Transient err))
+                ((:wat::query::Store::ScanResponse::Fatal err)
+                  (:wat::telemetry'::Journal::QueryMetricsResponse::Fatal err)))]
+       (:wat::service::Outcome::Reply s qresp)))
+
+   ;; query-logs — the same for the Log partition.
+   (query-logs [s req]
+     (:wat::core::let
+       [store (:wat::telemetry'::journal'::State/store s)
+        ns   (:wat::telemetry'::Journal::QueryLogsRequest/namespace req)
+        lo   (:wat::telemetry'::Journal::QueryLogsRequest/time-lo req)
+        hi   (:wat::telemetry'::Journal::QueryLogsRequest/time-hi req)
+        lim  (:wat::telemetry'::Journal::QueryLogsRequest/limit req)
+        cur  (:wat::telemetry'::Journal::QueryLogsRequest/cursor req)
+        pk   (:wat::edn::write (:wat::telemetry'::PartitionKey :namespace ns :kind :wat::telemetry'::Kind::Log))
+        resp (:wat::query::Store/scan store
+               (:wat::query::Store::ScanRequest :pk pk
+                 :sk-lo (:wat::telemetry'::time-sk lo) :sk-hi (:wat::telemetry'::time-sk hi)
+                 :limit lim :cursor cur))
+        qresp (:wat::core::match resp -> :wat::telemetry'::Journal::QueryLogsResponse
+                ((:wat::query::Store::ScanResponse::Success rows next-cur)
+                  (:wat::telemetry'::Journal::QueryLogsResponse::Success
+                    (:wat::core::foldl
+                      (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry'::Log) row <- :wat::query::Row]
+                        -> (:wat::core::Vector :wat::telemetry'::Log)
+                        (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
+                      (:wat::core::Vector :wat::telemetry'::Log)
+                      rows)
+                    next-cur))
+                ((:wat::query::Store::ScanResponse::Transient err)
+                  (:wat::telemetry'::Journal::QueryLogsResponse::Transient err))
+                ((:wat::query::Store::ScanResponse::Fatal err)
+                  (:wat::telemetry'::Journal::QueryLogsResponse::Fatal err)))]
+       (:wat::service::Outcome::Reply s qresp)))])

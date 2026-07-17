@@ -112,9 +112,9 @@
 ;; `:wat::query::` (Constraint/Transient/Fatal, wat/query.wat:78-80) and must load after it — see
 ;; this file's stdlib.rs manifest slot.
 ;;
-;; WRITE half only (`write-metrics`/`write-logs`) — `query-metrics`/`query-logs` join the surface
-;; at T2 (need `:wat::query::Query`/`Result` + the rete filter, absent today; see
-;; docs/arc/2026/06/278-rules-engine/DESIGN-STONE-T1b1-journal-surface.md § Scope).
+;; The minimal-CloudWatch contract: write + query, for metrics + logs. `write-*` persist a batch;
+;; `query-*` read a namespace back over a time window (a filtered store scan, hydrating the rows to
+;; Metric/Log — NO rete: rete is a CONSUMER that instruments itself and queries back, not the engine).
 (:wat::core::defsurface :wat::telemetry'::Journal :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat::telemetry'::Journal::WriteMetricsRequest
@@ -131,7 +131,33 @@
      :Success    []
      :Constraint [err <- :wat::query::Constraint]
      :Transient  [err <- :wat::query::Transient]
-     :Fatal      [err <- :wat::query::Fatal])]
+     :Fatal      [err <- :wat::query::Fatal])
+
+   ;; ── query (CloudWatch read side): a namespace + time window [lo,hi] in epoch nanos, paged. ──
+   (:wat::core::defrecord :wat::telemetry'::Journal::QueryMetricsRequest
+     [namespace <- :wat::core::String
+      time-lo   <- :wat::core::i64
+      time-hi   <- :wat::core::i64
+      limit     <- :wat::core::i64
+      cursor    <- (:wat::core::Option :wat::core::String)])
+   ;; scan yields Success/Transient/Fatal only (a read can't constraint-fail) — mirror that.
+   (:wat::core::defenum :wat::telemetry'::Journal::QueryMetricsResponse :wat::enum::Pure
+     :Success   [metrics <- (:wat::core::Vector :wat::telemetry'::Metric)
+                 cursor  <- (:wat::core::Option :wat::core::String)]
+     :Transient [err <- :wat::query::Transient]
+     :Fatal     [err <- :wat::query::Fatal])
+
+   (:wat::core::defrecord :wat::telemetry'::Journal::QueryLogsRequest
+     [namespace <- :wat::core::String
+      time-lo   <- :wat::core::i64
+      time-hi   <- :wat::core::i64
+      limit     <- :wat::core::i64
+      cursor    <- (:wat::core::Option :wat::core::String)])
+   (:wat::core::defenum :wat::telemetry'::Journal::QueryLogsResponse :wat::enum::Pure
+     :Success   [logs   <- (:wat::core::Vector :wat::telemetry'::Log)
+                 cursor <- (:wat::core::Option :wat::core::String)]
+     :Transient [err <- :wat::query::Transient]
+     :Fatal     [err <- :wat::query::Fatal])]
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-metrics [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::WriteMetricsRequest]
@@ -139,7 +165,15 @@
 
    ;; write a logs batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-logs [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::WriteLogsRequest]
-     -> :wat::telemetry'::Journal::WriteLogsResponse)])
+     -> :wat::telemetry'::Journal::WriteLogsResponse)
+
+   ;; query metrics in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
+   (query-metrics [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::QueryMetricsRequest]
+     -> :wat::telemetry'::Journal::QueryMetricsResponse)
+
+   ;; query logs in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
+   (query-logs [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::QueryLogsRequest]
+     -> :wat::telemetry'::Journal::QueryLogsResponse)])
 
 ;; ─── Span — arc 278 stone Span.1: the PRODUCER surface (a unit of work). ──────────
 ;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.
