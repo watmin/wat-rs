@@ -215,11 +215,24 @@ over `{mem, sqlite}` → bit-identical rows), `journal_service_on_process` (mem,
 `CREATE` on sqlite — the mem oracle hid this; a peer RPC in `:init` works). The whole T1b **write path**
 is complete.
 
-**Next candidates (not yet chosen):** the `Span` producer (the caller-facing half — `open`/`Log`/`Incr`/
-`timed`/`Close` + `with-span`; what makes the facility *usable* by app code); or T2 the query surface
-(`query-metrics`/`query-logs` + the rete filter — the `Journal` surface grows two `:impls`, `journal'`
-gains the read path). Remaining honest gap: no write-logs-on-process test (redundant — the fork is
-proven by the metric process tests, logs by `journal_service_logs`).
+**The Span PRODUCER is also complete (commits through `b4646e55`).** The telemetry WRITE side is done
+end-to-end: the sink (`journal'`) + the producer (`span'` + `with-span` + `timed`). Span stones:
+Span.1 the `Span` surface (`wat/telemetry.wat`), Span.2 `span'` the service (`wat/telemetry/span.wat` —
+holds a `journal'` peer, `incr`/`timed` accumulate PURE state, `close` emits counters+durations as
+Metrics), Span.3 the `timed` + `with-span` call-site macros (fresh-symbol hygiene; `with-span` inlines
+`start'`+`connect'`+`close` per the scope law, flat params because `nth` is off the macro-expand
+allow-list and `first` needs a List not a Vector). Tests: `probe_arc278_span_{surface,service,macros}`.
+A `:wat::telemetry'::Samples` typealias (`Vector<i64>`) was added (compound types can't sit as a
+HashMap value-type ctor arg or a `match ->` annotation).
+
+**Next: T2 — the query/read path** (`query-metrics`/`query-logs` + the rete-as-datalog filter;
+`journal'` gains the read `:impls`, the `Journal` surface grows). **Its prerequisite is the confirmed
+`defsurface-extend` gap** — `defsurface` is a native form with NO extend/reopen mode (growing a
+surface's members is a divergent re-declaration error), so growing the *shipped* `Journal` surface with
+the query ops needs that capability designed+built first (a real wat incompleteness to pivot on).
+T2 also needs the `:wat::query::Query`/`Result` rete vocabulary (absent today). Honest gaps carried:
+no write-logs-on-process test (redundant); `Span` `Nest` deferred (call-site `open` with a shared sink,
+needs a scope-detach primitive); close-on-error needs a wat unwind primitive (happy path always closes).
 
 **Noted follow-on (do NOT forget, but not blocking):** the redundant re-shipping of baked-stdlib forms
 across a fork (the surface-forms splice re-ships what the child bakes) is now HARMLESS (the one gate
