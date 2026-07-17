@@ -38,6 +38,37 @@ Sites R, 1–8 remain: give `RecvError` a `Failed(String)` variant (`Disconnecte
 so the dying child's envelope lands instead of EPIPE-ing. Its RED gate: a probe where a service's
 HANDLER genuinely panics and the caller must carry *that* reason.
 
+## SUB-STRIKE — `eprintln` is terminal (2026-07-18; closes `feedback_eprintln_is_terminal`)
+
+Surfaced while ratifying the `:Lost` disposition: `eprintln` was **designed** as a dying declaration —
+builder direction 2026-05-15 (`docs/arc/2026/04/109-kill-std/INVENTORY.md:1284`): *"eprintln is a 'we are
+crashing, here's what I know' and exits"*; the kernel's three **terminating** forms are `eprintln` (value),
+`panic!` (message), `assertion-failed!` (assertion shape). `COMPACTION-AMNESIA-RECOVERY.md:1847`: eprintln →
+*exit code non-zero*. But the **implementation** (`services/verbs.rs:147 eval_kernel_eprintln`) writes to the
+stderr service and returns `Value::Unit` — benign, non-terminal — and `USER-GUIDE.md:3577` documents it that
+way. The doctrine was deferred ("pending — separate slice") and never closed. So the crash-with-message
+primitive **silently doesn't crash** — the masking law's own shape, baked into the primitive. Builder:
+*"eprintln was meant to be 'this is the last thing I'll say' … it is quite frustrating to see this."*
+
+**The fix (ratified — build now, take the fallout):** `eprintln` (and `epprintln`) emit the value's EDN to
+stderr, then **terminate non-zero** — uncatchable, uniform across loci (a panic → `emit_structured_exit` in a
+forked child / kills the serve loop on a thread / non-zero exit in main), the same convention as
+`assertion-failed!`; return type `∀T. T -> :()` (the terminating-form type, not `-> :wat::core::nil`). Then
+the `:Lost` serve-loop arm (`service.wat:864`, already calling `eprintln`) is correct as written — an
+abnormal transport break is an unexpected failure that lets-it-crash (OTP), and the reason lands on stderr
+before exit.
+
+**Fallout (the ~benign usages):** most are tests *of* eprintln (`ambient-stdio.wat`, `test.wat:184/206`,
+`probe_arc255_epprintln`, `wat_arc170_slice_1f`) — they become tests of the **terminal** behavior (program
+eprintln's → exits non-zero, value on stderr). One is an incidental mid-`let` diagnostic
+(`tests/channel/…drain_and_join…:7 (eprintln "diag")`) that must migrate (→ `println`, or drop). **Open (do
+NOT mint speculatively):** whether the substrate wants a *benign* stderr write at all — the immediate fallout
+doesn't require one; if a use surfaces, its name is a separate intueri cast.
+
+**RED gate:** a program running `(do (eprintln "dying words") (println "AFTER"))` must NOT emit `AFTER`
+(eprintln terminated), must carry `dying words` on stderr, and must exit non-zero. At HEAD `AFTER` prints and
+it exits 0 (benign). GREEN when eprintln terminates.
+
 ## The incident that surfaced it (grounded)
 
 `tests/services/probe_arc278_journal_logs_on_process` — a `journal'` service forked to a **process**;
