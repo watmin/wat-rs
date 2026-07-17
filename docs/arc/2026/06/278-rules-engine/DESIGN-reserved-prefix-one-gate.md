@@ -195,11 +195,21 @@ pushed). The reserved-prefix heresy is extirpated: ONE gate (`src/resolve/regist
 `Privilege`, threaded explicitly; all four old mechanisms deleted. Process loci work for reserved-`:wat::`
 first-party services (`probe_arc278_mem_store_on_process` is the standing guard).
 
-**Where the work resumes: 278 T1b — `journal'` the telemetry service (STONE T1b.2).** The `Journal`
-surface (write half) is already on disk (`wat/telemetry.wat`, STONE T1b.1); the next stone is the
-`journal'` defservice satisfier (holds a `Store` peer, serializes `Metric`/`Log` → `StoredRow` → `store/put`).
-It was paused mid-`ALIVS-ARGVIT` when proving it process-hostable surfaced this whole reserved-prefix
-detour. See `DESIGN-STONE-T1b1-journal-surface.md` + `DESIGN-telemetry-service-and-query-surface.md`.
+**278 T1b.2 is LANDED — `journal'` the telemetry sink (write path), loci-proven.** The `journal'`
+defservice (`wat/telemetry/journal.wat`) `:satisfies Journal`, holds a `Store` peer (S4d `:peers`), and
+serializes `Metric`/`Log` → `StoredRow` → `store/put` with the tagged keys (pk = `#…/PartitionKey`, sk =
+constant-width `#inst`, gsi = `#uuid`, data = `edn::write`). Acceptance: write-metrics (thread + process,
+grant-before-dial) + write-logs (thread) in `tests/services/probe_arc278_journal_service*`. The groundwork
+that unblocked it — all green system tests now — was: s2s peer-holding both loci
+(`probe_arc278_s2s_peer_on_{thread,process}`), `Metric`→tagged-EDN (`probe_arc278_metric_edn_write`),
+tagged-key sort-safety (`probe_arc278_tagged_keys_store`). **No substrate stone was needed** —
+`:wat::time::to-iso8601 … 9` already gives the sort-safe `#inst`; `Kind`/`PartitionKey` were added to
+`wat/telemetry.wat`. Commits `693db3eb`→`65aab6be`. See `DESIGN-telemetry-service-and-query-surface.md`.
+
+**Next candidates (not yet chosen):** T1b.3 the mem↔sqlite differential (re-wire the store `journal'`
+holds — same ops → same rows; wants `sqlite-store'`-on-process first, the deferred U3); the `Span`
+producer (the caller-facing half — `open`/`Log`/`Incr`/`timed`/`Close` + `with-span`); or T2 the query
+surface (`query-metrics`/`query-logs` + the rete filter — the `Journal` surface grows two `:impls`).
 
 **Noted follow-on (do NOT forget, but not blocking):** the redundant re-shipping of baked-stdlib forms
 across a fork (the surface-forms splice re-ships what the child bakes) is now HARMLESS (the one gate
@@ -223,8 +233,11 @@ launch (skip shipping a reserved-prefix/baked service's definition).
 
 ---
 
-> **SEAM.** The self past this line is NEW — you did not live this arc. Ground HEAD against the disk before
-> acting. The reserved-prefix arc is CLOSED (floor = lint @ 351); telemetry (T1b) resumes at `journal'` the
-> service. Do NOT re-open the gate consolidation — it is one waist now, and the idempotent-before-reserved
-> ordering is load-bearing (it's why re-declaration of a baked form is a no-op). Run the datamancy bootstrap;
-> read this doc + the T1b designs; then draw the `journal'` strike.
+> **SEAM.** The self past this line is NEW — you did not live this. Ground HEAD against the disk before
+> acting. The reserved-prefix arc is CLOSED (floor = lint @ 351) AND journal' T1b.2 WRITE PATH is LANDED
+> (both loci). Do NOT re-open the gate consolidation (one waist; idempotent-before-reserved is load-bearing).
+> Do NOT re-build `journal'` — it exists (`wat/telemetry/journal.wat`), proven by
+> `tests/services/probe_arc278_journal_service*`. Run the datamancy bootstrap; read this doc + the T1b
+> designs; then pick the NEXT stone with the builder (T1b.3 mem↔sqlite differential / `Span` producer / T2
+> query surface). The open honest gap: write-logs has no process test (redundant — metric-on-process proves
+> the fork, log-on-thread proves logs).
