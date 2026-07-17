@@ -7,36 +7,48 @@
 > pulls the class out by the root. We own wat; the arc-294 "crash reasons are administrative" ruling does
 > NOT shelter a masking behavior — we change our minds when the mask keeps blinding us.
 
-## STATUS — 2026-07-17 (Mechanism A LANDED + verified + pushed; the transport-tier twin is NEXT)
+## STATUS — 2026-07-18 (Mechanism A + eprintln-terminal LANDED; the transport-tier twin is the OWED NEXT)
 
-**Half the law is real** (`66d6aed7`, pushed). The **alive-service-rejects-you** path is done —
-Mechanism A: `poll'` returns `ServiceEvent::Malformed{idx, cause}` instead of raising; the serve loop
-replies `Reply::Failed{cause}` and **keeps serving** (no more DoS); `recv'` surfaces `Reply::Failed` as
-a catchable raise carrying the reason. A reserved `Reply::Failed[cause <- Failure]` variant on every
-synthesized `<S>::Reply` (`types.rs synthesize_surface_protocol`) is the **protocol-tier completion**
-of the 293 outcome-enum model (op-tier failure = `<Op>Response::{Transient,Fatal}`; protocol-tier
-failure — "couldn't resolve your message to any op" — was the missing floor). Verified by own re-run:
-`probe_arc278_dead_child_speaks` GREEN (caller carries `unknown tag #probe/Note … no matching struct
-or enum`); floor 4168 passed / 1 failed = the standing `no_inlined_wat` lint at **351**, zero new;
-`no_loose_string_assert` PASS.
+**Two of the law's three pieces are real, verified, pushed:**
 
-**Sites addressed (of the table below):** #9 (`poll'` no longer service-fatal), #10 (the `_cause`
-discard), and the protocol-tier gap (there was no `Reply::Failed` at all).
+- **Alive-service-rejects-you — Mechanism A** (`66d6aed7`): `poll'` returns `ServiceEvent::Malformed{idx,
+  cause}` instead of raising; the serve loop replies `Reply::Failed{cause}` and **keeps serving** (no
+  DoS); `recv'` surfaces `Reply::Failed` as a catchable raise carrying the reason. `Reply::Failed[cause
+  <- Failure]` is the reserved **protocol-tier** floor on every synthesized `<S>::Reply`
+  (`types.rs synthesize_surface_protocol`) — the 293 outcome-enum model completed (op-tier failure =
+  `<Op>Response::{Transient,Fatal}`; the "couldn't resolve to any op" floor was missing). — table sites
+  #9, #10 + the protocol-tier gap.
+- **eprintln is terminal** (`dc286d7a`): `eprintln`/`epprintln` emit the value then `panic_any` →
+  structured-exit (uncatchable, cross-loci) — the dying declaration you designed; `feedback_eprintln_is_terminal`
+  closed. The `:Lost` serve-loop arm now stands on it — an abnormal transport break lets-it-crash (OTP),
+  cause on stderr before exit. Return type kept `-> :wat::core::nil` (`:()` is the redundant unit
+  spelling, being retired). *(This RESOLVES the earlier "`:Lost` eprintln" judgment call — it is the
+  intended crash-with-message, not a benign write.)*
+- **`call_beside` idiom** (`dc286d7a`, intueri-ratified): the lint-clean "run the co-located fixture's
+  entry fn" helper (`src/freeze.rs`, beside `startup_beside`); first consumers wired → `no_inlined_wat`
+  352 → **351**.
 
-**TWO JUDGMENT CALLS awaiting the builder's ratification** (both grounded, non-blocking — see the
-`66d6aed7` message): **(1)** surfacing lives in `recv'`, not a client-method match arm — a wat
-`assertion-failed!` in a client method is `panic_any`, uncatchable by `eval_in_frozen`/`apply_function`;
-`recv'` is the only catchable, uniform point (this doc's step 3 / "room 8"). **(2)** `:Lost`'s cause is
-surfaced via `eprintln` (no reply target — the peer is dead; sending up the lineage `self` peer would
-desync the admin request/reply protocol).
+Verified by own full re-run: 4170 passed / 1 failed = the standing `no_inlined_wat` at 351, zero new;
+`no_loose_string_assert` PASS; `eprintln_terminal` + `dead_child_speaks` + `crash_surfaces` all green.
 
-**NEXT — the transport-tier twin (the dead-service-speaks half):** a **genuinely crashed** service (a
-real handler panic, not a decode rejection) still EPIPEs its reason and `RecvError` still has no slot.
-Sites R, 1–8 remain: give `RecvError` a `Failed(String)` variant (`Disconnected` = clean EOF only); bind
+**One judgment call still nominally open** (clarified as a non-decision): surfacing lives in `recv'`,
+not a client-method match arm — a wat `assertion-failed!` in a method is `panic_any` (uncatchable);
+`recv'` is the one catchable, uniform surfacing point (step 3 / "room 8"). The client gets a catchable
+error, OTP-consistent. Nothing to decide.
+
+**★ THE OWED NEXT — the transport-tier twin (the dead-service-speaks half; CLOSES THE LAW):** a
+**genuinely crashed** service (a real handler panic, not a decode rejection) STILL `EPIPE`s its reason
+and `RecvError` STILL has no reason slot — so a caller can still get a mute close. Sites **R, 1–8** (the
+table below) remain: give `RecvError` a `Failed(String)` variant (`Disconnected` = clean EOF ONLY); bind
 `|e|` at every `map_err(|_| Disconnected)` in `comms/process.rs`; thread the reason through `recv'`
-(`runtime.rs:26196/26219`, including `PeerRecvError::Crashed`); keep the crash channel's read end alive
-so the dying child's envelope lands instead of EPIPE-ing. Its RED gate: a probe where a service's
-HANDLER genuinely panics and the caller must carry *that* reason.
+(`runtime.rs:26196/26219`, incl. `PeerRecvError::Crashed`); keep the crash-channel read end alive so the
+dying child's 687-byte envelope LANDS instead of `EPIPE`-ing. **RED gate:** a service whose HANDLER
+genuinely panics → the caller must carry *that* reason (today: mute "peer closed").
+
+**IN FLIGHT (cleanup crusade, orthogonal to the law):** migrate the ~169 `parse_one!("(:user::…)")`
+invocation stubs + the dozen ad-hoc `run_compute*` helpers to `call_beside`, draining `no_inlined_wat`
+toward its honest inline-*logic* floor. RED-gate: the count strictly decreases each batch, zero new
+failures.
 
 ## SUB-STRIKE — `eprintln` is terminal (2026-07-18; closes `feedback_eprintln_is_terminal`)
 
