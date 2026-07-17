@@ -410,6 +410,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/telemetry.wat",
         source: include_str!("../wat/telemetry.wat"),
     },
+    // wat/telemetry/journal.wat — `:wat::telemetry'::journal'` (arc 278 T1b.2), the telemetry sink
+    // service. `:satisfies :wat::telemetry'::Journal`, HOLDS a `:wat::query::Store` peer (S4d
+    // `:peers`), serializes Metric/Log -> StoredRow -> Store/put. Loads LAST — after telemetry.wat
+    // (Journal/Metric/Log/PartitionKey/Kind), query.wat (Store), and service.wat (defservice).
+    WatSource {
+        path: "wat/telemetry/journal.wat",
+        source: include_str!("../wat/telemetry/journal.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
