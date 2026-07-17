@@ -206,10 +206,20 @@ tagged-key sort-safety (`probe_arc278_tagged_keys_store`). **No substrate stone 
 `:wat::time::to-iso8601 … 9` already gives the sort-safe `#inst`; `Kind`/`PartitionKey` were added to
 `wat/telemetry.wat`. Commits `693db3eb`→`65aab6be`. See `DESIGN-telemetry-service-and-query-surface.md`.
 
-**Next candidates (not yet chosen):** T1b.3 the mem↔sqlite differential (re-wire the store `journal'`
-holds — same ops → same rows; wants `sqlite-store'`-on-process first, the deferred U3); the `Span`
-producer (the caller-facing half — `open`/`Log`/`Incr`/`timed`/`Close` + `with-span`); or T2 the query
-surface (`query-metrics`/`query-logs` + the rete filter — the `Journal` surface grows two `:impls`).
+**T1b.3 is also LANDED (commit `b07f5ffc`).** `journal'` is proven **backend-agnostic AND
+loci-agnostic**: the store is a swappable config param (injected `Address'`; `journal'` names only the
+`Store` surface). Tests (`tests/services/`): `journal_backend_differential` (thread — same `journal'`
+over `{mem, sqlite}` → bit-identical rows), `journal_service_on_process` (mem, fork),
+`journal_service_sqlite_on_process` (sqlite, fork — closed the deferred **U3**), `journal_service_logs`
+(write-logs). `journal'`'s `:init` now ensures its schema through the `Store` surface (no-op on mem,
+`CREATE` on sqlite — the mem oracle hid this; a peer RPC in `:init` works). The whole T1b **write path**
+is complete.
+
+**Next candidates (not yet chosen):** the `Span` producer (the caller-facing half — `open`/`Log`/`Incr`/
+`timed`/`Close` + `with-span`; what makes the facility *usable* by app code); or T2 the query surface
+(`query-metrics`/`query-logs` + the rete filter — the `Journal` surface grows two `:impls`, `journal'`
+gains the read path). Remaining honest gap: no write-logs-on-process test (redundant — the fork is
+proven by the metric process tests, logs by `journal_service_logs`).
 
 **Noted follow-on (do NOT forget, but not blocking):** the redundant re-shipping of baked-stdlib forms
 across a fork (the surface-forms splice re-ships what the child bakes) is now HARMLESS (the one gate
