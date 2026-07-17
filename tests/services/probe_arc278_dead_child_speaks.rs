@@ -17,21 +17,13 @@
 //!
 //! Run: cargo test --release -p wat --test services dead_child_speaks
 
-use wat::freeze::startup_beside;
-use wat::runtime::apply_function;
+use wat::freeze::call_beside;
 
 #[test]
 fn a_forked_service_that_cannot_decode_a_message_speaks_its_reason_to_the_caller() {
-    let world = startup_beside(file!()).expect("startup should succeed (dead-child-speaks probe)");
-    let func = world
-        .symbols()
-        .get(":user::compute")
-        .expect(":user::compute")
-        .clone();
-
     // The undecodable message MUST raise (not hang, not fake a value) — and, crucially, the raise MUST
     // carry the child's real reason, not a mute mask.
-    let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
+    let result = call_beside(file!(), ":user::compute");
     let err = result.expect_err(
         "write-logs of an undecodable payload across a process fork must RAISE (the child cannot decode it)",
     );

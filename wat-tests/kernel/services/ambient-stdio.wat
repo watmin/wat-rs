@@ -64,9 +64,13 @@
 
    ;; ─── Layer 2 helper — run inner program that eprints "err" ───────
    ;;
-   ;; eprintln routes to fd 2 instead of fd 1. The RunResult separates
-   ;; stdout (empty) from stderr ("err"). Proves the two fd pipelines
-   ;; don't cross-talk: a single eprintln lands ONLY in stderr.
+   ;; eprintln routes to fd 2 instead of fd 1. Proves the two fd pipelines
+   ;; don't cross-talk: the emitted value lands ONLY in stderr, not stdout.
+   ;; Arc 278 no-hidden-failures — eprintln is now a TERMINATING form: it
+   ;; writes "err" to fd 2, then crashes the child (the #wat.kernel/ProcessPanics
+   ;; envelope follows "err" on stderr; RunResult.failure = Some). The Layer 2
+   ;; deftest's assert-stderr-matches "err" still holds (it matches the emitted
+   ;; line regardless of the trailing crash envelope).
    (:wat::core::defn :test::run-eprintln-string [] -> :wat::kernel::RunResult
      (:wat::test::run-hermetic
             (:wat::kernel::eprintln "err")))

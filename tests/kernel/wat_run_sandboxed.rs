@@ -109,11 +109,21 @@ fn main_writes_to_both_stdout_and_stderr() {
     // `set-capacity-mode!` is startup-time, cannot live in macro body.
     // Body writes stdout & stderr (rule 2); outer reads both slots
     // (rule 1) — hermetic is the only honest container.
+    //
+    // Arc 278 no-hidden-failures — eprintln is now a TERMINATING form. The body
+    // prints "one"/"two" to stdout, then `(eprintln "oops")` writes "oops" to
+    // stderr and CRASHES the child non-zero. So: stdout carries both lines;
+    // stderr's FIRST line is the emitted value (the crash envelope follows);
+    // and failure is Some (the child died). This is the honest shape — a dying
+    // declaration is exactly that.
     let (stdout, stderr, failure) = unwrap_run_result(run_fn(":my::compute-stdout-stderr"));
     // :wat::kernel::println EDN-serializes strings with quotes.
     assert_eq!(stdout, vec!["\"one\"".to_string(), "\"two\"".to_string()]);
-    assert_eq!(stderr, vec!["\"oops\"".to_string()]);
-    assert!(!failure);
+    // The value reached stderr BEFORE the terminal death — it is the first line
+    // (the #wat.kernel/ProcessPanics envelope from the crash follows).
+    assert!(!stderr.is_empty(), "eprintln must emit to stderr before dying");
+    assert_eq!(stderr[0], "\"oops\"".to_string());
+    assert!(failure, "a terminal eprintln must crash the child (failure = Some)");
 }
 
 // ─── Failure capture ─────────────────────────────────────────────────────
@@ -246,17 +256,29 @@ fn scoped_file_eval_inside_scope_succeeds() {
     //
     // The fixture uses a fixed non-existent path — the path is irrelevant
     // since the child's InMemoryLoader is always empty under hermetic.
-    let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-inside"));
+    let (stdout, stderr, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-inside"));
     // SEMANTIC SHIFT — under hermetic the child's InMemoryLoader is empty,
     // so eval-file! takes the Err arm → stderr "err". This used to assert
     // stdout="ok" under ScopedLoader; the loss is documented above.
+    //
+    // Arc 278 no-hidden-failures — the Err arm's `(eprintln "err")` is now a
+    // TERMINATING dying declaration: it writes "err" to stderr, then crashes
+    // the child. The Ok arm never runs, so stdout is empty. The proof that the
+    // Err arm was taken is: "err" is the first stderr line AND the child died.
+    assert!(!stderr.is_empty(), "Err arm must write to stderr before dying");
     assert_eq!(
-        stderr,
-        vec!["\"err\"".to_string()],
-        "under hermetic the child has no loader entry; expected Err arm \
-         (\"err\" on stderr); stdout was {:?}",
+        stderr[0],
+        "\"err\"".to_string(),
+        "under hermetic the child has no loader entry; expected the Err arm's \
+         \"err\" as the first stderr line; stdout was {:?}",
         stdout
     );
+    assert!(
+        stdout.is_empty(),
+        "the Ok arm must not run (terminal eprintln); stdout was {:?}",
+        stdout
+    );
+    assert!(failure.is_some(), "the terminal eprintln must crash the child");
 }
 
 #[test]
@@ -276,20 +298,29 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     //
     // The fixture uses a fixed non-existent path — the path is irrelevant
     // since the child's InMemoryLoader is always empty under hermetic.
-    let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-outside"));
+    let (stdout, stderr, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-outside"));
     // Under hermetic the child's InMemoryLoader has no entry → Err arm
     // → stderr "blocked". (Same final shape as the original, different
     // mechanism — documented above.)
+    //
+    // Arc 278 no-hidden-failures — the Err arm's `(eprintln "blocked")` is now a
+    // TERMINATING dying declaration: "blocked" lands on stderr, then the child
+    // crashes. The Ok arm (which would print "leaked") never runs, so stdout is
+    // empty — a STRONGER proof of no-leak than the old targeted-absence check.
+    assert!(!stderr.is_empty(), "Err arm must write to stderr before dying");
     assert_eq!(
-        stderr,
-        vec!["\"blocked\"".to_string()],
-        "out-of-scope read should route to Err; stdout was {:?}",
+        stderr[0],
+        "\"blocked\"".to_string(),
+        "out-of-scope read should route to the Err arm (\"blocked\" first on \
+         stderr); stdout was {:?}",
         stdout
     );
-    // stdout should NOT contain "leaked".
-    assert!(
-        !stdout.contains(&"\"leaked\"".to_string()), // rune:lint(loose-assert) — targeted-absence check — asserts only that the Ok-arm sentinel did not appear, not that stdout is exactly empty
-        "out-of-scope read should not reach the Ok arm; stdout: {:?}",
+    // stdout is empty — the Ok arm ("leaked") never ran (terminal eprintln).
+    assert_eq!(
+        stdout,
+        Vec::<String>::new(),
+        "out-of-scope read must not reach the Ok arm; stdout: {:?}",
         stdout
     );
+    assert!(failure.is_some(), "the terminal eprintln must crash the child");
 }

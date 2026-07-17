@@ -106,10 +106,12 @@ fn stone_a_thread_drain_and_join_clean_exit_returns_ok() {
 
 #[test]
 fn stone_a_process_drain_and_join_clean_exit_returns_ok() {
-    // The child process prints two lines to stdout and one to stderr,
-    // then exits clean (nil return → exit code 0). The parent does NOT
-    // read stdout/stderr; Process/drain-and-join is responsible for
-    // draining both pipes before joining. A clean exit yields Ok(()).
+    // The child process prints three lines to stdout (arc 278: the former
+    // incidental stderr `eprintln "diag"` migrated to `println` — eprintln is
+    // now terminal and would crash the child), then exits clean (nil return →
+    // exit code 0). The parent does NOT read stdout/stderr; Process/drain-and-
+    // join is responsible for draining both pipes before joining (stderr drains
+    // empty-to-EOF). A clean exit yields Ok(()).
     let world = startup_bare().expect("startup");
     let child = read_child("wat_arc170_stone_a_drain_and_join_child_clean.wat");
     let call = build_spawn_process_call(&child);

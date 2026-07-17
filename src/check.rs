@@ -19282,12 +19282,18 @@ fn register_builtins(env: &mut CheckEnv) {
     // Type schemes:
     //   :wat::kernel::println  : ∀T. T -> :wat::core::nil
     //   :wat::kernel::pprintln : ∀T. T -> :wat::core::nil  (pretty-printed EDN)
-    //   :wat::kernel::eprintln : ∀T. T -> :wat::core::nil
-    //   :wat::kernel::epprintln : ∀T. T -> :wat::core::nil  (pretty-printed EDN to stderr)
+    //   :wat::kernel::eprintln : ∀T. T -> :wat::core::nil   ← TERMINATING form (arc 278)
+    //   :wat::kernel::epprintln : ∀T. T -> :wat::core::nil  ← TERMINATING form, pretty
     //
-    // The `T -> nil` shape mirrors `:wat::edn::write` (any-T input)
-    // composed with the unit/nil return that the mini-TCP ack
-    // collapses to.
+    // The `println`/`pprintln` pair are benign writes whose `nil` return is
+    // the mini-TCP ack collapsed to unit. The `eprintln`/`epprintln` pair are
+    // the kernel's value-shaped DYING DECLARATION: they emit to stderr then
+    // TERMINATE non-zero at RUNTIME (arc 278 no-hidden-failures sub-strike;
+    // verbs.rs `eprintln_terminate`) — same convention as `assertion-failed!`,
+    // which is likewise typed with a normal unit return but never actually
+    // returns (wat has no `Never` type; the termination is a runtime fact, not
+    // a type). Their `nil` return type is therefore unchanged. `T` mirrors
+    // `:wat::edn::write` (any-T input).
     for op in [":wat::kernel::println", ":wat::kernel::pprintln", ":wat::kernel::eprintln", ":wat::kernel::epprintln"] {
         env.register(
             op.into(),

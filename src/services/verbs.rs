@@ -29,6 +29,38 @@ fn build_write_req(type_name: &str, thread_id: ThreadId, line: String) -> Value 
     )))
 }
 
+/// The terminal tail shared by `eprintln` / `epprintln`: after the value's
+/// EDN has been emitted to stderr and the write acked, **TERMINATE non-zero**.
+///
+/// `eprintln` is a *dying declaration* — builder direction (arc 109
+/// `INVENTORY.md:1284`): *"eprintln is a 'we are crashing, here's what I know'
+/// and exits"*. It is the value member of the kernel's three terminating forms
+/// (`eprintln` = value, `panic!` = message, `assertion-failed!` = assertion
+/// shape). See `docs/arc/2026/06/278-rules-engine/DESIGN-no-hidden-failures.md`
+/// (SUB-STRIKE — `eprintln` is terminal), closing `feedback_eprintln_is_terminal`.
+///
+/// Mechanism MIRRORS `raise!` / `assertion-failed!`: `panic_any(AssertionPayload)`
+/// so the ONE uniform panic → structured-exit path fires — `emit_structured_exit`
+/// (non-zero exit + reason on the err channel) in a forked child, kills the serve
+/// loop on a spawned thread, non-zero process exit in main. Uncatchable by
+/// `eval_in_frozen` / `apply_function`. The emitted value's EDN rides as the
+/// crash reason (`AssertionPayload.message`). NEVER returns.
+fn eprintln_terminate(reason: String) -> ! {
+    let frames = crate::value::snapshot_call_stack();
+    let location = frames.first().map(|f| f.call_span.clone());
+    let payload = crate::assertion::AssertionPayload {
+        message: reason,
+        actual: None,
+        expected: None,
+        location,
+        frames,
+        upstream_chain: None,
+        // Arc 138 F-NAMES-1d — capture name on the panicking thread.
+        thread_name: std::thread::current().name().map(String::from),
+    };
+    std::panic::panic_any(payload);
+}
+
 /// `(:wat::kernel::println v)` → `:wat::core::nil`. Serialize `v`
 /// to compact EDN via `value_to_edn_with`; build a
 /// `StdOutService::Req {thread-id, line}` struct Value; send it on
@@ -129,15 +161,18 @@ pub fn eval_kernel_pprintln(
     })
 }
 
-/// `(:wat::kernel::eprintln v)` → `:wat::core::nil`. Serialize `v`
-/// to compact EDN via `value_to_edn_with`; build a
+/// `(:wat::kernel::eprintln v)` → `:wat::core::nil` (type), but a **terminating**
+/// form at runtime. Serialize `v` to compact EDN via `value_to_edn_with`; build a
 /// `StdErrService::Req {thread-id, line}` struct Value; send it on
 /// the universe-resident StdErrService peer's input channel; block on
-/// `stderr_reply_rx` for the ack; return `Value::Unit`.
+/// `stderr_reply_rx` for the ack; then **TERMINATE non-zero** via
+/// `eprintln_terminate` (the dying declaration — see that fn's doc). It
+/// NEVER returns `Value::Unit` on the success path.
 ///
 /// Arc 214 Stone 8.1b — replaced the old StdErrServiceEvent::Write +
 /// bridge path with direct Req → service peer mini-TCP. Mirrors
-/// eval_kernel_println exactly, on fd 2.
+/// eval_kernel_println (on fd 2) for the WRITE, then diverges: unlike
+/// `println`, this is terminal (arc 278 no-hidden-failures sub-strike).
 ///
 /// The Req send goes via `sym.runtime_services().stderr_ctrl` rather than
 /// a ThreadIO-held sender. This keeps the service peer's lifetime tied
@@ -154,6 +189,9 @@ pub fn eval_kernel_eprintln(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     let line = wat_edn::write(&edn);
+    // The emitted value's EDN is the crash reason carried by the terminal
+    // panic — the last thing this locus says before it dies.
+    let reason = line.clone();
     // Access the service input_tx via sym.runtime_services() — not via ThreadIO —
     // so no clone of the sender lives in the ThreadIO struct.
     let services = sym.runtime_services().ok_or_else(|| RuntimeError {
@@ -169,7 +207,10 @@ pub fn eval_kernel_eprintln(
                 op: OP.into()
             } })?;
         match io.stderr_reply_rx.recv() {
-            Ok(Ok(())) => Ok(Value::Unit),
+            // The value reached stderr (ack received) — now DIE non-zero,
+            // carrying that value as the reason. eprintln is terminal; there
+            // is no `Ok(Value::Unit)` continuation.
+            Ok(Ok(())) => eprintln_terminate(reason),
             // The service processed the Req but the write FAILED — surface it
             // (uniform with src/io.rs's IOWriter write-failure convention).
             Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
@@ -183,17 +224,21 @@ pub fn eval_kernel_eprintln(
     })
 }
 
-/// `(:wat::kernel::epprintln v)` → `:wat::core::nil`. Serialize `v`
-/// to pretty-printed (multi-line indented) EDN via `wat_edn::write_pretty`;
-/// build a `StdErrService::Req {thread-id, line}` struct Value; send it on
-/// the universe-resident StdErrService peer's input channel; block on
-/// `stderr_reply_rx` for the ack; return `Value::Unit`.
+/// `(:wat::kernel::epprintln v)` → `:wat::core::nil` (type), the pretty
+/// **terminating** twin of `eprintln` at runtime. Serialize `v` to
+/// pretty-printed (multi-line indented) EDN via
+/// `wat_edn::write_pretty`; build a `StdErrService::Req {thread-id, line}`
+/// struct Value; send it on the universe-resident StdErrService peer's input
+/// channel; block on `stderr_reply_rx` for the ack; then **TERMINATE non-zero**
+/// via `eprintln_terminate` (see that fn's doc). It NEVER returns `Value::Unit`.
 ///
 /// Identical to `eval_kernel_eprintln` except uses `wat_edn::write_pretty`
 /// instead of `wat_edn::write`. Mirrors the `pprintln`/`println` split,
-/// but routed to stderr (fd 2) instead of stdout.
+/// but routed to stderr (fd 2) instead of stdout — and, like `eprintln`,
+/// is terminal (arc 278 no-hidden-failures sub-strike), not benign.
 ///
-/// Same ambient stderr service path, same `∀T. T -> :wat::core::nil` type.
+/// Same ambient stderr service path, same `∀T. T -> :wat::core::nil` type
+/// (terminal at runtime, not by type — wat has no `Never`).
 pub fn eval_kernel_epprintln(
     args: &[WatAST],
     list_span: &Span,
@@ -204,6 +249,9 @@ pub fn eval_kernel_epprintln(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     let line = wat_edn::write_pretty(&edn);
+    // The emitted value's (pretty) EDN is the crash reason carried by the
+    // terminal panic — the last thing this locus says before it dies.
+    let reason = line.clone();
     let services = sym.runtime_services().ok_or_else(|| RuntimeError {
         span: list_span.clone(),
         kind: RuntimeErrorKind::ServiceNotRunning { op: OP.into() },
@@ -217,7 +265,8 @@ pub fn eval_kernel_epprintln(
                 op: OP.into()
             } })?;
         match io.stderr_reply_rx.recv() {
-            Ok(Ok(())) => Ok(Value::Unit),
+            // Value on stderr (ack received) — now DIE non-zero. Terminal.
+            Ok(Ok(())) => eprintln_terminate(reason),
             Ok(Err(msg)) => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
                 reason: format!("stderr write failed: {}", msg),

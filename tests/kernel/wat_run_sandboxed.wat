@@ -8,13 +8,17 @@
   (:wat::test::run-hermetic
     (:wat::kernel::println "hello")))
 
+;; Arc 278 no-hidden-failures — eprintln is a TERMINATING form (dying
+;; declaration): it writes "oops" to stderr, then crashes the child non-zero.
+;; So "one"/"two" land on stdout, "oops" lands on stderr, and the child dies
+;; (RunResult.failure = Some). The trailing `nil` is now dead — eprintln never
+;; returns — so the body IS the terminating do.
 (:wat::core::defn :my::compute-stdout-stderr [] -> :wat::kernel::RunResult
   (:wat::test::run-hermetic
     (:wat::core::do
       (:wat::kernel::println "one")
       (:wat::kernel::println "two")
-      (:wat::kernel::eprintln "oops")
-      nil)))
+      (:wat::kernel::eprintln "oops"))))
 
 (:wat::core::defn :my::compute-parse-error [] -> :wat::kernel::RunResult
   (:wat::test::run-hermetic

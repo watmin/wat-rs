@@ -223,20 +223,32 @@ impl MiniUniverse {
             .to_string()
     }
 
-    /// Eval an eprintln form; the mini-TCP ack means write-COMPLETED, so
-    /// the line is in the pipe before this returns. Returns the written
-    /// line, trimmed.
+    /// Eval an eprintln form and return the line it wrote to stderr, trimmed.
+    ///
+    /// Arc 278 no-hidden-failures — eprintln is a TERMINATING form (a dying
+    /// declaration). The mini-TCP ack means the value's EDN is in the stderr
+    /// pipe BEFORE eprintln terminates; in-process the termination surfaces as
+    /// an unwinding panic (`panic_any(AssertionPayload)`, the same mechanism as
+    /// `assertion-failed!` / `raise!`). We catch that terminal unwind, assert it
+    /// fired (eprintln must NOT return a value), then read the round-trip line
+    /// the write already left in the pipe.
     fn eprintln_and_read(&self, src: &str) -> String {
         let ast = wat::parse_one!(src).expect("parse eprintln form");
         let env = Environment::new();
-        let result = eval(&ast, &env, &self.sym)
-            .expect("eprintln evals")
-            .value_owned();
-        assert!(matches!(result, Value::Unit), "eprintln returns nil; src={:?}", src);
+        let sym = &self.sym;
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            eval(&ast, &env, sym).map(|tv| tv.value_owned())
+        }));
+        assert!(
+            outcome.is_err(),
+            "eprintln is terminal (arc 278): it must TERMINATE (unwind), not \
+             return a value; src={:?}",
+            src
+        );
         self.stderr_reader
             .read_line(wat::rust_caller_span!())
             .expect("read from the stderr service's pipe")
-            .expect("a written line")
+            .expect("a written line — the value reached stderr before the terminal death")
             .trim()
             .to_string()
     }
@@ -372,11 +384,17 @@ fn row_d_println_populated_sends_serialized_string() {
     universe.finish();
 }
 
-// ─── E. populated eprintln sends serialized String ─────────────────
+// ─── E. populated eprintln sends serialized String (then TERMINATES) ─
 //
 // Arc 214 Stone 8.1b — reborn on MiniUniverse (the real write peer
 // + pipe). The legacy puppet halves are gone; the production pipeline
 // runs end-to-end.
+//
+// Arc 278 no-hidden-failures — eprintln is now a TERMINATING form. The
+// serialized String still reaches the stderr peer (the round-trip this row
+// proves), but eprintln then dies; `eprintln_and_read` catches the terminal
+// unwind and returns the round-trip line. The write-before-death is the
+// contract this row still pins.
 
 #[test]
 fn row_e_eprintln_populated_sends_serialized_string() {

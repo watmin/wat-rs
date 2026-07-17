@@ -761,6 +761,30 @@ pub fn startup_beside(caller_rs: &str) -> Result<FrozenWorld, StartupError> {
     startup_from_file(&wat)
 }
 
+/// Run a co-located `.wat` fixture's named zero-arg entry fn — the lint-clean idiom.
+///
+/// [`startup_beside`] + fetch-the-entry-fn + [`apply_function`], fused: freezes the `.wat`
+/// beside `caller_rs` (pass `file!()`), fetches the fully-qualified zero-arg entry fn
+/// `fn_name` (e.g. `":user::compute"`), applies it, and returns the fn's OWN
+/// `Result<Value, RuntimeError>`. The wat LOGIC stays in the co-located `.wat`; this is a
+/// pure Rust INVOCATION, so it does NOT trip `no_inlined_wat` (which targets inline wat
+/// *logic*, not invocation) — unlike the `parse_one!("(:user::compute)")` stub it replaces.
+///
+/// `call` (invoke a named fn), deliberately NOT `run` — distinct from `run_beside(expr)`-style
+/// helpers that eval an expression STRING inline. The entry fn's own raise is returned as
+/// `Err` (so a test can `expect_err` a fixture meant to fail); only a broken/missing fixture
+/// panics (a test-authoring bug, not an outcome under test).
+pub fn call_beside(caller_rs: &str, fn_name: &str) -> Result<Value, RuntimeError> {
+    let world = startup_beside(caller_rs)
+        .unwrap_or_else(|e| panic!("call_beside: fixture beside {caller_rs:?} failed to freeze: {e:?}"));
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("call_beside: no entry fn {fn_name:?} in the fixture beside {caller_rs:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), crate::rust_caller_span!())
+}
+
 /// A frozen DEFAULT world with no user source — the canonical "I just need a world to evaluate
 /// against" entry for tests whose subject is the Rust substrate, not any wat program.
 ///

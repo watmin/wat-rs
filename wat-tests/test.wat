@@ -174,6 +174,12 @@
     (:wat::test::assert-stdout-is inner expected)))
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
+;;
+;; Arc 278 no-hidden-failures — eprintln is now a TERMINATING form: the inner
+;; child writes its line to stderr, then crashes (the #wat.kernel/ProcessPanics
+;; envelope follows). assert-stderr-matches is unanchored per-line, so a pattern
+;; chosen to match (or, in the fail case, NOT match) the emitted line behaves
+;; identically whether or not the trailing crash envelope is present.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-pass

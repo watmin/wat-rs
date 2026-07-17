@@ -2440,8 +2440,8 @@ slice 1e). Stdio is ambient: three kernel-level ops EDN-encode any
 value and write one line per call.
 
 ```scheme
-(:wat::kernel::println v)    ;; EDN-encode v, emit to stdout
-(:wat::kernel::eprintln v)   ;; EDN-encode v, emit to stderr
+(:wat::kernel::println v)    ;; EDN-encode v, emit to stdout (benign)
+(:wat::kernel::eprintln v)   ;; EDN-encode v, emit to stderr, then TERMINATE non-zero
 (:wat::kernel::readln -> :T) ;; read one EDN-decoded value of type :T from stdin
 ```
 
@@ -2449,14 +2449,30 @@ Every output line produced by these ops is `:wat::edn::read`-parseable —
 the ambient surface is deliberately EDN-only. Apps wanting alternate
 formats (JSON, custom rendering) compose a user-side service driver.
 
+**`eprintln` / `epprintln` are TERMINATING forms — a dying declaration.**
+They emit the value's EDN to stderr and then **terminate the program
+non-zero** (uncatchable, uniform across loci — the same convention as
+`assertion-failed!` and `raise!`). eprintln is the value member of the
+kernel's three terminating forms: `eprintln` (a value), `panic!` (a
+message), `assertion-failed!` (an assertion shape). It is *not* a benign
+"log to stderr and continue" op — there is no such op. Use `println` for
+normal output; reach for `eprintln` only when the next thing that should
+happen is the program dying with this value as its last words. Any code
+after an `eprintln` is unreachable.
+
 ### Basic example
 
 ```scheme
 (:wat::core::define (:user::main -> :wat::core::nil)
   (:wat::core::let
     [_a (:wat::kernel::println "hello, world")           ;; → stdout
-     _b (:wat::kernel::eprintln "startup complete")]     ;; → stderr
+     _b (:wat::kernel::println "startup complete")]      ;; → stdout (benign log)
     :wat::core::nil))
+
+;; A dying declaration — eprintln emits to stderr, then terminates the
+;; program non-zero. It is the LAST thing that runs; nothing follows it:
+(:wat::core::define (:user::app::abort-on-bad-state -> :wat::core::nil)
+  (:wat::kernel::eprintln "fatal: unrecoverable state"))
 ```
 
 ### Structured value emission
@@ -2470,12 +2486,14 @@ The ambient ops accept any value — scalars, structs, enums, vecs:
 
 (:wat::core::define (:user::main -> :wat::core::nil)
   (:wat::core::let
-    [_a (:wat::kernel::println  (:demo::Event::Buy  100.5 7))    ;; → stdout
-     _b (:wat::kernel::eprintln (:demo::Event::Sell 102.25 3 "stop-loss"))]  ;; → stderr
+    [_a (:wat::kernel::println (:demo::Event::Buy  100.5 7))    ;; → stdout
+     _b (:wat::kernel::println (:demo::Event::Sell 102.25 3 "stop-loss"))]  ;; → stdout
     :wat::core::nil))
 ```
 
-See `examples/console-demo/wat/main.wat` for the full runnable walk-through.
+(`eprintln` accepts any value the same way, but remember it is a
+terminating dying declaration — see the note above — not a benign
+stderr log.)
 
 ### Structured logging — ledger db (arcs 086 / 087)
 
@@ -3574,7 +3592,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
 | `:wat::kernel::println` | `v` | `:wat::core::nil` — EDN-encode `v`, emit to stdout (arc 170 slice 1f-α) |
-| `:wat::kernel::eprintln` | `v` | `:wat::core::nil` — EDN-encode `v`, emit to stderr |
+| `:wat::kernel::eprintln` / `epprintln` | `v` | `:wat::core::nil` (type) — EDN-encode `v`, emit to stderr, **then terminate the program non-zero** (a dying declaration; not a benign log — arc 278) |
 | `:wat::kernel::readln` | `(-> :T)` | `:T` — read one EDN-decoded value of type `:T` from stdin |
 | `:wat::lru::spawn` (wat-lru) | `capacity count reporter cadence` | `(HandlePool, Driver)` |
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |

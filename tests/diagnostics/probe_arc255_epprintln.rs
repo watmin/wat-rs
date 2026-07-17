@@ -11,6 +11,9 @@
 //!    succeed without error. Exercises all four wiring sites:
 //!    `src/services/verbs.rs` (impl), `src/services/mod.rs` (re-export),
 //!    `src/runtime.rs` (dispatch arm), and `src/check.rs` (∀T.T→nil scheme).
+//!    `startup_beside` freezes but does NOT run `:user::main`, so epprintln's
+//!    RUNTIME behavior is untouched here — its arc 278 terminating semantics
+//!    (emit-then-die non-zero) are pinned by `probe_arc278_eprintln_terminal`.
 
 use wat::freeze::startup_beside;
 use wat_edn::Keyword;
