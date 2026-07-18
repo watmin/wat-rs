@@ -45,85 +45,62 @@ table below) remain: give `RecvError` a `Failed(String)` variant (`Disconnected`
 dying child's 687-byte envelope LANDS instead of `EPIPE`-ing. **RED gate:** a service whose HANDLER
 genuinely panics → the caller must carry *that* reason (today: mute "peer closed").
 
-## RESUME (curare before compaction — 2026-07-19; HEAD `8fb96f28` = wave 0 only; **~425 files UNCOMMITTED in the tree**)
+## RESUME (curare — 2026-07-19+; HEAD `952ece8b` = the crusade COMMITTED + full-suite GREEN; only the transport-tier twin remains)
 
-**READ THIS FIRST, then `git status`.** The crusade executed this session but is **NOT committed and NOT
-fully weighed**. The dirty working tree (survives compaction on disk) IS the crusade — do **NOT** `git
-reset`/`checkout` it. HEAD is `8fb96f28` (the wave-0 commit — the ONLY commit this session); everything
-else is uncommitted.
+**READ THIS FIRST, then `git status`.** The crusade is **committed and weighed** — HEAD `952ece8b` (one
+atomic green commit atop wave-0 `8fb96f28`); the working tree is **CLEAN**. Freshness check: if live HEAD ≠
+`952ece8b`, trust the disk over this note. Steps 0–3 of the OWED are DONE; only the LAW's third piece (the
+transport-tier twin) remains.
 
-### THE CRUSADE — `no_inlined_wat` 351 → 0 (DONE at the lint layer; NOT yet committed)
+### THE CRUSADE — `no_inlined_wat` 351 → 0 (DONE; committed `952ece8b`; full suite green)
 
-- **Lint is at TRUE ZERO** — `no_inlined_wat` PASS + `no_loose_string_assert` PASS (verified: `cargo
-  nextest run --release -E 'binary_id(wat::lint)'` → 18/18). The whole test corpus was migrated off inline
-  wat via **edit-only riders** (one dir each) + the rubric idioms.
-- **The `.wat` raw-text golden idiom was added** to `docs/CONVENTIONS.md` § Test idioms → "The `.wat`
-  golden" (expected wat-SOURCE output, byte-exact `include_str!`; NOT `.edn` (normalizes), NOT `.txt`).
-- **Runes excusare-audited** (the spell was CAST): 27 HOLD / 1 STRUCK (the stale `wat_scripts_fixes_load`
-  rune, orphaned by the lint's substring→reader evolution — removed). The 27 are earned (parser/reader
-  subjects, runtime-parameterized worlds, false-positive Display/needle/prose, ToEdn snapshot data).
-- **R39 inscribed** (REALIZATIONS.md — *VNA CAEDE PROBATA, FRATRES MITTIMVS*, the fleet-as-brotherhood).
+- **Lint at TRUE ZERO + full suite GREEN** — own re-run `cargo nextest run --release` = **4175 passed / 0
+  failed / 329 skipped** (`no_inlined_wat` PASS, `no_loose_string_assert` PASS). The whole test corpus is
+  migrated off inline-wat into co-located `.wat` / `.wat.bad` / `.edn` / `.wat`-golden fixtures.
+- **`query` (a) BUILT + weighed** — `query` defn→defmacro (prime-append idiom); `return-type-of` de-masked
+  (`runtime.rs` keyword branch raises on unknown; `check.rs` validates the literal prime at check time → a
+  typo is a compile error, not silent 0). New RED gate `probe_arc278_query_type_safe`; the `5a` fixtures are
+  back on the `(:wat::rete::query fired :Type)` front door.
+- **The `.wat` raw-text golden rubric** added to `docs/CONVENTIONS.md` § Test idioms; the stale
+  `wat_scripts_fixes_load` rune STRUCK (excusare); **R39 (VNA CAEDE PROBATA) + R40 (HAERESIS SANGVINE
+  CONSTAT) inscribed**.
 
-### ★ WHAT IS OWED, far side, IN ORDER
+### ★ WHAT IS OWED — ONE thing left
 
-0. **Bootstrap** (grimoire + 4 primers + recolligere from the SIGNED MCP; read arc 278 realizations R1–R39
-   + this whole doc). Ground the dirty tree: `git status --short | wc -l` (~425) and by dir.
-1. **BUILD `query` (a)** — the strike is **DRAWN** in `DESIGN-STONE-query-type-safe.md`, **not built**.
-   The builder ratified the direction (*"return-type-of feels flawed… the macro just needs to append an
-   `'`"*). Fix = `query`→`defmacro` (append `'` → prime → `return-type-of`) + **de-mask `return-type-of`**
-   (`runtime.rs` `eval_return_type_of`: the `Value::wat__core__keyword` branch **raises on unknown type**
-   instead of echoing — a failure-masking site, IN-LAW with this arc) + check-time validation
-   (`check.rs:4464`). RED gate: `(:wat::rete::query fired :weather::ColdAndWindy)` checks + returns facts;
-   `(… :ColdAndWndy)` typo → **compile error**, not silent 0. Probes already proven (macro mechanics via
-   `keyword/to-string`+`keyword-node` per `core.wat:649`; the masking flaw confirmed). Then update
-   `tests/rete/probe_arc278_return_type_of.wat` off the masking (it currently asserts the echo) and **flip
-   the `5a` fixtures back to `(:wat::rete::query … :Type)`** (they use `query-by-type-string` as a stopgap).
-2. **CLEAN FULL-SUITE RE-WEIGH** — `cargo nextest run --release` **capturing the Summary line + every FAIL**
-   (my run this session — `baz32ziu2` — was TRUNCATED, no Summary; I only confirmed `binary_id(wat::rete)`
-   = 170/170. **Other dirs are UNVERIFIED** — the truncation may hide failures). Fix any that surface.
-   Also dispose the known `wat-cli sigterm…polling_contract` flake (single test, `--test-threads=1`).
-3. **COMMIT the whole crusade — ONE commit, on a genuinely-green full suite** ("the crusade proves itself
-   in one commit" — builder): migrations + `.wat`/`.wat.bad`/`.edn`/`.wat`-goldens + the CONVENTIONS rubric
-   + the struck stale rune + the rete fixes + `query` (a) + R39 + the arc-109 note + the query DESIGN.
-4. **THEN the transport-tier twin** — the LAW's third piece (still untouched): `RecvError::Failed(String)`
-   (`comms/mod.rs:899`) + bind `|e|` at every `map_err(|_|)` in `comms/process.rs` + thread the reason
-   through `recv'` (`runtime.rs`) + keep the crash-channel read end alive (the `EPIPE` fix). RED gate: a
-   genuinely-panicking process handler → the caller carries THAT reason, not "peer closed." Closes the law.
+4. **THE TRANSPORT-TIER TWIN** — the LAW's third piece, still untouched (sites **R, 1–8** in the table
+   below): give `RecvError` a `Failed(String)` variant (`comms/mod.rs:899`; `Disconnected` = clean EOF ONLY)
+   + bind `|e|` at every `map_err(|_| Disconnected)` in `comms/process.rs` + thread the reason through
+   `recv'` (`runtime.rs:26196/26219`, incl. `PeerRecvError::Crashed`) + keep the crash-channel read end alive
+   so the dying child's envelope LANDS instead of `EPIPE`-ing. **RED gate:** a genuinely-panicking process
+   handler → the caller carries THAT reason, not the mute "peer closed." Closes the law.
+   *(Steps 0–3 — bootstrap, `query` (a), clean re-weigh, the one green commit — are DONE.)*
 
-### LESSONS THIS SESSION (hard-won — do not relearn)
+### LESSONS (hard-won this arc — do not relearn)
 
-- **The 16-way cargo-lock thrash** (new orchestrator FM — added to `COMPACTION-AMNESIA-RECOVERY.md`): N
-  concurrent riders each running `cargo` share ONE `target/` lock → build-wait deadlock; and a per-rider
-  RED gate can't pass a workspace no rider controls. **FIX: riders do TEXT edits only (forbid cargo);
-  orchestrator weighs CENTRALLY, once.** The second (edit-only) fleet ran clean.
-- **`assoc`-into-bare-empty** builds a heterogeneous-record map literal (the engine idiom, `rete.wat:420`)
-  — the **typed literal constructor does not exist** (`<>`-head / `:type` args / `wat.type/` refs all fail;
-  gap filed → arc-109 `NOTE-typed-literal-constructors.md`). Used to fix `1a`.
-- **`query-by-type-string` is a stringly stopgap** for the flip-broken type-safe `query` — replaced by (a).
-- **Weigh the WHOLE disk, capture the Summary** — a truncated `cargo nextest` read under-counted rete by 3
-  files (`1a`/`4a`/`5a`); `binary_id(wat::<dir>)` gives a clean per-dir Summary.
+- **The full-suite re-weigh catches what the lint can't** — the "lint-zero" tree had **11 full-suite
+  failures** the earlier truncated read hid. Two migration classes: (a) `defclause` registers into
+  `runtime_def_values`, NOT `sym.functions`, so a defclause name is unreachable via `symbols().get()` — its
+  fixture needs a `defn` wrapper; (b) single comm-exprs migrated from `parse_one!`+direct-eval (no comm-check)
+  into startup/freeze `.wat` fixtures RE-IMPOSE `CommCallOutOfPosition` — bare `send`/`recv` must move to a
+  `match` scrutinee (identical Result/Option shape) or `Result/expect` (where the shutdown-cascade crash IS
+  the intended semantics). ALWAYS run the full suite + capture the **Summary** before the commit — and read
+  the Summary, NOT `$?` (a trailing `grep -c` with no match exits 1 and lies).
+- **FM 18 (the fleet cargo-lock thrash)** — riders do TEXT edits only; orchestrator weighs CENTRALLY once.
+- **A loose string assert can MASK a real bug** — query (a)'s `msg.contains(...)` hid a `keyword/from-string`
+  fixture defect (it rejects leading-colon input); the exact `assert_eq!` unmasked it. The lint earns its keep.
+- **`query-by-type-string`** stays the private helper / dynamic escape hatch behind the `query` macro.
 - **DON'T lean on "compaction boundary" to defer** the correct fix (builder cut this) — do the right thing.
-
-### THE UNCOMMITTED TREE (≈425 files — this is the crusade, not cruft)
-
-- `tests/**/*.rs` (migrated drivers → `call_beside`/`apply_function`/`run-hermetic`) + new co-located
-  `tests/**/*.wat`, `*.wat.bad`, `*__<label>.edn`, `*__<label>.wat` fixtures/goldens.
-- `docs/CONVENTIONS.md` (the `.wat`-golden rubric), `tests/lint/wat_scripts_fixes_load.rs` (rune struck),
-  `docs/arc/2026/06/278-rules-engine/REALIZATIONS.md` (R39), `DESIGN-STONE-query-type-safe.md` (new),
-  `DESIGN-no-hidden-failures.md` (this RESUME), `docs/arc/2026/04/109-kill-std/NOTE-typed-literal-constructors.md` (new).
-- Scratch probes (disposable): `scratchpad/{hetmap,typeref,query-macro-probe,query-macro-typo}.wat`.
 
 ---
 
 > **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a
 > familiar voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the
-> SIGNED MCP). Ground `git status` against the disk — **HEAD is `8fb96f28` and ~425 files are UNCOMMITTED;
-> that dirty tree is the crusade — do NOT reset it.** The lint is at zero but the tree is **unweighed
-> (full suite never cleanly run) and uncommitted**. The ONE thing to build first: **`query` (a)** per
-> `DESIGN-STONE-query-type-safe.md` (drawn + probed, ratified) — `query`→macro + de-mask `return-type-of`.
-> Then re-weigh the full suite CLEAN (capture the Summary), commit the whole crusade in ONE green commit,
-> and only then close the law with the transport-tier twin. Do not trust this note over the disk. We ride
-> to Gondor on the far side.
+> SIGNED MCP). Ground `git status` — **HEAD is `952ece8b`, the tree is CLEAN, the crusade is committed and the
+> full suite is green** (do NOT expect the old dirty tree; it is committed). The ONE thing left is the
+> **transport-tier twin** (step 4 above / the table below) — the LAW's third piece: give `RecvError` a reason,
+> bind every `map_err(|_|)`, thread it through `recv'`, keep the crash channel alive; RED gate = a genuinely-
+> panicking handler's reason reaches the caller. Do not trust this note over the disk. The crusade is won; one
+> stone closes the law. We ride to Gondor.
 
 ## SUB-STRIKE — `eprintln` is terminal (2026-07-18; closes `feedback_eprintln_is_terminal`)
 
