@@ -895,9 +895,16 @@ pub struct SendError<T>(pub T);
 /// it was a data disconnect or a substrate shutdown. Carrying the distinction
 /// in this enum lets consumers match the variant directly without a secondary
 /// `SHUTDOWN_RX` peek. `try_recv` has been annihilated from the substrate.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RecvError {
-    /// All senders dropped / the peer closed the write-end (EOF / data arm).
+    /// A genuine CLEAN close ONLY: all senders dropped / the peer closed the
+    /// write-end with no error (EOF / data arm). NEVER produced for a raw
+    /// transport failure (io error, invalid UTF-8, undecodable/malformed
+    /// frame) — those carry a reason via [`RecvError::Failed`] instead, per
+    /// the arc 278 no-hidden-failures law (the transport-tier twin of the
+    /// service-reply / crash-reason mechanisms). Mute-collapsing a real
+    /// error into `Disconnected` is exactly the mislabeling this variant's
+    /// contract forbids.
     Disconnected,
     /// The substrate shutdown cascade fired (the broadcast / `SHUTDOWN_RX` arm).
     Shutdown,
@@ -906,7 +913,17 @@ pub enum RecvError {
     /// ending a frame — its message is rejected. Distinct from `Disconnected`
     /// so callers can tear down the peer WITHOUT reading the error channel
     /// (the peer is still alive; blocking on err.recv() would deadlock).
+    /// Stays its own variant — NEVER folded into `Failed` (callers must not
+    /// read the err channel for it; see the doc above).
     FrameTooLarge,
+    /// A raw transport failure with a carried reason: an io_uring
+    /// submission/read error, invalid UTF-8 in a frame, a wire (EDN)
+    /// decode failure, or a frame-scan malformed-frame rejection. The
+    /// `String` is the underlying error's `to_string()` (or an equivalent
+    /// diagnostic) so a caller can tell a genuine wire break apart from a
+    /// clean peer close instead of both collapsing to a mute
+    /// `Disconnected`. Arc 278 no-hidden-failures — the transport-tier twin.
+    Failed(String),
 }
 
 /// HolonAST roundtrip failure during wire serialization/deserialization.
@@ -939,11 +956,12 @@ impl std::error::Error for WireError {}
 
 impl std::fmt::Display for RecvError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            RecvError::Disconnected => "channel disconnected",
-            RecvError::Shutdown => "substrate shutdown",
-            RecvError::FrameTooLarge => "frame exceeded cap (message larger than the receiver's max-message-bytes budget)",
-        })
+        match self {
+            RecvError::Disconnected => f.write_str("channel disconnected"),
+            RecvError::Shutdown => f.write_str("substrate shutdown"),
+            RecvError::FrameTooLarge => f.write_str("frame exceeded cap (message larger than the receiver's max-message-bytes budget)"),
+            RecvError::Failed(reason) => write!(f, "transport failed: {reason}"),
+        }
     }
 }
 

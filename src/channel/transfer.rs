@@ -169,7 +169,17 @@ pub fn typed_recv(
                 // FrameTooLarge: the peer sent a frame exceeding the cap.
                 // The channel is unusable for this peer; treat as a disconnect
                 // (the peer should be torn down by the caller before this path).
+                // Stays folded into Disconnected here (unchanged) — per the
+                // arc 278 contract, FrameTooLarge is NEVER read off the err
+                // channel and NEVER folded into Failed; this is that same
+                // documented distinct case, not a hidden failure.
                 Err(crate::comms::RecvError::FrameTooLarge) => RecvOutcome::Disconnected,
+                // Arc 278 no-hidden-failures — transport-tier twin: a raw wire
+                // failure (io error / invalid UTF-8 / decode failure / malformed
+                // frame) carries its reason through RecvOutcome::DecodeError
+                // (the one reason-carrying shape this enum already has) instead
+                // of collapsing into a mute Disconnected.
+                Err(crate::comms::RecvError::Failed(reason)) => RecvOutcome::DecodeError(reason),
             }
         }
         ReceiverInner::PipeFd(reader) => {

@@ -546,10 +546,14 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// until a `'\n'` is observed; then decodes the frame via
     /// `read_holon_ast_tagged` + `T::from_holon_ast`.
     ///
-    /// Returns `Err(RecvError)` on peer-close (EOF; read returns 0),
-    /// on io_uring submission/completion failure, on substrate
-    /// shutdown (cascade-arm fires; Stone B), on UTF-8 decode failure,
-    /// on EDN parse failure, or on `T::from_holon_ast` failure.
+    /// Returns `Err(RecvError::Disconnected)` on a genuine clean peer-close
+    /// (EOF; read returns 0) or substrate shutdown (cascade-arm fires;
+    /// Stone B — that's `Err(RecvError::Shutdown)`). Returns
+    /// `Err(RecvError::Failed(reason))` on io_uring submission/completion
+    /// failure, on UTF-8 decode failure, on EDN parse failure, or on
+    /// `T::from_holon_ast` failure — arc 278 no-hidden-failures: a raw
+    /// transport error carries its reason instead of collapsing into a
+    /// mute `Disconnected`.
     pub fn recv(&self) -> Result<T, RecvError> {
         // Fast path — accumulator already has a complete frame.
         if let Some(frame) = self.take_buffered_frame()? {
@@ -576,9 +580,17 @@ impl<T: EdnRepresentable> Receiver<T> {
             }
 
             // Read step — uses the Receiver's persistent ring (Stone E-1).
-            let n = self.read_into_acc().map_err(|_| RecvError::Disconnected)?;
+            // A genuine io_uring read error (SQE submission / submit_and_wait /
+            // CQE failure) is NOT a clean close — arc 278 no-hidden-failures:
+            // carry a reason via Failed instead of muting into Disconnected.
+            // `read_into_acc`'s error type is `()` (Stone 4.5-fix leaves the
+            // io_uring submission internals unit-erased; see uring_read_into_acc),
+            // so the reason here is a fixed diagnostic string, not the raw errno.
+            let n = self
+                .read_into_acc()
+                .map_err(|_| RecvError::Failed("io_uring read failed".to_string()))?;
             if n == 0 {
-                // EOF — peer closed the write-end.
+                // EOF — peer closed the write-end. Genuine clean close.
                 return Err(RecvError::Disconnected);
             }
 
@@ -726,17 +738,20 @@ impl<T: EdnRepresentable> Receiver<T> {
     /// fails on user-defined record tags (e.g. `#user/Counter {:base 1000}`).
     /// `recv_wire_raw` is the seam that separates "get the bytes" from "decode".
     ///
-    /// Returns `Err(RecvError::Disconnected)` on EOF or UTF-8 failure; returns
-    /// `Err(RecvError::Shutdown)` when the substrate cascade fires.
+    /// Returns `Err(RecvError::Disconnected)` on a genuine clean EOF; returns
+    /// `Err(RecvError::Shutdown)` when the substrate cascade fires; returns
+    /// `Err(RecvError::Failed(reason))` on UTF-8 decode failure or a raw
+    /// io_uring read error — arc 278 no-hidden-failures: the reason travels
+    /// instead of collapsing into a mute `Disconnected`.
     ///
     /// `pub(crate)` — only `kernel::peer::Peer::recv_wire` calls this, and only
     /// for socket-tier peers (the self-peer's `Receiver<Value>` over the lineage pipe).
     pub(crate) fn recv_wire_raw(&self) -> Result<String, RecvError> {
         // Fast path — accumulator already holds a complete frame.
         if let Some(frame) = self.take_buffered_frame()? {
-            return std::str::from_utf8(&frame)
-                .map(str::to_owned)
-                .map_err(|_| RecvError::Disconnected);
+            return std::str::from_utf8(&frame).map(str::to_owned).map_err(|e| {
+                RecvError::Failed(format!("invalid UTF-8 in frame: {e}"))
+            });
         }
 
         let read_fd = self.poll_fd();
@@ -749,14 +764,18 @@ impl<T: EdnRepresentable> Receiver<T> {
                     PollOutcome::DataReady => {}
                 }
             }
-            let n = self.read_into_acc().map_err(|_| RecvError::Disconnected)?;
+            // Genuine io_uring read error — not a clean close; see recv()'s
+            // matching comment (read_into_acc's error type is unit-erased).
+            let n = self
+                .read_into_acc()
+                .map_err(|_| RecvError::Failed("io_uring read failed".to_string()))?;
             if n == 0 {
                 return Err(RecvError::Disconnected);
             }
             if let Some(frame) = self.take_buffered_frame()? {
-                return std::str::from_utf8(&frame)
-                    .map(str::to_owned)
-                    .map_err(|_| RecvError::Disconnected);
+                return std::str::from_utf8(&frame).map(str::to_owned).map_err(|e| {
+                    RecvError::Failed(format!("invalid UTF-8 in frame: {e}"))
+                });
             }
         }
     }
@@ -879,12 +898,15 @@ fn wait_for_data_or_cascade(
     // (read_fd by the Receiver; broadcast_fd by the substrate worker).
     // Both remain valid for the lifetime of this submit_and_wait call.
     unsafe {
+        // arc 278 no-hidden-failures — an SQE push failure (queue full) is a
+        // genuine io_uring error, not a clean close; carry the reason via
+        // Failed instead of muting into Disconnected.
         ring.submission()
             .push(&poll_data)
-            .map_err(|_| RecvError::Disconnected)?;
+            .map_err(|e| RecvError::Failed(format!("io_uring poll SQE submission failed: {e}")))?;
         ring.submission()
             .push(&poll_broadcast)
-            .map_err(|_| RecvError::Disconnected)?;
+            .map_err(|e| RecvError::Failed(format!("io_uring poll SQE submission failed: {e}")))?;
     }
 
     // EINTR retry: a signal arriving during wait returns EINTR; resume waiting.
@@ -931,17 +953,19 @@ fn wait_for_data_or_cascade(
 /// Decode a newline-framed payload to `T` via the Stone C wire chain:
 /// UTF-8 bytes → tagged-EDN string → HolonAST → T.
 ///
-/// Returns `Err(RecvError)` on any layer's failure (utf8, EDN parse,
-/// or `T::from_holon_ast`). The error type collapses all three causes
-/// because the caller cannot meaningfully distinguish them — wire
-/// failures all mean "the frame did not roundtrip cleanly; the channel
-/// is in an honest but unrecoverable state per this call".
+/// Returns `Err(RecvError::Failed(reason))` on any layer's failure (utf8,
+/// EDN parse, or `T::from_holon_ast`) — arc 278 no-hidden-failures: the
+/// channel is in an honest but unrecoverable state per this call, and the
+/// reason travels with it instead of collapsing into a mute `Disconnected`
+/// (this function never produces `Disconnected` — a decode failure is never
+/// a clean close).
 fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
-    let s = std::str::from_utf8(bytes).map_err(|_| RecvError::Disconnected)?;
+    let s = std::str::from_utf8(bytes)
+        .map_err(|e| RecvError::Failed(format!("invalid UTF-8 in frame: {e}")))?;
     // Stone 214 1b-ii-β.0: the wire is plain EDN (`from_wire`). For `String` this is
     // raw passthrough — a forms-server's plain `42\n` decodes byte-for-byte, no holon
     // tag required (the `recv'` boundary codec runs `edn_string_to_value` upstream).
-    T::from_wire(s).map_err(|_| RecvError::Disconnected)
+    T::from_wire(s).map_err(|e| RecvError::Failed(format!("wire decode failed: {e}")))
 }
 
 /// Pull the first COMPLETE EDN value-frame out of `acc`, routing through
@@ -953,12 +977,18 @@ fn decode_frame<T: EdnRepresentable>(bytes: &[u8]) -> Result<T, RecvError> {
 ///   stripped); `acc` is updated to hold only the bytes after the frame.
 /// - `Ok(None)` — no complete frame yet; the caller should read more bytes
 ///   and retry.
-/// - `Err(RecvError::Disconnected)` — the buffer is `TooLarge` (exceeded
-///   `DEFAULT_MAX_FRAME_BYTES`) or `Malformed` (a wire-level error —
+/// - `Err(RecvError::FrameTooLarge)` — the buffer exceeded
+///   `DEFAULT_MAX_FRAME_BYTES` before a complete frame was found (the peer
+///   is still alive; see the FrameTooLarge arm below for why this must NOT
+///   fold into `Disconnected` or `Failed`).
+/// - `Err(RecvError::Failed(reason))` — `Malformed` (a wire-level error —
 ///   currently only non-UTF-8 bytes; a genuine EDN *syntax* error reaches
 ///   the caller as `Ok(Some(frame))` and surfaces as a decode error at
-///   `from_wire`, since `String` wire content is raw passthrough, not EDN);
-///   the channel is in an unrecoverable state for this frame.
+///   `from_wire`, since `String` wire content is raw passthrough, not EDN).
+///   Arc 278 no-hidden-failures: `reason` is `FrameScan::Malformed`'s carried
+///   message (e.g. "non-UTF-8 bytes in frame") — the channel is in an
+///   unrecoverable state for this frame, and the caller can tell that apart
+///   from a clean close.
 ///
 /// Previously returned `Option<Frame>` and split on the FIRST `'\n'`. That
 /// split-on-first-newline strategy was correct only when all EDN values were
@@ -988,8 +1018,11 @@ fn take_frame(acc: &mut Vec<u8>, max_frame_bytes: usize) -> Result<Option<Frame>
         // FrameTooLarge distinctly so callers can tear down the peer immediately.
         FrameScan::TooLarge(_) => Err(RecvError::FrameTooLarge),
         // Malformed: wire-level encoding error (non-UTF-8); the peer may or may
-        // not be alive — treat as Disconnected (same as decode failure below).
-        FrameScan::Malformed(_) => Err(RecvError::Disconnected),
+        // not be alive. Arc 278 no-hidden-failures: carry FrameScan::Malformed's
+        // own message (e.g. "non-UTF-8 bytes in frame") via Failed instead of
+        // muting it into Disconnected — this is a genuine wire break, not a
+        // clean close.
+        FrameScan::Malformed(reason) => Err(RecvError::Failed(reason)),
     }
 }
 

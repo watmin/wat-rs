@@ -195,7 +195,13 @@ pub enum PeerDeath {
 /// - `Ok(reason)` → [`PeerDeath::Lost`]`(reason)` — abnormal exit with a
 ///   crash reason string (use `message_only_failure` to cook into a `Failure`
 ///   if a `Value` is needed).
-/// - `Err(_)`     → [`PeerDeath::Closed`] — no reason buffered → clean exit.
+/// - `Err(RecvError::Failed(reason))` → [`PeerDeath::Lost`]`(reason)` — arc 278
+///   no-hidden-failures (transport-tier twin): the crash/err channel itself hit
+///   a raw wire failure (io error / invalid UTF-8 / decode failure) while being
+///   read for a death reason. That failure carries information — folding it
+///   into `Closed` would mislabel a genuine error as a clean exit.
+/// - `Err(_)` (`Disconnected` / `Shutdown` / `FrameTooLarge`) → [`PeerDeath::Closed`]
+///   — no reason buffered → clean exit.
 ///
 /// Both `thread::Receiver<String>::recv()` and
 /// `process::Receiver<String>::recv()` return `Result<String, RecvError>`, so
@@ -204,6 +210,7 @@ pub enum PeerDeath {
 pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) -> PeerDeath {
     match crash_recv {
         Ok(reason) => PeerDeath::Lost(reason),
+        Err(crate::comms::RecvError::Failed(reason)) => PeerDeath::Lost(reason),
         Err(_) => PeerDeath::Closed,
     }
 }
@@ -221,12 +228,21 @@ pub fn classify_peer_death(crash_recv: Result<String, crate::comms::RecvError>) 
 /// WITHOUT touching `err`; the caller tears the peer down via RAII. Only a true
 /// EOF/shutdown (`Err(_)`) reads `err` — there the child has exited, so the read
 /// returns promptly (buffered reason → `Lost`, or EOF → `Closed`).
+///
+/// Arc 278 no-hidden-failures (transport-tier twin): `RecvError::Failed(reason)`
+/// on the OUTPUT channel is handled the same way as `FrameTooLarge` — it is
+/// itself a genuine, informative failure (io error / invalid UTF-8 / decode
+/// failure), not a signal that the child has exited, so reading `err` here
+/// would be exactly as unfounded (and exactly as deadlock-risking, since
+/// nothing establishes the child is dead) as it is for `FrameTooLarge`.
+/// Surface the output channel's own reason as `Lost` directly.
 pub fn classify_peer_error(
     output_err: &crate::comms::RecvError,
     err: &crate::comms::process::Receiver<String>,
 ) -> PeerDeath {
     match output_err {
         crate::comms::RecvError::FrameTooLarge => PeerDeath::Lost(output_err.to_string()),
+        crate::comms::RecvError::Failed(reason) => PeerDeath::Lost(reason.clone()),
         _ => match err.recv() {
             Ok(reason) => PeerDeath::Lost(reason),
             Err(_) => PeerDeath::Closed,

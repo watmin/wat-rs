@@ -26245,12 +26245,22 @@ fn eval_peer_recv_prime(
                         // This matches the PROCESS_PEER_TYPE_PATH recv arm (line ~23779)
                         // which calls bundle.recv() → raw String → decode_trusted_wire.
                         Some(peer) if peer.is_socket_tier() => {
-                            let wire = peer.recv_wire().map_err(|_| {
+                            // Arc 278 no-hidden-failures — transport-tier twin: a raw wire
+                            // failure (io error / invalid UTF-8 / decode failure / malformed
+                            // frame) carries its reason via RecvError::Failed; thread it into
+                            // the raised MalformedForm instead of a hardcoded mute string. A
+                            // genuine clean close (Disconnected/Shutdown/FrameTooLarge) still
+                            // gets the generic message — no regression there.
+                            let wire = peer.recv_wire().map_err(|e| {
+                                let reason = match &e {
+                                    crate::comms::RecvError::Failed(reason) => reason.clone(),
+                                    _ => "recv failed: peer closed / channel disconnected".to_string(),
+                                };
                                 EvalBreak::from(RuntimeError {
                                     span: list_span.clone(),
                                     kind: RuntimeErrorKind::MalformedForm {
                                         head: OP.into(),
-                                        reason: "recv failed: peer closed / channel disconnected".into(),
+                                        reason,
                                     },
                                 })
                             })?;
@@ -26268,12 +26278,20 @@ fn eval_peer_recv_prime(
                                 })
                             })
                         }
-                        Some(peer) => peer.recv().map_err(|_| {
+                        // Arc 278 no-hidden-failures — transport-tier twin: same reason-threading
+                        // as the socket-tier arm above; a bare RecvError::Failed carries a real
+                        // detail, a clean Disconnected/Shutdown/FrameTooLarge keeps the generic
+                        // message.
+                        Some(peer) => peer.recv().map_err(|e| {
+                            let reason = match &e {
+                                crate::comms::RecvError::Failed(reason) => reason.clone(),
+                                _ => "recv failed: peer closed / channel disconnected".to_string(),
+                            };
                             RuntimeError {
                                 span: list_span.clone(),
                                 kind: RuntimeErrorKind::MalformedForm {
                                     head: OP.into(),
-                                    reason: "recv failed: peer closed / channel disconnected".into(),
+                                    reason,
                                 },
                             }
                             .into()
