@@ -57,13 +57,29 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
-## RESUME (curare — 2026-07-19+; HEAD `3f73f400` = the crusade + query (a) + the LAW CLOSED AIRTIGHT, all pushed & full-suite GREEN)
+## RESUME (curare — 2026-07-19+; HEAD `f0230bbc` = crusade + query (a) + the LAW CLOSED + the RST landed, all pushed; CURRENT WIP = the `no_inlined_edn` lint, UNCOMMITTED)
 
-**READ THIS FIRST, then `git status`.** Everything is **committed, pushed, and weighed** — HEAD `3f73f400`
-on `arc-170-gap-j-v5-deadlock-state`; the working tree is **CLEAN** (this doc's curare edit aside).
-Freshness check: if live HEAD ≠ `3f73f400`, trust the disk. The arc-278 **no-hidden-failures LAW is CLOSED
-AIRTIGHT** — all three pieces landed (Mechanism A, eprintln-terminal, the transport-tier twin). Nothing is
-owed for the law; the only forward item is a SEPARATE future capability (STOP-2, below).
+**READ THIS FIRST, then `git status`.** The LAW work is **committed, pushed, weighed** — HEAD `f0230bbc` on
+`arc-170-gap-j-v5-deadlock-state`. The arc-278 **no-hidden-failures LAW is CLOSED AIRTIGHT** and reaches the
+wire: Mechanism A + eprintln-terminal + the transport-tier twin (`RecvError::Failed`, `3f73f400`) + the
+**RST** (`RecvError::PeerCrashed` — a crashing service best-effort-notifies its peers, `f0230bbc`). Owner gets
+the reason; peers get a reason-free reset; nothing mute.
+
+**BUT the tree is NO LONGER clean** — there is UNCOMMITTED WIP (survives on disk): the new **`no_inlined_edn`
+lint** (`tests/lint/no_inlined_edn.rs`, RED at 1306 — the detector OVER-FIRES, ~90% false positives; NOT
+commit-ready) + two new breadcrumb docs (this one + `DESIGN-STONE-no-inlined-edn.md`). Freshness check: live
+HEAD `f0230bbc`, dirty tree = the lint WIP; if HEAD differs, trust the disk.
+
+**★ THE CURRENT THREAD — `no_inlined_edn` (see `DESIGN-STONE-no-inlined-edn.md` for the full breadcrumb):**
+the sibling of `no_inlined_wat` — an EDN-esque string literal (`#`/`{`/`[`/`(`-opener) must be a co-located
+`.edn` golden (`include_str!` + `assert_edn_eq!`), not inline string-eq. FAR-SIDE, IN ORDER: **(1) annihilate
+the false positives** — tighten the detector with more ignore-conditions (`#`+digit/`#{}` = a marker not a tag;
+format residue of pure identifier-glue `::`/`/`/`'` = not EDN; find more classes — NOT restructure the code) so
+it fires on GENUINE EDN only (overwhelmingly `tests/` goldens); **(2) the `wat-edn` parser-test carve-out**
+(its own tests inline EDN as input-under-test — a file rune, like `no_inlined_wat` grants); **(3) the conversion
+campaign** — drive-to-zero, every genuine offender → a pretty-printed `.edn` golden, edit-only riders + central
+weigh (FM 18), runes at an extremely-hard bar. Re-run `cargo nextest -E 'binary_id(wat::lint)'` for the live
+offender list (the scratchpad `edn_offenders_v2.txt` is session-specific — do not rely on it).
 
 ### THE CRUSADE — `no_inlined_wat` 351 → 0 (DONE; committed `952ece8b`; full suite green)
 
@@ -110,13 +126,19 @@ in `probe_arc278_process_crash_reason_carried.{rs,wat}`.
 
 > **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a
 > familiar voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the
-> SIGNED MCP). Ground `git status` — **HEAD is `3f73f400`, the tree is CLEAN, everything is committed + pushed
-> and the full suite is green** (4176 passed / 0 failed). The arc-278 **no-hidden-failures LAW is CLOSED
-> AIRTIGHT** — all three pieces landed (Mechanism A, eprintln-terminal, the transport-tier twin;
-> `RecvError::Failed` carries every raw wire reason). **Nothing is owed for the law.** The only forward item
-> is a SEPARATE future capability — crash-broadcast to `connect'`-ed clients (STOP-2, STATUS block above;
-> tracked `#[ignore]`'d) — its own arc when wanted, NOT a masking. Do not trust this note over the disk. The
-> crusade is won; the law is closed. We rode to Gondor.
+> SIGNED MCP). Ground `git status` — **HEAD is `f0230bbc`; the LAW work is committed + pushed + green; but the
+> tree is DIRTY** with the `no_inlined_edn` lint WIP (uncommitted — survives on disk). The arc-278
+> **no-hidden-failures LAW is CLOSED AIRTIGHT and reaches the wire** — Mechanism A + eprintln-terminal + the
+> transport-tier twin (`RecvError::Failed`) + the **RST** (`RecvError::PeerCrashed`, `f0230bbc` — a crashing
+> service best-effort-notifies its peers; owner gets the reason, peers get a reason-free reset; STOP-2
+> crash-broadcast-to-`connect'`-ed-clients remains a separate future capability, `#[ignore]`'d).
+> **THE CURRENT WORK is the `no_inlined_edn` lint** (RESUME above + `DESIGN-STONE-no-inlined-edn.md`): it is
+> BUILT but RED at 1306 and OVER-FIRES (~90% false positives — identifier-glue format templates + `#N`
+> markers). FAR-SIDE FIRST MOVE: **annihilate the false positives** — add detector ignore-conditions (`#`+digit
+> ≠ tag; glue-only format residue ≠ EDN; more classes) so it fires on GENUINE EDN only — NOT restructure the
+> code, NOT rune them (extremely hard bar). Then the `wat-edn` parser-test carve-out, then the conversion
+> campaign (offenders → pretty-printed `.edn` goldens). Do not trust this note over the disk. The law is closed;
+> the lint that guards the `.edn`-golden discipline is the next stone. We rode to Gondor; now we tend the wall.
 
 ## SUB-STRIKE — `eprintln` is terminal (2026-07-18; closes `feedback_eprintln_is_terminal`)
 
