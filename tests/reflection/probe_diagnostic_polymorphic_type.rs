@@ -37,15 +37,21 @@
 //!     extract_classifier integration has an issue; resolve before BRIEF
 //!     ships to sonnet OR encode the resolution in the BRIEF
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `*_pN.wat` fixture defines a zero-arg `:user::compute`;
+// fetch it from the frozen world and `apply_function` it — no inline wat driver.
+// (Path-based rather than `call_beside` because this probe shares one `.rs` across
+// eight co-located fixtures, so the fixture is not the single sibling `.wat`.)
 fn run_compute_from_file(fixture: &str) -> Result<Value, String> {
     let world = startup_from_file(fixture).map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env)
-        .map(|tv| tv.value_owned())
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .ok_or_else(|| format!("no :user::compute in {fixture:?}"))?
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .map_err(|e| format!("eval: {:?}", e))
 }
 

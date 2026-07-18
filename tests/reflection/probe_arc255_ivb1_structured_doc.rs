@@ -14,17 +14,15 @@
 //!   carries the structured doc -> `metadata-of` emits `:added` and `:ret`.
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Freeze a bare world and eval `(metadata-of <name_kw>)`; return whether the
-/// resulting `Some(HashMap)` contains the keyword key `key` (e.g. ":added").
-fn metadata_of_has_key(name_kw: &str, key: &str) -> bool {
-    let world = startup_bare().expect("startup should succeed");
-    let call = format!("(:wat::runtime::metadata-of {})", name_kw);
-    let ast = wat::parse_one_with_file(&call, "<probe>").expect("parse metadata-of call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("metadata-of eval").value_owned() {
+/// just-eval (rubric): the metadata-of call lives in the co-located fixture
+/// (`:user::to-hex-metadata`), driven via `call_beside`. Returns whether the
+/// resulting `Some(HashMap)` contains the keyword key `key` (e.g. ":added") —
+/// the same containment assertion the format!-string driver made.
+fn metadata_of_has_key(key: &str) -> bool {
+    match call_beside(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
         Value::Option(o) => match &*o {
             Some(Value::wat__std__HashMap(m)) => {
                 let k = Value::wat__core__keyword(Arc::new(key.to_string()));
@@ -41,7 +39,7 @@ fn metadata_of_has_key(name_kw: &str, key: &str) -> bool {
 #[test]
 fn bytes_to_hex_metadata_carries_added() {
     assert!(
-        metadata_of_has_key(":wat::core::Bytes::to-hex", ":added"),
+        metadata_of_has_key(":added"),
         "metadata-of for a fully-contracted intrinsic must carry :added (from @added). \
          RED at HEAD: Bytes is prose-only and the macro emits only :doc + baseline. \
          GREEN after iv-b1: the macro parses the `///` via wat-doc and carries the structured doc."
@@ -52,7 +50,7 @@ fn bytes_to_hex_metadata_carries_added() {
 #[test]
 fn bytes_to_hex_metadata_carries_ret() {
     assert!(
-        metadata_of_has_key(":wat::core::Bytes::to-hex", ":ret"),
+        metadata_of_has_key(":ret"),
         "metadata-of for a fully-contracted intrinsic must carry :ret (from @ret). \
          RED at HEAD (prose-only); GREEN after iv-b1 (structured carry)."
     );

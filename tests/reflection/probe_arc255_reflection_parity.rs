@@ -21,40 +21,36 @@
 //! enriches these to assert the baseline KEYS, not just Some).
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_bare, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
-/// Eval `(metadata-of <name_kw>)` in a bare world; return whether result is `Some(_)`.
-fn metadata_of_is_some_bare(name_kw: &str) -> bool {
-    let world = startup_bare().expect("startup should succeed");
-    let call = format!("(:wat::runtime::metadata-of {})", name_kw);
-    let ast = wat::parse_one_with_file(&call, "<probe>").expect("parse metadata-of call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("metadata-of eval").value_owned() {
+// just-eval (rubric): the metadata-of calls live in co-located fixtures, driven
+// via `call_beside` / fetch-and-`apply_function`; the Rust side inspects the
+// returned typed Value (the same inspection the format!-string driver did).
+
+/// metadata-of(:wat::core::i64::+) via the co-located fixture — is it `Some(_)`?
+fn builtin_metadata_is_some() -> bool {
+    match call_beside(file!(), ":user::builtin-metadata").expect("metadata-of eval") {
         Value::Option(o) => o.is_some(),
         other => panic!("metadata-of must return Option; got {:?}", other),
     }
 }
 
-/// Eval `(metadata-of <name_kw>)` in a world loaded from `fixture`; return whether result is `Some(_)`.
-fn metadata_of_is_some_from_file(fixture: &str, name_kw: &str) -> bool {
-    let world = startup_from_file(fixture).expect("startup should succeed");
-    let call = format!("(:wat::runtime::metadata-of {})", name_kw);
-    let ast = wat::parse_one_with_file(&call, "<probe>").expect("parse metadata-of call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("metadata-of eval").value_owned() {
-        Value::Option(o) => o.is_some(),
-        other => panic!("metadata-of must return Option; got {:?}", other),
+/// metadata-of(:my::f) via the user_form fixture — its `:user::compute` matches
+/// Some/None and returns the bool the parity claim asserts.
+fn user_form_metadata_is_some() -> bool {
+    let world = startup_from_file("tests/reflection/probe_arc255_reflection_parity_user_form.wat")
+        .expect("startup should succeed");
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("compute") {
+        Value::bool(b) => b,
+        other => panic!("user_form compute must return bool; got {:?}", other),
     }
 }
 
-/// Eval `(metadata-of <name_kw>)` in a bare world and return the inner HashMap, or panic.
-fn metadata_of_map(name_kw: &str) -> std::collections::HashMap<Value, Value> {
-    let world = startup_bare().expect("startup should succeed");
-    let call = format!("(:wat::runtime::metadata-of {})", name_kw);
-    let ast = wat::parse_one_with_file(&call, "<probe>").expect("parse metadata-of call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("metadata-of eval").value_owned() {
+/// The full metadata-of(:wat::core::Bytes::to-hex) map via the co-located fixture.
+fn metadata_of_map(_name_kw: &str) -> std::collections::HashMap<Value, Value> {
+    match call_beside(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
         Value::Option(o) => match o.as_ref() {
             Some(Value::wat__std__HashMap(m)) => m.as_ref().clone(),
             other => panic!("metadata-of must return Some(HashMap); got {:?}", other),
@@ -73,7 +69,7 @@ fn get<'a>(map: &'a std::collections::HashMap<Value, Value>, key: &str) -> Optio
 #[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_answers_for_a_rust_builtin() {
     assert!(
-        metadata_of_is_some_bare(":wat::core::i64::+"),
+        builtin_metadata_is_some(),
         "metadata-of must answer (Some) for a rust builtin :wat::core::i64::+ — \
          seamless reflection parity with user forms. It returned None (builtins \
          are an opaque dispatch match, registered nowhere)."
@@ -85,10 +81,7 @@ fn metadata_of_answers_for_a_rust_builtin() {
 #[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn user_form_carries_guaranteed_baseline() {
     assert!(
-        metadata_of_is_some_from_file(
-            "tests/reflection/probe_arc255_reflection_parity_user_form.wat",
-            ":my::f"
-        ),
+        user_form_metadata_is_some(),
         "metadata-of must answer (Some baseline) for a bare user defn — every \
          registered form carries the guaranteed baseline (:defined-in/:layer/\
          :name/:arity). It returned None."

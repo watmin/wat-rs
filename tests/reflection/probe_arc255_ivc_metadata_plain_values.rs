@@ -25,20 +25,15 @@
 //! RED at HEAD: every value is `Value::holon__HolonAST` -> every assertion
 //! below fails. GREEN after iv-c: plain values + the three enums.
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Freeze a bare world and eval `(:wat::runtime::metadata-of <fqdn>)`,
-/// returning the inner `HashMap<Value, Value>` of the `Some`.
-fn metadata_of(fqdn: &str) -> std::collections::HashMap<Value, Value> {
-    let world = startup_bare().expect("startup");
-    let src = format!("(:wat::runtime::metadata-of {fqdn})");
-    let ast = wat::parse_one_with_file(&src, "<probe>").expect("parse");
-    let env = Environment::new();
-    let v = eval_in_frozen(&ast, &world, &env)
-        .map(|s| s.value_owned())
-        .expect("eval metadata-of");
-    match v {
+/// just-eval (rubric): the metadata-of(:wat::core::Bytes::to-hex) call lives in
+/// the co-located fixture (`:user::to-hex-metadata`), driven via `call_beside`;
+/// the Rust side inspects the returned `Some(HashMap)`. The `_fqdn` arg is kept
+/// for call-site readability (the fixture pins the single fqdn under test).
+fn metadata_of(_fqdn: &str) -> std::collections::HashMap<Value, Value> {
+    match call_beside(file!(), ":user::to-hex-metadata").expect("eval metadata-of") {
         Value::Option(opt) => match &*opt {
             Some(Value::wat__std__HashMap(m)) => (**m).clone(),
             other => panic!("metadata-of must be Some(HashMap); got {other:?}"),

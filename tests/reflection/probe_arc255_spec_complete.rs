@@ -12,26 +12,35 @@
 //!   - @yields cross-check bites on wrong type (yields_type_matches_fn_arg_param test).
 //!   - render-doc shows Category: and Yields: lines.
 
-use wat::freeze::{eval_in_frozen, startup_bare, startup_from_file};
-use wat::parse_one_with_file;
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
-/// Eval an intrinsic expression in a bare world (no user source needed).
-fn eval_expr(expr: &str) -> Value {
-    let world = startup_bare().expect("startup");
-    let ast = parse_one_with_file(expr, "<probe>").expect("parse");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env)
-        .expect("eval")
-        .value_owned()
+// just-eval (rubric): the intrinsic probes live in co-located fixtures — the
+// bare-world calls in `probe_arc255_spec_complete.wat` (driven via `call_beside`)
+// and the higher-order yields-witness in `probe_arc255_spec_complete_yields_witness.wat`.
+// The Rust side inspects the returned typed Value.
+
+/// Invoke a zero-arg fn in the co-located `.wat` and return its i64 result.
+fn call_i64(fn_name: &str) -> i64 {
+    match call_beside(file!(), fn_name).expect("eval") {
+        Value::i64(n) => n,
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
+/// Invoke a zero-arg fn in the co-located `.wat` and return its String result.
+fn call_string(fn_name: &str) -> String {
+    match call_beside(file!(), fn_name).expect("eval") {
+        Value::String(s) => s.as_str().to_owned(),
+        other => panic!("render-doc must return String; got {:?}", other),
+    }
 }
 
 /// Run the `:user::compute` defn from a fixture file and return the i64 result.
 fn run_program_i64_from_file(fixture: &str) -> i64 {
     let world = startup_from_file(fixture).expect("startup");
-    let ast = parse_one_with_file("(:user::compute)", "<probe>").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
@@ -43,10 +52,9 @@ fn run_program_i64_from_file(fixture: &str) -> i64 {
 /// The variadic witness with 3 args returns 3.
 #[test]
 fn variadic_args_measurement_three_args() {
-    let result = eval_expr("(:wat::intrinsic::variadic-args-measurement 1 2 3)");
+    let result = call_i64(":user::variadic-three");
     assert_eq!(
-        result,
-        Value::i64(3),
+        result, 3,
         "variadic-args-measurement with 3 args must return 3; got {:?}",
         result
     );
@@ -55,10 +63,9 @@ fn variadic_args_measurement_three_args() {
 /// The variadic witness with 0 args returns 0.
 #[test]
 fn variadic_args_measurement_zero_args() {
-    let result = eval_expr("(:wat::intrinsic::variadic-args-measurement)");
+    let result = call_i64(":user::variadic-zero");
     assert_eq!(
-        result,
-        Value::i64(0),
+        result, 0,
         "variadic-args-measurement with 0 args must return 0; got {:?}",
         result
     );
@@ -67,10 +74,9 @@ fn variadic_args_measurement_zero_args() {
 /// The variadic witness with 1 arg returns 1.
 #[test]
 fn variadic_args_measurement_one_arg() {
-    let result = eval_expr("(:wat::intrinsic::variadic-args-measurement :x)");
+    let result = call_i64(":user::variadic-one");
     assert_eq!(
-        result,
-        Value::i64(1),
+        result, 1,
         "variadic-args-measurement with 1 arg must return 1; got {:?}",
         result
     );
@@ -95,11 +101,7 @@ fn yields_witness_applies_fn_to_42() {
 /// render-doc output for yields-witness includes a Yields: line.
 #[test]
 fn render_doc_shows_yields_line() {
-    let result = eval_expr("(:wat::core::render-doc :wat::intrinsic::yields-witness)");
-    let s = match result {
-        Value::String(s) => s.as_str().to_owned(),
-        other => panic!("render-doc must return String; got {:?}", other),
-    };
+    let s = call_string(":user::render-yields");
     assert_eq!(
         s,
         ":wat::intrinsic::yields-witness\n\nA minimal higher-order-function witness for `@yields` (arc 255 spec-complete).\n\nApplies `f` to the constant value `42` and returns `f(42)`. The yielded\nvalue is `:wat::core::i64`; `@yields` documents the type handed to `f`.\n\nSyntax: (yields-witness <f>)\n\nCategory: Reflection\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nYields: :wat::core::i64\n\nExamples:\n  (:wat::intrinsic::yields-witness (fn [x] (:wat::core::+ x 1)))  #=> 43\n",
@@ -112,11 +114,7 @@ fn render_doc_shows_yields_line() {
 /// render-doc output for bytes::to-hex includes a Category: Encoding line.
 #[test]
 fn render_doc_shows_category_encoding() {
-    let result = eval_expr("(:wat::core::render-doc :wat::core::Bytes::to-hex)");
-    let s = match result {
-        Value::String(s) => s.as_str().to_owned(),
-        other => panic!("render-doc must return String; got {:?}", other),
-    };
+    let s = call_string(":user::render-to-hex");
     assert_eq!(
         s,
         ":wat::core::Bytes::to-hex\n\nEncode a `:wat::core::Bytes` into its lowercase-hex `:String`.\n\nMarkdown prose, GFM — flows straight to the wiki page body.\n\nSyntax: (to-hex <bs>)\n\nCategory: Encoding\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::core::Bytes::to-hex (:wat::core::Vector :u8 (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16)))  #=> \"ff0010\"\n\nSee also:\n  :wat::core::Bytes::from-hex\n",
@@ -127,12 +125,7 @@ fn render_doc_shows_category_encoding() {
 /// render-doc output for variadic-args-measurement includes a Category: Reflection line.
 #[test]
 fn render_doc_shows_category_reflection() {
-    let result =
-        eval_expr("(:wat::core::render-doc :wat::intrinsic::variadic-args-measurement)");
-    let s = match result {
-        Value::String(s) => s.as_str().to_owned(),
-        other => panic!("render-doc must return String; got {:?}", other),
-    };
+    let s = call_string(":user::render-variadic");
     assert_eq!(
         s,
         ":wat::intrinsic::variadic-args-measurement\n\nCount the number of arguments passed — a variadic intrinsic witness.\n\nAccepts zero or more arguments (any type); evaluates none of them.\nReturns the argument count as `:wat::core::i64`. Pure and deterministic.\n\nSyntax: (variadic-args-measurement <xs>)\n\nCategory: Reflection\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nExamples:\n  (:wat::intrinsic::variadic-args-measurement 1 2 3)  #=> 3\n  (:wat::intrinsic::variadic-args-measurement)  #=> 0\n",
@@ -143,7 +136,7 @@ fn render_doc_shows_category_reflection() {
 /// metadata-of returns :category for a registered intrinsic.
 #[test]
 fn metadata_of_returns_category() {
-    let result = eval_expr("(:wat::runtime::metadata-of :wat::core::Bytes::to-hex)");
+    let result = call_beside(file!(), ":user::to-hex-metadata").expect("eval");
     // metadata-of returns Option<HashMap<keyword, Value>>; we just check Some.
     match result {
         Value::Option(o) => assert!(o.is_some(), "metadata-of must return Some for a registered intrinsic"),

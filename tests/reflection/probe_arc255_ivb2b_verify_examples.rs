@@ -16,21 +16,14 @@
 //! GREEN after b2-b: an empty failure vector (Bytes::to-hex's `@example` evals to
 //! `"ff0010"` and matches `#=>`; from-hex is `@example-norun`, skipped).
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Freeze a bare world, eval `(:wat::doctest::verify-examples)`, and return
-/// the number of failures (the result Vector's length). RED at HEAD = `Err`
-/// (the verb doesn't resolve to a handler).
+/// just-eval (rubric): the `:wat::doctest::verify-examples` call lives in the
+/// co-located fixture (`:user::verify`), driven via `call_beside`. Returns the
+/// number of failures (the result Vector's length). RED at HEAD = `Err`.
 fn verify_examples_failure_count() -> Result<usize, String> {
-    let world = startup_bare().map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one_with_file("(:wat::doctest::verify-examples)", "<probe>")
-        .map_err(|e| format!("parse: {:?}", e))?;
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env)
-        .map_err(|e| format!("eval: {:?}", e))?
-        .value_owned()
-    {
+    match call_beside(file!(), ":user::verify").map_err(|e| format!("eval: {:?}", e))? {
         Value::Vec(failures) => Ok(failures.len()),
         other => Err(format!("verify-examples must return a Vector of failures; got {:?}", other)),
     }

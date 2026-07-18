@@ -21,20 +21,15 @@
 //! a `Vector` of `:wat::intrinsic::Example` records including
 //! `:wat::core::Bytes::to-hex` (`run = true`).
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 use wat::types::Nature;
 
-/// Freeze a bare world and eval `(:wat::intrinsic::examples)`, returning the
-/// value or a rendered error. RED at HEAD = `Err` (no dispatch arm for the seam).
+/// just-eval (rubric): the `:wat::intrinsic::examples` seam call lives in the
+/// co-located fixture (`:user::examples`), driven via `call_beside`; the Rust
+/// side inspects the returned Vector<Example>. RED at HEAD = `Err`.
 fn eval_examples_seam() -> Result<Value, String> {
-    let world = startup_bare().map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one_with_file("(:wat::intrinsic::examples)", "<probe>")
-        .map_err(|e| format!("parse: {:?}", e))?;
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env)
-        .map(|s| s.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))
+    call_beside(file!(), ":user::examples").map_err(|e| format!("eval: {:?}", e))
 }
 
 #[test]

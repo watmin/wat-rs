@@ -38,34 +38,39 @@
 //!
 //! Fixtures co-located beside each test name — slurped via startup_from_file.
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
+
+// just-eval (rubric): each co-located fixture defines a zero-arg `:user::compute`;
+// fetch it from the frozen world and `apply_function` it — no inline wat driver.
+// (Path-based rather than `call_beside` because this probe drives ten distinct
+// co-located fixtures from one `.rs`, so the fixture is not the single sibling `.wat`.)
+fn run_compute(fixture_path: &str) -> Value {
+    let world = startup_from_file(fixture_path).expect("startup");
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {fixture_path:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("compute")
+}
 
 fn run_bool(fixture_path: &str) -> bool {
-    let world = startup_from_file(fixture_path).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
+    match run_compute(fixture_path) {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
 }
 
 fn run_string(fixture_path: &str) -> String {
-    let world = startup_from_file(fixture_path).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
+    match run_compute(fixture_path) {
         Value::String(s) => s.as_str().to_owned(),
         other => panic!("expected String; got {:?}", other),
     }
 }
 
 fn run_i64(fixture_path: &str) -> i64 {
-    let world = startup_from_file(fixture_path).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
+    match run_compute(fixture_path) {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
