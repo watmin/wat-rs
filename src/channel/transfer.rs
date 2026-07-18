@@ -180,6 +180,14 @@ pub fn typed_recv(
                 // (the one reason-carrying shape this enum already has) instead
                 // of collapsing into a mute Disconnected.
                 Err(crate::comms::RecvError::Failed(reason)) => RecvOutcome::DecodeError(reason),
+                // Arc 278 RST stone: `PeerCrashed` is a `Peer'`-messaging-only
+                // signal (`kernel::peer::Peer::notify_peer_crashed_best_effort`
+                // sends the reserved sentinel; nothing else ever does) — a bare
+                // `:wat::kernel::Sender<T>`/`Receiver<T>` channel (this path)
+                // never legitimately produces it. Per arc 278 no-hidden-
+                // failures, don't silently fold an impossible-in-practice case
+                // into a clean `Disconnected`; surface it loudly instead.
+                Err(e @ crate::comms::RecvError::PeerCrashed) => RecvOutcome::DecodeError(e.to_string()),
             }
         }
         ReceiverInner::PipeFd(reader) => {

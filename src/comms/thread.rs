@@ -81,6 +81,18 @@ impl<T> Sender<T> {
             .map_err(|crossbeam_channel::SendError(v)| SendError(v))
     }
 
+    /// Genuinely non-blocking send — crossbeam's native `try_send`. Returns
+    /// `Err(SendError(value))` immediately if the bounded(1) slot is already
+    /// occupied OR all receivers are dropped, instead of blocking for
+    /// capacity like [`Self::send`]. See `CommSender::try_send`'s doc for the
+    /// arc 278 RST best-effort-broadcast rationale.
+    pub fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+        self.inner.try_send(value).map_err(|e| match e {
+            crossbeam_channel::TrySendError::Full(v) => SendError(v),
+            crossbeam_channel::TrySendError::Disconnected(v) => SendError(v),
+        })
+    }
+
     /// Signal end-of-stream from this sender. Consumes self so the endpoint
     /// is gone after close. Other cloned `Sender` handles (if any) remain
     /// valid. Peer receivers will see `RecvError::Disconnected`
@@ -105,6 +117,10 @@ impl<T> Clone for Sender<T> {
 impl<T: Send + 'static> CommSender<T> for Sender<T> {
     fn send(&self, value: T) -> Result<(), SendError<T>> {
         Sender::send(self, value)
+    }
+
+    fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+        Sender::try_send(self, value)
     }
 
     fn close(self) {

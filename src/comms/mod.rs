@@ -827,6 +827,19 @@ pub enum ReactorClass {
 /// functions for brackets + services that work across both transport layers.
 pub trait CommSender<T> {
     fn send(&self, value: T) -> Result<(), SendError<T>>;
+    /// Best-effort, GENUINELY non-blocking send. Returns `Err(SendError(value))`
+    /// immediately — never blocks — when the channel is full (thread tier's
+    /// bounded(1) slot already occupied) or the far side is gone, instead of
+    /// waiting for capacity like [`Self::send`] does.
+    ///
+    /// Arc 278 RST stone (`docs/arc/2026/06/278-rules-engine/
+    /// DESIGN-STONE-rst-peer-notify.md`): the ONLY sender used by the
+    /// best-effort `PeerCrashed` broadcast (`kernel::peer::Peer::
+    /// notify_peer_crashed_best_effort`) — a dying process cannot wait for a
+    /// peer to drain its channel. NOT a general-purpose replacement for
+    /// `send`; ordinary reply/request traffic keeps the mini-TCP blocking
+    /// discipline documented at this module's top.
+    fn try_send(&self, value: T) -> Result<(), SendError<T>>;
     /// Signal end-of-stream from this sender. Consumes self so the endpoint
     /// is gone after close. Other cloned `Sender` handles (if any) remain
     /// valid. Peer receivers will see `RecvError::Disconnected`
@@ -924,6 +937,21 @@ pub enum RecvError {
     /// clean peer close instead of both collapsing to a mute
     /// `Disconnected`. Arc 278 no-hidden-failures — the transport-tier twin.
     Failed(String),
+    /// The far side crashed abnormally (an unhandled panic mid-handler),
+    /// NOT a clean close. Distinct from `Disconnected` (a genuine clean
+    /// FIN — the far side exited with no error) — `PeerCrashed` is the
+    /// RST-in-nature signal: a best-effort, reason-free notification a
+    /// dying `defservice` serve loop sends to every connected peer before
+    /// it lets itself crash (arc 278 tail — see
+    /// `docs/arc/2026/06/278-rules-engine/DESIGN-STONE-rst-peer-notify.md`).
+    /// Carries NO reason: the crash reason is administrative (arc 294 —
+    /// "a crash reason is administrative, to the creator, never blind
+    /// callers") and travels ONLY to the owner's crash channel
+    /// (`PeerRecvError::Crashed`), never to a `connect'`-ed peer. Recognized
+    /// as a reserved sentinel on the peer's existing data channel
+    /// (`kernel::peer::Peer::recv`/`recv_wire`) — there is no separate
+    /// control channel at either transport tier.
+    PeerCrashed,
 }
 
 /// HolonAST roundtrip failure during wire serialization/deserialization.
@@ -961,6 +989,7 @@ impl std::fmt::Display for RecvError {
             RecvError::Shutdown => f.write_str("substrate shutdown"),
             RecvError::FrameTooLarge => f.write_str("frame exceeded cap (message larger than the receiver's max-message-bytes budget)"),
             RecvError::Failed(reason) => write!(f, "transport failed: {reason}"),
+            RecvError::PeerCrashed => f.write_str("peer crashed (abnormal far-side crash — no reason; the crash reason is administrative and travels only to the owner's crash channel)"),
         }
     }
 }

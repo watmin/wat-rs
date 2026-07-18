@@ -210,6 +210,25 @@ pub struct Peer {
     pub(crate) rx: Box<dyn crate::comms::CommReceiver<crate::value::Value> + Send>,
 }
 
+/// Reserved sentinel — the wire form of the best-effort, reason-free
+/// `PeerCrashed` notification (arc 278 RST stone: `docs/arc/2026/06/
+/// 278-rules-engine/DESIGN-STONE-rst-peer-notify.md`).
+///
+/// There is no separate control channel at either transport tier — the
+/// notification rides the peer's EXISTING data channel, so it must be
+/// recognized before/instead of ordinary data. This exact string doubles as:
+/// - the raw EDN wire text sent/checked for socket-tier peers (`recv_wire`) —
+///   never round-tripped through `Value::to_wire`/`from_wire`, just an exact
+///   string compare, so no registry/decode step is involved;
+/// - the keyword literal wrapped in `Value::wat__core__keyword` sent/checked
+///   for thread-tier peers (`recv`), which carry `Value` in-process with no
+///   wire step at all.
+///
+/// Reserved under `:wat::kernel::` — never constructible from user wat source
+/// (the namespace is off-limits to user code by existing convention), so no
+/// legitimate reply payload can collide with it.
+pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
+
 impl Peer {
     /// Construct a crossbeam (thread-tier) peer from a concrete Sender/Receiver pair.
     pub fn from_thread(
@@ -276,8 +295,50 @@ impl Peer {
     /// Cascade-aware (inherited from the underlying comms tier): wakes on
     /// substrate shutdown and returns `Err(RecvError)` rather than hanging.
     /// Also returns `Err(RecvError)` when the peer's sender endpoint is dropped.
+    ///
+    /// Arc 278 RST stone: intercepts the reserved `PeerCrashed` sentinel
+    /// (thread-tier peers carry `Value` in-process with no separate wire
+    /// step, so this is the ONE place to recognize it) and translates it to
+    /// `RecvError::PeerCrashed` — never handed to the caller as ordinary
+    /// data.
     pub fn recv(&self) -> Result<crate::value::Value, RecvError> {
-        self.rx.recv()
+        match self.rx.recv()? {
+            v if Self::is_peer_crashed_sentinel(&v) => Err(RecvError::PeerCrashed),
+            v => Ok(v),
+        }
+    }
+
+    /// Recognize the reserved `PeerCrashed` sentinel keyword value
+    /// (thread-tier wire form — see [`PEER_CRASHED_SENTINEL`]'s doc).
+    fn is_peer_crashed_sentinel(value: &crate::value::Value) -> bool {
+        matches!(
+            value,
+            crate::value::Value::wat__core__keyword(k) if k.as_str() == PEER_CRASHED_SENTINEL
+        )
+    }
+
+    /// Best-effort: notify this peer that the far side crashed abnormally.
+    /// Sends the reserved [`PEER_CRASHED_SENTINEL`] on the peer's EXISTING
+    /// data channel via the tier's `try_send` — genuinely non-blocking (see
+    /// `CommSender::try_send`'s doc). NEVER blocks, waits for an ack, or
+    /// retries: a channel that's full or already gone is silently skipped —
+    /// a dying process cannot wait on a peer that isn't draining.
+    ///
+    /// Arc 278 RST stone — the broadcast primitive `serve-dispatch-op'`
+    /// calls (via [`broadcast_peer_crashed_best_effort`]) for every peer in
+    /// a crashing service's `clients`.
+    pub(crate) fn notify_peer_crashed_best_effort(&self) {
+        match &self.tx {
+            PeerTx::Thread(tx) => {
+                let sentinel = crate::value::Value::wat__core__keyword(std::sync::Arc::new(
+                    PEER_CRASHED_SENTINEL.to_string(),
+                ));
+                let _ = tx.try_send(sentinel);
+            }
+            PeerTx::Socket(tx) => {
+                let _ = tx.try_send(PEER_CRASHED_SENTINEL.to_string());
+            }
+        }
     }
 
     /// Read the raw EDN wire string from a **socket-tier** peer WITHOUT decoding.
@@ -292,15 +353,72 @@ impl Peer {
     /// Thread-tier peers do not go through EDN serialisation; they must use `recv()`.
     ///
     /// Panics if called on a thread-tier peer (programming error — use `recv()`).
+    ///
+    /// Arc 278 RST stone: intercepts the reserved `PeerCrashed` sentinel at
+    /// the RAW WIRE STRING — before/instead of the caller's ordinary EDN
+    /// decode (`decode_trusted_wire`) — and translates it to
+    /// `RecvError::PeerCrashed`. An exact string compare, never a decode
+    /// attempt, so a malformed/unregistered frame can never be confused with
+    /// the sentinel.
     pub fn recv_wire(&self) -> Result<String, RecvError> {
         // Arc 272 6b-ii-α: downcast the type-erased CommReceiver<Value> back to the
         // concrete process::Receiver<Value> so we can call recv_wire_raw(), which reads
         // the pipe bytes and returns the UTF-8 frame without calling T::from_wire.
-        self.rx
+        let wire = self
+            .rx
             .as_any()
             .downcast_ref::<crate::comms::process::Receiver<crate::value::Value>>()
             .expect("recv_wire called on non-socket-tier peer (thread::Receiver does not impl from_wire via pipe)")
-            .recv_wire_raw()
+            .recv_wire_raw()?;
+        if wire == PEER_CRASHED_SENTINEL {
+            return Err(RecvError::PeerCrashed);
+        }
+        Ok(wire)
+    }
+}
+
+/// Best-effort broadcast of the `PeerCrashed` notification to every peer in
+/// a `defservice` serve loop's `clients` Vector (arc 278 RST stone).
+///
+/// Called ONLY from `serve-dispatch-op'`'s panic-catch arm
+/// (`runtime.rs::eval_kernel_serve_dispatch_op_tail`), which has just caught
+/// a genuine handler panic and is about to `resume_unwind` the original
+/// payload — `clients` is still reachable there (the ONE hook that can reach
+/// it before the crash propagates past `serve`'s own recursion). Silently
+/// skips any element that isn't a `Peer'` opaque or whose cell is already
+/// empty (peer already closed) — best-effort, never an error, never a panic
+/// of its own (a panic INSIDE a panic-catch arm would abort the process
+/// instead of letting the ORIGINAL crash resume cleanly).
+pub(crate) fn broadcast_peer_crashed_best_effort(clients: &crate::value::Value) {
+    // `defservice`'s `clients` param is `:wat::core::Vector<Peer'<S,R>>` — the
+    // plain `Value::Vec` carrier (`(:wat::core::conj clients peer)` builds
+    // one of these, NOT a `PersistentVector`). Handle both representations
+    // defensively so this stays correct if that codegen choice ever changes.
+    let elems: Vec<&crate::value::Value> = match clients {
+        crate::value::Value::Vec(v) => v.iter().collect(),
+        crate::value::Value::wat__core__PersistentVector(v) => v.iter().collect(),
+        _ => return,
+    };
+    for elem in elems {
+        let crate::value::Value::RustOpaque(inner) = elem else {
+            continue;
+        };
+        if inner.type_path != crate::kernel::spawn::PEER_TYPE_PATH {
+            continue;
+        }
+        let Ok(cell) = crate::rust_deps::marshal::downcast_ref_opaque::<crate::kernel::spawn::PeerCell>(
+            inner,
+            crate::kernel::spawn::PEER_TYPE_PATH,
+            "serve-dispatch-op'-broadcast",
+            crate::rust_caller_span!(),
+        ) else {
+            continue;
+        };
+        let _ = cell.with_ref("serve-dispatch-op'-broadcast", |opt_peer| {
+            if let Some(peer) = opt_peer {
+                peer.notify_peer_crashed_best_effort();
+            }
+        });
     }
 }
 

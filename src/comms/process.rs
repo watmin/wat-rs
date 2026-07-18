@@ -371,6 +371,84 @@ impl<T: EdnRepresentable> Sender<T> {
         }
         Ok(())
     }
+
+    /// Genuinely non-blocking send. Toggles `O_NONBLOCK` on the write fd
+    /// for the duration of this one call (single-writer endpoint — no
+    /// concurrent access to this exact fd — so the toggle is race-free),
+    /// attempts the same framed write as [`Self::send`], and treats
+    /// `EWOULDBLOCK`/`EAGAIN` (the kernel pipe buffer is full) as an
+    /// immediate best-effort failure rather than blocking for room. Restores
+    /// the original fd flags before returning either way.
+    ///
+    /// Arc 278 RST stone: the ONLY sender used by the best-effort
+    /// `PeerCrashed` broadcast (`kernel::peer::Peer::
+    /// notify_peer_crashed_best_effort`) — see `CommSender::try_send`'s doc.
+    /// A short/partial write (rare — a single tiny control frame well under
+    /// `PIPE_BUF`) is treated as a failure too: best-effort means "whole
+    /// frame landed or nothing did," never a torn frame on the wire.
+    pub fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+        let edn_str = value.to_wire();
+        let edn_bytes = edn_str.as_bytes();
+        let mut framed: Vec<u8> = Vec::with_capacity(edn_bytes.len() + 1);
+        framed.extend_from_slice(edn_bytes);
+        framed.push(b'\n');
+
+        let fd = self.write_fd.as_raw_fd();
+        // SAFETY: `fd` is valid for the lifetime of `self.write_fd`. F_GETFL/
+        // F_SETFL on a fd this Sender exclusively owns (single-writer, no
+        // concurrent access) cannot race with anything else touching this fd.
+        let orig_flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if orig_flags < 0 {
+            return Err(SendError(value));
+        }
+        let set = unsafe { libc::fcntl(fd, libc::F_SETFL, orig_flags | libc::O_NONBLOCK) };
+        if set < 0 {
+            return Err(SendError(value));
+        }
+
+        let mut written = 0usize;
+        let mut failed = false;
+        while written < framed.len() {
+            // SAFETY: see Self::send's identical write loop — same fd,
+            // same live `framed` buffer for the duration of this loop.
+            let n = unsafe {
+                libc::write(
+                    fd,
+                    framed[written..].as_ptr() as *const _,
+                    framed.len() - written,
+                )
+            };
+            if n < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                // WouldBlock (pipe full — the best-effort "peer not
+                // draining" case) or any other write failure (e.g. EPIPE,
+                // peer gone): both are a skip, never a block.
+                failed = true;
+                break;
+            }
+            written += n as usize;
+            if written < framed.len() {
+                // A short, non-blocking write mid-frame: rather than loop
+                // (which could spin against a still-full pipe), treat it as
+                // best-effort failure — never torn frames on the wire.
+                failed = true;
+                break;
+            }
+        }
+
+        // Restore original (blocking) flags regardless of outcome — this
+        // Sender's ordinary `send` must keep its blocking mini-TCP contract.
+        unsafe { libc::fcntl(fd, libc::F_SETFL, orig_flags) };
+
+        if failed || written < framed.len() {
+            Err(SendError(value))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl<T: EdnRepresentable> Sender<T> {
@@ -425,6 +503,9 @@ impl<T: EdnRepresentable> Sender<T> {
 impl<T: EdnRepresentable> CommSender<T> for Sender<T> {
     fn send(&self, value: T) -> Result<(), SendError<T>> {
         Sender::send(self, value)
+    }
+    fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+        Sender::try_send(self, value)
     }
     fn close(self) {
         Sender::close(self)

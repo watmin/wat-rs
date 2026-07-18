@@ -3339,6 +3339,13 @@ fn eval_tail(
             match head {
                 ":wat::core::if" => eval_if_tail(args, &list_span, env, sym),
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
+                // Arc 278 RST stone — tail-position special-case (mirrors
+                // `:wat::core::match` immediately above): preserves the
+                // `serve` self-recursion trampoline through the panic-catch
+                // wrapper. See eval_kernel_serve_dispatch_op_tail's doc.
+                ":wat::kernel::serve-dispatch-op'" => {
+                    eval_kernel_serve_dispatch_op_tail(args, &list_span, env, sym)
+                }
                 // Arc 233 Stone 233.2.e: eval_let_tail returns TrackedValue; unwrap to Value
                 // for eval_tail's caller (apply_function trampoline uses bare Value).
                 ":wat::core::let" => eval_let_tail(args, &list_span, env, sym).map(|tv| tv.value_owned()),
@@ -4298,6 +4305,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::macroexpand" => eval_macroexpand(args, list_span, env, sym),
         // ":wat::holon::from-holon" is routed by dispatch_keyword_head directly (producer).
         ":wat::core::match" => eval_match(args, list_span, env, sym),
+        // Arc 278 RST stone — non-tail companion of the eval_tail special
+        // case above; see eval_kernel_serve_dispatch_op's doc.
+        ":wat::kernel::serve-dispatch-op'" => eval_kernel_serve_dispatch_op(args, list_span, env, sym),
         // Arc 109 slice 1j — § D' Option/Result method forms.
         // Stone 241.15: the three retiring verbs (:wat::core::try,
         // :wat::core::option::expect, :wat::core::result::expect) are now
@@ -26254,6 +26264,10 @@ fn eval_peer_recv_prime(
                             let wire = peer.recv_wire().map_err(|e| {
                                 let reason = match &e {
                                     crate::comms::RecvError::Failed(reason) => reason.clone(),
+                                    // Arc 278 RST stone — abnormal far-side crash: distinct from
+                                    // the generic clean-EOF collapse below (no reason carried;
+                                    // the reason is administrative, owner-channel-only).
+                                    crate::comms::RecvError::PeerCrashed => e.to_string(),
                                     _ => "recv failed: peer closed / channel disconnected".to_string(),
                                 };
                                 EvalBreak::from(RuntimeError {
@@ -26285,6 +26299,8 @@ fn eval_peer_recv_prime(
                         Some(peer) => peer.recv().map_err(|e| {
                             let reason = match &e {
                                 crate::comms::RecvError::Failed(reason) => reason.clone(),
+                                // Arc 278 RST stone — same distinction as the socket-tier arm above.
+                                crate::comms::RecvError::PeerCrashed => e.to_string(),
                                 _ => "recv failed: peer closed / channel disconnected".to_string(),
                             };
                             RuntimeError {
@@ -27138,6 +27154,95 @@ fn eval_kernel_after(
         let selectable = ProcessSelectable::Timer(rx);
         let cell: ProcessPeerCell = std::sync::Arc::new(ThreadOwnedCell::new(Some(selectable)));
         Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, cell))
+    }
+}
+
+/// `(:wat::kernel::serve-dispatch-op' clients body)` — tail position.
+///
+/// Arc 278 RST stone, Option A (`docs/arc/2026/06/278-rules-engine/
+/// DESIGN-STONE-rst-peer-notify.md`). The ONE hook that can reach a
+/// `defservice` serve loop's live `clients` binding while an op handler
+/// panics: `clients` and `body` (the `Message idx op` arm's codegen used to
+/// emit a bare `(:wat::core::match op -> :T ~@serve-op-arms)` directly as the
+/// arm body; it now wraps that same form in this primitive) are both
+/// evaluated in THIS Rust stack frame, so `body`'s evaluation can be wrapped
+/// in `catch_unwind` with `clients` still reachable — unlike the top-level
+/// `catch_unwind` sites (`finish_forked_child`, `spawn_thread_peer`), which
+/// only see the panic AFTER the whole `serve` recursion (and its `clients`
+/// binding) has already unwound past them.
+///
+/// On a genuine handler panic: best-effort broadcasts the reserved
+/// `PeerCrashed` sentinel to every peer in `clients`
+/// (`kernel::peer::broadcast_peer_crashed_best_effort` — never blocks, skips
+/// a peer whose channel is full or already gone), then
+/// `std::panic::resume_unwind`s the ORIGINAL, untouched payload — the crash
+/// propagates exactly as before (same exit code, same owner crash-reason via
+/// `emit_structured_exit` / `PeerRecvError::Crashed`; that path is untouched
+/// by this primitive). `body`'s ordinary (non-panicking) return — including
+/// an `EvalSignal::TailCall` for `serve`'s own self-recursion — passes
+/// through `catch_unwind`'s `Ok` arm completely unchanged: a returned
+/// `Err(EvalBreak::Signal(..))` is a normal value, not a panic;
+/// `catch_unwind` only intercepts genuine unwinds. This is why
+/// `serve-dispatch-op'` must be dispatched from HERE (tail position, via
+/// `eval_tail`'s special-case match) rather than treated as an ordinary
+/// primitive: the trampoline that makes `serve`'s indefinite recursion not
+/// grow the Rust stack depends on the recursive call staying in tail
+/// position all the way through this wrapper.
+fn eval_kernel_serve_dispatch_op_tail(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::serve-dispatch-op'";
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        }
+        .into());
+    }
+    let clients_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let body = &args[1];
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_tail(body, env, sym)));
+    match outcome {
+        Ok(result) => result,
+        Err(payload) => {
+            crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
+            std::panic::resume_unwind(payload);
+        }
+    }
+}
+
+/// Non-tail companion of [`eval_kernel_serve_dispatch_op_tail`] — same
+/// catch/broadcast/resume shape, reached only if `serve-dispatch-op'` is ever
+/// evaluated outside serve's tail position (defensive parity with
+/// `:wat::core::match`'s own `eval_match`/`eval_match_tail` pair; the
+/// `defservice` codegen never places it anywhere but the tail-position arm
+/// body, so this arm exists for robustness, not because it is exercised).
+fn eval_kernel_serve_dispatch_op(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::serve-dispatch-op'";
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        }
+        .into());
+    }
+    let clients_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let body = &args[1];
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_inner(body, env, sym)));
+    match outcome {
+        Ok(result) => result.map(|tv| tv.value_owned()),
+        Err(payload) => {
+            crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
+            std::panic::resume_unwind(payload);
+        }
     }
 }
 

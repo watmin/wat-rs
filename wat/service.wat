@@ -846,9 +846,18 @@
                              "defservice serve: Admin::Resume after startup (protocol error)"
                              :wat::core::None
                              :wat::core::None))))
+                     ;; arc 278 RST stone — the op-dispatch is wrapped in `serve-dispatch-op'`
+                     ;; instead of a bare match: it is the ONE hook that can reach `clients`
+                     ;; while a handler panic is caught (the interpreter's own catch_unwind,
+                     ;; inserted around THIS form's evaluation, not the top-level one that has
+                     ;; already lost `clients` by the time a panic reaches it). On a genuine
+                     ;; handler panic it best-effort broadcasts PeerCrashed to `clients`, then
+                     ;; resumes the SAME panic unchanged — the service still crashes exactly as
+                     ;; before; this arm's own Reply/Stop behavior (the match body) is untouched.
                      ((:wat::spawn::ServiceEvent::Message idx op)
-                       (:wat::core::match op -> :wat::core::nil
-                         ~@serve-op-arms))
+                       (:wat::kernel::serve-dispatch-op' clients
+                         (:wat::core::match op -> :wat::core::nil
+                           ~@serve-op-arms)))
                      ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::std::list::remove-at clients idx) state))
                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:

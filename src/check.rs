@@ -5130,6 +5130,19 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 278 RST stone — `serve-dispatch-op'`: `clients` is checked
+            // for internal consistency only (do-style, unconstrained — same
+            // discipline as `poll'`'s `listener` arg); `body`'s type IS the
+            // form's own type (do-style passthrough of the last/only
+            // meaningful arg). See infer_serve_dispatch_op.
+            ":wat::kernel::serve-dispatch-op'" => {
+                let (val, mut errs) = infer_serve_dispatch_op(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 214 Stone 4.6b / Stone 259 Lost-locus — select' intrinsic.
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
             // I,O flow from Vector<peer<I,O>>'s element peer type into the
@@ -12001,6 +12014,45 @@ fn infer_close_prime(
         CheckResult::ok(ret)
     } else {
         CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+/// Type-check `(:wat::kernel::serve-dispatch-op' clients body)` — arc 278 RST
+/// stone. `clients` is inferred for internal-consistency/error-surfacing only
+/// (`poll'`'s `listener`-arg discipline — checked, but its type is never
+/// unified with anything, since `serve-dispatch-op'` is ∀-generic over the
+/// service's own `Peer'<S,R>` element type and has no reason to pin it down).
+/// `body`'s inferred type IS the form's own type — the SAME do-style
+/// passthrough `infer_do` uses for its final arg (see that function): this
+/// primitive is a transparent runtime wrapper around what used to be a bare
+/// `:wat::core::match`, so it must be transparent to the type checker too.
+fn infer_serve_dispatch_op(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::serve-dispatch-op'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch { callee: OP.into(), expected: 2, got: args.len() },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::errs(local_errors);
+    }
+    // clients: checked for error coverage only — type not further constrained.
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // body: its inferred type IS the form's type (do-style passthrough).
+    let val = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    match val {
+        Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+        None => CheckResult::errs(local_errors),
     }
 }
 
