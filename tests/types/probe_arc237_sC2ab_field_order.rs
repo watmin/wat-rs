@@ -10,13 +10,11 @@
 //!
 //! All contracts must PASS post-S-C.2ab.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn eval_f64(fn_name: &str) -> f64 {
-    let world = startup_beside(file!()).expect("startup for field_order fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), fn_name).expect("eval") {
         Value::f64(x) => x,
         other => panic!("expected f64 from {}; got {:?}", fn_name, other),
     }

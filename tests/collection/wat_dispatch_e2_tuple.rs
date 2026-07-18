@@ -1,12 +1,13 @@
 //! E2 — tuple marshaling through `#[wat_dispatch]`.
 //!
-//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
-//! Computation moved to distinct :my::compute-* defns; slurped via startup_beside(file!()).
+//! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen (later
+//! superseded by call_beside — see docs/CONVENTIONS.md § Test idioms).
+//! Computation moved to distinct :my::compute-* defns; driven via call_beside(file!(), fn_name).
 //!
 //! Wat source lives in the co-located fixture: wat_dispatch_e2_tuple.wat
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 use wat_macros::wat_dispatch;
 
 pub struct TupleUtils;
@@ -39,29 +40,26 @@ fn install() {
     });
 }
 
-fn run(call: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(call).expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+fn run(fn_name: &str) -> Value {
+    call_beside(file!(), fn_name).expect("compute should run")
 }
 
 #[test]
 fn sum2_via_macro() {
     install();
-    assert!(matches!(run("(:my::compute-sum2)"), Value::i64(42)), "got {:?}", run("(:my::compute-sum2)"));
+    assert!(matches!(run(":my::compute-sum2"), Value::i64(42)), "got {:?}", run(":my::compute-sum2"));
 }
 
 #[test]
 fn pair_of_returns_tuple() {
     install();
-    assert!(matches!(run("(:my::compute-pair-first)"), Value::i64(7)), "got {:?}", run("(:my::compute-pair-first)"));
+    assert!(matches!(run(":my::compute-pair-first"), Value::i64(7)), "got {:?}", run(":my::compute-pair-first"));
 }
 
 #[test]
 fn heterogeneous_triple_via_macro() {
     install();
-    match run("(:my::compute-describe)") {
+    match run(":my::compute-describe") {
         Value::String(s) => assert_eq!(&*s, "1/row/true"),
         other => panic!("expected string, got {:?}", other),
     }

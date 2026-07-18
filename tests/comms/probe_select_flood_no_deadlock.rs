@@ -48,46 +48,8 @@
 
 use std::time::Duration;
 
-use wat::ast::WatAST;
-use wat::freeze::startup_bare;
-use wat::runtime::{eval, Environment, Value};
-
-/// Build `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms <forms>...))`
-fn build_spawn_process_call(child_program_src: &str) -> WatAST {
-    let child_forms =
-        wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
-            .expect("child program parse");
-    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
-    forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
-    WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-program'".into(), wat::rust_caller_span!()),
-            WatAST::List(
-                vec![WatAST::Keyword(":wat::spawn::process".into(), wat::rust_caller_span!())],
-                wat::rust_caller_span!(),
-            ),
-            forms_call,
-        ],
-        wat::rust_caller_span!(),
-    )
-}
-
-/// Child builds a 1 MiB string via `double-string` and `println`s it.
-/// `println` encodes to EDN (quoted string ~1,048,578 bytes) + newline.
-/// Total frame > 512 KiB cap → parent hits FrameTooLarge while child stays alive.
-const FLOOD_CHILD_SRC: &str = r#"
-    (:wat::core::defn :user::double-string
-        [s <- :wat::core::String n <- :wat::core::i64]
-        -> :wat::core::String
-      (:wat::core::if (:wat::core::= n 0) -> :wat::core::String
-        s
-        (:user::double-string (:wat::core::String/concat s s) (:wat::core::- n 1))))
-
-    (:wat::core::defn :user::main [] -> :wat::core::nil
-      (:wat::kernel::println
-        (:user::double-string "x" 20)))
-"#;
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// `select'` over `[child]` where child floods stdout with > 512 KiB.
 ///
@@ -103,34 +65,12 @@ fn select_prime_flood_no_deadlock() {
     // Arm the watchdog: deadlock → _exit(124) → test FAIL.
     arm_watchdog(Duration::from_secs(10));
 
-    let world = startup_bare().expect("startup");
-
-    // Spawn the flooding child.
-    let spawn_call = build_spawn_process_call(FLOOD_CHILD_SRC);
-    let child = eval(&spawn_call, &Environment::new(), world.symbols())
-        .expect("spawn-program' should succeed")
-        .value_owned();
-
-    // Bind child into the env.
-    let env = Environment::new()
-        .child()
-        .bind("child", wat::rust_caller_span!(), child.into())
-        .build();
-
-    // Eval: (select' (Vector :wat::kernel::Process'<:wat::core::nil,:wat::core::nil> child))
-    let select_call = wat::parse_one!(
-        r#"
-        (:wat::kernel::select' (:wat::core::Vector :wat::kernel::Process'<:wat::core::nil,:wat::core::nil> child))
-        "#
-    )
-    .expect("parse select' call");
-
-    // This is the blocking call — deadlocks at HEAD, returns fast after fix.
-    let result = eval(&select_call, &env, world.symbols());
+    // Spawns the flooding child and runs `select'` over it — the blocking call that
+    // deadlocks at HEAD, returns fast after the fix (co-located fixture, `:user::compute`).
+    let result = call_beside(file!(), ":user::compute");
 
     match result {
-        Ok(tv) => {
-            let event = tv.value_owned();
+        Ok(event) => {
             match &event {
                 Value::Enum(ev) => {
                     assert_eq!(

@@ -18,7 +18,7 @@
 //! arc 117/133's walker machinery currently guards against.
 
 use wat::ast::WatAST;
-use wat::freeze::{startup_bare, startup_beside};
+use wat::freeze::startup_beside;
 use wat::runtime::{eval, Environment, Value};
 
 // ─── helpers ───────────────────────────────────────────────────────────
@@ -112,18 +112,25 @@ fn stone_a_process_drain_and_join_clean_exit_returns_ok() {
     // exit code 0). The parent does NOT read stdout/stderr; Process/drain-and-
     // join is responsible for draining both pipes before joining (stderr drains
     // empty-to-EOF). A clean exit yields Ok(()).
-    let world = startup_bare().expect("startup");
+    // just-eval (rubric): the spawn is built Rust-side (WatAST nodes, not a parsed string —
+    // never trips no_inlined_wat); the join call is the co-located fixture's
+    // `:my::test::drain-process`, applied with the spawned Process as its argument.
+    let world = startup_beside(file!()).expect("startup");
     let child = read_child("wat_arc170_stone_a_drain_and_join_child_clean.wat");
     let call = build_spawn_process_call(&child);
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-    // Rebind into a child env so we can reference the Process struct by
-    // name from a hand-built drain-and-join AST.
-    let env2 = Environment::new().child().bind("proc", wat::rust_caller_span!(), process.into()).build();
-    let call_djoin = wat::parse_one!("(:wat::kernel::Process/drain-and-join proc)")
-        .expect("drain-and-join AST parses");
-    let outcome = eval(&call_djoin, &env2, world.symbols())
-        .expect("Process/drain-and-join should succeed").value_owned();
+    let func = world
+        .symbols()
+        .get(":my::test::drain-process")
+        .expect(":my::test::drain-process defined");
+    let outcome = wat::runtime::apply_function(
+        func.clone(),
+        vec![process],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect("Process/drain-and-join should succeed");
     assert_result_ok_unit(&outcome, "Process/drain-and-join clean exit");
 }
 
@@ -171,16 +178,22 @@ fn stone_a_process_drain_and_join_panic_returns_err() {
     // cascades the panic chain through stderr; child exits non-zero;
     // drain-and-join's drain pass consumes stdout + stderr to EOF, then
     // join surfaces the non-zero exit code as Err(chain).
-    let world = startup_bare().expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     let child = read_child("wat_arc170_stone_a_drain_and_join_child_panic.wat");
     let call = build_spawn_process_call(&child);
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-    let env2 = Environment::new().child().bind("proc", wat::rust_caller_span!(), process.into()).build();
-    let call_djoin = wat::parse_one!("(:wat::kernel::Process/drain-and-join proc)")
-        .expect("drain-and-join AST parses");
-    let outcome = eval(&call_djoin, &env2, world.symbols())
-        .expect("Process/drain-and-join should return Result (not Rust-panic)").value_owned();
+    let func = world
+        .symbols()
+        .get(":my::test::drain-process")
+        .expect(":my::test::drain-process defined");
+    let outcome = wat::runtime::apply_function(
+        func.clone(),
+        vec![process],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect("Process/drain-and-join should return Result (not Rust-panic)");
     let chain = unwrap_result_err(&outcome, "Process/drain-and-join panic");
     match chain {
         Value::Vec(v) => assert!(

@@ -20,23 +20,29 @@
 //! Wat source lives in the co-located fixture: wat_arc221b_macro_support_keyword_shape.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
-fn run_string(world: &wat::freeze::FrozenWorld, expr: &str) -> String {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
-    {
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
+// world and `apply_function` it — no inline wat driver.
+fn call0(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<Value, wat::runtime::RuntimeError> {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+}
+
+fn run_string(world: &wat::freeze::FrozenWorld, fn_name: &str) -> String {
+    match call0(world, fn_name).expect("eval should succeed") {
         Value::String(s) => s.as_str().to_string(),
         other => panic!("expected String; got {:?}", other),
     }
 }
 
-fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, expr: &str) -> bool {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, world, &Environment::new()).is_err()
+fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, fn_name: &str) -> bool {
+    call0(world, fn_name).is_err()
 }
 
 // ─── Probe 1 — rename-callable-name accepts Keyword first child ───────────────
@@ -52,7 +58,7 @@ fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, expr: &str) -> bo
 #[test]
 fn probe_1_rename_callable_name_accepts_keyword_first_child() {
     let world = startup_beside(file!()).expect("startup");
-    let s = run_string(&world, "(:t::probe-1)");
+    let s = run_string(&world, ":t::probe-1");
     assert_eq!(
         s,
         "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::probe-1-renamed #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"x\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
@@ -72,7 +78,7 @@ fn probe_1_rename_callable_name_accepts_keyword_first_child() {
 fn probe_2_rename_callable_name_from_mismatch_errors() {
     let world = startup_beside(file!()).expect("startup");
     assert!(
-        run_expecting_runtime_err(&world, "(:t::probe-2)"),
+        run_expecting_runtime_err(&world, ":t::probe-2"),
         "expected runtime error for from-name mismatch in rename-callable-name"
     );
 }
@@ -89,7 +95,7 @@ fn probe_2_rename_callable_name_from_mismatch_errors() {
 #[test]
 fn probe_3_define_alias_end_to_end() {
     let world = startup_beside(file!()).expect("startup");
-    let s = run_string(&world, "(:t::probe-3)");
+    let s = run_string(&world, ":t::probe-3");
     // Both length and my-length on [1,2,3] should produce 3.
     assert_eq!(s, "3 3", "defalias must produce same result as original for both calls");
 }

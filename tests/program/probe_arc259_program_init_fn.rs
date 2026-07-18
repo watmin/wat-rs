@@ -20,19 +20,14 @@
 //! Run SERIALLY (spawns threads):
 //!   `cargo nextest run --release -E 'test(init_fn)'`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// A `(thread/init f)` peer's `user.program` is f's custom record. f returns a
 /// `MyEnv{port: 8080}`; the peer reads `user.program`'s port back. Parent asserts 8080.
 #[test]
 fn thread_init_populates_user_program() {
-    let world = startup_beside(file!()).expect("startup (RED at HEAD: (thread/init …) does not exist)");
-    let ast = wat::parse_one!("(:probe::compute-init)").expect("parse");
-    let got = match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute eval")
-        .value_owned()
-    {
+    let got = match call_beside(file!(), ":probe::compute-init").expect("compute eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     };
@@ -49,23 +44,14 @@ fn thread_init_populates_user_program() {
 fn erroring_init_fn_kills_the_peer() {
     // init-fn divides by zero → errors at peer-start → the thread exits before
     // sending → recv' raises → compute eval panics here (NOT a Unit smuggled in).
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:probe::compute-error-init)").expect("parse");
-    let _ = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute eval")
-        .value_owned();
+    let _ = call_beside(file!(), ":probe::compute-error-init").expect("compute eval");
 }
 
 /// A plain `(thread)` peer's `user.program` stays the EmptyEnv default — the default
 /// constructor's init-fn is the EmptyEnv thunk. The peer reports conformance (1/0).
 #[test]
 fn thread_default_user_program_is_empty_env() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:probe::compute-default)").expect("parse");
-    let got = match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute eval")
-        .value_owned()
-    {
+    let got = match call_beside(file!(), ":probe::compute-default").expect("compute eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     };

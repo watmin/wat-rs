@@ -9,21 +9,24 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc251_fix_text_comment_faithful
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:user::…` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed String.
+fn eval_string(fn_name: &str) -> String {
+    match call_beside(file!(), fn_name) {
+        Ok(Value::String(s)) => (*s).clone(),
+        other => panic!("expected a migrated String from {fn_name}; got {other:?}"),
+    }
+}
 
 #[test]
 fn fix_text_preserves_comments_and_strips_redundant_annotation() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (251.5-4.2: fix-text comment-faithful codemod)");
-    let ast = wat::parse_one!("(:user::probe)").expect("parse");
-    let out = match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
-        Ok(Value::String(s)) => (*s).clone(),
-        other => panic!("expected fix-text to return a migrated source String; got {other:?}"),
-    };
+    let out = eval_string(":user::probe");
     assert_eq!(
         out,
-        ";; this doc comment must survive byte-identical\n(wat.core/if true   1 2)",
+        include_str!("probe_arc251_fix_text_comment_faithful__probe-comment-faithful.wat"),
         "fix-text golden mismatch; comment must survive byte-identical, \
          -> :wat::core::i64 annotation must be stripped"
     );
@@ -31,22 +34,13 @@ fn fix_text_preserves_comments_and_strips_redundant_annotation() {
 
 #[test]
 fn fix_text_is_comment_faithful_on_many_comments_and_idempotent() {
-    let world = startup_beside(file!())
-        .expect("startup (richer fixture + idempotence)");
-    let s = |expr: &str| -> String {
-        let ast = wat::parse_one!(expr).expect("parse");
-        match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
-            Ok(Value::String(s)) => (*s).clone(),
-            other => panic!("expected a migrated String from {expr}; got {other:?}"),
-        }
-    };
-    let once = s("(:user::once)");
+    let once = eval_string(":user::once");
     assert_eq!(
         once,
-        ";; alpha comment\n;; beta comment\n\n(wat.core/if true   1 2)\n;; gamma trailing",
+        include_str!("probe_arc251_fix_text_comment_faithful__once-many-comments-idempotent.wat"),
         "fix-text (many-comments) golden mismatch; all comments + blank line must survive, \
          -> :wat::core::i64 annotation must be stripped"
     );
-    let twice = s("(:user::twice)");
+    let twice = eval_string(":user::twice");
     assert_eq!(twice, once, "fix-text must be IDEMPOTENT — a second pass yields zero edits (byte-identical)");
 }

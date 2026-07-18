@@ -7,15 +7,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_ast_span`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_i64(world: &wat::freeze::FrozenWorld, call: &str) -> Result<i64, String> {
-    let ast = wat::parse_one!(call).expect("parse");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
+// just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed i64.
+fn eval_i64(fn_name: &str) -> Result<i64, String> {
+    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("non-i64: {other:?}")),
     }
@@ -23,18 +21,15 @@ fn eval_i64(world: &wat::freeze::FrozenWorld, call: &str) -> Result<i64, String>
 
 #[test]
 fn c01_ast_span_head_line() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_i64(&world, "(:user::c01)"), Ok(1), "head keyword line should be 1");
+    assert_eq!(eval_i64(":user::c01"), Ok(1), "head keyword line should be 1");
 }
 
 #[test]
 fn c02_ast_span_head_col() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_i64(&world, "(:user::c02)"), Ok(2), "head keyword col should be 2 (just after `(`)");
+    assert_eq!(eval_i64(":user::c02"), Ok(2), "head keyword col should be 2 (just after `(`)");
 }
 
 #[test]
 fn c03_ast_span_symbol_col() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_i64(&world, "(:user::c03)"), Ok(18), "symbol x col should be 18");
+    assert_eq!(eval_i64(":user::c03"), Ok(18), "symbol x col should be 18");
 }

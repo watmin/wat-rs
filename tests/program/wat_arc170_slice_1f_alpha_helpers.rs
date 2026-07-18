@@ -28,9 +28,9 @@
 
 use std::sync::Arc;
 
-use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::freeze::startup_beside;
 use wat::io::{PipeReader, PipeWriter, WatReader};
-use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 use wat::AggregateValue;
 use wat::services::{
     install_thread_io, next_thread_id, spawn_service_peer, uninstall_thread_io,
@@ -43,9 +43,10 @@ use wat::services::{
 /// type-check test functions for rows H, I, J. Slurped from the co-located
 /// fixture `wat_arc170_slice_1f_alpha_helpers.wat` via `startup_beside`.
 ///
-/// The invocation tests evaluate ad-hoc forms via `eval_in_frozen` so
-/// the substrate's freeze pipeline runs (registering the type-check
-/// arms + dispatch) without needing a meaningful main body.
+/// The invocation tests fetch a named `:probe::…` zero-arg fn from the fixture
+/// and drive it via `apply_function` so the substrate's freeze pipeline runs
+/// (registering the type-check arms + dispatch) without needing a meaningful
+/// main body.
 fn freeze_skeleton() -> wat::freeze::FrozenWorld {
     startup_beside(file!()).expect("skeleton freeze succeeds")
 }
@@ -198,23 +199,28 @@ impl MiniUniverse {
             .expect("feed_line: write");
     }
 
-    /// Eval a readln form and return the typed Value.
-    fn readln_eval(&self, src: &str) -> Result<Value, RuntimeError> {
-        let ast = wat::parse_one!(src).expect("parse readln form");
-        let env = Environment::new();
-        eval(&ast, &env, &self.sym).map(|tv| tv.value_owned())
+    /// Apply the named zero-arg probe fn (a readln form) and return the typed Value.
+    fn readln_eval(&self, fn_name: &str) -> Result<Value, RuntimeError> {
+        let func = self
+            .sym
+            .get(fn_name)
+            .unwrap_or_else(|| panic!("no probe fn {fn_name:?} in the fixture"))
+            .clone();
+        apply_function(func, vec![], &self.sym, wat::rust_caller_span!())
     }
 
-    /// Eval a println form; the mini-TCP ack means write-COMPLETED, so
-    /// the line is in the pipe before this returns (ZERO-MUTEX § "use
-    /// both when done matters"). Returns the written line, trimmed.
-    fn println_and_read(&self, src: &str) -> String {
-        let ast = wat::parse_one!(src).expect("parse println form");
-        let env = Environment::new();
-        let result = eval(&ast, &env, &self.sym)
-            .expect("println evals")
-            .value_owned();
-        assert!(matches!(result, Value::Unit), "println returns nil; src={:?}", src);
+    /// Apply the named zero-arg probe fn (a println form); the mini-TCP ack means
+    /// write-COMPLETED, so the line is in the pipe before this returns (ZERO-MUTEX
+    /// § "use both when done matters"). Returns the written line, trimmed.
+    fn println_and_read(&self, fn_name: &str) -> String {
+        let func = self
+            .sym
+            .get(fn_name)
+            .unwrap_or_else(|| panic!("no probe fn {fn_name:?} in the fixture"))
+            .clone();
+        let result = apply_function(func, vec![], &self.sym, wat::rust_caller_span!())
+            .expect("println evals");
+        assert!(matches!(result, Value::Unit), "println returns nil; fn_name={:?}", fn_name);
         self.stdout_reader
             .read_line(wat::rust_caller_span!())
             .expect("read from the stdout service's pipe")
@@ -223,7 +229,8 @@ impl MiniUniverse {
             .to_string()
     }
 
-    /// Eval an eprintln form and return the line it wrote to stderr, trimmed.
+    /// Apply the named zero-arg probe fn (an eprintln form) and return the line it
+    /// wrote to stderr, trimmed.
     ///
     /// Arc 278 no-hidden-failures — eprintln is a TERMINATING form (a dying
     /// declaration). The mini-TCP ack means the value's EDN is in the stderr
@@ -232,18 +239,21 @@ impl MiniUniverse {
     /// `assertion-failed!` / `raise!`). We catch that terminal unwind, assert it
     /// fired (eprintln must NOT return a value), then read the round-trip line
     /// the write already left in the pipe.
-    fn eprintln_and_read(&self, src: &str) -> String {
-        let ast = wat::parse_one!(src).expect("parse eprintln form");
-        let env = Environment::new();
+    fn eprintln_and_read(&self, fn_name: &str) -> String {
+        let func = self
+            .sym
+            .get(fn_name)
+            .unwrap_or_else(|| panic!("no probe fn {fn_name:?} in the fixture"))
+            .clone();
         let sym = &self.sym;
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            eval(&ast, &env, sym).map(|tv| tv.value_owned())
+            apply_function(func, vec![], sym, wat::rust_caller_span!())
         }));
         assert!(
             outcome.is_err(),
             "eprintln is terminal (arc 278): it must TERMINATE (unwind), not \
-             return a value; src={:?}",
-            src
+             return a value; fn_name={:?}",
+            fn_name
         );
         self.stderr_reader
             .read_line(wat::rust_caller_span!())
@@ -318,9 +328,12 @@ fn fresh_thread() {
 fn row_a_println_unpopulated_returns_service_not_running() {
     fresh_thread();
     let world = freeze_skeleton();
-    let ast = wat::parse_one!("(:wat::kernel::println 42)").expect("parse println form");
-    let env = Environment::new();
-    let err = eval_in_frozen(&ast, &world, &env)
+    let func = world
+        .symbols()
+        .get(":probe::println-42")
+        .expect(":probe::println-42 is in the fixture")
+        .clone();
+    let err = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
     match err {
         RuntimeError { kind: RuntimeErrorKind::ServiceNotRunning { op, .. }, .. } => {
@@ -336,9 +349,12 @@ fn row_a_println_unpopulated_returns_service_not_running() {
 fn row_b_eprintln_unpopulated_returns_service_not_running() {
     fresh_thread();
     let world = freeze_skeleton();
-    let ast = wat::parse_one!("(:wat::kernel::eprintln 42)").expect("parse eprintln form");
-    let env = Environment::new();
-    let err = eval_in_frozen(&ast, &world, &env)
+    let func = world
+        .symbols()
+        .get(":probe::eprintln-42")
+        .expect(":probe::eprintln-42 is in the fixture")
+        .clone();
+    let err = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
     match err {
         RuntimeError { kind: RuntimeErrorKind::ServiceNotRunning { op, .. }, .. } => {
@@ -357,12 +373,15 @@ fn row_b_eprintln_unpopulated_returns_service_not_running() {
 fn row_c_readln_unpopulated_returns_service_not_running() {
     fresh_thread();
     let world = freeze_skeleton();
-    // Must use the prime form directly (readln is a defmacro; readln' is the
-    // kernel-restricted positional primitive that eval can dispatch to).
-    let ast = wat::parse_one!("(:wat::kernel::readln' 524288 -> :wat::core::String)")
-        .expect("parse readln' form");
-    let env = Environment::new();
-    let err = eval_in_frozen(&ast, &world, &env)
+    // :probe::readln-string's body uses the prime form directly (readln is a
+    // defmacro; readln' is the kernel-restricted positional primitive that
+    // eval can dispatch to).
+    let func = world
+        .symbols()
+        .get(":probe::readln-string")
+        .expect(":probe::readln-string is in the fixture")
+        .clone();
+    let err = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect_err("unpopulated ThreadIO must surface ServiceNotRunning");
     match err {
         RuntimeError { kind: RuntimeErrorKind::ServiceNotRunning { op, .. }, .. } => {
@@ -379,7 +398,7 @@ fn row_d_println_populated_sends_serialized_string() {
     fresh_thread();
     let world = freeze_skeleton();
     let universe = MiniUniverse::build(&world);
-    let line = universe.println_and_read("(:wat::kernel::println 42)");
+    let line = universe.println_and_read(":probe::println-42");
     assert_eq!(line, "42");
     universe.finish();
 }
@@ -401,7 +420,7 @@ fn row_e_eprintln_populated_sends_serialized_string() {
     fresh_thread();
     let world = freeze_skeleton();
     let universe = MiniUniverse::build(&world);
-    let received = universe.eprintln_and_read("(:wat::kernel::eprintln \"hello\")");
+    let received = universe.eprintln_and_read(":probe::eprintln-hello");
     // EDN-quoted: a wat String renders as "\"hello\"".
     assert_eq!(received, "\"hello\"");
     universe.finish();
@@ -422,7 +441,7 @@ fn row_f_readln_populated_returns_received_form() {
     universe.feed_line("\"ok\"");
 
     let result = universe
-        .readln_eval("(:wat::kernel::readln' 524288 -> :wat::core::String)")
+        .readln_eval(":probe::readln-string")
         .expect("readln' succeeds");
 
     // The service reads the raw line, the peer routes reply_of → "ok" (without quotes),
@@ -445,18 +464,15 @@ fn row_g_println_polymorphic_value_types() {
     // primitive renders as; this test pins that contract for the
     // common scalar shapes.
     let cases: &[(&str, &str)] = &[
-        ("(:wat::kernel::println 42)", "42"),
-        ("(:wat::kernel::println \"hello\")", "\"hello\""),
-        ("(:wat::kernel::println true)", "true"),
-        ("(:wat::kernel::println false)", "false"),
+        (":probe::println-42", "42"),
+        (":probe::println-hello", "\"hello\""),
+        (":probe::println-true", "true"),
+        (":probe::println-false", "false"),
         // A 2-tuple — value_to_edn renders Tuples as Vectors.
         // `:wat::core::Tuple` is the verb-equals-type constructor
         // (arc 109 slice 1g). The runtime produces a Value::Tuple
         // which value_to_edn maps to an EDN Vector.
-        (
-            "(:wat::kernel::println (:wat::core::Tuple 1 2))",
-            "[1 2]",
-        ),
+        (":probe::println-tuple", "[1 2]"),
     ];
 
     // Stone 8.1 — one miniature true universe serves all cases: the
@@ -466,9 +482,9 @@ fn row_g_println_polymorphic_value_types() {
     fresh_thread();
     let world = freeze_skeleton();
     let universe = MiniUniverse::build(&world);
-    for (src, expected) in cases {
-        let received = universe.println_and_read(src);
-        assert_eq!(received, *expected, "src={:?}", src);
+    for (fn_name, expected) in cases {
+        let received = universe.println_and_read(fn_name);
+        assert_eq!(received, *expected, "fn_name={:?}", fn_name);
     }
     universe.finish();
 }

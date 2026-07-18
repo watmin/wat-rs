@@ -96,11 +96,12 @@ fn peer_recv(cell: &ProcessPeerCell) -> Result<String, PeerRecvError> {
     .expect("with_ref(recv) must not cross thread boundary")
 }
 
-/// Build forms from a WAT source string. The source must define `:user::main`.
-/// Returns `Vec<WatAST>` ready for `spawn_process_peer`.
-fn forms_from_src(src: &str) -> Vec<wat::ast::WatAST> {
-    wat::parser::parse_all_with_file(src, "<test-forms-server>")
-        .expect("test forms must parse")
+/// Build forms from a co-located `.wat` fixture (never inlined). The fixture must define
+/// `:user::main`. Returns `Vec<WatAST>` ready for `spawn_process_peer`.
+fn forms_from_file(path: &str) -> Vec<wat::ast::WatAST> {
+    let src = std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("wat fixture {path:?} must exist (run from crate root): {e}"));
+    wat::parser::parse_all_with_file(&src, path).expect("test forms must parse")
 }
 
 /// Build a no-op post-spawn-fn: `fn [_l <- ProcessLaunch] -> nil nil`.
@@ -119,13 +120,16 @@ fn noop_process_post_spawn_fn() -> Arc<wat::Function> {
 //
 // Reads one i64 from fd 0 (`readln -> :i64`), writes n+1 to fd 1 (`println`).
 // Known-good under spawn-process (arc 112 slice 2b). Used as the base server
-// body for all round-trip tests.
-const ECHO_PLUS_1_SERVER: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil
-      (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
-                        _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
-        nil))
-"#;
+// body for all round-trip tests. Co-located: tests/kernel/spawn_program_prime_process_echo.wat.
+const ECHO_PLUS_1_SERVER_WAT: &str = "tests/kernel/spawn_program_prime_process_echo.wat";
+
+/// `spawn_process_peer`'s `env_fn` arg — a wat EXPRESSION (not a program) the child
+/// re-parses to build its `ProgramEnv`. Every test here uses the trivial empty env.
+/// Co-located: tests/kernel/spawn_program_prime_process_empty_env.wat.
+fn empty_env_expr() -> String {
+    std::fs::read_to_string("tests/kernel/spawn_program_prime_process_empty_env.wat")
+        .expect("empty-env fixture must exist (run from crate root)")
+}
 
 // ─── Division-by-zero crash server ───────────────────────────────────────────
 //
@@ -148,13 +152,13 @@ const ECHO_PLUS_1_SERVER: &str = r#"
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_echo_round_trip() {
-    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
+    let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, "(:wat::program::EmptyEnv)".to_string(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
     let opaque_arc = rust_opaque_arc(
@@ -200,13 +204,13 @@ fn spawn_program_prime_process_echo_round_trip() {
 #[test]
 #[ignore = "process-tier probe: run via integration-run.sh or with --ignored --test-threads=1; never via raw cargo test --test test"]
 fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
-    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
+    let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, "(:wat::program::EmptyEnv)".to_string(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
             .expect("pure WAT forms-server must spawn successfully");
 
     let opaque_arc = rust_opaque_arc(
@@ -257,13 +261,13 @@ fn spawn_program_prime_process_helper_round_trip() {
     // The helper-round-trip concept from the fn era is now expressed as:
     // the forms-server IS self-contained — startup_from_forms handles all
     // symbol registration. Prove the server executes correctly end-to-end.
-    let forms = forms_from_src(ECHO_PLUS_1_SERVER);
+    let forms = forms_from_file(ECHO_PLUS_1_SERVER_WAT);
     let dummy_span = wat::rust_caller_span!();
     let sym = wat::runtime::SymbolTable::new();
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, "(:wat::program::EmptyEnv)".to_string(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, &sym, &dummy_span)
             .expect("spawn_process_peer must succeed (forms-server startup)");
 
     let opaque_arc = rust_opaque_arc(

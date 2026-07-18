@@ -25,14 +25,22 @@
 //! Each is loaded via startup_from_file (static, committed). Negative fixture
 //! for type-check rejection: tests/collection/bundle_capacity_bad_return_type.wat.
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each fixture defines a zero-arg `:my::compute`; fetch it
+// from the frozen world and `apply_function` it — no inline wat driver. (Path-
+// based rather than `call_beside` because this probe drives several distinct
+// co-located fixtures from one `.rs`, so the fixture is not the single sibling `.wat`.)
 fn run(fixture: &str) -> Value {
     let world = startup_from_file(fixture).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+    let func = world
+        .symbols()
+        .get(":my::compute")
+        .unwrap_or_else(|| panic!("no :my::compute in {fixture:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("compute should run")
 }
 
 // ─── Under budget: Ok across all modes ───────────────────────────────
@@ -105,10 +113,13 @@ fn bundle_over_budget_under_panic_mode_panics() {
     // :panic fails closed. 500 atoms overflow all tiers → panic.
     let world = startup_from_file("tests/collection/bundle_capacity_over_panic.wat")
         .expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
+    let func = world
+        .symbols()
+        .get(":my::compute")
+        .expect("no :my::compute in bundle_capacity_over_panic.wat")
+        .clone();
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-        eval_in_frozen(&ast, &world, &env)
+        apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
     }));
     assert!(caught.is_err(), ":panic + over budget must panic");
 }

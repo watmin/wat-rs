@@ -1,0 +1,1 @@
+(wat.core/defenum counter/AdminReq :Provision [initial :- wat.type/i64])

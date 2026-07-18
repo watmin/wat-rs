@@ -1,0 +1,1 @@
+(wat.type/Tuple (wat.type/Vector T) wat.type/i64)

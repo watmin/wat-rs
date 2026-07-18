@@ -87,25 +87,22 @@ fn distinct_scope_structure_hashes_differently() {
 /// hashes.
 #[test]
 fn macro_alias_expands_to_same_hash_as_direct_primitive() {
-    // Program A: defines a macro alias and calls it.
-    // Textually distinct from B — the defmacro + alias call differs from the
-    // direct primitive call. After expansion, defmacro forms are consumed by
-    // expand_all and the remaining output is one form: (:my::prim 42 99 1 -1).
-    let src_a = r#"
-        (:wat::core::defmacro :test::MyAlias
-          [x <- :wat::WatAST y <- :wat::WatAST]
-          -> :wat::WatAST
-          `(:my::prim ~x ~y 1 -1))
-        (:test::MyAlias 42 99)
-    "#;
-
-    // Program B: the same primitive call, written directly — no macro involved.
-    let src_b = r#"
-        (:my::prim 42 99 1 -1)
-    "#;
-
-    fn expand(src: &str) -> Vec<WatAST> {
-        let forms = wat::parse_all!(src).expect("parse ok");
+    // Program A (co-located tests/macros/probe_hash_scope_renumber_alias.wat): defines a
+    // macro alias and calls it. Textually distinct from program B — the defmacro + alias
+    // call differs from the direct primitive call. After expansion, defmacro forms are
+    // consumed by expand_all and the remaining output is one form: (:my::prim 42 99 1 -1).
+    //
+    // Program B (co-located tests/macros/probe_hash_scope_renumber_direct.wat): the same
+    // primitive call, written directly — no macro involved.
+    //
+    // Read from disk (not inlined) so the comparison subject — the raw source TEXT of two
+    // distinct programs — lives in co-located fixtures; this test drives the raw
+    // parse_all!/register_defmacros/expand_all macro-engine API directly (not a FrozenWorld),
+    // so `call_beside`/`startup_beside` don't apply here.
+    fn expand(fixture: &str) -> Vec<WatAST> {
+        let src = std::fs::read_to_string(fixture)
+            .unwrap_or_else(|e| panic!("wat fixture {fixture:?} must exist: {e}"));
+        let forms = wat::parse_all!(&src).expect("parse ok");
         let mut reg = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut reg).expect("register_defmacros ok");
         let env = Environment::default();
@@ -113,8 +110,8 @@ fn macro_alias_expands_to_same_hash_as_direct_primitive() {
         expand_all(rest, &mut reg, &env, &sym).expect("expand_all ok")
     }
 
-    let expanded_a = expand(src_a);
-    let expanded_b = expand(src_b);
+    let expanded_a = expand("tests/macros/probe_hash_scope_renumber_alias.wat");
+    let expanded_b = expand("tests/macros/probe_hash_scope_renumber_direct.wat");
 
     // Sanity: both expansions are a single form.
     assert_eq!(expanded_a.len(), 1, "program A should expand to 1 form; got {}", expanded_a.len());

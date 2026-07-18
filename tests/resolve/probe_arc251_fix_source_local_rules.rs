@@ -4,15 +4,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_fix_source_local_rules`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_string(world: &wat::freeze::FrozenWorld, call: &str) -> Result<String, String> {
-    let ast = wat::parse_one!(call).expect("parse");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
+// just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed String.
+fn eval_string(fn_name: &str) -> Result<String, String> {
+    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string: {other:?}")),
     }
@@ -20,50 +18,61 @@ fn eval_string(world: &wat::freeze::FrozenWorld, call: &str) -> Result<String, S
 
 #[test]
 fn contract_01_arrow_in_binder() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c01)"), Ok("[x :- y]".into()));
+    assert_eq!(
+        eval_string(":user::c01"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-01-arrow-in-binder.wat").into())
+    );
 }
 
 #[test]
 fn contract_02_post_arrow_scalar_type() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c02)"), Ok("[x :- wat.type/i64]".into()));
+    assert_eq!(
+        eval_string(":user::c02"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-02-post-arrow-scalar.wat").into())
+    );
 }
 
 #[test]
 fn contract_03_structural_parametric_type() {
-    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_string(&world, "(:user::c03)"),
-        Ok("[x :- (wat.type/Vector wat.type/i64)]".into())
+        eval_string(":user::c03"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-03-structural-parametric.wat").into())
     );
 }
 
 #[test]
 fn contract_04_head_still_inverts() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c04)"), Ok("(wat.core/map f xs)".into()));
+    assert_eq!(
+        eval_string(":user::c04"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-04-head-inverts.wat").into())
+    );
 }
 
 #[test]
 fn contract_05_full_fn_literal() {
-    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_string(&world, "(:user::c05)"),
-        Ok("(wat.core/fn [a :- wat.type/i64] :- wat.type/bool a)".into()),
+        eval_string(":user::c05"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-05-full-fn-literal.wat").into()),
         "head inverts, binder + return arrows -> :-, both types -> wat.type/, in one pass"
     );
 }
 
 #[test]
 fn contract_06_less_than_operator_is_not_a_type() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c06a)"), Ok("(wat.core/< a b)".into()));
-    assert_eq!(eval_string(&world, "(:user::c06b)"), Ok("(wat.core/<= a b)".into()));
+    assert_eq!(
+        eval_string(":user::c06a"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-06a-less-than.wat").into())
+    );
+    assert_eq!(
+        eval_string(":user::c06b"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-06b-less-equal.wat").into())
+    );
 }
 
 #[test]
 fn contract_07_greater_than_operator() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c07)"), Ok("(wat.core/> a b)".into()));
+    assert_eq!(
+        eval_string(":user::c07"),
+        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-07-greater-than.wat").into())
+    );
 }

@@ -12,15 +12,12 @@
 //!
 //! STRIKE-READY: committed `#[ignore]`'d (RED) so the floor stays 0; un-ignore when K5 lands.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn extend_surface_default_rides_both_pair_tiers() {
-    let world = startup_beside(file!())
-        .expect("extend-surface must emit extend-type per pair tier so the default `dbl` rides $core-record + $holon-record");
-    let ast = wat::parse_one!("(:k5::demo)").expect("parse demo");
-    match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
+    match call_beside(file!(), ":k5::demo") {
         Ok(Value::i64(84)) => {}
         other => panic!("expected 84 (42 core + 42 holon) — the extend-surface default on both pair backing tiers; got {other:?}"),
     }

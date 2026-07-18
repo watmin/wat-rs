@@ -7,15 +7,13 @@
 //! so `:nature :wat::core::Record` is a `MalformedDecl` → the world won't start. GREEN once `:nature`
 //! routes through `Nature::from_root_keyword` (the nature-root symbol, magic shorthand annihilated).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 /// A surface declared with the nature-root SYMBOL parses, and a record satisfies its bound.
 #[test]
 fn surface_nature_root_symbol_accepts_record() {
-    let world = startup_beside(file!()).expect("startup: a `:nature :wat::core::Record` surface must parse");
-    let ast = wat::parse_one!("(:env::feed)").expect("parse feed");
-    match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
+    match call_beside(file!(), ":env::feed") {
         Ok(Value::i64(42)) => {}
         other => panic!("expected i64(42) from a record satisfying the portable surface; got {:?}", other),
     }

@@ -23,19 +23,16 @@
 //! Run SERIALLY (spawn probes flake under parallel load):
 //!   `cargo nextest run --release -E 'test(thread_peer)'`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// The peer reads its OWN os-thread-id from its OWN env — a real tid (> 0),
 /// distinct from the parent (test) thread's tid.
 #[test]
 fn thread_peer_reads_its_own_os_thread_id() {
     let parent_tid = unsafe { libc::gettid() } as i64;
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:probe::compute-a)").expect("parse");
-    let peer_tid = match eval_in_frozen(&ast, &world, &Environment::new())
+    let peer_tid = match call_beside(file!(), ":probe::compute-a")
         .expect("compute eval (RED at HEAD: peer has no env → dies → recv' raises)")
-        .value_owned()
     {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
@@ -51,12 +48,7 @@ fn thread_peer_reads_its_own_os_thread_id() {
 /// exercising the `:thread` variant the root main never stamps.
 #[test]
 fn thread_peer_kind_is_thread() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:probe::compute-b)").expect("parse");
-    let got = match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute eval")
-        .value_owned()
-    {
+    let got = match call_beside(file!(), ":probe::compute-b").expect("compute eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),
     };

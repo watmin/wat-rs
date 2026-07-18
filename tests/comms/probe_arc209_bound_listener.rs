@@ -23,16 +23,12 @@
 //! Run SERIALLY (spawns a thread):
 //!   cargo test --release -p wat --test probe_arc209_bound_listener -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn listener_thread_tier_returns_bound_struct() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (Bound defstruct + listener' thread tier returns Bound)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(10)),

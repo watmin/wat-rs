@@ -2,15 +2,11 @@
 //!
 //! Wat source: tests/types/probe_arc237_sB2_defrecord_recordtype.wat (loaded via startup_beside).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn run(fn_name: &str) -> Result<Value, String> {
-    let world = startup_beside(file!()).map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one!(&format!("({fn_name})")).map_err(|e| format!("parse: {:?}", e))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))
+    call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
 }
 
 fn assert_bool(fn_name: &str, want: bool) {

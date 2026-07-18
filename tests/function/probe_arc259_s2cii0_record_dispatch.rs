@@ -15,8 +15,8 @@
 //!
 //! Wat source: tests/function/probe_arc259_s2cii0_record_dispatch.wat
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
 /// A `defclause` keyed on the specific record type `:user::Tag`, called with a
 /// `(:user::Tag)` value. Pre-S2c-ii.0 the dispatch saw the generic `wat::core::Record`
@@ -24,11 +24,9 @@ use wat::runtime::{Environment, Value};
 #[test]
 fn s2cii0_defclause_dispatches_on_record_class() {
     let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env)
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute should succeed — defclause dispatches on record class_fqdn")
-        .value_owned()
     {
         Value::i64(n) => assert_eq!(n, 7, "the defclause matched (:user::Tag) by its class_fqdn"),
         other => panic!("expected i64; got {:?}", other),

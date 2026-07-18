@@ -22,6 +22,10 @@ use std::time::Instant;
 use wat::freeze::{eval_in_frozen, startup_beside};
 use wat::runtime::Environment;
 
+// rune:lint(no-inlined-wat) — perf-sweep world generated at runtime from N (25/50/100/200/400 and
+// 100/200/400/800/1600 fact counts); the whole point is the SWEEP across growing N, so no fixed
+// .wat fixture can stand in without losing the scaling measurement itself. #[ignore]d, non-gating.
+
 // N Temperatures + N WindSpeeds at N distinct locations → N same-loc joins → N derived ColdAndWindy.
 fn run_for(n: usize) {
     let world = startup_beside(file!()).expect("startup");

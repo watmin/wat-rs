@@ -30,14 +30,20 @@
 //!
 //! Wat source: tests/function/tco.wat (shared world via startup_beside).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `compute_fn` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(compute_fn: &str) -> Value {
     let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(&format!("({compute_fn})")).expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+    let func = world
+        .symbols()
+        .get(compute_fn)
+        .unwrap_or_else(|| panic!("no {compute_fn} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("compute should run")
 }
 
 // ─── Self-recursion via if ────────────────────────────────────────────

@@ -10,18 +10,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc284_interpolate -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_bare, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 // Runtime interpolation: named slots, unquoted render (String as itself, i64 as digits), {{ }} escape.
+// just-eval (rubric): `:user::runtime-interp` lives in the co-located fixture.
 #[test]
 fn interpolate_runtime_named_unquoted_escaped() {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!(
-        r#"(:wat::core::string::interpolate "{a}::{b} {{lit}}" :a "x" :b 5)"#
-    ).expect("parse interpolate call");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("interpolate undefined at HEAD: {e:?}")).value_owned();
+    let got = call_beside(file!(), ":user::runtime-interp")
+        .unwrap_or_else(|e| panic!("interpolate undefined at HEAD: {e:?}"));
     match got {
         Value::String(ref s) => assert_eq!(s.as_str(), "x::5 {lit}",
             "named + unquoted (string/i64) + {{{{ }}}} escape; got {s:?}"),
@@ -35,10 +32,8 @@ fn interpolate_runtime_named_unquoted_escaped() {
 
 #[test]
 fn interpolate_is_legal_at_expand_time() {
-    let world = startup_beside(file!())
+    let got = call_beside(file!(), ":user::probe")
         .expect("a defmacro body using string::interpolate must expand cleanly (the whole point)");
-    let ast = wat::parse_one!("(:user::probe)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new()).expect("probe eval").value_owned();
     match got {
         Value::String(ref s) => assert_eq!(s.as_str(), "hello::built", "expand-time interpolate; got {s:?}"),
         other => panic!("expected String; got {other:?}"),

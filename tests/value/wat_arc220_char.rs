@@ -19,23 +19,35 @@
 //! (slurped via startup_beside(file!())).
 //! Test 4 uses: tests/value/wat_arc220_char_supplementary_plane.wat.bad (negative — fails at lex time).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
-fn run_bool(world: &wat::freeze::FrozenWorld, expr: &str) -> bool {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
+// world and `apply_function` it — no inline wat driver.
+fn call0(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Value {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
-    {
+}
+
+fn run_bool(world: &wat::freeze::FrozenWorld, fn_name: &str) -> bool {
+    match call0(world, fn_name) {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
 }
 
-fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, expr: &str) -> String {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    let err = eval_in_frozen(&ast, world, &Environment::new())
+fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, fn_name: &str) -> String {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    let err = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect_err("expected runtime error");
     format!("{:?}", err)
 }
@@ -48,7 +60,7 @@ fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, expr: &str) -> St
 #[test]
 fn char_literal_single_letter() {
     let world = startup_beside(file!()).expect("startup");
-    let ok = run_bool(&world, "(:t::test1-char-literal-single-letter)");
+    let ok = run_bool(&world, ":t::test1-char-literal-single-letter");
     assert!(ok, "\\a literal must produce Char('a')");
 }
 
@@ -59,7 +71,7 @@ fn char_literal_single_letter() {
 #[test]
 fn char_literal_named_chars() {
     let world = startup_beside(file!()).expect("startup");
-    let ok = run_bool(&world, "(:t::test2-char-literal-named-chars)");
+    let ok = run_bool(&world, ":t::test2-char-literal-named-chars");
     assert!(ok, "named char literals must produce correct Char values");
 }
 
@@ -69,7 +81,7 @@ fn char_literal_named_chars() {
 #[test]
 fn char_literal_unicode_escape() {
     let world = startup_beside(file!()).expect("startup");
-    let ok = run_bool(&world, "(:t::test3-char-literal-unicode-escape)");
+    let ok = run_bool(&world, ":t::test3-char-literal-unicode-escape");
     assert!(ok, "\\u0041 must produce Char('A')");
 }
 
@@ -103,7 +115,7 @@ fn char_literal_supplementary_plane_rejected() {
 #[test]
 fn char_of_valid_single_char() {
     let world = startup_beside(file!()).expect("startup");
-    let ok = run_bool(&world, "(:t::test5-char-of-valid-single-char)");
+    let ok = run_bool(&world, ":t::test5-char-of-valid-single-char");
     assert!(ok, "Char/of must return typed Char equal to same Char");
 }
 
@@ -114,7 +126,7 @@ fn char_of_valid_single_char() {
 #[test]
 fn char_of_empty_string_rejected() {
     let world = startup_beside(file!()).expect("startup");
-    let err = run_expecting_runtime_err(&world, "(:t::test6-char-of-empty)");
+    let err = run_expecting_runtime_err(&world, ":t::test6-char-of-empty");
     assert!(
         err.contains("length-1") || err.contains("empty"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "error must mention length-1 or empty: got {:?}", err
@@ -128,7 +140,7 @@ fn char_of_empty_string_rejected() {
 #[test]
 fn char_of_multi_char_rejected() {
     let world = startup_beside(file!()).expect("startup");
-    let err = run_expecting_runtime_err(&world, "(:t::test7-char-of-multi)");
+    let err = run_expecting_runtime_err(&world, ":t::test7-char-of-multi");
     assert!(
         err.contains("length") || err.contains("got 2") || err.contains("length-2"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "error must mention length: got {:?}", err
@@ -144,7 +156,7 @@ fn char_of_multi_char_rejected() {
 #[test]
 fn char_of_supplementary_plane_rejected() {
     let world = startup_beside(file!()).expect("startup");
-    let err = run_expecting_runtime_err(&world, "(:t::test8-char-of-supplementary)");
+    let err = run_expecting_runtime_err(&world, ":t::test8-char-of-supplementary");
     assert!(
         err.contains("supplementary") || err.contains("BMP") || err.contains("1F600"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "error must mention supplementary-plane: got {:?}", err
@@ -158,7 +170,7 @@ fn char_of_supplementary_plane_rejected() {
 #[test]
 fn char_edn_round_trip() {
     let world = startup_beside(file!()).expect("startup");
-    let ok = run_bool(&world, "(:t::test9-char-edn-round-trip)");
+    let ok = run_bool(&world, ":t::test9-char-edn-round-trip");
     assert!(ok, "Char must round-trip through EDN write/read");
 }
 
@@ -168,6 +180,6 @@ fn char_edn_round_trip() {
 #[test]
 fn char_equality() {
     let world = startup_beside(file!()).expect("startup");
-    let ok = run_bool(&world, "(:t::test10-char-equality)");
+    let ok = run_bool(&world, ":t::test10-char-equality");
     assert!(ok, "Char equality must be correct for same and different chars");
 }

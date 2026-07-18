@@ -13,3 +13,23 @@
   :then
   (:wat::rete::insert (:wb::Gate :celsius ?c)))
 
+;; 3 — a USER-fn predicate in the where works through the network: big?(150) → one Gate.
+(:wat::core::defn :user::run-gate-c150 [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :wb)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius 150 :location "Oslo"))
+       fired   (:wat::rete::fire-rules-spec session)]
+      (:wat::rete::query-by-type-string fired "wb::Gate"))))
+
+;; 3b — the same user-fn predicate blocks below threshold: big?(50) → zero.
+(:wat::core::defn :user::run-gate-c50 [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :wb)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius 50 :location "Oslo"))
+       fired   (:wat::rete::fire-rules-spec session)]
+      (:wat::rete::query-by-type-string fired "wb::Gate"))))
+

@@ -25,8 +25,8 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Outer uses :my::compute; inner uses canonical nil main.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn hermetic_assertion_failure_preserves_actual_and_expected() {
@@ -45,11 +45,7 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
     // head's structured payload; actual = "1", expected = "2".
     //
     // Arc 170 slice 1f-ζ: outer uses :my::compute; inner uses canonical nil main.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute should run")
-        .value_owned();
+    let result = call_beside(file!(), ":my::compute").expect("compute should run");
     let lines: Vec<String> = match result {
         Value::Vec(items) => items
             .iter()

@@ -985,6 +985,37 @@ passes on reordered fields, malformed maps, and appended garbage).
 - **Regenerate, don't hand-edit** when the shape legitimately changes — the golden is captured from
   the real output, never guessed.
 
+### The `.wat` golden — expected wat SOURCE output, co-located (the raw-text case)
+
+Some tests assert an expected output that *is itself wat source text* — a source-to-source fixer's
+emitted program (arc-251/258/269), a reader/writer's rendered form — where the claim is the **exact
+text**: `;;`-comments preserved, whitespace and layout intact. That expected wat lives in a co-located
+golden `<probe>__<label>.wat`, compared **byte-exact**:
+`assert_eq!(actual, include_str!("<probe>__<label>.wat"))`.
+
+It is a distinct case from the two neighbours, and the distinction is load-bearing:
+
+- **vs the `.edn` golden** — `assert_edn_eq!` parses BOTH sides and compares *structurally*
+  (formatting-insensitive). That is exactly WRONG when the fixer's job is "emit this text, comments and
+  all": EDN normalization would silently discard the `;;`-comment and layout fidelity that IS the
+  claim. Structured value, formatting irrelevant → `.edn` (structural). Wat source, exact text is the
+  claim → `.wat` (raw, byte-exact).
+- **vs the `.wat` *fixture*** — a bare `<probe>.wat` is an *evaluated* fixture (loaded via
+  `startup_from_file`/`startup_beside`, frozen, run). A `<probe>__<label>.wat` golden is **never
+  evaluated** — it is read as text (`include_str!`) and compared. The `__<label>` marks it a golden
+  (parallel to `.edn` goldens); the bare name is the live fixture.
+- **NOT `.txt`** — the content is wat (a fixer emits a wat program), so `.wat` is the honest extension;
+  `.txt` denies its nature. (An expected value that is genuinely *not* wat and *not* EDN — e.g. a
+  `Display` rendering carrying placeholder tokens like `<HolonAST>` — is neither golden kind; it is a
+  plain string assert, and if its wat-shaped text trips the lint it earns a per-site
+  `// rune:lint(no-inlined-wat) — <reason>`, the reason naming it a render, not an evaluated form.)
+
+Because the lint scans `.rs` string literals, not `.wat` files, a `.wat` golden drives the inline-wat
+count to a **true zero** — no rune, the expected text simply lives in its own wat file. Prefer a `.wat`
+golden over a rune whenever the expected wat source *can* be extracted; a rune is earned only when the
+inline form is *intrinsic* (a parser/reader test whose raw literal is the input; a world parameterized
+at runtime that no static file can express).
+
 Together the co-located artifacts are a test's whole world — none inlined, each named off the probe so
 nothing names its own context:
 
@@ -992,13 +1023,17 @@ nothing names its own context:
 - **`<probe>.wat.bad`** — an intentionally-*invalid* fixture, for a "must be rejected" test; loaded by
   explicit path, asserting the `Err` (§ *Intentionally-invalid fixtures*). Bad-ness is in the
   extension, so every `*.wat` glob skips it by construction.
-- **`<probe>__<label>.edn`** — the expected-output golden (`assert_edn_eq!` + `include_str!`).
+- **`<probe>__<label>.edn`** — the expected-output golden for a *structured value* (`assert_edn_eq!` +
+  `include_str!`, structural).
+- **`<probe>__<label>.wat`** — the expected-output golden for *wat source* whose exact text is the
+  claim (`assert_eq!` + `include_str!`, byte-exact; never evaluated).
 - **`<probe>.rs`** — the driver.
 
 For an *incidental* world (a substrate test with no wat-under-test), `startup_bare()` carries no wat at
-all — the honest statement of "no fixture." That is the full test-authoring surface: the four
-co-located artifacts (or `startup_bare`), the two drive idioms (just-eval / EDN-over-stdio), and the
-two lints that enforce them (`no_inlined_wat`, `no_loose_string_assert`).
+all — the honest statement of "no fixture." That is the full test-authoring surface: the co-located
+artifacts (or `startup_bare`), the two drive idioms (just-eval / EDN-over-stdio), the two golden kinds
+(`.edn` structural / `.wat` raw-text), and the two lints that enforce them (`no_inlined_wat`,
+`no_loose_string_assert`).
 
 ## Caller-perspective verification
 

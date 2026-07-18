@@ -15,16 +15,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc274_fresh_symbol_no_capture -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
+// just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 #[test]
 fn fresh_symbol_binder_does_not_capture_caller() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed once fresh-symbol exists");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(105)),

@@ -13,23 +13,15 @@
 //! satisfaction resolves method members for any type whose `:<T>/<method>` exists; the dispatcher derives the
 //! concrete FQDN from `receiver.type_name()`.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 /// A foreign `:wat::core::String`, taught `:t::Tagged` via `extend-type`, satisfies the surface and
 /// dispatches `:t::Tagged/tag` to the adapter's impl (constant 42).
 #[test]
 fn extend_type_teaches_a_foreign_type_to_satisfy_a_surface() {
-    let world = startup_beside(file!())
-        .expect("293.4c: extend-type must teach :wat::core::String to satisfy :t::Tagged");
-
-    let got = eval_in_frozen(
-        &wat::parse_one!("(:t::probe)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("(:t::probe) must dispatch :t::Tagged/tag on a String to the extend-type impl")
-    .value_owned();
+    let got = call_beside(file!(), ":t::probe")
+        .expect("(:t::probe) must dispatch :t::Tagged/tag on a String to the extend-type impl");
 
     match got {
         Value::i64(n) => assert_eq!(

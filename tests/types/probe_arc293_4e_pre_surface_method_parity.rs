@@ -11,22 +11,14 @@
 //!
 //! RED at HEAD. GREEN at 293.4e-pre.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// A surface method with a second arg (`make [self x]`) must dispatch with the right arity and return the arg.
 #[test]
 fn surface_method_with_args_beyond_self_dispatches() {
-    let world = startup_beside(file!())
-        .expect("293.4e-pre: a surface method `(make [self x] …)` must type-check + dispatch with correct arity");
-
-    let got = eval_in_frozen(
-        &wat::parse_one!("(:t::probe)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("(:t::probe) must dispatch :t::Maker/make (self + one arg) to :t::Id/make")
-    .value_owned();
+    let got = call_beside(file!(), ":t::probe")
+        .expect("(:t::probe) must dispatch :t::Maker/make (self + one arg) to :t::Id/make");
 
     match got {
         Value::i64(n) => assert_eq!(n, 42, "the 2-arg surface method should return its second arg; got {n}"),

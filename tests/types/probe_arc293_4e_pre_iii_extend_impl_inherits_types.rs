@@ -10,22 +10,14 @@
 //! both after this probe's original "RED at HEAD" framing. So the probe is GREEN and un-ignored. (It was briefly
 //! RED only on a wrong assertion: the body wraps `x` (42), not the Id's tag.)
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// A bare generic extend-impl whose body wraps the `:T` arg in `Box<T>` type-checks + dispatches.
 #[test]
 fn extend_impl_inherits_surface_method_types() {
-    let world = startup_beside(file!())
-        .expect("293.4e-pre.iii: a surface extend-impl with a bare generic body must type-check (inherit the surface sig)");
-
-    let got = eval_in_frozen(
-        &wat::parse_one!("(:t::probe)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("(:t::probe) must dispatch :t::Maker/make to the :t::Id extend-impl and read the :t::Box")
-    .value_owned();
+    let got = call_beside(file!(), ":t::probe")
+        .expect("(:t::probe) must dispatch :t::Maker/make to the :t::Id extend-impl and read the :t::Box");
 
     match got {
         // (:t::Maker/make (:t::Id 7) 42) → (:t::Box 42) → (:t::Box/v …) = 42.

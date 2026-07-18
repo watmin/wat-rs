@@ -19,3 +19,30 @@
   :then
   (:wat::rete::insert (:weather::WeatherAlert :celsius ?c :kph ?k)))
 
+;; LEVEL 1 — explain a directly-derived fact reaches its two input facts. `ColdAndWindy` is derived by
+;; `cold-and-windy` from `Temperature` ⋈ `WindSpeed`; its why-tree's `:via` has exactly those two supporting
+;; facts → length 2.
+(:wat::core::defn :user::explain-coldandwindy-via-length [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::rete::DerivationNode/via
+      (:wat::core::let
+        [rules   (:wat::rete::collect-rules :weather)
+         session (:wat::rete::compile rules)
+         session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+         session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
+         fired   (:wat::rete::fire-rules-explain session)]
+        (:wat::rete::explain fired (:weather::ColdAndWindy :celsius -5 :kph 40))))))
+
+;; LEVEL 2 — explain a CASCADE-derived fact: `WeatherAlert` is derived by `alert` from the derived
+;; `ColdAndWindy`. Its `:via` has exactly one supporting fact (the ColdAndWindy).
+(:wat::core::defn :user::explain-weatheralert-via-length [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::rete::DerivationNode/via
+      (:wat::core::let
+        [rules   (:wat::rete::collect-rules :weather)
+         session (:wat::rete::compile rules)
+         session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+         session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
+         fired   (:wat::rete::fire-rules-explain session)]
+        (:wat::rete::explain fired (:weather::WeatherAlert :celsius -5 :kph 40))))))
+

@@ -15,15 +15,11 @@
 //! Wat source lives in the co-located fixture: probe_seq_container_parity.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_probe(call: &str) -> Result<Value, String> {
-    let world = startup_beside(file!()).map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
-        .map(|tv| tv.value_owned())
+fn eval_probe(fn_name: &str) -> Result<Value, String> {
+    call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))
 }
 
 fn expect_i64(call: &str, want: i64) {
@@ -46,24 +42,24 @@ fn expect_true(call: &str) {
 
 #[test]
 fn first_on_persistent_vector() {
-    expect_i64("(:p::first-pv)", 10);
+    expect_i64(":p::first-pv", 10);
 }
 
 #[test]
 fn second_on_persistent_vector() {
-    expect_i64("(:p::second-pv)", 20);
+    expect_i64(":p::second-pv", 20);
 }
 
 #[test]
 fn third_on_persistent_vector() {
-    expect_i64("(:p::third-pv)", 30);
+    expect_i64(":p::third-pv", 30);
 }
 
 // ── rest on PersistentVector → PersistentVector<T> (identity preserved; length-of-tail = 2) ──
 
 #[test]
 fn rest_on_persistent_vector() {
-    expect_i64("(:p::rest-pv)", 2);
+    expect_i64(":p::rest-pv", 2);
 }
 
 // ── conj on List → List<T> (the arc-220 repr the checker forgot; length-after-conj = 3) ──
@@ -71,7 +67,7 @@ fn rest_on_persistent_vector() {
 #[test]
 fn conj_on_list() {
     // `:wat::core::List/of` is the List constructor (variadic, no type keyword; check.rs:4073).
-    expect_i64("(:p::conj-list)", 3);
+    expect_i64(":p::conj-list", 3);
 }
 
 // ── WatAST::List (arc-249 form-values): first/rest must type-check + run (compiles-and-runs asserts) ──
@@ -81,7 +77,7 @@ fn conj_on_list() {
 fn first_on_watast_list() {
     // Verify that (first <WatAST List>) type-checks (returns bare :wat::WatAST) and runs.
     // The result is a WatAST node; we assert the eval succeeds and produces a WatAST value.
-    match eval_probe("(:p::first-watast)") {
+    match eval_probe(":p::first-watast") {
         Ok(Value::wat__WatAST(_)) => {}
         Ok(other) => panic!("expected WatAST; got {other:?}"),
         Err(e) => panic!("checker≡runtime drift (should type-check + run): {e}"),
@@ -90,5 +86,5 @@ fn first_on_watast_list() {
 
 #[test]
 fn rest_on_watast_list() {
-    expect_true("(:p::rest-watast)");
+    expect_true(":p::rest-watast");
 }

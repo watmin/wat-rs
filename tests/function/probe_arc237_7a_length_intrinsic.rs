@@ -16,15 +16,20 @@
 
 //! Wat source: tests/function/probe_arc237_7a_length_intrinsic.wat
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(fn_name: &str) -> Value {
     let world = startup_beside(file!()).expect("startup for 7a length-intrinsic fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed for positive test")
-        .value_owned()
 }
 
 #[test]
@@ -57,7 +62,11 @@ fn length_hashset() {
 fn length_on_noncollection_errors() {
     // ∀T intrinsic accepts i64 at check time; raises a teaching error at eval (not a collection).
     let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::length-noncollection)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let func = world
+        .symbols()
+        .get(":user::length-noncollection")
+        .expect("fixture defines :user::length-noncollection")
+        .clone();
+    let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
     assert!(result.is_err(), "length on non-collection (i64) must error at runtime; got Ok({:?})", result.ok());
 }

@@ -10,15 +10,11 @@
 //!
 //! `#[ignore]`'d until strike A ships the lazy transformer family (`wat/seq.wat`).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 #[test]
 fn lazy_take_while_stops_before_forcing_late_boom() {
-    let world = startup_beside(file!()).expect("startup");
-    let call = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let result = eval_in_frozen(&call, &world, &env);
+    let result = call_beside(file!(), ":my::compute");
     assert!(
         result.is_ok(),
         "take-while must be LAZY — stopping at the first false must not force the later boom(99); got: {:?}",

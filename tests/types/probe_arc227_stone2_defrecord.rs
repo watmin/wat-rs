@@ -7,16 +7,11 @@
 //! Wat source: tests/types/probe_arc227_stone2_defrecord.wat (loaded via startup_beside).
 //! Negative startup tests use sibling .wat.bad fixtures.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_beside, startup_from_file, FrozenWorld};
+use wat::runtime::{apply_function, Value};
 
 fn run_bool(fn_name: &str) -> bool {
-    let world = startup_beside(file!()).expect("startup for defrecord fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
-    {
+    match call_beside(file!(), fn_name).expect("eval should succeed") {
         Value::bool(b) => b,
         other => panic!("expected bool from {}; got {:?}", fn_name, other),
     }
@@ -27,6 +22,15 @@ fn expect_startup_err(bad_file: &str) -> String {
         .err()
         .map(|e| e.to_string())
         .unwrap_or_else(|| "no error (startup succeeded)".to_string())
+}
+
+/// Fetch + apply a zero-arg entry fn against an ALREADY-FROZEN `world` — for the tests below that
+/// share ONE world across two calls (the two-part EXPECTATIONS-row probes), unlike `run_bool`'s
+/// fresh-freeze-per-name shape.
+fn eval_on(world: &FrozenWorld, fn_name: &str) -> Value {
+    let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no entry fn {fn_name:?}")).clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .unwrap_or_else(|e| panic!("eval {fn_name} raised: {e:?}"))
 }
 
 // Test 1: Single FQDN defrecord -- construct + predicate
@@ -281,18 +285,15 @@ fn probe_two_arg_form_only_one_arg_errors() {
 #[test]
 fn probe_zero_field_instance_uses_empty_bundle() {
     let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
     // Part a: is? confirms classifier (t25a)
-    let ast = wat::parse_one!("(:user::t25a)").expect("parse t25a");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t25a").value_owned() {
+    match eval_on(&world, ":user::t25a") {
         Value::bool(b) => assert!(b, "N=0 instance must be recognized by predicate (classifier Bind correct)"),
         other => panic!("t25a: expected bool; got {:?}", other),
     }
 
     // Part b: empty Bundle has statement-length 0 (t25b)
-    let ast = wat::parse_one!("(:user::t25b)").expect("parse t25b");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t25b").value_owned() {
+    match eval_on(&world, ":user::t25b") {
         Value::i64(n) => assert_eq!(n, 0, "Bundle([]) has statement-length 0 — canonical empty inner for N=0"),
         other => panic!("t25b: expected i64; got {:?}", other),
     }
@@ -303,18 +304,15 @@ fn probe_zero_field_instance_uses_empty_bundle() {
 #[test]
 fn probe_one_field_instance_uses_bundle_with_one_bind() {
     let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
     // Part a: predicate works (t27a)
-    let ast = wat::parse_one!("(:user::t27a)").expect("parse t27a");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t27a").value_owned() {
+    match eval_on(&world, ":user::t27a") {
         Value::bool(b) => assert!(b, "N=1 instance must be recognized by predicate"),
         other => panic!("t27a: expected bool; got {:?}", other),
     }
 
     // Part b: Bundle([one-item]) has statement-length 1 (t27b)
-    let ast = wat::parse_one!("(:user::t27b)").expect("parse t27b");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t27b").value_owned() {
+    match eval_on(&world, ":user::t27b") {
         Value::i64(n) => assert_eq!(n, 1, "Bundle([one-field-bind]) has statement-length 1 — canonical Bundle(Bind) inner for N=1"),
         other => panic!("t27b: expected i64; got {:?}", other),
     }
@@ -335,18 +333,15 @@ fn probe_two_field_construct_with_typed_args() {
 #[test]
 fn probe_two_field_instance_bundle_has_two_binds() {
     let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
     // Part a: predicate works for N=2 (t28a)
-    let ast = wat::parse_one!("(:user::t28a)").expect("parse t28a");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t28a").value_owned() {
+    match eval_on(&world, ":user::t28a") {
         Value::bool(b) => assert!(b, "N=2 instance is-P? must return true"),
         other => panic!("t28a: expected bool; got {:?}", other),
     }
 
     // Part b: Bundle([fa, fb]) has statement-length 2 (t28b)
-    let ast = wat::parse_one!("(:user::t28b)").expect("parse t28b");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t28b").value_owned() {
+    match eval_on(&world, ":user::t28b") {
         Value::i64(n) => assert_eq!(n, 2, "Bundle([field-a, field-b]) has statement-length 2 — canonical 2-child Bundle for N=2"),
         other => panic!("t28b: expected i64; got {:?}", other),
     }
@@ -365,18 +360,15 @@ fn probe_three_field_construct_with_typed_args() {
 #[test]
 fn probe_three_field_instance_bundle_has_three_binds() {
     let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
     // Part a: predicate works for N=3 (t30a)
-    let ast = wat::parse_one!("(:user::t30a)").expect("parse t30a");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t30a").value_owned() {
+    match eval_on(&world, ":user::t30a") {
         Value::bool(b) => assert!(b, "N=3 instance is-T? must return true"),
         other => panic!("t30a: expected bool; got {:?}", other),
     }
 
     // Part b: Bundle([fa, fb, fc]) has statement-length 3 (t30b)
-    let ast = wat::parse_one!("(:user::t30b)").expect("parse t30b");
-    match eval_in_frozen(&ast, &world, &env).expect("eval t30b").value_owned() {
+    match eval_on(&world, ":user::t30b") {
         Value::i64(n) => assert_eq!(n, 3, "Bundle([fa, fb, fc]) has statement-length 3 — canonical 3-child Bundle for N=3"),
         other => panic!("t30b: expected i64; got {:?}", other),
     }

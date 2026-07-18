@@ -17,8 +17,8 @@
 //! (and the arc 145 back-out realization), the substrate's existing
 //! inference + recipient unification provides the static check.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 fn unwrap_i64(v: Value) -> i64 {
     match v {
@@ -34,12 +34,8 @@ fn unwrap_string(v: Value) -> String {
     }
 }
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn run_err_file(rel_path: &str) -> String {
@@ -66,21 +62,21 @@ fn do_empty_form_is_malformed() {
 
 #[test]
 fn do_single_form_returns_its_value() {
-    assert_eq!(unwrap_i64(run_expr("(:t::test2-single)")), 42);
+    assert_eq!(unwrap_i64(run_expr(":t::test2-single")), 42);
 }
 
 // ─── 3. Multi form: side effects in order; final value returned ─────────
 
 #[test]
 fn do_multi_form_evaluates_left_to_right_returns_final() {
-    assert_eq!(unwrap_i64(run_expr("(:t::test3-multi)")), 99);
+    assert_eq!(unwrap_i64(run_expr(":t::test3-multi")), 99);
 }
 
 // ─── 4. Type flow at recipient (clean unification) ──────────────────────
 
 #[test]
 fn do_recipient_unifies_with_final_form_type() {
-    assert_eq!(unwrap_i64(run_expr("(:t::test4-recipient)")), 42);
+    assert_eq!(unwrap_i64(run_expr(":t::test4-recipient")), 42);
 }
 
 // ─── 5. Recipient mismatch fires TypeMismatch ───────────────────────────
@@ -100,14 +96,14 @@ fn do_recipient_mismatch_fires_type_mismatch() {
 
 #[test]
 fn do_non_final_type_is_unconstrained() {
-    assert_eq!(unwrap_i64(run_expr("(:t::test6-non-final)")), 42);
+    assert_eq!(unwrap_i64(run_expr(":t::test6-non-final")), 42);
 }
 
 // ─── 7. Reflection round-trip via signature-of-defn ─────────────────────
 
 #[test]
 fn do_reflection_round_trip_emits_variadic_sketch() {
-    let rendered = unwrap_string(run_expr("(:t::test7-signature)"));
+    let rendered = unwrap_string(run_expr(":t::test7-signature"));
     assert_eq!(
         rendered,
         r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::do #wat-edn.holon/Symbol "<form>+"]"#,
@@ -119,19 +115,19 @@ fn do_reflection_round_trip_emits_variadic_sketch() {
 
 #[test]
 fn do_in_tail_position_preserves_tail_call() {
-    assert_eq!(unwrap_i64(run_expr("(:t::test8-tail)")), 0);
+    assert_eq!(unwrap_i64(run_expr(":t::test8-tail")), 0);
 }
 
 // ─── 9. Nested do forms compose ─────────────────────────────────────────
 
 #[test]
 fn do_nested_compose_cleanly() {
-    assert_eq!(unwrap_i64(run_expr("(:t::test9-nested)")), 2);
+    assert_eq!(unwrap_i64(run_expr(":t::test9-nested")), 2);
 }
 
 // ─── 10. Mixed with let: types compose ─────────────────────────────────
 
 #[test]
 fn do_inside_let_body_composes_types_cleanly() {
-    assert_eq!(unwrap_i64(run_expr("(:t::test10-let-body)")), 7);
+    assert_eq!(unwrap_i64(run_expr(":t::test10-let-body")), 7);
 }

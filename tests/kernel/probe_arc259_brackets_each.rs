@@ -19,16 +19,19 @@
 //!
 //! WAT fixtures: tests/kernel/probe_arc259_brackets_each_{50_items,small}.wat
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
 /// Eval a fixture whose `compute` returns nil; assert the result is `Value::Unit`.
 fn run_compute_nil(path: &str) {
     let world = startup_from_file(path).expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute eval")
-        .value_owned();
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {path:?}"))
+        .clone();
+    let got = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("compute eval");
     assert_eq!(got, Value::Unit, "brackets/each returns nil; got {got:?}");
 }
 

@@ -22,16 +22,11 @@
 //! + eval_in_frozen. Inner programs use canonical nil main + ambient
 //! :wat::kernel::println / :wat::kernel::eprintln.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let call = format!("({fn_name})");
-    let ast = wat::parse_one!(&call).expect("parse compute call");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute should run")
-        .value_owned()
+    call_beside(file!(), fn_name).expect("compute should run")
 }
 
 /// Unwrap a RunResult struct value into its three fields.

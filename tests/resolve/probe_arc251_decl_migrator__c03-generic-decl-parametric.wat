@@ -1,0 +1,1 @@
+(wat.core/typealias Foo (wat.type/Vector wat.type/i64))

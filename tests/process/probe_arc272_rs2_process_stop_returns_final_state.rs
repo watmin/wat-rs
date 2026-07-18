@@ -7,17 +7,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs2_process_stop_returns_final_state -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn process_stop_returns_the_services_final_state() {
-    // World loaded from co-located probe_arc272_rs2_process_stop_returns_final_state.wat via startup_beside.
-    let world = startup_beside(file!())
-        .expect("startup should succeed (rs-2: process stop returns final state)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    // World loaded from co-located probe_arc272_rs2_process_stop_returns_final_state.wat via call_beside.
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

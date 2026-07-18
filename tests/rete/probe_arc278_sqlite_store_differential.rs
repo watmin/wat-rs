@@ -9,17 +9,11 @@
 //!
 //! Run: `cargo nextest run --release -E 'test(sqlite_store_differential)'`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 #[test]
 fn sqlite_store_differential() {
-    let world = startup_beside(file!()).expect(
-        "startup should succeed (:wat::query::mem-store' and :wat::query::sqlite-store' must \
-         load from the baked stdlib)",
-    );
-    let ast = wat::parse_one!("(:user::sqlite_store_differential)").expect("parse test-fn call");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = call_beside(file!(), ":user::sqlite_store_differential");
     assert!(
         result.is_ok(),
         "sqlite_store_differential deftest' must pass (mem-store' and sqlite-store' must return \

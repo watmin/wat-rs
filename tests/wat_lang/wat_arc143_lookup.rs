@@ -13,15 +13,11 @@
 //!   3. Unknown name — call on a non-existent name, assert None.
 //!   4. `body-of` for substrate primitive returns None (not the sentinel).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_bool(v: Value, ctx: &str) -> bool {
@@ -43,7 +39,7 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn lookup_define_user_define_returns_some() {
     assert!(
-        unwrap_bool(run_expr("(:t::test1-lookup-user)"), "lookup-user"),
+        unwrap_bool(run_expr(":t::test1-lookup-user"), "lookup-user"),
         "lookup-define user function should return Some"
     );
 }
@@ -51,7 +47,7 @@ fn lookup_define_user_define_returns_some() {
 #[test]
 fn lookup_define_substrate_primitive_returns_some() {
     assert!(
-        unwrap_bool(run_expr("(:t::test2-lookup-foldl)"), "lookup-foldl"),
+        unwrap_bool(run_expr(":t::test2-lookup-foldl"), "lookup-foldl"),
         ":wat::core::foldl is a substrate primitive; lookup-define must return Some"
     );
 }
@@ -59,7 +55,7 @@ fn lookup_define_substrate_primitive_returns_some() {
 #[test]
 fn lookup_define_unknown_name_returns_none() {
     assert!(
-        unwrap_bool(run_expr("(:t::test3-lookup-none)"), "lookup-none"),
+        unwrap_bool(run_expr(":t::test3-lookup-none"), "lookup-none"),
         "unknown name should return None (fn returns true for None)"
     );
 }
@@ -69,7 +65,7 @@ fn lookup_define_unknown_name_returns_none() {
 #[test]
 fn signature_of_defn_user_define_returns_some() {
     assert!(
-        unwrap_bool(run_expr("(:t::test4-sig-user)"), "sig-user"),
+        unwrap_bool(run_expr(":t::test4-sig-user"), "sig-user"),
         "user-defined function signature-of-defn should return Some"
     );
 }
@@ -77,7 +73,7 @@ fn signature_of_defn_user_define_returns_some() {
 #[test]
 fn signature_of_defn_substrate_primitive_returns_some() {
     assert!(
-        unwrap_bool(run_expr("(:t::test5-sig-foldl)"), "sig-foldl"),
+        unwrap_bool(run_expr(":t::test5-sig-foldl"), "sig-foldl"),
         ":wat::core::foldl synthesised head must be Some"
     );
 }
@@ -85,7 +81,7 @@ fn signature_of_defn_substrate_primitive_returns_some() {
 #[test]
 fn signature_of_defn_unknown_name_returns_none() {
     assert!(
-        unwrap_bool(run_expr("(:t::test6-sig-none)"), "sig-none"),
+        unwrap_bool(run_expr(":t::test6-sig-none"), "sig-none"),
         "unknown name should return None"
     );
 }
@@ -95,7 +91,7 @@ fn signature_of_defn_unknown_name_returns_none() {
 #[test]
 fn body_of_user_define_returns_some() {
     assert!(
-        unwrap_bool(run_expr("(:t::test7-body-user)"), "body-user"),
+        unwrap_bool(run_expr(":t::test7-body-user"), "body-user"),
         "user-defined function body-of should return Some"
     );
 }
@@ -103,7 +99,7 @@ fn body_of_user_define_returns_some() {
 #[test]
 fn body_of_substrate_primitive_returns_none() {
     assert!(
-        unwrap_bool(run_expr("(:t::test8-body-prim-none)"), "body-prim-none"),
+        unwrap_bool(run_expr(":t::test8-body-prim-none"), "body-prim-none"),
         "substrate primitives have no wat body — body-of must return None"
     );
 }
@@ -111,7 +107,7 @@ fn body_of_substrate_primitive_returns_none() {
 #[test]
 fn body_of_unknown_name_returns_none() {
     assert!(
-        unwrap_bool(run_expr("(:t::test9-body-unknown-none)"), "body-unknown-none"),
+        unwrap_bool(run_expr(":t::test9-body-unknown-none"), "body-unknown-none"),
         "unknown name should return None"
     );
 }
@@ -120,7 +116,7 @@ fn body_of_unknown_name_returns_none() {
 
 #[test]
 fn signature_of_defn_foldl_renders_synthesised_shape() {
-    let line = unwrap_string(run_expr("(:t::test10-sig-render)"), "sig-render");
+    let line = unwrap_string(run_expr(":t::test10-sig-render"), "sig-render");
     assert_eq!(
         line,
         r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::foldl<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a1" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a2" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]"#,
@@ -130,7 +126,7 @@ fn signature_of_defn_foldl_renders_synthesised_shape() {
 
 #[test]
 fn lookup_define_user_function_contains_defn_keyword() {
-    let line = unwrap_string(run_expr("(:t::test11-def-render)"), "def-render");
+    let line = unwrap_string(run_expr(":t::test11-def-render"), "def-render");
     assert_eq!(
         line,
         r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::my-square #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::* #wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "x"]]"#,

@@ -12,15 +12,12 @@
 //! and confirms it cannot reopen because the mechanism no longer exists.
 //! The test still passes: `HashSet<Vector<i64>>` constructs and evaluates correctly.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 #[test]
 fn verify_hashset_of_vector_constructs_or_errors() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::verify)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()) {
-        Ok(v) => println!("RUNTIME OK: HashSet<Vector<i64>> produced value {:?}", v.value_owned()),
+    match call_beside(file!(), ":user::verify") {
+        Ok(v) => println!("RUNTIME OK: HashSet<Vector<i64>> produced value {:?}", v),
         Err(e) => panic!("RUNTIME FAILED:\n{}\n---\n{:?}", e, e),
     }
 }

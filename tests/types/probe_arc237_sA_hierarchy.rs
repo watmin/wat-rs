@@ -35,8 +35,8 @@
 //! Per FM 2-bis (recovery doc § 6): probe COMMITTED before BRIEF; BRIEF cites
 //! this file verbatim as "the working contract sonnet must satisfy."
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 use wat::types::{is_subtype, TypeEnv};
 
 // ─── Rust-API helpers (mirror probe_arc237_stone1_typeunion_substrate) ────────
@@ -117,9 +117,12 @@ fn probe_06_builtin_roots() {
 
 fn eval_probe(file: &str, fn_name: &str) -> Result<Value, String> {
     let world = startup_from_file(file).map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one!(&format!("({fn_name})")).map_err(|e| format!("parse: {:?}", e))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .ok_or_else(|| format!("no entry fn {fn_name:?} in {file:?}"))?
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .map_err(|e| format!("eval: {:?}", e))
 }
 
@@ -157,8 +160,8 @@ fn probe_10_subtype_unknown_name_errors() {
     match startup_from_file("tests/types/probe_arc237_sA_hierarchy_probe10.wat") {
         Err(_) => {} // startup error satisfies the contract
         Ok(world) => {
-            let ast = wat::parse_one!("(:user::probe10)").expect("parse");
-            let r = eval_in_frozen(&ast, &world, &Environment::new());
+            let func = world.symbols().get(":user::probe10").expect(":user::probe10").clone();
+            let r = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
             assert!(
                 r.is_err(),
                 "unknown type name must error at startup or eval (keeps `false` honest); got {:?}",

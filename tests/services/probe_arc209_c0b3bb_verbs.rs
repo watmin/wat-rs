@@ -17,17 +17,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bb_verbs -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
 #[test]
 fn process_listener_allow_deny_succeed() {
     // allow'/deny' on a PROCESS listener' succeed (return nil). Wat source: probe_arc209_c0b3bb_verbs.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (C0b.3b-b: allow'/deny' provisioning verbs)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(42)),
@@ -44,9 +40,12 @@ fn thread_listener_allow_errors_with_tier_message() {
     let outcome = (|| -> Result<Value, String> {
         let world = startup_from_file("tests/services/probe_arc209_c0b3bb_verbs_thread.wat")
             .map_err(|e| format!("{e:?}"))?;
-        let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("{e:?}"))?;
-        eval_in_frozen(&ast, &world, &Environment::new())
-            .map(|tv| tv.value_owned())
+        let func = world
+            .symbols()
+            .get(":user::compute")
+            .ok_or_else(|| "no :user::compute in probe_arc209_c0b3bb_verbs_thread.wat".to_string())?
+            .clone();
+        apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
             .map_err(|e| format!("{e:?}"))
     })();
     match outcome {

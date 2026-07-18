@@ -16,16 +16,17 @@
 //! 8. Missing K type-arg — `(:wat::core::HashMap)` fails arity check
 //! 9. Missing V type-arg — `(:wat::core::HashMap :wat::core::keyword)` fails arity check
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:t::pN…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
 
 // ─── Probe 1: Empty literal ──────────────────────────────────────────────────
 
 #[test]
 fn probe_p1_empty_literal_constructs_empty_hashmap() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p1-empty-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p1-empty-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty HashMap must have length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -35,9 +36,7 @@ fn probe_p1_empty_literal_constructs_empty_hashmap() {
 
 #[test]
 fn probe_p2_single_pair_length_and_get() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p2-single-get)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2-single-get").expect("eval") {
         Value::i64(n) => assert_eq!(n, 42, "get :foo should return 42"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -47,17 +46,13 @@ fn probe_p2_single_pair_length_and_get() {
 
 #[test]
 fn probe_p3_multi_pair_length_and_get() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p3a-multi-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p3a-multi-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "three pairs → length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p3b-multi-get)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p3b-multi-get").expect("eval") {
         Value::i64(n) => assert_eq!(n, 20, "get :b from three-pair map → 20"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -67,9 +62,7 @@ fn probe_p3_multi_pair_length_and_get() {
 
 #[test]
 fn probe_p4_string_keyed_constructs_correctly() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p4-str-keyed-get)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4-str-keyed-get").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "String-keyed HashMap: get \"b\" → 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -79,9 +72,7 @@ fn probe_p4_string_keyed_constructs_correctly() {
 
 #[test]
 fn probe_p5_holonast_keyed_length() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p5-holonast-keyed-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p5-holonast-keyed-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "HolonAST-keyed HashMap with one pair → length 1"),
         other => panic!("expected i64; got {:?}", other),
     }

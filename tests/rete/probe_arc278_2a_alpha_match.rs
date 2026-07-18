@@ -16,23 +16,8 @@
 //! Run: cargo test --release -p wat --test probe_arc278_2a_alpha_match -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
-
-// Condition: a Temp whose :value binds ?t and must be > 20.
-const COND: &str =
-    "(:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))";
-
-fn world() -> wat::freeze::FrozenWorld {
-    startup_beside(file!()).expect("startup")
-}
-
-fn ev(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
-    let ast = wat::parse_one!(expr).expect("parse");
-    eval_in_frozen(&ast, world, &Environment::new())
-        .unwrap_or_else(|e| panic!("eval `{expr}` raised: {e:?}"))
-        .value_owned()
-}
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn is_none_option(v: &Value) -> bool {
     matches!(v, Value::Option(o) if o.is_none())
@@ -40,14 +25,7 @@ fn is_none_option(v: &Value) -> bool {
 
 #[test]
 fn alpha_match_binds_and_constrains() {
-    let w = world();
-    // MATCH: 25 binds ?t and 25 > 20 holds → Some({"?t": 25}); PersistentMap/get "?t" → Some(25).
-    let got = ev(&w, &format!(
-        "(:wat::core::PersistentMap/get \
-           (:wat::core::Option/expect \
-             (:wat::rete::alpha-match {COND} (:user::Temp :value 25)) \"matched\") \
-           \"?t\")"
-    ));
+    let got = call_beside(file!(), ":user::match-binds-and-constrains").expect("eval");
     assert_eq!(
         got, Value::Option(Arc::new(Some(Value::i64(25)))),
         "alpha-match should bind ?t=25 and pass (> ?t 20); got {got:?}"
@@ -56,18 +34,12 @@ fn alpha_match_binds_and_constrains() {
 
 #[test]
 fn alpha_match_rejects_failed_constraint() {
-    let w = world();
-    // 15 binds ?t but 15 > 20 is false → None (no-error, not a raise).
-    let got = ev(&w, &format!("(:wat::rete::alpha-match {COND} (:user::Temp :value 15))"));
+    let got = call_beside(file!(), ":user::match-rejects-failed-constraint").expect("eval");
     assert!(is_none_option(&got), "failed constraint → None; got {got:?}");
 }
 
 #[test]
 fn alpha_match_rejects_wrong_type() {
-    let w = world();
-    // Condition head :user::Other ≠ fact type :user::Temp → None.
-    let got = ev(&w, &format!(
-        "(:wat::rete::alpha-match (:wat::core::quote (:user::Other (?t <- :value))) (:user::Temp :value 25))"
-    ));
+    let got = call_beside(file!(), ":user::match-rejects-wrong-type").expect("eval");
     assert!(is_none_option(&got), "wrong fact type → None; got {got:?}");
 }

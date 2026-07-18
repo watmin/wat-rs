@@ -10,20 +10,15 @@
 //! - Type system: cosine accepts EDN-representable types (arc 294.a)
 //! - Determinism: encode is reproducible
 //!
-//! Wat source lives in the co-located fixture: vector_first_class.wat
-//! (slurped via startup_beside(file!())). Functions return String/f64 results
-//! so tests use eval_in_frozen rather than stdout capture.
+//! Wat source lives in the co-located fixture: vector_first_class.wat, driven via
+//! call_beside(file!(), fn_name). Functions return String/f64 results so tests
+//! inspect the returned Value rather than stdout capture.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_beside};
+use wat::runtime::Value;
 
-fn run_str(call: &str) -> String {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(call).expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+fn run_str(fn_name: &str) -> String {
+    match call_beside(file!(), fn_name).expect("eval") {
         Value::String(s) => (*s).clone(),
         other => panic!("expected String; got {other:?}"),
     }
@@ -33,19 +28,19 @@ fn run_str(call: &str) -> String {
 
 #[test]
 fn vector_construct_via_encode() {
-    assert_eq!(run_str("(:vfc::construct-via-encode)"), "equal");
+    assert_eq!(run_str(":vfc::construct-via-encode"), "equal");
 }
 
 #[test]
 fn vector_distinct_atoms_distinct_vectors() {
-    assert_eq!(run_str("(:vfc::distinct-atoms)"), "diff");
+    assert_eq!(run_str(":vfc::distinct-atoms"), "diff");
 }
 
 // ─── Vector as struct field ─────────────────────────────────────────
 
 #[test]
 fn vector_as_struct_field_roundtrip() {
-    assert_eq!(run_str("(:vfc::struct-field-roundtrip)"), "yes");
+    assert_eq!(run_str(":vfc::struct-field-roundtrip"), "yes");
 }
 
 // ─── Polymorphic cosine — all four argument shapes ──────────────────
@@ -53,36 +48,36 @@ fn vector_as_struct_field_roundtrip() {
 #[test]
 fn polymorphic_cosine_ast_ast() {
     // Existing behavior preserved.
-    assert_eq!(run_str("(:vfc::cosine-ast-ast)"), "near-1");
+    assert_eq!(run_str(":vfc::cosine-ast-ast"), "near-1");
 }
 
 #[test]
 fn polymorphic_cosine_vector_vector() {
-    assert_eq!(run_str("(:vfc::cosine-vec-vec)"), "near-1");
+    assert_eq!(run_str(":vfc::cosine-vec-vec"), "near-1");
 }
 
 #[test]
 fn polymorphic_cosine_ast_vector_mixed() {
-    assert_eq!(run_str("(:vfc::cosine-ast-vec)"), "near-1");
+    assert_eq!(run_str(":vfc::cosine-ast-vec"), "near-1");
 }
 
 #[test]
 fn polymorphic_cosine_vector_ast_mixed() {
-    assert_eq!(run_str("(:vfc::cosine-vec-ast)"), "near-1");
+    assert_eq!(run_str(":vfc::cosine-vec-ast"), "near-1");
 }
 
 // ─── Polymorphic dot — Vector pair ──────────────────────────────────
 
 #[test]
 fn polymorphic_dot_vector_vector() {
-    assert_eq!(run_str("(:vfc::dot-vec-vec)"), "positive");
+    assert_eq!(run_str(":vfc::dot-vec-vec"), "positive");
 }
 
 // ─── Polymorphic simhash — AST and Vector inputs agree ──────────────
 
 #[test]
 fn polymorphic_simhash_ast_and_vector_agree() {
-    assert_eq!(run_str("(:vfc::simhash-agree)"), "same");
+    assert_eq!(run_str(":vfc::simhash-agree"), "same");
 }
 
 // ─── Type system: cosine accepts EDN-representable types (arc 294.a) ───────────
@@ -108,5 +103,5 @@ fn polymorphic_cosine_accepts_string() {
 #[test]
 fn vector_encode_deterministic_across_calls() {
     // Two encodes of an identical compound AST → equal Vectors.
-    assert_eq!(run_str("(:vfc::encode-deterministic)"), "deterministic");
+    assert_eq!(run_str(":vfc::encode-deterministic"), "deterministic");
 }

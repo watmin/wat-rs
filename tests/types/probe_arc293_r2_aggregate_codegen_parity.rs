@@ -10,23 +10,15 @@
 //! RED at HEAD: startup fails — `:r2::CR/v` / `:r2::HR/v` are unresolved. GREEN after 293.R2a — one
 //! `register_aggregate_methods` mints accessors for all three natures, generic-aware, bare key.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// Generic core-record + holon-record field accessors resolve, at parity with the generic struct;
 /// and a holon record is accepted where a core `:wat::core::Record` is wanted (policy c).
 #[test]
 fn aggregate_codegen_parity_generic_record_accessors() {
-    let world = startup_beside(file!())
-        .expect("293.R2: a generic record + holon-record must expose their field accessor (one aggregate toolkit)");
-
-    let got = eval_in_frozen(
-        &wat::parse_one!("(:r2::probe)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("(:r2::probe) must read :r2::CR/v + :r2::HR/v + :r2::ST/v")
-    .value_owned();
+    let got = call_beside(file!(), ":r2::probe")
+        .expect("(:r2::probe) must read :r2::CR/v + :r2::HR/v + :r2::ST/v");
 
     match got {
         Value::i64(n) => assert_eq!(

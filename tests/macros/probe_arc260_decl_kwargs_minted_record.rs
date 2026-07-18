@@ -13,16 +13,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc260_decl_kwargs_minted_record -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
+// just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 #[test]
 fn decl_kwargs_mints_record_and_destructures() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed once defn mints the kwargs record + destructures");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(444)),

@@ -27,25 +27,15 @@
 //!      (rename (signature-of-defn :fn) :fn :alias) returns Some with the
 //!      renamed name in the head.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn startup() -> wat::freeze::FrozenWorld {
-    startup_beside(file!()).expect("startup")
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup();
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
-}
-
-fn run_expr_expect_err(expr: &str) -> bool {
-    let world = startup();
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new()).is_err()
+fn run_expr_expect_err(name: &str) -> bool {
+    call_beside(file!(), name).is_err()
 }
 
 fn unwrap_string(v: Value, ctx: &str) -> String {
@@ -59,7 +49,7 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 
 #[test]
 fn rename_callable_name_happy_path_foldl_to_reduce() {
-    let line = unwrap_string(run_expr("(:t::test1-rename-foldl-to-reduce)"), "test1");
+    let line = unwrap_string(run_expr(":t::test1-rename-foldl-to-reduce"), "test1");
     assert_eq!(
         line,
         r#"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::list::reduce<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a1" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a2" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]"#,
@@ -69,7 +59,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
 
 #[test]
 fn rename_callable_name_no_type_params() {
-    let line = unwrap_string(run_expr("(:t::test2-rename-no-type-params)"), "test2");
+    let line = unwrap_string(run_expr(":t::test2-rename-no-type-params"), "test2");
     assert_eq!(
         line,
         r#"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::my-triple #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64]"#,
@@ -80,7 +70,7 @@ fn rename_callable_name_no_type_params() {
 #[test]
 fn rename_callable_name_error_from_mismatch() {
     assert!(
-        run_expr_expect_err("(:t::test3-rename-mismatch)"),
+        run_expr_expect_err(":t::test3-rename-mismatch"),
         "expected runtime error for from-name mismatch, got Ok"
     );
 }
@@ -91,7 +81,7 @@ fn rename_callable_name_error_from_mismatch() {
 fn extract_arg_names_foldl_returns_three_names() {
     // TYPE-reflection HolonAST eviction: extract-arg-names now returns
     // plain keywords, not HolonAST Symbol nodes.
-    let line = unwrap_string(run_expr("(:t::test4-extract-foldl-names)"), "test4");
+    let line = unwrap_string(run_expr(":t::test4-extract-foldl-names"), "test4");
     assert_eq!(
         line,
         r#"[:_a0 :_a1 :_a2]"#,
@@ -101,14 +91,14 @@ fn extract_arg_names_foldl_returns_three_names() {
 
 #[test]
 fn extract_arg_names_zero_args_returns_empty() {
-    let s = unwrap_string(run_expr("(:t::test5-extract-zero-args)"), "test5");
+    let s = unwrap_string(run_expr(":t::test5-extract-zero-args"), "test5");
     assert_eq!(s.trim(), "0", "expected edn::write of length 0 to be '0', got: {}", s);
 }
 
 #[test]
 fn extract_arg_names_stops_before_return_type() {
     // TYPE-reflection HolonAST eviction: names render as plain keywords.
-    let line = unwrap_string(run_expr("(:t::test6-extract-stops-before-return)"), "test6");
+    let line = unwrap_string(run_expr(":t::test6-extract-stops-before-return"), "test6");
     assert_eq!(
         line,
         r#"2 [:x :y]"#,
@@ -119,7 +109,7 @@ fn extract_arg_names_stops_before_return_type() {
 #[test]
 fn extract_arg_names_error_non_bundle() {
     assert!(
-        run_expr_expect_err("(:t::test7-extract-non-bundle-err)"),
+        run_expr_expect_err(":t::test7-extract-non-bundle-err"),
         "expected runtime error for non-Bundle input to extract-arg-names, got Ok"
     );
 }
@@ -129,7 +119,7 @@ fn extract_arg_names_error_non_bundle() {
 #[test]
 fn rename_then_extract_preserves_arg_names() {
     // TYPE-reflection HolonAST eviction: names render as plain keywords.
-    let line = unwrap_string(run_expr("(:t::test8-rename-then-extract)"), "test8");
+    let line = unwrap_string(run_expr(":t::test8-rename-then-extract"), "test8");
     assert_eq!(
         line,
         r#"2 [:x :y]"#,

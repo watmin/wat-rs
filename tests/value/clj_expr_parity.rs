@@ -13,6 +13,11 @@
 //! Directional obligation: a `clj:<edn> / wat:<edn>` row is a wat FLAW unless justified-exempt.
 //! Grow the corpus until it stops finding divergences (loop-until-dry).
 
+// rune:lint(no-inlined-wat) — the harness's whole job is evaluating an arbitrary `wat.core/…`
+// expression PER CORPUS ROW (`clj_expr_oracle/corpus.txt`, 300+ rows, growing) against a
+// clj-baked golden — the format!-wrapped expr and the `(:probe::e)` call stub are not a fixed
+// wat program that could live in one co-located `.wat`; a genuinely dynamic driver, same shape
+// as `probe_rational_C2_arithmetic.rs`'s exemption.
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use wat::edn_shim::value_to_edn;

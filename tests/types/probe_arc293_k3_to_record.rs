@@ -7,15 +7,12 @@
 //! GREEN after K3-revise: `to-record` + `holon::to-record` are bound; the PAIR is emitted;
 //! `to-struct` is GONE (unbound; dispatch arm removed from runtime.rs and check.rs).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::freeze::{eval_in_frozen, startup_beside, call_beside};
 use wat::runtime::{Environment, Value};
 
 #[test]
 fn pair_projection_emits_core_and_holon_records() {
-    let world = startup_beside(file!())
-        .expect("the pair of projection verbs must emit + populate :S$core-record / :S$holon-record");
-    let ast = wat::parse_one!("(:k3::demo)").expect("parse demo");
-    match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
+    match call_beside(file!(), ":k3::demo") {
         Ok(Value::i64(7)) => {}
         other => panic!("expected 7 (y=4 from $core-record + x=3 from $holon-record); got {other:?}"),
     }
@@ -27,9 +24,13 @@ fn to_struct_is_gone_at_runtime() {
     // A call to it must fail (UnknownFunction / unbound verb) — never silently succeed.
     let world = startup_beside(file!())
         .expect("startup must succeed (fixture does not use to-struct)");
-    // Build the call form dynamically so the fixture's type-checker never sees it.
-    let ast = wat::parse_one!("(:wat::core::to-struct (:k3::Pt 3 4) :k3::Planar)")
-        .expect("parse to-struct call");
+    // The call form lives in a co-located expression FRAGMENT (not the `.wat` fixture, and not an
+    // inlined Rust string) — read + parsed here at runtime, deliberately bypassing the type-checker,
+    // so this exercises the RUNTIME dispatch table specifically (see the fragment's own header comment).
+    let expr_path = "tests/types/probe_arc293_k3_to_record_to_struct_call.wat.expr";
+    let src = std::fs::read_to_string(expr_path)
+        .unwrap_or_else(|e| panic!("expr fragment {expr_path:?} must exist: {e}"));
+    let ast = wat::parse_one_with_file(&src, expr_path).expect("parse to-struct call fragment");
     let result = eval_in_frozen(&ast, &world, &Environment::new());
     assert!(
         result.is_err(),

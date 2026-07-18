@@ -4,6 +4,14 @@
 //! algebra-core forms, the pipeline (parse → lower → encode) produces
 //! a `holon::Vector`. No `define`, no `load!`, no macros, no types —
 //! just the substrate-through-source proof.
+//!
+// rune:lint(no-inlined-wat) — every literal in this file IS the subject under test, not a
+// driver for wat-under-test logic: `eval_algebra_source`'s own public signature takes raw
+// source TEXT (`src: &str`) and runs ONLY parse -> lower -> encode (no startup/freeze, no
+// `:user::main`, no co-located-fixture pipeline applies). The probes exercise many small,
+// deliberately-varied source snippets — including malformed ones for the parse/lower error
+// paths — so the inline strings ARE the parser/lower test data, exactly the "parser/reader
+// test" carve-out in docs/CONVENTIONS.md § Test idioms.
 
 use holon::{ScalarEncoder, VectorManager};
 use wat::eval_algebra_source;

@@ -7,17 +7,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_stone4b_ann_form`
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_beside, startup_from_file};
+use wat::runtime::Value;
 
 #[test]
 fn contract_01_ann_form_checks_and_evaluates() {
-    let world = startup_beside(file!()).expect("startup/check: ann-form fixture must load");
-    let ast = wat::parse_one!("(:user::compute-c01)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval: compute-c01 must not fail at runtime")
-        .value_owned()
-    {
+    // just-eval (rubric): `:user::compute-c01` lives in the co-located fixture.
+    match call_beside(file!(), ":user::compute-c01").expect("eval: compute-c01 must not fail at runtime") {
         Value::i64(n) => assert_eq!(
             n, 41,
             "(ann-form 41 :i64) must type-check and evaluate to 41 (type-erased identity)"

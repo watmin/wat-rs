@@ -18,8 +18,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1b_compile -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
 
 /// Children-count of the FIRST node line whose text contains `kind` — parses the `[...]` child list.
 fn children_count(rendered: &str, kind: &str) -> usize {
@@ -32,31 +31,16 @@ fn children_count(rendered: &str, kind: &str) -> usize {
     line[open + 1..close].split_whitespace().count()
 }
 
-fn render(prog: &str) -> String {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!(prog).expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("compile raised: {e:?}"))
-        .value_owned()
-    {
-        Value::String(s) => s.to_string(),
+fn render(entry: &str) -> String {
+    match call_beside(file!(), entry).unwrap_or_else(|e| panic!("compile raised: {e:?}")) {
+        wat::runtime::Value::String(s) => s.to_string(),
         other => panic!("render-dag must return a String; got {other:?}"),
     }
 }
 
 #[test]
 fn compile_shares_prefix_and_wires_the_chain() {
-    // Two rules; FIRST condition identical (c1), second divergent (c2a vs c2b).
-    let prog = "\
-(:wat::core::let \
-  [c1  (:wat::core::quote (:Temperature (= ?t :value))) \
-   c2a (:wat::core::quote (:Humidity    (= ?h :value))) \
-   c2b (:wat::core::quote (:Pressure    (= ?p :value))) \
-   rA  (:wat::rete::Rule :name \"rA\" :lhs (:wat::core::PersistentVector c1 c2a) :rhs (:wat::core::PersistentVector)) \
-   rB  (:wat::rete::Rule :name \"rB\" :lhs (:wat::core::PersistentVector c1 c2b) :rhs (:wat::core::PersistentVector)) \
-   sess (:wat::rete::compile (:wat::core::PersistentVector rA rB))] \
-  (:wat::rete::render-dag sess))";
-    let r = render(prog);
+    let r = render(":user::compile-shared-prefix");
 
     // (1) SHARING — shared first condition collapses to ONE alpha + ONE root-join.
     assert_eq!(r.matches("AlphaNode").count(), 3, "shared C1 → 3 alphas (c1, c2a, c2b), not 4. render:\n{r}");
@@ -74,14 +58,7 @@ fn compile_shares_prefix_and_wires_the_chain() {
 
 #[test]
 fn compile_single_rule_wires_a_connected_chain() {
-    // One single-condition rule → alpha → root-join → production, fully connected.
-    let prog = "\
-(:wat::core::let \
-  [c1 (:wat::core::quote (:Temperature (= ?t :value))) \
-   rC (:wat::rete::Rule :name \"rC\" :lhs (:wat::core::PersistentVector c1) :rhs (:wat::core::PersistentVector)) \
-   sess (:wat::rete::compile (:wat::core::PersistentVector rC))] \
-  (:wat::rete::render-dag sess))";
-    let r = render(prog);
+    let r = render(":user::compile-single-rule");
 
     assert_eq!(r.matches("AlphaNode").count(), 1, "one condition → one alpha. render:\n{r}");
     assert_eq!(r.matches("RootJoinNode").count(), 1, "first condition → one root-join. render:\n{r}");

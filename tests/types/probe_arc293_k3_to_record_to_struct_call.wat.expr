@@ -1,0 +1,14 @@
+;; tests/types/probe_arc293_k3_to_record_to_struct_call.wat.expr
+;;
+;; A raw expression fragment (NOT a `.wat` program — no `startup_from_file`/`startup_beside` ever
+;; loads this; note the `.expr` tail keeps it out of every `*.wat` glob) for
+;; `probe_arc293_k3_to_record.rs::to_struct_is_gone_at_runtime`.
+;;
+;; Deliberately kept OUT of the co-located `probe_arc293_k3_to_record.wat` fixture: putting a call to
+;; the deleted `:wat::core::to-struct` verb into that file would make its static type-check (run by
+;; `startup_beside` for EVERY test in this file) fail at STARTUP, before eval — which would prove only
+;; that the CHECKER doesn't know `to-struct` anymore, not that the RUNTIME DISPATCH arm (`runtime.rs`)
+;; is gone too (K3-revise deleted the dispatch arm from BOTH `runtime.rs` and `check.rs`). Reading this
+;; fragment at runtime and driving it straight through `eval_in_frozen` (bypassing the checker
+;; entirely) isolates the runtime-dispatch claim specifically.
+(:wat::core::to-struct (:k3::Pt 3 4) :k3::Planar)

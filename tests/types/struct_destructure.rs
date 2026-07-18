@@ -25,15 +25,14 @@
 //! 10. multi_form_body_with_destructure
 //! 11. hyphenated_field_names_work
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
 /// Asserts startup succeeds and `:user::compute` returns the given value.
 fn run(path: &str) -> Value {
     let world = startup_from_file(path).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute").value_owned()
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("compute")
 }
 
 /// Asserts startup fails and returns `format!("{}\n---\n{:?}", e, e)`.

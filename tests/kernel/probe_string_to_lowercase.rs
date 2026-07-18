@@ -8,16 +8,16 @@
 //!
 //! Run: cargo test --release -p wat --test probe_string_to_lowercase
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use std::sync::Arc;
+
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
 fn lower(input: &str) -> String {
     let world = startup_beside(file!()).expect("startup");
-    let call = format!("(:user::lower {input:?})");
-    let ast = wat::parse_one!(&call).expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("lower")
+    let func = world.symbols().get(":user::lower").expect(":user::lower").clone();
+    let arg = Value::String(Arc::new(input.to_string()));
+    match apply_function(func, vec![arg], world.symbols(), wat::rust_caller_span!()).expect("lower")
     {
         Value::String(s) => (*s).clone(),
         other => panic!("expected String, got {other:?}"),

@@ -10,57 +10,49 @@
 //! Run: cargo test --release -p wat --test probe_arc278_0b_persistent_vector -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
+// just-eval (rubric): each assertion's expr lives in a named zero-arg fn in the
+// co-located `.wat` fixture, driven via `call_beside`. PersistentVector's per-type
+// ops carry no registered TypeScheme (runtime-dispatched intrinsics, same class as
+// `metadata-of`) — each defn annotates the documented/observed return shape.
 #[test]
 fn persistent_vector_core_behavior() {
-    let world = startup_bare().expect("startup");
-
-    let ev = |expr: &str| -> Value {
-        let ast = wat::parse_one!(expr).expect("parse");
-        eval_in_frozen(&ast, &world, &Environment::new())
-            .unwrap_or_else(|e| panic!("eval `{expr}` raised: {e:?}"))
-            .value_owned()
-    };
-
     // 1. ctor + length
     assert_eq!(
-        ev("(:wat::core::PersistentVector/length (:wat::core::PersistentVector 10 20 30))"),
+        call_beside(file!(), ":t::p1-ctor-length").expect("eval"),
         Value::i64(3),
         "PersistentVector ctor + length"
     );
 
     // 2. get by index
     assert_eq!(
-        ev("(:wat::core::PersistentVector/get (:wat::core::PersistentVector 10 20 30) 1)"),
+        call_beside(file!(), ":t::p2-get-by-index").expect("eval"),
         Value::Option(Arc::new(Some(Value::i64(20)))),
         "get by index"
     );
 
     // 3. IMMUTABILITY / structural sharing — conj returns a NEW vector; the original is unchanged.
     assert_eq!(
-        ev("(:wat::core::let [pv  (:wat::core::PersistentVector 1 2) \
-                              _pv2 (:wat::core::PersistentVector/conj pv 3)] \
-              (:wat::core::PersistentVector/length pv))"),
+        call_beside(file!(), ":t::p3-conj-immutable-original").expect("eval"),
         Value::i64(2),
         "conj must NOT mutate the original (structural sharing)"
     );
     assert_eq!(
-        ev("(:wat::core::PersistentVector/length \
-              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector 1 2) 3))"),
+        call_beside(file!(), ":t::p4-conj-extended").expect("eval"),
         Value::i64(3),
         "conj returns the extended vector"
     );
 
     // 4. LAYER-1 polymorphism — the GENERIC ops dispatch on PersistentVector.
     assert_eq!(
-        ev("(:wat::core::get (:wat::core::PersistentVector 10 20 30) 2)"),
+        call_beside(file!(), ":t::p5-generic-get").expect("eval"),
         Value::Option(Arc::new(Some(Value::i64(30)))),
         "generic get on a PersistentVector"
     );
     assert_eq!(
-        ev("(:wat::core::PersistentVector/length (:wat::core::conj (:wat::core::PersistentVector 1) 2))"),
+        call_beside(file!(), ":t::p6-generic-conj").expect("eval"),
         Value::i64(2),
         "generic conj on a PersistentVector"
     );

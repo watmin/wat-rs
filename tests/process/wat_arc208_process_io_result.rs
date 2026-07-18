@@ -26,15 +26,16 @@
 //! appear in forbidden positions.
 //!
 //! Architecture mirrors `tests/wat_arc170_stone_a_drain_and_join.rs`
-//! and `tests/wat_process_peer_ipc_round_trip.rs`. Child programs are
-//! inlined as string constants; `build_spawn_process_call` is local.
+//! and `tests/wat_process_peer_ipc_round_trip.rs`. T2-T5's child programs +
+//! spawn-process mechanics live in the co-located
+//! `wat_arc208_process_io_result.wat` fixture (arc 278 no_inlined_wat
+//! migration); each is driven via `call_beside`.
 
 use std::sync::Arc;
 
-use wat::ast::WatAST;
 use wat::check::CheckEnv;
-use wat::freeze::{eval_in_frozen, startup_bare, startup_from_file};
-use wat::runtime::{eval, Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 // ─── helpers ───────────────────────────────────────────────────────────
 
@@ -44,39 +45,6 @@ fn freeze_err(fixture_rel: &str) -> String {
         Err(e) => format!("{}", e),
     }
 }
-
-/// Wrap a child-program source string as a
-/// `(:wat::kernel::spawn-process (:wat::core::forms <forms>...))` call AST.
-fn build_spawn_process_call(child_program_src: &str) -> WatAST {
-    let child_forms =
-        wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
-            .expect("child program parse");
-    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
-    forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
-    WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
-            forms_call,
-        ],
-        wat::rust_caller_span!(),
-    )
-}
-
-/// Echo server: reads one String line from stdin, writes it back to stdout.
-const ECHO_SERVER: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil
-      (:wat::core::let
-              [line (:wat::kernel::readln -> :wat::core::String)]
-              (:wat::kernel::println line)))
-"#;
-
-/// Minimal server that exits immediately (nothing on stdout).
-const IMMEDIATE_EXIT_SERVER: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
-
-/// Parent world needs no user defns — startup_bare() provides the substrate stdlib.
 
 /// Unwrap `Value::Result(Ok(inner))` and return `inner`. Panics otherwise.
 fn unwrap_ok(v: Value, label: &str) -> Value {
@@ -138,36 +106,18 @@ fn arc208_t1_process_readln_println_registered_as_result_returning() {
 
 #[test]
 fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
-    // Spawn an echo server; build a ProcessPeer; send "arc208-ok" via
-    // Process/println; read the echo back via Process/readln; verify
-    // both return Ok-wrapped values.
-    let world = startup_bare().expect("freeze should succeed");
-    let spawn_call = build_spawn_process_call(ECHO_SERVER);
-    let env = Environment::new();
-    let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
+    // Fixture spawns an echo server, sends "arc208-ok" via Process/println
+    // (pass 1), then reads the echo back via Process/readln + drains (pass
+    // 2), against the SAME live peer — returns both raw Results as a Tuple.
+    let got = call_beside(file!(), ":user::t2-println-then-readln")
+        .expect("t2-println-then-readln should not raise");
+    let (pass1, pass2) = match got {
+        Value::Tuple(items) => (items[0].clone(), items[1].clone()),
+        other => panic!("expected Tuple(pass1, pass2); got {:?}", other),
+    };
 
-    let env2 = Environment::new().child().bind("server", wat::rust_caller_span!(), server.into()).build();
-
-    // Build the peer bindings shared by both passes.
     // Pass 1 (println): verify Process/println returns Result::Ok(nil).
-    // The echo server reads one line and writes it back; we send here.
-    let println_ast = wat::parse_one!(
-        r#"
-        (:wat::core::let
-          [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
-           tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer :rx rx :tx tx)]
-          (:wat::core::match (:wat::kernel::Process/println peer "arc208-ok")
-            -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
-            ((:wat::core::Ok _)  (:wat::core::Ok ()))
-            ((:wat::core::Err e) (:wat::core::Err e))))
-        "#
-    )
-    .expect("println-AST parses");
-
-    let sent_result = eval_in_frozen(&println_ast, &world, &env2)
-        .expect("Process/println eval should succeed").value_owned();
-    let sent_inner = unwrap_ok(sent_result, "Process/println Ok");
+    let sent_inner = unwrap_ok(pass1, "Process/println Ok");
     assert!(
         matches!(sent_inner, Value::Unit),
         "Process/println Ok should carry nil (unit); got {:?}",
@@ -176,25 +126,7 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
 
     // Pass 2 (readln + drain): the server echoes what we sent in pass 1.
     // Verify Process/readln returns Result::Ok(String).
-    let readln_drain_ast = wat::parse_one!(
-        r#"
-        (:wat::core::let
-          [rx    (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
-           tx    (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer  (:wat::kernel::ProcessPeer :rx rx :tx tx)
-           reply (:wat::core::match (:wat::kernel::Process/readln peer)
-                   -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
-                   ((:wat::core::Ok v)  (:wat::core::Ok v))
-                   ((:wat::core::Err e) (:wat::core::Err e)))
-           _done (:wat::kernel::Process/drain-and-join server)]
-          reply)
-        "#
-    )
-    .expect("readln+drain AST parses");
-
-    let reply_result = eval_in_frozen(&readln_drain_ast, &world, &env2)
-        .expect("Process/readln+drain eval should succeed").value_owned();
-    let reply_inner = unwrap_ok(reply_result, "Process/readln Ok");
+    let reply_inner = unwrap_ok(pass2, "Process/readln Ok");
     match reply_inner {
         Value::String(s) => assert_eq!(
             s.as_str(),
@@ -212,47 +144,13 @@ fn arc208_t2_process_println_and_readln_return_ok_on_live_peer() {
 
 #[test]
 fn arc208_t3_process_println_returns_err_on_dead_peer() {
-    // Spawn a server that exits immediately (no stdout reads). After
-    // it exits its stdin pipe is closed. Writing via Process/println
-    // to the dead peer should return Err(chain), NOT panic as
+    // Fixture spawns a first server + drains it (vestigial, unused — kept to
+    // match the original construction exactly), then a second server it also
+    // drains before attempting Process/println on the now-dead peer. Writing
+    // to a dead peer should return Err(chain), NOT panic as
     // RuntimeError::ChannelDisconnected.
-    let world = startup_bare().expect("freeze should succeed");
-    let spawn_call = build_spawn_process_call(IMMEDIATE_EXIT_SERVER);
-    let env = Environment::new();
-    let server = eval(&spawn_call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
-
-    // Drain and join first so the subprocess is definitely dead.
-    let env2 = Environment::new().child().bind("server", wat::rust_caller_span!(), server.into()).build();
-    let djoin_ast = wat::parse_one!("(:wat::kernel::Process/drain-and-join server)")
-        .expect("drain-and-join AST parses");
-    let _djoin = eval_in_frozen(&djoin_ast, &world, &env2)
-        .expect("Process/drain-and-join should succeed").value_owned();
-
-    // Now re-spawn a fresh server that exits immediately and attempt
-    // to write to it after a drain (guarantees dead peer).
-    let server2 = eval(&build_spawn_process_call(IMMEDIATE_EXIT_SERVER), &Environment::new(), world.symbols())
-    .expect("second spawn-process succeeds").value_owned();
-
-    let env3 = Environment::new().child().bind("server2", wat::rust_caller_span!(), server2.into()).build();
-
-    // Build peer, drain server, THEN try Process/println on the dead peer.
-    let println_dead_ast = wat::parse_one!(
-        r#"
-        (:wat::core::let
-          [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server2))
-           tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server2))
-           peer (:wat::kernel::ProcessPeer :rx rx :tx tx)
-           _    (:wat::kernel::Process/drain-and-join server2)]
-          (:wat::core::match (:wat::kernel::Process/println peer "should-fail")
-            -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
-            ((:wat::core::Ok _)  (:wat::core::Ok ()))
-            ((:wat::core::Err e) (:wat::core::Err e))))
-        "#
-    )
-    .expect("println-dead AST parses");
-
-    let outcome = eval_in_frozen(&println_dead_ast, &world, &env3)
-        .expect("Process/println on dead peer should return Result, not panic").value_owned();
+    let outcome = call_beside(file!(), ":user::t3-println-dead-peer")
+        .expect("Process/println on dead peer should return Result, not panic");
 
     let chain = unwrap_err_chain(outcome, "Process/println dead peer");
     match chain {
@@ -273,32 +171,8 @@ fn arc208_t3_process_println_returns_err_on_dead_peer() {
 fn arc208_t4_process_readln_returns_err_on_dead_peer() {
     // Mirror of T3 for Process/readln: read from a peer whose subprocess
     // has exited and produces EOF on its stdout pipe.
-    let world = startup_bare().expect("freeze should succeed");
-
-    // Spawn a server that exits without printing anything.
-    let server = eval(&build_spawn_process_call(IMMEDIATE_EXIT_SERVER), &Environment::new(), world.symbols())
-    .expect("spawn-process succeeds").value_owned();
-
-    let env = Environment::new().child().bind("server", wat::rust_caller_span!(), server.into()).build();
-
-    // Build peer, drain server, THEN try Process/readln on the dead peer.
-    let readln_dead_ast = wat::parse_one!(
-        r#"
-        (:wat::core::let
-          [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
-           tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer :rx rx :tx tx)
-           _    (:wat::kernel::Process/drain-and-join server)]
-          (:wat::core::match (:wat::kernel::Process/readln peer)
-            -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
-            ((:wat::core::Ok v)  (:wat::core::Ok v))
-            ((:wat::core::Err e) (:wat::core::Err e))))
-        "#
-    )
-    .expect("readln-dead AST parses");
-
-    let outcome = eval_in_frozen(&readln_dead_ast, &world, &env)
-        .expect("Process/readln on dead peer should return Result, not panic").value_owned();
+    let outcome = call_beside(file!(), ":user::t4-readln-dead-peer")
+        .expect("Process/readln on dead peer should return Result, not panic");
 
     let chain = unwrap_err_chain(outcome, "Process/readln dead peer");
     match chain {
@@ -319,32 +193,10 @@ fn arc208_t4_process_readln_returns_err_on_dead_peer() {
 fn arc208_t5_err_chain_head_is_channel_disconnected() {
     // Both Process/readln and Process/println should produce
     // ProcessDiedError::ChannelDisconnected as the chain head on a dead peer.
-    // Verify the variant name matches the substrate-vended enum.
-    let world = startup_bare().expect("freeze should succeed");
-
-    let server = eval(&build_spawn_process_call(IMMEDIATE_EXIT_SERVER), &Environment::new(), world.symbols())
-    .expect("spawn-process succeeds").value_owned();
-
-    let env = Environment::new().child().bind("server", wat::rust_caller_span!(), server.into()).build();
-
-    // Process/readln on dead peer — check chain head variant.
-    let readln_chain_ast = wat::parse_one!(
-        r#"
-        (:wat::core::let
-          [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
-           tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer :rx rx :tx tx)
-           _    (:wat::kernel::Process/drain-and-join server)]
-          (:wat::core::match (:wat::kernel::Process/readln peer)
-            -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
-            ((:wat::core::Ok v)  (:wat::core::Ok v))
-            ((:wat::core::Err e) (:wat::core::Err e))))
-        "#
-    )
-    .expect("readln chain AST parses");
-
-    let outcome = eval_in_frozen(&readln_chain_ast, &world, &env)
-        .expect("Process/readln dead peer returns Result").value_owned();
+    // Verify the variant name matches the substrate-vended enum. Reuses the
+    // T4 fixture entry — the original T4/T5 Rust-built ASTs were byte-identical.
+    let outcome = call_beside(file!(), ":user::t4-readln-dead-peer")
+        .expect("Process/readln dead peer returns Result");
 
     let chain = unwrap_err_chain(outcome, "T5 readln chain");
     // Chain is Vec<ProcessDiedError>; extract head.

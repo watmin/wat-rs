@@ -5,3 +5,5 @@
     (:wat::core::first (:wat::core::ast->children
       (:wat::core::read-string (:wat::core::string::concat "\"" (:wat::core::string::concat full "\"")))))))
 (:wat::core::defn :user::probe [] -> :wat::core::String (:user::mk hello))
+(:wat::core::defn :user::runtime-interp [] -> :wat::core::String
+  (:wat::core::string::interpolate "{a}::{b} {{lit}}" :a "x" :b 5))

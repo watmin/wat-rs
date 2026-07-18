@@ -1,0 +1,1 @@
+(wat.type/Tuple wat.type/i64 wat.type/String)

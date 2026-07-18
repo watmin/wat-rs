@@ -49,24 +49,31 @@ fn assert_class(got: Value, expected_fqdn: &str, via: &str) {
     }
 }
 
+// The four env-fn source strings under test live in co-located .wat fixtures (no inline wat in
+// this .rs) — resolve_env_program's own contract is "a source string -> user.program record", so
+// the fixture content IS the raw source text it parses, loaded via include_str! rather than typed
+// as a Rust string literal.
+
 #[test]
 fn resolves_named_call_to_subtype_record() {
     // A bespoke :wat::core::Record SUBTYPE (app::Env) flows through — proving the gate is a variant
     // match, not an exact `== :wat::core::Record`.
-    let got = resolve_env_program(&world(), "(:app::make-env)").expect("resolve named call");
+    let src = include_str!("probe_arc209_c0b3be_process_env_fn_named_call.wat");
+    let got = resolve_env_program(&world(), src.trim()).expect("resolve named call");
     assert_class(got, "app::Env", "named call");
 }
 
 #[test]
 fn resolves_bare_fn_by_applying_it() {
-    let got = resolve_env_program(&world(), "(:wat::core::fn [] -> :wat::core::Record (:app::Env :token 7))")
-        .expect("resolve bare fn");
+    let src = include_str!("probe_arc209_c0b3be_process_env_fn_bare_fn.wat");
+    let got = resolve_env_program(&world(), src.trim()).expect("resolve bare fn");
     assert_class(got, "app::Env", "bare fn (applied)");
 }
 
 #[test]
 fn default_empty_env_resolves() {
-    let got = resolve_env_program(&world(), "(:wat::program::EmptyEnv)").expect("resolve default");
+    let src = include_str!("probe_arc209_c0b3be_process_env_fn_default.wat");
+    let got = resolve_env_program(&world(), src.trim()).expect("resolve default");
     assert_class(got, "wat::program::EmptyEnv", "EmptyEnv default");
 }
 
@@ -74,7 +81,8 @@ fn default_empty_env_resolves() {
 fn non_record_non_fn_is_an_error() {
     // An env-fn that produces a non-record (here an i64) is rejected — user.program MUST be a
     // :wat::core::Record.
-    let outcome = resolve_env_program(&world(), "(:wat::core::+ 1 2)");
+    let src = include_str!("probe_arc209_c0b3be_process_env_fn_non_record.wat");
+    let outcome = resolve_env_program(&world(), src.trim());
     assert!(
         outcome.is_err(),
         "expected an error: env-fn must produce a :wat::core::Record, not an i64; got {outcome:?}"

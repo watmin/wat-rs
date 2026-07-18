@@ -11,30 +11,22 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_stone3_fix_source`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
+// just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed Value.
 fn eval_bool(fn_name: &str) -> Result<bool, String> {
-    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
-    let call = format!("(:user::{})", fn_name);
-    let ast = wat::parse_one!(&call).expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
+    let full = format!(":user::{}", fn_name);
+    match call_beside(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
         Value::bool(b) => Ok(b),
         other => Err(format!("non-bool: {other:?}")),
     }
 }
 
 fn eval_string(fn_name: &str) -> Result<String, String> {
-    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
-    let call = format!("(:user::{})", fn_name);
-    let ast = wat::parse_one!(&call).expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
+    let full = format!(":user::{}", fn_name);
+    match call_beside(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string: {other:?}")),
     }
@@ -86,7 +78,7 @@ fn contract_05_fix_source_recurses() {
     let out = eval_string("c05").expect("c05: fix-source + write-forms of nested if");
     assert_eq!(
         out,
-        "(:wat.core/do (:wat.core/if true 1 2))",
+        include_str!("probe_arc258_stone3_fix_source__contract-05-nested-do-if.wat"),
         "fix-source must recurse into (do …) and strip the inner if's annotation"
     );
 }
@@ -96,7 +88,7 @@ fn contract_06_fix_source_preserves_option_expect() {
     let out = eval_string("c06").expect("c06: fix-source + write-forms of Option/expect");
     assert_eq!(
         out,
-        r#"(:wat.core/do (:wat.core/Option/expect -> :wat.core/i64 x "m"))"#,
+        include_str!("probe_arc258_stone3_fix_source__contract-06-preserves-option-expect.wat"),
         "fix-source must preserve Option/expect's -> :T annotation through the walk"
     );
 }
@@ -106,7 +98,7 @@ fn contract_07_end_to_end_clean_source() {
     let out = eval_string("c07-str").expect("c07-str: fix-source + write-forms of annotated if");
     assert_eq!(
         out,
-        "(:wat.core/if true 1 2)",
+        include_str!("probe_arc258_stone3_fix_source__contract-07-end-to-end-clean.wat"),
         "fix-source + write-forms: cleaned if must carry no -> and preserve head :wat::core::if"
     );
     assert_eq!(
@@ -119,10 +111,7 @@ fn contract_07_end_to_end_clean_source() {
 #[test]
 fn contract_08_maturity_quasiquote_in_defn() {
     // FLAGGED maturity probe: can a PLAIN defn (not a macro) quasiquote a form?
-    let world = startup_beside(file!()).expect("startup: fixture must load for C08");
-    let ast = wat::parse_one!("(:user::compute-c08)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned());
+    let result = call_beside(file!(), ":user::compute-c08");
     match result {
         Ok(Value::bool(true)) => { /* quasiquote-in-defn WORKS — no gap */ }
         other => panic!(

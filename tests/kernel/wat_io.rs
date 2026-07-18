@@ -13,16 +13,11 @@
 //!   here because that requires spawning sub-threads via :wat::kernel::spawn
 //!   which is slice-3 territory.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let call = format!("({fn_name})");
-    let ast = wat::parse_one!(&call).expect("parse compute call");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+    call_beside(file!(), fn_name).expect("eval should succeed")
 }
 
 fn unwrap_some_string(v: Value) -> String {

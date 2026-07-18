@@ -26,15 +26,20 @@
 //! Negative fixtures: probe_arc237_8b_gate2_cross.wat.bad, probe_arc237_8b_regression_cross_plus.wat.bad,
 //!   probe_arc237_8b_regression_cross_lt.wat.bad, probe_arc237_8b_zero_ary_minus.wat.bad.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(fn_name: &str) -> Value {
     let world = startup_beside(file!()).expect("startup for 8b defclause-arithmetic fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

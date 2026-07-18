@@ -21,19 +21,33 @@
 //! their binding site.
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value, ValueSnapshot};
+use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::runtime::{Environment, FunctionBody, Value, ValueSnapshot};
 use wat::value::{Provenance, TrackedValue};
+
+// just-eval (rubric), the TrackedValue-preserving shape: `apply_function` collapses a fn call
+// back to a bare `Value` (it's the fn-apply boundary, not the eval boundary), so it can't stand
+// in for probes 3/4 here — the subject IS the raw eval-boundary TrackedValue/Provenance. Instead:
+// fetch the fixture fn's OWN body AST and `eval_in_frozen` it directly, exactly as if that
+// expression had been the top-level form — real span, no inline wat string.
+fn eval_beside(world: &wat::freeze::FrozenWorld, fn_name: &str) -> TrackedValue {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"));
+    let ast = match &func.body {
+        FunctionBody::Wat(ast) => ast.clone(),
+        FunctionBody::Native => panic!("{fn_name:?} is native, not wat"),
+    };
+    eval_in_frozen(&ast, world, &Environment::new()).expect("eval")
+}
 
 // ─── Probe 1 — Literal{span} on i64 literal ─────────────────────────────────
 
 #[test]
 fn probe_1_int_literal_carries_literal_provenance() {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!("42").expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");
+    let world = startup_beside(file!()).expect("startup");
+    let tv: TrackedValue = eval_beside(&world, ":user::int-literal");
 
     assert!(
         matches!(tv.value(), Value::i64(42)),
@@ -53,11 +67,8 @@ fn probe_1_int_literal_carries_literal_provenance() {
 
 #[test]
 fn probe_2_string_literal_carries_literal_provenance() {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!("\"hello\"").expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");
+    let world = startup_beside(file!()).expect("startup");
+    let tv: TrackedValue = eval_beside(&world, ":user::string-literal");
 
     assert!(
         matches!(tv.value(), Value::String(_)),
@@ -77,15 +88,12 @@ fn probe_2_string_literal_carries_literal_provenance() {
 
 #[test]
 fn probe_3_let_bound_symbol_lookup_yields_symbol_bound_provenance() {
-    let world = startup_bare().expect("startup");
+    let world = startup_beside(file!()).expect("startup");
 
     // `(let [x 42] x)` — bind x to 42; reference x in body.
     // The result's provenance should be SymbolBound (from the lookup),
     // NOT Literal{span of 42} (which was the RHS provenance).
-    let ast = wat::parse_one!("(:wat::core::let [x 42] x)").expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");
+    let tv: TrackedValue = eval_beside(&world, ":user::let-bound-lookup");
 
     assert!(
         matches!(tv.value(), Value::i64(42)),
@@ -123,16 +131,12 @@ fn probe_3_let_bound_symbol_lookup_yields_symbol_bound_provenance() {
 
 #[test]
 fn probe_4_destructure_slot_lookup_yields_symbol_bound_provenance() {
-    let world = startup_bare().expect("startup");
+    let world = startup_beside(file!()).expect("startup");
 
     // Destructure: `(let [[a b] (tuple 1 2)] a)`. Slot `a` is bound at
     // its position in the LHS pattern. Lookup yields SymbolBound with
     // binding_span pointing at `a` in the pattern.
-    let ast = wat::parse_one!("(:wat::core::let [[a b] (:wat::core::Tuple 1 2)] a)")
-        .expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");
+    let tv: TrackedValue = eval_beside(&world, ":user::destructure-lookup");
 
     assert!(
         matches!(tv.value(), Value::i64(1)),

@@ -23,8 +23,6 @@
 //! typed foreign-accessor adapter (`defprotocol` annihilated, its live spawn/service users migrated).
 //! `#[ignore]`'d STRIKE-READY; un-ignore when the demo runs.
 
-use wat::freeze::startup_beside;
-
 /// The full acceptance program. Uses the FINAL names: `defsurface` (not the historical `definterface`),
 /// `defrecord`/`holon::defrecord` (landed 293.2-rename), `extend-type` (the demoted foreign adapter).
 #[test]
@@ -32,19 +30,10 @@ fn shape_demo_fields_and_methods_and_the_monkeypatch() {
     // GREEN at 293.4d: field + method surface members dispatch + extend-type foreign adapter.
     // GREEN TARGET: the program type-checks and (:geo::demo) yields
     //   "red circle(r=2.0) area=12.56636  |  blue square(s=3.0) area=9.0  |  grey vector[3] area=3.0"
-    use wat::freeze::eval_in_frozen;
-    use wat::runtime::{Environment, Value};
+    use wat::freeze::call_beside;
+    use wat::runtime::Value;
 
-    let world = startup_beside(file!())
-        .expect("the acceptance demo (Shape/Circle/Square + core-Vector monkeypatch) must type-check");
-
-    let got = eval_in_frozen(
-        &wat::parse_one!("(:geo::demo)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("(:geo::demo) must evaluate")
-    .value_owned();
+    let got = call_beside(file!(), ":geo::demo").expect("(:geo::demo) must evaluate");
 
     match got {
         Value::String(s) => assert_eq!(

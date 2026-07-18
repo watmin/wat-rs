@@ -14,14 +14,19 @@
 //! Wat source lives in the co-located fixture: probe_arc238_eq_completeness.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
-fn run_bool(world: &wat::freeze::FrozenWorld, expr: &str) -> bool {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg `-> :wat::core::bool` probe;
+// fetch it from the frozen world and `apply_function` it — no inline wat driver.
+fn run_bool(world: &wat::freeze::FrozenWorld, fn_name: &str) -> bool {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
     {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
@@ -33,13 +38,13 @@ fn run_bool(world: &wat::freeze::FrozenWorld, expr: &str) -> bool {
 #[test]
 fn record_equal() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(run_bool(&world, "(:t::record-equal)"));
+    assert!(run_bool(&world, ":t::record-equal"));
 }
 
 #[test]
 fn record_unequal_value() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(!run_bool(&world, "(:t::record-unequal-value)"));
+    assert!(!run_bool(&world, ":t::record-unequal-value"));
 }
 
 // ─── HashMap (order-independent structural) ───────────────────────────────────
@@ -47,19 +52,19 @@ fn record_unequal_value() {
 #[test]
 fn map_equal() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(run_bool(&world, "(:t::map-equal)"));
+    assert!(run_bool(&world, ":t::map-equal"));
 }
 
 #[test]
 fn map_order_independent() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(run_bool(&world, "(:t::map-order-independent)"));
+    assert!(run_bool(&world, ":t::map-order-independent"));
 }
 
 #[test]
 fn map_unequal() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(!run_bool(&world, "(:t::map-unequal)"));
+    assert!(!run_bool(&world, ":t::map-unequal"));
 }
 
 // ─── HashSet (order-independent structural) ───────────────────────────────────
@@ -67,17 +72,17 @@ fn map_unequal() {
 #[test]
 fn set_equal() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(run_bool(&world, "(:t::set-equal)"));
+    assert!(run_bool(&world, ":t::set-equal"));
 }
 
 #[test]
 fn set_order_independent() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(run_bool(&world, "(:t::set-order-independent)"));
+    assert!(run_bool(&world, ":t::set-order-independent"));
 }
 
 #[test]
 fn set_unequal() {
     let world = startup_beside(file!()).expect("startup");
-    assert!(!run_bool(&world, "(:t::set-unequal)"));
+    assert!(!run_bool(&world, ":t::set-unequal"));
 }

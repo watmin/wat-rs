@@ -1,0 +1,1 @@
+(:wat::core::if cond -> :T then else)

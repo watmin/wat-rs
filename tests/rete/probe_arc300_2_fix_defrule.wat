@@ -104,3 +104,118 @@
   :then
   (:wat::rete::insert (:fix::TypeConv :offset ?offset :len ?len :name ?name)))
 
+;; ── per-scenario named entries — one asserted Node, fired, queried ────────────────
+;; Each test's node literal and query tail are fixed and enumerable — no runtime parameterization.
+
+;; head-keyword→conv: a head keyword, not post-arrow, not type-shaped.
+(:wat::core::defn :user::head-keyword-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::defrecord" :offset 1 :len 21 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::HeadConv"))))
+
+(:wat::core::defn :user::head-keyword-name [] -> :wat::core::String
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::defrecord" :offset 1 :len 21 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:fix::HeadConv/name (:wat::core::first (:wat::rete::query-by-type-string fired "fix::HeadConv")))))
+
+(:wat::core::defn :user::head-keyword-offset [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::defrecord" :offset 1 :len 21 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:fix::HeadConv/offset (:wat::core::first (:wat::rete::query-by-type-string fired "fix::HeadConv")))))
+
+;; post-arrow=true → excluded from head-keyword→conv (the ¬post-arrow guard).
+(:wat::core::defn :user::post-arrow-keyword-headconv-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::String" :offset 10 :len 18 :post-arrow true))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::HeadConv"))))
+
+;; arrow→conv: "<-".
+(:wat::core::defn :user::left-arrow-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "symbol" :name "<-" :offset 0 :len 2 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::ArrowConv"))))
+
+(:wat::core::defn :user::left-arrow-offset [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "symbol" :name "<-" :offset 0 :len 2 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:fix::ArrowConv/offset (:wat::core::first (:wat::rete::query-by-type-string fired "fix::ArrowConv")))))
+
+;; arrow→conv: "->" also deduces an ArrowConv.
+(:wat::core::defn :user::right-arrow-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "symbol" :name "->" :offset 5 :len 2 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::ArrowConv"))))
+
+;; a non-arrow symbol deduces nothing (neither ArrowConv nor HeadConv).
+(:wat::core::defn :user::non-arrow-arrows-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "symbol" :name "path" :offset 10 :len 4 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::ArrowConv"))))
+
+(:wat::core::defn :user::non-arrow-heads-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "symbol" :name "path" :offset 10 :len 4 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::HeadConv"))))
+
+;; type-keyword→conv: post-arrow keyword (not type-shaped, but post-arrow) → TypeConv.
+(:wat::core::defn :user::post-arrow-typeconv-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::String" :offset 10 :len 18 :post-arrow true))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::TypeConv"))))
+
+(:wat::core::defn :user::post-arrow-typeconv-name [] -> :wat::core::String
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::String" :offset 10 :len 18 :post-arrow true))
+     fired   (:wat::rete::fire-rules session)]
+    (:fix::TypeConv/name (:wat::core::first (:wat::rete::query-by-type-string fired "fix::TypeConv")))))
+
+;; a structurally-type-shaped keyword (Vector<...>) is a TypeConv even at head position, and is
+;; EXCLUDED from HeadConv (the ¬type-shaped guard) — no double edit.
+(:wat::core::defn :user::type-shaped-typeconv-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::Vector<wat::core::i64>" :offset 0 :len 30 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::TypeConv"))))
+
+(:wat::core::defn :user::type-shaped-headconv-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :fix)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:fix::Node :kind "keyword" :name ":wat::core::Vector<wat::core::i64>" :offset 0 :len 30 :post-arrow false))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query-by-type-string fired "fix::HeadConv"))))
+

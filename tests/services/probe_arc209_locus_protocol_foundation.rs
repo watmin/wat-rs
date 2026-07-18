@@ -20,17 +20,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_locus_protocol_foundation
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn locus_protocol_foundation_listener_and_launch_route_through_abstract_locus() {
     // Wat source lives in the co-located fixture: probe_arc209_locus_protocol_foundation.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (Locus protocol + ThreadOpts launch + listener' accepts :Locus)");
-    let ast = wat::parse_one!("(:user::go)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::go")
         .unwrap_or_else(|e| panic!("go raised: {e:?}"));
     assert!(
         matches!(got, Value::bool(true)),

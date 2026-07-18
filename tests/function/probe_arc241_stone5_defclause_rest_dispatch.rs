@@ -36,15 +36,20 @@
 //! Negative fixtures: probe_arc241_stone5_c05.wat.bad, probe_arc241_stone5_c06.wat.bad,
 //!   probe_arc241_stone5_c07.wat.bad.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(fn_name: &str) -> Value {
     let world = startup_beside(file!()).expect("startup for stone5 rest-dispatch fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
 }
 
 // ─── Contracts 1–4: rest-binder dispatch success paths ───────────────────────
@@ -98,8 +103,8 @@ fn contract_05_rest_element_type_mismatch_errors() {
     // Type mismatch is caught at eval time (rest element types are checked at dispatch).
     let world = startup_from_file("tests/function/probe_arc241_stone5_c05.wat.bad")
         .expect("startup should succeed (rest element type mismatch caught at dispatch, not check)");
-    let ast = wat::parse_one!("(:user::bad)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let func = world.symbols().get(":user::bad").expect(":user::bad").clone();
+    let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
     assert!(result.is_err(), "rest element type mismatch must error at eval/dispatch; got Ok");
 }
 

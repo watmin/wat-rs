@@ -8,16 +8,13 @@
 //! (`:nature X [members]`); the `:features` keyword makes the form arity 3 / 5 → `MalformedDecl`
 //! ("got N args after head") → the world fails to start. GREEN once `:features` introduces the members.
 
-use wat::freeze::startup_beside;
-use wat::runtime::{Environment, Value};
-use wat::freeze::eval_in_frozen;
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// A surface declared with `:features` parses; a record satisfies it; the accessor dispatches.
 #[test]
 fn features_clause_introduces_surface_members() {
-    let world = startup_beside(file!()).expect("startup: a `:features` surface must parse");
-    let ast = wat::parse_one!("(:geo::demo)").expect("parse demo");
-    match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
+    match call_beside(file!(), ":geo::demo") {
         Ok(Value::String(s)) if &*s == "red" => {}
         other => panic!("expected \"red\" via the :features surface accessor; got {:?}", other),
     }

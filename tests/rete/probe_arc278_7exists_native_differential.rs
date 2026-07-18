@@ -10,47 +10,21 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_7exists_native_differential
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Fire via `fire_fn` after the given inserts; count derived Watched facts.
-fn count(fire_fn: &str, inserts: &[&str]) -> Result<i64, String> {
-    let insert_lines: String = inserts
-        .iter()
-        .map(|f| format!("             session (:wat::rete::insert session {f})\n"))
-        .collect();
-    let run = format!(
-        "(:wat::core::length\n\
-          (:wat::core::let\n\
-            [rules   (:wat::rete::collect-rules :w)\n\
-             session (:wat::rete::compile rules)\n\
-{insert_lines}\
-             fired   (:wat::rete::{fire_fn} session)]\n\
-            (:wat::rete::query fired :w::Watched)))"
-    );
-    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
-    let ast = wat::parse_one!(&run).map_err(|e| format!("parse: {e:?}"))?;
-    match eval_in_frozen(&ast, &world, &Environment::new()).map_err(|e| format!("eval: {e:?}"))?.value_owned() {
+fn count(entry: &str) -> Result<i64, String> {
+    match call_beside(file!(), entry).map_err(|e| format!("eval: {e:?}"))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("expected i64; got {other:?}")),
     }
 }
 
-const STATION_ONLY: &[&str] = &["(:w::Station :location \"Oslo\")"];
-const STATION_ONE_READING: &[&str] = &["(:w::Station :location \"Oslo\")", "(:w::Reading :location \"Oslo\" :value 1)"];
-const STATION_THREE_READINGS: &[&str] = &[
-    "(:w::Station :location \"Oslo\")",
-    "(:w::Reading :location \"Oslo\" :value 1)",
-    "(:w::Reading :location \"Oslo\" :value 2)",
-    "(:w::Reading :location \"Oslo\" :value 3)",
-];
-const STATION_READING_ELSEWHERE: &[&str] = &["(:w::Station :location \"Oslo\")", "(:w::Reading :location \"Bergen\" :value 1)"];
-
 /// 1 — DIFFERENTIAL, exists passes (≥1 match): native == oracle, both 1.
 #[test]
 fn differential_exists_present() {
-    let native = count("fire-rules", STATION_ONE_READING).expect("native");
-    let oracle = count("fire-rules-spec", STATION_ONE_READING).expect("oracle");
+    let native = count(":user::native-one-reading").expect("native");
+    let oracle = count(":user::oracle-one-reading").expect("oracle");
     assert_eq!(native, oracle, "native==oracle (present); native={native} oracle={oracle}");
     assert_eq!(native, 1, "≥1 reading → 1; got {native}");
 }
@@ -58,8 +32,8 @@ fn differential_exists_present() {
 /// 2 — DIFFERENTIAL, exists blocks (zero matches): native == oracle, both 0.
 #[test]
 fn differential_exists_absent() {
-    let native = count("fire-rules", STATION_ONLY).expect("native");
-    let oracle = count("fire-rules-spec", STATION_ONLY).expect("oracle");
+    let native = count(":user::native-station-only").expect("native");
+    let oracle = count(":user::oracle-station-only").expect("oracle");
     assert_eq!(native, oracle, "native==oracle (absent); native={native} oracle={oracle}");
     assert_eq!(native, 0, "no readings → 0; got {native}");
 }
@@ -68,8 +42,8 @@ fn differential_exists_absent() {
 /// This is what separates `:exists` from a join — the token passes once iff ≥1, never multiplied.
 #[test]
 fn differential_exists_no_multiplicity() {
-    let native = count("fire-rules", STATION_THREE_READINGS).expect("native");
-    let oracle = count("fire-rules-spec", STATION_THREE_READINGS).expect("oracle");
+    let native = count(":user::native-three-readings").expect("native");
+    let oracle = count(":user::oracle-three-readings").expect("oracle");
     assert_eq!(native, oracle, "native==oracle (3 readings); native={native} oracle={oracle}");
     assert_eq!(native, 1, "3 readings → fires ONCE (existential, not a join); got {native}");
 }
@@ -77,8 +51,8 @@ fn differential_exists_no_multiplicity() {
 /// 4 — DIFFERENTIAL, the shared-var filter: a reading elsewhere does not satisfy exists for Oslo.
 #[test]
 fn differential_exists_shared_var() {
-    let native = count("fire-rules", STATION_READING_ELSEWHERE).expect("native");
-    let oracle = count("fire-rules-spec", STATION_READING_ELSEWHERE).expect("oracle");
+    let native = count(":user::native-reading-elsewhere").expect("native");
+    let oracle = count(":user::oracle-reading-elsewhere").expect("oracle");
     assert_eq!(native, oracle, "native==oracle (elsewhere); native={native} oracle={oracle}");
     assert_eq!(native, 0, "reading@Bergen ≠ Oslo → 0; got {native}");
 }
@@ -86,7 +60,7 @@ fn differential_exists_shared_var() {
 /// 5 — the NATIVE engine alone honors exists (headline: native passes-once / blocks, no under/over-derive).
 #[test]
 fn native_exists_passes_once_and_blocks() {
-    assert_eq!(count("fire-rules", STATION_ONE_READING).expect("native"), 1, "native ≥1 → 1");
-    assert_eq!(count("fire-rules", STATION_ONLY).expect("native"), 0, "native none → 0");
-    assert_eq!(count("fire-rules", STATION_THREE_READINGS).expect("native"), 1, "native 3 → 1 (once)");
+    assert_eq!(count(":user::native-one-reading").expect("native"), 1, "native ≥1 → 1");
+    assert_eq!(count(":user::native-station-only").expect("native"), 0, "native none → 0");
+    assert_eq!(count(":user::native-three-readings").expect("native"), 1, "native 3 → 1 (once)");
 }

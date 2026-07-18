@@ -11,44 +11,23 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P4c_native_retraction
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-// A: Temp+Wind(same loc)→ColdAndWindy; B: ColdAndWindy→WeatherAlert (the 4c chain).
-const RULES: &str = "\
-   ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius)))\
-   ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph)))\
-   ra1   (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   ruleA (:wat::rete::Rule :name \"A\" :lhs (:wat::core::PersistentVector ca1 ca2) :rhs (:wat::core::PersistentVector ra1))\
-   cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))\
-   rb1   (:wat::core::quote (:wat::rete::insert (:weather::WeatherAlert ?loc)))\
-   ruleB (:wat::rete::Rule :name \"B\" :lhs (:wat::core::PersistentVector cb1) :rhs (:wat::core::PersistentVector rb1))\
-   sess0 (:wat::rete::compile (:wat::core::PersistentVector ruleA ruleB))";
-
-fn ev(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("eval raised: {e:?}")).value_owned()
-}
-
-// derived count of `ty` after firing-with-`fire_verb` the staged-then-retracted session described by `body`.
-// `body` binds `fired`. Returns the count via query-by-type-string.
-fn count(setup: &str, ty: &str) -> Value {
-    ev(&format!("(:wat::core::let [{setup}] (:wat::core::length (:wat::rete::query-by-type-string fired \"{ty}\")))"))
+// just-eval (rubric): the fire verb (native fire-rules' vs oracle fire-rules-spec) is 2-valued and
+// every scenario a #[test] needs is a fixed, enumerable named entry in the co-located fixture.
+fn call(fn_name: &str) -> Value {
+    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 /// Single retract: drop a support → its derived ColdAndWindy is gone. native == wat.
 #[test]
 fn native_retract_drops_consequence_like_wat() {
-    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules-spec"] {
-        let setup = format!("{RULES}\
-           s1 (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-           s2 (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
-           f0 ({verb} s2)\
-           s3 (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-           fired ({verb} s3)");
-        assert_eq!(count(&setup, "weather::ColdAndWindy"), Value::i64(0),
+    for (verb, fn_name) in [
+        ("fire-rules'", ":user::native-retract-drops-cw"),
+        ("fire-rules-spec", ":user::oracle-retract-drops-cw"),
+    ] {
+        assert_eq!(call(fn_name), Value::i64(0),
             "[{verb}] retracting Temperature drops the ColdAndWindy it supported");
     }
 }
@@ -56,14 +35,11 @@ fn native_retract_drops_consequence_like_wat() {
 /// Transitive: retract Temp → CW gone → WA (derived from CW) gone too. native == wat.
 #[test]
 fn native_retract_cascades_transitively_like_wat() {
-    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules-spec"] {
-        let setup = format!("{RULES}\
-           s1 (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-           s2 (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
-           f0 ({verb} s2)\
-           s3 (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-           fired ({verb} s3)");
-        assert_eq!(count(&setup, "weather::WeatherAlert"), Value::i64(0),
+    for (verb, fn_name) in [
+        ("fire-rules'", ":user::native-retract-cascade-wa"),
+        ("fire-rules-spec", ":user::oracle-retract-cascade-wa"),
+    ] {
+        assert_eq!(call(fn_name), Value::i64(0),
             "[{verb}] transitive TM: WeatherAlert (from derived ColdAndWindy) is gone too");
     }
 }
@@ -72,17 +48,12 @@ fn native_retract_cascades_transitively_like_wat() {
 #[test]
 fn native_retract_is_precise_like_wat() {
     let mut results = vec![];
-    for verb in [":wat::rete::fire-rules'", ":wat::rete::fire-rules-spec"] {
-        let setup = format!("{RULES}\
-           s1 (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-           s2 (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))\
-           s3 (:wat::rete::insert s2 (:weather::Temperature :celsius 10 :location \"Bergen\"))\
-           s4 (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location \"Bergen\"))\
-           f0 ({verb} s4)\
-           s5 (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-           fired ({verb} s5)");
-        let cw = count(&setup, "weather::ColdAndWindy");
-        let wa = count(&setup, "weather::WeatherAlert");
+    for (verb, cw_fn, wa_fn) in [
+        ("fire-rules'", ":user::native-retract-precise-cw", ":user::native-retract-precise-wa"),
+        ("fire-rules-spec", ":user::oracle-retract-precise-cw", ":user::oracle-retract-precise-wa"),
+    ] {
+        let cw = call(cw_fn);
+        let wa = call(wa_fn);
         assert_eq!(cw, Value::i64(1), "[{verb}] only Oslo drops; Bergen's ColdAndWindy survives (precise TM)");
         assert_eq!(wa, Value::i64(1), "[{verb}] Bergen's WeatherAlert survives");
         results.push((cw, wa));

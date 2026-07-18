@@ -24,17 +24,13 @@
 //! Test 1 FORKS (spawn-program' (process)). Run:
 //! cargo test --release -p wat --test probe_arc209_c0b3bc_post_spawn -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
 #[test]
 fn process_post_spawn_hook_receives_child_pid() {
     // Proof 1: process hook receives child pid. Wat source: probe_arc209_c0b3bc_post_spawn.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (C0b.3b-c: process post-spawn hook)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     let owner_pid = std::process::id() as i64;
     match got {
@@ -52,9 +48,12 @@ fn thread_post_spawn_hook_fires_with_empty_launch() {
     // Proof 2: thread hook fires with empty ThreadLaunch. Wat source: probe_arc209_c0b3bc_post_spawn_thread.wat
     let world = startup_from_file("tests/services/probe_arc209_c0b3bc_post_spawn_thread.wat")
         .expect("startup should succeed (C0b.3b-c: thread post-spawn hook)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .expect("no :user::compute in probe_arc209_c0b3bc_post_spawn_thread.wat")
+        .clone();
+    let got = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(777)),

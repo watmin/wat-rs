@@ -51,15 +51,20 @@
 //!   probe_arc241_stone2_c07.wat.bad, probe_arc241_stone2_c08.wat.bad,
 //!   probe_arc241_stone2_c09.wat.bad, probe_arc241_stone2_c10.wat.bad.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(fn_name: &str) -> Value {
     let world = startup_beside(file!()).expect("startup for stone2 fn-parser-migration fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
 }
 
 // ─── Contracts 1–4: A1/A2/A3 happy paths (well-formed fn signatures) ─────────

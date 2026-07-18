@@ -4,15 +4,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_ordering_surface`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_vec(world: &wat::freeze::FrozenWorld, call: &str) -> Result<Vec<i64>, String> {
-    let ast = wat::parse_one!(call).expect("parse");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
+// just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed Vec<i64>.
+fn eval_vec(fn_name: &str) -> Result<Vec<i64>, String> {
+    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::Vec(v) => v.iter().map(|x| match x {
             Value::i64(n) => Ok(*n),
             other => Err(format!("non-i64 elem: {other:?}")),
@@ -23,30 +21,25 @@ fn eval_vec(world: &wat::freeze::FrozenWorld, call: &str) -> Result<Vec<i64>, St
 
 #[test]
 fn c01_sort_natural() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_vec(&world, "(:user::c01)"), Ok(vec![1, 2, 3]), "(sort xs) — natural ascending");
+    assert_eq!(eval_vec(":user::c01"), Ok(vec![1, 2, 3]), "(sort xs) — natural ascending");
 }
 
 #[test]
 fn c02_sort_comparator() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_vec(&world, "(:user::c02)"), Ok(vec![3, 2, 1]), "(sort cmp xs) — comparator descending");
+    assert_eq!(eval_vec(":user::c02"), Ok(vec![3, 2, 1]), "(sort cmp xs) — comparator descending");
 }
 
 #[test]
 fn c03_sort_by_key() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_vec(&world, "(:user::c03)"), Ok(vec![3, 2, 1]), "(sort-by keyfn xs) — by key, natural");
+    assert_eq!(eval_vec(":user::c03"), Ok(vec![3, 2, 1]), "(sort-by keyfn xs) — by key, natural");
 }
 
 #[test]
 fn c04_sort_by_key_and_comparator() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_vec(&world, "(:user::c04)"), Ok(vec![3, 2, 1]), "(sort-by keyfn cmp xs)");
+    assert_eq!(eval_vec(":user::c04"), Ok(vec![3, 2, 1]), "sort-by keyfn cmp xs — by key + comparator");
 }
 
 #[test]
 fn c05_reverse_preserved() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_vec(&world, "(:user::c05)"), Ok(vec![3, 2, 1]), "reverse unchanged");
+    assert_eq!(eval_vec(":user::c05"), Ok(vec![3, 2, 1]), "reverse unchanged");
 }

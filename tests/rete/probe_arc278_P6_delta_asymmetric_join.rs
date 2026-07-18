@@ -24,6 +24,8 @@ use wat::runtime::{Environment, Value};
 /// Run a WAT expression against the co-located `.wat` world (all record types for the three scenarios).
 /// The rules are constructed at runtime inside `expr` (parameterized by N), so only records live in the
 /// fixture. Returns the `Value` produced.
+// rune:lint(no-inlined-wat) — expr parameterized by runtime N (loop-generated fact inserts, N up to 5)
+// and the FIRE_VERB placeholder swapped per differential side — cannot be pre-extracted to a static .wat file
 fn run_expr(expr: &str) -> Value {
     let world = startup_beside(file!()).expect("startup_beside");
     let ast = wat::parse_one!(expr).expect("parse_one");

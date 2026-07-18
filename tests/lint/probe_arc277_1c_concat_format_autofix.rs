@@ -10,16 +10,20 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc277_1c_concat_format_autofix
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
-// Eval a 0-arg call in the fixture world; return its String result.
-fn fix(call: &str) -> String {
+// just-eval (rubric): fetch the fixture's named zero-arg entry fn by name and apply_function it —
+// no inline driver expression. Returns its String result.
+fn fix(entry: &str) -> String {
     let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(call).expect("parse the fix call");
-    match eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(entry)
+        .unwrap_or_else(|| panic!("no {entry} in fixture"))
+        .clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .unwrap_or_else(|e| panic!("lint-fix-file raised: {e:?}"))
-        .value_owned()
     {
         Value::String(ref s) => s.to_string(),
         other => panic!("lint-fix-file must return String; got {other:?}"),
@@ -29,7 +33,7 @@ fn fix(call: &str) -> String {
 // BARE-SYMBOL slots → auto-fix to a self-documenting format call.
 #[test]
 fn bare_symbol_concat_rewrites_to_format() {
-    let fixed = fix("(:t::fix-bare)");
+    let fixed = fix(":t::fix-bare");
     assert_eq!(
         fixed,
         concat!(
@@ -44,7 +48,7 @@ fn bare_symbol_concat_rewrites_to_format() {
 // COMPOUND slot → NO auto-fix (report-only; naming is a judgment deferred to the RETE map).
 #[test]
 fn compound_slot_concat_is_left_untouched() {
-    let fixed = fix("(:t::fix-compound)");
+    let fixed = fix(":t::fix-compound");
     assert_eq!(
         fixed,
         concat!(

@@ -11,3 +11,13 @@
   :then
   (:wat::rete::insert (:wf::Gate :celsius ?c)))
 
+;; 4 — the compile FENCE rejects an impure `where` (io): compiling the rule raises.
+(:wat::core::defn :user::run-gate-c5 [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :wf)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius 5 :location "Oslo"))
+       fired   (:wat::rete::fire-rules-spec session)]
+      (:wat::rete::query-by-type-string fired "wf::Gate"))))
+

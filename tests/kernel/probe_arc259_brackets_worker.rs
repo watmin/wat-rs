@@ -19,15 +19,22 @@
 //!
 //! WAT fixtures: tests/kernel/probe_arc259_brackets_worker_{map_doubles,map_id,each_drains}.wat
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
+
+fn compute_fn(world: &wat::freeze::FrozenWorld, path: &str) -> std::sync::Arc<wat::Function> {
+    world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {path:?}"))
+        .clone()
+}
 
 fn run_compute_vec(path: &str) -> Vec<i64> {
     let world = startup_from_file(path).expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
+    let func = compute_fn(&world, path);
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute eval")
-        .value_owned()
     {
         Value::Vec(v) => v
             .iter()
@@ -42,10 +49,9 @@ fn run_compute_vec(path: &str) -> Vec<i64> {
 
 fn run_compute_nil(path: &str) {
     let world = startup_from_file(path).expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute eval")
-        .value_owned();
+    let func = compute_fn(&world, path);
+    let got = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("compute eval");
     assert_eq!(got, Value::Unit, "each-worker returns nil; got {got:?}");
 }
 

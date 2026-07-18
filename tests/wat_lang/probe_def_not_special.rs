@@ -29,8 +29,10 @@
 //!    lift together.
 
 use wat::ast::WatAST;
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{
+    apply_function, Environment, ProgramHandleInner, RuntimeError, RuntimeErrorKind, Value,
+};
 
 fn freeze_ok_file(rel_path: &str) -> wat::freeze::FrozenWorld {
     startup_from_file(rel_path).unwrap_or_else(|e| {
@@ -104,9 +106,12 @@ fn probe_def_at_expression_position_emits_position_error_at_runtime() {
     let world = startup_beside(file!()).expect("startup");
 
     // Calling (:my::bad) evaluates the body which hits the tightened def arm.
-    let call = wat::parse_one!("(:my::bad)").expect("parse");
-    let env = Environment::new();
-    let result = eval_in_frozen(&call, &world, &env);
+    let func = world
+        .symbols()
+        .get(":my::bad")
+        .expect("fixture must define :my::bad")
+        .clone();
+    let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
     match result {
         Err(RuntimeError { span: _, kind: RuntimeErrorKind::DeclarationInExpressionPosition(ref head) }) => {
             assert_eq!(
@@ -131,9 +136,13 @@ fn probe_def_at_expression_position_emits_position_error_at_runtime() {
 #[test]
 fn probe_def_at_top_level_still_works() {
     let world = startup_beside(file!()).expect("startup");
-    let call = wat::parse_one!("(:my::compute)").expect("parse");
-    let env = Environment::new();
-    let v = eval_in_frozen(&call, &world, &env).expect("compute should succeed").value_owned();
+    let func = world
+        .symbols()
+        .get(":my::compute")
+        .expect("fixture must define :my::compute")
+        .clone();
+    let v = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("compute should succeed");
     match v {
         Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
         other => panic!("expected Value::i64(42); got {:?}", other),

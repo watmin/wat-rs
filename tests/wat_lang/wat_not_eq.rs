@@ -5,15 +5,11 @@
 //! prior gap where `=` couldn't compare two `Value::Enum` values
 //! (added an Enum arm to `values_equal`).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_bool(v: Value) -> bool {
@@ -25,12 +21,12 @@ fn unwrap_bool(v: Value) -> bool {
 
 #[test]
 fn not_eq_i64_true_when_different() {
-    assert!(unwrap_bool(run_expr("(:t::test1-not-eq-true)")));
+    assert!(unwrap_bool(run_expr(":t::test1-not-eq-true")));
 }
 
 #[test]
 fn not_eq_i64_false_when_same() {
-    assert!(!unwrap_bool(run_expr("(:t::test2-not-eq-false)")));
+    assert!(!unwrap_bool(run_expr(":t::test2-not-eq-false")));
 }
 
 #[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
@@ -55,7 +51,7 @@ fn not_eq_f64_cross_numeric_coerce() {
 #[test]
 fn eq_on_enum_unit_variants() {
     assert!(
-        unwrap_bool(run_expr("(:t::test4-enum-eq)")),
+        unwrap_bool(run_expr(":t::test4-enum-eq")),
         "expected enum eq/not= to return true"
     );
 }

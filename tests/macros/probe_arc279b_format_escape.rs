@@ -13,14 +13,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc279b_format_escape -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_probe(world: &wat::freeze::FrozenWorld, fn_call: &str) -> Result<String, String> {
-    let ast = wat::parse_one!(fn_call).map_err(|e| format!("parse: {e:?}"))?;
-    let got = eval_in_frozen(&ast, world, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))?
-        .value_owned();
+// just-eval (rubric): each probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
+fn call_probe(fn_name: &str) -> Result<String, String> {
+    let got = call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))?;
     match got {
         Value::String(ref s) => Ok(s.to_string()),
         other => Err(format!("probe must return a String; got {other:?}")),
@@ -30,8 +29,7 @@ fn eval_probe(world: &wat::freeze::FrozenWorld, fn_call: &str) -> Result<String,
 // `{{` and `}}` with no placeholder → literal braces.
 #[test]
 fn escape_doubled_braces_render_literal() {
-    let world = startup_beside(file!()).expect("startup");
-    let s = eval_probe(&world, "(:user::probe-1)")
+    let s = call_probe(":user::probe-1")
         .expect("format with doubled braces must expand cleanly");
     assert_eq!(s, "{literal}", "{{{{ }}}} doubling renders one literal brace each; got {s:?}");
 }
@@ -39,8 +37,7 @@ fn escape_doubled_braces_render_literal() {
 // Doubled braces mixed with a real placeholder.
 #[test]
 fn escape_doubled_braces_with_placeholder() {
-    let world = startup_beside(file!()).expect("startup");
-    let s = eval_probe(&world, "(:user::probe-2)")
+    let s = call_probe(":user::probe-2")
         .expect("format with doubled braces + placeholder must expand cleanly");
     assert_eq!(s, "{x} = v", "literal {{x}} beside a live {{name}} placeholder; got {s:?}");
 }
@@ -48,8 +45,7 @@ fn escape_doubled_braces_with_placeholder() {
 // A trailing literal close brace after a placeholder.
 #[test]
 fn escape_close_brace_after_placeholder() {
-    let world = startup_beside(file!()).expect("startup");
-    let s = eval_probe(&world, "(:user::probe-3)")
+    let s = call_probe(":user::probe-3")
         .expect("format with placeholder + trailing }} must expand cleanly");
     assert_eq!(s, "v}", "placeholder then literal }}}} → close brace; got {s:?}");
 }

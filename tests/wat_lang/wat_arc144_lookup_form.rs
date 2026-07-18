@@ -23,15 +23,11 @@
 //!   5. Unknown name — all three primitives return :None for an
 //!      unregistered name.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_bool(v: Value, ctx: &str) -> bool {
@@ -52,7 +48,7 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 
 #[test]
 fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
-    let line = unwrap_string(run_expr("(:t::test1-lookup-macro-render)"), "test1");
+    let line = unwrap_string(run_expr(":t::test1-lookup-macro-render"), "test1");
     assert_eq!(
         line,
         r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defmacro #wat-edn.holon/Keyword :my::ident #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "<-" #wat-edn.holon/Keyword :AST<wat::WatAST>] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :AST<wat::WatAST> #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::quasiquote #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::unquote #wat-edn.holon/Symbol "x"]]]"#,
@@ -63,7 +59,7 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
 #[test]
 fn signature_of_defn_macro_returns_some() {
     assert!(
-        unwrap_bool(run_expr("(:t::test2-sig-macro)"), "test2"),
+        unwrap_bool(run_expr(":t::test2-sig-macro"), "test2"),
         "signature-of-defn :my::ident should return Some"
     );
 }
@@ -71,7 +67,7 @@ fn signature_of_defn_macro_returns_some() {
 #[test]
 fn body_of_macro_returns_some_with_template() {
     assert!(
-        unwrap_bool(run_expr("(:t::test3-body-macro)"), "test3"),
+        unwrap_bool(run_expr(":t::test3-body-macro"), "test3"),
         "body-of :my::ident should return Some"
     );
 }
@@ -80,7 +76,7 @@ fn body_of_macro_returns_some_with_template() {
 
 #[test]
 fn lookup_define_struct_returns_some_and_emits_struct_head() {
-    let line = unwrap_string(run_expr("(:t::test4-lookup-struct-render)"), "test4");
+    let line = unwrap_string(run_expr(":t::test4-lookup-struct-render"), "test4");
     assert_eq!(
         line,
         r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defstruct #wat-edn.holon/Keyword :my::Bar #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/type-decl #wat-edn.holon/Keyword :my::Bar]]"#,
@@ -91,7 +87,7 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
 #[test]
 fn signature_of_defn_struct_returns_some() {
     assert!(
-        unwrap_bool(run_expr("(:t::test5-sig-struct)"), "test5"),
+        unwrap_bool(run_expr(":t::test5-sig-struct"), "test5"),
         "signature-of-defn :my::Point should return Some"
     );
 }
@@ -99,7 +95,7 @@ fn signature_of_defn_struct_returns_some() {
 #[test]
 fn body_of_struct_returns_none() {
     assert!(
-        unwrap_bool(run_expr("(:t::test6-body-struct-none)"), "test6"),
+        unwrap_bool(run_expr(":t::test6-body-struct-none"), "test6"),
         "body-of :my::Tick should return None (types have no body)"
     );
 }
@@ -109,7 +105,7 @@ fn body_of_struct_returns_none() {
 #[test]
 fn lookup_define_user_function_still_returns_some_post_refactor() {
     assert!(
-        unwrap_bool(run_expr("(:t::test7-lookup-user-fn)"), "test7"),
+        unwrap_bool(run_expr(":t::test7-lookup-user-fn"), "test7"),
         "lookup-define :t::my-add should return Some"
     );
 }
@@ -117,7 +113,7 @@ fn lookup_define_user_function_still_returns_some_post_refactor() {
 #[test]
 fn signature_of_defn_substrate_primitive_still_returns_some_post_refactor() {
     assert!(
-        unwrap_bool(run_expr("(:t::test8-sig-foldl)"), "test8"),
+        unwrap_bool(run_expr(":t::test8-sig-foldl"), "test8"),
         "signature-of-defn :wat::core::foldl should return Some"
     );
 }
@@ -127,7 +123,7 @@ fn signature_of_defn_substrate_primitive_still_returns_some_post_refactor() {
 #[test]
 fn all_three_primitives_return_none_on_unknown_name() {
     assert!(
-        unwrap_bool(run_expr("(:t::test9-all-none)"), "test9"),
+        unwrap_bool(run_expr(":t::test9-all-none"), "test9"),
         "all three primitives should return None for unknown name"
     );
 }

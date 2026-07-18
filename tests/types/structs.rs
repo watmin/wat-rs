@@ -19,14 +19,13 @@
 //! Computation moved to :my::compute; canonical nil main appended.
 
 use wat::check::{CheckError, CheckErrorKind};
-use wat::freeze::{eval_in_frozen, startup_from_file, StartupError};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, Value};
 
 fn run(path: &str) -> Value {
     let world = startup_from_file(path).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+    let func = world.symbols().get(":my::compute").expect(":my::compute").clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("compute should run")
 }
 
 fn check_errors(path: &str) -> Vec<CheckError> {

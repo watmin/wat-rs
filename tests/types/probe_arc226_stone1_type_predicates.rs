@@ -33,18 +33,13 @@
 //!   - Non-Bind top-level (bare Bundle via `Bundle` constructor) → all predicates return false
 //!   - Nested classifier (Bind inside Bind) — outer classifier is the discriminator
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 fn run_bool(fn_name: &str) -> bool {
-    let world = startup_beside(file!()).expect("startup for type predicates fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
-    {
+    match call_beside(file!(), fn_name).expect("eval should succeed") {
         Value::bool(b) => b,
         other => panic!("expected bool from {}; got {:?}", fn_name, other),
     }

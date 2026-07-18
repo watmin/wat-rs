@@ -41,18 +41,14 @@
 //! These tests FORK (spawn-program' (process)) → their own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3bb_bounced -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
 #[test]
 fn owner_served_via_birth_seed() {
     // Proof 1: the owner is served via the birth-seed (regression guard).
     // Wat source lives in the co-located fixture: probe_arc209_c0b3bb_bounced.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (C0b.3b-b: birth-seeded allow-set gate)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(105)),
@@ -68,8 +64,12 @@ fn stranger_is_bounced() {
     // Wat source: probe_arc209_c0b3bb_bounced_bounced.wat
     let world = startup_from_file("tests/services/probe_arc209_c0b3bb_bounced_bounced.wat")
         .expect("startup should succeed (C0b.3b-b: birth-seeded allow-set gate)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let outcome = eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned());
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .expect("no :user::compute in probe_arc209_c0b3bb_bounced_bounced.wat")
+        .clone();
+    let outcome = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
     // GREEN (3b-b): the stranger (pid ∉ allow-set) is bounced → its recv' EOFs → it dies →
     // the owner's recv' on the stranger surfaces the death → Err.
     // RED (HEAD): no gate → the stranger is served → its recv' returns; it doesn't die → Ok.

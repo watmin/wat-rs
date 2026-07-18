@@ -22,8 +22,8 @@
 //! values of the expected runtime variant — proving the substrate
 //! does not collapse I and O.
 
-use wat::freeze::{startup_bare, startup_beside};
-use wat::runtime::{eval, Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
 // ─── Stone C1 T1. type mint — both ThreadPeer<i64,String> and the
 //      mirror ThreadPeer<String,i64> type-check ────────────────────────
@@ -50,26 +50,23 @@ fn stone_c1_thread_peer_type_mint_both_orientations_type_check() {
 
 #[test]
 fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
-    // Empty parent world (no defines needed) just so we have a
-    // SymbolTable / TypeEnv to drive eval. Pre-build the peer pair via
-    // the substrate-internal Rust helper, bind them into the
-    // environment, then hand-roll the readln + println call ASTs.
+    // Pre-build the peer pair via the substrate-internal Rust helper, then apply the
+    // co-located fixture's println/readln fns with each peer as the argument.
     //
     // Peer A is ThreadPeer<String, i64> — it WRITES i64 (its O = i64).
     // Peer B is ThreadPeer<i64, String> — it READS i64 (its I = i64).
-    let world = startup_bare().expect("startup");
+    //
+    // just-eval (rubric): peer_a/peer_b are Rust-native handles — the println/readln calls
+    // live in the co-located fixture's `:my::write-i64-42` / `:my::read-i64`, driven via
+    // `apply_function` with the peer as the argument.
+    let world = startup_beside(file!()).expect("startup");
     let (peer_a, peer_b) =
         wat::channel::make_thread_peer_pair_for_test();
 
     // peer A writes 42i64.
-    let env_w = Environment::new()
-        .child()
-        .bind("peer_a", wat::rust_caller_span!(), peer_a.into())
-        .build();
-    let write_call = wat::parse_one!("(:wat::kernel::Thread/println peer_a 42)")
-        .expect("println AST parses");
-    let write_outcome = eval(&write_call, &env_w, world.symbols())
-        .expect("Thread/println should return Ok(nil)").value_owned();
+    let write_func = world.symbols().get(":my::write-i64-42").expect(":my::write-i64-42 defined");
+    let write_outcome = apply_function(write_func.clone(), vec![peer_a], world.symbols(), wat::rust_caller_span!())
+        .expect("Thread/println should return Ok(nil)");
     assert!(
         matches!(write_outcome, Value::Unit),
         "Thread/println must return Unit (== nil); got {:?}",
@@ -77,14 +74,9 @@ fn stone_c1_thread_peer_verb_dispatch_round_trips_i64() {
     );
 
     // peer B reads — value must come back as i64(42).
-    let env_r = Environment::new()
-        .child()
-        .bind("peer_b", wat::rust_caller_span!(), peer_b.into())
-        .build();
-    let read_call = wat::parse_one!("(:wat::kernel::Thread/readln peer_b)")
-        .expect("readln AST parses");
-    let read_outcome = eval(&read_call, &env_r, world.symbols())
-        .expect("Thread/readln should surface the i64").value_owned();
+    let read_func = world.symbols().get(":my::read-i64").expect(":my::read-i64 defined");
+    let read_outcome = apply_function(read_func.clone(), vec![peer_b], world.symbols(), wat::rust_caller_span!())
+        .expect("Thread/readln should surface the i64");
     match read_outcome {
         Value::i64(n) => assert_eq!(n, 42, "round-tripped i64 must be 42; got {}", n),
         other => panic!("expected Value::i64(42); got {:?}", other),
@@ -100,53 +92,37 @@ fn stone_c1_thread_peer_type_param_swap_both_directions_round_trip() {
     // String, writes i64); peer B: ThreadPeer<i64, String> (reads i64,
     // writes String). Drive both directions and verify each surface
     // value's runtime variant matches the expected I parameter.
-    let world = startup_bare().expect("startup");
+    //
+    // just-eval (rubric): peer_a/peer_b are Rust-native handles — each println/readln call
+    // lives in the co-located fixture (`:my::write-i64-7`, `:my::read-i64`, `:my::write-pong`,
+    // `:my::read-string`), driven via `apply_function` with the peer as the argument.
+    let world = startup_beside(file!()).expect("startup");
     let (peer_a, peer_b) =
         wat::channel::make_thread_peer_pair_for_test();
 
     // ── Direction 1: peer A writes i64 7 → peer B reads i64 7.
-    let env_aw = Environment::new()
-        .child()
-        .bind("peer_a", wat::rust_caller_span!(), peer_a.clone().into())
-        .build();
-    let write_i64 = wat::parse_one!("(:wat::kernel::Thread/println peer_a 7)")
-        .expect("println AST parses");
-    let w1 = eval(&write_i64, &env_aw, world.symbols())
-        .expect("Thread/println i64 should succeed").value_owned();
+    let write_i64_func = world.symbols().get(":my::write-i64-7").expect(":my::write-i64-7 defined");
+    let w1 = apply_function(write_i64_func.clone(), vec![peer_a.clone()], world.symbols(), wat::rust_caller_span!())
+        .expect("Thread/println i64 should succeed");
     assert!(matches!(w1, Value::Unit), "Unit expected; got {:?}", w1);
 
-    let env_br = Environment::new()
-        .child()
-        .bind("peer_b", wat::rust_caller_span!(), peer_b.clone().into())
-        .build();
-    let read_i64 = wat::parse_one!("(:wat::kernel::Thread/readln peer_b)")
-        .expect("readln AST parses");
-    let r1 = eval(&read_i64, &env_br, world.symbols())
-        .expect("Thread/readln should surface the i64").value_owned();
+    let read_i64_func = world.symbols().get(":my::read-i64").expect(":my::read-i64 defined");
+    let r1 = apply_function(read_i64_func.clone(), vec![peer_b.clone()], world.symbols(), wat::rust_caller_span!())
+        .expect("Thread/readln should surface the i64");
     match r1 {
         Value::i64(n) => assert_eq!(n, 7, "peer B's I = i64; got {}", n),
         other => panic!("peer B must read i64 (its I); got {:?}", other),
     }
 
     // ── Direction 2: peer B writes String "pong" → peer A reads String "pong".
-    let env_bw = Environment::new()
-        .child()
-        .bind("peer_b", wat::rust_caller_span!(), peer_b.into())
-        .build();
-    let write_str = wat::parse_one!(r#"(:wat::kernel::Thread/println peer_b "pong")"#)
-        .expect("println string AST parses");
-    let w2 = eval(&write_str, &env_bw, world.symbols())
-        .expect("Thread/println String should succeed").value_owned();
+    let write_pong_func = world.symbols().get(":my::write-pong").expect(":my::write-pong defined");
+    let w2 = apply_function(write_pong_func.clone(), vec![peer_b], world.symbols(), wat::rust_caller_span!())
+        .expect("Thread/println String should succeed");
     assert!(matches!(w2, Value::Unit), "Unit expected; got {:?}", w2);
 
-    let env_ar = Environment::new()
-        .child()
-        .bind("peer_a", wat::rust_caller_span!(), peer_a.into())
-        .build();
-    let read_str = wat::parse_one!("(:wat::kernel::Thread/readln peer_a)")
-        .expect("readln AST parses");
-    let r2 = eval(&read_str, &env_ar, world.symbols())
-        .expect("Thread/readln should surface the String").value_owned();
+    let read_string_func = world.symbols().get(":my::read-string").expect(":my::read-string defined");
+    let r2 = apply_function(read_string_func.clone(), vec![peer_a], world.symbols(), wat::rust_caller_span!())
+        .expect("Thread/readln should surface the String");
     match r2 {
         Value::String(s) => assert_eq!(
             s.as_str(),

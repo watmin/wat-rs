@@ -1,0 +1,1 @@
+(wat.core/defn my.ns/map [x :- T] :- T x)

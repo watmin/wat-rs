@@ -44,16 +44,17 @@
 
 use std::collections::HashMap;
 use wat::comms::HolonRepresentable;
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:t::pNN…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
 
 // ─── Probe 1 — Forward: HashMap → classifier-wrapped HolonAST ────────────────
 
 #[test]
 fn probe_1_forward_hashmap_to_bundle() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p1-forward-rt-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p1-forward-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "classifier-wrapped Map encoding must preserve 2 entries in round-trip"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -63,23 +64,18 @@ fn probe_1_forward_hashmap_to_bundle() {
 
 #[test]
 fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p2a-rt-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2a-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "round-trip must preserve length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p2b-rt-foo)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2b-rt-foo").expect("eval") {
         Value::bool(b) => assert!(b, "round-trip must preserve :foo key"),
         other => panic!("expected bool; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p2c-rt-bar)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2c-rt-bar").expect("eval") {
         Value::bool(b) => assert!(b, "round-trip must preserve :bar key"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -89,17 +85,13 @@ fn probe_2_reverse_bundle_to_hashmap_roundtrip() {
 
 #[test]
 fn probe_3_empty_map_roundtrip_consumer_declared() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p3a-empty-rt-forward)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p3a-empty-rt-forward").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty HashMap classifier-wrapped encoding must round-trip to HashMap length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p3b-empty-rt-reverse)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p3b-empty-rt-reverse").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty Map classifier-wrapped + consumer hint: empty HashMap (length 0)"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -109,29 +101,23 @@ fn probe_3_empty_map_roundtrip_consumer_declared() {
 
 #[test]
 fn probe_4_multi_k_types() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p4a-kw-rt-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4a-kw-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<keyword,i64> round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p4b-str-rt-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4b-str-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<String,i64> round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p4c-i64k-rt-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4c-i64k-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<i64,String> round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p4d-bool-rt-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4d-bool-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<bool,i64> round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -141,29 +127,23 @@ fn probe_4_multi_k_types() {
 
 #[test]
 fn probe_5_multi_v_types() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p5a-v-i64)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p5a-v-i64").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "HashMap<keyword,i64> V=i64 round-trip: length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p5b-v-str)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p5b-v-str").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<keyword,String> V=String round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p5c-v-bool)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p5c-v-bool").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<keyword,bool> V=bool round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p5d-v-kw)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p5d-v-kw").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<keyword,keyword> V=keyword round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -173,17 +153,13 @@ fn probe_5_multi_v_types() {
 
 #[test]
 fn probe_6_non_keyword_keys_i64_string() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p6a-i64k-rt-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p6a-i64k-rt-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<i64,String> round-trip: length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p6b-i64k-rt-contains)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p6b-i64k-rt-contains").expect("eval") {
         Value::bool(b) => assert!(b, "HashMap<i64,String> round-trip must preserve key 100"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -193,17 +169,13 @@ fn probe_6_non_keyword_keys_i64_string() {
 
 #[test]
 fn probe_7_nested_map_roundtrip() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p7a-nested-outer-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p7a-nested-outer-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "nested map outer length = 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p7b-nested-arc228)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p7b-nested-arc228").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "nested map arc 228: classifier-wrapped outer HashMap length = 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -213,17 +185,13 @@ fn probe_7_nested_map_roundtrip() {
 
 #[test]
 fn probe_8_mixed_nesting_hashmap_of_vec() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p8a-hashmap-of-vec-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p8a-hashmap-of-vec-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "HashMap<keyword,Vec<i64>> round-trip: outer length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p8b-hashmap-of-vec-arc228)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p8b-hashmap-of-vec-arc228").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "HashMap<keyword,Vec<i64>> arc 228: classifier-wrapped outer length = 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -233,17 +201,13 @@ fn probe_8_mixed_nesting_hashmap_of_vec() {
 
 #[test]
 fn probe_9_mixed_nesting_hashmap_of_hashset() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p9a-hashmap-of-set-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p9a-hashmap-of-set-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "HashMap<keyword,HashSet<i64>> round-trip: outer length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p9b-hashmap-of-set-arc228)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p9b-hashmap-of-set-arc228").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "HashMap<keyword,HashSet<i64>> arc 228: classifier-wrapped outer length = 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -253,17 +217,13 @@ fn probe_9_mixed_nesting_hashmap_of_hashset() {
 
 #[test]
 fn probe_10_check_passes_atomizable_k_v() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p10a-atomizable-passes)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p10a-atomizable-passes").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "Atom on HashMap<keyword,i64> must pass check and run"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p10b-nested-atomizable)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p10b-nested-atomizable").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "Atom on HashMap<keyword,HashMap<keyword,i64>> must pass check and run"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -378,9 +338,7 @@ fn probe_13_shape_disambiguation_non_sequential_i64() {
     }
 
     // Step 3: Via WAT surface — HashMap<i64, String> with keys 0+5 round-trips as HashMap.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p13-non-seq-i64-keys)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p13-non-seq-i64-keys").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<i64,String> with keys 0+5 must round-trip as HashMap (not Vec)"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -390,17 +348,13 @@ fn probe_13_shape_disambiguation_non_sequential_i64() {
 
 #[test]
 fn probe_14_empty_bundle_disambiguation_consumer_declares_hashmap() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p14a-empty-classifier-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p14a-empty-classifier-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "arc 228: empty HashMap classifier-wrapped encoding returns HashMap (not HashSet)"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p14b-empty-classifier-annotated)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p14b-empty-classifier-annotated").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "annotated form still works: empty Map classifier + consumer hint → empty HashMap (length 0)"),
         other => panic!("expected i64; got {:?}", other),
     }

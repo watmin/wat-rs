@@ -15,59 +15,47 @@
 //! Run: cargo test --release -p wat --test probe_arc278_0c_persistent_parity -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
+// just-eval (rubric): each assertion's expr lives in a named zero-arg fn in the
+// co-located `.wat` fixture, driven via `call_beside` — no inline wat/format! driver.
 #[test]
 fn persistent_vector_transform_parity() {
-    let world = startup_bare().expect("startup");
-
-    let ev = |expr: &str| -> Value {
-        let ast = wat::parse_one!(expr).expect("parse");
-        eval_in_frozen(&ast, &world, &Environment::new())
-            .unwrap_or_else(|e| panic!("eval `{expr}` raised: {e:?}"))
-            .value_owned()
-    };
-
-    let pv = "(:wat::core::PersistentVector 1 2 3)";
-    let sum = "(:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))";
-    let dbl = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))";
-    let gt1 = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))";
-
     // foldl / foldr (fn-first; return the accumulator)
-    assert_eq!(ev(&format!("(:wat::core::foldl {sum} 0 {pv})")), Value::i64(6), "foldl over PersistentVector");
-    assert_eq!(ev(&format!("(:wat::core::foldr {sum} 0 {pv})")), Value::i64(6), "foldr over PersistentVector");
+    assert_eq!(call_beside(file!(), ":t::p1-foldl").expect("eval"), Value::i64(6), "foldl over PersistentVector");
+    assert_eq!(call_beside(file!(), ":t::p2-foldr").expect("eval"), Value::i64(6), "foldr over PersistentVector");
 
     // map / filter (fn-first; arc 118.2a: LAZY, returns Stream<T> — materialize via `into`
     // (PersistentVector) to prove PersistentVector is accepted as input).
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::map {dbl} {pv})))")),
+        call_beside(file!(), ":t::p3-map").expect("eval"),
         Value::i64(3), "map accepts a PersistentVector, materializes back to one"
     );
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::filter {gt1} {pv})))")),
+        call_beside(file!(), ":t::p4-filter").expect("eval"),
         Value::i64(2), "filter accepts a PersistentVector, materializes back to one"
     );
 
     // reverse (type-preserving; head after reverse == 3 — get returns Option<T>)
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/get (:wat::core::reverse {pv}) 0)")),
+        call_beside(file!(), ":t::p5-reverse").expect("eval"),
         Value::Option(Arc::new(Some(Value::i64(3)))), "reverse a PersistentVector"
     );
 
     // take / drop (coll-first; arc 118.2a: LAZY, returns Stream<T> — materialize via `into`).
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::take {pv} 2)))")),
+        call_beside(file!(), ":t::p6-take").expect("eval"),
         Value::i64(2), "take n accepts a PersistentVector, materializes back to one"
     );
     assert_eq!(
-        ev(&format!("(:wat::core::PersistentVector/length (:wat::core::into (:wat::core::PersistentVector) (:wat::core::drop {pv} 1)))")),
+        call_beside(file!(), ":t::p7-drop").expect("eval"),
         Value::i64(2), "drop n accepts a PersistentVector, materializes back to one"
     );
 
     // concat (two PersistentVectors → a PersistentVector)
     assert_eq!(
-        ev("(:wat::core::PersistentVector/length (:wat::core::concat (:wat::core::PersistentVector 1 2) (:wat::core::PersistentVector 3)))"),
+        call_beside(file!(), ":t::p8-concat").expect("eval"),
         Value::i64(3), "concat two PersistentVectors"
     );
 }

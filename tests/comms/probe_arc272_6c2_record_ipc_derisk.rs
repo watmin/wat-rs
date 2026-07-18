@@ -10,16 +10,12 @@
 //! Forks (`spawn-program' (process)`) → its own [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6c2_record_ipc_derisk
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn plain_record_round_trips_over_process_ipc() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (de-risk: record over process IPC)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(42)),

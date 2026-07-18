@@ -1,0 +1,1 @@
+(wat.core/typeunion my/Foo [wat.type/i64 wat.type/f64])

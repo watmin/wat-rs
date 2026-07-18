@@ -23,15 +23,11 @@
 //! - **Position rule — illegal (3 tests)** — `if` wrapper, `define` body,
 //!   redef collision.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
-fn run_beside(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_beside(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn startup_ok(rel_path: &str) {
@@ -47,12 +43,15 @@ fn startup_err(rel_path: &str) -> String {
     }
 }
 
-fn run_file(rel_path: &str, expr: &str) -> Value {
+fn run_file(rel_path: &str, name: &str) -> Value {
     let world = startup_from_file(rel_path).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(name)
+        .unwrap_or_else(|| panic!("no {name:?} in {rel_path:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
 }
 
 // ─── Basic binding — 4 tests ──────────────────────────────────────────────
@@ -140,7 +139,7 @@ fn def_redef_forbidden_strict_default() {
 
 #[test]
 fn def_runtime_pi_resolves_to_value() {
-    match run_beside("(:t::test-pi)") {
+    match run_beside(":t::test-pi") {
         Value::f64(x) => {
             let diff = (x - 3.14159_f64).abs();
             assert!(diff < 1e-10, "expected pi ≈ 3.14159; got {}", x);
@@ -151,7 +150,7 @@ fn def_runtime_pi_resolves_to_value() {
 
 #[test]
 fn def_runtime_pi_in_let_addition() {
-    match run_beside("(:t::test-pi-plus)") {
+    match run_beside(":t::test-pi-plus") {
         Value::f64(x) => {
             let diff = (x - 5.14159_f64).abs();
             assert!(diff < 1e-10, "expected 5.14159; got {}", x);
@@ -162,7 +161,7 @@ fn def_runtime_pi_in_let_addition() {
 
 #[test]
 fn def_runtime_let_splice_closure_capture() {
-    match run_beside("(:t::test-closure)") {
+    match run_beside(":t::test-closure") {
         Value::i64(n) => {
             assert_eq!(n, 42, "expected 42 from :get-config closure; got {}", n);
         }
@@ -185,7 +184,7 @@ fn def_redef_default_flag_off_strict_default() {
 
 #[test]
 fn def_redef_set_redef_true_same_type_succeeds() {
-    match run_file("tests/wat_lang/wat_arc157_def_redef_true_ok.wat", "(:t::compute-a)") {
+    match run_file("tests/wat_lang/wat_arc157_def_redef_true_ok.wat", ":t::compute-a") {
         Value::i64(n) => {
             assert_eq!(n, 2, "expected :a == 2 after redef; got {}", n);
         }

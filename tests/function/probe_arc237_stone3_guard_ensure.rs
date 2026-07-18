@@ -48,15 +48,28 @@
 //!   probe_arc237_stone3_p12.wat.bad, probe_arc237_stone3_p13.wat.bad.
 //! Runtime-error fns in main fixture: :user::probe-02-err, :user::probe-07-err.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(fn_name: &str) -> Value {
     let world = startup_beside(file!()).expect("startup for stone3 guard-ensure fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
+}
+
+/// Fetch + apply a zero-arg fn from the shared sibling fixture, returning the raw
+/// `Result` (rather than `expect`ing) so error-path probes can assert `is_err()`.
+fn try_run(fn_name: &str) -> Result<Value, wat::runtime::RuntimeError> {
+    let world = startup_beside(file!()).expect("startup");
+    let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no {fn_name} in fixture")).clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
 }
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
@@ -69,9 +82,7 @@ fn probe_01_guard_true_body_fires() {
 #[test]
 fn probe_02_guard_false_no_match_runtime_error() {
     // :guard false on the only clause → NoMatchingClause at RUNTIME (startup succeeds).
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::probe-02-err)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = try_run(":user::probe-02-err");
     assert!(
         result.is_err(),
         ":guard false on the only clause should raise NoMatchingClause; got Ok",
@@ -118,9 +129,7 @@ fn probe_06_ensure_true_returns_result() {
 #[test]
 fn probe_07_ensure_false_raises_postcondition() {
     // :ensure false (result -5 not > 0) → postcondition error at RUNTIME (startup succeeds).
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::probe-07-err)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = try_run(":user::probe-07-err");
     assert!(
         result.is_err(),
         ":ensure false (result -5 not > 0) should raise postcondition error; got Ok",

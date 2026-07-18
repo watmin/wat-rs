@@ -16,19 +16,15 @@
 //!
 //! Run: `cargo test --release --test program probe_arc259_env_peer_kind`
 
-use wat::freeze::{eval_in_frozen, invoke_user_main, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, invoke_user_main, startup_beside};
+use wat::runtime::Value;
 
 /// The record carries `wat.peer-kind` as a `PeerKind` value (RED via arity at HEAD:
 /// a 5-arg `Env` constructor is an arity error). `conforms?` proves the field holds
 /// a genuine `:wat::program::PeerKind` (the proven nominal-membership idiom).
 #[test]
 fn env_record_carries_peer_kind() {
-    let world = startup_beside(file!()).expect("startup/check should succeed");
-    let ast = wat::parse_one!("(:probe::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned();
+    let got = call_beside(file!(), ":probe::compute").expect("eval");
     assert_eq!(
         got,
         Value::bool(true),

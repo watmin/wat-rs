@@ -15,22 +15,18 @@
 //!   3. Alias an unknown target — the native form registers a stub; the HARD CUT
 //!      for :wat::runtime::define-alias fires with a retirement remedy.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 // ─── Test 1: alias :wat::core::foldl — native registration resolves builtin ──
 
 #[test]
 fn define_alias_foldl_to_user_fold_delegates_correctly() {
-    match run_expr("(:t::test1-foldl-alias)") {
+    match run_expr(":t::test1-foldl-alias") {
         Value::i64(n) => assert_eq!(n, 10, "expected alias of foldl to sum [1,2,3,4] from 0 → 10; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -40,7 +36,7 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
 
 #[test]
 fn define_alias_length_to_user_size_delegates_correctly() {
-    match run_expr("(:t::test2-length-alias)") {
+    match run_expr(":t::test2-length-alias") {
         Value::i64(n) => assert_eq!(n, 3, "expected alias of length to return 3 for Vec of 3 elements; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }

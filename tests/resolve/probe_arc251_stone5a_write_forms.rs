@@ -2,16 +2,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_stone5a_write_forms`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn contract_01_homoiconic_roundtrip_dirty_in_clean_out() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::c01)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"));
+    // just-eval (rubric): `:user::c01` lives in the co-located fixture.
+    let result = call_beside(file!(), ":user::c01").map_err(|e| format!("eval: {e:?}"));
     match result {
         Ok(Value::bool(true)) => {}
         other => panic!(

@@ -6,15 +6,11 @@
 //! f1 f2 ... fn)` evaluates to a `:wat::core::Vector<wat::WatAST>` where each
 //! element is the corresponding unevaluated form captured as data.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_string(v: Value) -> String {
@@ -35,13 +31,13 @@ fn unwrap_bool(v: Value) -> bool {
 
 #[test]
 fn forms_captures_each_arg_as_wat_ast() {
-    assert!(unwrap_bool(run_expr("(:t::test1-forms-3)")), "expected forms to capture 3 args");
+    assert!(unwrap_bool(run_expr(":t::test1-forms-3")), "expected forms to capture 3 args");
 }
 
 #[test]
 fn forms_empty_produces_empty_vec() {
     assert!(
-        unwrap_bool(run_expr("(:t::test2-forms-empty)")),
+        unwrap_bool(run_expr(":t::test2-forms-empty")),
         "expected forms() to produce empty vec"
     );
 }
@@ -49,7 +45,7 @@ fn forms_empty_produces_empty_vec() {
 #[test]
 fn forms_args_are_not_evaluated() {
     assert!(
-        unwrap_bool(run_expr("(:t::test3-forms-unevaluated)")),
+        unwrap_bool(run_expr(":t::test3-forms-unevaluated")),
         "expected forms to capture 1 unevaluated form"
     );
 }
@@ -60,7 +56,7 @@ fn forms_args_are_not_evaluated() {
 fn forms_composes_with_run_sandboxed_ast() {
     // (:wat::kernel::println "hello-from-inside") EDN-serializes strings with quotes.
     assert_eq!(
-        unwrap_string(run_expr("(:t::test4-run-sandboxed)")),
+        unwrap_string(run_expr(":t::test4-run-sandboxed")),
         "\"hello-from-inside\""
     );
 }
@@ -70,7 +66,7 @@ fn forms_composes_with_run_sandboxed_ast() {
 #[test]
 fn test_program_macro_expands_correctly() {
     assert!(
-        unwrap_bool(run_expr("(:t::test5-program-macro)")),
+        unwrap_bool(run_expr(":t::test5-program-macro")),
         "expected :wat::test::program to capture 3 forms"
     );
 }
@@ -80,5 +76,5 @@ fn test_program_macro_expands_correctly() {
 #[test]
 fn test_run_ast_via_test_program_roundtrips_hello() {
     // (:wat::kernel::println "hi") EDN-serializes strings with quotes.
-    assert_eq!(unwrap_string(run_expr("(:t::test6-run-ast-hello)")), "\"hi\"");
+    assert_eq!(unwrap_string(run_expr(":t::test6-run-ast-hello")), "\"hi\"");
 }

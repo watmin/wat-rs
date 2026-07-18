@@ -12,21 +12,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_macros_unbounded_depth
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
-    let ast = wat::parse_one!(expr).expect("parse");
-    eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .unwrap_or_else(|e| panic!("{expr} raised: {e:?}"))
-}
-
+// just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 #[test]
 fn defmacro_buried_four_dos_deep_still_hoists_and_is_callable() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed if the hoist is depth-unbounded");
-    let got = eval_to_i64(&world, "(:t::use-deep)");
+    let got = call_beside(file!(), ":t::use-deep")
+        .unwrap_or_else(|e| panic!("(:t::use-deep) raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(42)),
         "expected 42 — a defmacro 4 do-levels deep must register; got {got:?}"

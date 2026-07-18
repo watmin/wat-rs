@@ -10,16 +10,14 @@
 //! (R2.2 codegens those for all natures) but NO ctor — `(:test::db::BR 7 8)` is unresolved.
 //! GREEN after decl-b.1: the ctor is codegen'd → construction works for raw-recordtype records.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// A base record via raw `recordtype` constructs via its codegen'd ctor; field a = 7.
 #[test]
 fn raw_recordtype_record_has_codegen_ctor() {
-    let world = startup_beside(file!()).expect("startup must succeed (record ctor is codegen'd)");
-    let ast = wat::parse_one!("(:user::db-br-a)").expect("parse db-br-a call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new()).expect("eval db-br-a");
-    match tv.value_owned() {
+    let got = call_beside(file!(), ":user::db-br-a").expect("eval db-br-a");
+    match got {
         Value::i64(7) => {}
         other => panic!("raw recordtype record ctor: expected i64(7), got {:?}", other),
     }
@@ -28,10 +26,8 @@ fn raw_recordtype_record_has_codegen_ctor() {
 /// A holon record via raw `recordtype` constructs via its codegen'd ctor; field a = 7.
 #[test]
 fn raw_recordtype_holon_has_codegen_ctor() {
-    let world = startup_beside(file!()).expect("startup must succeed (holon ctor is codegen'd)");
-    let ast = wat::parse_one!("(:user::db-hr-a)").expect("parse db-hr-a call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new()).expect("eval db-hr-a");
-    match tv.value_owned() {
+    let got = call_beside(file!(), ":user::db-hr-a").expect("eval db-hr-a");
+    match got {
         Value::i64(7) => {}
         other => panic!("raw recordtype holon ctor: expected i64(7), got {:?}", other),
     }
@@ -44,10 +40,8 @@ fn raw_recordtype_holon_has_codegen_ctor() {
 #[test]
 #[ignore = "RED until decl-b.1.0 (aggregate-new inheritance) + decl-b.1 (fallback→aggregate-new) land"]
 fn raw_recordtype_holon_has_a_hologram() {
-    let world = startup_beside(file!()).expect("startup must succeed");
-    let ast = wat::parse_one!("(:user::db-hr-cos)").expect("parse db-hr-cos call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new()).expect("eval db-hr-cos");
-    match tv.value_owned() {
+    let got = call_beside(file!(), ":user::db-hr-cos").expect("eval db-hr-cos");
+    match got {
         Value::f64(c) => assert!(
             (c - 1.0).abs() < 1e-6,
             "raw holon recordtype must carry a hologram: cosine(h,h) must be 1.0; got {}",

@@ -35,8 +35,11 @@
 //! Negative test uses: tests/macros/vector_splice_symmetry.wat.bad
 //! (loaded via startup_from_file; must fail with "hygiene-scope divergence").
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
+
+// just-eval (rubric): each probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 
 // ─── Gap 1 — Vector-bound symbol splices through ~@ ───────────────────
 
@@ -47,10 +50,7 @@ use wat::runtime::{Environment, Value};
 /// errored with `MacroError::SpliceNotList`.
 #[test]
 fn splice_of_vector_bound_symbol_succeeds() {
-    let world = startup_beside(file!()).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute-splice)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
+    match call_beside(file!(), ":my::compute-splice").expect("compute should run") {
         Value::Vec(items) => {
             assert_eq!(items.len(), 3, "expected 3 spliced elements; got {}", items.len());
             assert!(matches!(items[0], Value::i64(10)));
@@ -125,10 +125,7 @@ fn anaphoric_splice_capture_refused_by_hygiene() {
 /// elements are now flattened element-wise into the argspec Vector.
 #[test]
 fn hygienic_splice_adder_binds_via_spliced_names() {
-    let world = startup_beside(file!()).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute-hygienic)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
+    match call_beside(file!(), ":my::compute-hygienic").expect("compute should run") {
         Value::i64(n) => assert_eq!(n, 42, "expected 7+35=42; got {}", n),
         other => panic!("expected i64(42); got {:?}", other),
     }
@@ -147,13 +144,10 @@ fn vector_splice_round_trip_matches_list_splice() {
     // splices into a List template; the other captures a Vector
     // positional and splices into a List template. Both should yield
     // the same runtime value. Pre-arc-200 only the first worked.
-    let world = startup_beside(file!()).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute-round-trip)").expect("parse compute call");
-    let env = Environment::new();
     // Both expansions must produce the same numeric result; the
     // difference must be zero — proving Vector and List splice are
     // observationally identical at the runtime layer.
-    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
+    match call_beside(file!(), ":my::compute-round-trip").expect("compute should run") {
         Value::i64(0) => {}
         other => panic!("expected i64(0) — Vector and List splice mismatch: {:?}", other),
     }

@@ -31,3 +31,13 @@
   (:wat::core::let
     [thr (:wat::kernel::spawn-thread :my::panic-thread)]
     (:wat::kernel::Thread/drain-and-join thr)))
+
+;; T2/T4 — Process/drain-and-join over an already-spawned child Process. The spawn itself
+;; happens Rust-side (`build_spawn_process_call` builds the AST directly from `WatAST` nodes,
+;; not a parsed Rust string, so it carries no inline-wat driver); this fn is just the join
+;; call, taking the spawned Process as an argument — shared by both the clean-exit (T2) and
+;; panicking (T4) child fixtures.
+(:wat::core::defn :my::test::drain-process
+  [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>]
+  -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
+  (:wat::kernel::Process/drain-and-join proc))

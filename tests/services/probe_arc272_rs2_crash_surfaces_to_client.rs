@@ -13,17 +13,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs2_crash_surfaces_to_client
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 #[test]
 fn far_side_crash_raises_to_the_client_not_hang_or_fake() {
     // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
     // Wat source lives in the co-located fixture: probe_arc272_rs2_crash_surfaces_to_client.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (crash-surfacing probe)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = call_beside(file!(), ":user::compute");
     // The crashing handler must make the client's call RAISE (Err) — not return true, not hang.
     assert!(
         result.is_err(),

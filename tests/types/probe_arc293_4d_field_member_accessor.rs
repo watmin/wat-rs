@@ -11,22 +11,14 @@
 //! a record here (the comprehensive case — a field member backed by a foreign extend-type METHOD — is the acceptance
 //! demo).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// `(:t::Colored/color (:t::Ball "red" 2.0))` routes the FIELD member to `:t::Ball/color` (the auto field accessor).
 #[test]
 fn field_member_dispatches_through_the_surface() {
-    let world = startup_beside(file!())
-        .expect("293.4d: a field member called as :t::Colored/color must dispatch through the surface");
-
-    let got = eval_in_frozen(
-        &wat::parse_one!("(:t::probe)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("(:t::probe) must dispatch the field member :t::Colored/color to :t::Ball/color")
-    .value_owned();
+    let got = call_beside(file!(), ":t::probe")
+        .expect("(:t::probe) must dispatch the field member :t::Colored/color to :t::Ball/color");
 
     match got {
         Value::String(s) => assert_eq!(

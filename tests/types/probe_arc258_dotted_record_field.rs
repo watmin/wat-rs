@@ -12,19 +12,12 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_dotted_record_field`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn c01_dotted_record_field_roundtrips() {
-    let world = startup_beside(file!())
-        .map_err(|e| format!("startup/check: {e:?}"))
-        .expect("dotted record field fixture must load");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| panic!("eval: {e:?}"))
-        .unwrap();
+    let got = call_beside(file!(), ":user::compute").unwrap_or_else(|e| panic!("eval: {e:?}"));
     // Construct a Probe with Instant=at-millis(1234), read wat.started-at back, → 1234.
     assert!(
         matches!(got, Value::i64(1234)),

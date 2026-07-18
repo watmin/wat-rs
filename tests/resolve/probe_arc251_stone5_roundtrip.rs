@@ -13,6 +13,13 @@
 //!      RED→GREEN gate; it must hold before the fixer is trusted, and stay holding.
 //!
 //! Run: `cargo test --release --test probe_arc251_stone5_roundtrip`
+//!
+// rune:lint(no-inlined-wat) — this probe IS the reader/writer (raw wat
+// program text in, via `parse_all!`, WatAST-equality out) — the FOUNDATION
+// claim under test is that parsing a representative program and writing it
+// back through the EDN bridge is an identity. There is no FrozenWorld/
+// call_beside seam here: the subject is the parse/write round-trip itself,
+// not evaluation of a program. Precedent: tests/collection/wat_arc167_vector_ast.rs.
 
 use wat::wat_edn_bridge::{edn_to_program, program_to_edn};
 

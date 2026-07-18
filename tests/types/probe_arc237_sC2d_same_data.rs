@@ -16,13 +16,11 @@
 //! Two holonic record types with the SAME field names (`[x y]`) — so name-keyed comparison
 //! returns true across the two types when values match (type-blind), the whole point.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn eq(fn_name: &str) -> bool {
-    let world = startup_beside(file!()).expect("startup for same_data fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), fn_name).expect("eval") {
         Value::bool(b) => b,
         other => panic!("expected bool from {}; got {:?}", fn_name, other),
     }

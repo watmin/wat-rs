@@ -14,17 +14,26 @@
 //!   - BOTH PASS: Task #477 DISCONFIRMED. Stone 227.2 v2's STOP-5b was discovery failure.
 //!   - EITHER FAILS: SPECIFIC failure surfaced; Task #477 stays open.
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
+
+// just-eval (rubric): each `*.wat` fixture defines a zero-arg `:user::compute`; fetch it from
+// the frozen world and `apply_function` it — no inline wat driver. (Path-based rather than
+// `call_beside` because this probe drives two distinct co-located fixtures from one `.rs`.)
+fn compute_from_file(fixture: &str) -> Value {
+    let world = startup_from_file(fixture).expect("startup should succeed");
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {fixture:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("compute should run")
+}
 
 /// Disconfirms: "splice can't consume Vec from computed unquote let."
 #[test]
 fn probe_1_splice_from_let_vec_of_i64() {
-    let world = startup_from_file("tests/macros/probe_diagnostic_macro_splice_from_let_splice_i64.wat")
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
+    match compute_from_file("tests/macros/probe_diagnostic_macro_splice_from_let_splice_i64.wat") {
         Value::Vec(v) => {
             let nums: Vec<i64> = v
                 .iter()
@@ -49,11 +58,7 @@ fn probe_1_splice_from_let_vec_of_i64() {
 /// THIS IS THE COMPOSITION STONE 227.2 V2 NEEDED for multi-field defrecord.
 #[test]
 fn probe_2_splice_from_let_vec_of_watast_via_runtime_quasiquote() {
-    let world = startup_from_file("tests/macros/probe_diagnostic_macro_splice_from_let_splice_watast.wat")
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
+    match compute_from_file("tests/macros/probe_diagnostic_macro_splice_from_let_splice_watast.wat") {
         Value::Vec(v) => {
             let nums: Vec<i64> = v
                 .iter()

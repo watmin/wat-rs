@@ -7,52 +7,39 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_fence_hof
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Eval `(:wat::rete::<pred> (:wat::core::quote <expr>))` → bool.
-fn classify(pred: &str, expr: &str) -> bool {
-    let run = format!("(:wat::rete::{pred} (:wat::core::quote {expr}))");
-    let w = startup_bare().expect("startup");
-    let ast = wat::parse_one!(&run).expect("parse");
-    match eval_in_frozen(&ast, &w, &Environment::new()).expect("eval").value_owned() {
+/// Invoke a co-located zero-arg entry (each quotes its own expr under test and hands it to the
+/// fence predicate) and return its bool result.
+fn classify(fn_name: &str) -> bool {
+    match call_beside(file!(), fn_name).expect("eval") {
         Value::bool(b) => b,
         other => panic!("expected bool; got {other:?}"),
     }
 }
 
-const PURE_FOLD: &str =
-    "(:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 \
-     (:wat::core::i64::+ acc (:wat::core::i64::* x x))) 0 xs)";
-
-const PURE_MAP: &str =
-    "(:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x x)) xs)";
-
-const IMPURE_FOLD: &str =
-    "(:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 \
-     (:wat::core::do (:wat::kernel::println \"side effect\") acc)) 0 xs)";
-
 /// 1 — a pure fold (foldl + a pure fn-literal) must classify PURE.
 #[test]
 fn pure_fold_is_pure() {
-    assert!(classify("pure?", PURE_FOLD), "a pure foldl over a pure fn-literal must be pure");
+    assert!(classify(":user::pure-fold-is-pure"), "a pure foldl over a pure fn-literal must be pure");
 }
 
 /// 2 — a pure fold must classify DETERMINISTIC.
 #[test]
 fn pure_fold_is_deterministic() {
-    assert!(classify("deterministic?", PURE_FOLD), "a pure foldl must be deterministic");
+    assert!(classify(":user::pure-fold-is-deterministic"), "a pure foldl must be deterministic");
 }
 
 /// 3 — `map` with a pure fn-literal must classify PURE (the HOF family, not just foldl).
 #[test]
 fn pure_map_is_pure() {
-    assert!(classify("pure?", PURE_MAP), "a pure map over a pure fn-literal must be pure");
+    assert!(classify(":user::pure-map-is-pure"), "a pure map over a pure fn-literal must be pure");
 }
 
 /// 4 — GUARD: an IMPURE fold (fn body calls println) must STILL be rejected — the fix must NOT
 /// blanket-allow HOFs; the impurity of the fn-arg must propagate (conditional purity).
 #[test]
 fn impure_fold_is_not_pure() {
-    assert!(!classify("pure?", IMPURE_FOLD), "a foldl whose fn-literal is impure must NOT be pure");
+    assert!(!classify(":user::impure-fold-is-not-pure"), "a foldl whose fn-literal is impure must NOT be pure");
 }

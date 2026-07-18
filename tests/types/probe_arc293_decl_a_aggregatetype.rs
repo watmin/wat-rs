@@ -13,18 +13,15 @@
 //! the unified primitive registers (nature=Struct from its `:wat::core::Struct` parent root) and
 //! its codegen'd ctor + accessor work.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// A struct declared via `aggregatetype` (parent = the `:wat::core::Struct` nature root)
 /// constructs via its bare ctor and reads field `a` back = 7.
 #[test]
 fn aggregatetype_declares_struct_via_struct_root() {
-    let world = startup_beside(file!())
-        .expect("startup must succeed (aggregatetype + :wat::core::Struct node resolve)");
-    let ast = wat::parse_one!("(:user::da-st-a)").expect("parse da-st-a call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new()).expect("eval da-st-a");
-    match tv.value_owned() {
+    let got = call_beside(file!(), ":user::da-st-a").expect("eval da-st-a");
+    match got {
         Value::i64(7) => {}
         other => panic!("aggregatetype struct: expected i64(7), got {:?}", other),
     }

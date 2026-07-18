@@ -11,17 +11,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc279b_subs_tuple_macro_eval
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
+// just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 #[test]
 fn subs_tuple_char_walk_runs_at_macro_eval() {
-    let world = startup_beside(file!())
-        .expect("strip-braces macro (subs + Tuple foldl) must expand cleanly at compile time");
-    let ast = wat::parse_one!("(:user::probe)").expect("parse the defn call");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("probe must eval")
-        .value_owned();
+    let got = call_beside(file!(), ":user::probe").expect("probe must eval");
     let s = match got {
         Value::String(ref s) => s.to_string(),
         other => panic!("expected String; got {other:?}"),

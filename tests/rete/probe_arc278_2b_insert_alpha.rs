@@ -15,33 +15,13 @@
 //! Run: cargo test --release -p wat --test probe_arc278_2b_insert_alpha -- --include-ignored
 
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
-
-// let-bindings shared by every assertion: build the fired session + grab alpha-memory.
-const SETUP: &str = "\
-   cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))\
-   rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))\
-   sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
-   sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))\
-   sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))\
-   fired (:wat::rete::fire-rules sess2)\
-   amem  (:wat::rete::Session/alpha-memory fired)";
-
-fn ev(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-        .value_owned()
-}
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn fire_populates_exactly_one_alpha() {
     // One condition → one AlphaNode; one of the two staged facts matches → exactly one populated alpha.
-    let got = ev(&format!(
-        "(:wat::core::let [{SETUP}] (:wat::core::length (:wat::core::PersistentMap/keys amem)))"
-    ));
+    let got = call_beside(file!(), ":user::alpha-populated-count").expect("eval");
     assert_eq!(got, Value::i64(1), "exactly one AlphaNode populated; got {got:?}");
 }
 
@@ -49,25 +29,13 @@ fn fire_populates_exactly_one_alpha() {
 fn fire_stores_only_the_matching_element() {
     // The populated alpha holds ONE Element — 15 was rejected by (> ?t 20), proving activation honors the
     // full alpha-match (not just the type head).
-    let got = ev(&format!(
-        "(:wat::core::let [{SETUP}\
-           aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) \"aid\")\
-           elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) \"elems\")]\
-          (:wat::core::length elems))"
-    ));
+    let got = call_beside(file!(), ":user::alpha-matching-element-count").expect("eval");
     assert_eq!(got, Value::i64(1), "only the matching fact (25) becomes an Element; got {got:?}");
 }
 
 #[test]
 fn fire_element_carries_alpha_bindings() {
     // The stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
-    let got = ev(&format!(
-        "(:wat::core::let [{SETUP}\
-           aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) \"aid\")\
-           elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) \"elems\")\
-           elem  (:wat::core::Option/expect (:wat::core::get elems 0) \"elem\")\
-           binds (:wat::rete::Element/bindings elem)]\
-          (:wat::core::PersistentMap/get binds \"?t\"))"
-    ));
+    let got = call_beside(file!(), ":user::alpha-element-t-binding").expect("eval");
     assert_eq!(got, Value::Option(Arc::new(Some(Value::i64(25)))), "Element binds ?t=25; got {got:?}");
 }

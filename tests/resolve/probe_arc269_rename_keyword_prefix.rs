@@ -11,16 +11,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc269_rename_keyword_prefix
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn rename_keyword_prefix_swaps_prefix_comment_faithful() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (rename-keyword-prefix exists on the fix-text engine)");
-    let ast = wat::parse_one!("(:user::go)").expect("parse");
-    let got = match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    // just-eval (rubric): `:user::go` lives in the co-located fixture.
+    let got = match call_beside(file!(), ":user::go")
         .unwrap_or_else(|e| panic!("go raised: {e:?}"))
     {
         Value::String(s) => (*s).clone(),
@@ -28,7 +25,7 @@ fn rename_keyword_prefix_swaps_prefix_comment_faithful() {
     };
     assert_eq!(
         got,
-        "(:wat::core::let\n   ;; KEEP THIS COMMENT byte-identical\n   [b (:my::new::Bound/listener x)\n    s (:my::new::Bound/address b)]\n   b)",
+        include_str!("probe_arc269_rename_keyword_prefix__swap-prefix-comment-faithful.wat"),
         "rename-keyword-prefix golden mismatch; both accessor prefixes must be swapped, \
          old prefix must be gone, comment must survive byte-identical"
     );

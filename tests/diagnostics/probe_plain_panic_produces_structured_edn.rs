@@ -27,8 +27,8 @@
 //! non-AssertionPayload panic exit path. No assert-eq, no raise!, no
 //! RuntimeError.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// Extract `RunResult.failure.message` from a `Value::Struct` RunResult.
 fn failure_message(v: &Value) -> String {
@@ -63,10 +63,7 @@ fn probe_plain_panic_produces_structured_edn() {
     // `set-capacity-mode!` (rule 3 of FM 7-ter) so hermetic is the
     // required destination — the body needs a private, mutable runtime.
     // Wat source lives in the co-located fixture: probe_plain_panic_produces_structured_edn.wat
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:probe::plain-panic)").expect("parse");
-    let env = Environment::new();
-    let result = eval_in_frozen(&ast, &world, &env).expect("outer should not panic").value_owned();
+    let result = call_beside(file!(), ":probe::plain-panic").expect("outer should not panic");
 
     let msg = failure_message(&result);
 

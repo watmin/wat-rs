@@ -3,17 +3,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc275_verify_stdlib -- --nocapture`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn probe_stdlib_sources_count() {
     // Verify the intrinsic returns a vector with the expected number of files.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::compute-sources-count)").expect("parse");
-    let val = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned();
+    let val = call_beside(file!(), ":user::compute-sources-count").expect("eval should succeed");
     match val {
         Value::i64(n) => {
             println!("stdlib::sources count = {n}");
@@ -26,11 +22,7 @@ fn probe_stdlib_sources_count() {
 #[test]
 fn probe_verify_stdlib_violation_count() {
     // Run verify-stdlib and print the number of violations.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::compute-violation-count)").expect("parse");
-    let val = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned();
+    let val = call_beside(file!(), ":user::compute-violation-count").expect("eval should succeed");
     match val {
         Value::i64(n) => {
             println!("verify-stdlib violation count = {n}");
@@ -44,11 +36,7 @@ fn probe_verify_stdlib_violation_count() {
 #[test]
 fn probe_verify_stdlib_violations_detail() {
     // Build a helper that returns all violations as a stringified report.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::compute-violations-detail)").expect("parse");
-    let val = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned();
+    let val = call_beside(file!(), ":user::compute-violations-detail").expect("eval should succeed");
     match val {
         Value::Vec(v) => {
             println!("=== verify-stdlib violations ({} total) ===", v.len());

@@ -8,22 +8,14 @@
 //! RED at HEAD. GREEN at 293.4e-pre.ii — unblocks the `:wat::spawn::Locus` migration (its `launch<S,R,St,Sh,Lu>`
 //! is generic), i.e. the `defprotocol` annihilation (293.4e).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// A generic surface method `(make<T> …)` dispatched on a record, instantiating `T = i64`, returns its arg (42).
 #[test]
 fn generic_surface_method_dispatches_with_type_params() {
-    let world = startup_beside(file!())
-        .expect("293.4e-pre.ii: a generic surface method `(make<T> …)` must type-check + dispatch");
-
-    let got = eval_in_frozen(
-        &wat::parse_one!("(:t::probe)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("(:t::probe) must dispatch the generic :t::Maker/make (T=i64) to :t::Id/make")
-    .value_owned();
+    let got = call_beside(file!(), ":t::probe")
+        .expect("(:t::probe) must dispatch the generic :t::Maker/make (T=i64) to :t::Id/make");
 
     match got {
         Value::i64(n) => assert_eq!(n, 42, "the generic surface method should return its arg (T=i64); got {n}"),

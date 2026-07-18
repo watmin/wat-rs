@@ -1,0 +1,1 @@
+(wat.core/typealias svc/Alias wat.type/i64)

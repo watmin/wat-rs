@@ -70,3 +70,14 @@
       (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Bad"))
       (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Warn"))
       (:wat::core::length (:wat::rete::query-by-type-string fired "n3::Safe")))))
+
+;; just-eval entry points — thin zero-arg wrappers naming the fire verb (the only thing the
+;; differential varies), so the Rust driver only names an entry point (no inline wat).
+(:wat::core::defn :user::n-oracle-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+  (:n::run-counts :wat::rete::fire-rules-spec))
+(:wat::core::defn :user::n-native-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+  (:n::run-counts :wat::rete::fire-rules))
+(:wat::core::defn :user::n3-oracle-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+  (:n3::run-counts :wat::rete::fire-rules-spec))
+(:wat::core::defn :user::n3-native-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+  (:n3::run-counts :wat::rete::fire-rules))

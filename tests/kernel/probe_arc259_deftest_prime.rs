@@ -17,16 +17,20 @@
 //!
 //! WAT fixtures: tests/kernel/probe_arc259_deftest_prime_{passing,failing}.wat
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::Environment;
+use wat::freeze::startup_from_file;
+use wat::runtime::apply_function;
 
 /// Build a world from the fixture; eval the named test fn and return the eval Result's
 /// text on Err (or `None` on Ok).
 fn run_test_fn(path: &str, name: &str) -> Result<(), String> {
     let world = startup_from_file(path)
         .expect("startup should succeed (deftest' macro must exist + expand)");
-    let ast = wat::parse_one!(name).expect("parse test-fn call");
-    match eval_in_frozen(&ast, &world, &Environment::new()) {
+    let func = world
+        .symbols()
+        .get(name)
+        .unwrap_or_else(|| panic!("no {name} in {path:?}"))
+        .clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()) {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("{e:?}")),
     }
@@ -37,7 +41,7 @@ fn run_test_fn(path: &str, name: &str) -> Result<(), String> {
 fn deftest_prime_passing_returns() {
     let r = run_test_fn(
         "tests/kernel/probe_arc259_deftest_prime_passing.wat",
-        "(:user::passing)",
+        ":user::passing",
     );
     assert!(r.is_ok(), "a passing deftest' must RETURN (not raise); got Err: {r:?}");
 }
@@ -49,7 +53,7 @@ fn deftest_prime_passing_returns() {
 fn deftest_prime_failing_raises_with_message() {
     let r = run_test_fn(
         "tests/kernel/probe_arc259_deftest_prime_failing.wat",
-        "(:user::failing)",
+        ":user::failing",
     );
     match r {
         Ok(()) => panic!("a failing deftest' must RAISE; it returned Ok"),

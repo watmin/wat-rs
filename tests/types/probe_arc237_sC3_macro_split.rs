@@ -15,22 +15,18 @@
 //! Coverage (feedback_logic_coverage_mandate): base ops · holonic preserved · Liskov accept/reject
 //! · cross-flavor.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_beside, startup_from_file};
+use wat::runtime::Value;
 
 fn eval_bool(fn_name: &str) -> bool {
-    let world = startup_beside(file!()).expect("startup for macro_split fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), fn_name).expect("eval") {
         Value::bool(b) => b,
         other => panic!("expected bool from {}; got {:?}", fn_name, other),
     }
 }
 
 fn eval_i64(fn_name: &str) -> i64 {
-    let world = startup_beside(file!()).expect("startup for macro_split fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), fn_name).expect("eval") {
         Value::i64(n) => n,
         other => panic!("expected i64 from {}; got {:?}", fn_name, other),
     }
@@ -47,9 +43,7 @@ fn eval_i64(fn_name: &str) -> i64 {
 #[test] fn base_assoc_then_read() { assert_eq!(eval_i64(":user::base-assoc-then-read"), 9); }
 #[test] fn base_to_holon_errors() {
     // base has NO holon flavor — to-holon must error (teaching error), not return Ok.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::base-to-holon-errors)").expect("parse");
-    let h = eval_in_frozen(&ast, &world, &Environment::new());
+    let h = call_beside(file!(), ":user::base-to-holon-errors");
     assert!(h.is_err(), "to-holon on a BASE record must error; got {:?}", h);
 }
 
@@ -58,9 +52,7 @@ fn eval_i64(fn_name: &str) -> i64 {
 #[test] fn holonic_predicate_true() { assert!(eval_bool(":user::holonic-predicate-true")); }
 #[test] fn holonic_to_holon_ok() {
     // holonic HAS a holon flavor — to-holon works.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::holonic-to-holon-ok)").expect("parse");
-    let t = eval_in_frozen(&ast, &world, &Environment::new());
+    let t = call_beside(file!(), ":user::holonic-to-holon-ok");
     assert!(t.is_ok(), "to-holon on a HOLONIC record must work; got {:?}", t);
 }
 

@@ -22,17 +22,20 @@
 //!
 //! WAT fixtures: tests/kernel/probe_time_duration_readout_{same_unit,across_units,truncates,instant_delta}.wat
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
 /// Eval a fixture that returns `:i64` in a frozen world. Panics (RED) if startup or
 /// eval fails — at HEAD the undefined readout verb makes eval fail here.
 fn eval_i64(path: &str) -> i64 {
     let world = startup_from_file(path).expect("startup/check should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    match eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {path:?}"))
+        .clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute eval")
-        .value_owned()
     {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),

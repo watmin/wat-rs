@@ -19,23 +19,18 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc237_derive_verb
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn run(call: &str) -> Value {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (derive verb: A/B derive :t::Marker; marker is a usable bound)");
-    let ast = wat::parse_one!(call).expect("parse");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .unwrap_or_else(|e| panic!("{call} raised: {e:?}"))
+fn run(fn_name: &str) -> Value {
+    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("{fn_name} raised: {e:?}"))
 }
 
 #[test]
 fn derive_registers_marker_edge_usable_as_a_bound() {
-    assert!(matches!(run("(:user::go-a)"), Value::i64(42)),
+    assert!(matches!(run(":user::go-a"), Value::i64(42)),
         "a :t::A (derives :t::Marker) must be accepted where :t::Marker is the bound");
-    assert!(matches!(run("(:user::go-b)"), Value::i64(42)),
+    assert!(matches!(run(":user::go-b"), Value::i64(42)),
         "a :t::B (derives :t::Marker) must be accepted where :t::Marker is the bound — the marker is \
          a hierarchy parent both derive, no methods (Clojure's derive/isa?, not a protocol)");
 }

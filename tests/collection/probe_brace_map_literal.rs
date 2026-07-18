@@ -17,17 +17,18 @@
 //! 8. Arc 257.2 — old `{outcome grace-residue}` form now errors (migrate to `{:keys […]}`)
 //! 9. Keyword in binding position `{:foo bar}` rejected at CHECK time
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
+use wat::freeze::{call_beside, startup_from_file};
 use wat::parser::{ParseError, ParseErrorKind};
-use wat::runtime::{Environment, Value};
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:t::pN…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
 
 // ─── Probe 1: Empty `{}` → empty HashMap ────────────────────────────────────
 
 #[test]
 fn probe_1_empty_brace_is_empty_hashmap() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p1-empty-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p1-empty-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty {{}} must produce a length-0 HashMap"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -37,17 +38,13 @@ fn probe_1_empty_brace_is_empty_hashmap() {
 
 #[test]
 fn probe_2_single_pair_length_and_contains() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p2a-single-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2a-single-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "single-pair map literal must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p2b-single-contains)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2b-single-contains").expect("eval") {
         Value::bool(b) => assert!(b, "single-pair map literal must contain :foo"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -57,17 +54,13 @@ fn probe_2_single_pair_length_and_contains() {
 
 #[test]
 fn probe_3_multi_pair_length_and_contains() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
 
-    let ast = wat::parse_one!("(:t::p3a-multi-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p3a-multi-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "three-pair map literal must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p3b-multi-contains)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p3b-multi-contains").expect("eval") {
         Value::bool(b) => assert!(b, "three-pair map literal must contain :b"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -77,9 +70,7 @@ fn probe_3_multi_pair_length_and_contains() {
 
 #[test]
 fn probe_4_nested_in_expression_position() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p4-nested-expr-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4-nested-expr-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "map literal nested in expression must yield length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -89,9 +80,7 @@ fn probe_4_nested_in_expression_position() {
 
 #[test]
 fn probe_5_map_of_map_resolved_by_arc215() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p5-map-of-map-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p5-map-of-map-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "nested map literal must have outer length 1 (arc 215 resolves P2 Probe 5 limitation)"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -102,6 +91,8 @@ fn probe_5_map_of_map_resolved_by_arc215() {
 #[test]
 fn probe_6_non_keyword_key_accepted_with_inferred_k() {
     // Parse check: `{42 :v}` must parse cleanly (no MalformedBraceLiteral).
+    // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, parse-Ok/Err
+    // out); the subject is the reader's brace-form dispatch, not an evaluated value.
     let result = wat::parse_one!("{42 :v}");
     assert!(
         result.is_ok(),
@@ -110,9 +101,7 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
     );
 
     // Type-check + runtime via co-located fixture.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p6-int-key-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p6-int-key-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "int-keyed map must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -122,6 +111,8 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
 
 #[test]
 fn probe_7_odd_count_rejected_at_parse() {
+    // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, parse-Ok/Err
+    // out); the subject is the reader's odd-count brace-form rejection, not an evaluated value.
     let result = wat::parse_one!("{:foo}");
     assert!(
         matches!(result, Err(ParseError { kind: ParseErrorKind::MalformedBraceLiteral { .. }, .. })),

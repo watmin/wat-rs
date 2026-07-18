@@ -13,42 +13,21 @@
 //! `Explained` is EPHEMERAL — re-derived per explain, never serialized; the snapshot stays `{facts, rules}`.
 //! Run: cargo test --release -p wat --test probe_arc278_P12a_explain_substrate -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
-
-/// The shared lifecycle prefix: collect → compile → insert ×2 → fire-rules-explain, binding the
-/// `Explained` result to `ex`. `body` is spliced in with `ex` in scope.
-fn run_with_explained(body: &str) -> Value {
-    let compute = format!(
-        "(:wat::core::let\n\
-          [rules   (:wat::rete::collect-rules :weather)\n\
-           session (:wat::rete::compile rules)\n\
-           session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
-           session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
-           ex      (:wat::rete::fire-rules-explain session)]\n\
-          {body})"
-    );
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(&compute).expect("parse compute");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
 /// fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
 #[test]
 fn fire_rules_explain_preserves_the_closure() {
-    let n = run_with_explained(
-        "(:wat::core::length\n\
-           (:wat::rete::query-by-type-string (:wat::rete::Explained/session ex) \"weather::ColdAndWindy\"))");
+    let n = call_beside(file!(), ":user::closure-fidelity-coldandwindy-count").expect("compute should run");
     assert!(matches!(n, Value::i64(1)), "explain mode must derive the same ColdAndWindy closure as the fast path (1); got {n:?}");
 }
 
 /// 2. INDEX POPULATED — the support map has one entry per derived fact: ColdAndWindy + WeatherAlert = 2.
 #[test]
 fn support_index_has_an_entry_per_derived_fact() {
-    let n = run_with_explained(
-        "(:wat::core::PersistentMap/length (:wat::rete::Explained/support ex))");
+    let n = call_beside(file!(), ":user::support-index-length").expect("compute should run");
     assert!(matches!(n, Value::i64(2)), "support index must have one entry per derived fact (ColdAndWindy, WeatherAlert = 2); got {n:?}");
 }
 
@@ -57,13 +36,6 @@ fn support_index_has_an_entry_per_derived_fact() {
 /// has 1 (ColdAndWindy) → 3. This proves the index stores the real provenance, not just fact keys.
 #[test]
 fn support_tokens_carry_their_full_chains() {
-    let n = run_with_explained(
-        "(:wat::core::foldl\n\
-           (:wat::core::fn [acc <- :wat::core::i64  sv <- :wat::rete::Support]\n\
-             -> :wat::core::i64\n\
-             (:wat::core::i64::+ acc\n\
-               (:wat::core::length (:wat::rete::Token/matches (:wat::rete::Support/token sv)))))\n\
-           0\n\
-           (:wat::core::PersistentMap/values (:wat::rete::Explained/support ex)))");
+    let n = call_beside(file!(), ":user::support-chains-total-length").expect("compute should run");
     assert!(matches!(n, Value::i64(3)), "support tokens must carry their real chains (ColdAndWindy 2 + WeatherAlert 1 = 3); got {n:?}");
 }

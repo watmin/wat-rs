@@ -12,3 +12,64 @@
   :then
   (:wat::rete::insert (:alert::Unattended :location ?loc)))
 
+;; Fire via `fire` after the given inserts; count derived Unattended facts. Six combos:
+;; {native, oracle} x {absent, present-matching, present-different}.
+
+(:wat::core::defn :user::native-absent [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :alert)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+       fired   (:wat::rete::fire-rules session)]
+      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+
+(:wat::core::defn :user::oracle-absent [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :alert)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+       fired   (:wat::rete::fire-rules-spec session)]
+      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+
+(:wat::core::defn :user::native-present-matching [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :alert)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+       session (:wat::rete::insert session (:ops::Maintenance :location "Oslo"))
+       fired   (:wat::rete::fire-rules session)]
+      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+
+(:wat::core::defn :user::oracle-present-matching [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :alert)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+       session (:wat::rete::insert session (:ops::Maintenance :location "Oslo"))
+       fired   (:wat::rete::fire-rules-spec session)]
+      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+
+(:wat::core::defn :user::native-present-different [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :alert)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+       session (:wat::rete::insert session (:ops::Maintenance :location "Bergen"))
+       fired   (:wat::rete::fire-rules session)]
+      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+
+(:wat::core::defn :user::oracle-present-different [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::let
+      [rules   (:wat::rete::collect-rules :alert)
+       session (:wat::rete::compile rules)
+       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+       session (:wat::rete::insert session (:ops::Maintenance :location "Bergen"))
+       fired   (:wat::rete::fire-rules-spec session)]
+      (:wat::rete::query-by-type-string fired "alert::Unattended"))))
+

@@ -10,15 +10,11 @@
 //! symmetry — fn/defn body slots become `body1 body2 ... bodyN` after
 //! the `-> :T` arrow.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn startup_err_file(rel_path: &str) -> String {
@@ -34,7 +30,7 @@ fn startup_err_file(rel_path: &str) -> String {
 
 #[test]
 fn single_binding() {
-    match run_expr("(:t::test1-single)") {
+    match run_expr(":t::test1-single") {
         Value::i64(n) => assert_eq!(n, 2, "expected 1+1=2; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -44,7 +40,7 @@ fn single_binding() {
 
 #[test]
 fn multiple_bindings() {
-    match run_expr("(:t::test2-multi)") {
+    match run_expr(":t::test2-multi") {
         Value::i64(n) => assert_eq!(n, 3, "expected 1+2=3; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -54,7 +50,7 @@ fn multiple_bindings() {
 
 #[test]
 fn sequential_references() {
-    match run_expr("(:t::test3-seq)") {
+    match run_expr(":t::test3-seq") {
         Value::i64(n) => assert_eq!(n, 2, "expected y=x+1=2; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -64,7 +60,7 @@ fn sequential_references() {
 
 #[test]
 fn empty_bindings() {
-    match run_expr("(:t::test4-empty)") {
+    match run_expr(":t::test4-empty") {
         Value::i64(n) => assert_eq!(n, 2, "expected (let [] (+ 1 1)) = 2; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -74,7 +70,7 @@ fn empty_bindings() {
 
 #[test]
 fn empty_body() {
-    match run_expr("(:t::test5-empty-body)") {
+    match run_expr(":t::test5-empty-body") {
         Value::Unit => {}
         other => panic!("expected Value::Unit (:wat::core::nil); got {:?}", other),
     }
@@ -84,7 +80,7 @@ fn empty_body() {
 
 #[test]
 fn destructure_binding() {
-    match run_expr("(:t::test6-destructure)") {
+    match run_expr(":t::test6-destructure") {
         Value::i64(n) => assert_eq!(n, 7, "expected 3+4=7; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -116,7 +112,7 @@ fn odd_count_vector_errors() {
 
 #[test]
 fn multi_form_let_body() {
-    match run_expr("(:t::test10-multi-body)") {
+    match run_expr(":t::test10-multi-body") {
         Value::i64(n) => assert_eq!(n, 42, "expected last-form value (1+41=42); got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -141,7 +137,7 @@ fn multi_form_let_body_typecheck() {
 
 #[test]
 fn multi_form_fn_body() {
-    match run_expr("(:t::test12-fn-body)") {
+    match run_expr(":t::test12-fn-body") {
         Value::i64(n) => assert_eq!(n, 42, "expected last-form return value (1+41=42); got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -151,7 +147,7 @@ fn multi_form_fn_body() {
 
 #[test]
 fn multi_form_defn_body() {
-    match run_expr("(:t::test13-defn-body)") {
+    match run_expr(":t::test13-defn-body") {
         Value::i64(n) => assert_eq!(n, 42, "expected last-form return value (1+41=42); got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -161,7 +157,7 @@ fn multi_form_defn_body() {
 
 #[test]
 fn single_body_let_regression() {
-    match run_expr("(:t::test14-single-let)") {
+    match run_expr(":t::test14-single-let") {
         Value::i64(n) => assert_eq!(n, 30, "expected 10+20=30; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }
@@ -171,7 +167,7 @@ fn single_body_let_regression() {
 
 #[test]
 fn single_body_fn_regression() {
-    match run_expr("(:t::test15-single-fn)") {
+    match run_expr(":t::test15-single-fn") {
         Value::i64(n) => assert_eq!(n, 15, "expected 7+8=15; got {}", n),
         other => panic!("expected Value::i64; got {:?}", other),
     }

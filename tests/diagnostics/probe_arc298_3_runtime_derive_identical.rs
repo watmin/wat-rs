@@ -21,6 +21,12 @@
 //!
 //! PROBATIO FLEXA MENTITVR — every probe uses `assert_eq!` on exact bytes.
 
+// rune:lint(no-inlined-wat) — this file constructs `RuntimeError`/`ClauseAttempt` Rust structs
+// DIRECTLY (no startup/eval pipeline at all) and serializes them via `ToEdn`; the
+// `PostconditionFailed` probe's `ensure_expr_snapshot` is an opaque snapshot-text `String` FIELD
+// ("(> result 0)") that happens to look like a wat form but is never parsed or evaluated by
+// wat's reader — Rust-level data, not wat-under-test (mirrors probe_arc237_stone4_rich_errors.rs).
+
 use std::sync::Arc;
 use wat::hash::HashError;
 use wat::macros::{MacroError, MacroErrorKind};

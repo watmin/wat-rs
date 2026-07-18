@@ -10,9 +10,8 @@
 //! Parent reads 42 via Receiver/from-pipe over Process/stdout.
 
 use std::sync::Arc;
-use wat::ast::WatAST;
-use wat::freeze::startup_bare;
-use wat::runtime::{eval, Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
 fn process_stdin_writer(process: &Value) -> Arc<dyn wat::io::WatWriter> {
     match process {
@@ -52,34 +51,14 @@ fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
 /// Parent reads 42 via Receiver/from-pipe over Process/stdout (IOReader).
 #[test]
 fn probe_spawn_process_stdin() {
-    // Arc 170 slice 6 — parent world is incidental (no user defns needed);
-    // child's :user::main is constructed below via parse + AST, not loaded from WAT.
-    let world = startup_bare().expect("startup should succeed");
-    // Build the child program as a single :user::main define whose body
-    // is the read-plus-print logic. Use parse to construct the body —
-    // simpler than manual AST surgery and matches the source-form path.
-    let child_program_src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [n    (:wat::kernel::readln -> :wat::core::i64)
-                       _out (:wat::kernel::println (:wat::core::i64::+ n 1))]
-                      nil))
-    "#;
-    let child_forms = wat::parser::parse_all_with_file(child_program_src, "<probe>")
-        .expect("child program parse");
-    // Wrap them in (:wat::core::forms <form>...) for the spawn-process call.
-    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
-    forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
-    let call = WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
-            forms_call,
-        ],
-        wat::rust_caller_span!(),
-    );
-    let env = Environment::new();
-    let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
+    // World + child program loaded from co-located spawn_process_stdin.wat via startup_beside.
+    let world = startup_beside(file!()).expect("startup should succeed");
+    let launch = world
+        .symbols()
+        .get(":my::launch")
+        .expect(":my::launch defined");
+    let process = apply_function(launch.clone(), Vec::new(), world.symbols(), wat::rust_caller_span!())
+        .expect("spawn-process succeeds");
     let types = world.symbols().types().map(|a| a.as_ref());
 
     // Parent sends 41 via Sender/from-pipe wrapping Process/stdin (IOWriter).

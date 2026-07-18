@@ -8,15 +8,16 @@
 //!
 //! RED at HEAD: `:wat::core::nth` does not exist.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:t::…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
 
 /// `(nth [10 20 30] 1)` → 20 — the positional element, returned as T (not Option).
 #[test]
 fn nth_returns_the_positional_element() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::nth-returns-positional)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::nth-returns-positional").expect("eval") {
         Value::i64(n) => assert_eq!(n, 20, "nth returns the i-th element directly as T"),
         other => panic!("expected i64; got {other:?}"),
     }
@@ -27,7 +28,5 @@ fn nth_returns_the_positional_element() {
 #[should_panic] // the raise is a structured AssertionFailure payload (not a String),
                 // so match any panic — same as the assert-true probe.
 fn nth_raises_on_out_of_range() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::nth-out-of-range)").expect("parse");
-    eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned();
+    call_beside(file!(), ":t::nth-out-of-range").expect("eval");
 }

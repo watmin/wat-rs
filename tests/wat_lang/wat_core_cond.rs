@@ -6,15 +6,11 @@
 //! Typed once at the head; each test unifies with :wat::core::bool; each body
 //! unifies with :T; last arm must be (:else body).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn run_err_file(rel_path: &str) -> String {
@@ -42,27 +38,27 @@ fn unwrap_i64(v: Value) -> i64 {
 
 #[test]
 fn cond_first_arm_matches() {
-    assert_eq!(unwrap_string(run_expr("(:t::cond-first)")), "first");
+    assert_eq!(unwrap_string(run_expr(":t::cond-first")), "first");
 }
 
 #[test]
 fn cond_middle_arm_matches() {
-    assert_eq!(unwrap_string(run_expr("(:t::cond-middle)")), "middle");
+    assert_eq!(unwrap_string(run_expr(":t::cond-middle")), "middle");
 }
 
 #[test]
 fn cond_falls_through_to_else() {
-    assert_eq!(unwrap_string(run_expr("(:t::cond-else)")), "defaulted");
+    assert_eq!(unwrap_string(run_expr(":t::cond-else")), "defaulted");
 }
 
 #[test]
 fn cond_with_single_else_only() {
-    assert_eq!(unwrap_i64(run_expr("(:t::cond-only-else)")), 42);
+    assert_eq!(unwrap_i64(run_expr(":t::cond-only-else")), 42);
 }
 
 #[test]
 fn cond_dispatches_on_bound_value() {
-    assert_eq!(unwrap_string(run_expr("(:t::cond-dispatch)")), "[startup error]");
+    assert_eq!(unwrap_string(run_expr(":t::cond-dispatch")), "[startup error]");
 }
 
 // ─── Type-checker refusals ──────────────────────────────────────────────
@@ -101,12 +97,12 @@ fn cond_refuses_mismatched_body_type() {
 
 #[test]
 fn cond_preserves_tail_call() {
-    assert_eq!(unwrap_i64(run_expr("(:t::cond-tail)")), 0);
+    assert_eq!(unwrap_i64(run_expr(":t::cond-tail")), 0);
 }
 
 // ─── Nested cond ────────────────────────────────────────────────────────
 
 #[test]
 fn cond_composes_with_other_cond() {
-    assert_eq!(unwrap_string(run_expr("(:t::cond-nested)")), "inner-else");
+    assert_eq!(unwrap_string(run_expr(":t::cond-nested")), "inner-else");
 }

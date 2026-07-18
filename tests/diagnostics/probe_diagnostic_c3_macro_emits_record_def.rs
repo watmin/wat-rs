@@ -19,17 +19,19 @@
 //!
 //! Run: cargo test --release -p wat --test probe_diagnostic_c3_macro_emits_record_def
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
 #[test]
 fn macro_output_reexpands_record_def_and_enum_wraps_it() {
     let world = startup_beside(file!())
         .expect("startup should succeed: a defmacro emitting a defrecord call must re-expand, \
                  and a defenum variant field may be the emitted record (record emitted first)");
-    let ast = wat::parse_one!("(:demo/go 5)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let func = world
+        .symbols()
+        .get(":demo/go")
+        .expect(":demo/go must be defined by :t::mk's macro expansion");
+    let got = apply_function(func.clone(), vec![Value::i64(5)], world.symbols(), wat::rust_caller_span!())
         .unwrap_or_else(|e| panic!("demo/go raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

@@ -8,10 +8,8 @@
 //!
 //! RED at HEAD: the co-located fixture (mixed comparisons) fails to type-check, so `startup_beside` errors.
 
-// rune:lint(no-inlined-wat) — the fn-call drivers (`(:probe::lt)` etc.) are inline reader/eval subjects;
-// the mixed-comparison WORLD is a co-located `.wat` fixture (loaded via startup_beside), not inlined.
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, ValueSnapshot};
+use wat::freeze::{call_beside, startup_beside};
+use wat::runtime::Value;
 
 #[test]
 fn mixed_numeric_comparison_type_checks() {
@@ -26,16 +24,16 @@ fn mixed_numeric_comparison_type_checks() {
 
 #[test]
 fn mixed_numeric_comparison_evals_correctly() {
-    let world = startup_beside(file!()).expect("fixture must type-check + load (arc 300 C5)");
-    let env = Environment::new();
-    for (call, expect) in [
-        ("(:probe::lt)", "true"),      // i64 < f64
-        ("(:probe::eq)", "false"),     // = i64 f64 → false (category-aware, C4)
-        ("(:probe::le-big)", "true"),  // i64 <= bigint
-        ("(:probe::gt-rat)", "true"),  // f64 > rational
+    for (fn_name, expect) in [
+        (":probe::lt", true),      // i64 < f64
+        (":probe::eq", false),     // = i64 f64 → false (category-aware, C4)
+        (":probe::le-big", true),  // i64 <= bigint
+        (":probe::gt-rat", true),  // f64 > rational
     ] {
-        let ast = wat::parse_one!(call).expect("parse");
-        let tv = eval_in_frozen(&ast, &world, &env).unwrap_or_else(|e| panic!("{call}: {e:?}"));
-        assert_eq!(ValueSnapshot::of_tracked(&tv).rendered, expect, "{call}");
+        let got = call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("{fn_name}: {e:?}"));
+        assert!(
+            matches!(got, Value::bool(b) if b == expect),
+            "{fn_name} expected {expect}, got {got:?}"
+        );
     }
 }

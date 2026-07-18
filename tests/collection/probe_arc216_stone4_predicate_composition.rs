@@ -26,8 +26,11 @@
 //!  5. Vector<Fn(...)>                     — non-atomizable element T
 //!  6. non-atomizable argument to Atom     — non-atomizable K (via fn value)
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:t::probeN…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
 
 // ─── Probe 1 — Composite HashMap-of-Vector ────────────────────────────────────
 
@@ -35,9 +38,7 @@ use wat::runtime::{Environment, Value};
 /// Verifies Stone 3 + Stone 2 composition: HashMap-of-Vector.
 #[test]
 fn probe_1_composite_hashmap_of_vector() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe1-hashmap-of-vector)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::probe1-hashmap-of-vector").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashMap<keyword, Vector<i64>> round-trip must preserve 2 entries"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -49,9 +50,7 @@ fn probe_1_composite_hashmap_of_vector() {
 /// Verifies Stone 2 + Stone 1 composition: Vector-of-HashSet.
 #[test]
 fn probe_2_composite_vector_of_hashset() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe2-vector-of-hashset)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::probe2-vector-of-hashset").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "Vector<HashSet<i64>> round-trip must preserve 2 inner sets"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -64,9 +63,7 @@ fn probe_2_composite_vector_of_hashset() {
 /// did not handle Value::Vec. Stone 216.5 fixed the gap. Relanded to original type.
 #[test]
 fn probe_3_composite_hashset_of_vector() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe3-hashset-of-vector)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::probe3-hashset-of-vector").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "HashSet<Vector<i64>> round-trip must preserve 2 inner vectors"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -78,9 +75,7 @@ fn probe_3_composite_hashset_of_vector() {
 /// Stone 3 + Stone 2 + Stone 1 composition.
 #[test]
 fn probe_4_triple_nested_hashmap_vector_hashset() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe4-triple-nested)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::probe4-triple-nested").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "HashMap<keyword, Vector<HashSet<i64>>> round-trip must preserve 1 entry"),
         other => panic!("expected i64; got {:?}", other),
     }

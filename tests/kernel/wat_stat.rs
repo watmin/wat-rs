@@ -6,16 +6,11 @@
 //! default `ddof=0`); :wat::core::Option<wat::core::f64> for all three with None on empty
 //! input (matches f64::min-of / max-of's reduction-empty pattern).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let call = format!("({fn_name})");
-    let ast = wat::parse_one!(&call).expect("parse compute call");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+    call_beside(file!(), fn_name).expect("eval should succeed")
 }
 
 fn assert_str(val: Value, expected: &str) {

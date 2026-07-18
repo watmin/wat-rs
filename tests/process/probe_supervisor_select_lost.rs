@@ -14,6 +14,14 @@
 //! "boom".
 //!
 //! Modeled on `tests/wat_process_peer_ipc_round_trip.rs`.
+//!
+// rune:lint(no-inlined-wat) — the crashing-child forms + the `select'` driver expression must
+// bind a Rust-spawned Process VALUE (`child`) into an Environment before eval; a co-located
+// static .wat fixture cannot express that runtime binding. The exact golden below also embeds
+// the child program's own file-tag ("<spawn-process-program>") + source line/col from the
+// inline CRASHING_CHILD_SRC string — moving the program into a real .wat fixture would change
+// those location fields and silently corrupt the byte-exact assertion. Genuine dynamic-driver
+// need (docs/CONVENTIONS.md § Test idioms, escape hatch).
 
 use wat::ast::WatAST;
 use wat::freeze::startup_bare;

@@ -12,25 +12,18 @@
 //!
 //! Run: `cargo test --release --test channel probe_arc214_stone51_channel_substrate_flip`
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// make-channel's receiver must be comms-backed (the flip's fingerprint).
+///
+/// just-eval (rubric): make-channel's call lives in the co-located fixture's zero-arg
+/// `:user::compute-receiver`, driven via `call_beside` — no inline wat driver.
 #[test]
 fn probe_1_make_channel_receiver_is_comms_backed() {
-    let world = startup_bare()
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:wat::kernel::make-channel :wat::core::i64)")
-        .expect("parse make-channel");
-    let env = Environment::new();
-    let pair = eval_in_frozen(&ast, &world, &env)
-        .expect("make-channel must evaluate")
-        .value_owned();
-    let Value::Tuple(xs) = pair else {
-        panic!("make-channel returns a (Sender, Receiver) tuple; got {:?}", pair);
-    };
-    let Value::wat__kernel__Receiver(inner) = &xs[1] else {
-        panic!("tuple slot 1 must be the Receiver; got {:?}", xs[1]);
+    let rx = call_beside(file!(), ":user::compute-receiver").expect("make-channel must evaluate");
+    let Value::wat__kernel__Receiver(inner) = &rx else {
+        panic!("compute-receiver must return the Receiver; got {:?}", rx);
     };
     let dbg = format!("{:?}", inner);
     assert_eq!(
@@ -41,21 +34,14 @@ fn probe_1_make_channel_receiver_is_comms_backed() {
 }
 
 /// Same fingerprint on the Sender side.
+///
+/// just-eval (rubric): make-channel's call lives in the co-located fixture's zero-arg
+/// `:user::compute-sender`, driven via `call_beside` — no inline wat driver.
 #[test]
 fn probe_2_make_channel_sender_is_comms_backed() {
-    let world = startup_bare()
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:wat::kernel::make-channel :wat::core::i64)")
-        .expect("parse make-channel");
-    let env = Environment::new();
-    let pair = eval_in_frozen(&ast, &world, &env)
-        .expect("make-channel must evaluate")
-        .value_owned();
-    let Value::Tuple(xs) = pair else {
-        panic!("make-channel returns a (Sender, Receiver) tuple; got {:?}", pair);
-    };
-    let Value::wat__kernel__Sender(inner) = &xs[0] else {
-        panic!("tuple slot 0 must be the Sender; got {:?}", xs[0]);
+    let tx = call_beside(file!(), ":user::compute-sender").expect("make-channel must evaluate");
+    let Value::wat__kernel__Sender(inner) = &tx else {
+        panic!("compute-sender must return the Sender; got {:?}", tx);
     };
     let dbg = format!("{:?}", inner);
     assert_eq!(

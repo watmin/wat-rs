@@ -7,35 +7,51 @@
 //! files — Cargo compiles each to its own test binary where the
 //! install race doesn't cross.
 //!
-//! This file installs ONE dep set (two in-memory `.wat` files) and
-//! exercises it from multiple entry-source shapes. The pattern
-//! mirrors how a consumer crate would use `Harness::from_source_with_deps`
-//! at test time: one superset, many callers.
+//! This file installs ONE dep set (two co-located `.wat` fixtures, read via
+//! `include_str!` into `WatSource`s) and exercises it from multiple entry-source
+//! shapes. The pattern mirrors how a consumer crate would use
+//! `Harness::from_source_with_deps` at test time: one superset, many callers.
 //!
 //! Arc 170 slice 1f-ζ: migrated from 3-arg main + stdout-capture to
 //! canonical nil main + eval_in_frozen via h.world(). Dep presence
 //! verified through symbol lookup + eval.
+//!
+//! no_inlined_wat: every wat source here (deps + the shared canonical-nil
+//! `:user::main`) lives in a co-located `.wat` fixture beside this file, pulled
+//! in via `include_str!`; drivers fetch the named fn off `h.world().symbols()`
+//! and `apply_function` it — no inline wat driver strings.
 
-use wat::freeze::eval_in_frozen;
+use wat::runtime::{apply_function, Value};
 use wat::harness::Harness;
-use wat::runtime::{Environment, Value};
 use wat::WatSource;
 
-/// Two in-memory dep "files" — stand-ins for what an external wat
-/// crate's `wat_sources()` would return. Both under `:user::*`
-/// per arc 013's namespace convention.
+/// Two co-located `.wat` fixtures — stand-ins for what an external wat crate's
+/// `wat_sources()` would return. Both under `:user::*` per arc 013's namespace
+/// convention.
 const DEP_A: &[WatSource] = &[WatSource {
     path: "test-harness-deps/a.wat",
-    source: r#"
-        (:wat::core::defn :user::test::dep-a::label [] -> :wat::core::String "A")
-    "#,
+    source: include_str!("wat_harness_deps_dep_a.wat"),
 }];
 const DEP_B: &[WatSource] = &[WatSource {
     path: "test-harness-deps/b.wat",
-    source: r#"
-        (:wat::core::defn :user::test::dep-b::label [] -> :wat::core::String "B")
-    "#,
+    source: include_str!("wat_harness_deps_dep_b.wat"),
 }];
+
+/// The canonical nil `:user::main` shared by every test in this file — co-located
+/// (tests/kernel/wat_harness_deps_user_main.wat), never inlined.
+const USER_MAIN: &str = include_str!("wat_harness_deps_user_main.wat");
+
+/// Fetch a zero-arg fn off the harness's frozen world and apply it.
+fn call(h: &Harness, fn_name: &str) -> Value {
+    let world = h.world();
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} registered in harness world"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .unwrap_or_else(|e| panic!("eval {fn_name} failed: {e:?}"))
+}
 
 // Each test body runs in a forked child — fresh OnceLock state per
 // test, no race between the three Harness::from_source_with_deps
@@ -49,10 +65,7 @@ fn harness_composes_multiple_deps_into_user_source() {
     wat::process::run_in_fork(|| {
         // Arc 170 slice 1f-ζ: canonical nil main; dep functions verified
         // via eval_in_frozen on the frozen world.
-        let user = r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
-        "#;
-        let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
+        let h = Harness::from_source_with_deps(USER_MAIN, &[DEP_A, DEP_B], &[]).expect("freeze");
         let out = h.run(&[]).expect("run");
         // Arc 170: stdio capture retired — stdout/stderr are always empty.
         assert!(out.stdout.is_empty());
@@ -64,11 +77,8 @@ fn harness_composes_multiple_deps_into_user_source() {
         assert!(world.symbols().get(":user::test::dep-b::label").is_some(),
                 "expected dep-b to be registered");
         // Verify dep-a returns "A" and dep-b returns "B" via eval.
-        let env = Environment::new();
-        let ast_a = wat::parse_one!("(:user::test::dep-a::label)").expect("parse a");
-        let ast_b = wat::parse_one!("(:user::test::dep-b::label)").expect("parse b");
-        let val_a = eval_in_frozen(&ast_a, &world, &env).expect("eval a").value_owned();
-        let val_b = eval_in_frozen(&ast_b, &world, &env).expect("eval b").value_owned();
+        let val_a = call(&h, ":user::test::dep-a::label");
+        let val_b = call(&h, ":user::test::dep-b::label");
         assert!(matches!(val_a, Value::String(ref s) if &**s == "A"), "expected dep-a to return 'A'; got {:?}", val_a);
         assert!(matches!(val_b, Value::String(ref s) if &**s == "B"), "expected dep-b to return 'B'; got {:?}", val_b);
     });
@@ -78,19 +88,13 @@ fn harness_composes_multiple_deps_into_user_source() {
 fn harness_same_deps_usable_from_different_entry_source() {
     wat::process::run_in_fork(|| {
         // Arc 170 slice 1f-ζ: canonical nil main; dep-a verified via eval.
-        let user = r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
-        "#;
-        let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
+        let h = Harness::from_source_with_deps(USER_MAIN, &[DEP_A, DEP_B], &[]).expect("freeze");
         let out = h.run(&[]).expect("run");
         // Arc 170: stdio capture retired.
         assert!(out.stdout.is_empty());
         assert!(out.stderr.is_empty(), "expected empty stderr; got {:?}", out.stderr);
         // Verify dep-a returns "A" via eval_in_frozen.
-        let world = h.world();
-        let env = Environment::new();
-        let ast = wat::parse_one!("(:user::test::dep-a::label)").expect("parse dep-a");
-        let val = eval_in_frozen(&ast, &world, &env).expect("eval dep-a").value_owned();
+        let val = call(&h, ":user::test::dep-a::label");
         assert!(matches!(val, Value::String(ref s) if &**s == "A"),
                 "expected dep-a to return 'A'; got {:?}", val);
     });
@@ -101,11 +105,8 @@ fn harness_with_zero_deps_matches_from_source() {
     wat::process::run_in_fork(|| {
         // Arc 170 slice 1f-ζ: canonical nil main. Passing &[] uses no deps.
         // Verify both harness constructions succeed and run returns Ok.
-        let src = r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::core::let [_argv (:wat::runtime::argv)] nil))
-        "#;
-        let h_no_deps = Harness::from_source_with_deps(src, &[], &[]).expect("freeze-empty-deps");
-        let h_ref = Harness::from_source(src).expect("freeze-from-source");
+        let h_no_deps = Harness::from_source_with_deps(USER_MAIN, &[], &[]).expect("freeze-empty-deps");
+        let h_ref = Harness::from_source(USER_MAIN).expect("freeze-from-source");
         let out_a = h_no_deps.run(&[]).expect("run-no-deps");
         let out_b = h_ref.run(&[]).expect("run-from-source");
         // Arc 170: stdio capture retired — both return empty stdout/stderr.

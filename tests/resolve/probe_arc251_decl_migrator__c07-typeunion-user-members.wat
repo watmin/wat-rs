@@ -1,0 +1,1 @@
+(wat.core/typeunion my/Shape [my/Circle my/Square])

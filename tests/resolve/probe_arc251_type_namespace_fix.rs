@@ -4,15 +4,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_type_namespace_fix`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_string(world: &wat::freeze::FrozenWorld, call: &str) -> Result<String, String> {
-    let ast = wat::parse_one!(call).expect("parse");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
+// just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed Value.
+fn eval_string(fn_name: &str) -> Result<String, String> {
+    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string: {other:?}")),
     }
@@ -20,80 +18,92 @@ fn eval_string(world: &wat::freeze::FrozenWorld, call: &str) -> Result<String, S
 
 #[test]
 fn c01_core_fqdn_scalar_stays_wat_type() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c01a)"), Ok("wat.type/i64".into()));
-    assert_eq!(eval_string(&world, "(:user::c01b)"), Ok("wat.type/String".into()));
+    assert_eq!(
+        eval_string(":user::c01a"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c01a-core-fqdn-i64.wat").into())
+    );
+    assert_eq!(
+        eval_string(":user::c01b"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c01b-core-fqdn-string.wat").into())
+    );
 }
 
 #[test]
 fn c02_core_parametric_stays_wat_type() {
-    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_string(&world, "(:user::c02)"),
-        Ok("(wat.type/Vector wat.type/i64)".into())
+        eval_string(":user::c02"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c02-core-parametric.wat").into())
     );
 }
 
 #[test]
 fn c03_bare_legacy_primitive_renders_core() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c03a)"), Ok("wat.type/i64".into()));
-    assert_eq!(eval_string(&world, "(:user::c03b)"), Ok("wat.type/String".into()));
-    assert_eq!(eval_string(&world, "(:user::c03c)"), Ok("wat.type/bool".into()));
+    assert_eq!(
+        eval_string(":user::c03a"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c03a-legacy-i64.wat").into())
+    );
+    assert_eq!(
+        eval_string(":user::c03b"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c03b-legacy-string.wat").into())
+    );
+    assert_eq!(
+        eval_string(":user::c03c"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c03c-legacy-bool.wat").into())
+    );
 }
 
 #[test]
 fn c04_user_type_preserves_namespace() {
-    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_string(&world, "(:user::c04)"),
-        Ok("wat.kernel.services.StdErrService/Req".into())
+        eval_string(":user::c04"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c04-user-type-namespace.wat").into())
     );
 }
 
 #[test]
 fn c05_distinct_user_types_do_not_collide() {
-    let world = startup_beside(file!()).expect("startup");
-    let a = eval_string(&world, "(:user::c05a)");
-    let b = eval_string(&world, "(:user::c05b)");
+    let a = eval_string(":user::c05a");
+    let b = eval_string(":user::c05b");
     assert!(a.is_ok() && b.is_ok(), "both must render: {a:?} {b:?}");
     assert_ne!(a, b, "distinct types must NOT render to the same faithful name (collision)");
 }
 
 #[test]
 fn c06_user_type_two_segment_preserves_namespace() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c06)"), Ok("wat.holon/HolonAST".into()));
+    assert_eq!(
+        eval_string(":user::c06"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c06-user-type-two-segment.wat").into())
+    );
 }
 
 #[test]
 fn c07_type_var_stays_bare() {
-    let world = startup_beside(file!()).expect("startup");
-    assert_eq!(eval_string(&world, "(:user::c07a)"), Ok("T".into()));
-    assert_eq!(eval_string(&world, "(:user::c07b)"), Ok("K".into()));
+    assert_eq!(
+        eval_string(":user::c07a"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c07a-type-var-t.wat").into())
+    );
+    assert_eq!(
+        eval_string(":user::c07b"),
+        Ok(include_str!("probe_arc251_type_namespace_fix__c07b-type-var-k.wat").into())
+    );
 }
 
 #[test]
 fn c08_bare_head_parametric_errors_cleanly() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast_a = wat::parse_one!("(:user::c08a)").expect("parse");
     assert!(
-        eval_in_frozen(&ast_a, &world, &Environment::new()).is_err(),
+        call_beside(file!(), ":user::c08a").is_err(),
         "bare parametric head must error cleanly, not panic"
     );
-    let ast_b = wat::parse_one!("(:user::c08b)").expect("parse");
     assert!(
-        eval_in_frozen(&ast_b, &world, &Environment::new()).is_err(),
+        call_beside(file!(), ":user::c08b").is_err(),
         "higher-kinded head must error cleanly, not panic"
     );
 }
 
 #[test]
 fn c09_trailing_colons_path_errors_cleanly() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::c09)").expect("parse");
     assert!(
-        eval_in_frozen(&ast, &world, &Environment::new()).is_err(),
+        call_beside(file!(), ":user::c09").is_err(),
         "trailing-`::` path must error cleanly, not panic"
     );
 }

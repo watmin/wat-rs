@@ -144,17 +144,12 @@ fn t3_runtime_argv_ambient_reachable_from_main() {
 #[test]
 fn t3_runtime_argv_ambient_eval_arm_produces_vector() {
     // Exercise the `(:wat::runtime::argv)` eval arm independently of
-    // `:user::main` invocation. eval_in_frozen lets us evaluate an
-    // arbitrary expression against a frozen world; the result is the
-    // ambient argv as Value::Vec.
-    use wat::freeze::eval_in_frozen;
-    use wat::runtime::Environment;
+    // `:user::main` invocation, via the co-located `:probe::argv-compute`
+    // fixture fn (just-eval rubric). Result is the ambient argv as Value::Vec.
+    use wat::freeze::call_beside;
 
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:wat::runtime::argv)").expect("parse argv expr");
-    let env = Environment::new();
-    let result =
-        eval_in_frozen(&ast, &world, &env).expect("(:wat::runtime::argv) evaluates").value_owned();
+    let result = call_beside(file!(), ":probe::argv-compute")
+        .expect("(:wat::runtime::argv) evaluates");
     match result {
         Value::Vec(_) => {} // Shape proven; contents depend on what earlier tests set
         other => panic!("expected Value::Vec from (:wat::runtime::argv); got {:?}", other),
@@ -163,18 +158,14 @@ fn t3_runtime_argv_ambient_eval_arm_produces_vector() {
 
 #[test]
 fn t3_runtime_current_thread_eval_arm_produces_string() {
-    // Exercise the `(:wat::runtime::current-thread)` eval arm. Slice
-    // 1e implements against the main thread; the value is a string
-    // rendering of `std::thread::current().id()`.
-    use wat::freeze::eval_in_frozen;
-    use wat::runtime::Environment;
+    // Exercise the `(:wat::runtime::current-thread)` eval arm via the
+    // co-located `:probe::current-thread-compute` fixture fn. Slice 1e
+    // implements against the main thread; the value is a string rendering
+    // of `std::thread::current().id()`.
+    use wat::freeze::call_beside;
 
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:wat::runtime::current-thread)")
-        .expect("parse current-thread expr");
-    let env = Environment::new();
-    let result = eval_in_frozen(&ast, &world, &env)
-        .expect("(:wat::runtime::current-thread) evaluates").value_owned();
+    let result = call_beside(file!(), ":probe::current-thread-compute")
+        .expect("(:wat::runtime::current-thread) evaluates");
     match result {
         Value::String(_) => {}
         other => panic!(

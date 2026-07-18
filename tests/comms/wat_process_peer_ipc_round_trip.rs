@@ -45,48 +45,8 @@
 //! echo request. Not child/parent (OS-tree) — the role framing is the
 //! conversation, not the process lineage.
 
-use wat::ast::WatAST;
-use wat::freeze::{eval_in_frozen, startup_bare, startup_beside};
-use wat::runtime::{eval, Environment, Value};
-
-/// Arc 170 slice 6 helper — wrap a child-program source string as a
-/// `(:wat::kernel::spawn-process (:wat::core::forms <forms>...))` call
-/// AST. Mirrors `tests/wat_arc170_program_contracts.rs::build_spawn_process_call`
-/// and `tests/probe_spawn_process_stdio.rs`. Kept local to this file so
-/// the test reads top-to-bottom without external indirection.
-fn build_spawn_process_call(child_program_src: &str) -> WatAST {
-    let child_forms = wat::parser::parse_all_with_file(child_program_src, "<spawn-process-program>")
-        .expect("child program parse");
-    let mut forms_items = vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
-    forms_items.extend(child_forms);
-    let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
-    WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
-            forms_call,
-        ],
-        wat::rust_caller_span!(),
-    )
-}
-
-/// Drain the server's stderr to a String — diagnostic helper used when
-/// the round-trip fails (subprocess panic or unexpected EOF). Mirrors
-/// `tests/wat_arc170_program_contracts.rs:308-323`.
-fn drain_server_stderr(server: &Value) -> String {
-    match server {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::Process" => match &s.fields[2] {
-            Value::io__IOReader(rdr) => {
-                let mut all = String::new();
-                while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
-                    all.push_str(&line);
-                }
-                all
-            }
-            _ => "<server.stderr not IOReader>".to_string(),
-        },
-        _ => "<server not Process Struct>".to_string(),
-    }
-}
+use wat::freeze::{call_beside, startup_bare, startup_beside};
+use wat::runtime::Value;
 
 // ─── T1. type mint — both ProcessPeer<i64,String> and ProcessPeer<String,i64>
 //      type-check as function parameter types ──────────────────────────
@@ -119,82 +79,20 @@ fn process_peer_type_mints_in_both_parametric_orientations() {
 
 #[test]
 fn process_peer_round_trips_string_via_real_subprocess() {
-    // Empty parent world (no helper defines at freeze time). The
-    // subprocess program is self-contained per the arc 170 slice 6
-    // substrate contract.
-    let world = startup_bare().expect("startup");
-
-    // Server side: a single `:user::main` that reads one line via
-    // ambient `(:wat::kernel::readln -> :wat::core::String)` and echoes
-    // it back via `(:wat::kernel::println line)`. The substrate wires
-    // fd 0/1/2 to the OS pipes for the spawned subprocess; the
-    // ambient verbs route through those.
-    let server_program_src = r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [line (:wat::kernel::readln -> :wat::core::String)
-                       _    (:wat::kernel::println line)]
-                      nil))
-    "#;
-    let spawn_call = build_spawn_process_call(server_program_src);
-    let server = eval(&spawn_call, &Environment::new(), world.symbols())
-        .expect("spawn-process should hand back a Process Struct").value_owned();
-
-    // Bind the server Process Value into the eval environment. The
-    // rest of the round-trip lives in one embedded wat source — the
-    // composition pattern this test exists to prove.
+    // just-eval (rubric): the server spawn + ProcessPeer composition + println/readln
+    // round-trip all live in the co-located fixture's `:my::round-trip-hello` (same
+    // forms this Rust driver used to build dynamically — server side: a single
+    // `:user::main` that reads one line via ambient readln and echoes it back via
+    // println; client side: Receiver/from-pipe + Sender/from-pipe + ProcessPeer,
+    // verbose by design per `feedback_verbose_is_honest`, surfacing what the
+    // run-processes bracket macro hides).
     //
-    // Construction is verbose by design (per
-    // `feedback_verbose_is_honest`): the three-step build (Receiver
-    // over stdout, Sender over stdin, ProcessPeer/new over both)
-    // surfaces what the bracket macro will hide. The substrate has
-    // ZERO constructor verbs minted to compress this — that is the
-    // point.
-    let env = Environment::new()
-        .child()
-        .bind("server", wat::rust_caller_span!(), server.clone().into())
-        .build();
-    // Arc 208 slice 2 — Process/println + Process/readln are matched honestly.
-    // reply is unwrapped :String (from the Ok arm) so the Rust-side
-    // match below stays unchanged. Walker requires Process/readln to appear in
-    // match-value position; same for Process/println — both now do.
-    let round_trip = wat::parse_one!(
-        r#"
-        (:wat::core::let
-          [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
-           tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
-           peer (:wat::kernel::ProcessPeer :rx rx :tx tx)]
-          (:wat::core::match (:wat::kernel::Process/println peer "hello")
-            -> :wat::core::String
-            ((:wat::core::Ok _)
-              (:wat::core::match (:wat::kernel::Process/readln peer)
-                -> :wat::core::String
-                ((:wat::core::Ok reply)
-                  (:wat::core::let [_drained (:wat::kernel::Process/drain-and-join server)]
-                    reply))
-                ((:wat::core::Err _chain)
-                  (:wat::kernel::assertion-failed! "Process/readln failed: subprocess died" :wat::core::None :wat::core::None))))
-            ((:wat::core::Err _chain)
-              (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None))))
-        "#
-    )
-    .expect("round-trip let form parses");
-
-    // Hermetic time-bound: if eval ever blocks indefinitely on a wat-
-    // level deadlock, the test harness's per-test timeout will kill us.
-    // On the clean-shutdown failure path, Process/readln surfaces Err(chain)
-    // via the match-on-Err arm, which calls assertion-failed! → RuntimeError.
-    // The server stderr is surfaced for diagnostic via the Err(e) arm below.
-    let reply = match eval_in_frozen(&round_trip, &world, &env) {
-        Ok(v) => v.value_owned(),
-        Err(e) => {
-            let stderr_text = drain_server_stderr(&server);
-            panic!(
-                "ProcessPeer round-trip failed: {}\nserver stderr:\n{}",
-                e, stderr_text
-            );
-        }
-    };
+    // Hermetic time-bound: if eval ever blocks indefinitely on a wat-level deadlock,
+    // the test harness's per-test timeout will kill us. On the clean-shutdown
+    // failure path, Process/readln surfaces Err(chain) via the match-on-Err arm,
+    // which calls assertion-failed! → RuntimeError.
+    let reply = call_beside(file!(), ":my::round-trip-hello")
+        .unwrap_or_else(|e| panic!("ProcessPeer round-trip failed: {}", e));
     match reply {
         Value::String(s) => assert_eq!(
             s.as_str(),

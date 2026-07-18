@@ -4476,6 +4476,23 @@ fn infer_list(
                 }
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                    // Arc 278 query (a) de-mask — the `query` macro (wat/rete.wat) emits a
+                    // LITERAL PRIME type-ref keyword (`:Foo'`) as this arg. A literal keyword
+                    // arg ending in `'` names a type BY CONSTRUCTION (never a value
+                    // expression); if that type isn't registered, catch it HERE at check
+                    // time (arc 278's own no-hidden-failures law) instead of letting a typo
+                    // reach the runtime's raising-but-check-invisible keyword branch. fn-value
+                    // args (inline `(:wat::core::fn …)`, defn names) are not literal keywords
+                    // — they fall through untouched, same infer-for-side-effects bypass.
+                    if let WatAST::Keyword(kw, _) = &args[0] {
+                        if let Some(bare) = kw.strip_suffix('\'') {
+                            if env.types().get(bare).is_none() {
+                                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::UnknownCallee {
+                                    callee: kw.clone()
+                                } });
+                            }
+                        }
+                    }
                 }
                 let ty = TypeExpr::Path(":wat::core::String".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };

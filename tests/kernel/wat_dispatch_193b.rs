@@ -8,8 +8,8 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 use wat_macros::wat_dispatch;
 
 /// A stateful counter that starts at 0. `increment()` bumps by 1;
@@ -45,12 +45,7 @@ fn install_fixture_shim() {
 }
 
 fn run_fn(fn_name: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let call = format!("({fn_name})");
-    let ast = wat::parse_one!(&call).expect("parse compute call");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+    call_beside(file!(), fn_name).expect("eval should succeed")
 }
 
 #[test]

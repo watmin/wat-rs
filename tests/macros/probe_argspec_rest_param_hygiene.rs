@@ -9,8 +9,8 @@
 //!
 //! Run: cargo test --release --test probe_argspec_rest_param_hygiene -- --nocapture
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// REST-PARAM HYGIENE GUARD — a macro-generated defclause WITH a rest param must
 /// resolve its scope-tagged fixed params at call time.
@@ -19,18 +19,16 @@ use wat::runtime::{Environment, Value};
 /// baring the fixed-param bind keys while the body looks them up scoped →
 /// `UnboundSymbol`. Stone 249.5d (ArgSpec carries the Identifier; `env_key` over
 /// the parsed identifiers; the re-walk deleted) makes bind-key == lookup-key.
+///
+/// just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
+/// call_beside — no inline wat driver expression.
 #[test]
 fn macro_generated_defclause_with_rest_resolves_params() {
-    let world = startup_beside(file!()).expect(
+    let result = call_beside(file!(), ":user::compute").expect(
         "macro-generated defclause WITH a rest param must freeze without UnboundSymbol; \
          failure = the `% 3` guard bared the fixed params while \
          the scope-tagged body looked them up scoped (Stone 249.5d root fix)",
     );
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let env = Environment::new();
-    let result = eval_in_frozen(&ast, &world, &env)
-        .map(|tv| tv.value_owned())
-        .expect("eval should succeed");
     assert_eq!(
         result,
         Value::i64(10),

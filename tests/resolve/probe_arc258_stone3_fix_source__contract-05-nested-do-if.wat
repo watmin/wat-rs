@@ -1,0 +1,1 @@
+(:wat.core/do (:wat.core/if true 1 2))

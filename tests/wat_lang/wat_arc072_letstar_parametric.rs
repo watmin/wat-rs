@@ -25,15 +25,11 @@
 //! `:Result<i64, String>`). The arc fixes the diagnostic, not the
 //! rule.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 /// `:Result<i64,String>` (canonical, no whitespace) lexes, parses,
@@ -41,7 +37,7 @@ fn run_expr(expr: &str) -> Value {
 /// rewrite intends to use.
 #[test]
 fn letstar_result_no_whitespace_simple_payload() {
-    match run_expr("(:t::test1-result-simple)") {
+    match run_expr(":t::test1-result-simple") {
         Value::i64(n) => assert_eq!(n, 43, "expected extracted+1 = 43; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -53,7 +49,7 @@ fn letstar_result_no_whitespace_simple_payload() {
 /// at the (second pair) call. Post-fix: lexes cleanly, runs.
 #[test]
 fn letstar_result_no_whitespace_tuple_payload() {
-    match run_expr("(:t::test2-result-tuple)") {
+    match run_expr(":t::test2-result-tuple") {
         Value::i64(n) => assert_eq!(n, 11, "expected second of Tuple(7,11) = 11; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -85,7 +81,7 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
 /// test confirms the lexer's disambiguation didn't break operators.
 #[test]
 fn operator_lt_gt_keywords_still_lex() {
-    match run_expr("(:t::test4-operator-lt-ge)") {
+    match run_expr(":t::test4-operator-lt-ge") {
         Value::bool(true) => {}
         other => panic!("expected bool true; got {:?}", other),
     }

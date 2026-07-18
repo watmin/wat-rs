@@ -9,16 +9,11 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 fn run_fn(fn_name: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let call = format!("({fn_name})");
-    let ast = wat::parse_one!(&call).expect("parse compute call");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+    call_beside(file!(), fn_name).expect("eval should succeed")
 }
 
 #[test]
@@ -39,10 +34,7 @@ fn u8_cast_boundary_values() {
 #[test]
 fn u8_cast_out_of_range_errors_at_runtime() {
     // 256 is one past :wat::core::u8 max — runtime should reject.
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:my::compute-u8-256)").expect("parse compute call");
-    let err = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect_err("expected runtime error");
+    let err = call_beside(file!(), ":my::compute-u8-256").expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
         msg.contains("u8") && msg.contains("256"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
@@ -53,10 +45,7 @@ fn u8_cast_out_of_range_errors_at_runtime() {
 
 #[test]
 fn u8_cast_negative_errors_at_runtime() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:my::compute-u8-neg1)").expect("parse compute call");
-    let err = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect_err("expected runtime error");
+    let err = call_beside(file!(), ":my::compute-u8-neg1").expect_err("expected runtime error");
     let msg = format!("{:?}", err);
     assert!(
         msg.contains("u8") && msg.contains("-1"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()

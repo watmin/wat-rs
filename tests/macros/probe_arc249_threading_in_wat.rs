@@ -11,20 +11,38 @@
 //!
 //! Run: cargo nextest run --release -E 'binary(macros)' -F probe_arc249_threading_in_wat
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
+
+// just-eval (rubric): each `*.wat` fixture defines a zero-arg `:user::compute`; fetch it from
+// the frozen world and `apply_function` it — no inline wat driver. (Path-based rather than
+// `call_beside` because this probe drives several distinct co-located fixtures from one `.rs`.)
+fn compute_from_file(fixture: &str) -> Value {
+    let world = startup_from_file(fixture).expect("startup");
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {fixture:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("eval")
+}
+
+fn try_compute_from_file(fixture: &str) -> Result<Value, wat::runtime::RuntimeError> {
+    let world = startup_from_file(fixture).expect("startup");
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {fixture:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // thread-last single step
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn diag_thread_last_single_step() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_in_wat_tl_single.wat")
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_in_wat_tl_single.wat");
     println!("\n=== diag_thread_last_single_step ===\n{:#?}\n", result);
     assert_eq!(result, Value::bool(true));
 }
@@ -34,12 +52,7 @@ fn diag_thread_last_single_step() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn diag_thread_last_pipeline() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_in_wat_tl_pipeline.wat")
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_in_wat_tl_pipeline.wat");
     println!("\n=== diag_thread_last_pipeline ===\n{:#?}\n", result);
     assert_eq!(result, Value::bool(true));
 }
@@ -49,17 +62,8 @@ fn diag_thread_last_pipeline() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn diag_is_list_over_form() {
-    let world_yes = startup_from_file("tests/macros/probe_arc249_threading_in_wat_is_list_yes.wat")
-        .expect("startup (yes)");
-    let world_no = startup_from_file("tests/macros/probe_arc249_threading_in_wat_is_list_no.wat")
-        .expect("startup (no)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let yes = eval_in_frozen(&ast, &world_yes, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval yes");
-    let no = eval_in_frozen(&ast, &world_no, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval no");
+    let yes = compute_from_file("tests/macros/probe_arc249_threading_in_wat_is_list_yes.wat");
+    let no = compute_from_file("tests/macros/probe_arc249_threading_in_wat_is_list_no.wat");
     println!("\n=== diag_is_list_over_form ===\nLIST→1: {:#?}\nINT→0:  {:#?}\n", yes, no);
     assert_eq!(yes, Value::bool(true), "is-List? must be true for a list form");
     assert_eq!(no, Value::bool(true), "is-List? must be false for an int form");
@@ -71,11 +75,7 @@ fn diag_is_list_over_form() {
 #[test]
 #[ignore = "249.3 diagnostic — run with --ignored to read the gap"]
 fn diag_first_over_form() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_in_wat_head_first.wat")
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned());
+    let result = try_compute_from_file("tests/macros/probe_arc249_threading_in_wat_head_first.wat");
     println!("\n=== diag_first_over_form ===\n{:#?}\n", result);
     let _ = result;
 }
@@ -103,12 +103,7 @@ fn diag_program_body_quasiquote_impure_unquote_fenced() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn diag_thread_first() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_in_wat_thread_first.wat")
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_in_wat_thread_first.wat");
     println!("\n=== diag_thread_first ===\n{:#?}\n", result);
     assert_eq!(result, Value::bool(true));
 }

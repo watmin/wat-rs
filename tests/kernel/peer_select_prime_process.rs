@@ -19,8 +19,8 @@
 //!   setsid timeout 180 cargo test --release --test kernel peer_select_prime_process -- --ignored --test-threads=1
 //! or the `integration-run.sh` harness.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// Process-tier `select'` over two echo+1 peers — only one has data.
 ///
@@ -38,16 +38,11 @@ fn process_select_prime_picks_ready_peer() {
     // The select' test sends 98 to peer b only; select' fires on b (index 1)
     // and returns ServiceEvent::Message{idx=1, msg=99} — 98+1=99 from the echo+1 server.
     // Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
-    let world = startup_beside(file!())
-        .expect("startup must succeed: process-tier select' test");
-
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let result = eval_in_frozen(&ast, &world, &env)
-        .expect("eval_in_frozen must succeed: process-tier select' picks ready peer");
+    let result = call_beside(file!(), ":user::compute")
+        .expect("call_beside must succeed: process-tier select' picks ready peer");
 
     // Stone 259: select' returns ServiceEvent<I,O>; happy path is :Message{idx, msg}.
-    match result.value_owned() {
+    match result {
         Value::Enum(ev) => {
             assert_eq!(
                 ev.type_path, ":wat::spawn::ServiceEvent",

@@ -21,37 +21,37 @@
 //! Wat source lives in the co-located fixture: wat_arc221_keyword_nil_tag_atomization.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
-fn run_bool(world: &wat::freeze::FrozenWorld, expr: &str) -> bool {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
+// world and `apply_function` it — no inline wat driver.
+fn call0(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Value {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
-    {
+}
+
+fn run_bool(world: &wat::freeze::FrozenWorld, fn_name: &str) -> bool {
+    match call0(world, fn_name) {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
 }
 
-fn run_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> i64 {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
-    {
+fn run_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> i64 {
+    match call0(world, fn_name) {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
 }
 
-fn run_string(world: &wat::freeze::FrozenWorld, expr: &str) -> String {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
-    {
+fn run_string(world: &wat::freeze::FrozenWorld, fn_name: &str) -> String {
+    match call0(world, fn_name) {
         Value::String(s) => s.as_str().to_string(),
         other => panic!("expected String; got {:?}", other),
     }
@@ -71,15 +71,15 @@ fn probe_1_keyword_atom_round_trip_distinct_from_string() {
     let world = startup_beside(file!()).expect("startup");
 
     // atom(:foo) = atom(:foo) — same keyword produces identical HolonAST.
-    let same = run_bool(&world, "(:t::p1-same)");
+    let same = run_bool(&world, ":t::p1-same");
     assert!(same, "Atom(:foo) must equal Atom(:foo) — same Keyword leaf");
 
     // atom(:foo) ≠ atom(:bar) — different keywords produce distinct HolonAST.
-    let diff = run_bool(&world, "(:t::p1-diff)");
+    let diff = run_bool(&world, ":t::p1-diff");
     assert!(diff, "Atom(:foo) must NOT equal Atom(:bar) — distinct Keyword leaves");
 
     // atom(:foo) ≠ atom("foo") — Keyword leaf is distinct from String leaf.
-    let not_string = run_bool(&world, "(:t::p1-not-string)");
+    let not_string = run_bool(&world, ":t::p1-not-string");
     assert!(not_string, "Atom(:foo) must NOT equal Atom(\"foo\") — Keyword leaf distinct from String leaf");
 }
 
@@ -94,11 +94,11 @@ fn probe_2_nil_atom_round_trip_distinct_from_keyword_nil() {
     let world = startup_beside(file!()).expect("startup");
 
     // atom(:wat::core::nil) = atom(:wat::core::nil) — same nil produces identical HolonAST::Nil.
-    let same = run_bool(&world, "(:t::p2-same)");
+    let same = run_bool(&world, ":t::p2-same");
     assert!(same, "Atom(:wat::core::nil) must equal itself — same Nil leaf");
 
     // atom(:wat::core::nil) ≠ atom(:nil) — HolonAST::Nil is distinct from HolonAST::Keyword("nil").
-    let diff = run_bool(&world, "(:t::p2-diff)");
+    let diff = run_bool(&world, ":t::p2-diff");
     assert!(diff, "Atom(:wat::core::nil) must NOT equal Atom(:nil) — Nil leaf distinct from Keyword leaf");
 }
 
@@ -113,11 +113,11 @@ fn probe_3_uuid_atom_round_trip_closes_arc_207_false_flag() {
     let world = startup_beside(file!()).expect("startup");
 
     // atom(uuid-v5-same-args) = atom(uuid-v5-same-args) — deterministic Uuid.
-    let same = run_bool(&world, "(:t::p3-same)");
+    let same = run_bool(&world, ":t::p3-same");
     assert!(same, "Atom(Uuid/v5 same-args) must equal itself — deterministic tagged composition");
 
     // atom(uuid-v5-"hello") ≠ atom(uuid-v5-"world") — different UUIDs produce distinct Bind.
-    let diff = run_bool(&world, "(:t::p3-diff)");
+    let diff = run_bool(&world, ":t::p3-diff");
     assert!(diff, "Atom(Uuid/v5 \"hello\") must NOT equal Atom(Uuid/v5 \"world\") — distinct tagged compositions");
 }
 
@@ -131,15 +131,15 @@ fn probe_4_hashmap_keyword_key_insert_lookup() {
     let world = startup_beside(file!()).expect("startup");
 
     // Insert :tag-a → 10, :tag-b → 20; get :tag-a returns Some(10).
-    let a_val = run_i64(&world, "(:t::p4-a-val)");
+    let a_val = run_i64(&world, ":t::p4-a-val");
     assert_eq!(a_val, 10, "HashMap<keyword,i64>: get :tag-a after insert must return 10");
 
     // get :tag-b returns Some(20).
-    let b_val = run_i64(&world, "(:t::p4-b-val)");
+    let b_val = run_i64(&world, ":t::p4-b-val");
     assert_eq!(b_val, 20, "HashMap<keyword,i64>: get :tag-b after insert must return 20");
 
     // length = 2 — two distinct keyword keys.
-    let len = run_i64(&world, "(:t::p4-len)");
+    let len = run_i64(&world, ":t::p4-len");
     assert_eq!(len, 2, "HashMap<keyword,i64>: two distinct keyword keys → length 2");
 }
 
@@ -153,19 +153,19 @@ fn probe_5_hashset_keyword_insert_contains() {
     let world = startup_beside(file!()).expect("startup");
 
     // :foo is in the set.
-    let has_foo = run_bool(&world, "(:t::p5-has-foo)");
+    let has_foo = run_bool(&world, ":t::p5-has-foo");
     assert!(has_foo, "HashSet<keyword>: :foo must be found in set");
 
     // :bar is in the set.
-    let has_bar = run_bool(&world, "(:t::p5-has-bar)");
+    let has_bar = run_bool(&world, ":t::p5-has-bar");
     assert!(has_bar, "HashSet<keyword>: :bar must be found in set");
 
     // :unknown is NOT in the set.
-    let no_unknown = run_bool(&world, "(:t::p5-no-unknown)");
+    let no_unknown = run_bool(&world, ":t::p5-no-unknown");
     assert!(no_unknown, "HashSet<keyword>: :unknown must NOT be found in set");
 
     // length = 3 — three distinct keyword elements.
-    let len = run_i64(&world, "(:t::p5-len)");
+    let len = run_i64(&world, ":t::p5-len");
     assert_eq!(len, 3, "HashSet<keyword>: three distinct keywords → length 3");
 }
 
@@ -179,10 +179,10 @@ fn probe_6_hashmap_uuid_key_insert_lookup_closes_arc_207() {
     let world = startup_beside(file!()).expect("startup");
 
     // Insert (v5-nil-"hello") → "world-entry"; get same uuid returns Some("world-entry").
-    let retrieved = run_string(&world, "(:t::p6-retrieved)");
+    let retrieved = run_string(&world, ":t::p6-retrieved");
     assert_eq!(retrieved, "world-entry", "HashMap<Uuid,String>: get after insert must return the inserted value");
 
     // Different Uuid key returns None (mapped to "NOT-FOUND" sentinel).
-    let not_found = run_string(&world, "(:t::p6-not-found)");
+    let not_found = run_string(&world, ":t::p6-not-found");
     assert_eq!(not_found, "NOT-FOUND", "HashMap<Uuid,String>: lookup by different Uuid must return None");
 }

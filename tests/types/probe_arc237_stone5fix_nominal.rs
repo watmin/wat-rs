@@ -21,15 +21,11 @@
 //!
 //! Post-stone 237.5.fix: 9/9 PASS. The 237.5 probe (12/12) must also stay green.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn run_bool(fn_name: &str) -> Result<Value, String> {
-    let world = startup_beside(file!()).expect("startup for stone5fix_nominal fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).map_err(|e| format!("parse: {:?}", e))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))
+    call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
 }
 
 fn assert_true(fn_name: &str) {
@@ -46,12 +42,7 @@ fn assert_false(fn_name: &str) {
 }
 
 fn run_type(fn_name: &str) -> Result<String, String> {
-    let world = startup_beside(file!()).expect("startup for stone5fix_nominal fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).map_err(|e| format!("parse: {:?}", e))?;
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))?
-    {
+    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("expected String; got {:?}", other)),
     }

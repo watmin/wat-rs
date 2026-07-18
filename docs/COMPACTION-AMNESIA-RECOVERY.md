@@ -1365,6 +1365,52 @@ the meta-discipline that makes them load-bearing. Without FM 17
 active, the other 16 are reference material that gets cited
 after the damage, not discipline that prevents it.
 
+### Failure mode 18 — Fanning N concurrent riders that each run cargo (the shared-lock thrash)
+
+**Signature:** spawning many background riders at once, each briefed
+to run `cargo build`/`cargo nextest` (e.g. its own per-dir RED gate),
+against ONE workspace. They all contend on the single `target/` build
+lock; each ends its turn "waiting for the background build," re-notifies
+in a loop, and burns enormous tokens making no progress.
+
+**Two compounding defects:**
+1. **The shared `target/` lock serializes every build** — 16 riders
+   cannot `cargo` at once; 15 block on the 1 that holds the lock.
+2. **A per-rider RED gate is unwinnable by construction** — a rider's
+   `cargo nextest` must compile the *whole workspace*, which can't go
+   green while *any other* rider has a half-migrated file. No single
+   rider controls the state its own gate depends on.
+
+**Reality check:** if a fan-out has each worker compiling/testing the
+same workspace, STOP. That is not parallelism — it is N-way lock
+contention plus N unwinnable gates.
+
+**The fix (proven, arc 278 crusade, 2026-07-18):** **riders do TEXT
+edits only — forbid cargo in the brief** ("⛔ TEXT CHANGES ONLY. Do
+NOT run cargo/build/test. The orchestrator measures centrally."). The
+**orchestrator weighs CENTRALLY, once**, after the tree is quiescent —
+the build is a serial resource, so serialize it deliberately at the one
+place that owns integration. Weigh per-dir with `binary_id(wat::<dir>)`
+(a clean per-dir Summary), fix cascades, then commit.
+
+**Real incident, 2026-07-18:** the first crusade fleet — 16 riders,
+each with a `cargo nextest … RED gate` — deadlocked in build-wait
+loops (riders re-notifying 4×, ~150K tokens each, ~1M ms, zero
+completions). Killed the fleet; re-launched **edit-only** riders (no
+cargo); they finished clean and fast, and the orchestrator ran the
+one central weigh. Builder direction: *"let's just do the text changes
+and measure the tests afterwards… the riders can handle the text
+changes."*
+
+**The four questions on this discipline:**
+- Simple? — "riders edit; orchestrator measures once" is one serial
+  build, not N contending ones.
+- Honest? — a per-rider gate that can't pass (workspace it doesn't
+  control) is a gate that lies; central weigh is the honest measure.
+
+**Cross-reference:** FM 12 (model explicit), Section 7 (delegation).
+Distinct from both: this is about *concurrency of the build itself*.
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)

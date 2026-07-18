@@ -23,14 +23,13 @@
 //! `tests/wat_u8.rs`: `(:user::compute -> :wat::core::bool)` bodies with no IO args
 //! so the boolean falls out of `invoke_user_main` directly.
 
-use wat::freeze::{eval_in_frozen, startup_from_file, StartupError};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, Value};
 
 fn run_bool(path: &str) -> bool {
     let world = startup_from_file(path).expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("compute") {
         Value::bool(b) => b,
         other => panic!("expected :wat::core::bool; got {:?}", other),
     }

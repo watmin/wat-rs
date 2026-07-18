@@ -19,15 +19,12 @@
 //! Run SERIALLY (spawns a thread):
 //!   `cargo test --release -p wat --test nursery probe_arc259_thread_crash_reason -- --test-threads=1`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
-/// Eval `(:user::compute)` in the co-located fixture world; return the raised error's text.
+/// Call `:user::compute` in the co-located fixture world; return the raised error's text.
 /// `compute` MUST raise — the thread peer crashes; the caller asserts on the reason.
 fn compute_raise_text() -> String {
-    let world = startup_beside(file!()).expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()) {
+    match call_beside(file!(), ":user::compute") {
         Ok(v) => panic!("expected compute to RAISE (the thread peer crashed); got Ok({v:?})"),
         Err(e) => format!("{e:?}"),
     }

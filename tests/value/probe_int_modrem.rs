@@ -15,8 +15,8 @@
 
 // rune:lint(no-inlined-wat) — the inline arithmetic forms below ARE the subject under
 // test (div-by-zero / MIN overflow edges); the sign-table world is a co-located `.wat`
-// fixture (loaded via startup_beside), not inlined.
-use wat::freeze::{eval_in_frozen, startup_bare, startup_beside};
+// fixture (driven via call_beside), not inlined.
+use wat::freeze::{call_beside, eval_in_frozen, startup_bare};
 use wat::runtime::Environment;
 use wat::value::{EvalBreak, RuntimeErrorKind};
 
@@ -34,10 +34,7 @@ fn eval_res(src: &str) -> Result<String, EvalBreak> {
 
 #[test]
 fn int_modrem_sign_table() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (mod/rem/quot must load from the baked stdlib)");
-    let ast = wat::parse_one!("(:user::modrem_sign_table)").expect("parse test-fn call");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = call_beside(file!(), ":user::modrem_sign_table");
     assert!(
         result.is_ok(),
         "modrem_sign_table deftest' must pass (arc 278 mod/rem/quot sign table); got Err: {result:?}"

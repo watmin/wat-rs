@@ -33,16 +33,17 @@
 //!              runtime path.
 //!   ANY FAIL — specific RuntimeError variant's promotion incomplete.
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
 fn run_compute(path: &str) -> Result<Value, String> {
     let world = startup_from_file(path)
         .map_err(|e| format!("startup: {:?}", e))?;
-    let ast = wat::parse_one!("(:user::compute)").map_err(|e| format!("parse: {:?}", e))?;
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env)
-        .map(|tv| tv.value_owned())
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("fixture {path:?} must define :user::compute"));
+    apply_function(func.clone(), vec![], world.symbols(), wat::rust_caller_span!())
         .map_err(|e| format!("eval: {:?}", e))
 }
 

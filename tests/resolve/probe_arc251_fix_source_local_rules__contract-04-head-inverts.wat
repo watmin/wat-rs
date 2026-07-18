@@ -1,0 +1,1 @@
+(wat.core/map f xs)

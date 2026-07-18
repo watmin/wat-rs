@@ -16,13 +16,13 @@
 
 use std::collections::LinkedList;
 use std::sync::Arc;
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn ev(call: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(call).expect("parse compute call");
-    eval_in_frozen(&ast, &world, &Environment::new()).expect("compute").value_owned()
+// just-eval (rubric): each named zero-arg fn lives in the co-located list.wat;
+// `call_beside` runs it in-process and returns the typed Value directly.
+fn ev(fn_name: &str) -> Value {
+    call_beside(file!(), fn_name).expect("compute")
 }
 
 // ─── Construction ─────────────────────────────────────────────────────────────
@@ -30,14 +30,14 @@ fn ev(call: &str) -> Value {
 #[test]
 fn list_constructor_of_builds_list() {
     // (:wat::core::List/of 1 2 3) returns a List with 3 elements
-    let v = ev("(:list::length-of-3)");
+    let v = ev(":list::length-of-3");
     assert_eq!(v, Value::i64(3), "List/of 1 2 3 should have length 3");
 }
 
 #[test]
 fn list_constructor_of_returns_list_type() {
     // Verify that (:wat::core::List/of 1 2) produces a wat__core__List at Rust level.
-    let length = ev("(:list::length-of-2)");
+    let length = ev(":list::length-of-2");
     assert_eq!(length, Value::i64(2), "List/of 1 2 has length 2");
     // Confirm the Rust variant is wat__core__List, not Vec
     let list_val = {
@@ -52,7 +52,7 @@ fn list_constructor_of_returns_list_type() {
 #[test]
 fn list_constructor_empty() {
     // (:wat::core::List/of) returns an empty List — verify via empty?
-    let v = ev("(:list::empty-q-of-empty)");
+    let v = ev(":list::empty-q-of-empty");
     assert_eq!(v, Value::bool(true), "empty List/of should satisfy empty?");
 }
 
@@ -60,25 +60,25 @@ fn list_constructor_empty() {
 
 #[test]
 fn list_length() {
-    let v = ev("(:list::length-3)");
+    let v = ev(":list::length-3");
     assert_eq!(v, Value::i64(3));
 }
 
 #[test]
 fn list_length_empty() {
-    let v = ev("(:list::length-0)");
+    let v = ev(":list::length-0");
     assert_eq!(v, Value::i64(0));
 }
 
 #[test]
 fn list_empty_q_true() {
-    let v = ev("(:list::empty-q-true)");
+    let v = ev(":list::empty-q-true");
     assert_eq!(v, Value::bool(true));
 }
 
 #[test]
 fn list_empty_q_false() {
-    let v = ev("(:list::empty-q-false)");
+    let v = ev(":list::empty-q-false");
     assert_eq!(v, Value::bool(false));
 }
 
@@ -87,21 +87,21 @@ fn list_empty_q_false() {
 #[test]
 fn list_first_returns_some() {
     // (:wat::core::first list) returns T directly (arc-278 — no Option wrapper).
-    let v = ev("(:list::first-some)");
+    let v = ev(":list::first-some");
     assert_eq!(v, Value::bool(true), "first of (10 20 30) should be 10");
 }
 
 #[test]
 fn list_rest_returns_tail_as_list() {
     // rest of (1 2 3) should give a List of length 2
-    let v = ev("(:list::rest-tail-len)");
+    let v = ev(":list::rest-tail-len");
     assert_eq!(v, Value::i64(2), "rest of 3-element list should have length 2");
 }
 
 #[test]
 fn list_rest_preserves_list_type() {
     // rest of a List should return a List (not Vec) — check via length of tail
-    let v = ev("(:list::rest-tail-len)");
+    let v = ev(":list::rest-tail-len");
     assert_eq!(v, Value::i64(2), "rest of 3-element List should return List of length 2");
 }
 
@@ -111,7 +111,7 @@ fn list_rest_preserves_list_type() {
 fn list_conj_prepends() {
     // List/conj should PREPEND. After conj(List(2,3), 1) → List(1,2,3).
     // first returns T directly (arc-278 — no Option wrapper).
-    let v = ev("(:list::conj-prepends)");
+    let v = ev(":list::conj-prepends");
     assert_eq!(v, Value::bool(true), "List/conj prepends: first of conj(List(2,3), 1) should be 1");
 }
 
@@ -119,7 +119,7 @@ fn list_conj_prepends() {
 fn vector_conj_appends_distinct_from_list() {
     // Vector/conj APPENDS — first element should still be 2 (the original head).
     // first returns T directly (arc-278 — no Option wrapper).
-    let v = ev("(:list::vec-conj-appends)");
+    let v = ev(":list::vec-conj-appends");
     assert_eq!(v, Value::bool(true), "Vector/conj appends: first of conj([2,3], 1) should still be 2");
 }
 
@@ -127,26 +127,26 @@ fn vector_conj_appends_distinct_from_list() {
 
 #[test]
 fn list_contains_q_found() {
-    let v = ev("(:list::contains-found)");
+    let v = ev(":list::contains-found");
     assert_eq!(v, Value::bool(true));
 }
 
 #[test]
 fn list_contains_q_not_found() {
-    let v = ev("(:list::contains-not-found)");
+    let v = ev(":list::contains-not-found");
     assert_eq!(v, Value::bool(false));
 }
 
 #[test]
 fn list_get_found() {
     // get index 1 from List(10,20,30) → Some(20) → extract and verify
-    let v = ev("(:list::get-found)");
+    let v = ev(":list::get-found");
     assert_eq!(v, Value::bool(true), "List/get index 1 from (10 20 30) should be 20");
 }
 
 #[test]
 fn list_get_out_of_bounds_returns_none() {
-    let v = ev("(:list::get-oob)");
+    let v = ev(":list::get-oob");
     assert_eq!(v, Value::bool(true), "List/get out-of-bounds should return None");
 }
 

@@ -41,33 +41,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P12_explain_walk -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
-
-/// Run `compute_src` (an expression that calls into `:weather`) against WORLD through the full freeze
-/// pipeline, returning its value. Mirrors tests/probe_arc278_northstar_cold_and_windy.rs.
-fn run(compute_src: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(compute_src).expect("parse compute");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
-}
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// LEVEL 1 — explain a directly-derived fact reaches its two input facts. `ColdAndWindy` is derived by
 /// `cold-and-windy` from `Temperature` ⋈ `WindSpeed`; its why-tree's `:via` has exactly those two supporting
 /// facts → length 2. Pins: `fire-rules-explain` (opt-in mode), `explain`, `Why/via`.
 #[test]
 fn explain_cold_and_windy_reaches_its_two_inputs() {
-    let n = run("\
-(:wat::core::length\n\
-  (:wat::rete::DerivationNode/via\n\
-    (:wat::core::let\n\
-      [rules   (:wat::rete::collect-rules :weather)\n\
-       session (:wat::rete::compile rules)\n\
-       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
-       session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
-       fired   (:wat::rete::fire-rules-explain session)]\n\
-      (:wat::rete::explain fired (:weather::ColdAndWindy :celsius -5 :kph 40)))))");
+    let n = call_beside(file!(), ":user::explain-coldandwindy-via-length").expect("compute should run");
     assert!(matches!(n, Value::i64(2)), "ColdAndWindy's why-tree must reach 2 input facts (Temperature, WindSpeed); got {n:?}");
 }
 
@@ -77,15 +59,6 @@ fn explain_cold_and_windy_reaches_its_two_inputs() {
 /// inputs is the LEVEL-1 tree hanging under that single via-entry. Pins: explain over a cascade-derived fact.
 #[test]
 fn explain_weather_alert_has_one_derived_support() {
-    let n = run("\
-(:wat::core::length\n\
-  (:wat::rete::DerivationNode/via\n\
-    (:wat::core::let\n\
-      [rules   (:wat::rete::collect-rules :weather)\n\
-       session (:wat::rete::compile rules)\n\
-       session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
-       session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
-       fired   (:wat::rete::fire-rules-explain session)]\n\
-      (:wat::rete::explain fired (:weather::WeatherAlert :celsius -5 :kph 40)))))");
+    let n = call_beside(file!(), ":user::explain-weatheralert-via-length").expect("compute should run");
     assert!(matches!(n, Value::i64(1)), "WeatherAlert's why-tree has exactly 1 supporting fact (the derived ColdAndWindy); got {n:?}");
 }

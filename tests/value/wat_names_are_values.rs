@@ -14,14 +14,19 @@
 //! Wat source lives in the co-located fixture: wat_names_are_values.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
-fn run(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, world, &Environment::new())
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
+// world and `apply_function` it — no inline wat driver.
+fn run(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Value {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute should run")
-        .value_owned()
 }
 
 // ─── named define lifts to a callable value ────────────────────────────
@@ -33,7 +38,7 @@ fn named_define_is_a_function_value() {
     // be called by the user via a symbol binding.
     // Arc 170 slice 1f-ζ: returns i64 (42) via :t::test1.
     let world = startup_beside(file!()).expect("startup");
-    match run(&world, "(:t::test1)") {
+    match run(&world, ":t::test1") {
         Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -48,7 +53,7 @@ fn named_define_passes_to_higher_order_fn() {
     // `:t::test2-inc` and `5` via the bare keyword path — no fn wrapper — yields 7.
     // Arc 170 slice 1f-ζ: returns i64 (7) via :t::test2.
     let world = startup_beside(file!()).expect("startup");
-    match run(&world, "(:t::test2)") {
+    match run(&world, ":t::test2") {
         Value::i64(n) => assert_eq!(n, 7, "expected 7; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -62,7 +67,7 @@ fn polymorphic_named_define_instantiates_at_use_site() {
     // `:wat::core::Fn(wat::core::i64)->wat::core::i64` slot; the scheme's `T` instantiates to `i64`.
     // Arc 170 slice 1f-ζ: returns i64 (99) via :t::test3.
     let world = startup_beside(file!()).expect("startup");
-    match run(&world, "(:t::test3)") {
+    match run(&world, ":t::test3") {
         Value::i64(n) => assert_eq!(n, 99, "expected 99; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -77,7 +82,7 @@ fn unregistered_keyword_still_a_literal() {
     // exists at that path.
     // Arc 170 slice 1f-ζ: returns i64 (1=pass, 0=fail) via :t::test4.
     let world = startup_beside(file!()).expect("startup");
-    match run(&world, "(:t::test4)") {
+    match run(&world, ":t::test4") {
         Value::i64(n) => assert_eq!(n, 1, "expected 1 (pass); got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -93,7 +98,7 @@ fn named_define_as_map_fn() {
     // (Migrated off the annihilated `:wat::stream::*` — arc 118, 2026-06-27;
     //  the intent is named-defn-as-HOF-arg, the collection vehicle is incidental.)
     let world = startup_beside(file!()).expect("startup");
-    match run(&world, "(:t::test5)") {
+    match run(&world, ":t::test5") {
         Value::i64(n) => assert_eq!(n, 1, "expected 1 (pass); got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }

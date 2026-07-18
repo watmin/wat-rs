@@ -131,10 +131,14 @@ fn probe_3_producer_provenance_survives_let_binding() {
 
     // Bind keyword/from-string result to a let; then reference it via Symbol
     // lookup. Provenance must flow through env.
-    let ast = wat::parse_one!(
-        "(:wat::core::let [k (:wat::core::keyword/from-string \"wat::core::nil\")] k)"
-    )
-    .expect("parse");
+    //
+    // The expression lives in a co-located FRAGMENT (never an inlined Rust string) — see that
+    // file's header comment for why this bypasses the usual call_beside/apply_function idiom
+    // (a user-fn call would launder away the exact provenance under test).
+    let expr_path = "tests/types/probe_stone_233_2_k_variant_retired_let_keyword.wat.expr";
+    let src = std::fs::read_to_string(expr_path)
+        .unwrap_or_else(|e| panic!("expr fragment {expr_path:?} must exist: {e}"));
+    let ast = wat::parse_one_with_file(&src, expr_path).expect("parse");
     let env = Environment::new();
 
     let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");

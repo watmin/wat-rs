@@ -7,8 +7,8 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 use wat_macros::wat_dispatch;
 
 /// A ticket that can be redeemed exactly once.
@@ -39,12 +39,7 @@ fn install() {
 }
 
 fn run_fn(fn_name: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let call = format!("({fn_name})");
-    let ast = wat::parse_one!(&call).expect("parse compute call");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+    call_beside(file!(), fn_name).expect("eval should succeed")
 }
 
 #[test]
@@ -57,9 +52,7 @@ fn ticket_redeems_once_successfully() {
 #[test]
 fn ticket_second_redemption_errors() {
     install();
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:my::compute-double-redeem)").expect("parse compute call");
-    let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+    let err = call_beside(file!(), ":my::compute-double-redeem").unwrap_err();
     // The second redeem attempts to consume the already-drained cell;
     // OwnedMoveCell::take returns MalformedForm.
     let errs = format!("{:?}", err);

@@ -15,15 +15,11 @@
 //! `src/check.rs` for the implementations.
 
 use wat::check::{CheckError, CheckErrorKind};
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file, StartupError};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file, StartupError};
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn check_errors_from_file(rel_path: &str) -> Vec<CheckError> {
@@ -38,7 +34,7 @@ fn check_errors_from_file(rel_path: &str) -> Vec<CheckError> {
 
 #[test]
 fn try_on_ok_extracts_inner_value() {
-    match run_expr("(:t::test1-try-ok)") {
+    match run_expr(":t::test1-try-ok") {
         Value::Result(r) => match &*r {
             Ok(Value::i64(42)) => {}
             other => panic!("expected Ok(42); got {:?}", other),
@@ -49,7 +45,7 @@ fn try_on_ok_extracts_inner_value() {
 
 #[test]
 fn try_on_err_propagates_through_function() {
-    match run_expr("(:t::test2-try-err-prop)") {
+    match run_expr(":t::test2-try-err-prop") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "boom" => {}
             other => panic!("expected Err(\"boom\"); got {:?}", other),
@@ -60,7 +56,7 @@ fn try_on_err_propagates_through_function() {
 
 #[test]
 fn try_propagates_across_helper_function() {
-    match run_expr("(:t::test3-try-helper)") {
+    match run_expr(":t::test3-try-helper") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "from-helper" => {}
             other => panic!("expected Err(\"from-helper\"); got {:?}", other),
@@ -71,7 +67,7 @@ fn try_propagates_across_helper_function() {
 
 #[test]
 fn try_chains_two_bindings_in_let() {
-    match run_expr("(:t::test4-try-let-chain)") {
+    match run_expr(":t::test4-try-let-chain") {
         Value::Result(r) => match &*r {
             Ok(Value::i64(42)) => {}
             other => panic!("expected Ok(42); got {:?}", other),
@@ -82,7 +78,7 @@ fn try_chains_two_bindings_in_let() {
 
 #[test]
 fn try_short_circuits_let_on_first_err() {
-    match run_expr("(:t::test5-try-let-short-circuit)") {
+    match run_expr(":t::test5-try-let-short-circuit") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "early" => {}
             other => panic!("expected Err(\"early\"); got {:?}", other),
@@ -93,7 +89,7 @@ fn try_short_circuits_let_on_first_err() {
 
 #[test]
 fn try_inside_match_arm_propagates() {
-    match run_expr("(:t::test6-try-match-arm)") {
+    match run_expr(":t::test6-try-match-arm") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "inner-boom" => {}
             other => panic!("expected Err(\"inner-boom\"); got {:?}", other),
@@ -160,7 +156,7 @@ fn try_mismatched_err_types_rejected_at_check() {
 
 #[test]
 fn try_inside_result_returning_fn_propagates_to_fn() {
-    match run_expr("(:t::test7-try-in-fn-scope)") {
+    match run_expr(":t::test7-try-in-fn-scope") {
         Value::Result(r) => match &*r {
             Err(Value::String(s)) if s.as_ref() == "fn-err" => {}
             other => panic!("expected Err(\"fn-err\"); got {:?}", other),

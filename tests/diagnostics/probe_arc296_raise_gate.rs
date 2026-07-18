@@ -11,8 +11,7 @@
 //! satisfies `:wat::core::Error`, and when run inside a sandboxed thread the
 //! Failure is caught correctly. Startup succeeds and main passes all assertions.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::Environment;
+use wat::freeze::{call_beside, startup_from_file};
 
 /// Wall proof: (raise! 42) is rejected at compile time.
 /// The type checker requires :wat::core::Error; i64 does not satisfy it.
@@ -39,15 +38,8 @@ fn raise_bare_integer_is_compile_error() {
 /// Right path: Fault/of type-checks, satisfies :wat::core::Error, raise is caught.
 #[test]
 fn fault_of_type_checks_and_raise_is_caught() {
-    // startup_beside loads probe_arc296_raise_gate.wat (same stem as this .rs).
-    let world = startup_beside(file!()).unwrap_or_else(|e| {
-        panic!(
-            ":wat::core::Fault/of must type-check and startup must succeed; got: {}",
-            e
-        )
-    });
-    // Run main — asserts inside the .wat fire panic if wrong.
-    let ast = wat::parse_one!("(:user::main)").expect("parse");
-    let _result = eval_in_frozen(&ast, &world, &Environment::new())
+    // call_beside loads probe_arc296_raise_gate.wat (same stem as this .rs) and runs
+    // :user::main — asserts inside the .wat fire panic if wrong.
+    let _result = call_beside(file!(), ":user::main")
         .unwrap_or_else(|e| panic!("(:user::main) raised a runtime error: {e:?}"));
 }

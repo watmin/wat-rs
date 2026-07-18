@@ -31,18 +31,15 @@
 //!
 //! Run: `cargo test --release --test probe_arc234_7b_holon_record_roundtrip`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// C3 — the written EDN string contains `#wat-edn.holon` (rode the holon encoding).
 #[test]
 fn c3_holon_tag_in_edn_string() {
-    let world = startup_beside(file!())
-        .expect("C3 startup must succeed");
-    let ast = wat::parse_one!("(:user::write-hpt)").expect("parse write-hpt call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new())
+    let got = call_beside(file!(), ":user::write-hpt")
         .expect("C3 eval must succeed (write-hpt)");
-    let s = match tv.value_owned() {
+    let s = match got {
         Value::String(s) => (*s).clone(),
         other => panic!("C3 FAIL: write-hpt returned non-String: {:?}", other),
     };
@@ -53,12 +50,9 @@ fn c3_holon_tag_in_edn_string() {
 /// C1 — round-trip: write → read → equal to original (proves holon_form round-tripped).
 #[test]
 fn c1_round_trip_equality() {
-    let world = startup_beside(file!())
-        .expect("C1 startup must succeed");
-    let ast = wat::parse_one!("(:user::roundtrip-eq)").expect("parse roundtrip-eq call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new())
+    let got = call_beside(file!(), ":user::roundtrip-eq")
         .expect("C1 eval must succeed; UnknownTag here = decode path missing");
-    match tv.value_owned() {
+    match got {
         Value::bool(true) => {
             eprintln!("C1 PASS: round-tripped HPt(7,8) equals original");
         }
@@ -74,12 +68,9 @@ fn c1_round_trip_equality() {
 /// (C1 alone can't catch a wrong struct_form because Eq delegates to holon_form.)
 #[test]
 fn c2_field_accessor_on_decoded_record() {
-    let world = startup_beside(file!())
-        .expect("C2 startup must succeed");
-    let ast = wat::parse_one!("(:user::roundtrip-field-x)").expect("parse roundtrip-field-x call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new())
+    let got = call_beside(file!(), ":user::roundtrip-field-x")
         .expect("C2 eval must succeed (roundtrip-field-x)");
-    match tv.value_owned() {
+    match got {
         Value::i64(7) => {
             eprintln!("C2 PASS: HPt/x on decoded record = 7 (correct)");
         }

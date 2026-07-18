@@ -20,17 +20,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc271_multi_param_generic_method
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn multi_param_generic_method_parses_and_instantiates() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (combine<A,B>: both type params parse + instantiate at the call)");
-    let ast = wat::parse_one!("(:user::go)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .unwrap_or_else(|e| panic!("go raised: {e:?}"));
+    let got = call_beside(file!(), ":user::go").unwrap_or_else(|e| panic!("go raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),
         "expected 5: combine<A,B> with (i64,String) → A=i64,B=String → returns x=5; got {got:?}"

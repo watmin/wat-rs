@@ -2,7 +2,7 @@
 ;; Historical evidence: HashSet<Vector<T>> construction (arc 216.5a-d).
 ;; The gap is closed; this probe confirms it cannot reopen.
 
-(:wat::core::defn :t::verify [] -> :wat::core::i64
+(:wat::core::defn :user::verify [] -> :wat::core::i64
   (:wat::core::let
     [v1     (:wat::core::Vector :wat::core::i64 1 2)
      v2     (:wat::core::Vector :wat::core::i64 3 4)

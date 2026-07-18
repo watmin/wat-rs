@@ -31,8 +31,7 @@
 //!   setsid timeout 180 cargo test --release --test kernel \
 //!     probe_arc214_beta_forms_server -- --ignored --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 /// FM-2-bis (β): a forms-program spawned `:process` runs as a `readln`/`println`
 /// server, driven by `send'`/`recv'`; the client sends 41, the server echoes 41+1,
@@ -45,15 +44,10 @@ fn beta_forms_server_round_trip_via_send_recv_prime() {
     // Parent (client): spawn the forms-server, send' 41, recv' the echo+1.
     // Server (the spawned program): the proven arc112_slice2b worker —
     //   read one i64, write n+1 — wrapped as the program's :user::main.
-    let world = startup_beside(file!())
-        .expect("startup must succeed: β forms-server probe (RED at HEAD = type error here)");
+    let result = call_beside(file!(), ":user::compute")
+        .expect("call_beside must succeed: β forms-server round-trip (RED at HEAD = type error here)");
 
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let result = eval_in_frozen(&ast, &world, &env)
-        .expect("eval_in_frozen must succeed: β forms-server round-trip");
-
-    match result.value_owned() {
+    match result {
         wat::runtime::Value::i64(n) => assert_eq!(
             n, 42,
             "forms-server echo+1 must return 42 for input 41; got {}",

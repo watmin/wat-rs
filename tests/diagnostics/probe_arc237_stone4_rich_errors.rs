@@ -39,6 +39,11 @@
 //!
 //! Per FM 2-bis (recovery doc § 6): probe COMMITTED before BRIEF.
 
+// rune:lint(no-inlined-wat) — this file constructs `RuntimeError`/`ClauseAttempt` Rust structs
+// DIRECTLY (no startup/eval pipeline at all) and serializes them via `ToEdn`; `ensure_expr_snapshot`
+// is an opaque snapshot-text `String` FIELD (e.g. probes 2/4/9) that happens to look like a `:fn`
+// form but is never parsed or evaluated by wat's reader — Rust-level data, not wat-under-test.
+
 use std::sync::Arc;
 use wat::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use wat::span::Span;

@@ -24,8 +24,8 @@
 //!
 //! Run: `cargo test --release -p wat --test comms probe_arc259_s2a_thread_self_peer`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// LOAD-BEARING (RUNTIME): the thread prog drives its OWN pipes-only self-peer.
 ///
@@ -36,14 +36,7 @@ use wat::runtime::{Environment, Value};
 /// parent recv(42) → worker returns → peer reaped by RAII Drop.
 #[test]
 fn s2a_thread_prog_drives_self_peer() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let got = match eval_in_frozen(&ast, &world, &env)
-        .expect("compute eval")
-        .value_owned()
-    {
+    let got = match call_beside(file!(), ":user::compute").expect("compute eval") {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     };

@@ -14,17 +14,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc279_format -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
+// just-eval (rubric): the probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 #[test]
 fn format_fills_named_placeholders_unquoted() {
-    let world = startup_beside(file!())
-        .expect("startup: format macro must expand cleanly at compile time");
-    let ast = wat::parse_one!("(:user::test-format)").expect("parse the defn call");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("test-format raised: {e:?}"))
-        .value_owned();
+    let got = call_beside(file!(), ":user::test-format")
+        .unwrap_or_else(|e| panic!("test-format raised: {e:?}"));
     let s = match got {
         Value::String(ref s) => s.to_string(),
         other => panic!("format must return a String; got {other:?}"),

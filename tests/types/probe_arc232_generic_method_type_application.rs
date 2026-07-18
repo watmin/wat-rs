@@ -11,16 +11,12 @@
 //! `S=i64, R=i64` so the call checks under that substitution.
 //! Full design: docs/arc/2026/06/272-…/DESIGN-STONE-6b-DEP-generic-method-type-application.md.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn generic_method_called_with_explicit_type_args_mints_a_typed_bound() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed once generic-method type-application is built");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(42)),

@@ -53,41 +53,42 @@
 //! Negative fixtures: probe_arc241_stone3_c04.wat.bad, probe_arc241_stone3_c05.wat.bad,
 //!   probe_arc241_stone3_c06.wat.bad.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
+
+/// just-eval (rubric): fetch `fn_name` from the co-located fixture (`startup_beside`)
+/// and `apply_function` it with `args` — no inline wat driver.
+fn run(fn_name: &str, args: Vec<Value>) -> Value {
+    let world = startup_beside(file!()).expect("startup for stone3 defclause-parser-migration fixture");
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, args, world.symbols(), wat::rust_caller_span!())
+        .expect("eval should succeed")
+}
 
 // ─── Contracts 1–3: A4 happy paths (well-formed defclause args) ──────────────
 
 #[test]
 fn contract_01_defclause_no_args_succeeds() {
     // (defclause [] -> :T body) — empty argspec; c01-f() → i64(42).
-    let world = startup_beside(file!()).expect("startup for stone3 defclause-parser-migration fixture");
-    let ast = wat::parse_one!("(:user::c01-f)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned();
+    let result = run(":user::c01-f", vec![]);
     assert_eq!(result, Value::i64(42), "well-formed no-arg defclause should return i64(42)");
 }
 
 #[test]
 fn contract_02_defclause_single_arg_succeeds() {
     // c02-f is a 1-arg defclause: call with i64(7) → i64(7).
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::c02-f 7)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned();
+    let result = run(":user::c02-f", vec![Value::i64(7)]);
     assert_eq!(result, Value::i64(7), "well-formed single-arg defclause should return i64(7)");
 }
 
 #[test]
 fn contract_03_defclause_multi_arg_succeeds() {
     // c03-f is a 2-arg defclause: call with 3 4 → 3+4 = i64(7).
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::c03-f 3 4)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned();
+    let result = run(":user::c03-f", vec![Value::i64(3), Value::i64(4)]);
     assert_eq!(result, Value::i64(7), "well-formed multi-arg defclause should return i64(7)");
 }
 

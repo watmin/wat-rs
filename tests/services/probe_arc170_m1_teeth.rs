@@ -23,17 +23,24 @@
 //! These tests FORK (spawn-program' (process)) → their own top-level [[test]] binary.
 //! Run: cargo nextest run --release -p wat --test probe_arc170_m1_teeth --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
+
+fn compute(fixture: &str) -> Result<Value, wat::runtime::RuntimeError> {
+    let world = startup_from_file(fixture)
+        .unwrap_or_else(|e| panic!("startup should succeed for {fixture:?}: {e:?}"));
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {fixture:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+}
 
 #[test]
 fn granted_prober_is_admitted() {
     // The admit-via-grant control: a granted prober's pid admits its raw dial.
-    let world = startup_from_file("tests/services/probe_arc170_m1_teeth_admitted.wat")
-        .expect("startup should succeed (arc 170 M1-teeth: admit-via-grant control)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = compute("tests/services/probe_arc170_m1_teeth_admitted.wat")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     match got {
         Value::String(ref s) if s.as_str() == "echo:hi" => { /* granted prober was served */ }
@@ -47,10 +54,7 @@ fn granted_prober_is_admitted() {
 #[test]
 fn revoked_prober_is_bounced() {
     // The teeth: after revoke (ack'd), the SAME live pid's re-dial is bounced → the prober dies.
-    let world = startup_from_file("tests/services/probe_arc170_m1_teeth_revoked.wat")
-        .expect("startup should succeed (arc 170 M1-teeth: deterministic revoke-refusal)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let outcome = eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned());
+    let outcome = compute("tests/services/probe_arc170_m1_teeth_revoked.wat");
     match outcome {
         Err(_e) => { /* the revoked prober's dial #2 was bounced → it died → compute raised */ }
         Ok(v) => panic!(

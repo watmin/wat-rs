@@ -15,16 +15,12 @@
 //!
 //! Run SERIALLY: cargo test --release -p wat --test comms probe_arc209_c0b2b_socket_peer -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn socket_pair_mints_socket_peers_that_round_trip_over_the_socket() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

@@ -17,19 +17,14 @@
 //! Initial state: 6/6 FAIL (StructPattern in match-arm position returned Err).
 //! Post-stone: 6/6 PASS.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 // ─── Probe 1 ────────────────────────────────────────────────────────────────
 // Match record with single {var :field} — extracts field; body uses var.
 #[test]
 fn probe_1_match_record_single_field() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe1-match-record-single)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match call_beside(file!(), ":t::probe1-match-record-single").expect("eval") {
         Value::f64(f) => assert!((f - 7.5).abs() < 1e-9, "got {}", f),
         other => panic!("Probe 1: expected f64; got {:?}", other),
     }
@@ -39,12 +34,7 @@ fn probe_1_match_record_single_field() {
 // Match record with multi {var1 :f1 var2 :f2} — multi-field bind.
 #[test]
 fn probe_2_match_record_multi_field() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe2-match-record-multi)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match call_beside(file!(), ":t::probe2-match-record-multi").expect("eval") {
         Value::i64(n) => assert_eq!(n, 7, "got {}", n),
         other => panic!("Probe 2: expected i64; got {:?}", other),
     }
@@ -54,12 +44,7 @@ fn probe_2_match_record_multi_field() {
 // Match HashMap with {var :field} — Option<V> bind per key (present key → Some).
 #[test]
 fn probe_3_match_hashmap_single_key_some() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe3-hashmap-single-some)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match call_beside(file!(), ":t::probe3-hashmap-single-some").expect("eval") {
         Value::i64(n) => assert_eq!(n, 9000, "got {}", n),
         other => panic!("Probe 3: expected i64; got {:?}", other),
     }
@@ -70,14 +55,9 @@ fn probe_3_match_hashmap_single_key_some() {
 // Uses a homogeneous String-valued HashMap to satisfy the type checker.
 #[test]
 fn probe_4_match_hashmap_multi_key() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe4-hashmap-multi)").expect("parse");
     // h = :host → Some("localhost"), mv = :missing → None
     // → h arm matches Some → check mv → None → true
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match call_beside(file!(), ":t::probe4-hashmap-multi").expect("eval") {
         Value::bool(b) => assert!(b, "Probe 4: expected true (h=Some, mv=None)"),
         other => panic!("Probe 4: expected bool; got {:?}", other),
     }
@@ -88,12 +68,7 @@ fn probe_4_match_hashmap_multi_key() {
 // match → falls to next wildcard arm which returns the integer.
 #[test]
 fn probe_5_fall_through_on_non_receiver() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe5-fall-through)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match call_beside(file!(), ":t::probe5-fall-through").expect("eval") {
         Value::i64(n) => assert_eq!(
             n, 99,
             "expected fall-through to wildcard arm (99); got {}",
@@ -108,12 +83,7 @@ fn probe_5_fall_through_on_non_receiver() {
 // Selection is correct per scrutinee type.
 #[test]
 fn probe_6_mixed_match_arm_selection() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe6-mixed)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match call_beside(file!(), ":t::probe6-mixed").expect("eval") {
         Value::String(s) => assert_eq!(
             s.as_str(),
             "record-matched",

@@ -1,0 +1,15 @@
+;; tests/types/probe_stone_233_2_k_variant_retired_let_keyword.wat.expr
+;;
+;; A raw expression fragment (NOT a `.wat` program — the `.expr` tail keeps it out of every `*.wat`
+;; glob) for `probe_stone_233_2_k_variant_retired.rs::probe_3_producer_provenance_survives_let_binding`.
+;;
+;; Deliberately NOT wrapped in a `:user::` defn + driven via `call_beside`/`apply_function`: the
+;; probe's subject is `TrackedValue` PROVENANCE surviving a let-binding + later Symbol lookup, and
+;; `apply_function` (what `call_beside` calls internally) returns a bare `Value` — a user-fn CALL is
+;; also a non-producer eval arm, so it re-wraps its result with `Provenance::Unknown` (see
+;; `eval_list`'s doc comment in src/runtime.rs, "Non-producer arms wrap their bare Value return with
+;; .into_tracked()"). Routing this expression through a defn call would silently launder away the
+;; exact provenance this probe exists to check. So the raw expression is read + parsed here at
+;; runtime (never an inlined Rust string) and driven straight through `eval_in_frozen`, which returns
+;; `TrackedValue` — the one path that preserves the inner producer's provenance.
+(:wat::core::let [k (:wat::core::keyword/from-string "wat::core::nil")] k)

@@ -10,19 +10,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc283_source_file_lift -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn source_file_is_at_the_neutral_home() {
-    let world = startup_bare().expect("startup");
-    // Construct a :wat::source::File and read its path back through the accessor.
-    let ast = wat::parse_one!(
-        "(:wat::source::File/path (:wat::source::File' \"t.wat\" \"(:t::f)\"))"
-    ).expect("parse the File ctor + accessor");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!(":wat::source::File undefined at HEAD: {e:?}"))
-        .value_owned();
+    // just-eval (rubric): the File ctor + accessor call lives in the co-located fixture's
+    // `:user::compute`, driven via `call_beside`.
+    let got = call_beside(file!(), ":user::compute")
+        .unwrap_or_else(|e| panic!(":wat::source::File undefined at HEAD: {e:?}"));
     match got {
         Value::String(ref s) => assert_eq!(s.as_str(), "t.wat", "File/path must read the path field"),
         other => panic!("File/path must return a String; got {other:?}"),

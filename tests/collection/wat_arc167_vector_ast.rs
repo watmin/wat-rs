@@ -17,13 +17,13 @@
 //!      (arc 215 stone 2: `[1 2 3]` at expression position now works)
 //!   5. `vector_at_value_position_in_define_body_works_after_arc215` — same
 //!
-//! Tests 4 and 5 share the co-located fixture: wat_arc167_vector_ast.wat
-//! (slurped via startup_beside(file!())).
+//! Tests 4 and 5 share the co-located fixture: wat_arc167_vector_ast.wat,
+//! driven via call_beside(file!(), ":my::probe").
 
 use wat::ast::WatAST;
-use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::freeze::call_beside;
 use wat::parse_one;
-use wat::runtime::{Environment, Value};
+use wat::runtime::Value;
 
 // ─── Test 1 — top-level vector parses as Vector ────────────────────────────
 
@@ -32,6 +32,8 @@ use wat::runtime::{Environment, Value};
 /// path fires.
 #[test]
 fn vector_at_top_level_parses_as_vector() {
+    // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, WatAST-shape
+    // out); the subject is the reader's bracket-vs-list dispatch, not an evaluated value.
     let parsed = parse_one!("[1 2 3]").expect("parse");
     match parsed {
         WatAST::Vector(items, _) => {
@@ -63,6 +65,8 @@ fn vector_at_top_level_parses_as_vector() {
 /// cleanly.
 #[test]
 fn empty_vector_parses() {
+    // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, WatAST-shape
+    // out); the subject is the reader's bracket-vs-list dispatch, not an evaluated value.
     let parsed = parse_one!("[]").expect("parse");
     match parsed {
         WatAST::Vector(items, _) => {
@@ -82,6 +86,8 @@ fn empty_vector_parses() {
 /// Vector. Verifies the bracket parser composes inside list bodies.
 #[test]
 fn nested_vector_in_list_parses() {
+    // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, WatAST-shape
+    // out); the subject is the reader's bracket-vs-list dispatch, not an evaluated value.
     let parsed = parse_one!("(:foo [1 2 3])").expect("parse");
     let items = match parsed {
         WatAST::List(items, _) => items,
@@ -118,11 +124,9 @@ fn nested_vector_in_list_parses() {
 /// type-checks as `Vec<i64>` and evaluates to length 3 at runtime.
 #[test]
 fn vector_at_value_position_works_after_arc215() {
-    let world = startup_beside(file!())
-        .expect("arc 215 stone 2: [1 2 3] at value position must type-check");
-    let ast = parse_one!("(:my::probe)").expect("parse probe call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("eval probe").value_owned() {
+    match call_beside(file!(), ":my::probe")
+        .expect("arc 215 stone 2: [1 2 3] at value position must type-check + eval")
+    {
         Value::i64(n) => assert_eq!(n, 3, "length of [1 2 3] must be 3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -140,11 +144,9 @@ fn vector_at_value_position_works_after_arc215() {
 #[test]
 fn vector_at_value_position_in_define_body_works_after_arc215() {
     // Shares the co-located fixture with test 4.
-    let world = startup_beside(file!())
-        .expect("arc 215 stone 2: [1 2 3] in define body must type-check");
-    let ast = parse_one!("(:my::probe)").expect("parse probe call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("eval probe").value_owned() {
+    match call_beside(file!(), ":my::probe")
+        .expect("arc 215 stone 2: [1 2 3] in define body must type-check + eval")
+    {
         Value::i64(n) => assert_eq!(n, 3, "length must be 3"),
         other => panic!("expected i64; got {:?}", other),
     }

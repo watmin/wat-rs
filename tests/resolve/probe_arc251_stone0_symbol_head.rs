@@ -3,15 +3,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_stone0_symbol_head`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_i64(world: &wat::freeze::FrozenWorld, call: &str) -> Result<i64, String> {
-    let ast = wat::parse_one!(call).expect("parse");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {:?}", e))?
-    {
+// just-eval (rubric): each `:user::compute-cNN` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed i64.
+fn eval_i64(fn_name: &str) -> Result<i64, String> {
+    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("non-i64: {:?}", other)),
     }
@@ -21,9 +19,8 @@ fn eval_i64(world: &wat::freeze::FrozenWorld, call: &str) -> Result<i64, String>
 
 #[test]
 fn contract_01_symbol_head_resolves_like_keyword() {
-    let world = startup_beside(file!()).map_err(|e| format!("startup/check: {:?}", e)).expect("startup");
     assert_eq!(
-        eval_i64(&world, "(:user::compute-c01)"),
+        eval_i64(":user::compute-c01"),
         Ok(3),
         "dotted symbol head wat.core/+ must resolve to the :wat::core::+ entity"
     );
@@ -33,9 +30,8 @@ fn contract_01_symbol_head_resolves_like_keyword() {
 
 #[test]
 fn contract_02_keyword_head_still_resolves() {
-    let world = startup_beside(file!()).map_err(|e| format!("startup/check: {:?}", e)).expect("startup");
     assert_eq!(
-        eval_i64(&world, "(:user::compute-c02)"),
+        eval_i64(":user::compute-c02"),
         Ok(3),
         ":wat::core::+ keyword head must keep working during the transition"
     );

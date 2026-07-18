@@ -19,17 +19,14 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_decl_migrator`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
+// just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
+// drive it via `call_beside` and inspect the returned typed String.
 fn eval_string(fn_name: &str) -> Result<String, String> {
-    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
-    let call = format!("(:user::{})", fn_name);
-    let ast = wat::parse_one!(&call).expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval {fn_name}: {e:?}"))?
-    {
+    let full = format!(":user::{}", fn_name);
+    match call_beside(file!(), &full).map_err(|e| format!("eval {fn_name}: {e:?}"))? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(format!("non-string from {fn_name}: {other:?}")),
     }
@@ -44,7 +41,7 @@ fn c01_typealias_bare_type_slot_uses_type_form() {
     let got = normalize(eval_string("c01").expect("C01 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/typealias svc/Alias wat.type/i64)",
+        include_str!("probe_arc251_decl_migrator__c01-typealias-type-slot.wat"),
         "C01 (gap A): typealias core-scalar type-slot must render as wat.type/i64"
     );
 }
@@ -54,7 +51,7 @@ fn c02_defn_generic_name_drops_type_params() {
     let got = normalize(eval_string("c02").expect("C02 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/defn my.ns/map [x :- T] :- T x)",
+        include_str!("probe_arc251_decl_migrator__c02-defn-drop-type-params.wat"),
         "C02 (gap B, LOAD-BEARING): defn name with <T> must be a plain symbol, <T> dropped"
     );
 }
@@ -64,7 +61,7 @@ fn c03_generic_decl_name_and_parametric_target() {
     let got = normalize(eval_string("c03").expect("C03 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/typealias Foo (wat.type/Vector wat.type/i64))",
+        include_str!("probe_arc251_decl_migrator__c03-generic-decl-parametric.wat"),
         "C03: generic typealias name stripped + parametric target converted"
     );
 }
@@ -74,7 +71,7 @@ fn c04_user_type_target_preserved() {
     let got = normalize(eval_string("c04").expect("C04 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/typealias wat.edn/Tagged wat.holon/HolonAST)",
+        include_str!("probe_arc251_decl_migrator__c04-user-type-preserved.wat"),
         "C04 (preservation): user-type target must preserve namespace"
     );
 }
@@ -84,7 +81,7 @@ fn c05_newtype_type_slot_handled() {
     let got = normalize(eval_string("c05").expect("C05 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/newtype wat.edn/NoTag wat.holon/HolonAST)",
+        include_str!("probe_arc251_decl_migrator__c05-newtype-type-slot.wat"),
         "C05 (newtype): bare type-slot in newtype must use keyword/to-type-form"
     );
 }
@@ -94,7 +91,7 @@ fn c06_typeunion_core_member_vector_uses_type_form() {
     let got = normalize(eval_string("c06").expect("C06 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/typeunion my/Foo [wat.type/i64 wat.type/f64])",
+        include_str!("probe_arc251_decl_migrator__c06-typeunion-core-members.wat"),
         "C06: typeunion core-scalar members must render as wat.type/ in the member vector"
     );
 }
@@ -104,7 +101,7 @@ fn c07_typeunion_user_member_vector_preserved() {
     let got = normalize(eval_string("c07").expect("C07 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/typeunion my/Shape [my/Circle my/Square])",
+        include_str!("probe_arc251_decl_migrator__c07-typeunion-user-members.wat"),
         "C07: typeunion user-type members must preserve their namespace"
     );
 }
@@ -114,7 +111,7 @@ fn c08_defenum_variant_tags_stay_fields_converted() {
     let got = normalize(eval_string("c08").expect("C08 fix-form"));
     assert_eq!(
         got,
-        "(wat.core/defenum counter/AdminReq :Provision [initial :- wat.type/i64])",
+        include_str!("probe_arc251_decl_migrator__c08-defenum-variant-tags.wat"),
         "C08 (defenum): variant tags stay keywords; field types convert via the arrow rule"
     );
 }

@@ -10,45 +10,33 @@
 //! Run: cargo test --release -p wat --test probe_arc278_P12c_explain_payload -- --include-ignored
 
 use wat::ast::WatAST;
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Lifecycle prefix binding `root` (explain of ColdAndWindy) and `step0` (its first via edge), then `body`.
-fn nav(body: &str) -> Value {
-    let compute = format!(
-        "(:wat::core::let\n\
-          [rules   (:wat::rete::collect-rules :weather)\n\
-           session (:wat::rete::compile rules)\n\
-           session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location \"Oslo\"))\n\
-           session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location \"Oslo\"))\n\
-           ex      (:wat::rete::fire-rules-explain session)\n\
-           root    (:wat::rete::explain ex (:weather::ColdAndWindy :celsius -5 :kph 40))\n\
-           step0   (:wat::core::nth (:wat::rete::DerivationNode/via root) 0)]\n\
-          {body})"
-    );
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(&compute).expect("parse compute");
-    eval_in_frozen(&ast, &world, &Environment::new()).expect("compute should run").value_owned()
+/// Invoke a co-located zero-arg entry (each rebuilds the shared lifecycle prefix — `root` /
+/// `step0` — internally, then applies its own tail).
+fn nav(fn_name: &str) -> Value {
+    call_beside(file!(), fn_name).expect("compute should run")
 }
 
 /// PATTERN — the first step matched a Temperature condition.
 #[test]
 fn step_pattern_is_the_matched_type() {
-    let v = nav("(:wat::rete::DerivationStep/pattern step0)");
+    let v = nav(":user::step-pattern");
     assert!(matches!(&v, Value::String(s) if s.as_str() == "weather::Temperature"), "pattern = matched type; got {v:?}");
 }
 
 /// BINDINGS — per-step: the Temperature step bound ?c = -5 (projected to THIS condition's vars).
 #[test]
 fn step_bindings_are_per_step() {
-    let v = nav("(:wat::core::PersistentMap/get (:wat::rete::DerivationStep/bindings step0) \"?c\")");
+    let v = nav(":user::step-bindings-c");
     assert!(matches!(&v, Value::Option(o) if matches!(&**o, Some(Value::i64(-5)))), "bindings[?c] = -5; got {v:?}");
 }
 
 /// RULE (Some) — the root (a derived fact) carries its rule name.
 #[test]
 fn derived_node_rule_is_some() {
-    let v = nav("(:wat::rete::DerivationNode/rule root)");
+    let v = nav(":user::derived-node-rule");
     assert!(
         matches!(&v, Value::Option(o) if matches!(&**o, Some(Value::String(s)) if s.as_str() == "weather::cold-and-windy")),
         "root rule = Some(\"weather::cold-and-windy\"); got {v:?}"
@@ -58,14 +46,14 @@ fn derived_node_rule_is_some() {
 /// RULE (None) — a base/asserted supporting fact has no rule (renders nil).
 #[test]
 fn base_node_rule_is_none() {
-    let v = nav("(:wat::rete::DerivationNode/rule (:wat::rete::DerivationStep/supporting step0))");
+    let v = nav(":user::base-node-rule");
     assert!(matches!(&v, Value::Option(o) if o.is_none()), "base fact rule = None; got {v:?}");
 }
 
 /// CONSTRAINTS count — one satisfied predicate on the Temperature step ((< ?c 0)).
 #[test]
 fn step_has_one_constraint() {
-    let v = nav("(:wat::core::length (:wat::rete::DerivationStep/constraints step0))");
+    let v = nav(":user::step-constraints-count");
     assert!(matches!(v, Value::i64(1)), "one constraint on the Temperature step; got {v:?}");
 }
 
@@ -73,9 +61,12 @@ fn step_has_one_constraint() {
 /// value substituted: `(:wat::core::< -5 0)` (?c → -5), NOT `(:wat::core::< ?c 0)`. Span-agnostic structural match.
 #[test]
 fn constraint_is_the_substituted_form() {
-    let v = nav("(:wat::core::nth (:wat::rete::DerivationStep/constraints step0) 0)");
+    let v = nav(":user::step-constraint-0");
     let Value::wat__WatAST(a) = &v else { panic!("constraint must be a WatAST form; got {v:?}") };
     let WatAST::List(items, _) = a.as_ref() else { panic!("constraint must be a list form; got {a:?}") };
+    // rune:lint(no-inlined-wat) — "(op a b)" here is prose shorthand in an assert-failure
+    // message (describing the expected 3-item shape), not wat source; it happens to
+    // round-trip through the reader as a trivial bare-symbol list, but it is never evaluated.
     assert_eq!(items.len(), 3, "(op a b); got {items:?}");
     assert!(matches!(items[1], WatAST::IntLit(-5, _)), "operand a must be the substituted -5 (not ?c); got {:?}", items[1]);
     assert!(matches!(items[2], WatAST::IntLit(0, _)), "operand b must be 0; got {:?}", items[2]);

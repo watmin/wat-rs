@@ -21,14 +21,19 @@
 //! Wat source lives in the co-located fixture: wat_arc221b_keyword_dispatcher_completeness.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
-fn run_string(world: &wat::freeze::FrozenWorld, expr: &str) -> String {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
+// world and `apply_function` it — no inline wat driver.
+fn run_string(world: &wat::freeze::FrozenWorld, fn_name: &str) -> String {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
     {
         Value::String(s) => s.as_str().to_string(),
         other => panic!("expected String; got {:?}", other),
@@ -44,7 +49,7 @@ fn run_string(world: &wat::freeze::FrozenWorld, expr: &str) -> String {
 #[test]
 fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
     let world = startup_beside(file!()).expect("startup");
-    let s = run_string(&world, "(:t::probe-1)");
+    let s = run_string(&world, ":t::probe-1");
     assert_eq!(s, "#wat-edn.holon/Keyword :foo", "watast_to_holon Keyword must emit exact golden");
 }
 
@@ -56,7 +61,7 @@ fn probe_1_watast_to_holon_keyword_arm_produces_keyword_leaf() {
 #[test]
 fn probe_2_holon_leaf_keyword_produces_keyword_leaf() {
     let world = startup_beside(file!()).expect("startup");
-    let s = run_string(&world, "(:t::probe-2)");
+    let s = run_string(&world, ":t::probe-2");
     assert_eq!(s, "#wat-edn.holon/Keyword :user::foo", "holon_leaf Keyword must emit exact golden");
 }
 
@@ -72,12 +77,14 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
     let world = startup_beside(file!()).expect("startup");
 
     // Part A: eval-step! on a keyword produces AlreadyTerminal.
-    let s_a = run_string(&world, "(:t::probe-3a)");
+    let s_a = run_string(&world, ":t::probe-3a");
+    // rune:lint(no-inlined-wat) — `<HolonAST>` is a Display-rendering placeholder token, not
+    // wat source; this is the `Debug`/`Display` text of a `StepResult` value, never evaluated.
     assert_eq!(s_a, "(:wat::eval::StepResult::AlreadyTerminal <HolonAST>)", "eval-step! keyword must emit exact golden");
 
     // Part B: from-wat(quote :outcome) and from-wat(quote :outcome) are equal
     // (same Keyword identity — both go through Stone 221.4b watast_to_holon).
-    let s_b = run_string(&world, "(:t::probe-3b)");
+    let s_b = run_string(&world, ":t::probe-3b");
     assert_eq!(s_b, "true", "same keyword must produce equal HolonAST identities");
 }
 
@@ -91,7 +98,7 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
 #[test]
 fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
     let world = startup_beside(file!()).expect("startup");
-    let s = run_string(&world, "(:t::probe-4)");
+    let s = run_string(&world, ":t::probe-4");
     assert_eq!(s, "#wat-edn.holon/Keyword :bar", "edn::write Keyword must emit exact golden");
 }
 
@@ -104,7 +111,7 @@ fn probe_4_edn_write_keyword_leaf_emits_keyword_tag() {
 #[test]
 fn probe_5_holon_leaf_unit_produces_nil_leaf() {
     let world = startup_beside(file!()).expect("startup");
-    let s = run_string(&world, "(:t::probe-5)");
+    let s = run_string(&world, ":t::probe-5");
     // Arc 230: nil = Bind(Atom("Symbol"), Atom("nil")) → serializes as #wat-edn.holon/Symbol "nil".
     assert_eq!(s, "#wat-edn.holon/Symbol \"nil\"", "holon_leaf unit must emit exact golden");
 }
@@ -116,7 +123,7 @@ fn probe_5_holon_leaf_unit_produces_nil_leaf() {
 #[test]
 fn probe_6_watast_to_holon_keyword_distinct_identities() {
     let world = startup_beside(file!()).expect("startup");
-    let s = run_string(&world, "(:t::probe-6)");
+    let s = run_string(&world, ":t::probe-6");
     // (:wat::core::not false) = true → edn::write "true".
     assert_eq!(s, "true", "distinct keywords must be non-equal");
 }

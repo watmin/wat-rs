@@ -14,14 +14,19 @@
 //! (slurped via startup_beside(file!())).
 //! Negative startup test uses: tests/value/wat_eval_result_wrong_arity.wat
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
-fn run(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, world, &Environment::new())
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
+// world and `apply_function` it — no inline wat driver.
+fn run(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Value {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute should run")
-        .value_owned()
 }
 
 /// Pull the `kind` string from a `Value::Result(Err(Struct(EvalError)))`.
@@ -49,7 +54,7 @@ fn err_kind(v: &Value) -> String {
 #[test]
 fn eval_ast_bang_happy_path_returns_ok_holon() {
     let world = startup_beside(file!()).expect("startup");
-    match run(&world, "(:t::test1)") {
+    match run(&world, ":t::test1") {
         Value::Result(r) => match &*r {
             Ok(Value::holon__HolonAST(_)) => {}
             other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
@@ -65,21 +70,21 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
     let world = startup_beside(file!()).expect("startup");
     // Stone 241.16 — :wat::core::define HARD CUT total; is_mutation_head no longer
     // recognizes it. Fixture migrated to :wat::core::defstruct (still a mutation head).
-    let result = run(&world, "(:t::test2)");
+    let result = run(&world, ":t::test2");
     assert_eq!(err_kind(&result), "mutation-form-refused");
 }
 
 #[test]
 fn eval_edn_bang_parse_failure_surfaces_as_err() {
     let world = startup_beside(file!()).expect("startup");
-    let result = run(&world, "(:t::test3)");
+    let result = run(&world, ":t::test3");
     assert_eq!(err_kind(&result), "malformed-form");
 }
 
 #[test]
 fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
     let world = startup_beside(file!()).expect("startup");
-    let result = run(&world, "(:t::test4)");
+    let result = run(&world, ":t::test4");
     assert_eq!(err_kind(&result), "verification-failed");
 }
 
@@ -98,7 +103,7 @@ fn eval_edn_bang_wrong_arity_surfaces_as_err() {
 fn try_propagates_eval_err_through_helper() {
     let world = startup_beside(file!()).expect("startup");
     // Stone 241.16 — :wat::core::define HARD CUT total; migrated to :wat::core::defstruct.
-    match run(&world, "(:t::test6)") {
+    match run(&world, ":t::test6") {
         Value::String(s) => {
             assert_eq!(&*s, "mutation-form-refused");
         }
@@ -111,7 +116,7 @@ fn eval_err_exposes_both_kind_and_message() {
     let world = startup_beside(file!()).expect("startup");
     // Stone 241.16 — :wat::core::define HARD CUT total; migrated to :wat::core::defstruct.
     // is_mutation_head no longer recognizes define; defstruct still is a mutation head.
-    match run(&world, "(:t::test7)") {
+    match run(&world, ":t::test7") {
         Value::Tuple(t) => {
             assert_eq!(t.len(), 2);
             let kind = match &t[0] {

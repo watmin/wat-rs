@@ -20,13 +20,11 @@
 //!
 //! Run: cargo test --release --test probe_arc237_8a_no_implicit_coercion
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 fn eval_value(fn_name: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup for no_implicit_coercion fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-    eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned()
+    call_beside(file!(), fn_name).expect("eval")
 }
 
 // ─── Same-type arithmetic — regression contract ─────────────────────────────

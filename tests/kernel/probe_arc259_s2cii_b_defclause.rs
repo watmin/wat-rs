@@ -16,15 +16,13 @@
 //!
 //! WAT fixture: tests/kernel/probe_arc259_s2cii_b_defclause.wat (co-located sibling)
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 fn run_compute_i64() -> i64 {
-    let world = startup_beside(file!())
-        .expect("startup (RED at HEAD: spawn-program' is the 3-arg intrinsic; 2-arg is arity-mismatch)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute").value_owned() {
+    let result = call_beside(file!(), ":user::compute")
+        .expect("compute (RED at HEAD: spawn-program' is the 3-arg intrinsic; 2-arg is arity-mismatch)");
+    match result {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }

@@ -19,3 +19,46 @@
   :then
   (:wat::rete::insert (:weather::WeatherAlert :celsius ?c :kph ?k)))
 
+;; The shared lifecycle prefix (collect → compile → insert ×2 → fire-rules-explain, binding `ex`) is
+;; inlined into each entry point below — one per probe assertion.
+
+;; 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
+;; fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
+(:wat::core::defn :user::closure-fidelity-coldandwindy-count [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :weather)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
+     ex      (:wat::rete::fire-rules-explain session)]
+    (:wat::core::length
+      (:wat::rete::query-by-type-string (:wat::rete::Explained/session ex) "weather::ColdAndWindy"))))
+
+;; 2. INDEX POPULATED — the support map has one entry per derived fact: ColdAndWindy + WeatherAlert = 2.
+(:wat::core::defn :user::support-index-length [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :weather)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
+     ex      (:wat::rete::fire-rules-explain session)]
+    (:wat::core::PersistentMap/length (:wat::rete::Explained/support ex))))
+
+;; 3. CHAINS CAPTURED — each entry's producing token carries its real `matches` support chain. Sum of chain
+;; lengths over all support entries: ColdAndWindy's token has 2 edges (Temperature, WindSpeed), WeatherAlert's
+;; has 1 (ColdAndWindy) → 3. This proves the index stores the real provenance, not just fact keys.
+(:wat::core::defn :user::support-chains-total-length [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :weather)
+     session (:wat::rete::compile rules)
+     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
+     ex      (:wat::rete::fire-rules-explain session)]
+    (:wat::core::foldl
+      (:wat::core::fn [acc <- :wat::core::i64  sv <- :wat::rete::Support]
+        -> :wat::core::i64
+        (:wat::core::i64::+ acc
+          (:wat::core::length (:wat::rete::Token/matches (:wat::rete::Support/token sv)))))
+      0
+      (:wat::core::PersistentMap/values (:wat::rete::Explained/support ex)))))
+

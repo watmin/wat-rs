@@ -22,10 +22,10 @@
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::sync::Arc;
 use wat::freeze::{
-    eval_in_frozen, invoke_user_main, invoke_user_main_with_program, startup_beside,
+    invoke_user_main, invoke_user_main_with_program, startup_beside,
 };
 use wat::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use wat::runtime::Environment;
+use wat::runtime::apply_function;
 use wat::services::{install_ambient_stdio, take_ambient_stdio, AmbientStdio};
 
 fn pipe_pair() -> (Arc<dyn WatReader>, Arc<dyn WatWriter>) {
@@ -73,14 +73,15 @@ fn capture_stdout(run: impl FnOnce()) -> Vec<String> {
 fn injected_user_program_flows_to_main() {
     let world = startup_beside(file!())
         .expect("startup should succeed (C0b.3b-d: user.program injection foundation)");
-    // Build the injected user.program Record in the frozen world.
-    let injected = eval_in_frozen(
-        &wat::parse_one!("(:user::MyEnv :token 42)").expect("parse MyEnv ctor"),
-        &world,
-        &Environment::new(),
-    )
-    .map(|tv| tv.value_owned())
-    .expect("MyEnv constructs");
+    // Build the injected user.program Record in the frozen world via the co-located
+    // zero-arg wrapper :user::make-my-env (no inline ctor in the .rs).
+    let make_my_env = world
+        .symbols()
+        .get(":user::make-my-env")
+        .expect("no :user::make-my-env in world")
+        .clone();
+    let injected = apply_function(make_my_env, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("MyEnv constructs");
     // Inject it through the additive seam; main reads user.program + prints it as EDN.
     let lines = capture_stdout(|| {
         invoke_user_main_with_program(&world, vec![], injected)

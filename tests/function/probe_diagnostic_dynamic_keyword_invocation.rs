@@ -26,15 +26,27 @@
 //!   probe_diagnostic_non_vector.wat.bad (probe 8).
 //! Runtime-fail fn in main fixture: :user::probe-6-err (probe 6).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(fn_name: &str) -> Value {
     let world = startup_beside(file!()).expect("startup for diagnostic apply fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
+}
+
+/// Fetch + apply a zero-arg fn from an already-loaded world, returning the raw
+/// `Result` so error-path probes can assert `is_err()`.
+fn try_run_in(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<Value, wat::runtime::RuntimeError> {
+    let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no {fn_name} in fixture")).clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
 }
 
 // ─── Probe 1 (rewritten) ────────────────────────────────────────────────────
@@ -108,8 +120,7 @@ fn probe_5_apply_with_empty_args_vec() {
 #[test]
 fn probe_6_apply_rejects_special_form_head() {
     let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:user::probe-6-err)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = try_run_in(&world, ":user::probe-6-err");
     assert!(
         result.is_err(),
         "apply of special-form head (:defn) must error at runtime; got Ok",
@@ -126,8 +137,7 @@ fn probe_6_apply_rejects_special_form_head() {
 fn probe_7_apply_rejects_non_keyword_head() {
     let world = startup_from_file("tests/function/probe_diagnostic_non_keyword.wat.bad")
         .expect("startup should succeed (non-keyword head in apply caught at eval, not check)");
-    let ast = wat::parse_one!("(:user::bad)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = try_run_in(&world, ":user::bad");
     assert!(result.is_err(), "non-keyword head (String) must error at eval; got Ok");
 }
 
@@ -140,7 +150,6 @@ fn probe_7_apply_rejects_non_keyword_head() {
 fn probe_8_apply_rejects_non_vector_last_arg() {
     let world = startup_from_file("tests/function/probe_diagnostic_non_vector.wat.bad")
         .expect("startup should succeed (non-vector spread arg caught at eval, not check)");
-    let ast = wat::parse_one!("(:user::bad)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = try_run_in(&world, ":user::bad");
     assert!(result.is_err(), "non-vector spread arg (i64) must error at eval; got Ok");
 }

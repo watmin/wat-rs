@@ -76,6 +76,14 @@ fn build_spawn_process_call(child_program_src: &str) -> WatAST {
 // PARENT_TRIVIAL retired: callers now use freeze_trivial() which loads
 // tests/program/wat_arc170_program_contracts.wat via startup_beside(file!()).
 
+/// Build a spawn-process call AST from a co-located child-program `.wat`
+/// fixture (read from disk, never inlined) — see `build_spawn_process_call`.
+fn build_spawn_process_call_from_fixture(path: &str) -> WatAST {
+    let child_program_src =
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("child fixture {path:?} must exist: {e}"));
+    build_spawn_process_call(&child_program_src)
+}
+
 // ─── T1. :user::main [] -> :wat::core::nil signature freezes; 3-arg fires walker ──
 
 #[test]
@@ -227,14 +235,8 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
     // Parent sends 41 via Sender/from-pipe; child responds 42 via
     // println; parent reads 42 via Receiver/from-pipe; child exits 0.
     let world = freeze_trivial();
-    let call = build_spawn_process_call(
-        r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::let
-                      [n    (:wat::kernel::readln -> :wat::core::i64)
-                       _out (:wat::kernel::println (:wat::core::i64::+ n 1))]
-                      nil))
-    "#,
+    let call = build_spawn_process_call_from_fixture(
+        "tests/program/wat_arc170_program_contracts_t4_child.wat",
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -626,10 +628,8 @@ fn t12_spawn_process_child_emits_without_recv() {
     // Arc 170 slice 6 — child is a self-contained program emitting via
     // println; parent reads via Receiver/from-pipe.
     let world = freeze_trivial();
-    let call = build_spawn_process_call(
-        r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "hello-from-fork"))
-    "#,
+    let call = build_spawn_process_call_from_fixture(
+        "tests/program/wat_arc170_program_contracts_t12_child.wat",
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -658,10 +658,8 @@ fn t13_spawn_process_child_exits_clean_on_parent_tx_drop() {
     // Arc 170 slice 6 — child program returns immediately; parent drops
     // Process (closes stdin/stdout pipes) → child exits 0.
     let world = freeze_trivial();
-    let call = build_spawn_process_call(
-        r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))
-    "#,
+    let call = build_spawn_process_call_from_fixture(
+        "tests/program/wat_arc170_program_contracts_child_announce.wat",
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -690,10 +688,8 @@ fn t14_spawn_process_wait_handle_is_idempotent() {
     // Arc 170 slice 6 — child program returns immediately; idempotent
     // wait_or_cached_exit caches exit 0 on first wait and reuses it on the second.
     let world = freeze_trivial();
-    let call = build_spawn_process_call(
-        r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))
-    "#,
+    let call = build_spawn_process_call_from_fixture(
+        "tests/program/wat_arc170_program_contracts_child_announce.wat",
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -726,13 +722,8 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     // Arc 170 slice 6 — child panics intentionally before printing;
     // parent's recv returns Disconnected; exit code is non-zero.
     let world = freeze_trivial();
-    let call = build_spawn_process_call(
-        r#"
-        (:wat::core::defn :user::main [] -> :wat::core::nil
-          (:wat::core::Option/expect -> :wat::core::nil
-                      :wat::core::None
-                      "intentional panic in child"))
-    "#,
+    let call = build_spawn_process_call_from_fixture(
+        "tests/program/wat_arc170_program_contracts_t15_child.wat",
     );
     let env = Environment::new();
     let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
@@ -1046,10 +1037,8 @@ fn t16_spawn_process_sequential_spawns_no_fd_zombie_leak() {
     let world = freeze_trivial();
     let env = Environment::new();
     for _ in 0..3 {
-        let call = build_spawn_process_call(
-            r#"
-            (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "spawned child"))
-        "#,
+        let call = build_spawn_process_call_from_fixture(
+            "tests/program/wat_arc170_program_contracts_child_announce.wat",
         );
         let process = eval(&call, &env, world.symbols()).expect("spawn-process succeeds").value_owned();
         let handle = process_handle_field(&process);

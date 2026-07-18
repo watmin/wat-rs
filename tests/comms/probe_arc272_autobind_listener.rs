@@ -14,16 +14,12 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_autobind_listener
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn autobind_listener_process_returns_bound_and_connects() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (listener'(process) 3-arg autobind → Bound<S,R>)");
-    let ast = wat::parse_one!("(:user::go)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::go")
         .unwrap_or_else(|e| panic!("go raised: {e:?}"));
     assert!(
         matches!(got, Value::bool(true)),

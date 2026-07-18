@@ -9,50 +9,29 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P4a_native_fire_rules -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn ev(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-        .value_owned()
+// just-eval (rubric): wind_loc / query type and the fire verb are each small-valued and every
+// combination a #[test] needs is a fixed, enumerable named entry in the co-located fixture.
+fn call(fn_name: &str) -> Value {
+    call_beside(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 // ─── Single rule: fire-rules' on a one-round derivation == fire-rules ──────────────
 
-fn single_rule(wind_loc: &str) -> String {
-    format!("\
-   c1    (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
-   c2    (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))\
-   rhs1  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   rule  (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs1))\
-   s0    (:wat::rete::compile (:wat::core::PersistentVector rule))\
-   s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-   s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"{wind_loc}\"))")
-}
-
-fn single_count(wind_loc: &str, fire_verb: &str) -> Value {
-    ev(&format!(
-        "(:wat::core::let [{} fired ({fire_verb} s2)] \
-           (:wat::core::length (:wat::rete::query fired :weather::ColdAndWindy)))",
-        single_rule(wind_loc)
-    ))
-}
-
 #[test]
 fn native_matches_wat_single_rule_match() {
-    let native = single_count("Oslo", ":wat::rete::fire-rules'");
-    let wat = single_count("Oslo", ":wat::rete::fire-rules-spec");
+    let native = call(":user::single-native-oslo");
+    let wat = call(":user::single-wat-oslo");
     assert_eq!(native, wat, "native fire-rules' must agree with wat fire-rules (Oslo); {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(1), "the match derives exactly one ColdAndWindy; got {native:?}");
 }
 
 #[test]
 fn native_matches_wat_single_rule_no_match() {
-    let native = single_count("Bergen", ":wat::rete::fire-rules'");
-    let wat = single_count("Bergen", ":wat::rete::fire-rules-spec");
+    let native = call(":user::single-native-bergen");
+    let wat = call(":user::single-wat-bergen");
     assert_eq!(native, wat, "native must agree with wat on no-join; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(0), "mismatched loc → no derived fact; got {native:?}");
 }
@@ -60,29 +39,11 @@ fn native_matches_wat_single_rule_no_match() {
 // ─── Cascade: a fact DERIVED by ruleA unlocks ruleB across rounds (THE canary) ────
 // ruleA: Temperature + WindSpeed (same loc) → ColdAndWindy(loc)
 // ruleB: ColdAndWindy(loc)                  → WeatherAlert(loc)   [fires on a DERIVED fact]
-const CASCADE: &str = "\
-   ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20)))\
-   ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::core::> ?w 30)))\
-   rhsA  (:wat::core::quote (:wat::rete::insert (:weather::ColdAndWindy ?loc)))\
-   ruleA (:wat::rete::Rule :name \"cw\" :lhs (:wat::core::PersistentVector ca1 ca2) :rhs (:wat::core::PersistentVector rhsA))\
-   cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))\
-   rhsB  (:wat::core::quote (:wat::rete::insert (:weather::WeatherAlert ?loc)))\
-   ruleB (:wat::rete::Rule :name \"alert\" :lhs (:wat::core::PersistentVector cb1) :rhs (:wat::core::PersistentVector rhsB))\
-   s0    (:wat::rete::compile (:wat::core::PersistentVector ruleA ruleB))\
-   s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location \"Oslo\"))\
-   s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location \"Oslo\"))";
-
-fn cascade_count(ty: &str, fire_verb: &str) -> Value {
-    ev(&format!(
-        "(:wat::core::let [{CASCADE} fired ({fire_verb} s2)] \
-           (:wat::core::length (:wat::rete::query fired {ty})))"
-    ))
-}
 
 #[test]
 fn native_matches_wat_cascade_first_rule() {
-    let native = cascade_count(":weather::ColdAndWindy", ":wat::rete::fire-rules'");
-    let wat = cascade_count(":weather::ColdAndWindy", ":wat::rete::fire-rules-spec");
+    let native = call(":user::cascade-native-cw");
+    let wat = call(":user::cascade-wat-cw");
     assert_eq!(native, wat, "native must agree on round-1 derivation; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(1), "ruleA derives one ColdAndWindy; got {native:?}");
 }
@@ -91,8 +52,8 @@ fn native_matches_wat_cascade_first_rule() {
 fn native_matches_wat_cascade_second_rule() {
     // The forward-chain canary: WeatherAlert is derived ONLY if the round-1 ColdAndWindy re-entered the
     // network and triggered ruleB. If fire-rules' didn't cascade, native would be 0 while wat is 1.
-    let native = cascade_count(":weather::WeatherAlert", ":wat::rete::fire-rules'");
-    let wat = cascade_count(":weather::WeatherAlert", ":wat::rete::fire-rules-spec");
+    let native = call(":user::cascade-native-wa");
+    let wat = call(":user::cascade-wat-wa");
     assert_eq!(native, wat, "native must cascade derived→higher-rule like wat; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(1), "ruleB fires on the DERIVED ColdAndWindy → one WeatherAlert; got {native:?}");
 }

@@ -10,16 +10,11 @@
 //!
 //! Run: `cargo nextest run --release -E 'test(smem_roundtrip)'`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 #[test]
 fn smem_roundtrip() {
-    let world = startup_beside(file!()).expect(
-        "startup should succeed (:wat::query::mem-store' must load from the baked stdlib)",
-    );
-    let ast = wat::parse_one!("(:user::smem_roundtrip)").expect("parse test-fn call");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = call_beside(file!(), ":user::smem_roundtrip");
     assert!(
         result.is_ok(),
         "smem_roundtrip deftest' must pass (real mem-store' put/scan/scan-index round-trip); got Err: {result:?}"

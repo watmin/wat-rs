@@ -22,15 +22,11 @@
 //! deliberately-not-registered name; the registry is intentional, not
 //! a wildcard catch-all.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_beside};
+use wat::runtime::Value;
 
-fn run_expr(expr: &str) -> Value {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
+fn run_expr(name: &str) -> Value {
+    call_beside(file!(), name).expect("eval should succeed")
 }
 
 fn unwrap_string(v: Value, ctx: &str) -> String {
@@ -48,13 +44,13 @@ fn unwrap_bool(v: Value, ctx: &str) -> bool {
 }
 
 fn def_str(probe: &str) -> String {
-    unwrap_string(run_expr(&format!("(:t::def-{})", probe)), probe)
+    unwrap_string(run_expr(&format!(":t::def-{}", probe)), probe)
 }
 fn sig_str(probe: &str) -> String {
-    unwrap_string(run_expr(&format!("(:t::sig-{})", probe)), probe)
+    unwrap_string(run_expr(&format!(":t::sig-{}", probe)), probe)
 }
 fn body_none(probe: &str) -> bool {
-    unwrap_bool(run_expr(&format!("(:t::body-{})", probe)), probe)
+    unwrap_bool(run_expr(&format!(":t::body-{}", probe)), probe)
 }
 
 /// Common assertions on the three-probe output.
@@ -220,7 +216,7 @@ fn lookup_form_kernel_spawn_returns_special_form() {
 #[test]
 fn lookup_form_unknown_special_form_name_returns_none() {
     assert!(
-        unwrap_bool(run_expr("(:t::all-none-not-a-sf)"), "all-none"),
+        unwrap_bool(run_expr(":t::all-none-not-a-sf"), "all-none"),
         "unknown name should return None for all three primitives"
     );
 }

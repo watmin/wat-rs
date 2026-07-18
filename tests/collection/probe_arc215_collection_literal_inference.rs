@@ -29,24 +29,22 @@
 //! 12. Map of sets: `{:a #{1 2} :b #{3 4}}` → outer V = HashSet<i64>;
 //!     both inner sets have length 2
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:t::pNN…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
 
 // ─── Probe 1: Single pair with inferred V ─────────────────────────────────────
 
 #[test]
 fn probe_1_single_pair_inferred_v_i64() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
-
-    let ast = wat::parse_one!("(:t::p1a-map-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p1a-map-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "single-pair inferred map must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p1b-map-contains)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p1b-map-contains").expect("eval") {
         Value::bool(b) => assert!(b, "single-pair inferred map must contain :foo"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -56,17 +54,12 @@ fn probe_1_single_pair_inferred_v_i64() {
 
 #[test]
 fn probe_2_multi_pair_inferred_v_i64() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
-
-    let ast = wat::parse_one!("(:t::p2a-map-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2a-map-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "three-pair inferred map must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p2b-map-get-b)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p2b-map-get-b").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "get :b from {{:a 1 :b 2 :c 3}} must return 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -76,9 +69,7 @@ fn probe_2_multi_pair_inferred_v_i64() {
 
 #[test]
 fn probe_3_string_valued_map_inferred_v() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p3-string-map-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p3-string-map-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "string-valued inferred map must have length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -88,17 +79,12 @@ fn probe_3_string_valued_map_inferred_v() {
 
 #[test]
 fn probe_4_nested_map_literal_resolved() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
-
-    let ast = wat::parse_one!("(:t::p4a-nested-map-outer-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4a-nested-map-outer-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "outer map of nested literal must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p4b-nested-map-inner-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p4b-nested-map-inner-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "inner map retrieved from nested literal must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -126,9 +112,7 @@ fn probe_5_mixed_value_types_rejected_at_check() {
 
 #[test]
 fn probe_6_empty_map_literal_length_zero() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p6-empty-map-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p6-empty-map-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty map literal must have length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -138,9 +122,7 @@ fn probe_6_empty_map_literal_length_zero() {
 
 #[test]
 fn probe_7_empty_set_literal_length_zero() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p7-empty-set-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p7-empty-set-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 0, "empty set literal must have length 0"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -150,17 +132,12 @@ fn probe_7_empty_set_literal_length_zero() {
 
 #[test]
 fn probe_8_single_element_set() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
-
-    let ast = wat::parse_one!("(:t::p8a-single-set-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p8a-single-set-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 1, "single-element set literal must have length 1"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p8b-single-set-contains)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p8b-single-set-contains").expect("eval") {
         Value::bool(b) => assert!(b, "single-element set literal must contain 42"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -170,17 +147,12 @@ fn probe_8_single_element_set() {
 
 #[test]
 fn probe_9_multi_element_set() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
-
-    let ast = wat::parse_one!("(:t::p9a-multi-set-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p9a-multi-set-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "three-element set literal must have length 3"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p9b-multi-set-contains)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p9b-multi-set-contains").expect("eval") {
         Value::bool(b) => assert!(b, "three-element set must contain 2"),
         other => panic!("expected bool; got {:?}", other),
     }
@@ -190,9 +162,7 @@ fn probe_9_multi_element_set() {
 
 #[test]
 fn probe_10_set_literal_dedup_at_construction() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::p10-set-dedup-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p10-set-dedup-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 3, "duplicate elements must collapse at set construction; length must be 3"),
         other => panic!("expected i64; got {:?}", other),
     }
@@ -220,17 +190,12 @@ fn probe_11_mixed_element_types_rejected_at_check() {
 
 #[test]
 fn probe_12_map_of_sets() {
-    let world = startup_beside(file!()).expect("startup");
-    let env = Environment::new();
-
-    let ast = wat::parse_one!("(:t::p12a-map-of-sets-outer-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p12a-map-of-sets-outer-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "map of sets must have outer length 2"),
         other => panic!("expected i64; got {:?}", other),
     }
 
-    let ast = wat::parse_one!("(:t::p12b-map-of-sets-inner-len)").expect("parse");
-    match eval_in_frozen(&ast, &world, &env).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::p12b-map-of-sets-inner-len").expect("eval") {
         Value::i64(n) => assert_eq!(n, 2, "inner set #{{1 2}} retrieved from map must have length 2"),
         other => panic!("expected i64; got {:?}", other),
     }

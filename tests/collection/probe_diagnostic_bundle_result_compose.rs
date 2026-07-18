@@ -18,8 +18,11 @@
 //!   - FAIL: SPECIFIC failure surfaced; Task #478 stays open with the actual
 //!     blocker named.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
+
+// just-eval (rubric): each `:t::probeN…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
 
 // ─── Probe 1: Bind composes with Bundle via Result/expect ────────────────────
 
@@ -32,9 +35,7 @@ use wat::runtime::{Environment, Value};
 /// Verify via the type predicate (is? instance "test::Foo") → true.
 #[test]
 fn probe_1_bind_composes_with_bundle_via_result_expect() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe1-bind-composes)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::probe1-bind-composes").expect("eval") {
         Value::bool(b) => assert!(
             b,
             "expected is? to confirm 'test::Foo' classifier on Bind(Atom, Bundle(...)) instance"
@@ -52,9 +53,7 @@ fn probe_1_bind_composes_with_bundle_via_result_expect() {
 /// via statement-length on the extracted inner-bundle handle = 3.
 #[test]
 fn probe_2_canonical_instance_shape_preserves_inner_bundle() {
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:t::probe2-inner-bundle-preserved)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()).expect("eval").value_owned() {
+    match call_beside(file!(), ":t::probe2-inner-bundle-preserved").expect("eval") {
         Value::i64(n) => assert_eq!(
             n, 3,
             "expected inner Bundle to preserve 3 field-Bind children; got {}",

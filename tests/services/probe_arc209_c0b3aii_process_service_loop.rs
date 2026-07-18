@@ -29,17 +29,13 @@
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc209_c0b3aii_process_service_loop
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn process_service_loop_polls_serves_and_terminates_on_owner_drop() {
     // Wat source lives in the co-located fixture: probe_arc209_c0b3aii_process_service_loop.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (C0b.3a-ii: socket poll' service multiplexer)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(105)),

@@ -11,16 +11,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc281_ast_end_span -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn ast_end_span_returns_position_past_close_paren() {
-    let world = startup_beside(file!()).expect("startup: ast-end-span must be defined once arc 281 ships");
-    let ast = wat::parse_one!("(:user::end-col)").expect("parse the defn call");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("end-col raised (ast-end-span undefined at HEAD): {e:?}"))
-        .value_owned();
+    // just-eval (rubric): `:user::end-col` lives in the co-located fixture.
+    let got = call_beside(file!(), ":user::end-col")
+        .unwrap_or_else(|e| panic!("end-col raised (ast-end-span undefined at HEAD): {e:?}"));
     let col = match got {
         Value::i64(n) => n,
         other => panic!("ast-end-span :col must be i64; got {other:?}"),

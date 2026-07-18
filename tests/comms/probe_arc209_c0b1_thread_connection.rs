@@ -15,20 +15,15 @@
 //! Run:
 //!   cargo test --release -p wat --test comms probe_arc209_c0b1_thread_connection -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn thread_connection_listen_accept_connect_round_trips() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed — listener'/connect'/accept' must be available");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .unwrap_or_else(|e| panic!(
-            "thread connection verbs are ABSENT: listener'/connect'/accept' are unsupported. \
-             Eval error: {e:?}"
-        ));
+    let got = call_beside(file!(), ":user::compute").unwrap_or_else(|e| panic!(
+        "thread connection verbs are ABSENT: listener'/connect'/accept' are unsupported. \
+         Eval error: {e:?}"
+    ));
     assert!(
         matches!(got, Value::i64(10)),
         "thread connection round-trip returned the wrong value: expected i64 10 (5 * 2); got {got:?}"

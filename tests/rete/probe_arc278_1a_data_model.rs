@@ -11,41 +11,20 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1a_data_model -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
-
-// A `let` that hand-builds a 2-node Session and exposes `s`; the caller appends the body expression.
-const SESSION: &str = "\
-(:wat::core::let \
-  [n0 (:wat::rete::RootJoinNode :id 0 :children (:wat::core::PersistentVector 1) :binding-keys (:wat::core::PersistentVector)) \
-   n1 (:wat::rete::ProductionNode :id 1 :rule-name \"rule-1\") \
-   net (:wat::core::PersistentMap 0 n0 1 n1) \
-   em  (:wat::core::PersistentMap) \
-   ev  (:wat::core::PersistentVector) \
-   s   (:wat::rete::Session :network net :rules ev :alpha-memory em :beta-memory em :production-memory em :facts ev :next-id 2)] \
-  ";
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn rete_data_model_constructs_and_renders() {
-    let world = startup_bare().expect("startup");
-
-    let ev = |body: &str| -> Value {
-        let expr = format!("{SESSION}{body})");
-        let ast = wat::parse_one!(&expr).expect("parse");
-        eval_in_frozen(&ast, &world, &Environment::new())
-            .unwrap_or_else(|e| panic!("eval raised: {e:?}\n  expr: {expr}"))
-            .value_owned()
-    };
-
     // (a) the network (id → Node) holds both nodes
     assert_eq!(
-        ev("(:wat::core::PersistentMap/length (:wat::rete::Session/network s))"),
+        call_beside(file!(), ":user::network-length").expect("network-length eval"),
         Value::i64(2),
         "Session.network must hold both nodes"
     );
 
     // (b) render-dag produces a non-empty inspectable string
-    match ev("(:wat::rete::render-dag s)") {
+    match call_beside(file!(), ":user::render-dag-of-session").expect("render-dag eval") {
         Value::String(s) => assert!(!s.is_empty(), "render-dag must produce a non-empty graph string"),
         other => panic!("render-dag must return a String; got {other:?}"),
     }

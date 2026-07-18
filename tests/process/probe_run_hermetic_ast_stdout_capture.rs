@@ -21,8 +21,8 @@
 //! Surface exercised: `:wat::test::run-hermetic-ast` (spawn-process)
 //! These match. Every probe body in this file exercises the spawn-process path.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 // ─── Probe 1 — fork-program-ast child writes stdout; parent captures it ────
 
@@ -42,14 +42,9 @@ use wat::runtime::{Environment, Value};
 /// Path: `:wat::test::run-hermetic-ast` (fork-program-ast Layer 2).
 #[test]
 fn probe_run_hermetic_ast_child_stdout_captured() {
-    // World loaded from co-located probe_run_hermetic_ast_stdout_capture.wat via startup_beside.
-    let world = startup_beside(file!()).expect("freeze should succeed");
-
-    // Evaluate (:probe::ast::capture-stdout) to get the RunResult.
-    let call = wat::parse_one!("(:probe::ast::capture-stdout)").expect("parse call");
-    let env = Environment::new();
-    let result = eval_in_frozen(&call, &world, &env)
-        .expect("probe::ast::capture-stdout should run without panicking").value_owned();
+    // World loaded from co-located probe_run_hermetic_ast_stdout_capture.wat via call_beside.
+    let result = call_beside(file!(), ":probe::ast::capture-stdout")
+        .expect("probe::ast::capture-stdout should run without panicking");
 
     // result is :wat::kernel::RunResult { stdout stderr failure }
     let sv = match &result {

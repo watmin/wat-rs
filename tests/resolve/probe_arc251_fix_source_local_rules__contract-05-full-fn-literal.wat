@@ -1,0 +1,1 @@
+(wat.core/fn [a :- wat.type/i64] :- wat.type/bool a)

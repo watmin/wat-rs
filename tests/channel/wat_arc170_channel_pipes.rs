@@ -32,9 +32,9 @@
 //!   constructed Rust-side and bound into the wat environment
 
 use std::sync::Arc;
-use wat::freeze::startup_bare;
+use wat::freeze::{startup_bare, startup_beside};
 use wat::io::{WatReader, WatWriter};
-use wat::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, Value};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 use wat::AggregateValue;
 use wat::channel::{
     make_pipe_channel_pair, receiver_from_pipe, sender_close, sender_from_pipe, typed_recv,
@@ -643,18 +643,16 @@ fn wat_kernel_send_recv_dispatches_through_pipefd_transport() {
     // Proves the runtime's send/recv dispatch correctly on
     // SenderInner::PipeFd / ReceiverInner::PipeFd — the polymorphic
     // dispatch is wired through to user-callable verbs.
-    let world = empty_world();
+    //
+    // just-eval (rubric): tx/rx are Rust-native handles (impure, non-EDN) — the send/recv
+    // calls live in the co-located fixture's `:user::do-send-7` / `:user::do-recv`, driven
+    // via `apply_function` with the handle as the argument.
+    let world = startup_beside(file!()).expect("startup");
     let (tx, rx) = make_pipe_channel_pair(":test").unwrap();
 
-    let env = Environment::new()
-        .child()
-        .bind("tx", wat::rust_caller_span!(), tx.into())
-        .bind("rx", wat::rust_caller_span!(), rx.into())
-        .build();
-
-    let send_ast = wat::parse_one!("(:wat::kernel::send tx 7)").expect("parse send");
-    let send_result =
-        eval(&send_ast, &env, world.symbols()).expect("send eval should succeed").value_owned();
+    let send_func = world.symbols().get(":user::do-send-7").expect(":user::do-send-7 defined");
+    let send_result = apply_function(send_func.clone(), vec![tx], world.symbols(), wat::rust_caller_span!())
+        .expect("send eval should succeed");
     // Expected: Result.Ok(:())
     match send_result {
         Value::Result(res) => match &*res {
@@ -664,9 +662,9 @@ fn wat_kernel_send_recv_dispatches_through_pipefd_transport() {
         other => panic!("expected Result, got {:?}", other),
     }
 
-    let recv_ast = wat::parse_one!("(:wat::kernel::recv rx)").expect("parse recv");
-    let recv_result =
-        eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed").value_owned();
+    let recv_func = world.symbols().get(":user::do-recv").expect(":user::do-recv defined");
+    let recv_result = apply_function(recv_func.clone(), vec![rx], world.symbols(), wat::rust_caller_span!())
+        .expect("recv eval should succeed");
     // Expected: Result.Ok(:(Some 7))
     match recv_result {
         Value::Result(res) => match &*res {
@@ -682,14 +680,15 @@ fn wat_kernel_send_recv_dispatches_through_pipefd_transport() {
 
 #[test]
 fn wat_kernel_recv_pipefd_returns_none_on_writer_close() {
-    let world = empty_world();
+    // just-eval (rubric): rx is a Rust-native handle — recv lives in the co-located
+    // fixture's `:user::do-recv`, driven via `apply_function`.
+    let world = startup_beside(file!()).expect("startup");
     let (tx, rx) = make_pipe_channel_pair(":test").unwrap();
     drop(tx); // peer disconnect
 
-    let env = Environment::new().child().bind("rx", wat::rust_caller_span!(), rx.into()).build();
-    let recv_ast = wat::parse_one!("(:wat::kernel::recv rx)").expect("parse");
-    let recv_result =
-        eval(&recv_ast, &env, world.symbols()).expect("recv eval should succeed").value_owned();
+    let recv_func = world.symbols().get(":user::do-recv").expect(":user::do-recv defined");
+    let recv_result = apply_function(recv_func.clone(), vec![rx], world.symbols(), wat::rust_caller_span!())
+        .expect("recv eval should succeed");
     // Expected: Result.Ok(:None)
     match recv_result {
         Value::Result(res) => match &*res {
@@ -708,13 +707,15 @@ fn wat_kernel_select_rejects_pipefd_receiver() {
     // Select today operates only on crossbeam Receivers. A PipeFd
     // Receiver in the receivers vector should produce a clear
     // diagnostic — no silent fall-through.
-    let world = empty_world();
+    //
+    // just-eval (rubric): rxs is a Vec of Rust-native handles — select lives in the
+    // co-located fixture's `:user::do-select`, driven via `apply_function`.
+    let world = startup_beside(file!()).expect("startup");
     let (_tx, rx) = make_pipe_channel_pair(":test").unwrap();
     let rxs = Value::Vec(Arc::new(vec![rx]));
 
-    let env = Environment::new().child().bind("rxs", wat::rust_caller_span!(), rxs.into()).build();
-    let select_ast = wat::parse_one!("(:wat::kernel::select rxs)").expect("parse");
-    let outcome = eval(&select_ast, &env, world.symbols());
+    let select_func = world.symbols().get(":user::do-select").expect(":user::do-select defined");
+    let outcome = apply_function(select_func.clone(), vec![rxs], world.symbols(), wat::rust_caller_span!());
     match outcome {
         Err(RuntimeError { kind: RuntimeErrorKind::MalformedForm { reason, .. }, .. }) => {
             assert_eq!(
@@ -834,22 +835,26 @@ fn wat_kernel_sender_close_dispatch_via_eval() {
     // End-to-end wat-level test: bind a memory-tier (comms-backed) Sender;
     // call (:wat::kernel::Sender/close tx); then (:wat::kernel::send tx v)
     // returns Result.Err(...) — the ChannelDisconnected shape.
+    //
+    // just-eval (rubric): tx is a Rust-native handle — the close/send calls live in the
+    // co-located fixture's `:user::do-sender-close` / `:user::do-send-99`, driven via
+    // `apply_function`. `tx.clone()` for the first call keeps the second call's argument
+    // valid — the Sender's inner state is Arc-shared, so both calls act on the same channel.
     use wat::channel::sender_from_comms;
-    let world = empty_world();
+    let world = startup_beside(file!()).expect("startup");
 
     let (tx, _rx) = wat::comms::thread::pair::<Value>();
     let sender_val = sender_from_comms(tx);
 
-    let env = Environment::new()
-        .child()
-        .bind("tx", wat::rust_caller_span!(), sender_val.into())
-        .build();
-
     // (:wat::kernel::Sender/close tx) → nil
-    let close_ast =
-        wat::parse_one!("(:wat::kernel::Sender/close tx)").expect("parse Sender/close");
-    let close_result =
-        eval(&close_ast, &env, world.symbols()).expect("Sender/close eval should succeed").value_owned();
+    let close_func = world.symbols().get(":user::do-sender-close").expect(":user::do-sender-close defined");
+    let close_result = apply_function(
+        close_func.clone(),
+        vec![sender_val.clone()],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect("Sender/close eval should succeed");
     assert!(
         matches!(close_result, Value::Unit),
         "Sender/close should return nil, got {:?}",
@@ -857,9 +862,9 @@ fn wat_kernel_sender_close_dispatch_via_eval() {
     );
 
     // (:wat::kernel::send tx 99) → Result.Err(disconnected)
-    let send_ast = wat::parse_one!("(:wat::kernel::send tx 99)").expect("parse send");
-    let send_result =
-        eval(&send_ast, &env, world.symbols()).expect("send-after-close eval should not panic").value_owned();
+    let send_func = world.symbols().get(":user::do-send-99").expect(":user::do-send-99 defined");
+    let send_result = apply_function(send_func.clone(), vec![sender_val], world.symbols(), wat::rust_caller_span!())
+        .expect("send-after-close eval should not panic");
     match send_result {
         Value::Result(res) => match &*res {
             Err(_) => {} // any Err is correct — ChannelDisconnected shape

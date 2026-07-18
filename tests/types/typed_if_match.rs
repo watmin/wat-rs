@@ -23,14 +23,13 @@
 //! - Nested typed forms compose normally.
 
 use wat::check::{CheckError, CheckErrorKind};
-use wat::freeze::{eval_in_frozen, startup_from_file, StartupError};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, Value};
 
 fn run(path: &str) -> Value {
     let world = startup_from_file(path).expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned()
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("compute should run")
 }
 
 fn check_errors(path: &str) -> Vec<CheckError> {
@@ -126,7 +125,11 @@ fn if_wrong_arity_rejected_with_shape_guidance() {
     // Arc 258.1 updated the error to name both valid shapes; the needle matches
     // the annotated-shape portion of the message.
     let errs = check_errors("tests/types/typed_if_match_if_wrong_arity.wat.bad");
-    assert_malformed_mentioning(&errs, ":wat::core::if", "(:wat::core::if cond -> :T then else)");
+    assert_malformed_mentioning(
+        &errs,
+        ":wat::core::if",
+        include_str!("typed_if_match__if_wrong_arity_needle.wat"),
+    );
 }
 
 #[test]

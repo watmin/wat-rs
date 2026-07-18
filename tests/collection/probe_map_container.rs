@@ -20,34 +20,32 @@
 //! (slurped via startup_beside(file!())).
 //! Negative fixture: tests/collection/probe_map_container_bad_assoc.wat
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::{RuntimeError, Value};
 
-fn eval_probe(call: &str) -> Result<Value, String> {
-    let world = startup_beside(file!()).map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
-        .map(|tv| tv.value_owned())
+// just-eval (rubric): each `:p::…` entry is a zero-arg fn in the co-located
+// `.wat` fixture, driven via `call_beside` — no inline wat driver.
+fn eval_probe(fn_name: &str) -> Result<Value, RuntimeError> {
+    call_beside(file!(), fn_name)
 }
 
 // ── assoc round-trip — HashMap ────────────────────────────────────────────────
 
 #[test]
 fn hashmap_assoc_key_present_after() {
-    match eval_probe("(:p::hashmap-assoc-key-present)") {
+    match eval_probe(":p::hashmap-assoc-key-present") {
         Ok(Value::bool(true)) => {}
         Ok(other) => panic!("HashMap assoc round-trip: expected bool(true), got {other:?}"),
-        Err(e) => panic!("HashMap assoc should classify + run: {e}"),
+        Err(e) => panic!("HashMap assoc should classify + run: {e:?}"),
     }
 }
 
 #[test]
 fn hashmap_assoc_type_preserving() {
-    match eval_probe("(:p::hashmap-assoc-type-preserving)") {
+    match eval_probe(":p::hashmap-assoc-type-preserving") {
         Ok(Value::bool(true)) => {}
         Ok(other) => panic!("HashMap assoc type-preserving: expected bool(true), got {other:?}"),
-        Err(e) => panic!("HashMap assoc type-preserving test failed: {e}"),
+        Err(e) => panic!("HashMap assoc type-preserving test failed: {e:?}"),
     }
 }
 
@@ -55,19 +53,19 @@ fn hashmap_assoc_type_preserving() {
 
 #[test]
 fn persistentmap_assoc_length_grows() {
-    match eval_probe("(:p::persistentmap-assoc-length-grows)") {
+    match eval_probe(":p::persistentmap-assoc-length-grows") {
         Ok(Value::i64(2)) => {}
         Ok(other) => panic!("PersistentMap assoc round-trip: expected i64(2), got {other:?}"),
-        Err(e) => panic!("PersistentMap assoc should classify + run: {e}"),
+        Err(e) => panic!("PersistentMap assoc should classify + run: {e:?}"),
     }
 }
 
 #[test]
 fn persistentmap_assoc_immutable() {
-    match eval_probe("(:p::persistentmap-assoc-immutable)") {
+    match eval_probe(":p::persistentmap-assoc-immutable") {
         Ok(Value::i64(1)) => {}
         Ok(other) => panic!("PersistentMap assoc must not mutate original: expected i64(1), got {other:?}"),
-        Err(e) => panic!("PersistentMap assoc immutability test failed: {e}"),
+        Err(e) => panic!("PersistentMap assoc immutability test failed: {e:?}"),
     }
 }
 
@@ -75,19 +73,19 @@ fn persistentmap_assoc_immutable() {
 
 #[test]
 fn base_record_assoc_field_updated() {
-    match eval_probe("(:p::base-record-assoc-field-updated)") {
+    match eval_probe(":p::base-record-assoc-field-updated") {
         Ok(Value::i64(99)) => {}
         Ok(other) => panic!("base Record assoc round-trip: expected i64(99), got {other:?}"),
-        Err(e) => panic!("base Record (wat__core__Record) assoc should classify + run: {e}"),
+        Err(e) => panic!("base Record (wat__core__Record) assoc should classify + run: {e:?}"),
     }
 }
 
 #[test]
 fn base_record_assoc_preserves_other_fields() {
-    match eval_probe("(:p::base-record-assoc-preserves-other-fields)") {
+    match eval_probe(":p::base-record-assoc-preserves-other-fields") {
         Ok(Value::i64(10)) => {} // x was untouched
         Ok(other) => panic!("Record assoc must preserve x field: expected i64(10), got {other:?}"),
-        Err(e) => panic!("Record assoc field-preservation test failed: {e}"),
+        Err(e) => panic!("Record assoc field-preservation test failed: {e:?}"),
     }
 }
 
@@ -95,10 +93,10 @@ fn base_record_assoc_preserves_other_fields() {
 
 #[test]
 fn holonic_record_assoc_field_updated() {
-    match eval_probe("(:p::holonic-record-assoc-field-updated)") {
+    match eval_probe(":p::holonic-record-assoc-field-updated") {
         Ok(Value::i64(77)) => {}
         Ok(other) => panic!("holonic Record assoc round-trip: expected i64(77), got {other:?}"),
-        Err(e) => panic!("holonic Record (wat__holon__Record) assoc should classify + run: {e}"),
+        Err(e) => panic!("holonic Record (wat__holon__Record) assoc should classify + run: {e:?}"),
     }
 }
 
@@ -106,25 +104,25 @@ fn holonic_record_assoc_field_updated() {
 
 #[test]
 fn record_get_existing_field_returns_some() {
-    match eval_probe("(:p::record-get-existing-field)") {
+    match eval_probe(":p::record-get-existing-field") {
         Ok(Value::Option(inner)) => match inner.as_ref() {
             Some(Value::i64(42)) => {}
             other => panic!("record get :id expected Some(i64(42)), got {other:?}"),
         },
         Ok(other) => panic!("record get :id expected Option, got {other:?}"),
-        Err(e) => panic!("record get :id failed: {e}"),
+        Err(e) => panic!("record get :id failed: {e:?}"),
     }
 }
 
 #[test]
 fn record_get_missing_field_returns_none() {
-    match eval_probe("(:p::record-get-missing-field)") {
+    match eval_probe(":p::record-get-missing-field") {
         Ok(Value::Option(inner)) => match inner.as_ref() {
             None => {}
             other => panic!("record get missing field expected None, got {other:?}"),
         },
         Ok(other) => panic!("record get missing field expected Option, got {other:?}"),
-        Err(e) => panic!("record get missing field failed: {e}"),
+        Err(e) => panic!("record get missing field failed: {e:?}"),
     }
 }
 
@@ -132,19 +130,19 @@ fn record_get_missing_field_returns_none() {
 
 #[test]
 fn record_contains_existing_field_true() {
-    match eval_probe("(:p::record-contains-existing)") {
+    match eval_probe(":p::record-contains-existing") {
         Ok(Value::bool(true)) => {}
         Ok(other) => panic!("record contains? :x expected true, got {other:?}"),
-        Err(e) => panic!("record contains? existing field failed: {e}"),
+        Err(e) => panic!("record contains? existing field failed: {e:?}"),
     }
 }
 
 #[test]
 fn record_contains_missing_field_false() {
-    match eval_probe("(:p::record-contains-missing)") {
+    match eval_probe(":p::record-contains-missing") {
         Ok(Value::bool(false)) => {}
         Ok(other) => panic!("record contains? :z (missing) expected false, got {other:?}"),
-        Err(e) => panic!("record contains? missing field failed: {e}"),
+        Err(e) => panic!("record contains? missing field failed: {e:?}"),
     }
 }
 
@@ -152,10 +150,10 @@ fn record_contains_missing_field_false() {
 
 #[test]
 fn record_length_field_count() {
-    match eval_probe("(:p::record-length)") {
+    match eval_probe(":p::record-length") {
         Ok(Value::i64(3)) => {}
         Ok(other) => panic!("record length expected 3, got {other:?}"),
-        Err(e) => panic!("record length failed: {e}"),
+        Err(e) => panic!("record length failed: {e:?}"),
     }
 }
 
@@ -163,10 +161,10 @@ fn record_length_field_count() {
 
 #[test]
 fn record_empty_q_nonempty_false() {
-    match eval_probe("(:p::record-empty-nonempty)") {
+    match eval_probe(":p::record-empty-nonempty") {
         Ok(Value::bool(false)) => {}
         Ok(other) => panic!("record empty? on Pair expected false, got {other:?}"),
-        Err(e) => panic!("record empty? failed: {e}"),
+        Err(e) => panic!("record empty? failed: {e:?}"),
     }
 }
 

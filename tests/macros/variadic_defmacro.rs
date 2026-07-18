@@ -27,8 +27,11 @@
 //!   variadic_defmacro_bad_double_rest.wat
 //!   variadic_defmacro_bad_rest_no_binder.wat
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file, StartupError};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file, StartupError};
+use wat::runtime::Value;
+
+// just-eval (rubric): each probe is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 
 // ─── Canonical use: splice into a core form ───────────────────────────
 
@@ -37,10 +40,7 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
     // `(my::vec-of :wat::core::i64 1 2 3)` expands to
     // `(:wat::core::Vector :wat::core::i64 1 2 3)`. The `& (items ...)` rest-binder
     // collects the trailing 1 2 3 into a list; `,@items` splices them.
-    let world = startup_beside(file!()).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute-splice)").expect("parse compute call");
-    let env = Environment::new();
-    let got = eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned();
+    let got = call_beside(file!(), ":my::compute-splice").expect("compute should run");
     assert!(matches!(got, Value::i64(10)));
 }
 
@@ -48,10 +48,7 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
 
 #[test]
 fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
-    let world = startup_beside(file!()).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute-empty)").expect("parse compute call");
-    let env = Environment::new();
-    match eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned() {
+    match call_beside(file!(), ":my::compute-empty").expect("compute should run") {
         Value::Vec(items) => assert_eq!(items.len(), 0),
         other => panic!("expected empty Vec; got {:?}", other),
     }
@@ -63,10 +60,7 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
 fn variadic_macro_mixes_fixed_params_and_rest() {
     // Simpler shape: macro expands to `(vec :wat::core::i64 init ,@items)` and
     // we sum-fold the result. Keeps the splice the point of the test.
-    let world = startup_beside(file!()).expect("startup should succeed");
-    let ast = wat::parse_one!("(:my::compute-sum)").expect("parse compute call");
-    let env = Environment::new();
-    let got = eval_in_frozen(&ast, &world, &env).expect("compute should run").value_owned();
+    let got = call_beside(file!(), ":my::compute-sum").expect("compute should run");
     assert!(matches!(got, Value::i64(106)));
 }
 

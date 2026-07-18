@@ -14,15 +14,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_stone2_cond_macro`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_named_i64(world: &wat::freeze::FrozenWorld, fn_call: &str) -> Result<i64, String> {
-    let ast = wat::parse_one!(fn_call).expect("parse");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("eval: {e:?}"))?
-    {
+// just-eval (rubric): each contract is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
+fn call_named_i64(fn_name: &str) -> Result<i64, String> {
+    match call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("non-i64: {other:?}")),
     }
@@ -30,9 +28,8 @@ fn eval_named_i64(world: &wat::freeze::FrozenWorld, fn_call: &str) -> Result<i64
 
 #[test]
 fn contract_01_first_arm_taken() {
-    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_named_i64(&world, "(:user::compute-1)"),
+        call_named_i64(":user::compute-1"),
         Ok(10),
         "bare cond (no -> :T) expands to nested if; the first true arm is taken"
     );
@@ -40,9 +37,8 @@ fn contract_01_first_arm_taken() {
 
 #[test]
 fn contract_02_else_fallthrough() {
-    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_named_i64(&world, "(:user::compute-2)"),
+        call_named_i64(":user::compute-2"),
         Ok(20),
         "no arm matches → the :else body"
     );
@@ -50,9 +46,8 @@ fn contract_02_else_fallthrough() {
 
 #[test]
 fn contract_03_three_arm_recursion() {
-    let world = startup_beside(file!()).expect("startup");
     assert_eq!(
-        eval_named_i64(&world, "(:user::compute-3)"),
+        call_named_i64(":user::compute-3"),
         Ok(20),
         "a middle arm is taken — proves the macro re-expands to fixpoint across N arms"
     );

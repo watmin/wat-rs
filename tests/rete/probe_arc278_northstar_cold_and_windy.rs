@@ -19,30 +19,17 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_northstar_cold_and_windy -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-// The lifecycle, value-threaded: collect → compile → insert → insert → fire → query, then COUNT the derived
-// facts (wrapped in `length` so the test is a single eval to a scalar — no env gymnastics).
-const RUN: &str = "\
-(:wat::core::length\n\
-  (:wat::core::let\n\
-    [rules    (:wat::rete::collect-rules :weather)\n\
-     session  (:wat::rete::compile rules)\n\
-     session  (:wat::rete::insert session (:weather::Temperature :celsius 15 :location \"Oslo\"))\n\
-     session  (:wat::rete::insert session (:weather::WindSpeed    :kph 45 :location \"Oslo\"))\n\
-     fired    (:wat::rete::fire-rules session)]\n\
-    (:wat::rete::query fired :weather::ColdAndWindy)))";
+// just-eval (rubric): the lifecycle (collect → compile → insert → insert → fire → query, wrapped in
+// `length`) lives in the co-located fixture as `:user::compute`, driven via `call_beside`.
 
 #[test]
 fn cold_and_windy_fires_and_derives_the_fact() {
-    let world = startup_beside(file!())
-        .expect("world (records + defrule) should freeze once the rete surface exists");
-
     // The rule fires (Temp 15<20 AND Wind 45>30 at the SAME location "Oslo" — the equality join on ?loc),
     // logically inserting ONE ColdAndWindy fact; `query` reads the derived facts back out.
-    let count = eval_in_frozen(&wat::parse_one!(RUN).expect("parse lifecycle"), &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("rete lifecycle raised: {e:?}"))
-        .value_owned();
+    let count = call_beside(file!(), ":user::compute")
+        .unwrap_or_else(|e| panic!("rete lifecycle raised: {e:?}"));
     assert_eq!(count, Value::i64(1), "exactly one ColdAndWindy derived (the Oslo equality join)");
 }

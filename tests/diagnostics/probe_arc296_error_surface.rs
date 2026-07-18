@@ -13,22 +13,13 @@
 //!
 //! GREEN after `wat/core.wat` adds the `defsurface :wat::core::Error` form.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 #[test]
 fn error_surface_declares_and_record_satisfies_and_round_trips() {
     // (a) startup boots — proves :wat::core::Error is in the type registry.
     // (b) :probe::BadInput (defrecord) passes a [e <- :wat::core::Error] param.
     // (c) edn::write→edn::read round-trip inside :user::main doesn't raise.
-    let world = startup_beside(file!()).unwrap_or_else(|e| {
-        panic!(
-            ":wat::core::Error surface must be declared in core.wat and startup \
-             must succeed; got: {}",
-            e
-        )
-    });
-    let ast = wat::parse_one!("(:user::main)").expect("parse");
-    let _result = eval_in_frozen(&ast, &world, &Environment::new())
+    let _result = call_beside(file!(), ":user::main")
         .unwrap_or_else(|e| panic!("(:user::main) raised a runtime error: {e:?}"));
 }

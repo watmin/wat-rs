@@ -35,18 +35,8 @@
 //! Run:
 //!   cargo test --release -p wat --test channel probe_arc209_connection_primitive -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
-
-/// Eval a standalone expression in a frozen world, returning its Value or the error.
-fn eval_expr(expr: &str) -> Result<Value, String> {
-    let world = startup_bare()
-        .expect("trivial startup should succeed");
-    let ast = wat::parse_one!(expr).map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .map_err(|e| format!("{e:?}"))
-}
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// The provision round-trip over a NON-SPAWNED, connected `Peer'` pair.
 ///
@@ -61,24 +51,9 @@ fn eval_expr(expr: &str) -> Result<Value, String> {
 fn connection_primitive_mints_a_connected_peer_pair_without_spawning() {
     // Stone 259: select' returns ServiceEvent<I,O> (was Tuple<i64,O>).
     // The request message is in :Message{idx, msg}.
-    let expr = r#"(:wat::core::let
-        [pair   (:wat::kernel::peer-pair' :wat::core::i64 :wat::core::i64)
-         server (:wat::core::first pair)
-         client (:wat::core::second pair)
-         _      (:wat::kernel::send' client 42)
-         chosen (:wat::kernel::select'
-                  (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64> server))]
-        (:wat::core::match chosen
-          -> :wat::core::i64
-          ((:wat::spawn::ServiceEvent::Message _idx req)
-            (:wat::core::let [_ (:wat::kernel::send' server (:wat::core::* req 2))
-                              reply (:wat::kernel::recv' client)]
-              reply))
-          (_ (:wat::kernel::assertion-failed!
-               "connection primitive: unexpected ServiceEvent variant"
-               :wat::core::None :wat::core::None))))"#;
-
-    match eval_expr(expr) {
+    // just-eval (rubric): the expression lives in the co-located fixture's
+    // zero-arg `:user::compute`, driven via `call_beside` — no inline wat driver.
+    match call_beside(file!(), ":user::compute") {
         Ok(Value::i64(84)) => { /* green — the provision mechanic works end-to-end */ }
         Ok(other) => panic!(
             "connection primitive round-trip returned the wrong value: expected i64 84, got {other:?}"

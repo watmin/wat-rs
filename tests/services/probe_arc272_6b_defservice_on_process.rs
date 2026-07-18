@@ -23,19 +23,15 @@
 //! This test FORKS (spawn-program' (process)) → its own top-level [[test]] binary.
 //! Run: cargo test --release -p wat --test probe_arc272_6b_defservice_on_process -- --include-ignored
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn defservice_runs_on_a_forked_process_through_the_same_client_face() {
     // IDENTICAL to the C.3 thread probe except the locus is (process). Parity = same client face.
     // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
     // Wat source lives in the co-located fixture: probe_arc272_6b_defservice_on_process.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (6b-ii-β: defservice on a process)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(5)),

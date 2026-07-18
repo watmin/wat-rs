@@ -11,3 +11,33 @@
   [_peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::i64>]
   -> :wat::core::nil
   nil)
+
+;; T2/T3 — verb dispatch + type-param swap (just-eval rubric, docs/CONVENTIONS.md § Test
+;; idioms): peer_a/peer_b are Rust-native handles (impure, non-EDN) minted by
+;; `make_thread_peer_pair_for_test` — the `.rs` driver `apply_function`s these fns with the
+;; peer as an argument, one fn per literal call the inline drivers used to make.
+
+(:wat::core::defn :my::write-i64-42
+  [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::i64>]
+  -> :wat::core::nil
+  (:wat::kernel::Thread/println peer 42))
+
+(:wat::core::defn :my::write-i64-7
+  [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::i64>]
+  -> :wat::core::nil
+  (:wat::kernel::Thread/println peer 7))
+
+(:wat::core::defn :my::write-pong
+  [peer <- :wat::kernel::ThreadPeer<wat::core::i64,wat::core::String>]
+  -> :wat::core::nil
+  (:wat::kernel::Thread/println peer "pong"))
+
+(:wat::core::defn :my::read-i64
+  [peer <- :wat::kernel::ThreadPeer<wat::core::i64,wat::core::String>]
+  -> :wat::core::i64
+  (:wat::kernel::Thread/readln peer))
+
+(:wat::core::defn :my::read-string
+  [peer <- :wat::kernel::ThreadPeer<wat::core::String,wat::core::i64>]
+  -> :wat::core::String
+  (:wat::kernel::Thread/readln peer))

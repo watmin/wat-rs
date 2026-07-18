@@ -14,11 +14,6 @@
 //! or a broken declaration form (the retired `:wat::core::Record::def`). It must use the SAME loader the
 //! scripts run under (NOT `InMemoryLoader`), or it lies about scripts with relative `load-file!`.
 
-// rune:lint(no-inlined-wat) — this gate builds NO world from an inline string. It loads each
-// wat-scripts/ file FROM DISK via `startup_from_source(&src_read_from_file, …, FsLoader)`. FsLoader
-// is mandatory (it resolves scripts' relative `load-file!`); `startup_from_source` is the only
-// loader-parameterized entry, and `startup_beside`/`startup_bare` (the lint's blessed forms) hardwire
-// the no-disk InMemoryLoader, so they cannot load these scripts faithfully. Genuine, not inlined wat.
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use wat::freeze::startup_from_source;

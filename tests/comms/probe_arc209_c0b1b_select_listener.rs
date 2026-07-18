@@ -18,16 +18,12 @@
 //! Run SERIALLY (spawns threads):
 //!   `cargo test --release -p wat --test comms probe_arc209_c0b1b_select_listener -- --test-threads=1`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn select_grows_over_listener_serves_and_shrinks() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::compute")
         .unwrap_or_else(|e| panic!("compute raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(24)),

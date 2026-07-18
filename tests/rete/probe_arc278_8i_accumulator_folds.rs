@@ -8,40 +8,8 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_8i_accumulator_folds
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
-
-/// Wrap `body` in a let binding `els` = a PV of 3 Elements with bindings {?bytes, ?port} + Packet facts,
-/// and `empty` = an empty PV. ?bytes = 100/200/300 (sum 600, min 100, max 300, mean 200);
-/// ?port = 80/443/80 (distinct → 2; group-by → 2 keys).
-fn run(body: &str) -> Result<Value, String> {
-    let mk = |bytes: i64, port: i64, src: &str| {
-        format!(
-            "(:wat::rete::Element :fact (:net::Packet :src \"{src}\") :bindings \
-             (:wat::core::PersistentMap/assoc \
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) \"?bytes\" {bytes}) \
-               \"?port\" {port}))"
-        )
-    };
-    let e1 = mk(100, 80, "a");
-    let e2 = mk(200, 443, "b");
-    let e3 = mk(300, 80, "c");
-    let compute = format!(
-        "(:wat::core::let\n\
-          [els (:wat::core::PersistentVector/conj\n\
-                 (:wat::core::PersistentVector/conj\n\
-                   (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) {e1})\n\
-                   {e2})\n\
-                 {e3})\n\
-           empty (:wat::core::PersistentVector)]\n\
-          {body})"
-    );
-    let world = startup_beside(file!()).map_err(|e| format!("startup: {e:?}"))?;
-    let ast = wat::parse_one!(&compute).map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
-        .map(|t| t.value_owned())
-}
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// Some(i64) helper.
 fn is_some_i64(v: &Value, n: i64) -> bool {
@@ -51,63 +19,63 @@ fn is_some_i64(v: &Value, n: i64) -> bool {
 /// count → BARE 3 (length is always concrete; never Option).
 #[test]
 fn count_folds() {
-    assert!(matches!(run("(:wat::rete::acc::count els)").unwrap(), Value::i64(3)), "count = 3 (bare)");
+    assert!(matches!(call_beside(file!(), ":user::count-folds").unwrap(), Value::i64(3)), "count = 3 (bare)");
 }
 
 /// sum ?bytes → BARE 600 (empty sum = 0; never Option).
 #[test]
 fn sum_folds() {
-    assert!(matches!(run("(:wat::rete::acc::sum \"?bytes\" els)").unwrap(), Value::i64(600)), "sum = 600 (bare)");
+    assert!(matches!(call_beside(file!(), ":user::sum-folds").unwrap(), Value::i64(600)), "sum = 600 (bare)");
 }
 
 /// min ?bytes → Some(100).
 #[test]
 fn min_folds() {
-    assert!(is_some_i64(&run("(:wat::rete::acc::min \"?bytes\" els)").unwrap(), 100), "min = 100");
+    assert!(is_some_i64(&call_beside(file!(), ":user::min-folds").unwrap(), 100), "min = 100");
 }
 
 /// max ?bytes → Some(300).
 #[test]
 fn max_folds() {
-    assert!(is_some_i64(&run("(:wat::rete::acc::max \"?bytes\" els)").unwrap(), 300), "max = 300");
+    assert!(is_some_i64(&call_beside(file!(), ":user::max-folds").unwrap(), 300), "max = 300");
 }
 
 /// mean ?bytes → Some(200) — THE composition: sum(600)/count(3).
 #[test]
 fn mean_is_sum_over_count() {
-    assert!(is_some_i64(&run("(:wat::rete::acc::mean \"?bytes\" els)").unwrap(), 200), "mean = 600/3 = 200");
+    assert!(is_some_i64(&call_beside(file!(), ":user::mean-is-sum-over-count").unwrap(), 200), "mean = 600/3 = 200");
 }
 
 /// distinct ?port → BARE vec of length 2 (80, 443 — the duplicate 80 collapses).
 #[test]
 fn distinct_folds() {
-    let v = run("(:wat::core::length (:wat::rete::acc::distinct \"?port\" els))").unwrap();
+    let v = call_beside(file!(), ":user::distinct-folds").unwrap();
     assert!(matches!(v, Value::i64(2)), "distinct ports = 2; got {v:?}");
 }
 
 /// all → BARE vec of length 3 (the gathered facts).
 #[test]
 fn all_folds() {
-    let v = run("(:wat::core::length (:wat::rete::acc::all els))").unwrap();
+    let v = call_beside(file!(), ":user::all-folds").unwrap();
     assert!(matches!(v, Value::i64(3)), "all facts = 3; got {v:?}");
 }
 
 /// group-by ?port → BARE map with 2 keys (80 → [a,c], 443 → [b]).
 #[test]
 fn group_by_folds() {
-    let v = run("(:wat::core::PersistentMap/length (:wat::rete::acc::group-by \"?port\" els))").unwrap();
+    let v = call_beside(file!(), ":user::group-by-folds").unwrap();
     assert!(matches!(v, Value::i64(2)), "group-by → 2 keys; got {v:?}");
 }
 
 /// EMPTY: count over an empty set → BARE 0 (count always concrete — never None).
 #[test]
 fn count_empty_is_zero() {
-    assert!(matches!(run("(:wat::rete::acc::count empty)").unwrap(), Value::i64(0)), "count [] = 0 (bare)");
+    assert!(matches!(call_beside(file!(), ":user::count-empty-is-zero").unwrap(), Value::i64(0)), "count [] = 0 (bare)");
 }
 
 /// EMPTY: min over an empty set → None (no token — there is no minimum of nothing).
 #[test]
 fn min_empty_is_none() {
-    let v = run("(:wat::rete::acc::min \"?bytes\" empty)").unwrap();
+    let v = call_beside(file!(), ":user::min-empty-is-none").unwrap();
     assert!(matches!(&v, Value::Option(o) if o.is_none()), "min [] = None; got {v:?}");
 }

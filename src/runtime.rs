@@ -10947,16 +10947,21 @@ fn eval_return_type_of(
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     let f = match v {
         Value::wat__core__fn(f) => f,
-        // Arc 294 item 9a — the construction flip made a bare aggregate type name a MACRO
-        // (its positional ctor moved to the prime `:T'`), so a bare type name in VALUE
-        // position now evaluates to a KEYWORD, not the ctor fn it used to be. The
-        // return-type-of a ctor WAS the constructed type itself; so for a type-name
-        // keyword, return that type's colon-free FQDN directly — exactly what reading the
-        // ctor's `ret_type` yielded pre-flip. Keeps `(:wat::rete::query session :my::Type)`
-        // working with the bare type name (the encouraged form), no prime at the call site.
+        // Arc 278 query (a) de-mask — arc 294 item 9a's construction flip made a bare
+        // aggregate type name a MACRO (its positional ctor moved to the prime `:T'`), so a
+        // bare type name in VALUE position now evaluates to a KEYWORD, not the ctor fn it
+        // used to be. This branch used to ECHO the colon-stripped keyword text back as if it
+        // were the resolved type — that masked unknown types: a typo'd `:my::Typo'` echoed
+        // its own (wrong) name instead of failing. A DEFINED prime `:T'` resolves to its
+        // ctor fn and hits the `fn` branch above, unchanged; an UNDEFINED prime stays a bare
+        // keyword and reaches THIS branch — so reaching it IS proof the type is unknown.
+        // RAISE instead of echo (rete `query`'s macro-emitted prime is the sole caller —
+        // see wat/rete.wat's `query`).
         Value::wat__core__keyword(k) => {
-            let fqdn = k.strip_prefix(':').unwrap_or(&k).to_string();
-            return Ok(Value::String(Arc::new(fqdn)));
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("unknown type: `{k}` (return-type-of: no such registered type)")
+            } }.into());
         }
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {

@@ -15,15 +15,18 @@
 //!
 //! WAT fixtures: tests/kernel/probe_arc259_bracket_runner_{large_stream,stream_of_messages}.wat
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
 fn run_compute_i64(path: &str) -> i64 {
     let world = startup_from_file(path).expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    match eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {path:?}"))
+        .clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("compute eval")
-        .value_owned()
     {
         Value::i64(n) => n,
         other => panic!("expected i64; got {other:?}"),

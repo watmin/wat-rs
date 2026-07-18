@@ -17,16 +17,12 @@
 //! Run SERIALLY (spawns a thread):
 //!   `cargo test --release -p wat --test comms probe_arc209_structured_peer_death -- --test-threads=1`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 /// Eval `compute` from the co-located fixture; `compute` MUST raise (the peer crashed).
 /// Returns the raised error's text for assertion.
 fn compute_raise_text() -> String {
-    let world = startup_beside(file!())
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new()) {
+    match call_beside(file!(), ":user::compute") {
         Ok(v) => panic!("expected compute to RAISE (the thread peer crashed); got Ok({v:?})"),
         Err(e) => format!("{e:?}"),
     }

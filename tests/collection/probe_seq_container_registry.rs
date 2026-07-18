@@ -13,15 +13,11 @@
 //! Wat source lives in the co-located fixture: probe_seq_container_registry.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
-fn eval_probe(call: &str) -> Result<Value, String> {
-    let world = startup_beside(file!()).map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &world, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
-        .map(|tv| tv.value_owned())
+fn eval_probe(fn_name: &str) -> Result<Value, String> {
+    call_beside(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))
 }
 
 fn expect_i64(call: &str, want: i64) {
@@ -57,31 +53,31 @@ fn expect_option_i64(call: &str, want: Option<i64>) {
 
 #[test]
 fn first_vector() {
-    expect_i64("(:p::first-vector)", 10);
+    expect_i64(":p::first-vector", 10);
 }
 
 #[test]
 fn first_persistent_vector() {
-    expect_i64("(:p::first-persistent-vector)", 10);
+    expect_i64(":p::first-persistent-vector", 10);
 }
 
 #[test]
 fn first_list() {
-    expect_i64("(:p::first-list)", 10);
+    expect_i64(":p::first-list", 10);
 }
 
 #[test]
 fn first_tuple() {
     // Tuple is TOTAL: arity is statically known, so `first` was always bare T (never Option<T>).
     // Vec/List/PV are also now bare-raising after arc-278. All containers: first → bare T.
-    expect_i64("(:p::first-tuple)", 10);
+    expect_i64(":p::first-tuple", 10);
 }
 
 #[test]
 fn first_watast_list() {
     // arc-278: first on WatAST is now bare-raising — returns :wat::WatAST directly.
     // Verify it type-checks (return type :wat::WatAST) and produces a WatAST value at runtime.
-    match eval_probe("(:p::first-watast)") {
+    match eval_probe(":p::first-watast") {
         Ok(Value::wat__WatAST(_)) => {}
         other => panic!("first on WatAstList should return bare WatAST; got {other:?}"),
     }
@@ -91,12 +87,12 @@ fn first_watast_list() {
 
 #[test]
 fn second_vector() {
-    expect_i64("(:p::second-vector)", 20);
+    expect_i64(":p::second-vector", 20);
 }
 
 #[test]
 fn third_vector() {
-    expect_i64("(:p::third-vector)", 30);
+    expect_i64(":p::third-vector", 30);
 }
 
 // ── ∅ N/A : HashSet is unordered → first is meaningless → rejected on both sides ──
@@ -114,30 +110,30 @@ fn first_hashset_rejected() {
 
 #[test]
 fn tuple_length() {
-    expect_i64("(:p::tuple-length)", 3);
+    expect_i64(":p::tuple-length", 3);
 }
 
 #[test]
 fn tuple_empty_q_false() {
-    expect_bool("(:p::tuple-empty-false)", false);
+    expect_bool(":p::tuple-empty-false", false);
 }
 
 #[test]
 fn tuple_empty_q_single() {
     // Tuples must have at least one element (empty Tuple is rejected by the checker).
     // Verify a single-element Tuple is also non-empty.
-    expect_bool("(:p::tuple-empty-single)", false);
+    expect_bool(":p::tuple-empty-single", false);
 }
 
 #[test]
 fn watastlist_length() {
     // `(:wat::core::quote (a b c))` produces a WatAST::List with 3 children.
-    expect_i64("(:p::watastlist-length)", 3);
+    expect_i64(":p::watastlist-length", 3);
 }
 
 #[test]
 fn watastlist_empty_q_false() {
-    match eval_probe("(:p::watastlist-empty-false)") {
+    match eval_probe(":p::watastlist-empty-false") {
         Ok(Value::bool(false)) => {}
         other => panic!("expected bool(false); got {other:?}"),
     }
@@ -147,50 +143,50 @@ fn watastlist_empty_q_false() {
 
 #[test]
 fn list_contains_q_found() {
-    expect_bool("(:p::list-contains-found)", true);
+    expect_bool(":p::list-contains-found", true);
 }
 
 #[test]
 fn list_contains_q_not_found() {
-    expect_bool("(:p::list-contains-not-found)", false);
+    expect_bool(":p::list-contains-not-found", false);
 }
 
 #[test]
 fn tuple_contains_q_found() {
-    expect_bool("(:p::tuple-contains-found)", true);
+    expect_bool(":p::tuple-contains-found", true);
 }
 
 #[test]
 fn tuple_contains_q_not_found() {
-    expect_bool("(:p::tuple-contains-not-found)", false);
+    expect_bool(":p::tuple-contains-not-found", false);
 }
 
 #[test]
 fn watastlist_contains_q_found() {
-    expect_bool("(:p::watastlist-contains-found)", true);
+    expect_bool(":p::watastlist-contains-found", true);
 }
 
 #[test]
 fn watastlist_contains_q_not_found() {
     // `a` and `x` are different symbols so not-found.
-    expect_bool("(:p::watastlist-contains-not-found)", false);
+    expect_bool(":p::watastlist-contains-not-found", false);
 }
 
 // ── seq-1b additions: gettable (get → Option) ─────────────────────────────────
 
 #[test]
 fn list_get_found() {
-    expect_option_i64("(:p::list-get-found)", Some(20));
+    expect_option_i64(":p::list-get-found", Some(20));
 }
 
 #[test]
 fn list_get_out_of_bounds() {
-    expect_option_i64("(:p::list-get-oob)", None);
+    expect_option_i64(":p::list-get-oob", None);
 }
 
 #[test]
 fn watastlist_get_found() {
-    match eval_probe("(:p::watastlist-get-found)") {
+    match eval_probe(":p::watastlist-get-found") {
         Ok(Value::Option(inner)) => match inner.as_ref() {
             Some(Value::wat__WatAST(_)) => {}
             other => panic!("expected Option<Some(WatAST)>; got {other:?}"),
@@ -202,7 +198,7 @@ fn watastlist_get_found() {
 
 #[test]
 fn watastlist_get_out_of_bounds() {
-    match eval_probe("(:p::watastlist-get-oob)") {
+    match eval_probe(":p::watastlist-get-oob") {
         Ok(Value::Option(inner)) => assert!(inner.is_none(), "expected None; got {inner:?}"),
         Ok(other) => panic!("expected Option<None>; got {other:?}"),
         Err(e) => panic!("watastlist get oob should run: {e}"),
@@ -211,10 +207,10 @@ fn watastlist_get_out_of_bounds() {
 
 #[test]
 fn hashset_get_found() {
-    expect_option_i64("(:p::hashset-get-found)", Some(20));
+    expect_option_i64(":p::hashset-get-found", Some(20));
 }
 
 #[test]
 fn hashset_get_not_found() {
-    expect_option_i64("(:p::hashset-get-not-found)", None);
+    expect_option_i64(":p::hashset-get-not-found", None);
 }

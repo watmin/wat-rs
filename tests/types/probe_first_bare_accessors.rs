@@ -6,15 +6,13 @@
 //!
 //! Run: cargo test --release -p wat --test probe_first_bare_accessors
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
 fn run_file(path: &str) -> Result<Value, String> {
     let w = startup_from_file(path).map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let ast = wat::parse_one!("(:p::f)").map_err(|e| format!("parse: {e:?}"))?;
-    eval_in_frozen(&ast, &w, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
-        .map(|tv| tv.value_owned())
+    let func = w.symbols().get(":p::f").ok_or_else(|| "no :p::f".to_string())?.clone();
+    apply_function(func, vec![], w.symbols(), wat::rust_caller_span!()).map_err(|e| format!("eval: {e:?}"))
 }
 
 /// BARE usage: the accessor's result is returned directly as `T` (no `Option/expect`). RED at HEAD.

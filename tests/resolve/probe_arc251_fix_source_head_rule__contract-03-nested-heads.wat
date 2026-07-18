@@ -1,0 +1,1 @@
+(wat.core/do (wat.core/first xs))

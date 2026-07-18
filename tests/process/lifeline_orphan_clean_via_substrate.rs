@@ -81,29 +81,8 @@
 
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::time::Instant;
-use wat::ast::WatAST;
-use wat::freeze::startup_bare;
-use wat::runtime::{eval, Environment, ProgramHandleInner, Value};
-
-/// Source for the grandchild's blocking wat program.
-///
-/// Creates an unbounded channel, keeps sender alive, blocks on recv.
-/// Post-Phase-1B, the shutdown cascade is triggered by lifeline EOF
-/// (not SIGTERM): shutdown worker's poll(2) fires POLLHUP on the
-/// lifeline read-end → trigger_shutdown → SHUTDOWN_TX drops →
-/// SHUTDOWN_RX disconnects → typed_recv select! fires Shutdown arm →
-/// recv returns RecvOutcome::Shutdown → RuntimeError propagates up →
-/// spawn_process_child_branch calls libc::_exit.
-///
-/// Arc 170 slice 6 — the child program for spawn-process is a top-level
-/// (:user::main -> :nil) define. The parent world needs no user defns.
-const CHILD_PROGRAM_SRC: &str = r#"
-    (:wat::core::defn :user::main [] -> :wat::core::nil
-      (:wat::core::let
-              [[tx rx] (:wat::kernel::make-channel :wat::core::nil)
-               _       (:wat::kernel::recv rx)]
-              :wat::core::nil))
-"#;
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, ProgramHandleInner, Value};
 
 /// Extract the forked child's PID from a Process Value.
 ///
@@ -156,8 +135,13 @@ fn make_raw_pipe() -> (OwnedFd, OwnedFd) {
 #[test]
 fn probe_lifeline_orphan_clean_via_substrate() {
     // Step 1: Build the world before forking. Supervisor inherits it via
-    // fork's copy-on-write semantics. InMemoryLoader has no disk state.
-    let world = startup_bare().expect("freeze should succeed");
+    // fork's copy-on-write semantics. World loaded from co-located
+    // lifeline_orphan_clean_via_substrate.wat via startup_beside.
+    let world = startup_beside(file!()).expect("freeze should succeed");
+    let launch = world
+        .symbols()
+        .get(":my::launch")
+        .expect(":my::launch defined");
 
     // Step 2: Create coordination pipe.
     //
@@ -186,26 +170,11 @@ fn probe_lifeline_orphan_clean_via_substrate() {
         // Phase 3: spawn_process_child_branch now calls
         // close_inherited_fds_above_stdio — no FD-inheritance rendezvous
         // possible; test uses pidfd_open instead.
-        // Arc 170 slice 6 — construct the wat PROGRAM inline. The child's
-        // :user::main is the blocking-recv body (parsed once at test
-        // startup, shared across both the parent freeze and the
-        // spawn-process call).
-        let child_forms = wat::parser::parse_all_with_file(CHILD_PROGRAM_SRC, "<probe>")
-            .expect("child program parse");
-        let mut forms_items =
-            vec![WatAST::Keyword(":wat::core::forms".into(), wat::rust_caller_span!())];
-        forms_items.extend(child_forms);
-        let forms_call = WatAST::List(forms_items, wat::rust_caller_span!());
-        let call = WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::kernel::spawn-process".into(), wat::rust_caller_span!()),
-                forms_call,
-            ],
-            wat::rust_caller_span!(),
-        );
-        let env = Environment::new();
-        let process = match eval(&call, &env, world.symbols()) {
-            Ok(p) => p.value_owned(),
+        // Arc 170 slice 6 — the wat PROGRAM is constructed inside the
+        // co-located fixture's :my::launch (blocking-recv body); invoke
+        // it directly.
+        let process = match apply_function(launch.clone(), Vec::new(), world.symbols(), wat::rust_caller_span!()) {
+            Ok(p) => p,
             Err(e) => {
                 // Write sentinel pid=0 so test doesn't hang on read.
                 let bytes = 0i32.to_le_bytes();

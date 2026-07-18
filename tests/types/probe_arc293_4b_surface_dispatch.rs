@@ -11,8 +11,8 @@
 //! (LIFT the arc-232 protocol dispatch shape at `src/runtime.rs:5101`, routing to the plain `defn :T/method`,
 //! NOT an `extend:<P>:<T>` impl). Plus the check-side call typing (mirror `src/check.rs:5789`).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
 /// `(:t::Shape/area s)` routes by `s`'s runtime type: Circle → π·r² ≈ 12.566, Square → s² = 9.0.
 #[test]
@@ -20,21 +20,13 @@ fn surface_method_dispatches_by_runtime_type() {
     let world =
         startup_beside(file!()).expect("293.4b: the :Shape/area surface dispatcher must type-check");
 
-    let circle = eval_in_frozen(
-        &wat::parse_one!("(:t::circle-area)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("circle-area must dispatch to :t::Circle/area")
-    .value_owned();
+    let circle_fn = world.symbols().get(":t::circle-area").expect(":t::circle-area").clone();
+    let circle = apply_function(circle_fn, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("circle-area must dispatch to :t::Circle/area");
 
-    let square = eval_in_frozen(
-        &wat::parse_one!("(:t::square-area)").expect("parse"),
-        &world,
-        &Environment::new(),
-    )
-    .expect("square-area must dispatch to :t::Square/area")
-    .value_owned();
+    let square_fn = world.symbols().get(":t::square-area").expect(":t::square-area").clone();
+    let square = apply_function(square_fn, vec![], world.symbols(), wat::rust_caller_span!())
+        .expect("square-area must dispatch to :t::Square/area");
 
     let (c, s) = match (circle, square) {
         (Value::f64(c), Value::f64(s)) => (c, s),

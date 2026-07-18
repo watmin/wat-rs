@@ -12,25 +12,24 @@
 //!
 //! Run: cargo test --release -p wat --test probe_kwargs_slash_name
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_to_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
-    let ast = wat::parse_one!(expr).expect("parse");
-    eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .unwrap_or_else(|e| panic!("{expr} raised: {e:?}"))
-}
+// just-eval (rubric): each call form is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 
 #[test]
 fn slash_named_kwargs_fn_lowers_through_companion_macro() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed if the companion-macro path composes onto a /-named fn");
-    for f in ["(:t::via-kv)", "(:t::via-kv-reorder)", "(:t::via-map)"] {
-        let got = eval_to_i64(&world, f);
+    for f in [":t::via-kv", ":t::via-kv-reorder", ":t::via-map"] {
+        let got = call_beside(file!(), f).unwrap_or_else(|e| {
+            panic!(
+                "({f}) raised (startup should succeed if the companion-macro path composes onto \
+                 a /-named fn): {e:?}"
+            )
+        });
         assert!(
             matches!(got, Value::i64(42)),
-            "expected 42 from {f} — :k v / {{map}} on a /-named kwargs fn; got {got:?}"
+            "expected 42 from ({f}) — :k v / {{map}} on a /-named kwargs fn; got {got:?}"
         );
     }
 }

@@ -9,20 +9,28 @@
 //!
 //! Run: cargo nextest run --release -E 'binary(macros)' -F probe_arc249_macro_engine
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
+
+// just-eval (rubric): each `*.wat` fixture defines a zero-arg `:user::compute`; fetch it from
+// the frozen world and `apply_function` it — no inline wat driver. (Path-based rather than
+// `call_beside` because this probe drives several distinct co-located fixtures from one `.rs`.)
+fn compute_from_file(fixture: &str) -> Value {
+    let world = startup_from_file(fixture).expect("startup");
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {fixture:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("eval")
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // A — REGRESSION
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn regression_pure_computed_unquote_preserved() {
-    let world = startup_from_file("tests/macros/probe_arc249_macro_engine_regression.wat")
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_macro_engine_regression.wat");
     assert_eq!(result, Value::bool(true));
 }
 
@@ -44,12 +52,7 @@ fn mint_impure_computed_unquote_rejected() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn mint_program_body_if() {
-    let world = startup_from_file("tests/macros/probe_arc249_macro_engine_prog_if.wat")
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_macro_engine_prog_if.wat");
     assert_eq!(result, Value::bool(true));
 }
 
@@ -58,12 +61,7 @@ fn mint_program_body_if() {
 // ═══════════════════════════════════════════════════════════════════════════
 #[test]
 fn mint_program_body_fold() {
-    let world = startup_from_file("tests/macros/probe_arc249_macro_engine_prog_fold.wat")
-        .expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_macro_engine_prog_fold.wat");
     assert_eq!(result, Value::bool(true));
 }
 

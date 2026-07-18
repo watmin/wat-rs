@@ -16,26 +16,30 @@
 //! Wat source lives in the co-located fixture: wat_arc221_char_atomization.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
-fn run_bool(world: &wat::freeze::FrozenWorld, expr: &str) -> bool {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
+// just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
+// world and `apply_function` it — no inline wat driver.
+fn call0(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Value {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
-    {
+}
+
+fn run_bool(world: &wat::freeze::FrozenWorld, fn_name: &str) -> bool {
+    match call0(world, fn_name) {
         Value::bool(b) => b,
         other => panic!("expected bool; got {:?}", other),
     }
 }
 
-fn run_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> i64 {
-    let ast = wat::parse_one!(expr).expect("parse expr");
-    match eval_in_frozen(&ast, world, &Environment::new())
-        .expect("eval should succeed")
-        .value_owned()
-    {
+fn run_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> i64 {
+    match call0(world, fn_name) {
         Value::i64(n) => n,
         other => panic!("expected i64; got {:?}", other),
     }
@@ -57,15 +61,15 @@ fn probe_1_char_atom_round_trip_distinct_from_i64() {
     let world = startup_beside(file!()).expect("startup");
 
     // atom(\a) = atom(\a) — same Char produces identical HolonAST.
-    let same = run_bool(&world, "(:t::p1-same)");
+    let same = run_bool(&world, ":t::p1-same");
     assert!(same, "Atom(\\a) must equal Atom(\\a) — same Char leaf");
 
     // atom(\a) ≠ atom(\b) — different Chars produce distinct HolonAST.
-    let diff = run_bool(&world, "(:t::p1-diff)");
+    let diff = run_bool(&world, ":t::p1-diff");
     assert!(diff, "Atom(\\a) must NOT equal Atom(\\b) — distinct Char leaves");
 
     // atom(\a) ≠ atom(97) — Char leaf is distinct from i64 leaf.
-    let not_i64 = run_bool(&world, "(:t::p1-not-i64)");
+    let not_i64 = run_bool(&world, ":t::p1-not-i64");
     assert!(not_i64, "Atom(\\a) must NOT equal Atom(97) — Char leaf is distinct from i64 leaf");
 }
 
@@ -83,15 +87,15 @@ fn probe_2_hashmap_char_key_insert_lookup() {
     let world = startup_beside(file!()).expect("startup");
 
     // Insert \a -> 3, \b -> 7; get \a returns Some(3).
-    let a_val = run_i64(&world, "(:t::p2-a-val)");
+    let a_val = run_i64(&world, ":t::p2-a-val");
     assert_eq!(a_val, 3, "HashMap<Char,i64>: get \\a after insert must return 3");
 
     // get \b returns Some(7).
-    let b_val = run_i64(&world, "(:t::p2-b-val)");
+    let b_val = run_i64(&world, ":t::p2-b-val");
     assert_eq!(b_val, 7, "HashMap<Char,i64>: get \\b after insert must return 7");
 
     // length = 2 — two distinct Char keys.
-    let len = run_i64(&world, "(:t::p2-len)");
+    let len = run_i64(&world, ":t::p2-len");
     assert_eq!(len, 2, "HashMap<Char,i64>: two distinct Char keys → length 2");
 }
 
@@ -109,18 +113,18 @@ fn probe_3_hashset_char_insert_contains() {
     let world = startup_beside(file!()).expect("startup");
 
     // \a is in the vowels set.
-    let has_a = run_bool(&world, "(:t::p3-has-a)");
+    let has_a = run_bool(&world, ":t::p3-has-a");
     assert!(has_a, "HashSet<Char>: \\a must be found in vowels set");
 
     // \e is in the vowels set.
-    let has_e = run_bool(&world, "(:t::p3-has-e)");
+    let has_e = run_bool(&world, ":t::p3-has-e");
     assert!(has_e, "HashSet<Char>: \\e must be found in vowels set");
 
     // \z is NOT in the vowels set.
-    let no_z = run_bool(&world, "(:t::p3-no-z)");
+    let no_z = run_bool(&world, ":t::p3-no-z");
     assert!(no_z, "HashSet<Char>: \\z must NOT be found in vowels set");
 
     // Length = 5 — five distinct vowel Char elements.
-    let len = run_i64(&world, "(:t::p3-len)");
+    let len = run_i64(&world, ":t::p3-len");
     assert_eq!(len, 5, "HashSet<Char>: five distinct vowels → length 5");
 }

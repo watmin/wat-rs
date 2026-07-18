@@ -30,17 +30,14 @@
 //! must never start up).
 
 use wat::check::CheckErrorKind;
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file, StartupError};
-use wat::runtime::{Environment, RuntimeErrorKind};
+use wat::freeze::{call_beside, startup_from_file, StartupError};
+use wat::runtime::RuntimeErrorKind;
 
 // ─── (a) + (b) — open-surface dispatch to the concrete clause, same return type ──
 
 #[test]
 fn open_surface_dispatch() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (two same-return narrowing clauses must still compile)");
-    let ast = wat::parse_one!("(:user::open_surface_dispatch)").expect("parse test-fn call");
-    let result = eval_in_frozen(&ast, &world, &Environment::new());
+    let result = call_beside(file!(), ":user::open_surface_dispatch");
     assert!(
         result.is_ok(),
         "open_surface_dispatch deftest' must pass (each concrete class dispatches to its own \
@@ -52,11 +49,7 @@ fn open_surface_dispatch() {
 
 #[test]
 fn open_surface_dispatch_unknown_class_is_runtime_no_match() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed — the unknown-class call site is still a valid narrowing \
-                 dispatch statically; only the runtime value's real class is unrecognized");
-    let ast = wat::parse_one!("(:user::describe-unknown)").expect("parse call");
-    match eval_in_frozen(&ast, &world, &Environment::new()) {
+    match call_beside(file!(), ":user::describe-unknown") {
         Err(err) => assert!(
             matches!(err.kind, RuntimeErrorKind::NoMatchingClause { .. }),
             "expected RuntimeErrorKind::NoMatchingClause (no clause of `:probe::describe` \

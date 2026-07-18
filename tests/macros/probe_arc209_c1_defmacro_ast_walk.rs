@@ -22,21 +22,16 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc209_c1_defmacro_ast_walk
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-fn eval_i64(world: &wat::freeze::FrozenWorld, expr: &str) -> Value {
-    let ast = wat::parse_one!(expr).expect("parse");
-    eval_in_frozen(&ast, world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .unwrap_or_else(|e| panic!("{expr} raised: {e:?}"))
-}
+// just-eval (rubric): each proof is a zero-arg entry fn in the co-located fixture, driven via
+// call_beside — no inline wat driver expression.
 
 #[test]
 fn defmacro_can_walk_arg_with_ast_children() {
-    let world = startup_beside(file!())
+    let got = call_beside(file!(), ":user::probe-walk")
         .expect("startup: a defmacro using ast->children/drop/first must expand cleanly");
-    let got = eval_i64(&world, "(:user::probe-walk)");
     assert!(
         matches!(got, Value::i64(20)),
         "expected 20: a defmacro must be able to ast->children its arg, drop a prefix, and \
@@ -46,9 +41,8 @@ fn defmacro_can_walk_arg_with_ast_children() {
 
 #[test]
 fn defmacro_can_rebuild_node_with_children() {
-    let world = startup_beside(file!())
+    let got = call_beside(file!(), ":user::probe-rebuild")
         .expect("startup: a defmacro using with-children must expand cleanly");
-    let got = eval_i64(&world, "(:user::probe-rebuild)");
     assert!(
         matches!(got, Value::i64(2)),
         "expected 2: a defmacro must be able to with-children-rebuild a Vector node dropping a \

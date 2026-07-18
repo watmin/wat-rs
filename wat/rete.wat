@@ -1904,17 +1904,26 @@
           (:wat::core::= (:wat::core::type f) ty-str))
         all))))
 
-;; query — runtime fn: read derived facts of a type from a fired session.
-;; ty is the type's Record constructor fn: in the types-as-forms surface a bare type name
-;; (:weather::ColdAndWindy) evaluates to that type's CONSTRUCTOR (a fn VALUE, not a keyword —
-;; defined names resolve to their bindings). return-type-of (arc 278 intrinsic) reads the
-;; constructor's declared return type (= the record type) as a colon-free FQDN string, directly
-;; comparable to (:wat::core::type fact). Returns an empty PV if the type was never derived — never raises.
-(:wat::core::defn :wat::rete::query
-  [session <- :wat::rete::Session
-   ty      <- :wat::core::fn]
-  -> :wat::core::PersistentVector
-  (:wat::rete::query-by-type-string session (:wat::runtime::return-type-of ty)))
+;; query — MACRO: type-safe read of derived facts of a type from a fired session.
+;; `ty` is a bare type-name keyword AST node (unevaluated, e.g. :weather::ColdAndWindy) —
+;; this MUST be a macro, not a runtime fn: arc 294 item 9a's construction flip made a bare
+;; type name evaluate to its KWARGS MACRO in value position (not a ctor fn anymore); only the
+;; PRIME `:T'` still resolves to the type's positional constructor fn. So this macro appends
+;; `'` to `ty` at expand time (the proven idiom: keyword-node + string::concat) and emits a
+;; call to return-type-of on the PRIME. return-type-of (arc 278 intrinsic) reads the prime
+;; ctor's declared return type (= the record type) as a colon-free FQDN string, directly
+;; comparable to (:wat::core::type fact). An UNREGISTERED type is a check-time error (see
+;; check.rs's return-type-of special-case) with a runtime raise as the last-resort net (see
+;; runtime.rs eval_return_type_of) — no more silent-0 typos. Returns an empty PV only when the
+;; (registered) type was never derived.
+(:wat::core::defmacro :wat::rete::query
+  [session <- :wat::WatAST
+   ty      <- :wat::WatAST]
+  -> :wat::WatAST
+  (:wat::core::let [ty-prime-kw (:wat::core::keyword-node
+                                   (:wat::core::string::concat ":"
+                                     (:wat::core::string::concat (:wat::core::keyword/to-string ty) "'")))]
+    `(:wat::rete::query-by-type-string ~session (:wat::runtime::return-type-of ~ty-prime-kw))))
 
 ;; ─── make-rule + defrule ────────────────────────────────────────────────────
 

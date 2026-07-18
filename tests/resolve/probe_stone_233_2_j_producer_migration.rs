@@ -23,21 +23,31 @@
 //! 233.2.l seals the meta-class via proc-macro.
 
 use std::fs;
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::runtime::{Environment, FunctionBody, Value};
 use wat::value::{Provenance, TrackedValue};
+
+// just-eval (rubric): `:user::probe`'s call lives in the co-located fixture. Fetch the
+// fixture's OWN parsed body AST (`Function::body`) and eval it directly via `eval_in_frozen`
+// — this is what gets us the raw `TrackedValue` (provenance included); `call_beside`/
+// `apply_function` only ever return the unwrapped `Value`, which is not enough for these
+// two provenance-inspecting probes.
+fn eval_probe() -> TrackedValue {
+    let world = startup_beside(file!()).expect("startup");
+    let func = world.symbols().get(":user::probe").expect(":user::probe must exist in fixture");
+    let body_ast = match &func.body {
+        FunctionBody::Wat(ast) => ast.clone(),
+        FunctionBody::Native => panic!(":user::probe must be a wat-bodied fn"),
+    };
+    let env = Environment::new();
+    eval_in_frozen(&body_ast, &world, &env).expect("keyword/from-string should succeed")
+}
 
 // ─── Probe 1 — Producer-tagged TrackedValue survives eval (behavioral guard) ─
 
 #[test]
 fn probe_1_keyword_from_string_yields_tracked_value() {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!("(:wat::core::keyword/from-string \"wat::core::nil\")")
-        .expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env)
-        .expect("keyword/from-string should succeed");
+    let tv = eval_probe();
 
     assert!(
         matches!(tv.value(), Value::wat__core__keyword(_)),
@@ -51,12 +61,7 @@ fn probe_1_keyword_from_string_yields_tracked_value() {
 
 #[test]
 fn probe_2_keyword_from_string_provenance_attached() {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!("(:wat::core::keyword/from-string \"wat::core::nil\")")
-        .expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");
+    let tv = eval_probe();
 
     assert!(
         matches!(

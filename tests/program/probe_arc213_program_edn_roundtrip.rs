@@ -50,22 +50,21 @@ use wat::WatAST;
 ///
 /// Still exercises every collection shape: Map `{...}`, Set `#{...}`,
 /// Vector `[...]`, List `(...)`, plus `:keys` destructure and multiple keyword namespaces.
-const SAMPLE_PROGRAM: &str = r#"
-    (:wat::config::set-capacity-mode! :error)
-    (:wat::core::defstruct :myapp::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
-    (:wat::core::defn :myapp::sum [p <- :myapp::Pt] -> :wat::core::i64
-        (:wat::core::let [{:keys [x y]} p] (:wat::core::i64::+ x y)))
-    (:wat::core::defn :myapp::tags [] -> :wat::core::i64
-        (:wat::core::let [m {:a 1 :b 2}  s #{:x :y :z}]
-            42))
-    (:wat::core::defn :user::main [] -> :wat::core::nil nil)
-"#;
+///
+/// Lives in the co-located fixture `probe_arc213_program_edn_roundtrip.wat`, read as raw
+/// text (not startup_beside — this test feeds the text straight into `parse_all_with_file`
+/// / the EDN bridge, not a `FrozenWorld`).
+fn sample_program() -> String {
+    std::fs::read_to_string("tests/program/probe_arc213_program_edn_roundtrip.wat")
+        .expect("sample fixture must exist (run from crate root)")
+}
 
 /// T1 — program_to_edn output is PLAIN EDN (no #wat-edn.holon tags) and
 /// contains the expected structural markers.
 #[test]
 fn t1_program_to_edn_is_plain_edn() {
-    let forms = parse_all_with_file(SAMPLE_PROGRAM, "probe_arc213.wat")
+    let src = sample_program();
+    let forms = parse_all_with_file(&src, "probe_arc213.wat")
         .expect("sample program must parse");
     let frame = program_to_edn(&forms);
 
@@ -84,7 +83,8 @@ fn t1_program_to_edn_is_plain_edn() {
 /// startup_from_forms freezes Ok.
 #[test]
 fn t2_round_trip_and_freeze() {
-    let forms = parse_all_with_file(SAMPLE_PROGRAM, "probe_arc213.wat")
+    let src = sample_program();
+    let forms = parse_all_with_file(&src, "probe_arc213.wat")
         .expect("sample program must parse");
     let form_count = forms.len();
     let frame = program_to_edn(&forms);

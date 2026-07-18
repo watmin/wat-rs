@@ -4,17 +4,16 @@
 //! Wat source: tests/types/probe_arc234_stone2c_accessor_class_safety.wat (loaded via startup_beside).
 
 use wat::assertion::AssertionPayload;
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_beside;
+use wat::runtime::{apply_function, Value};
 
 /// Load the co-located WAT fixture, evaluate `fn_name()`, catching any runtime panic.
 /// Returns Ok(value) on clean eval, Err(panic-msg) on panic, Err(eval-error) on eval error.
 fn run_or_catch(fn_name: &str) -> Result<Value, String> {
     let world = startup_beside(file!()).expect("startup_beside for accessor class safety fixture");
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse fn call");
-        eval_in_frozen(&ast, &world, &Environment::new())
-            .map(|tv| tv.value_owned())
+        let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no entry fn {fn_name:?}")).clone();
+        apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
     }));
     match caught {
         Ok(Ok(v)) => Ok(v),

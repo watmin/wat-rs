@@ -7,15 +7,14 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc251_fix_macro_param_types
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn fix_macro_param_types_rewrites_defmacro_only_comment_faithful() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed (fix-macro-param-types rule)");
-    let ast = wat::parse_one!("(:user::run)").expect("parse");
-    let out = match eval_in_frozen(&ast, &world, &Environment::new()).map(|tv| tv.value_owned()) {
+    // just-eval (rubric): the fix-macro-param-types call lives in the co-located fixture's
+    // `:user::run`, driven via `call_beside`.
+    let out = match call_beside(file!(), ":user::run") {
         Ok(Value::String(s)) => (*s).clone(),
         other => panic!("expected migrated source String; got {other:?}"),
     };

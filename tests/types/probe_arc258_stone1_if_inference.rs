@@ -12,14 +12,13 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_stone1_if_inference`
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
 
 fn eval_i64_file(path: &str) -> Result<i64, String> {
     let world = startup_from_file(path).map_err(|e| format!("startup/check: {e:?}"))?;
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    match apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .map_err(|e| format!("eval: {e:?}"))?
     {
         Value::i64(n) => Ok(n),

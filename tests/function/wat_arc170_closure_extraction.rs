@@ -465,6 +465,7 @@ fn t8_lambda_captures_sender_is_non_portable() {
     // diagnostic. The report shape mandates a verbatim sample.
     let msg = format!("{}", err);
     // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
+    // rune:lint(no-inlined-wat) — assertion needle, not inline wat: the diagnostic backtick-quotes the captured name (`tx`); the wat reader reads the leading backtick as quasiquote, so the needle parses as a list — a false positive
     assert!(msg.contains("`tx`"), "missing capture name: {}", msg);
     // rune:lint(loose-assert) — Display includes Rust source location (closure_extract.rs:NNN:COL) that shifts on source edits
     assert!(msg.contains("Sender"), "missing type: {}", msg);

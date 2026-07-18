@@ -20,8 +20,8 @@
 //!
 //! Run: `cargo test --release --test comms probe_arc214_stone46b_select_prime`
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 // ─── Probe 1 (LOAD-BEARING, RUNTIME): select' picks the ready peer ────────────
 
@@ -36,13 +36,8 @@ use wat::runtime::{Environment, Value};
 /// same `Thread'<i64,i64>` peer type; select' multiplex unchanged.
 #[test]
 fn probe_1_select_returns_ready_index_and_value() {
-    let world = startup_beside(file!())
-        .expect("startup should succeed");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse compute call");
-    let env = Environment::new();
-    let got = eval_in_frozen(&ast, &world, &env)
-        .expect("compute must evaluate (select' dispatch exists)")
-        .value_owned();
+    let got = call_beside(file!(), ":user::compute")
+        .expect("compute must evaluate (select' dispatch exists)");
     // Stone 259: select' returns ServiceEvent<I,O>; happy path is :Message{idx, msg}.
     match &got {
         Value::Enum(ev) => {

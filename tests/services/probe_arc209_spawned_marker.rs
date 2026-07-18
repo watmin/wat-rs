@@ -20,17 +20,13 @@
 //! Run SERIALLY (spawns a thread):
 //!   cargo test --release -p wat --test probe_arc209_spawned_marker -- --test-threads=1
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn thread_handle_derives_the_spawned_marker() {
     // Wat source lives in the co-located fixture: probe_arc209_spawned_marker.wat
-    let world = startup_beside(file!())
-        .expect("startup should succeed (Thread' derives :wat::spawn::Spawned via spawn.wat)");
-    let ast = wat::parse_one!("(:user::go)").expect("parse");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":user::go")
         .unwrap_or_else(|e| panic!("go raised: {e:?}"));
     assert!(
         matches!(got, Value::i64(99)),

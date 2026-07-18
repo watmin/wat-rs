@@ -16,8 +16,7 @@
 //! Run: `cargo test --release -p wat --test probe_arc259_started_at_boot`
 
 use chrono::{TimeZone, Utc};
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::Environment;
+use wat::freeze::call_beside;
 
 /// The seam reads the PRIMED boot clock for started-at — not a fresh `now`.
 /// Inject a known-old boot (epoch 1000s) for this process; `:my::assert-started-at`
@@ -27,10 +26,8 @@ use wat::runtime::Environment;
 #[ignore = "RED: seam must read process boot global (set_process_boot_instant) not fresh now — unlock: implement boot-clock global in the seam"]
 fn started_at_is_the_primed_boot_not_the_seam() {
     wat::time::set_process_boot_instant(Utc.timestamp_opt(1000, 0).unwrap());
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:my::assert-started-at)").expect("parse");
     assert!(
-        eval_in_frozen(&ast, &world, &Environment::new()).is_ok(),
+        call_beside(file!(), ":my::assert-started-at").is_ok(),
         "wat.started-at must be the primed boot (epoch 1000), not the seam's now"
     );
 }
@@ -43,10 +40,8 @@ fn started_at_is_the_primed_boot_not_the_seam() {
 #[ignore = "RED: peer-started-at must be strictly after started-at — unlock: both stamps when boot-clock global is in the seam"]
 fn peer_started_at_is_after_started_at() {
     wat::time::set_process_boot_instant(Utc.timestamp_opt(1000, 0).unwrap());
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:my::assert-boot-gap)").expect("parse");
     assert!(
-        eval_in_frozen(&ast, &world, &Environment::new()).is_ok(),
+        call_beside(file!(), ":my::assert-boot-gap").is_ok(),
         "peer-started-at must be strictly after the (past-primed) started-at"
     );
 }

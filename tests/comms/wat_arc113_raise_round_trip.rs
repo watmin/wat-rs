@@ -14,8 +14,8 @@
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 #[test]
 fn raise_data_round_trips_through_failure_message() {
@@ -29,11 +29,7 @@ fn raise_data_round_trips_through_failure_message() {
     // HolonAST-round-trip via edn::read is replaced with direct
     // Failure/message recovery (String). The EDN string contains
     // the Fault's serialized form with "arc113-raise-data".
-    let world = startup_beside(file!()).expect("startup");
-    let ast = wat::parse_one!("(:my::compute)").expect("parse compute call");
-    let v = eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("compute should run")
-        .value_owned();
+    let v = call_beside(file!(), ":my::compute").expect("compute should run");
     let inner = match v {
         Value::Option(opt) => match &*opt {
             Some(inner) => inner.clone(),

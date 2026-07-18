@@ -16,8 +16,8 @@
 //! Control: a base record still round-trips. The backstop must reject ONLY
 //! structs, never records; this guard catches over-rejection.
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{call_beside, startup_from_file};
+use wat::runtime::Value;
 
 /// Arc 293.W.2d: the §7 runtime decode backstop is RETIRED.
 ///
@@ -33,12 +33,7 @@ use wat::runtime::{Environment, Value};
 /// After 2d: the struct crosses, `recv'` returns `i64(99)` (field access succeeds).
 #[test]
 fn struct_rejected_at_wire_decode() {
-    let world = startup_beside(file!())
-        .expect("startup_beside: fixture load must succeed");
-    let ast = wat::parse_one!("(:w2a::probe-struct)")
-        .expect("parse (:w2a::probe-struct)");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned());
+    let got = call_beside(file!(), ":w2a::probe-struct");
     // Arc 293.W.2d: the runtime decode backstop was deleted; struct arrives cleanly.
     // The pprintln untyped path still emits the struct; the parent field-access
     // returns i64(99).  The compile-time wall at peer producers is the real guard.
@@ -59,12 +54,7 @@ fn struct_rejected_at_wire_decode() {
 /// Must be GREEN at HEAD AND after the backstop is added (records are wire-portable).
 #[test]
 fn record_still_round_trips_after_backstop() {
-    let world = startup_beside(file!())
-        .expect("startup_beside: fixture load must succeed");
-    let ast = wat::parse_one!("(:w2a::probe-record)")
-        .expect("parse (:w2a::probe-record)");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":w2a::probe-record")
         .expect(
             "record round-trip MUST succeed — the backstop must NOT reject records, \
              only bare structs (§7 is struct-specific)"
@@ -107,12 +97,7 @@ fn struct_rejected_at_wire_SEND() {
 /// rejects ONLY structs, never records. Guards against over-rejection on send.
 #[test]
 fn record_still_sends_after_backstop() {
-    let world = startup_beside(file!())
-        .expect("startup_beside: fixture load must succeed");
-    let ast = wat::parse_one!("(:w2a::probe-send-record)")
-        .expect("parse (:w2a::probe-send-record)");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":w2a::probe-send-record")
         .expect(
             "record send MUST succeed — the outbound guard must NOT reject records, \
              only bare structs (§7 is struct-specific)"
@@ -129,12 +114,7 @@ fn record_still_sends_after_backstop() {
 /// the thread tier (symmetric to the inbound thread recv' having no decode door).
 #[test]
 fn struct_crosses_thread_peer_in_locus() {
-    let world = startup_beside(file!())
-        .expect("startup_beside: fixture load must succeed");
-    let ast = wat::parse_one!("(:w2a::probe-send-struct-thread)")
-        .expect("parse (:w2a::probe-send-struct-thread)");
-    let got = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
+    let got = call_beside(file!(), ":w2a::probe-send-struct-thread")
         .expect(
             "struct over a THREAD peer MUST round-trip — the guard is process/socket \
              only; a struct in-locus over a thread peer is legitimate (§7)"

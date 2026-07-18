@@ -18,16 +18,38 @@
 //! Value::Tracked variant until 233.2.k. The CLASS is closed at 233.2.k.
 //! This stone establishes the BOUNDARY shape so 233.2.j + 233.2.k can land.
 
-use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{eval_in_frozen, startup_beside};
+use wat::runtime::{Environment, FunctionBody, Value};
 use wat::value::TrackedValue;
+
+// just-eval (rubric), the TrackedValue-preserving shape: `apply_function` collapses a fn call
+// back to a bare `Value` (it's the fn-apply boundary, not the eval boundary), so it can't stand
+// in here — the subject IS the raw eval-boundary TrackedValue. Instead: fetch the fixture fn's
+// OWN body AST (`FunctionBody::Wat`, a `Clause`'s single body expression) and `eval_in_frozen`
+// it directly, exactly as if that expression had been the top-level form — real span, no inline
+// wat string.
+fn eval_beside(world: &wat::freeze::FrozenWorld, fn_name: &str) -> TrackedValue {
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name:?} in fixture"));
+    let ast = match &func.body {
+        FunctionBody::Wat(ast) => ast.clone(),
+        FunctionBody::Native => panic!("{fn_name:?} is native, not wat"),
+    };
+    eval_in_frozen(&ast, world, &Environment::new()).expect("eval")
+}
 
 // ─── Probe 1 — eval_in_frozen returns Result<TrackedValue, RuntimeError> ────
 
 #[test]
 fn probe_1_eval_in_frozen_returns_tracked_value_for_i64() {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!("(:wat::core::+ 2 3)").expect("parse");
+    let world = startup_beside(file!()).expect("startup");
+    let func = world.symbols().get(":user::add").expect("no :user::add in fixture");
+    let ast = match &func.body {
+        FunctionBody::Wat(ast) => ast.clone(),
+        FunctionBody::Native => panic!(":user::add is native, not wat"),
+    };
     let env = Environment::new();
 
     // Compile-shape assertion: eval_in_frozen returns Result<TrackedValue, _>.
@@ -45,11 +67,8 @@ fn probe_1_eval_in_frozen_returns_tracked_value_for_i64() {
 
 #[test]
 fn probe_2_eval_result_yields_tracked_value_with_api() {
-    let world = startup_bare().expect("startup");
-    let ast = wat::parse_one!("\"hello\"").expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");
+    let world = startup_beside(file!()).expect("startup");
+    let tv: TrackedValue = eval_beside(&world, ":user::hello");
 
     // .value() borrows the inner Value
     assert!(matches!(tv.value(), Value::String(_)));
@@ -66,14 +85,10 @@ fn probe_2_eval_result_yields_tracked_value_with_api() {
 
 #[test]
 fn probe_3_runtime_built_producer_provenance_survives_eval_boundary() {
-    let world = startup_bare().expect("startup");
+    let world = startup_beside(file!()).expect("startup");
     // keyword/from-string is a producer (Stone 233.2.b) — wraps return with provenance.
     // Through the eval boundary, the wrapping survives at the TrackedValue layer.
-    let ast = wat::parse_one!("(:wat::core::keyword/from-string \"wat::core::nil\")")
-        .expect("parse");
-    let env = Environment::new();
-
-    let tv: TrackedValue = eval_in_frozen(&ast, &world, &env).expect("eval");
+    let tv: TrackedValue = eval_beside(&world, ":user::kw-from-string");
 
     // The value is a keyword
     assert!(

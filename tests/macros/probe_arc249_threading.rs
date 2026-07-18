@@ -8,8 +8,21 @@
 //!
 //! Run: cargo nextest run --release -E 'binary(macros)' -F probe_arc249_threading
 
-use wat::freeze::{eval_in_frozen, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::startup_from_file;
+use wat::runtime::{apply_function, Value};
+
+// just-eval (rubric): each `*.wat` fixture defines a zero-arg `:user::compute`; fetch it from
+// the frozen world and `apply_function` it — no inline wat driver. (Path-based rather than
+// `call_beside` because this probe drives several distinct co-located fixtures from one `.rs`.)
+fn compute_from_file(fixture: &str) -> Value {
+    let world = startup_from_file(fixture).expect("startup");
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .unwrap_or_else(|| panic!("no :user::compute in {fixture:?}"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("eval")
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // REGRESSION — plain fn-first map, NO threading. GREEN at HEAD and after.
@@ -17,11 +30,7 @@ use wat::runtime::{Environment, Value};
 
 #[test]
 fn regression_fn_first_map_no_threading() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_regression.wat").expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_regression.wat");
     assert_eq!(result, Value::bool(true));
 }
 
@@ -32,55 +41,35 @@ fn regression_fn_first_map_no_threading() {
 /// `(:wat::core::->> [1 2 3] (map INC))` → [2 3 4]. Collection lands LAST.
 #[test]
 fn mint_thread_last_single_step() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_tl_single.wat").expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_tl_single.wat");
     assert_eq!(result, Value::bool(true));
 }
 
 /// `(:wat::core::->> [1 2 3] (map INC) (filter GT2))` → [3 4].
 #[test]
 fn mint_thread_last_pipeline() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_tl_pipeline.wat").expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_tl_pipeline.wat");
     assert_eq!(result, Value::bool(true));
 }
 
 /// `(:wat::core::-> 5 (i64::- 3))` → 2. Accumulator injected FIRST.
 #[test]
 fn mint_thread_first_injects_first() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_tf_first.wat").expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_tf_first.wat");
     assert_eq!(result, Value::bool(true));
 }
 
 /// `(:wat::core::->> 5 (i64::- 3))` → -2. Injected LAST.
 #[test]
 fn mint_thread_last_injects_last() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_tl_last.wat").expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_tl_last.wat");
     assert_eq!(result, Value::bool(true));
 }
 
 /// Bare-keyword step: `(:wat::core::-> 3 :my::inc)` → 4.
 #[test]
 fn mint_bare_symbol_step() {
-    let world = startup_from_file("tests/macros/probe_arc249_threading_bare_sym.wat").expect("startup");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let result = eval_in_frozen(&ast, &world, &Environment::new())
-        .map(|tv| tv.value_owned())
-        .expect("eval");
+    let result = compute_from_file("tests/macros/probe_arc249_threading_bare_sym.wat");
     assert_eq!(result, Value::bool(true));
 }
 
@@ -139,10 +128,13 @@ fn witness_thread_last_empty_step_desugars_to_call_on_acc() {
         .expect("startup must not panic for ->> empty step")
         .expect("startup must succeed for ->> empty step");
 
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    let env = Environment::new();
+    let func = world
+        .symbols()
+        .get(":user::compute")
+        .expect("no :user::compute in fixture")
+        .clone();
     let eval_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        eval_in_frozen(&ast, &world, &env)
+        apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
     }));
     match eval_result {
         Ok(Err(e)) => {

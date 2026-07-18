@@ -26,18 +26,15 @@
 //!
 //! Run: `cargo test --release --test probe_arc234_7a_base_record_roundtrip`
 
-use wat::freeze::{eval_in_frozen, startup_beside};
-use wat::runtime::{Environment, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
 /// C1 — the written EDN string contains `:x` and `:y`, not `field-0`.
 #[test]
 fn c1_named_keys_in_edn_string() {
-    let world = startup_beside(file!())
-        .expect("C1 startup must succeed");
-    let ast = wat::parse_one!("(:user::write-pt)").expect("parse write-pt call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new())
+    let got = call_beside(file!(), ":user::write-pt")
         .expect("C1 eval must succeed (write-pt)");
-    let s = match tv.value_owned() {
+    let s = match got {
         Value::String(s) => (*s).clone(),
         other => panic!("C1 FAIL: write-pt returned non-String: {:?}", other),
     };
@@ -48,12 +45,9 @@ fn c1_named_keys_in_edn_string() {
 /// C2 — round-trip: write → read → equal to original.
 #[test]
 fn c2_round_trip_equality() {
-    let world = startup_beside(file!())
-        .expect("C2 startup must succeed");
-    let ast = wat::parse_one!("(:user::roundtrip-eq)").expect("parse roundtrip-eq call");
-    let tv = eval_in_frozen(&ast, &world, &Environment::new())
+    let got = call_beside(file!(), ":user::roundtrip-eq")
         .expect("C2 eval must succeed (roundtrip-eq); UnknownTag here = decode path missing");
-    match tv.value_owned() {
+    match got {
         Value::bool(true) => {
             eprintln!("C2 PASS: round-tripped Pt(3,4) equals original");
         }

@@ -26,15 +26,29 @@
 //! Ignored Record-arm fixtures: probe_arc237_7c_assoc_base_record.wat,
 //!   probe_arc237_7c_assoc_holonic_record.wat (un-ignored when Stone 237.7c ships).
 
-use wat::freeze::{eval_in_frozen, startup_beside, startup_from_file};
-use wat::runtime::{Environment, Value};
+use wat::freeze::{startup_beside, startup_from_file};
+use wat::runtime::{apply_function, Value};
 
+// just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
+// fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
 fn run(fn_name: &str) -> Value {
     let world = startup_beside(file!()).expect("startup for 7c assoc-polymorphic fixture");
-    let ast = wat::parse_one!(&format!("({fn_name})")).expect("parse named fn call");
-    eval_in_frozen(&ast, &world, &Environment::new())
+    let func = world
+        .symbols()
+        .get(fn_name)
+        .unwrap_or_else(|| panic!("no {fn_name} in fixture"))
+        .clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .expect("eval should succeed")
-        .value_owned()
+}
+
+/// Fetch + apply `:user::compute` from an explicitly-loaded (non-sibling) fixture path —
+/// the two Record-arm probes below each own a dedicated fixture, not the co-located
+/// `.wat` `startup_beside` slurps by default.
+fn compute_from_file(fixture: &str) -> Value {
+    let world = startup_from_file(fixture).expect("startup (RED until Stone 237.7c ships)");
+    let func = world.symbols().get(":user::compute").expect(":user::compute").clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!()).expect("eval")
 }
 
 // ─── HashMap arm — regression contract ────────────────────────────────────────
@@ -73,13 +87,7 @@ fn assoc_non_collection_arg0_rejected() {
 #[ignore = "record arms of assoc not yet implemented (Stone 237.7c); un-ignore when shipped"]
 fn assoc_base_record_returns_base_record_struct_only() {
     // POST-7c contract: assoc rebuilds the base record with the field updated.
-    let world = startup_from_file("tests/function/probe_arc237_7c_assoc_base_record.wat")
-        .expect("startup (RED until Stone 237.7c ships)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match compute_from_file("tests/function/probe_arc237_7c_assoc_base_record.wat") {
         Value::i64(n) => assert_eq!(n, 42, "assoc on base record updates the field"),
         other => panic!("expected i64(42); got {:?}", other),
     }
@@ -89,13 +97,7 @@ fn assoc_base_record_returns_base_record_struct_only() {
 #[ignore = "holonic record arm of assoc not yet implemented (Stone 237.7c); un-ignore when shipped"]
 fn assoc_holonic_record_returns_holonic_record_parity_preserved() {
     // POST-7c contract: assoc rebuilds BOTH struct_form AND holon_form in parity.
-    let world = startup_from_file("tests/function/probe_arc237_7c_assoc_holonic_record.wat")
-        .expect("startup (RED until Stone 237.7c ships)");
-    let ast = wat::parse_one!("(:user::compute)").expect("parse");
-    match eval_in_frozen(&ast, &world, &Environment::new())
-        .expect("eval")
-        .value_owned()
-    {
+    match compute_from_file("tests/function/probe_arc237_7c_assoc_holonic_record.wat") {
         Value::i64(n) => assert_eq!(n, 42, "assoc on holonic record updates the field (parity rebuilt)"),
         other => panic!("expected i64(42); got {:?}", other),
     }
