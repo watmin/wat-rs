@@ -7,9 +7,9 @@
 > pulls the class out by the root. We own wat; the arc-294 "crash reasons are administrative" ruling does
 > NOT shelter a masking behavior — we change our minds when the mask keeps blinding us.
 
-## STATUS — 2026-07-18 (Mechanism A + eprintln-terminal LANDED; the transport-tier twin is the OWED NEXT)
+## STATUS — 2026-07-19+ (ALL THREE pieces LANDED — the LAW is CLOSED AIRTIGHT for masking; the STOP-2 crash-broadcast-to-clients is a separate future capability, not a masking)
 
-**Two of the law's three pieces are real, verified, pushed:**
+**All three of the law's pieces are real, verified, pushed — no failure that EXISTS is hidden:**
 
 - **Alive-service-rejects-you — Mechanism A** (`66d6aed7`): `poll'` returns `ServiceEvent::Malformed{idx,
   cause}` instead of raising; the serve loop replies `Reply::Failed{cause}` and **keeps serving** (no
@@ -36,21 +36,34 @@ not a client-method match arm — a wat `assertion-failed!` in a method is `pani
 `recv'` is the one catchable, uniform surfacing point (step 3 / "room 8"). The client gets a catchable
 error, OTP-consistent. Nothing to decide.
 
-**★ THE OWED NEXT — the transport-tier twin (the dead-service-speaks half; CLOSES THE LAW):** a
-**genuinely crashed** service (a real handler panic, not a decode rejection) STILL `EPIPE`s its reason
-and `RecvError` STILL has no reason slot — so a caller can still get a mute close. Sites **R, 1–8** (the
-table below) remain: give `RecvError` a `Failed(String)` variant (`Disconnected` = clean EOF ONLY); bind
-`|e|` at every `map_err(|_| Disconnected)` in `comms/process.rs`; thread the reason through `recv'`
-(`runtime.rs:26196/26219`, incl. `PeerRecvError::Crashed`); keep the crash-channel read end alive so the
-dying child's 687-byte envelope LANDS instead of `EPIPE`-ing. **RED gate:** a service whose HANDLER
-genuinely panics → the caller must carry *that* reason (today: mute "peer closed").
+**★ THIRD PIECE — the transport-tier twin — LANDED (`3f73f400`).** `RecvError` gained `Failed(String)`
+(`comms/mod.rs`, drops `Copy`); `Disconnected` is now **clean-EOF ONLY** (documented + enforced); the 8
+`map_err(|_| Disconnected)` collapses in `comms/process.rs` (io_uring/utf8/`from_wire`/`Malformed`) bind
+the real reason into `Failed(reason)`; `channel/transfer.rs` → `RecvOutcome::DecodeError`; `spawn.rs`
+`classify_peer_death`/`classify_peer_error` map `Failed(reason)` → `PeerDeath::Lost(reason)`; `recv'`
+(`runtime.rs`, socket `recv_wire` + bare-`Peer` arms) thread the reason into the raise. A raw wire failure
+can no longer masquerade as a clean close — **the LAW is airtight for masking**. RED gate:
+`probe_arc278_transport_reason_carried` (invalid-UTF-8 → `Failed("…utf-8…")`, was mute). Weighed by own
+full re-run: **4176 passed / 0 failed / 330 skipped** (the `wat-cli sigterm…polling_contract` flake passes
+isolated). *(The decode/dead-child case was already closed earlier by Mechanism A — `dead_child_speaks`
+green — so the sites-R,1–8 table was over-scoped; this piece is the raw-transport-reason residual.)*
 
-## RESUME (curare — 2026-07-19+; HEAD `952ece8b` = the crusade COMMITTED + full-suite GREEN; only the transport-tier twin remains)
+**STOP-2 — a SEPARATE FUTURE CAPABILITY, not a masking (does NOT block the law):** a genuinely-crashing
+process unit's reason reaches its **owner** (the `/start` `Handle`, via `PeerRecvError::Crashed` at
+`runtime.rs:26159`) but NOT a separately **`connect'`-ed client** peer (`kernel/peer.rs` `Peer{tx,rx}` has
+**no crash channel**) — that client sees an honest clean-EOF, not a *masked* reason (no reason exists on
+its channel to hide). Delivering crash reasons to connected clients is an **absent broadcast capability**
+(a new mechanism: `service.wat` codegen + the panic boundary broadcasting the crash payload to every live
+client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
+`probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
-**READ THIS FIRST, then `git status`.** The crusade is **committed and weighed** — HEAD `952ece8b` (one
-atomic green commit atop wave-0 `8fb96f28`); the working tree is **CLEAN**. Freshness check: if live HEAD ≠
-`952ece8b`, trust the disk over this note. Steps 0–3 of the OWED are DONE; only the LAW's third piece (the
-transport-tier twin) remains.
+## RESUME (curare — 2026-07-19+; HEAD `3f73f400` = the crusade + query (a) + the LAW CLOSED AIRTIGHT, all pushed & full-suite GREEN)
+
+**READ THIS FIRST, then `git status`.** Everything is **committed, pushed, and weighed** — HEAD `3f73f400`
+on `arc-170-gap-j-v5-deadlock-state`; the working tree is **CLEAN** (this doc's curare edit aside).
+Freshness check: if live HEAD ≠ `3f73f400`, trust the disk. The arc-278 **no-hidden-failures LAW is CLOSED
+AIRTIGHT** — all three pieces landed (Mechanism A, eprintln-terminal, the transport-tier twin). Nothing is
+owed for the law; the only forward item is a SEPARATE future capability (STOP-2, below).
 
 ### THE CRUSADE — `no_inlined_wat` 351 → 0 (DONE; committed `952ece8b`; full suite green)
 
@@ -65,15 +78,17 @@ transport-tier twin) remains.
   `wat_scripts_fixes_load` rune STRUCK (excusare); **R39 (VNA CAEDE PROBATA) + R40 (HAERESIS SANGVINE
   CONSTAT) inscribed**.
 
-### ★ WHAT IS OWED — ONE thing left
+### ★ NOTHING OWED FOR THE LAW — the transport-tier twin LANDED (`3f73f400`)
 
-4. **THE TRANSPORT-TIER TWIN** — the LAW's third piece, still untouched (sites **R, 1–8** in the table
-   below): give `RecvError` a `Failed(String)` variant (`comms/mod.rs:899`; `Disconnected` = clean EOF ONLY)
-   + bind `|e|` at every `map_err(|_| Disconnected)` in `comms/process.rs` + thread the reason through
-   `recv'` (`runtime.rs:26196/26219`, incl. `PeerRecvError::Crashed`) + keep the crash-channel read end alive
-   so the dying child's envelope LANDS instead of `EPIPE`-ing. **RED gate:** a genuinely-panicking process
-   handler → the caller carries THAT reason, not the mute "peer closed." Closes the law.
-   *(Steps 0–3 — bootstrap, `query` (a), clean re-weigh, the one green commit — are DONE.)*
+The no-hidden-failures LAW is complete: `RecvError` carries its reason (`Failed(String)`; `Disconnected` =
+clean EOF only) — no raw wire failure masquerades as a clean close. Weighed by own re-run: full suite
+**4176 passed / 0 failed / 330 skipped**. The ONE forward item is a **SEPARATE FUTURE CAPABILITY, not a law
+residual**: crash-broadcast to connected clients (STOP-2, see the STATUS block above) — a `connect'`-ed
+client peer has no crash channel, so a genuine unit-crash reaches the *owner* but a connected client sees an
+honest clean-EOF (not a masked reason). Delivering the crash payload to every live client before exit is a
+new mechanism (`service.wat` codegen + the panic boundary) — its own arc when wanted; tracked `#[ignore]`'d
+in `probe_arc278_process_crash_reason_carried.{rs,wat}`.
+   *(Steps 0–3 — bootstrap, `query` (a), clean re-weigh, the one green commit — and step 4, the twin — are all DONE.)*
 
 ### LESSONS (hard-won this arc — do not relearn)
 
@@ -95,12 +110,13 @@ transport-tier twin) remains.
 
 > **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a
 > familiar voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the
-> SIGNED MCP). Ground `git status` — **HEAD is `952ece8b`, the tree is CLEAN, the crusade is committed and the
-> full suite is green** (do NOT expect the old dirty tree; it is committed). The ONE thing left is the
-> **transport-tier twin** (step 4 above / the table below) — the LAW's third piece: give `RecvError` a reason,
-> bind every `map_err(|_|)`, thread it through `recv'`, keep the crash channel alive; RED gate = a genuinely-
-> panicking handler's reason reaches the caller. Do not trust this note over the disk. The crusade is won; one
-> stone closes the law. We ride to Gondor.
+> SIGNED MCP). Ground `git status` — **HEAD is `3f73f400`, the tree is CLEAN, everything is committed + pushed
+> and the full suite is green** (4176 passed / 0 failed). The arc-278 **no-hidden-failures LAW is CLOSED
+> AIRTIGHT** — all three pieces landed (Mechanism A, eprintln-terminal, the transport-tier twin;
+> `RecvError::Failed` carries every raw wire reason). **Nothing is owed for the law.** The only forward item
+> is a SEPARATE future capability — crash-broadcast to `connect'`-ed clients (STOP-2, STATUS block above;
+> tracked `#[ignore]`'d) — its own arc when wanted, NOT a masking. Do not trust this note over the disk. The
+> crusade is won; the law is closed. We rode to Gondor.
 
 ## SUB-STRIKE — `eprintln` is terminal (2026-07-18; closes `feedback_eprintln_is_terminal`)
 
