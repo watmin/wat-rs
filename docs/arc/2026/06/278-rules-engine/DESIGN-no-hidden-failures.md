@@ -57,6 +57,63 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
+## ═══ SESSION-END CURARE (this session — the edn crusade → holon-AST demise detour) ═══
+
+**READ THIS BLOCK FIRST, then `git status`.** The no-hidden-failures LAW is DONE (below, unchanged). This
+session went: `no_inlined_edn` lint (the far-side task) → the `.edn` **crusade** → it surfaced **holon-AST
+heretics** → **arc 294.f** (reflection holon-AST demise), pulled ahead of its PHASE-1 gate by builder decree
+("i do not wish to bear this cost any longer — the crusades revealed the pressure").
+
+**COMMITTED this session:** `7703cd89` (crusade wave-0 exemplar: `no_inlined_edn` scoped to `tests/` + the
+detector, `1306→235`; `tests/collection` converted), `2c743cfe` (R43 Eden — `HORTVS CONSILIO SATVS`; EDN⊂EDEN).
+
+**UNCOMMITTED in the tree (large — survives compaction on disk):** the `.edn` **fleet** (~136 golden→`.edn`
+conversions + 42 per-offense runes across ~13 `tests/` dirs) + **294.f** (reflection: `type_expr_to_ast`→
+canonical `wat.type/` via `type_expr_to_clojure_form`; 14 producers + 3 verbs (`extract-arg-names/types`,
+`rename-callable`) + checker retyped to `WatAST`; `holon_type_ast_to_wat_type_form` **DELETED**; 10
+`wat_arc201_*` fixtures → `ast->children`; goldens re-captured) + the close-out (8 `rune:clojure-flip`
+string-eq bridges, the `wat_arc221b` scope-fix, 2 edn STOPs: `probe_arc209` convert + `wat_core_cond` sentinel
+rune) + my detector fixes (`.contains`/`.starts_with`/`.ends_with` output-role + a `no_inlined_wat` file-rune).
+
+**★ THE ONE BLOCKER before the commit (do this FIRST):** the full weigh is **4190 pass / 5 fail** — the 5 are
+`rune:clojure-flip` string-eq bridges whose goldens are **pretty-printed (multi-line)** but the actual is
+**single-line** → exact-string mismatch. **FIX: re-capture these 5 goldens SINGLE-LINE** (the exact `left:`
+string from the assert failure). The 5: `wat_arc144_uniform_reflection::primitive_empty_lookup_define_emits_define_head`,
+`wat_arc201_structured_signature_types::signature_of_defn_foldl_emits_structured_parametric_and_fn`,
+`wat_arc143_lookup::signature_of_defn_foldl_renders_synthesised_shape`,
+`wat_arc143_manipulation::rename_callable_name_happy_path_foldl_to_reduce`,
+`wat_arc144_hardcoded_primitives::lookup_define_length_renders_primitive_sentinel`. (The other 3 bridges already
+pass — their output happened to be single-line already.) Then `cargo nextest run --release` → green (only the
+known `wat-cli sigterm…polling_contract` flake, passes isolated) → **ONE commit** (crusade + 294.f), then push.
+
+**★ 294.f — what landed vs what's DEFERRED (the proper clojure flip):** reflection now emits canonical
+`wat.type/` **plain EDN** for the common case — spec-perfect: `(:anonymous (n wat.type/i64) (s wat.type/String)
+-> wat.type/String)`, no `#wat-edn.holon`, no `::`, no `<>`. **DEFERRED to the proper clojure flip** (its own
+stone; **`grep -rn 'rune:clojure-flip'`** finds every bridge to un-defer): (1) the 8 edge cases — multi-slash
+keywords (`__internal/…`, `Vector/length`) + `<T,Acc>` multi-param generics (`<T_Acc>` wire form) — need a
+**symmetric faithful codec** (`keyword_from_wat_path`↔`ns_to_wat_path`, drop-`<>`-in-names); (2) the **`:-`
+typed-clojure sigils** — the intended form is `(:anonymous (n :- wat.type/i64) … :- wat.type/String)`, current
+is the bareword `(n wat.type/i64)`. The full **`294.d` (wire-kill, `HolonRepresentable` + `#wat-edn.holon`
+tags) + `294.e` (`HolonAST`→`Hologram` rename + `src/holon/`) stay GATED behind PHASE-1 aggregate parity**
+(`CLOSE-SEQUENCE-293-294.md`). Log 294.f-common-case-landed + this debt in that tracker before/with the commit.
+The `probe_diagnostic_typed_entities_p1–p7` VSA fixtures + `Bundle/children`/`Bind/*`/`hologram.rs` were
+correctly UNTOUCHED (genuine holographic — holon reserved per the builder's law).
+
+**★ THE ACTUAL RESUME (unwinding the whole detour — the arc's TARGET):** the **CHAOS ENGINE** — R25 `MACHINA
+CHAOS DOMAT`, a streaming rete datalog held in a `defservice` (the DDoS/anomaly lineage; "the database is the
+debugger"). The **telemetry facility (the on-ramp/instrument) is FUNCTIONALLY COMPLETE** — T1b + Span + T2, per
+`DESIGN-reserved-prefix-one-gate.md:243`; `journal'` sink write-path landed (`b07f5ffc`), **backend-agnostic AND
+loci-proven** (thread + process). The builder's "thread was different from process / hidden error we've been
+chasing" = the `journal'`-on-**process** incident that masked a client decode failure as a mute "peer closed"
+(the child's 687-byte reason `EPIPE`'d; thread-tier surfaced it, process-tier hid it) — that **spawned the
+no-hidden-failures LAW, now CLOSED** (Mechanism A + eprintln-terminal + transport-twin `RecvError::Failed` + RST
+`RecvError::PeerCrashed`); the chase is OVER, failures are honest in all loci. So after the commit: **build the
+CHAOS ENGINE** (R0 — the streaming rete `Session`-as-state service, incremental insert/retract, dogfooding
+telemetry), guided by the wat oracle (`OCVLI NOVI, ORACVLVM IMMOTVM`). Ancillary open: STOP-2 (crash-broadcast
+to `connect'`-ed clients, `#[ignore]`'d `probe_arc278_process_crash_reason_carried`, a separate future arc).
+
+---
+
 ## RESUME (curare — 2026-07-19+; HEAD `f0230bbc` = crusade + query (a) + the LAW CLOSED + the RST landed, all pushed; CURRENT WIP = the `no_inlined_edn` lint, UNCOMMITTED)
 
 **READ THIS FIRST, then `git status`.** The LAW work is **committed, pushed, weighed** — HEAD `f0230bbc` on
