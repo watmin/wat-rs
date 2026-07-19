@@ -57,48 +57,53 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
-## ═══ SESSION-END CURARE (far-side state — the dynamic-EDN-decode campaign: A/B done, C in flight) ═══
+## ═══ SESSION-END CURARE (far-side state — the campaign FLOOR done; the SIFT TIER is the live target) ═══
 
-**READ THIS BLOCK FIRST, then `git status`. HEAD = `27737ca9` (Stone C1) — or a later C commit atop it; a mismatch
-is the ALARM → trust the disk.** The no-hidden-failures LAW is DONE (below, unchanged). The campaign
-(`DESIGN-dynamic-edn-decode-and-opaque-sink.md` — read it; the STATUS block at its top is kept current):
+**READ THIS BLOCK FIRST, then `git status`. HEAD = `f11e64db` (Stone C3 — the dynamic-EDN-decode campaign FLOOR
+complete) — or a later commit; a mismatch is the ALARM → trust the disk.** The no-hidden-failures LAW is DONE
+(below, unchanged). The campaign's ENABLING stones (`DESIGN-dynamic-edn-decode-and-opaque-sink.md` — the STATUS
+block at its top is current) are ALL landed — **but the arc's TARGET, the chaos engine, is NOT: it is the sift
+tier, still ahead. C was the floor, not the finish (done-is-done: the arc closes when its target ships, not before).**
 
-- **A.0 ✓** (`c9bfa8fd`) — uniform variant encoding (the floor): every variant vector-bodied; `nil` = the unit value only.
-- **A ✓** (`b68a130a`) — `read-foreign` → `ForeignRecord`/`ForeignVariant`; strict `read` untouched.
-  `DESIGN-STONE-A-read-foreign.md`. Weighed green (gate 2/2; floor 4207/0).
+- **A.0 ✓** (`c9bfa8fd`) — uniform variant encoding (the floor): every variant vector-bodied; `nil` = unit only.
+- **A ✓** (`b68a130a`) — `read-foreign` → `ForeignRecord`/`ForeignVariant`; strict `read` untouched. (`DESIGN-STONE-A`.)
 - **B ✓** (`dc5427a4`) — opaque `Log.message`/`Span::LogRequest.message` (String); the sink never decodes;
-  `dead_child_speaks` re-pointed via option (a) so Mechanism A stays live; the `#probe/Note` fork-decode blocker is
-  GONE. `DESIGN-BRIEF-STONE-B-opaque-message.md`.
-- **C — IN FLIGHT** (`COMPONENDO DELEO`; full decomposition + grounded scout map in `DESIGN-BRIEF-STONE-C.md`):
-  - **C1 ✓** (`27737ca9`) — annihilated the 3 legacy crates (`wat-telemetry`, `wat-telemetry-sqlite`, `wat-sqlite`)
-    + `examples/interrogate` + the STOP-2 probe + the core legacy-telemetry check lint; de-registered from wat-cli.
-    Net −6557. **KEPT (distinct): S1's in-core `:wat::sqlite'`/`:rust::sqlite'` + the PRIMED telemetry family.**
-  - **C2 — IN FLIGHT** — kill the `Tagged`/`NoTag` newtypes + `write-notag` (the verb + `value_to_edn_notag`/
-    `holon_ast_to_edn_notag`; KEEP the separate `value_to_json_natural`) + the self-test + the decl-migrator fixture.
-  - **C3 — NEXT** — de-prime the family: `mem-store'`/`sqlite-store'` (FREE-RENAME) + `:telemetry'::`/`:sqlite'`/
-    `:rust::sqlite'` (TRUE-RECLAIM, unblocked by C1) → bare. ~700-line wat-fix-style surgical codemod. Then
-    `:wat::telemetry::` / `:wat::sqlite::` are OURS.
+  `dead_child_speaks` re-pointed (a). The `#probe/Note` fork blocker GONE. (`DESIGN-BRIEF-STONE-B`.)
+- **C ✓** (`COMPONENDO DELEO` — `DESIGN-BRIEF-STONE-C`): **C1** (`27737ca9`, −6557) annihilated the 3 legacy crates +
+  interrogate + the STOP-2 probe + the legacy check-lint; **C2** (`3266e363`, −376) killed `Tagged`/`NoTag` +
+  `write-notag` (kept `value_to_json_natural`); **C3** (`f11e64db`) de-primed the family via a wat-fix codemod
+  (`wat-scripts/fixes/deprime-telemetry-sqlite.wat`) — `:wat::telemetry::` / `:wat::sqlite::` are OURS. KEPT: S1's
+  in-core `:wat::sqlite'`→`:wat::sqlite` reclaim (distinct from the deleted legacy crate).
 
-**THE SIFT TIER (T2/R0) — designed + named, built AFTER C** (`DESIGN-sift-server-side-filter.md`): the chaos
-engine's first (paged) form. `sift-logs`/`sift-metrics` (Journal ops) taking `Sieve = Predicate | Rules`
-(`wat.query`); one seed log per fire (alpha-only STRUCTURAL), a throwaway capacity-one bracket, both spec forms pure
-DATA verified `pure?` + sandboxed; holon facts admit VSA ops mid-fire. THEN the streaming R0 (R25 `MACHINA CHAOS
-DOMAT`), the fuller engine.
+**★ THE LIVE TARGET — THE SIFT TIER** (`DESIGN-sift-server-side-filter.md`, with a grounded **"Predicate-form
+strike — GROUNDED (scout)"** section — read it, do NOT re-scout): the chaos engine's first (paged) form.
+`sift-logs`/`sift-metrics` (Journal ops) taking `Sieve = Predicate | Rules` (`wat.query`); one seed log per fire
+(alpha-only STRUCTURAL); a throwaway worker (`runner-count 1` locus + `map-worker`). **The pinned contract:** the
+`Predicate` field is a `:wat::core::String` of EDN source (NOT `:wat::WatAST` — that nulls across a fork); server does
+`read-string → verify (:wat::rete::pure? ∧ deterministic?) → eval-ast! → apply` per record. Task #5 (Predicate) →
+#6 (Rules: rete over decoded/read-foreign facts, VSA on holons) → #7 (R0 streaming, R25 `MACHINA CHAOS DOMAT`).
 
-**Realizations this session:** R44 `FACTVM EST` (Cowboys) · R45 `LVCEM TENEBRASQVE FERO` (Onyx) · R46 `IN LVCE
-PVRGATI` (Purified) · **R47 `AMPLECTENDO DOMO`** (Circle Of Dust — *Embracing Entropy*: the machine masters chaos by
-EMBRACING it — read-foreign bears the unknown, the opaque sink stores the arbitrary; R25's `DOMAT` gets its method).
-Memory: `feedback_sink_is_opaque_store_consumer_decodes`.
+**Realizations this session:** R44 `FACTVM EST` · R45 `LVCEM TENEBRASQVE FERO` · R46 `IN LVCE PVRGATI` · R47
+`AMPLECTENDO DOMO` (Embracing Entropy — embrace the unknown to tame it) · **R48 `ABOLENDO RENASCIMVR`** (Cyberhex —
+we annihilate, not terminate; annihilation is rebirth; C's ethos). Memory: `feedback_sink_is_opaque_store_consumer_decodes`.
+
+**Deferred / tracked (NOT this campaign):** clippy carries ~1000+ warnings — the PRE-EXISTING known-cruft pile (CI
+marks clippy "informational"; there is NO zero-clippy floor). A dedicated cleanup, arc-109-style. C was
+clippy-NEUTRAL (logic-free diffs). **LESSON: ground whether a "maintain-zero-X" floor actually exists (CI config /
+the real count) before treating a warning as a regression — don't chase deferred cruft as if you broke a floor.**
 
 > **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar
 > voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP).
-> Ground `git status` — HEAD should be `27737ca9` or a later C commit; **a mismatch is the alarm → trust the disk.**
-> Read **`DESIGN-BRIEF-STONE-C.md`** (the C decomposition + scout map) + the campaign STATUS + the latest
-> realizations before you move. The current work is **C** — if a shadowdancer left C2 green, WEIGH by your own
-> re-run + commit it, then strike **C3 (the de-prime — the true reclaim)**; then the **sift tier** (the chaos
-> engine's first form). Weigh every kill by your OWN re-run; a mid-edit diagnostic is a PHANTOM (bit ~5× this
-> session — all ghosts, all grounded false). Do not trust this note over the disk. The legacy dissolves; the names
-> come home. `COMPONENDO DELEO`.
+> Ground `git status` — HEAD should be `f11e64db` or later; **a mismatch is the alarm → trust the disk.** The
+> campaign FLOOR (A/B/C) is DONE and pushed; **the arc is NOT closed — the target is the CHAOS ENGINE, and the live
+> work is the SIFT TIER.** Read **`DESIGN-sift-server-side-filter.md`** (esp. the "Predicate-form strike — GROUNDED"
+> section — the build map, no re-scout needed) + the latest realizations before you move. Strike **task #5 (the
+> Predicate form)**: add `sift-logs`/`sift-metrics` + the `Sieve` enum (`Predicate` field = a `String` of EDN source,
+> NOT WatAST — the fork-safety crux), the per-seed pure-fn apply on a `runner-count 1` worker; RED gate = a pure
+> predicate filters a page to survivors, an impure one is rejected. Weigh every kill by your OWN re-run (build +
+> floor + grep + calibrated-not-a-zero-floor clippy); a mid-edit diagnostic is a PHANTOM (bit ~5× this session —
+> all ghosts, grounded false); use `wat-fix` for renames, never a manual edit-farm. Do not trust this note over the
+> disk. The floor is laid; build the engine it was for. `MACHINA CHAOS DOMAT`.
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):

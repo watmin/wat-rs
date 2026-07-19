@@ -74,22 +74,22 @@ encoders** (`value_to_edn_with` `:1992-2005`+`:2984`, `value_to_edn_notag`, the 
 src/wat_edn/core.clj:40-49` readers + `:217-222` writers → vector bodies; `produce_shapes.clj`, `prove.clj`,
 parity; **reconcile the spelling** — clj writes short `#wat.core/Some`, rust writes `#wat.core.Option/Some`).
 
-## STATUS (2026-07-19+)
-- **A.0 ✓ landed** (`c9bfa8fd`) — uniform variant encoding (the floor).
-- **A ✓ landed** (`b68a130a`) — `read-foreign` / `ForeignRecord` / `ForeignVariant`; strict `read` untouched.
-  Weighed green (gate 2/2; floor 4207/0). Names ratified-by-use (R45's UX forms).
-- **B — IN FLIGHT** — opaque `Log.message`. RED gate CONFIRMED (the un-ignored `probe_arc278_journal_logs_on_process`
-  fails at HEAD on `unknown tag #probe/Note` across the fork). Design grounded (both `Log.message` +
-  `Span::LogRequest.message` → `:wat::core::String`, producer `edn::write`s at the call site; `journal.wat`
-  unchanged; `LogMessage` surface retirable; ~6 ctor sites → `(edn::write …)`). The `dead_child_speaks` disposition
-  ruled by the four-questions → **(a)** re-point it to a still-typed decode-failure trigger (keeps the Mechanism-A /
-  LAW probe live; (b) fails Honest — silent decode-coverage loss).
-- **C — pending** (annihilate + fold + de-prime).
-- **THE SIFT TIER (T2 / R0) — designed + named this session** (`DESIGN-sift-server-side-filter.md`): server-side
-  log filtering, the chaos engine's first concrete (paged) form. Ratified vocab: `sift-logs`/`sift-metrics` (Journal
-  ops) taking a `Sieve = Predicate | Rules` union (`wat.query`). One-seed-per-fire (alpha-only structural), a
-  throwaway capacity-one bracket, both spec forms pure DATA verified `pure?` + sandboxed. Builds **after B**; it is
-  what A + B are the floor for.
+## STATUS (2026-07-19+) — the campaign FLOOR is complete; the SIFT TIER is the live target
+- **A.0 ✓** (`c9bfa8fd`) — uniform variant encoding (the floor).
+- **A ✓** (`b68a130a`) — `read-foreign` / `ForeignRecord` / `ForeignVariant`; strict `read` untouched. (gate 2/2; floor 4207/0.)
+- **B ✓** (`dc5427a4`) — opaque `Log.message`/`Span::LogRequest.message` (String); the sink never decodes;
+  `dead_child_speaks` re-pointed (a); the `#probe/Note` fork blocker GONE. (floor 4208/0.)
+- **C ✓** (`COMPONENDO DELEO`): **C1** (`27737ca9`, −6557 — the 3 legacy crates + interrogate + STOP-2 probe + the
+  legacy check-lint), **C2** (`3266e363`, −376 — Tagged/NoTag + write-notag; kept `value_to_json_natural`), **C3**
+  (`f11e64db` — the wat-fix de-prime). `:wat::telemetry::` / `:wat::sqlite::` are OURS. (floor 4150/0.)
+- **THE SIFT TIER (T2 → R0) — the LIVE TARGET** (`DESIGN-sift-server-side-filter.md`, incl. a grounded
+  "Predicate-form strike — GROUNDED (scout)" section): the chaos engine's first (paged) form, what A/B/C were the
+  floor for. `sift-logs`/`sift-metrics` (Journal ops) taking `Sieve = Predicate | Rules` (`wat.query`); one seed per
+  fire (alpha-only structural); a `runner-count 1` throwaway worker. **Pinned contract:** the `Predicate` field is a
+  `:wat::core::String` of EDN source (NOT `:wat::WatAST` — nulls across a fork); server does `read-string → verify
+  (:wat::rete::pure? ∧ deterministic?) → eval-ast! → apply` per seed. Task #5 Predicate → #6 Rules → #7 R0 streaming.
+- **Deferred (NOT this campaign):** clippy's ~1000+ warnings are the pre-existing known-cruft pile (CI marks clippy
+  "informational" — no zero-floor); a dedicated cleanup, arc-109-style. C was clippy-neutral.
 
 ## The campaign — all committed, no deferral (builder: "i do not wish to defer this")
 - **Stone A.0 — uniform variant encoding: every variant is vector-bodied (the floor).** `None → []`,
