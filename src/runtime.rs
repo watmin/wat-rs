@@ -3964,6 +3964,10 @@ fn dispatch_keyword_head(
         ":wat::core::keyword/from-string" => return eval_keyword_from_string(args, list_span, env, sym),
         ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
         ":wat::edn::read" => return crate::edn_shim::eval_edn_read(args, list_span, env, sym).map_err(Into::into),
+        // Arc 278 Stone A — the DATA-MODE sibling: unknown tag → self-describing
+        // dynamic value (ForeignRecord/ForeignVariant) instead of UnknownTag.
+        // Producer (returns TrackedValue with RuntimeBuilt provenance).
+        ":wat::edn::read-foreign" => return crate::edn_shim::eval_edn_read_foreign(args, list_span, env, sym).map_err(Into::into),
         // Arc 251.5a-i — the homoiconic `read`: wat SOURCE text → forms-as-data
         // (what `edn::read` can't do — it runs the EDN parser; this runs wat's own).
         ":wat::core::read-string" => return crate::edn_shim::eval_read_string(args, list_span, env, sym).map_err(Into::into),
@@ -4916,6 +4920,13 @@ fn dispatch_keyword_head_value(
             crate::edn_shim::eval_edn_write_json_natural(args, list_span, env, sym).map_err(Into::into)
         }
         // ":wat::edn::read" is routed by dispatch_keyword_head directly (producer).
+        // Arc 278 Stone A — foreign dynamic-value accessors (navigate DATA, not a
+        // typed value). ":wat::edn::read-foreign" is a producer, routed above.
+        ":wat::edn::ForeignRecord/get" => crate::edn_shim::eval_foreign_record_get(args, list_span, env, sym).map_err(Into::into),
+        ":wat::edn::ForeignRecord/class" => crate::edn_shim::eval_foreign_record_class(args, list_span, env, sym).map_err(Into::into),
+        ":wat::edn::ForeignVariant/variant" => crate::edn_shim::eval_foreign_variant_variant(args, list_span, env, sym).map_err(Into::into),
+        ":wat::edn::ForeignVariant/enum-class" => crate::edn_shim::eval_foreign_variant_enum_class(args, list_span, env, sym).map_err(Into::into),
+        ":wat::edn::ForeignVariant/fields" => crate::edn_shim::eval_foreign_variant_fields(args, list_span, env, sym).map_err(Into::into),
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, list_span, env, sym),
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, list_span, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, list_span, env, sym),
@@ -6767,6 +6778,9 @@ fn val_type_path(val: &Value) -> &'static str {
             Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
         },
         Value::Enum(_) => "<enum>",
+        // Arc 278 Stone A — foreign dynamic values dispatch on their own kind.
+        Value::ForeignRecord(_) => ":wat::edn::ForeignRecord",
+        Value::ForeignVariant(_) => ":wat::edn::ForeignVariant",
         Value::wat__std__HashMap(_) => ":wat::core::HashMap",
         Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap",
         Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector",

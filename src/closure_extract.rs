@@ -2058,7 +2058,12 @@ fn encode_value_with_path(
         // is a later strike (not portable in slice 1; same as fn).
         | Value::wat__stream__Stream(_)
         // Arc 232 Stone 232.1 — registry carriers are top-level registrations, not closure values.
-        | Value::wat__core__extend_def(_) => Err(ExtractionError {
+        | Value::wat__core__extend_def(_)
+        // Arc 278 Stone A — foreign dynamic values are portable in principle (they
+        // re-serialize to EDN), but closure-extract re-encoding is a later strike;
+        // surface as Internal so the gap is honest (no silent bridge, FM5).
+        | Value::ForeignRecord(_)
+        | Value::ForeignVariant(_) => Err(ExtractionError {
             span: crate::rust_caller_span!(),
             kind: ExtractionErrorKind::Internal(format!(
                 "encoding for captured Value of kind {} not implemented in slice 1",

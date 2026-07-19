@@ -221,6 +221,23 @@ pub enum Value {
     /// `Value::Option` / `Value::Result` variants for substrate-
     /// internal use; user enums use this generic representation.
     Enum(Arc<EnumValue>),
+    /// Arc 278 Stone A — `:wat::edn::ForeignRecord`. A self-describing
+    /// DYNAMIC record produced by `:wat::edn::read-foreign` on an UNKNOWN
+    /// map-bodied tag (`#ns/Type {…}` whose type is not in the registry).
+    /// Carries its fully-qualified (colon-free) class + its OWN ordered
+    /// key→value fields — SELF-carried, NOT looked up in the registry (the
+    /// consumer LACKS the type). Re-serializes faithfully back to the same
+    /// `#ns/Type {…}` the reader consumed (round-trip identity). Pure data
+    /// (records-are-EDN, arc 300); recursive — a field may itself be a
+    /// `ForeignRecord`/`ForeignVariant` decoded all the way down.
+    ForeignRecord(Arc<ForeignRecordValue>),
+    /// Arc 278 Stone A — `:wat::edn::ForeignVariant`. A self-describing
+    /// DYNAMIC enum variant produced by `:wat::edn::read-foreign` on an
+    /// UNKNOWN vector-bodied tag (`#<enum-path>/<Variant> [...]`). Carries
+    /// the enum class (colon-free FQDN) + variant name + positional fields.
+    /// Re-serializes faithfully back to the same `#<enum-path>/<Variant> [...]`.
+    /// Sibling of [`Self::ForeignRecord`]; recursive the same way.
+    ForeignVariant(Arc<ForeignVariantValue>),
     /// A materialized `:wat::holon::Vector` — the algebra's vector
     /// representation surfaced as a first-class wat value (arc 052).
     /// `Arc` keeps clone cheap (refcount bump only) since vectors at
@@ -627,6 +644,17 @@ impl PartialEq for Value {
                     && a.variant_name == b.variant_name
                     && a.fields == b.fields
             }
+            // Arc 278 Stone A — foreign dynamic values: structural identity on
+            // the self-carried data (class + ordered key→value fields / enum-class
+            // + variant + positional fields). Pure data (records-are-EDN).
+            (Value::ForeignRecord(a), Value::ForeignRecord(b)) => {
+                a.class == b.class && a.fields == b.fields
+            }
+            (Value::ForeignVariant(a), Value::ForeignVariant(b)) => {
+                a.enum_class == b.enum_class
+                    && a.variant == b.variant
+                    && a.fields == b.fields
+            }
             // holon::Vector: bit-exact (PartialEq impl in holon-rs compares data slices)
             (Value::Vector(a), Value::Vector(b)) => a == b,
             // chrono::DateTime implements PartialEq
@@ -828,6 +856,18 @@ impl std::hash::Hash for Value {
                 e.variant_name.hash(state);
                 e.fields.hash(state);
             }
+            // Arc 278 Stone A — foreign dynamic values: honest structural hash on
+            // the self-carried data (matches PartialEq). Pure data, so hashing is
+            // well-defined; kept consistent with Aggregate/Enum discipline.
+            Value::ForeignRecord(a) => {
+                a.class.hash(state);
+                a.fields.hash(state);
+            }
+            Value::ForeignVariant(a) => {
+                a.enum_class.hash(state);
+                a.variant.hash(state);
+                a.fields.hash(state);
+            }
             // holon::Vector: hash the underlying i8 data slice
             Value::Vector(v) => v.data().hash(state),
             // chrono::DateTime<Utc>: hash via timestamp_nanos (i64, unique per instant)
@@ -1007,6 +1047,38 @@ pub struct EnumValue {
     pub fields: Vec<Value>,
 }
 
+/// Arc 278 Stone A — payload of a [`Value::ForeignRecord`].
+///
+/// A self-describing dynamic record: the fully-qualified (COLON-FREE) class
+/// (e.g. `"some::unknown::Rec"`) and its OWN ordered key→value fields. The
+/// keys are self-carried (the bare keyword name, e.g. `"kind"`) rather than
+/// looked up in a type registry — a `read-foreign` consumer LACKS the type,
+/// so the wire form is the only source of the field names. Order is preserved
+/// as read so re-serialization reproduces the exact `#ns/Type {…}` body.
+#[derive(Debug, Clone)]
+pub struct ForeignRecordValue {
+    /// Colon-free fully-qualified class (e.g. `"some::unknown::Rec"`).
+    pub class: String,
+    /// Ordered (bare-keyword-name → value) fields, self-carried from the wire.
+    pub fields: Vec<(String, Value)>,
+}
+
+/// Arc 278 Stone A — payload of a [`Value::ForeignVariant`].
+///
+/// A self-describing dynamic enum variant: the enum's colon-free FQDN
+/// (`"some::unknown::Kind"`), the variant name (`"Click"`), and the
+/// positional field values (recursively decoded). Re-serializes to the same
+/// `#<enum-path>/<Variant> [...]` the reader consumed.
+#[derive(Debug, Clone)]
+pub struct ForeignVariantValue {
+    /// Colon-free fully-qualified enum class (e.g. `"some::unknown::Kind"`).
+    pub enum_class: String,
+    /// Variant name without path prefix (e.g. `"Click"`).
+    pub variant: String,
+    /// Positional field values in wire order.
+    pub fields: Vec<Value>,
+}
+
 /// Outcome of a spawned thread's eval, carried on the
 /// [`Value::wat__kernel__ProgramHandle`] one-shot channel. Arc 060
 /// extends the channel from `Result<Value, EvalBreak>` to this
@@ -1116,6 +1188,9 @@ impl Value {
                 Nature::Peer => unreachable!("AggregateValue never carries Nature::Peer"),
             },
             Value::Enum(_) => "wat::core::Enum",
+            // Arc 278 Stone A — foreign dynamic values report their own kind.
+            Value::ForeignRecord(_) => "wat::edn::ForeignRecord",
+            Value::ForeignVariant(_) => "wat::edn::ForeignVariant",
             Value::Vector(_) => "wat::holon::Vector",
             Value::OnlineSubspace(_) => "wat::holon::OnlineSubspace",
             Value::Reckoner(_) => "wat::holon::Reckoner",
@@ -1184,6 +1259,10 @@ impl Value {
             // `:my::Color`); strip the leading colon.  Do NOT use
             // self.type_name(), which returns the generic "wat::core::Enum".
             Value::Enum(ev) => ev.type_path.trim_start_matches(':').to_string(),
+            // Arc 278 Stone A — foreign dynamic values carry their own declared
+            // FQDN self-describingly (colon-free): the record class / the enum class.
+            Value::ForeignRecord(fr) => fr.class.clone(),
+            Value::ForeignVariant(fv) => fv.enum_class.clone(),
 
             // ── Primitive / kind-only variants: generic kind string ───────────
             // Listed explicitly (no bare `_ =>`) so the compiler catches any

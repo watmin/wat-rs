@@ -52,7 +52,7 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
-use crate::value::value::{AggregateValue, HolonForm};
+use crate::value::value::{AggregateValue, ForeignRecordValue, ForeignVariantValue, HolonForm};
 use crate::scope::Identifier;
 use crate::span::{span_prefix, Span};
 use std::sync::Arc;
@@ -218,6 +218,196 @@ pub fn eval_edn_read(
             call_span: list_span.clone(),
         },
     ))
+}
+
+/// `(:wat::edn::read-foreign s)` → `:T`. Arc 278 Stone A — the DATA-MODE sibling
+/// of [`eval_edn_read`]. Same String→`parse_owned`→decode path, but an UNKNOWN
+/// tag reconstructs a self-describing dynamic value (`ForeignRecord` for a map
+/// body, `ForeignVariant` for a vector body) instead of raising `UnknownTag`.
+/// Recursive: nested unknown tags decode all the way down. STRICT
+/// [`eval_edn_read`] is UNCHANGED (unknown tag still errors — the
+/// no-hidden-failures floor, R41 EGO SVM LEX). The consumer that HOLDS a type
+/// uses `read`; the consumer that LACKS it uses `read-foreign`.
+pub fn eval_edn_read_foreign(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::edn::read-foreign";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let s = match &v {
+        Value::String(s) => (**s).clone(),
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::String",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other))
+            } });
+        }
+    };
+    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: OP.into(),
+        reason: format!("EDN parse error: {e}")
+    } })?;
+    let result = edn_to_value_foreign(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
+        RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: e.to_string()
+        } }
+    })?;
+    Ok(crate::value::TrackedValue::new(
+        result,
+        crate::value::Provenance::RuntimeBuilt {
+            producer: ":wat::edn::read-foreign",
+            call_span: list_span.clone(),
+        },
+    ))
+}
+
+/// Arc 278 Stone A — extract the bare field name a `ForeignRecord/get` key
+/// keyword refers to. A wat keyword value carries its leading `:` (and possibly
+/// a `::`-namespace); foreign field keys are the bare name (as read off the
+/// wire via `Keyword::name()`), so strip the `:` and take the last `::`-segment.
+fn foreign_key_name(kw: &str) -> String {
+    let body = kw.strip_prefix(':').unwrap_or(kw);
+    match body.rsplit_once("::") {
+        Some((_, last)) => last.to_string(),
+        None => body.to_string(),
+    }
+}
+
+/// `(:wat::edn::ForeignRecord/get fr :key)` → `:wat::core::Value`. Arc 278
+/// Stone A — navigate a foreign record BY KEY (the consumer holds no type). The
+/// returned value is itself a `Value` (heterogeneous dynamic boundary — R7
+/// universal top): a leaf, or a nested `ForeignRecord`/`ForeignVariant`.
+pub fn eval_foreign_record_get(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::edn::ForeignRecord/get";
+    if args.len() != 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(), expected: 2, got: args.len()
+        } });
+    }
+    let fr_v = eval(&args[0], env, sym).map(|tv| tv.value_owned())?;
+    let key_v = eval(&args[1], env, sym).map(|tv| tv.value_owned())?;
+    let fr = match &fr_v {
+        Value::ForeignRecord(fr) => fr,
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::edn::ForeignRecord",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } });
+        }
+    };
+    let key = match &key_v {
+        Value::wat__core__keyword(k) => foreign_key_name(k),
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::Keyword",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } });
+        }
+    };
+    match fr.fields.iter().find(|(k, _)| *k == key) {
+        Some((_, v)) => Ok(v.clone()),
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("foreign record `{}` has no field `:{}`", fr.class, key),
+        } }),
+    }
+}
+
+/// `(:wat::edn::ForeignRecord/class fr)` → `:wat::core::String`. Arc 278
+/// Stone A — the record's fully-qualified (colon-free) class string.
+pub fn eval_foreign_record_class(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::edn::ForeignRecord/class";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    match &v {
+        Value::ForeignRecord(fr) => Ok(Value::String(Arc::new(fr.class.clone()))),
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::edn::ForeignRecord",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+        } }),
+    }
+}
+
+/// `(:wat::edn::ForeignVariant/variant v)` → `:wat::core::Keyword`. Arc 278
+/// Stone A — the variant name as a keyword (`:Click`). Traffics in `Value` at
+/// the argument boundary (heterogeneous), runtime-checking it is a
+/// `ForeignVariant` and raising a clean located error otherwise
+/// (no-hidden-failures, R41).
+pub fn eval_foreign_variant_variant(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::edn::ForeignVariant/variant";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    match &v {
+        Value::ForeignVariant(fv) => {
+            Ok(Value::wat__core__keyword(Arc::new(format!(":{}", fv.variant))))
+        }
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::edn::ForeignVariant",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+        } }),
+    }
+}
+
+/// `(:wat::edn::ForeignVariant/enum-class v)` → `:wat::core::String`. Arc 278
+/// Stone A — the enum's fully-qualified (colon-free) class string.
+pub fn eval_foreign_variant_enum_class(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::edn::ForeignVariant/enum-class";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    match &v {
+        Value::ForeignVariant(fv) => Ok(Value::String(Arc::new(fv.enum_class.clone()))),
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::edn::ForeignVariant",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+        } }),
+    }
+}
+
+/// `(:wat::edn::ForeignVariant/fields v)` → `:wat::core::Vector<Value>`. Arc 278
+/// Stone A — the positional fields as a vector (each element a `Value`, itself
+/// possibly a nested foreign value).
+pub fn eval_foreign_variant_fields(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::edn::ForeignVariant/fields";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    match &v {
+        Value::ForeignVariant(fv) => Ok(Value::Vec(Arc::new(fv.fields.clone()))),
+        other => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::edn::ForeignVariant",
+            got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+        } }),
+    }
 }
 
 /// `(:wat::core::read-string <source>)` — arc 251 Stone 251.5a-i.
@@ -977,7 +1167,8 @@ fn read_edn_caps(
     let edn = wat_edn::parse_owned(s)
         // arc 138: no span — read_edn operates on a raw &str with no WatAST trace
         .map_err(|e| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")) })?;
-    edn_to_value_caps(&edn, types, allow_caps)
+    // Trusted peer wire is a KNOWN-types channel — never foreign-mode.
+    edn_to_value_caps(&edn, types, allow_caps, false)
 }
 
 // ─── EDN value-framing (pipe wire protocol) ─────────────────────────────────
@@ -1219,7 +1410,22 @@ pub fn edn_to_value(
     // tags. Object-capability rule: a capability is obtained only by being handed it on a trusted
     // channel, NEVER forged from parsed data. The trusted peer wire opts in via the `_caps` worker
     // with `allow_caps = true` (see `read_edn_caps` / `edn_string_to_value_trusted`).
-    edn_to_value_caps(edn, types, false)
+    edn_to_value_caps(edn, types, false, false)
+}
+
+/// Arc 278 Stone A — the DATA-MODE decode entry (`:wat::edn::read-foreign`).
+///
+/// Identical to [`edn_to_value`] except an UNKNOWN tag reconstructs a
+/// self-describing dynamic value (`Value::ForeignRecord` for a map body,
+/// `Value::ForeignVariant` for a vector body) instead of raising `UnknownTag`.
+/// `allow_caps` is kept `false` — foreign decode is untrusted parsed data, so
+/// capability tags stay refused (the strict floor is not the only guard here).
+/// STRICT [`edn_to_value`] is UNCHANGED (unknown tag still errors — R41).
+pub fn edn_to_value_foreign(
+    edn: &OwnedValue,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<Value, EdnReadError> {
+    edn_to_value_caps(edn, types, /*allow_caps*/ false, /*foreign*/ true)
 }
 
 #[allow(clippy::mutable_key_type)]
@@ -1227,6 +1433,7 @@ fn edn_to_value_caps(
     edn: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
     allow_caps: bool,
+    foreign: bool,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
     match edn {
@@ -1259,14 +1466,14 @@ fn edn_to_value_caps(
         Edn::List(items) => {
             let walked: std::collections::LinkedList<Value> = items
                 .iter()
-                .map(|x| edn_to_value_caps(x, types, allow_caps))
+                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign))
                 .collect::<Result<_, _>>()?;
             Ok(Value::wat__core__List(Arc::new(walked)))
         }
         Edn::Vector(items) => {
             let walked: Vec<Value> = items
                 .iter()
-                .map(|x| edn_to_value_caps(x, types, allow_caps))
+                .map(|x| edn_to_value_caps(x, types, allow_caps, foreign))
                 .collect::<Result<_, _>>()?;
             Ok(Value::Vec(Arc::new(walked)))
         }
@@ -1278,8 +1485,8 @@ fn edn_to_value_caps(
             let mut backing: std::collections::HashMap<Value, Value> =
                 std::collections::HashMap::with_capacity(entries.len());
             for (k, v) in entries {
-                let k_val = edn_to_value_caps(k, types, allow_caps)?;
-                let v_val = edn_to_value_caps(v, types, allow_caps)?;
+                let k_val = edn_to_value_caps(k, types, allow_caps, foreign)?;
+                let v_val = edn_to_value_caps(v, types, allow_caps, foreign)?;
                 if !crate::runtime::value_is_key_hashable(&k_val) {
                     return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable map key: {}", k_val.type_name())) });
                 }
@@ -1292,7 +1499,7 @@ fn edn_to_value_caps(
             // Value: Hash + Eq (Stone 216.5a) makes this work natively.
             let mut backing = std::collections::HashSet::with_capacity(items.len());
             for x in items {
-                let v_val = edn_to_value_caps(x, types, allow_caps)?;
+                let v_val = edn_to_value_caps(x, types, allow_caps, foreign)?;
                 backing.insert(v_val);
             }
             Ok(Value::wat__std__HashSet(Arc::new(backing)))
@@ -1302,7 +1509,7 @@ fn edn_to_value_caps(
         // Arc 207 slice 2: `#uuid "..."` EDN reader literal → typed `:wat::core::Uuid`.
         // `uuid::Uuid` is `Copy`; mirrors `Edn::Inst(t) → Value::Instant(*t)` pattern.
         Edn::Uuid(u) => Ok(Value::wat__core__Uuid(*u)),
-        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps),
+        Edn::Tagged(tag, body) => tagged_to_value(tag, body, types, allow_caps, foreign),
     }
 }
 
@@ -2239,6 +2446,7 @@ fn tagged_to_value(
     body: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
     allow_caps: bool,
+    foreign: bool,
 ) -> Result<Value, EdnReadError> {
     use wat_edn::Value as Edn;
     let ns = tag.namespace();
@@ -2290,7 +2498,7 @@ fn tagged_to_value(
         return Ok(Value::Option(Arc::new(match name {
             "None" => None,
             "Some" => {
-                let inner = variant_single_field(ns, name, body, |b| edn_to_value(b, types))?;
+                let inner = variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign))?;
                 Some(inner)
             }
             // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
@@ -2300,8 +2508,8 @@ fn tagged_to_value(
     // Arc 278 Stone A.0 — Result is VECTOR-bodied: `#wat.core.Result/Ok [v]` / `.../Err [e]`.
     if ns == "wat.core.Result" {
         return Ok(Value::Result(Arc::new(match name {
-            "Ok" => Ok(variant_single_field(ns, name, body, |b| edn_to_value(b, types))?),
-            "Err" => Err(variant_single_field(ns, name, body, |b| edn_to_value(b, types))?),
+            "Ok" => Ok(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign))?),
+            "Err" => Err(variant_single_field(ns, name, body, |b| edn_to_value_caps(b, types, allow_caps, foreign))?),
             // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
             _ => return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnsupportedTag(format!("{ns}/{name}")) }),
         })));
@@ -2320,8 +2528,8 @@ fn tagged_to_value(
         };
         let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
         for (k, v) in entries {
-            let k_val = edn_to_value_caps(k, types, allow_caps)?;
-            let v_val = edn_to_value_caps(v, types, allow_caps)?;
+            let k_val = edn_to_value_caps(k, types, allow_caps, foreign)?;
+            let v_val = edn_to_value_caps(v, types, allow_caps, foreign)?;
             if !crate::runtime::value_is_key_hashable(&k_val) {
                 return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("non-hashable PersistentMap key: {}", k_val.type_name())) });
             }
@@ -2343,7 +2551,7 @@ fn tagged_to_value(
         };
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
         for item in items {
-            let val = edn_to_value_caps(item, types, allow_caps)?;
+            let val = edn_to_value_caps(item, types, allow_caps, foreign)?;
             pv = pv.push_back(val);
         }
         return Ok(Value::wat__core__PersistentVector(pv));
@@ -2361,12 +2569,12 @@ fn tagged_to_value(
             let path = ns_to_wat_path(ns, name);
             match types.get(&path) {
                 Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
-                    reconstruct_record(ns, name, entries, types, allow_caps)
+                    reconstruct_record(ns, name, entries, types, allow_caps, foreign)
                 }
-                _ => reconstruct_struct(ns, name, entries, types, allow_caps),
+                _ => reconstruct_struct(ns, name, entries, types, allow_caps, foreign),
             }
         }
-        Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types, allow_caps),
+        Edn::Vector(items) => reconstruct_enum_tagged(ns, name, items, types, allow_caps, foreign),
         // Arc 278 Stone A.0 — a bare-nil body is no longer a variant. Unit variants
         // are now `#tag []` (empty vector, handled above); `nil` is the unit value ONLY.
         // A generic `#tag nil` is malformed post-cutover → loud error (no-hidden-failures).
@@ -2460,12 +2668,19 @@ fn reconstruct_struct(
     entries: &[(OwnedValue, OwnedValue)],
     types: &crate::types::TypeEnv,
     allow_caps: bool,
+    foreign: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
     let def = match types.get(&path) {
         Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => a,
         _ => {
+            // Arc 278 Stone A — the UNKNOWN-tag miss. In foreign mode, a map body
+            // under an unregistered tag reconstructs a self-describing ForeignRecord
+            // (the consumer LACKS the type); strict mode is UNCHANGED — it errors.
+            if foreign {
+                return build_foreign_record(ns, name, entries, types);
+            }
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: name.to_string(), body_shape: "map" } });
         }
@@ -2498,7 +2713,7 @@ fn reconstruct_struct(
             // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownStructField { type_path: path.clone(), key: fname.clone() } }
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps)?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign)?;
         let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
     }
@@ -2518,12 +2733,20 @@ fn reconstruct_record(
     entries: &[(OwnedValue, OwnedValue)],
     types: &crate::types::TypeEnv,
     allow_caps: bool,
+    foreign: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_wat_path(ns, name);
     // Arc 293.2b — record aggregates (kind != Struct) replace TypeDef::Record.
     let def = match types.get(&path) {
         Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => a,
         _ => {
+            // Arc 278 Stone A — foreign-mode miss (map body, unregistered tag) →
+            // ForeignRecord. (In the live dispatch this arm is reached only if the
+            // registry changed between the tagged_to_value routing check and here;
+            // handled symmetrically with reconstruct_struct for robustness.)
+            if foreign {
+                return build_foreign_record(ns, name, entries, types);
+            }
             return Err(EdnReadError {
                 span: crate::rust_caller_span!(),
                 kind: EdnReadErrorKind::UnknownTag {
@@ -2552,7 +2775,7 @@ fn reconstruct_record(
                 key: fname.clone(),
             },
         })?;
-        let inner = edn_to_value_caps(fv, Some(types), allow_caps)?;
+        let inner = edn_to_value_caps(fv, Some(types), allow_caps, foreign)?;
         // Apply Option-rewrapping when the field is Option<T>.
         let wrapped = rewrap_option_field(fty, inner);
         fields.push(wrapped);
@@ -2688,11 +2911,18 @@ fn reconstruct_enum_tagged(
     items: &[OwnedValue],
     types: &crate::types::TypeEnv,
     allow_caps: bool,
+    foreign: bool,
 ) -> Result<Value, EdnReadError> {
     let path = ns_to_enum_path(ns);
     let def = match types.get(&path) {
         Some(crate::types::TypeDef::Enum(d)) => d,
         _ => {
+            // Arc 278 Stone A — the UNKNOWN-tag miss for a vector body. In foreign
+            // mode, reconstruct a self-describing ForeignVariant (enum-class +
+            // variant + positional fields, recursively decoded); strict mode errors.
+            if foreign {
+                return build_foreign_variant(ns, variant_name, items, types);
+            }
             // arc 138: no span — reconstruct_enum_tagged operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::UnknownTag { ns: ns.to_string(), name: variant_name.to_string(), body_shape: "vector" } });
         }
@@ -2718,7 +2948,7 @@ fn reconstruct_enum_tagged(
     };
     let mut fields: Vec<Value> = Vec::with_capacity(items.len());
     for (idx, item) in items.iter().enumerate() {
-        let inner = edn_to_value_caps(item, Some(types), allow_caps)?;
+        let inner = edn_to_value_caps(item, Some(types), allow_caps, foreign)?;
         let wrapped = match declared_fields.get(idx) {
             Some((_, fty)) => rewrap_option_field(fty, inner),
             None => inner,
@@ -2728,6 +2958,68 @@ fn reconstruct_enum_tagged(
     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
         type_path: path,
         variant_name: variant_name.to_string(),
+        fields,
+    })))
+}
+
+/// Arc 278 Stone A — build a self-describing [`Value::ForeignRecord`] from an
+/// UNKNOWN map-bodied tag (`#ns/name {…}`). The class is the colon-free
+/// fully-qualified tag path (`some::unknown::Rec`); each field key is
+/// self-carried (the bare keyword name) and each value is recursively decoded
+/// in FOREIGN mode, so nesting decodes all the way down. Field order is
+/// preserved as read, so re-serialization reproduces the same `#ns/name {…}`.
+/// `allow_caps=false` — foreign decode is untrusted parsed data.
+fn build_foreign_record(
+    ns: &str,
+    name: &str,
+    entries: &[(OwnedValue, OwnedValue)],
+    types: &crate::types::TypeEnv,
+) -> Result<Value, EdnReadError> {
+    let path = ns_to_wat_path(ns, name);
+    let class = path.strip_prefix(':').unwrap_or(&path).to_string();
+    let mut fields: Vec<(String, Value)> = Vec::with_capacity(entries.len());
+    for (k, v) in entries {
+        // Foreign records carry keyword-named fields (mirrors record/struct
+        // decode + the `ForeignRecord/get : (_, Keyword) -> Value` accessor).
+        // A non-keyword key is out of contract → loud error (no-hidden-failures).
+        let key = match k {
+            OwnedValue::Keyword(kw) => kw.name().to_string(),
+            other => {
+                return Err(EdnReadError {
+                    span: crate::rust_caller_span!(),
+                    kind: EdnReadErrorKind::Other(format!(
+                        "read-foreign: ForeignRecord field key must be a keyword, got {}",
+                        edn_shape_name(other)
+                    )),
+                });
+            }
+        };
+        let val = edn_to_value_caps(v, Some(types), /*allow_caps*/ false, /*foreign*/ true)?;
+        fields.push((key, val));
+    }
+    Ok(Value::ForeignRecord(Arc::new(ForeignRecordValue { class, fields })))
+}
+
+/// Arc 278 Stone A — build a self-describing [`Value::ForeignVariant`] from an
+/// UNKNOWN vector-bodied tag (`#<enum-path>/<Variant> [...]`). The enum class
+/// is the colon-free FQDN of the tag namespace (`some::unknown::Kind`), the
+/// variant is the tag name (`Click`), and each positional field is recursively
+/// decoded in FOREIGN mode. Re-serializes to the same tag + vector body.
+fn build_foreign_variant(
+    ns: &str,
+    variant_name: &str,
+    items: &[OwnedValue],
+    types: &crate::types::TypeEnv,
+) -> Result<Value, EdnReadError> {
+    let enum_path = ns_to_enum_path(ns);
+    let enum_class = enum_path.strip_prefix(':').unwrap_or(&enum_path).to_string();
+    let mut fields: Vec<Value> = Vec::with_capacity(items.len());
+    for item in items {
+        fields.push(edn_to_value_caps(item, Some(types), /*allow_caps*/ false, /*foreign*/ true)?);
+    }
+    Ok(Value::ForeignVariant(Arc::new(ForeignVariantValue {
+        enum_class,
+        variant: variant_name.to_string(),
         fields,
     })))
 }
@@ -3008,6 +3300,37 @@ pub fn value_to_edn_with(
                     .collect();
                 OwnedValue::Tagged(tag, Box::new(OwnedValue::Vector(payload)))
             }
+        }
+
+        // ── Arc 278 Stone A — foreign dynamic values (self-describing) ──
+        // Re-serialize FAITHFULLY to the SAME `#tag {…}` / `#tag [...]` the
+        // reader consumed. Keys/fields are SELF-carried (not registry-looked-up,
+        // which would fall to `field-{i}` and lose the foreign names). Recursive:
+        // nested foreign values re-emit via `value_to_edn_with`.
+        Value::ForeignRecord(fr) => {
+            let type_key = format!(":{}", fr.class);
+            let tag = tag_from_type_path(&type_key);
+            let entries: Vec<(OwnedValue, OwnedValue)> = fr
+                .fields
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        OwnedValue::Keyword(Keyword::new(k.clone())),
+                        value_to_edn_with(v, types),
+                    )
+                })
+                .collect();
+            OwnedValue::Tagged(tag, Box::new(OwnedValue::Map(entries)))
+        }
+        Value::ForeignVariant(fv) => {
+            let tag_name = format!(":{}::{}", fv.enum_class, fv.variant);
+            let tag = tag_from_type_path(&tag_name);
+            let payload: Vec<OwnedValue> = fv
+                .fields
+                .iter()
+                .map(|x| value_to_edn_with(x, types))
+                .collect();
+            OwnedValue::Tagged(tag, Box::new(OwnedValue::Vector(payload)))
         }
 
         // ── Substrate compound values — opaque or structural ─────

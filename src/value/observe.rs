@@ -370,6 +370,43 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
             }
         }
 
+        // ── Arc 278 Stone A — foreign dynamic values (self-describing) ──
+        Value::ForeignRecord(fr) => {
+            let mut out = format!("#{} {{", fr.class);
+            let mut first = true;
+            for (k, fv) in fr.fields.iter() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&format!(":{}: ", k));
+                out.push_str(&render_value(fv, depth + 1));
+            }
+            out.push('}');
+            out
+        }
+        Value::ForeignVariant(fv) => {
+            let mut out = format!("#{}/{} [", fv.enum_class, fv.variant);
+            let mut first = true;
+            for item in fv.fields.iter() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(item, depth + 1));
+            }
+            out.push(']');
+            out
+        }
+
         // ── Substrate compound values — angle-bracketed summary ──
         Value::holon__HolonAST(_) => "<HolonAST>".to_string(),
         Value::Vector(v) => format!("<Vector dim={}>", v.dimensions()),

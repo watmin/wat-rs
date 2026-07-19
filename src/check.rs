@@ -19237,6 +19237,81 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 Stone A — `(:wat::edn::read-foreign s)` → `:T`. The DATA-MODE
+    // sibling of `read`: unknown tag → a self-describing dynamic value
+    // (ForeignRecord / ForeignVariant). Same polymorphic-fresh-var return so
+    // the caller's binding unifies with whatever dynamic value shape lands.
+    env.register(
+        ":wat::edn::read-foreign".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Path(":wat::core::String".into())],
+            ret: t_var(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 278 Stone A — foreign dynamic-value accessors. They traffic in
+    // `:wat::core::Value` at the dynamic boundaries (heterogeneous — R7 universal
+    // top); the concrete foreign kind is runtime-checked. The type names
+    // `:wat::edn::ForeignRecord` / `:wat::edn::ForeignVariant` are opaque nominal
+    // Paths (Pattern B, per the Uuid/Instant precedent) — they resolve in
+    // annotations/returns and unify by name.
+    //   ForeignRecord/get       : (ForeignRecord, keyword) -> Value
+    env.register(
+        ":wat::edn::ForeignRecord/get".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::edn::ForeignRecord".into()),
+                TypeExpr::Path(":wat::core::keyword".into()),
+            ],
+            ret: TypeExpr::Path(":wat::core::Value".into()),
+            rest_param_type: None,
+        },
+    );
+    //   ForeignRecord/class     : ForeignRecord -> String
+    env.register(
+        ":wat::edn::ForeignRecord/class".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::edn::ForeignRecord".into())],
+            ret: TypeExpr::Path(":wat::core::String".into()),
+            rest_param_type: None,
+        },
+    );
+    //   ForeignVariant/variant  : Value -> Keyword
+    env.register(
+        ":wat::edn::ForeignVariant/variant".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Value".into())],
+            ret: TypeExpr::Path(":wat::core::Keyword".into()),
+            rest_param_type: None,
+        },
+    );
+    //   ForeignVariant/enum-class : Value -> String
+    env.register(
+        ":wat::edn::ForeignVariant/enum-class".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Value".into())],
+            ret: TypeExpr::Path(":wat::core::String".into()),
+            rest_param_type: None,
+        },
+    );
+    //   ForeignVariant/fields   : Value -> Vector<Value>
+    env.register(
+        ":wat::edn::ForeignVariant/fields".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Value".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::core::Value".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     // Arc 251.5a-i — `(:wat::core::read-string s)` → `:wat::WatAST`. The homoiconic
     // `read`: wat SOURCE text → forms-as-data (a WatAST::List of top-level forms),
     // WITHOUT eval. Distinct from `edn::read` (EDN parser) — this runs wat's own
