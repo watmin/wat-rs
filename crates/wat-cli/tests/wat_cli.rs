@@ -390,6 +390,50 @@ fn startup_error_bubbles_up_as_exit_3() {
 }
 
 #[test]
+fn freeze_time_panic_surfaces_structured_not_silent() {
+    // Arc 278 no-hidden-failures (R41 EGO SVM LEX): a PANIC during freeze-time
+    // evaluation of a top-level form (here Result/expect on an Err) must NOT
+    // vanish. PRE-FIX it exits 1 with ZERO bytes on BOTH streams — the child's
+    // outer catch_unwind (src/process/clone.rs:429) drops the payload + _exit(1),
+    // and the silent panic hook (src/process/child.rs) eats the default text.
+    // The runtime-panic-in-main path is loud (its own catch at
+    // src/process/verbs.rs:342); the freeze call (src/process/verbs.rs:614) has
+    // no catch — that asymmetry IS the defect. POST-FIX: the child catches the
+    // freeze panic, emits the structured #wat.kernel/ProcessPanics envelope
+    // (preserving the AssertionFailure payload), and exits EXIT_STARTUP_ERROR=3
+    // — a freeze-time failure is a STARTUP failure (phase-honest; four-questions).
+    // A top-level `let` is const-eval'd during freeze (a bare call expr is not);
+    // its initializer Result/expect's on an eval-ast! Err (unknown verb) → panics
+    // at freeze time. PRE-FIX: mute exit 1 (0 bytes both streams).
+    let program = r#"
+        (:wat::core::let
+          [pf (:wat::core::Result/expect
+                (:wat::eval-ast! (:wat::core::read-string "(:wat::core::this-verb-does-not-exist)"))
+                "freeze-time boom")]
+          pf)
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "freeze-time panic must exit 3 (startup failure), not mute exit 1"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
+        stderr.contains("#wat.kernel/ProcessPanics") && stderr.contains("freeze-time boom"),
+        "freeze-time panic must surface the structured ProcessPanics envelope carrying its reason, not silence; got: {}",
+        stderr
+    );
+}
+
+#[test]
 fn program_writes_multiple_times_to_stdout() {
     // :user::main calls println twice; stdout accumulates both writes.
     // Arc 170 migration: canonical [] -> :nil signature; IOWriter/print

@@ -611,12 +611,64 @@ fn child_branch_from_source(
         stdin_pair, stdout_pair, stderr_pair, lifeline_r,
     );
 
-    let startup_result = startup_from_source(&source, canonical.as_deref(), loader);
+    // Arc 278 no-hidden-failures — wrap the freeze call in catch_unwind. A
+    // PANIC during freeze-time evaluation of a top-level form (e.g. a top-level
+    // `let` whose initializer Result/expect's on an eval-ast! Err) would
+    // otherwise unwind past this Result match and be caught ONLY by the child's
+    // OUTER catch (src/process/clone.rs:429 → _exit(1), payload discarded) with
+    // the silent panic hook eating the default text — a MUTE exit 1. That
+    // asymmetry (a RETURNED StartupError is loud at exit 3; a RUNTIME panic in
+    // :user::main is loud at exit 2 via run_user_main_in_child's own inner
+    // catch; the freeze call had no catch) IS the defect.
+    //
+    // AssertUnwindSafe: identical soundness rationale to the outer catch
+    // (clone.rs:418-422) — the child calls libc::_exit on every path here, so
+    // no panic-unwinding can observe aliased state after _exit terminates the
+    // process. The outer catch stays as the last-resort backstop; this inner
+    // catch fires first.
+    let startup_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        startup_from_source(&source, canonical.as_deref(), loader)
+    }));
     let world = match startup_result {
-        Ok(w) => w,
-        Err(e) => {
+        Ok(Ok(w)) => w,
+        Ok(Err(e)) => {
             // Arc 296: emit structured EDN cause chain (not prose string).
             emit_startup_error_structured_exit(&e);
+            unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
+        }
+        Err(panic_payload) => {
+            // Freeze-time panic — mirror finish_forked_child's Err arm
+            // (verbs.rs:205-227): downcast AssertionPayload → preserve the rich
+            // #wat.kernel/AssertionFailure diagnostic; else String/&str →
+            // message-only Panic. The world does not exist yet at freeze time,
+            // so emit_structured_exit takes None (pre-world path).
+            //
+            // Phase-honest exit code: a freeze-time failure IS a STARTUP
+            // failure → EXIT_STARTUP_ERROR (3), NOT EXIT_PANIC (2). Exit 2
+            // would mislabel a startup failure as a runtime panic.
+            if let Some(payload) =
+                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            {
+                emit_structured_exit(
+                    None,
+                    crate::runtime::process_died_error_panic_value(
+                        payload.message.clone(),
+                        Some(payload.clone()),
+                    ),
+                );
+            } else {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else {
+                    "<unknown panic payload>".to_string()
+                };
+                emit_structured_exit(
+                    None,
+                    crate::runtime::process_died_error_panic_value(msg, None),
+                );
+            }
             unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
         }
     };

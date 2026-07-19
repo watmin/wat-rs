@@ -33,8 +33,9 @@
 //!
 //! Reads an entry `.wat` file, runs the full startup pipeline,
 //! installs OS signal handlers (SIGINT + SIGTERM → kernel stop
-//! flag), passes the real `io::Stdin` / `io::Stdout` / `io::Stderr`
-//! handles to `:user::main`, and exits.
+//! flag), forks and invokes `:user::main`, bridges the real
+//! `io::Stdin` / `io::Stdout` / `io::Stderr` to the child via three
+//! proxy threads, then reaps the child and exits with its code.
 //!
 //! There is no `wat test` subcommand — wat tests run via
 //! `cargo test` against a Rust crate that uses the `wat::test!`
@@ -45,19 +46,20 @@
 //!
 //! # `:user::main` contract
 //!
-//! Program mode requires:
+//! Program mode requires an entry point defined as:
 //!
 //! ```scheme
-//! (:wat::core::define (:user::main
-//!                      (stdin  :rust::std::io::Stdin)
-//!                      (stdout :rust::std::io::Stdout)
-//!                      (stderr :rust::std::io::Stderr)
-//!                      -> :())
+//! (:wat::core::defn :user::main [] -> :wat::core::nil
 //!   ...)
 //! ```
 //!
-//! Any other shape (different arity, different parameter types,
-//! different return type) halts startup with exit code 3.
+//! No parameters; return type `:wat::core::nil`. This is the canonical
+//! form (~320 programs in-tree; e.g. `examples/console-demo/wat/main.wat`,
+//! `wat-scripts/cosines.wat`). A subprocess whose source is assembled at
+//! runtime may instead declare it via `:wat::core::define`. Any other
+//! shape (wrong arity, parameter types, or return type) halts startup
+//! with a `#wat.kernel.ProcessDiedError/MainSignature` diagnostic on
+//! stderr and exit code 4.
 //!
 //! # Kernel signal state
 //!
@@ -78,20 +80,31 @@
 //! # Exit codes
 //!
 //! - `0` — `:user::main` returned cleanly.
-//! - `1` — startup error (any [`wat::freeze::StartupError`]).
 //! - `2` — runtime error (any [`wat::runtime::RuntimeError`]).
-//! - `3` — `:user::main` signature mismatch.
+//! - `3` — startup error (parse / type-check / freeze — a
+//!   [`wat::freeze::StartupError`], surfaced as
+//!   `#wat.kernel/ProcessPanics [#…/ProcessDiedError/StartupError …]`).
+//! - `4` — `:user::main` signature mismatch
+//!   (`#…/ProcessDiedError/MainSignature`).
 //! - `64` — usage error (wrong argv).
 //! - `66` — entry file read failed.
 //!
-//! # Stdin semantics
+//! Startup and signature failures forward the child's structured
+//! `#wat.kernel/ProcessPanics [...]` EDN diagnostic to stderr. **Known
+//! masking defect (arc 278 no-hidden-failures):** a freeze-time
+//! evaluation *panic* in a top-level form (e.g. `Result/expect` on an
+//! `Err`) currently exits `1` with NO diagnostic on either stream —
+//! surfaced loud under `--check` but swallowed across the fork. Under
+//! repair; see `docs/arc/2026/06/278-rules-engine`.
 //!
-//! `:user::main` receives a `:wat::io::IOReader` for stdin backed by
-//! Rust's `io::Stdin`, and two `:wat::io::IOWriter`s for stdout and
-//! stderr backed by `io::Stdout` / `io::Stderr`. Programs call
-//! `(:wat::io::IOReader/read-line stdin)` to read one line at a time;
-//! each call returns `:(Some line)` on a successful read (trailing
-//! `\n` / `\r\n` stripped) or `:None` on EOF.
+//! # Standard I/O
+//!
+//! `:user::main` takes no I/O handles. Before forking, the CLI installs
+//! three proxy threads that bridge the operator's real
+//! `io::Stdin` / `io::Stdout` / `io::Stderr` to the child's pipe ends
+//! (fd 0 → child stdin; child stdout / stderr → fd 1 / fd 2). Programs
+//! emit via `:wat::kernel::println` (and friends); the proxies forward
+//! the bytes to the terminal.
 
 use std::process::ExitCode;
 
