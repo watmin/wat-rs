@@ -23,14 +23,8 @@ fn main() -> ExitCode {
     let argv = wat_cli::strip_cargo_subcommand(std::env::args().collect(), "wat");
     wat_cli::run_with_args(
         &[
-            (wat_telemetry::register, wat_telemetry::wat_sources),
-            (wat_sqlite::register, wat_sqlite::wat_sources),
             (wat_lru::register, wat_lru::wat_sources),
             (wat_holon_lru::register, wat_holon_lru::wat_sources),
-            (
-                wat_telemetry_sqlite::register,
-                wat_telemetry_sqlite::wat_sources,
-            ),
         ],
         argv,
     )

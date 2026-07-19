@@ -23,7 +23,4 @@ wat = { path = "../.." }
 wat-edn = { path = "../wat-edn" }
 wat-lru = { path = "../wat-lru" }
 wat-holon-lru = { path = "../wat-holon-lru" }
-wat-sqlite = { path = "../wat-sqlite" }
-wat-telemetry = { path = "../wat-telemetry" }
-wat-telemetry-sqlite = { path = "../wat-telemetry-sqlite" }
 libc = "0.2"

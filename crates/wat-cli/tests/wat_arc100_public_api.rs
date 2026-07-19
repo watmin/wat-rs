@@ -20,33 +20,21 @@ use wat_cli::Battery;
 #[test]
 fn battery_slice_with_workspace_extensions_type_checks() {
     let _batteries: &[Battery] = &[
-        (wat_telemetry::register, wat_telemetry::wat_sources),
-        (wat_sqlite::register, wat_sqlite::wat_sources),
         (wat_lru::register, wat_lru::wat_sources),
         (wat_holon_lru::register, wat_holon_lru::wat_sources),
-        (
-            wat_telemetry_sqlite::register,
-            wat_telemetry_sqlite::wat_sources,
-        ),
     ];
     // The slice exists and has the expected length. Calling `run`
     // here would parse argv from the test harness and exit; we
     // stop short of that on purpose.
-    assert_eq!(_batteries.len(), 5);
+    assert_eq!(_batteries.len(), 2);
 }
 
 #[test]
 fn battery_slice_with_subset_type_checks() {
-    // A "minimal interrogation CLI" would only need telemetry +
-    // telemetry-sqlite, not lru. Verify the subset is also valid.
-    let _batteries: &[Battery] = &[
-        (wat_telemetry::register, wat_telemetry::wat_sources),
-        (
-            wat_telemetry_sqlite::register,
-            wat_telemetry_sqlite::wat_sources,
-        ),
-    ];
-    assert_eq!(_batteries.len(), 2);
+    // A minimal CLI would only need a single battery. Verify the
+    // one-element subset is also valid.
+    let _batteries: &[Battery] = &[(wat_lru::register, wat_lru::wat_sources)];
+    assert_eq!(_batteries.len(), 1);
 }
 
 #[test]

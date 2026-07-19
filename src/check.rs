@@ -664,8 +664,6 @@ pub fn check_program(
     // type tokens (`:i64`, `:f64`, `:bool`, `:String`, `:u8`) rejected.
     // Arc 109 slice 9d — walk_for_legacy_stream: legacy `:wat::std::stream::*`
     // prefix rejected.
-    // Arc 109 slice K.telemetry — walk_for_legacy_telemetry_service: legacy
-    // `:wat::telemetry::Service::*` / `:wat::telemetry::Service/*` rejected.
     // Arc 109 slice K.lru — walk_for_legacy_lru_cache_service: legacy
     // `:wat::lru::CacheService::*` / `:wat::lru::CacheService/*` rejected.
     // Arc 109 slice K.kernel-channel — walk_for_legacy_kernel_queue: legacy
@@ -686,7 +684,6 @@ pub fn check_program(
             validate_sandbox_scope_leak(body, sym, &mut errors);
             validate_bare_legacy_primitives(body, &mut errors);
             walk_for_legacy_stream(body, &mut errors);
-            walk_for_legacy_telemetry_service(body, &mut errors);
             walk_for_legacy_lru_cache_service(body, &mut errors);
             walk_for_legacy_kernel_queue(body, &mut errors);
             walk_for_bare_legacy_console(body, &mut errors);
@@ -709,7 +706,6 @@ pub fn check_program(
         validate_sandbox_scope_leak(form, sym, &mut errors);
         validate_bare_legacy_primitives(form, &mut errors);
         walk_for_legacy_stream(form, &mut errors);
-        walk_for_legacy_telemetry_service(form, &mut errors);
         walk_for_legacy_lru_cache_service(form, &mut errors);
         walk_for_legacy_kernel_queue(form, &mut errors);
         walk_for_bare_legacy_console(form, &mut errors);
@@ -1802,33 +1798,6 @@ fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
     // bracketed forms (let-binding vectors, fn-param vectors) are caught.
     for child in node.children().iter() {
         walk_for_legacy_stream(child, errors);
-    }
-}
-
-const LEGACY_TELEMETRY_SERVICE_TYPEALIAS_PREFIX: &str = ":wat::telemetry::Service::";
-const LEGACY_TELEMETRY_SERVICE_VERB_PREFIX: &str = ":wat::telemetry::Service/";
-const CANONICAL_TELEMETRY_PREFIX: &str = ":wat::telemetry::";
-
-fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>) {
-    // Walker-specific Keyword-head logic: fire diagnostic for legacy
-    // telemetry service path prefixes.
-    if let WatAST::Keyword(s, span) = node {
-        let stripped = s
-            .strip_prefix(LEGACY_TELEMETRY_SERVICE_TYPEALIAS_PREFIX)
-            .or_else(|| s.strip_prefix(LEGACY_TELEMETRY_SERVICE_VERB_PREFIX));
-        if let Some(tail) = stripped {
-            let new = format!("{}{}", CANONICAL_TELEMETRY_PREFIX, tail);
-            errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyTelemetryServicePath {
-                old: s.clone(),
-                new,
-            } });
-        }
-    }
-    // Arc 212 — generic recursion via children() covers List, Vector, Map,
-    // and Set uniformly so legacy telemetry keywords inside bracketed
-    // forms (let-binding vectors, fn-param vectors) are caught.
-    for child in node.children().iter() {
-        walk_for_legacy_telemetry_service(child, errors);
     }
 }
 

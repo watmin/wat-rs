@@ -191,8 +191,6 @@ pub enum CheckErrorKind {
     BareLegacyContainerHead { head: String, fqdn: String },
     /// Arc 109 slice 9d — legacy `:wat::std::stream::` prefix.
     BareLegacyStreamPath { old: String, new: String },
-    /// Arc 109 slice K.telemetry — legacy `:wat::telemetry::Service::` prefix.
-    BareLegacyTelemetryServicePath { old: String, new: String },
     /// Arc 109 slice K.lru — legacy `:wat::lru::CacheService::` prefix.
     BareLegacyLruCacheServicePath { old: String, new: String },
     /// Arc 109 slice K.kernel-channel — legacy `:wat::kernel::Queue*` names.
@@ -596,17 +594,6 @@ impl CheckErrorKind {
                 write!(
                     f,
                     " is retired (arc 109 slice 9d); canonical form is '{}'. The stream stdlib graduated to :wat::stream::* per § G's three-tier substrate organization (every substrate concern earns its own top-level tier; :wat::std::* empties out). File path mirrors: wat/std/stream.wat → wat/stream.wat. Rename '{}' → '{}' at the offending site.",
-                    new, old, new
-                )
-            }
-            CheckErrorKind::BareLegacyTelemetryServicePath { old, new } => {
-                write!(f, "legacy telemetry-service path '{}'", old)?;
-                if let Some(s) = shown {
-                    write!(f, " at {}", s)?;
-                }
-                write!(
-                    f,
-                    " is retired (arc 109 slice K.telemetry); canonical form is '{}'. The :wat::telemetry::Service grouping noun retired per § K's '/ requires a real Type' doctrine — Service has no struct, no value, no kind. Verbs and typealiases live at the namespace level. Real types Stats and MetricsCadence keep their PascalCase + /methods because they ARE structs (just one less namespace segment deep). Rename '{}' → '{}' at the offending site.",
                     new, old, new
                 )
             }

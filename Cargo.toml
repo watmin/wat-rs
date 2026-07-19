@@ -8,14 +8,10 @@ members = [
     "crates/wat-edn",
     "crates/wat-to-edn-derive",
     "crates/wat-holon-lru",
-    "crates/wat-sqlite",
-    "crates/wat-telemetry",
-    "crates/wat-telemetry-sqlite",
     "crates/wat-cli",
     "examples/with-lru",
     "examples/with-loader",
     "examples/console-demo",
-    "examples/interrogate",
 ]
 # default-members makes `cargo test` / `cargo build` / `cargo check` cover
 # every workspace member, not just the root package. Without this an
@@ -33,14 +29,10 @@ default-members = [
     "crates/wat-edn",
     "crates/wat-to-edn-derive",
     "crates/wat-holon-lru",
-    "crates/wat-sqlite",
-    "crates/wat-telemetry",
-    "crates/wat-telemetry-sqlite",
     "crates/wat-cli",
     "examples/with-lru",
     "examples/with-loader",
     "examples/console-demo",
-    "examples/interrogate",
 ]
 
 # uuid — declared ONCE here; every crate that needs it writes `uuid.workspace = true`

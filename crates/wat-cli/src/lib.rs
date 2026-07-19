@@ -9,8 +9,7 @@
 //! // your_crate/src/main.rs
 //! fn main() -> std::process::ExitCode {
 //!     wat_cli::run(&[
-//!         (wat_telemetry::register, wat_telemetry::wat_sources),
-//!         (wat_sqlite::register, wat_sqlite::wat_sources),
+//!         (wat_lru::register, wat_lru::wat_sources),
 //!         (my_crate::register, my_crate::wat_sources),
 //!     ])
 //! }
@@ -217,8 +216,7 @@ fn prepend_file_field(edn: wat_edn::OwnedValue, file: &str) -> wat_edn::OwnedVal
 /// `&'static [WatSource]` baked into the crate.
 ///
 /// Every extension crate in this workspace already exposes both
-/// functions with these signatures (`wat-telemetry`,
-/// `wat-telemetry-sqlite`, `wat-sqlite`, `wat-lru`, `wat-holon-lru`).
+/// functions with these signatures (`wat-lru`, `wat-holon-lru`).
 /// Downstream extension crates following the same shape (per arc 013's
 /// `wat::main!` external-crate contract) drop in identically.
 pub type Battery = (
@@ -510,7 +508,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
 /// ```text
 /// fn main() -> std::process::ExitCode {
 ///     wat_cli::run(&[
-///         (wat_telemetry::register, wat_telemetry::wat_sources),
+///         (wat_lru::register, wat_lru::wat_sources),
 ///         (my_crate::register, my_crate::wat_sources),
 ///     ])
 /// }
