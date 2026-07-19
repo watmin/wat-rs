@@ -93,6 +93,7 @@ fn probe_6_non_keyword_key_accepted_with_inferred_k() {
     // Parse check: `{42 :v}` must parse cleanly (no MalformedBraceLiteral).
     // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, parse-Ok/Err
     // out); the subject is the reader's brace-form dispatch, not an evaluated value.
+    // rune:lint(no-inlined-edn) — input under test: literal fed to parse_one!; the subject is the reader's brace-form dispatch, not an evaluated value.
     let result = wat::parse_one!("{42 :v}");
     assert!(
         result.is_ok(),
@@ -136,14 +137,9 @@ fn probe_8_old_struct_pattern_now_errors() {
         "tests/collection/probe_brace_map_literal_p8.wat.bad",
     )
     .expect_err("arc 257.2: old bare-symbol brace-form must now be rejected");
-    let err = format!("{}\n---\n{:?}", err, err);
-    assert_eq!(
-        err,
-        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/MalformedForm {:message "malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :location #wat.core/Span {:file "tests/collection/probe_brace_map_literal_p8.wat.bad" :line 10 :col 6 :end #wat.core.Option/Some #wat.core/Pos {:line 10 :col 29}} :causes [] :head ":wat::core::let" :reason "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :remedies []}]}
----
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/MalformedForm {:message "malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :location #wat.core/Span {:file "tests/collection/probe_brace_map_literal_p8.wat.bad" :line 10 :col 6 :end #wat.core.Option/Some #wat.core/Pos {:line 10 :col 29}} :causes [] :head ":wat::core::let" :reason "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :remedies []}]}"##,
-        "probe_8: old struct-pattern form rejected golden"
-    );
+    let golden = include_str!("probe_brace_map_literal__old_struct_pattern.edn");
+    wat::assert_edn_eq!(format!("{err}"), golden, "probe_8: old struct-pattern form rejected golden (Display)");
+    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_8: old struct-pattern form rejected golden (Debug)");
 }
 
 // ─── Probe 9: Keyword in binding position ────────────────────────────────────
@@ -154,12 +150,7 @@ fn probe_9_keyword_in_binding_position_rejected() {
         "tests/collection/probe_brace_map_literal_p9.wat.bad",
     )
     .expect_err("keyword in binding position must be rejected");
-    let err = format!("{}\n---\n{:?}", err, err);
-    assert_eq!(
-        err,
-        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/MalformedForm {:message "malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :location #wat.core/Span {:file "tests/collection/probe_brace_map_literal_p9.wat.bad" :line 5 :col 6 :end #wat.core.Option/Some #wat.core/Pos {:line 5 :col 16}} :causes [] :head ":wat::core::let" :reason "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :remedies []}]}
----
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/MalformedForm {:message "malformed :wat::core::let form: let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :location #wat.core/Span {:file "tests/collection/probe_brace_map_literal_p9.wat.bad" :line 5 :col 6 :end #wat.core.Option/Some #wat.core/Pos {:line 5 :col 16}} :causes [] :head ":wat::core::let" :reason "let binder must be a bare symbol (single binding), a vector of symbols (tuple destructure), or a bare-symbol brace-form (struct destructure); got a map in binder position" :remedies []}]}"##,
-        "probe_9: keyword-in-binding-position rejected golden"
-    );
+    let golden = include_str!("probe_brace_map_literal__keyword_in_binding.edn");
+    wat::assert_edn_eq!(format!("{err}"), golden, "probe_9: keyword-in-binding-position rejected golden (Display)");
+    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_9: keyword-in-binding-position rejected golden (Debug)");
 }

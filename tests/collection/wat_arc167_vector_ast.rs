@@ -34,6 +34,7 @@ use wat::runtime::Value;
 fn vector_at_top_level_parses_as_vector() {
     // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, WatAST-shape
     // out); the subject is the reader's bracket-vs-list dispatch, not an evaluated value.
+    // rune:lint(no-inlined-edn) — input under test: literal fed to parse_one!; the subject is the reader's bracket-vs-list dispatch, not an evaluated value.
     let parsed = parse_one!("[1 2 3]").expect("parse");
     match parsed {
         WatAST::Vector(items, _) => {
@@ -67,6 +68,7 @@ fn vector_at_top_level_parses_as_vector() {
 fn empty_vector_parses() {
     // rune:lint(no-inlined-wat) — this probe IS the parser (raw literal in, WatAST-shape
     // out); the subject is the reader's bracket-vs-list dispatch, not an evaluated value.
+    // rune:lint(no-inlined-edn) — input under test: literal fed to parse_one!; the subject is the reader's empty-vector parse path, not an evaluated value.
     let parsed = parse_one!("[]").expect("parse");
     match parsed {
         WatAST::Vector(items, _) => {

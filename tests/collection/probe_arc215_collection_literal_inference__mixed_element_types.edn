@@ -1,0 +1,37 @@
+#wat.check/CheckErrors {
+  :message "2 type-check errors"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message "#{…} set literal: parameter element #2 expects :wat::core::i64; got :wat::core::keyword"
+      :location #wat.core/Span {
+        :file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad"
+        :line 4
+        :col 27
+        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}
+      }
+      :causes []
+      :callee "#{…} set literal"
+      :param "element #2"
+      :expected ":wat::core::i64"
+      :got ":wat::core::keyword"
+      :remedies []
+    }
+    #wat.check/TypeMismatch {
+      :message "#{…} set literal: parameter element #3 expects :wat::core::i64; got :wat::core::String"
+      :location #wat.core/Span {
+        :file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad"
+        :line 4
+        :col 32
+        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}
+      }
+      :causes []
+      :callee "#{…} set literal"
+      :param "element #3"
+      :expected ":wat::core::i64"
+      :got ":wat::core::String"
+      :remedies []
+    }
+  ]
+}

@@ -117,14 +117,9 @@ fn probe_8_mixed_type_vector_rejected_at_check() {
         "tests/collection/probe_arc215_stone2_p8.wat.bad",
     )
     .expect_err("expected startup failure for mixed-type vector");
-    let err = format!("{}\n---\n{:?}", err, err);
-    assert_eq!(
-        err,
-        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::vec: parameter #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p8.wat.bad" :line 4 :col 26 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee ":wat::core::vec" :param "#3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies [#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead"}]}]}
----
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::core::vec: parameter #3 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p8.wat.bad" :line 4 :col 26 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}} :causes [] :callee ":wat::core::vec" :param "#3" :expected ":wat::core::i64" :got ":wat::core::String" :remedies [#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead"}]}]}"##,
-        "probe_8: mixed-type vector TypeMismatch golden"
-    );
+    let golden = include_str!("probe_arc215_stone2__mixed_type_vector.edn");
+    wat::assert_edn_eq!(format!("{err}"), golden, "probe_8: mixed-type vector TypeMismatch golden (Display)");
+    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_8: mixed-type vector TypeMismatch golden (Debug)");
 }
 
 // ─── Probe 9: `(:wat::core::Vector :wat::core::i64 1 2 3)` explicit ──────────
@@ -185,12 +180,7 @@ fn probe_13_mixed_k_map_rejected_at_check() {
         "tests/collection/probe_arc215_stone2_p13.wat.bad",
     )
     .expect_err("expected startup failure for mixed-K map");
-    let err = format!("{}\n---\n{:?}", err, err);
-    assert_eq!(
-        err,
-        r##"#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "{…} map literal: parameter key #2 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p13.wat.bad" :line 4 :col 30 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "{…} map literal" :param "key #2" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}
----
-#wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message "{…} map literal: parameter key #2 expects :wat::core::i64; got :wat::core::String" :location #wat.core/Span {:file "tests/collection/probe_arc215_stone2_p13.wat.bad" :line 4 :col 30 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}} :causes [] :callee "{…} map literal" :param "key #2" :expected ":wat::core::i64" :got ":wat::core::String" :remedies []}]}"##,
-        "probe_13: mixed-K map TypeMismatch golden"
-    );
+    let golden = include_str!("probe_arc215_stone2__mixed_k_map.edn");
+    wat::assert_edn_eq!(format!("{err}"), golden, "probe_13: mixed-K map TypeMismatch golden (Display)");
+    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_13: mixed-K map TypeMismatch golden (Debug)");
 }

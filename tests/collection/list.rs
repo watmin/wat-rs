@@ -221,6 +221,7 @@ fn edn_roundtrip_list_parse_to_wat_core_list() {
     use wat_edn::parse;
     use wat::edn_shim::edn_to_value;
 
+    // rune:lint(no-inlined-edn) — input under test: EDN source string fed to wat_edn::parse; the subject is the reader's list-parse path, not an evaluated value.
     let edn_src = "(1 2 3)";
     let parsed = parse(edn_src).expect("wat-edn parse of (1 2 3) failed");
 
@@ -247,6 +248,7 @@ fn edn_roundtrip_vector_still_goes_to_vec() {
     use wat_edn::parse;
     use wat::edn_shim::edn_to_value;
 
+    // rune:lint(no-inlined-edn) — input under test: EDN source string fed to wat_edn::parse; the subject is the reader's vector-parse path, not an evaluated value.
     let edn_src = "[1 2 3]";
     let parsed = parse(edn_src).expect("wat-edn parse of [1 2 3] failed");
 

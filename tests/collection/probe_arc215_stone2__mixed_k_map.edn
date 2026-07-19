@@ -1,0 +1,22 @@
+#wat.check/CheckErrors {
+  :message "1 type-check error"
+  :location nil
+  :causes []
+  :errors [
+    #wat.check/TypeMismatch {
+      :message "{…} map literal: parameter key #2 expects :wat::core::i64; got :wat::core::String"
+      :location #wat.core/Span {
+        :file "tests/collection/probe_arc215_stone2_p13.wat.bad"
+        :line 4
+        :col 30
+        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}
+      }
+      :causes []
+      :callee "{…} map literal"
+      :param "key #2"
+      :expected ":wat::core::i64"
+      :got ":wat::core::String"
+      :remedies []
+    }
+  ]
+}

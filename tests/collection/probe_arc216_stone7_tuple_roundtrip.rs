@@ -225,14 +225,9 @@ fn probe_7_is_atomizable_tuple() {
         "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad",
     )
     .expect_err("expected startup failure for Tuple containing Fn");
-    let err = format!("{}\n---\n{:?}", err, err);
-    assert_eq!(
-        err,
-        r##"#wat.check/CheckErrors {:message "2 type-check errors" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T); got :(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::String)" :location #wat.core/Span {:file "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad" :line 7 :col 28 :end #wat.core.Option/Some #wat.core/Pos {:line 7 :col 29}} :causes [] :callee ":wat::holon::to-holon" :param "#1" :expected "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)" :got ":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::String)" :remedies []} #wat.check/ReturnTypeMismatch {:message ":user::compute: body produces :wat::holon::HolonAST; signature declares :()" :location #wat.core/Span {:file "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad" :line 4 :col 3 :end #wat.core.Option/Some #wat.core/Pos {:line 7 :col 31}} :causes [] :function ":user::compute" :expected ":()" :got ":wat::holon::HolonAST" :remedies []}]}
----
-#wat.check/CheckErrors {:message "2 type-check errors" :location nil :causes [] :errors [#wat.check/TypeMismatch {:message ":wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T); got :(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::String)" :location #wat.core/Span {:file "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad" :line 7 :col 28 :end #wat.core.Option/Some #wat.core/Pos {:line 7 :col 29}} :causes [] :callee ":wat::holon::to-holon" :param "#1" :expected "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)" :got ":(wat::core::Fn(wat::core::i64)->wat::core::i64,wat::core::String)" :remedies []} #wat.check/ReturnTypeMismatch {:message ":user::compute: body produces :wat::holon::HolonAST; signature declares :()" :location #wat.core/Span {:file "tests/collection/probe_arc216_stone7_tuple_roundtrip_p7.wat.bad" :line 4 :col 3 :end #wat.core.Option/Some #wat.core/Pos {:line 7 :col 31}} :causes [] :function ":user::compute" :expected ":()" :got ":wat::holon::HolonAST" :remedies []}]}"##,
-        "probe_7: Tuple-with-Fn non-atomizable check-error golden"
-    );
+    let golden = include_str!("probe_arc216_stone7_tuple_roundtrip__tuple_with_fn.edn");
+    wat::assert_edn_eq!(format!("{err}"), golden, "probe_7: Tuple-with-Fn non-atomizable check-error golden (Display)");
+    wat::assert_edn_eq!(format!("{err:?}"), golden, "probe_7: Tuple-with-Fn non-atomizable check-error golden (Debug)");
 }
 
 // ─── Probe 8 — HolonAST shape verification: keys are 0..n-1 ─────────────────

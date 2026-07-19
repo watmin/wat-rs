@@ -30,7 +30,7 @@ fn holon_tag_makes_heterogeneous_edn_measure() {
     let world = startup_from_file(DEMO_FIXTURE);
     assert!(
         world.is_ok(),
-        "#holon should make a heterogeneous EDN literal type as a Hologram and measure; got: {:?}",
+        "The #holon tag should make a heterogeneous EDN literal type as a Hologram and measure; got: {:?}",
         world.err()
     );
 }
