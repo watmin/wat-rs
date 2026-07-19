@@ -156,7 +156,32 @@ fn hoist_top_level_form(
                     // the `do` head; the all-defmacro case (items == [do])
                     // splices nothing — the same elision the empty-do check gave
                     // before.
-                    Ok(items.into_iter().skip(1).collect())
+                    //
+                    // Arc 278 — a macro that GENERATES a service emits `(do
+                    // (defsurface ... :messages [...]) (defservice :satisfies
+                    // ...))`. A surviving child here may itself be a
+                    // defsurface; splicing it up RAW (as any other child)
+                    // leaves its `:messages` recordtype/defenum decls nested,
+                    // never hoisted to top level -- the exact gap
+                    // `hoist_surface_messages` exists to close for a DIRECT
+                    // top-level defsurface (see `expand_all_with` above).
+                    // Route each surviving child through the SAME dispatch
+                    // `expand_all_with` uses: a defsurface child goes through
+                    // `hoist_surface_messages` (its hoisted decls precede it,
+                    // the surface form itself unchanged); every other child
+                    // splices up raw, identical to before.
+                    let mut spliced = Vec::with_capacity(items.len());
+                    for child in items.into_iter().skip(1) {
+                        if is_defsurface_form(&child) {
+                            let (hoisted, surface_form) =
+                                hoist_surface_messages(child, registry, privilege)?;
+                            spliced.extend(hoisted);
+                            spliced.push(surface_form);
+                        } else {
+                            spliced.push(child);
+                        }
+                    }
+                    Ok(spliced)
                 } else {
                     // `let` — keep the form wrapped. Its now-unwrapped, defmacro-
                     // free body (e.g. a bare `structtype` sibling flattened up
