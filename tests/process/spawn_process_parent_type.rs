@@ -118,14 +118,14 @@ fn probe_spawn_process_inherits_parent_struct() {
 
 /// Same shape: parent declares `:test::proto::Color` (unit-variant enum).
 /// The fn body calls `edn::read` on a string with a unit-variant EDN form
-/// `#test.proto.Color/Red nil`. The type `:test::proto::Color` is NOT
+/// `#test.proto.Color/Red []`. The type `:test::proto::Color` is NOT
 /// referenced in the fn body AST.
 ///
 /// EDN format for enum unit variants (from `value_to_edn_with`'s Enum arm):
 ///   type_path = `:test::proto::Color`, variant = `Red`
 ///   → tag_name = `:test::proto::Color::Red`
 ///   → rfind `::` → ns = `test.proto.Color`, name = `Red`
-///   → `#test.proto.Color/Red nil`
+///   → `#test.proto.Color/Red []`
 /// On read: `reconstruct_enum_unit("test.proto.Color", "Red", types)`
 ///   → `ns_to_enum_path("test.proto.Color")` = `:test::proto::Color`
 ///   → `types.get(":test::proto::Color")` → must be present in child TypeEnv.

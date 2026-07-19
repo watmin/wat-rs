@@ -9,7 +9,7 @@
         :file "tests/channel/wat_arc170_stone_b_walker_collapse_process_violation.wat"
         :line 4
         :col 199
-        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 232}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 232}]
       }
       :causes []
       :callee ":wat::kernel::Process/join-result"

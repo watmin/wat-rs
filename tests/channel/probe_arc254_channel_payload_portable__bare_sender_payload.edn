@@ -9,7 +9,7 @@
         :file "tests/channel/probe_arc254_channel_payload_portable_senders.wat.bad"
         :line 2
         :col 57
-        :end #wat.core.Option/Some #wat.core/Pos {:line 2 :col 94}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 2 :col 94}]
       }
       :causes []
       :head ":wat::kernel::make-channel"

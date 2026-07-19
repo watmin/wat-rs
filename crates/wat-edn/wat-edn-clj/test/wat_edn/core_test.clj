@@ -31,7 +31,7 @@
     (is (not (some #(= "TradeSignal/show" (str %)) tags)))))
 
 (deftest type-fields-returns-schema
-  (is (= {:asset "Keyword" :factor "f64" :reason "String"}
+  (is (= {:asset "Keyword" :factor "wat::core::f64" :reason "wat::core::String"}
          (wat/type-fields 'enterprise.config/SizeAdjust))))
 
 ;; ─── Generators ────────────────────────────────────────────────
@@ -105,11 +105,12 @@
   (is (= {"a" 1} (wat/read-str "#wat.core/HashMap<String_i64> {\"a\" 1}"))))
 
 (deftest default-reader-handles-sums
-  (is (wat/some-variant? (wat/read-str "#wat.core/Some<i64> 42")))
-  (is (= 42 (wat/unwrap-some (wat/read-str "#wat.core/Some<i64> 42"))))
-  (is (wat/none-variant? (wat/read-str "#wat.core/None<i64> nil"))))
+  ;; Arc 278 A.0 — canonical vector-bodied variant form.
+  (is (wat/some-variant? (wat/read-str "#wat.core.Option/Some [42]")))
+  (is (= 42 (wat/unwrap-some (wat/read-str "#wat.core.Option/Some [42]"))))
+  (is (wat/none-variant? (wat/read-str "#wat.core.Option/None []"))))
 
 (deftest variant-writers-emit-wat-tags
-  (is (= "#wat.core/Some 42" (wat/write-str (wat/some-of 42))))
-  (is (= "#wat.core/None nil" (wat/write-str (wat/none-of))))
-  (is (= "#wat.core/Ok 7" (wat/write-str (wat/ok-of 7)))))
+  (is (= "#wat.core.Option/Some [42]" (wat/write-str (wat/some-of 42))))
+  (is (= "#wat.core.Option/None []" (wat/write-str (wat/none-of))))
+  (is (= "#wat.core.Result/Ok [7]" (wat/write-str (wat/ok-of 7)))))

@@ -91,10 +91,11 @@
 
     ;; Variants are vectors with `:type ::variant` metadata; check
     ;; them BEFORE the generic vector branch.
-    (wat/some-variant? v) {"#tag" "wat.core/Some" "body" (edn->json (second v))}
-    (wat/none-variant? v) {"#tag" "wat.core/None" "body" nil}
-    (wat/ok-variant? v)   {"#tag" "wat.core/Ok"   "body" (edn->json (second v))}
-    (wat/err-variant? v)  {"#tag" "wat.core/Err"  "body" (edn->json (second v))}
+    ;; Arc 278 A.0 — canonical variant tags (#wat.core.Option/… #wat.core.Result/…).
+    (wat/some-variant? v) {"#tag" "wat.core.Option/Some" "body" (edn->json (second v))}
+    (wat/none-variant? v) {"#tag" "wat.core.Option/None" "body" nil}
+    (wat/ok-variant? v)   {"#tag" "wat.core.Result/Ok"   "body" (edn->json (second v))}
+    (wat/err-variant? v)  {"#tag" "wat.core.Result/Err"  "body" (edn->json (second v))}
 
     (tagged-literal? v)
     {"#tag" (str (:tag v))
@@ -220,10 +221,10 @@
       (let [tag-s (get v "#tag")
             body  (json->edn (get v "body"))]
         (cond
-          (= "wat.core/Some" tag-s) (wat/some-of body)
-          (= "wat.core/None" tag-s) (wat/none-of)
-          (= "wat.core/Ok"   tag-s) (wat/ok-of body)
-          (= "wat.core/Err"  tag-s) (wat/err-of body)
+          (= "wat.core.Option/Some" tag-s) (wat/some-of body)
+          (= "wat.core.Option/None" tag-s) (wat/none-of)
+          (= "wat.core.Result/Ok"   tag-s) (wat/ok-of body)
+          (= "wat.core.Result/Err"  tag-s) (wat/err-of body)
           :else (tagged-literal (symbol tag-s) body)))
 
       ;; Plain map: parse non-string-looking keys as EDN

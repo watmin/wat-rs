@@ -54,18 +54,19 @@
   (and (tagged-literal? v)
        (= (:tag v) (symbol ns name))))
 
+;; Arc 278 A.0 — canonical vector-bodied variant form.
 (assert-shape :tagged-some-i64
-              #(and (tagged? % "wat.core" "Some") (= (:form %) 42))
+              #(and (tagged? % "wat.core.Option" "Some") (= (:form %) [42]))
               "Some<i64>=42 as tagged-literal")
 (assert-shape :tagged-none
-              #(and (tagged? % "wat.core" "None") (nil? (:form %)))
-              "None as tagged-literal with nil body")
+              #(and (tagged? % "wat.core.Option" "None") (= (:form %) []))
+              "None as tagged-literal with empty-vector body")
 (assert-shape :tagged-ok-string
-              #(and (tagged? % "wat.core" "Ok") (= (:form %) "fine"))
+              #(and (tagged? % "wat.core.Result" "Ok") (= (:form %) ["fine"]))
               "Ok<String>=\"fine\"")
 (assert-shape :tagged-err-map
-              #(and (tagged? % "wat.core" "Err")
-                    (= (:form %) {:code 500 :msg "boom"}))
+              #(and (tagged? % "wat.core.Result" "Err")
+                    (= (:form %) [{:code 500 :msg "boom"}]))
               "Err<Map>=error envelope")
 (assert-shape :tagged-duration
               #(and (tagged? % "wat.time" "Duration") (= (:form %) "PT5M"))
@@ -74,27 +75,28 @@
 (println)
 (println "─── Nested complex (the user's example + variants) ───")
 (assert-shape :nested-some-set-of-maps
-              #(and (tagged? % "wat.core" "Some")
-                    (= (:form %) #{{:foo "baz"}}))
+              #(and (tagged? % "wat.core.Option" "Some")
+                    (= (:form %) [#{{:foo "baz"}}]))
               "Some<Set<Map>>")
 (assert-shape :nested-ok-vec-of-maps
-              #(and (tagged? % "wat.core" "Ok")
-                    (= (:form %) [{:a 1} {:b 2}]))
+              #(and (tagged? % "wat.core.Result" "Ok")
+                    (= (:form %) [[{:a 1} {:b 2}]]))
               "Ok<Vec<Map>>")
 (assert-shape :nested-some-some-i64
               (fn [v]
-                (and (tagged? v "wat.core" "Some")
-                     (let [inner (:form v)]
-                       (and (tagged? inner "wat.core" "Some")
-                            (= (:form inner) 42)))))
+                (and (tagged? v "wat.core.Option" "Some")
+                     ;; body is a one-field vector holding the inner Some.
+                     (let [inner (first (:form v))]
+                       (and (tagged? inner "wat.core.Option" "Some")
+                            (= (:form inner) [42])))))
               "Some<Some<i64>>")
 (assert-shape :vec-of-options
               (fn [v]
                 (and (vector? v)
                      (= 3 (count v))
-                     (tagged? (nth v 0) "wat.core" "Some")
-                     (tagged? (nth v 1) "wat.core" "None")
-                     (tagged? (nth v 2) "wat.core" "Some")))
+                     (tagged? (nth v 0) "wat.core.Option" "Some")
+                     (tagged? (nth v 1) "wat.core.Option" "None")
+                     (tagged? (nth v 2) "wat.core.Option" "Some")))
               "Vec<Some, None, Some>")
 
 (println)

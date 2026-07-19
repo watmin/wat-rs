@@ -36,17 +36,21 @@
           (starts-with? s "wat.scalar/"))
       body
 
-      (starts-with? s "wat.core/Some")
-      (with-meta [::some body] {:type ::variant})
+      ;; Arc 278 A.0 — the canonical (and only) variant form is
+      ;; #wat.core.Option/{Some,None} and #wat.core.Result/{Ok,Err}, each
+      ;; VECTOR-bodied: Some [v] / None [] / Ok [v] / Err [e]. Unwrap the
+      ;; single field off the body vector.
+      (starts-with? s "wat.core.Option/Some")
+      (with-meta [::some (first body)] {:type ::variant})
 
-      (starts-with? s "wat.core/None")
+      (starts-with? s "wat.core.Option/None")
       (with-meta [::none] {:type ::variant})
 
-      (starts-with? s "wat.core/Ok")
-      (with-meta [::ok body] {:type ::variant})
+      (starts-with? s "wat.core.Result/Ok")
+      (with-meta [::ok (first body)] {:type ::variant})
 
-      (starts-with? s "wat.core/Err")
-      (with-meta [::err body] {:type ::variant})
+      (starts-with? s "wat.core.Result/Err")
+      (with-meta [::err (first body)] {:type ::variant})
 
       :else (tagged-literal tag body))))
 
@@ -98,13 +102,18 @@
   "True if `value` plausibly matches `type-spec` (a wat type
   string like \"Keyword\", \"i64\", \"Vec<...>\", etc.)."
   [type-spec value]
+  ;; Arc 163 — user-source bare primitive sweep FQDN-ified the .wat
+  ;; sources (e.g. `:wat::core::f64`). load-types! stores specs
+  ;; verbatim, so match both the short and the FQDN spellings the
+  ;; sources may declare (the fixture is mixed: `Keyword` stays short
+  ;; while others are FQDN).
   (case type-spec
-    "Keyword"  (keyword? value)
-    "String"   (string? value)
-    "i64"      (integer? value)
-    "f64"      (or (float? value) (decimal? value) (integer? value))
-    "bool"     (boolean? value)
-    "Bytes"    (bytes? value)
+    ("Keyword" "wat::core::keyword")               (keyword? value)
+    ("String"  "wat::core::String")                (string? value)
+    ("i64"     "wat::core::i64")                    (integer? value)
+    ("f64"     "wat::core::f64")                    (or (float? value) (decimal? value) (integer? value))
+    ("bool"    "wat::core::bool")                   (boolean? value)
+    ("Bytes"   "wat::core::Bytes")                  (bytes? value)
     ;; Generic / unknown — accept anything for v0.1.
     true))
 
@@ -212,19 +221,23 @@
 
 (defmethod print-method ::variant
   [v ^java.io.Writer w]
+  ;; Arc 278 A.0 — canonical vector-bodied variant form.
   (let [kind (first v)]
     (case kind
-      ::some (do (.write w "#wat.core/Some ")
-                 (print-method (second v) w))
-      ::none (.write w "#wat.core/None nil")
-      ::ok   (do (.write w "#wat.core/Ok ")
-                 (print-method (second v) w))
-      ::err  (do (.write w "#wat.core/Err ")
-                 (print-method (second v) w)))))
+      ::some (do (.write w "#wat.core.Option/Some [")
+                 (print-method (second v) w)
+                 (.write w "]"))
+      ::none (.write w "#wat.core.Option/None []")
+      ::ok   (do (.write w "#wat.core.Result/Ok [")
+                 (print-method (second v) w)
+                 (.write w "]"))
+      ::err  (do (.write w "#wat.core.Result/Err [")
+                 (print-method (second v) w)
+                 (.write w "]")))))
 
 (defn write-str
   "Serialize a Clojure value as EDN. Variant helpers
-  (some-of/none-of/ok-of/err-of) emit as wat.core/Some etc.
+  (some-of/none-of/ok-of/err-of) emit as wat.core.Option/Some etc.
   Tagged-literals built via `gen` round-trip."
   [v]
   (binding [*print-dup* false]

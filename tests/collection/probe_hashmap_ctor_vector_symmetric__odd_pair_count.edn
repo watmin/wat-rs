@@ -9,7 +9,7 @@
         :file "tests/collection/probe_hashmap_ctor_vector_symmetric_p7.wat.bad"
         :line 5
         :col 9
-        :end #wat.core.Option/Some #wat.core/Pos {:line 5 :col 28}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 5 :col 28}]
       }
       :causes []
       :head ":wat::core::HashMap"

@@ -1,7 +1,7 @@
 #wat.runtime/AssertionFailed {
   :message "values differ"
-  :actual #wat.core.Option/Some "42"
-  :expected #wat.core.Option/Some "99"
+  :actual #wat.core.Option/Some ["42"]
+  :expected #wat.core.Option/Some ["99"]
   :span {
     :file "test.wat"
     :line 1

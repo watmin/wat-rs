@@ -9,7 +9,7 @@
         :file "tests/collection/probe_arc215_stone2_p8.wat.bad"
         :line 4
         :col 26
-        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 31}]
       }
       :causes []
       :callee ":wat::core::vec"

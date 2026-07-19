@@ -3,8 +3,8 @@
 ;; Protocol: each stdin line is an EDN string whose TEXT is a wat expression's source, e.g.
 ;;   "(:wat::core::+ 1 2)"
 ;; Response (one EDN value per line on stdout):
-;;   #wat.core.Result/Ok <value>                   — the expression evaluated
-;;   #wat.core.Result/Err #wat.core/EvalError {…}  — it did not (a typed error, as data)
+;;   #wat.core.Result/Ok [<value>]                   — the expression evaluated
+;;   #wat.core.Result/Err [#wat.core/EvalError {…}]  — it did not (a typed error, as data)
 ;;
 ;; The loop is TCO-proper self-invocation — NO `loop`, NO `recur` (TVA RECVRSIO, TVVS REDITVS):
 ;; block on readln, compute one reply, println it, invoke yourself to listen again.

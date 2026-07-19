@@ -8,10 +8,11 @@
 //! - `Value::Result(Err("e"))` → `#wat-edn.result/err "e"` (codec-internal tag, lowercase)
 //!
 //! GREEN after 298.1: both discriminated types use `#wat.core.<Type>/<Variant>`.
-//! - None → `#wat.core.Option/None nil`
-//! - Some(v) → `#wat.core.Option/Some v`
-//! - Ok(v) → `#wat.core.Result/Ok v`
-//! - Err(e) → `#wat.core.Result/Err e`
+//! Arc 278 Stone A.0 refinement — every variant is VECTOR-bodied (uniform):
+//! - None → `#wat.core.Option/None []`
+//! - Some(v) → `#wat.core.Option/Some [v]`
+//! - Ok(v) → `#wat.core.Result/Ok [v]`
+//! - Err(e) → `#wat.core.Result/Err [e]`
 //!
 //! Round-trip: `edn_to_value(parse(write(v))) == v` for all four.
 

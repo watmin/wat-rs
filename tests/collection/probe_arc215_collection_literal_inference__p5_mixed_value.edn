@@ -9,7 +9,7 @@
         :file "tests/collection/probe_arc215_collection_literal_inference_p5.wat.bad"
         :line 4
         :col 32
-        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 37}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 37}]
       }
       :causes []
       :callee "{…} map literal"

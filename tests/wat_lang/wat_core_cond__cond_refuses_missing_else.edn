@@ -4,10 +4,10 @@
     :file "wat/core.wat"
     :line 1223
     :col 15
-    :end #wat.core.Option/Some #wat.core/Pos {
+    :end #wat.core.Option/Some [#wat.core/Pos {
       :line 1223
       :col 62
-    }
+    }]
   }
   :causes []
   :macro-name ":wat::core::cond"
@@ -17,10 +17,10 @@
       :file "wat/core.wat"
       :line 1213
       :col 5
-      :end #wat.core.Option/Some #wat.core/Pos {
+      :end #wat.core.Option/Some [#wat.core/Pos {
         :line 1213
         :col 82
-      }
+      }]
     }
     :causes []
     :reason "cond: non-exhaustive — needs a terminal :else arm"

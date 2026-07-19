@@ -6,5 +6,5 @@
   :start-time-ns 100
   :name :requests
   :value #wat.telemetry'.Numeric/I64 [7]
-  :unit #wat.telemetry'.Unit/Count nil
+  :unit #wat.telemetry'.Unit/Count []
 }

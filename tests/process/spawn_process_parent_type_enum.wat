@@ -16,7 +16,7 @@
         :Blue)
       (:wat::core::defn :user::main [] -> :wat::core::nil
         (:wat::core::let
-          [s "#test.proto.Color/Red nil"
+          [s "#test.proto.Color/Red []"
            _ (:wat::edn::read s)]
           nil)))))
 

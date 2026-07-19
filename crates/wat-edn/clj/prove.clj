@@ -35,15 +35,15 @@
 
   ;; and the tools handle Option/Result end to end ────────────────────────────
   (println "\nOption/Result tools:")
-  (println "  Some round-trip :" (w/read-wat "#wat.core.Option/Some 42")
-                                  "→ some?" (w/some? (w/read-wat "#wat.core.Option/Some 42"))
-                                  "unwrap" (w/unwrap (w/read-wat "#wat.core.Option/Some 42")))
-  (println "  None            :" (w/read-wat "#wat.core.Option/None nil")
-                                  "→ none?" (w/none? (w/read-wat "#wat.core.Option/None nil")))
-  (println "  Ok              :" (w/read-wat "#wat.core.Result/Ok 7")
-                                  "→ ok?" (w/ok? (w/read-wat "#wat.core.Result/Ok 7")))
-  (println "  Err             :" (w/read-wat "#wat.core.Result/Err \"boom\"")
-                                  "→ err?" (w/err? (w/read-wat "#wat.core.Result/Err \"boom\"")))
+  (println "  Some round-trip :" (w/read-wat "#wat.core.Option/Some [42]")
+                                  "→ some?" (w/some? (w/read-wat "#wat.core.Option/Some [42]"))
+                                  "unwrap" (w/unwrap (w/read-wat "#wat.core.Option/Some [42]")))
+  (println "  None            :" (w/read-wat "#wat.core.Option/None []")
+                                  "→ none?" (w/none? (w/read-wat "#wat.core.Option/None []")))
+  (println "  Ok              :" (w/read-wat "#wat.core.Result/Ok [7]")
+                                  "→ ok?" (w/ok? (w/read-wat "#wat.core.Result/Ok [7]")))
+  (println "  Err             :" (w/read-wat "#wat.core.Result/Err [\"boom\"]")
+                                  "→ err?" (w/err? (w/read-wat "#wat.core.Result/Err [\"boom\"]")))
 
   (println (str "\nPROVED: " (count files)
                 " wat EDN faces read by canonical Clojure; Option/Result/Span/Pos"

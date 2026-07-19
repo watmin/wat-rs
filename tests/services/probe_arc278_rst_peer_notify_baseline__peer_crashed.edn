@@ -4,7 +4,7 @@
     :file "wat/service.wat"
     :line 930
     :col 54
-    :end #wat.core.Option/Some #wat.core/Pos {:line 930 :col 77}
+    :end #wat.core.Option/Some [#wat.core/Pos {:line 930 :col 77}]
   }
   :causes []
   :head ":wat::kernel::recv'"

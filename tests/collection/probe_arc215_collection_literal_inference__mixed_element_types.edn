@@ -9,7 +9,7 @@
         :file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad"
         :line 4
         :col 27
-        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 31}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 31}]
       }
       :causes []
       :callee "#{…} set literal"
@@ -24,7 +24,7 @@
         :file "tests/collection/probe_arc215_collection_literal_inference_p11.wat.bad"
         :line 4
         :col 32
-        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 35}]
       }
       :causes []
       :callee "#{…} set literal"

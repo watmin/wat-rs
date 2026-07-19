@@ -152,7 +152,7 @@ fn key_rename_span_known_emits_renamed_key() {
     // Stone B: span fields now emit #wat.core/Span tagged records, not bare maps.
     assert_eq!(
         edn,
-        r#"#wat.kernel/WithCallSpan {:call-span #wat.core/Span {:file "f.wat" :line 3 :col 5 :end #wat.core.Option/None nil} :name "foo"}"#,
+        r#"#wat.kernel/WithCallSpan {:call-span #wat.core/Span {:file "f.wat" :line 3 :col 5 :end #wat.core.Option/None []} :name "foo"}"#,
     );
 }
 
@@ -186,7 +186,7 @@ fn struct_derive_emits_namespaced_tagged_record_with_optional_nested() {
     };
     assert_eq!(
         wat_edn::write(&some.to_edn()),
-        r#"#wat.core/SpanProbe296 {:file "f.wat" :line 3 :col 8 :end #wat.core.Option/Some #wat.core/PosProbe296 {:line 3 :col 12}}"#,
+        r#"#wat.core/SpanProbe296 {:file "f.wat" :line 3 :col 8 :end #wat.core.Option/Some [#wat.core/PosProbe296 {:line 3 :col 12}]}"#,
     );
     // None(end): a point — absence spoken as #wat.core.Option/None, no end==start sentinel.
     let none = SpanProbe296 {
@@ -197,7 +197,7 @@ fn struct_derive_emits_namespaced_tagged_record_with_optional_nested() {
     };
     assert_eq!(
         wat_edn::write(&none.to_edn()),
-        r#"#wat.core/SpanProbe296 {:file "g.wat" :line 1 :col 0 :end #wat.core.Option/None nil}"#,
+        r#"#wat.core/SpanProbe296 {:file "g.wat" :line 1 :col 0 :end #wat.core.Option/None []}"#,
     );
 }
 
@@ -307,7 +307,7 @@ fn secondary_span_both_known_key_override_applied() {
     // Stone B: span fields now emit #wat.core/Span tagged records, not bare maps.
     assert_eq!(
         edn,
-        r#"#wat.kernel/Def {:span #wat.core/Span {:file "a.wat" :line 1 :col 1 :end #wat.core.Option/None nil} :outer-span #wat.core/Span {:file "b.wat" :line 2 :col 3 :end #wat.core.Option/None nil} :name "def"}"#,
+        r#"#wat.kernel/Def {:span #wat.core/Span {:file "a.wat" :line 1 :col 1 :end #wat.core.Option/None []} :outer-span #wat.core/Span {:file "b.wat" :line 2 :col 3 :end #wat.core.Option/None []} :name "def"}"#,
     );
 }
 

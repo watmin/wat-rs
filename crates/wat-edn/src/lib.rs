@@ -192,21 +192,23 @@ impl<T: ToEdn> ToEdn for Vec<T> {
 }
 
 impl<T: ToEdn> ToEdn for Option<T> {
-    /// `None` → `#wat.core.Option/None nil`.
-    /// `Some(v)` → `#wat.core.Option/Some <v.to_edn()>`.
+    /// Arc 278 Stone A.0 — uniform VECTOR-bodied variant encoding, in lockstep
+    /// with `edn_shim`'s Option encoder/decoder:
+    /// `None` → `#wat.core.Option/None []` (empty field-vector).
+    /// `Some(v)` → `#wat.core.Option/Some [<v.to_edn()>]` (one-field vector).
     ///
-    /// A transparent `nil`/`<inner>` form erases the discriminant — bare nil
-    /// is `:wat::core::nil` (a nil value), NOT `None` (an absent option).
+    /// `nil` is the unit value ONLY — a variant's body is always its field-vector,
+    /// so `Some(nil)` → `[nil]` (arity visible) never collides with `None` → `[]`.
     #[inline]
     fn to_edn(&self) -> OwnedValue {
         match self {
             None => OwnedValue::Tagged(
                 value::Tag::ns("wat.core.Option", "None"),
-                Box::new(OwnedValue::Nil),
+                Box::new(OwnedValue::Vector(vec![])),
             ),
             Some(v) => OwnedValue::Tagged(
                 value::Tag::ns("wat.core.Option", "Some"),
-                Box::new(v.to_edn()),
+                Box::new(OwnedValue::Vector(vec![v.to_edn()])),
             ),
         }
     }

@@ -7,7 +7,7 @@
 ;; (arc 085's SymbolTable.types capability). Tag dispatch:
 ;;   - `#ns/Name {map}` → Struct lookup at `:ns::Name`
 ;;   - `#ns/Variant [body]` → Enum tagged variant
-;;   - `#ns/Variant nil` → Enum unit variant
+;;   - `#ns/Variant []` → Enum unit variant (arc 278 A.0; `nil` = the unit value only)
 
 (:wat::test::make-deftest :deftest
   (;; Test enum + struct used across the deftests below.

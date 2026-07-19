@@ -22,7 +22,8 @@
   (:require [clojure.edn :as edn]))
 
 ;; ─── Option — the tool Clojure needs to handle wat's Option ─────────────────
-;; wat: #wat.core.Option/Some <v> | #wat.core.Option/None nil
+;; wat (arc 278 A.0): #wat.core.Option/Some [v] | #wat.core.Option/None []
+;; Every variant is vector-bodied; `nil` is the unit value only.
 (defrecord Some [value])
 (defrecord None [])
 (def none (->None))
@@ -36,7 +37,7 @@
   ([x default] (if (some? x) (:value x) default)))
 
 ;; ─── Result — the tool Clojure needs to handle wat's Result ─────────────────
-;; wat: #wat.core.Result/Ok <v> | #wat.core.Result/Err <e>
+;; wat (arc 278 A.0): #wat.core.Result/Ok [v] | #wat.core.Result/Err [e]
 (defrecord Ok  [value])
 (defrecord Err [error])
 (defn ok  "construct Ok"  [v] (->Ok v))
@@ -65,12 +66,13 @@
 (def readers
   "Named readers for the closed value vocabulary. Pass to clojure.edn/read-string
   as `:readers`. The open error vocabulary is caught by `default-reader` below."
+  ;; Arc 278 A.0 — variant bodies are field-vectors; unwrap the single field.
   {'wat.core/Span         map->Span
    'wat.core/Pos          map->Pos
-   'wat.core.Option/Some  ->Some
+   'wat.core.Option/Some  (fn [body] (->Some (first body)))
    'wat.core.Option/None  (fn [_] none)
-   'wat.core.Result/Ok    ->Ok
-   'wat.core.Result/Err   ->Err})
+   'wat.core.Result/Ok    (fn [body] (->Ok (first body)))
+   'wat.core.Result/Err   (fn [body] (->Err (first body)))})
 
 (defn default-reader
   "Any #wat.ns/Type not in `readers`. Map-shaped (the error/diagnostic vocabulary)

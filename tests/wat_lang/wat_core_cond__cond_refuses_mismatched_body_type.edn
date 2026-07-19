@@ -9,10 +9,10 @@
         :file "tests/wat_lang/wat_core_cond_body_mismatch.wat.bad"
         :line 7
         :col 12
-        :end #wat.core.Option/Some #wat.core/Pos {
+        :end #wat.core.Option/Some [#wat.core/Pos {
           :line 7
           :col 21
-        }
+        }]
       }
       :causes []
       :callee ":wat::core::if"

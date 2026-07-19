@@ -9,7 +9,7 @@
         :file "tests/collection/probe_arc215_stone2_p13.wat.bad"
         :line 4
         :col 30
-        :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 35}
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 35}]
       }
       :causes []
       :callee "{…} map literal"

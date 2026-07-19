@@ -21,27 +21,29 @@
        :builtin-inst            #inst "2026-05-21T00:00:00.000-00:00"
        :builtin-uuid            #uuid "550e8400-e29b-41d4-a716-446655440000"
 
-       :tagged-some-i64    (tagged-literal 'wat.core/Some 42)
-       :tagged-none        (tagged-literal 'wat.core/None nil)
-       :tagged-ok-string   (tagged-literal 'wat.core/Ok "fine")
-       :tagged-err-map     (tagged-literal 'wat.core/Err
-                                            {:code 500 :msg "boom"})
+       ;; Arc 278 A.0 — canonical vector-bodied variant form:
+       ;; #wat.core.Option/{Some,None} and #wat.core.Result/{Ok,Err}.
+       :tagged-some-i64    (tagged-literal 'wat.core.Option/Some [42])
+       :tagged-none        (tagged-literal 'wat.core.Option/None [])
+       :tagged-ok-string   (tagged-literal 'wat.core.Result/Ok ["fine"])
+       :tagged-err-map     (tagged-literal 'wat.core.Result/Err
+                                            [{:code 500 :msg "boom"}])
        :tagged-duration    (tagged-literal 'wat.time/Duration "PT5M")
 
        :nested-some-set-of-maps
-       (tagged-literal 'wat.core/Some #{{:foo "baz"}})
+       (tagged-literal 'wat.core.Option/Some [#{{:foo "baz"}}])
 
        :nested-ok-vec-of-maps
-       (tagged-literal 'wat.core/Ok [{:a 1} {:b 2}])
+       (tagged-literal 'wat.core.Result/Ok [[{:a 1} {:b 2}]])
 
        :nested-some-some-i64
-       (tagged-literal 'wat.core/Some
-                       (tagged-literal 'wat.core/Some 42))
+       (tagged-literal 'wat.core.Option/Some
+                       [(tagged-literal 'wat.core.Option/Some [42])])
 
        :vec-of-options
-       [(tagged-literal 'wat.core/Some 1)
-        (tagged-literal 'wat.core/None nil)
-        (tagged-literal 'wat.core/Some 2)]
+       [(tagged-literal 'wat.core.Option/Some [1])
+        (tagged-literal 'wat.core.Option/None [])
+        (tagged-literal 'wat.core.Option/Some [2])]
 
        :map-with-tagged-keys
        {(tagged-literal 'wat.holon/Atom :role)

@@ -6,7 +6,7 @@
 ;;   (:probe::echo'::Handle/handle eh)  is a spawn-derived Process' peer → peer-pid → (Some pid).
 ;; This is the pid path a SERVICE-prober M1 needs (dogfooding service+bracket only).
 ;;
-;; EXPECT (green): "service pid via Handle/handle:" then "#wat.core.Option/Some <pid>".
+;; EXPECT (green): "service pid via Handle/handle:" then "#wat.core.Option/Some [<pid>]".
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
