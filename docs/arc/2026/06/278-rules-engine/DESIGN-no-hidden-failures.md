@@ -57,53 +57,59 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
-## ═══ SESSION-END CURARE (far-side state — the campaign FLOOR done; the SIFT TIER is the live target) ═══
+## ═══ SESSION-END CURARE (far-side state — the SIFT PREDICATE delivery DESIGNED; the strike is next) ═══
 
-**READ THIS BLOCK FIRST, then `git status`. HEAD = `f11e64db` (Stone C3 — the dynamic-EDN-decode campaign FLOOR
-complete) — or a later commit; a mismatch is the ALARM → trust the disk.** The no-hidden-failures LAW is DONE
-(below, unchanged). The campaign's ENABLING stones (`DESIGN-dynamic-edn-decode-and-opaque-sink.md` — the STATUS
-block at its top is current) are ALL landed — **but the arc's TARGET, the chaos engine, is NOT: it is the sift
-tier, still ahead. C was the floor, not the finish (done-is-done: the arc closes when its target ships, not before).**
+**READ THIS BLOCK, then `git status`. HEAD = `17437ffb` or a later commit; a mismatch is the ALARM → trust the disk.**
+The no-hidden-failures LAW is DONE + was extended this session. The dynamic-EDN-decode FLOOR (A/B/C, `c9bfa8fd`…`f11e64db`)
+is landed (`DESIGN-dynamic-edn-decode-and-opaque-sink.md` STATUS is current). Live work: the SIFT TIER — its
+Predicate-form delivery is now fully DESIGNED (`DESIGN-sift-server-side-filter.md`, the "Predicate-form delivery —
+DESIGNED" section); the strike is what remains.
 
-- **A.0 ✓** (`c9bfa8fd`) — uniform variant encoding (the floor): every variant vector-bodied; `nil` = unit only.
-- **A ✓** (`b68a130a`) — `read-foreign` → `ForeignRecord`/`ForeignVariant`; strict `read` untouched. (`DESIGN-STONE-A`.)
-- **B ✓** (`dc5427a4`) — opaque `Log.message`/`Span::LogRequest.message` (String); the sink never decodes;
-  `dead_child_speaks` re-pointed (a). The `#probe/Note` fork blocker GONE. (`DESIGN-BRIEF-STONE-B`.)
-- **C ✓** (`COMPONENDO DELEO` — `DESIGN-BRIEF-STONE-C`): **C1** (`27737ca9`, −6557) annihilated the 3 legacy crates +
-  interrogate + the STOP-2 probe + the legacy check-lint; **C2** (`3266e363`, −376) killed `Tagged`/`NoTag` +
-  `write-notag` (kept `value_to_json_natural`); **C3** (`f11e64db`) de-primed the family via a wat-fix codemod
-  (`wat-scripts/fixes/deprime-telemetry-sqlite.wat`) — `:wat::telemetry::` / `:wat::sqlite::` are OURS. KEPT: S1's
-  in-core `:wat::sqlite'`→`:wat::sqlite` reclaim (distinct from the deleted legacy crate).
+### Landed this session (all pushed)
+- `2f86838d` — the LAW reaches the fork's FREEZE window: a freeze-time top-level-form PANIC exited MUTE (exit 1, 0
+  bytes); `child_branch_from_source` (`src/process/verbs.rs`) now `catch_unwind`s the freeze → structured
+  `#wat.kernel/ProcessPanics` at `_exit(3)`. RED gate `crates/wat-cli/tests/wat_cli.rs::freeze_time_panic_surfaces_structured_not_silent`.
+  ALSO killed a fabricated `:user::main` doc contract in `crates/wat-cli/src/lib.rs` (grounded vs 320 live programs).
+- `3a7e3464` — sift reader converges to `sift-{logs,metrics}`; `Sieve = All | Predicate | Rules`; order Predicate →
+  Rules → `Sieve::All` + annihilate `query-*` (last). (RULING in `DESIGN-sift`.)
+- `17437ffb` — purity is a DECLARATION, now SANE for accessors: `accessor_meta` (`src/rete/purity.rs`) reads a
+  `Type/field` accessor's declared purity, so a real Log-accessor predicate passes `pure?`. RED gate
+  `tests/rete/probe_arc278_accessor_purity.{rs,wat}`. (INTERIM until arc 255's `metadata-of` registry.)
 
-**★ THE LIVE TARGET — THE SIFT TIER** (`DESIGN-sift-server-side-filter.md`, with a grounded **"Predicate-form
-strike — GROUNDED (scout)"** section — read it, do NOT re-scout): the chaos engine's first (paged) form.
-`sift-logs`/`sift-metrics` (Journal ops) taking `Sieve = Predicate | Rules` (`wat.query`); one seed log per fire
-(alpha-only STRUCTURAL); a throwaway worker (`runner-count 1` locus + `map-worker`). **The pinned contract:** the
-`Predicate` field is a `:wat::core::String` of EDN source (NOT `:wat::WatAST` — that nulls across a fork); server does
-`read-string → verify (:wat::rete::pure? ∧ deterministic?) → eval-ast! → apply` per record. Task #5 (Predicate) →
-#6 (Rules: rete over decoded/read-foreign facts, VSA on holons) → #7 (R0 streaming, R25 `MACHINA CHAOS DOMAT`).
+### NEXT — the sift Predicate strike (design in `DESIGN-sift`; do NOT re-scout / re-litigate)
+- **Stone 1 — `:wat::core::ast->source`**: resurrect the retired `wat_ast_to_source` (`crates/wat-reader/src/ast.rs:459-466`,
+  whose removal note invites exactly this) as a `WatAST→::-source` printer (notation-AGNOSTIC — prints the AST's
+  verbatim `::` strings). RED gate: `ast->source` of a `::`-form round-trips green through `read-string`.
+- **Stone 2 — the delivery**: `Sieve` enum + `Sieve::Predicate` macro (captures `(fn …)`, `ast->source`s it into a
+  `String` — organic UX, the user NEVER writes a string) + `sift-logs`/`sift-metrics` Journal ops + the server chain
+  `read-string → ast->children+first (UNWRAP) → pure?(sane) → eval-ast! → apply`, loci-agnostic.
+- Then #6 Rules → `Sieve::All` + annihilate `query-*` (tail) → #7 R0 (R25 `MACHINA CHAOS DOMAT`).
+- **Carry decided (A-vs-B, grounded — do NOT re-litigate):** A (span→source) INFEASIBLE (compilation source not
+  reachable at macro-expand time; cross-process kills it too). B (`ast->source`) chosen. The form crosses as `::`-source
+  String — a `WatAST` field's general wire-DECODE crashes on a form's bare symbols (`edn_shim.rs:1440` "no symbol value
+  type"), and `write-forms` dialect-dots `::`→`.` which `pure?`+`eval-ast!` reject.
 
-**Realizations this session:** R44 `FACTVM EST` · R45 `LVCEM TENEBRASQVE FERO` · R46 `IN LVCE PVRGATI` · R47
-`AMPLECTENDO DOMO` (Embracing Entropy — embrace the unknown to tame it) · **R48 `ABOLENDO RENASCIMVR`** (Cyberhex —
-we annihilate, not terminate; annihilation is rebirth; C's ethos). Memory: `feedback_sink_is_opaque_store_consumer_decodes`.
+### Strategic frame (builder, this session — the WHY behind the sequencing)
+- **Near-term:** rete PERFORMANT ← the TELEMETRY service PROVEN ← measure + identify rete's bottlenecks. Sift serves
+  this (measure-first, R25).
+- **Medium-term:** the CLOJURE DIALECT syntax (`::`→`.`). The notation seam is deferred to THERE — don't change the
+  dialect now; `ast->source` is notation-agnostic so it survives the flip untouched. **255** (queryable purity
+  `metadata-of`) is pending on this work + unblocked by it (the accessor fix moved purity toward its declaration
+  model); AFTER 255, break up the mono rust files.
+- **LOCI-AGNOSTIC is non-negotiable — thread-only is a FAILURE (R31/R32); we never treat loci special.**
 
-**Deferred / tracked (NOT this campaign):** clippy carries ~1000+ warnings — the PRE-EXISTING known-cruft pile (CI
-marks clippy "informational"; there is NO zero-clippy floor). A dedicated cleanup, arc-109-style. C was
-clippy-NEUTRAL (logic-free diffs). **LESSON: ground whether a "maintain-zero-X" floor actually exists (CI config /
-the real count) before treating a warning as a regression — don't chase deferred cruft as if you broke a floor.**
+### Realizations this session: NONE minted (the builder hands them + the song; none earned yet this session).
 
-> **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar
-> voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP).
-> Ground `git status` — HEAD should be `f11e64db` or later; **a mismatch is the alarm → trust the disk.** The
-> campaign FLOOR (A/B/C) is DONE and pushed; **the arc is NOT closed — the target is the CHAOS ENGINE, and the live
-> work is the SIFT TIER.** Read **`DESIGN-sift-server-side-filter.md`** (esp. the "Predicate-form strike — GROUNDED"
-> section — the build map, no re-scout needed) + the latest realizations before you move. Strike **task #5 (the
-> Predicate form)**: add `sift-logs`/`sift-metrics` + the `Sieve` enum (`Predicate` field = a `String` of EDN source,
-> NOT WatAST — the fork-safety crux), the per-seed pure-fn apply on a `runner-count 1` worker; RED gate = a pure
-> predicate filters a page to survivors, an impure one is rejected. Weigh every kill by your OWN re-run (build +
-> floor + grep + calibrated-not-a-zero-floor clippy); a mid-edit diagnostic is a PHANTOM (bit ~5× this session —
-> all ghosts, grounded false); use `wat-fix` for renames, never a manual edit-farm. Do not trust this note over the
-> disk. The floor is laid; build the engine it was for. `MACHINA CHAOS DOMAT`.
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
+> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk), read 278's realizations, ground
+> `git status` (HEAD `17437ffb`+; a mismatch is the alarm → trust the disk). Resume at **Stone 1
+> (`:wat::core::ast->source`)** — RED gate + brief + weigh — then Stone 2 (the delivery). And it bears repeating
+> because it bit HARD this session: **GROUND against the live code / a probe, NEVER a doc comment** — a doc comment is
+> prose ABOUT the code; I misread THREE this session (the `:user::main` contract, the "WatAST→nil" claim, the
+> exit-code list), each a lie I propagated until the disk corrected me. **Purity is a DECLARATION** (read the type's
+> declared purity, not a hand-list). **LOCI-AGNOSTIC always** (thread-only = failure). **WEIGH every kill by your OWN
+> re-run; a mid-edit diagnostic is a PHANTOM; commit + push often (GitHub = DR).** Do not trust this note over the
+> disk. `MACHINA CHAOS DOMAT`.
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):

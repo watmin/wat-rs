@@ -442,11 +442,15 @@ pub fn eval_read_string(
 /// The write side of the homoiconic round-trip: serialize a forms-value
 /// (`Value::wat__WatAST`, as produced by `read-string` or `quote`) to a clean EDN
 /// String, via the structural bridge (`watast_to_edn` + `wat_edn::write`). This is
-/// what the general `edn::write` is NOT for forms: `value_to_edn` renders a
-/// `wat__WatAST` as opaque-nil (an AST is opaque to general EDN serialization);
-/// `write-forms` serializes the AST faithfully — so `read-string → transform →
-/// write-forms` is the wat-to-wat fixer's full read→rewrite→write cycle, all in
-/// wat's own primitives.
+/// what the general `edn::write` is NOT for forms — CORRECTED (arc 278): `value_to_edn`
+/// ALSO serializes a `wat__WatAST` FAITHFULLY (via `watast_to_edn`), NOT opaque-nil
+/// (only genuinely-opaque LIVE values nil). The real catch is the READ side: the general
+/// edn *decoder* cannot rebuild a form (a form's bare symbols have no value type — see
+/// the `Edn::Symbol` arm ~:1440), and every write path dialect-translates `::`→`.`. To
+/// round-trip a form back to an evaluable `::`-AST use `read-string` (or an `ast->source`
+/// printer for `::`-faithful text), never the general edn codec. `write-forms` serializes
+/// the AST faithfully — `read-string → transform → write-forms` is the wat-to-wat fixer's
+/// full read→rewrite→write cycle, all in wat's own primitives.
 pub fn eval_write_forms(
     args: &[WatAST],
     list_span: &crate::span::Span,

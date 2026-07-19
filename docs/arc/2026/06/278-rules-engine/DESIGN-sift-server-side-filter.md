@@ -80,46 +80,55 @@ the `Predicate` form first (simpler to wire), the `Rules` form second — for si
 *Realization-shaped (R25 concretizing into its first buildable form, the VSA seam lit) — the song is the builder's
 to hand, not the record's to mint.*
 
-## Predicate-form strike — GROUNDED (scout, on the reclaimed floor; HEAD `f11e64db`)
-The first strike (the `Sieve::Predicate` form). All `file:line` verified this session; everything uses the
-**de-primed** names (`:wat::telemetry::Journal`, `:wat::query::`, `:wat::sqlite::`).
+## Predicate-form delivery — DESIGNED (A-vs-B resolved; purity sane; grounded + weighed this session)
 
-- **Add the Journal op** (`wat/telemetry.wat`, beside `query-logs` at ~:147-173): a `Journal::SiftLogsRequest`
-  (the same window/page fields as `QueryLogsRequest` — namespace/time-lo/time-hi/limit/cursor — **plus** `sieve <-
-  :wat::query::Sieve`) + a `Journal::SiftLogsResponse` shaped exactly like `QueryLogsResponse` (`:Success [logs,
-  cursor]` / `:Transient` / `:Fatal`) + the method sig in `:features`. Purely additive; the surface already ships
-  its protocol across a fork (`:messages` surface-forms carrier).
-- **The insertion point** (`wat/telemetry/journal.wat`): `query-logs`'s scan→hydrate `foldl` (~:181-186) — scan the
-  store, hydrate each `Row/data` via `edn::read` → `Log`. `sift-logs` is that loop with the filter added:
-  `(if (predicate log) (conj acc log) acc)`. `query-metrics` is the twin.
-- **`Sieve` lives in `wat/query.wat`** (the rete-as-datalog home, query.wat:9-10) as a `defenum :wat::enum::Pure`:
-  `:Predicate [pred <- :wat::core::String]` | `:Rules [defs <- (Vector …) rules <- (Vector …)]`.
-- **★ THE CONTRACT DECISION (pinned, grounded): the `Predicate` field is a `:wat::core::String` of EDN source
-  text — NOT `:wat::WatAST`.** A `WatAST` field serializes to **opaque-nil** across a process fork (general
-  `edn::write` renders an AST as nil, `src/edn_shim.rs:445-446`) — it would silently null the predicate on the wire.
-  Carry it as an EDN-source String (the exact opaque-String pattern `Log.message` uses). The server rebuilds it:
-  `(:wat::core::read-string pred-src)` → **verify** `(and (:wat::rete::pure? form) (:wat::rete::deterministic? form))`
-  (the two-axis gate, `src/rete/purity.rs:10`, verbs at `:421-438` — verify the QUOTED form BEFORE eval) →
-  `(:wat::eval-ast! form)` → a `:wat::core::fn` value → `(:wat::core::apply -> :bool pred-fn log [])` per record
-  (the one-arg fn-value apply fast-path, `src/runtime.rs:8422-8424`).
-- **Sandbox reality (grounded):** there is NO one-call "eval a pure fn under a `restricted-to` whitelist" primitive.
-  `run-sandboxed-ast` (`wat/kernel/hermetic.wat:89`) is a whole-program/process runner returning a `RunResult` —
-  heavier, and it IS a fork. The pragmatic per-record safety is **`pure? ∧ deterministic?` verification + plain
-  `apply`** (a rejected predicate → a clean located error, no-hidden-failures). If OS-isolation is later wanted,
-  reconcile the sandbox fork with the bracket so you don't double-fork.
-- **The throwaway worker:** no dedicated "capacity-one" bracket form. Configure the locus with `runner-count 1`
-  (`wat/spawn.wat:97-101` thread / `:79` process) and pass it to `map`/`map-worker` (`wat/bracket.wat:531`, which
-  does spawn→run→**reap** RAII, revoking grants before return, :574-586). Or the lower-level single-shot
-  `spawn-program'` peer (bracket.wat:8) if the pool coordinator is more than needed.
-- **RED gate:** a page of stored Logs filtered by a pure predicate returns ONLY the survivors (e.g. `(fn [log] ->
-  :bool (= (Log/level log) :error))` over a mixed page → only the errors); an **impure** predicate is REJECTED
-  (the `pure?`/`deterministic?` gate raises a clean located error, not a silent pass — the no-hidden-failures floor).
-- **Rules form (later, task #6) — note:** `Sieve::Rules` uses rete: `(:wat::rete::compile rules)` → Session (rules
-  compiled, WM empty, `rete.wat:796`) → per record `(-> (compile rules) (insert one-log) fire-rules)` →
-  `query-by-type-string` for survivors → discard. One `insert` per fire ⇒ alpha-only is structural. `defs` decode the
-  opaque message into typed facts (or `read-foreign` → dynamic facts); holon facts admit VSA ops mid-fire.
+The organic UX (ratified by the builder): the user writes a real `(fn [log] -> :bool …)` — **NEVER a string**. The
+`Sieve::Predicate` macro (modeled on `defrule`, `wat/rete.wat:1971`, which inserts `(:wat::core::quote …)` into its own
+expansion) captures + quotes the fn and `ast->source`s it into a `:wat::core::String` field. The user authors no EDN,
+no string.
 
-**Flags for the strike:** (1) the String-of-EDN-source field type is the fork-safety crux — do NOT use `WatAST`;
-(2) `pure?`/`deterministic?` are `:wat::rete::` verbs (the sift service takes a rete dependency — fine, the Rules
-form needs rete anyway); (3) "sandbox" = verify-then-apply, not a ready sandboxed-apply; (4) capacity-one =
-`runner-count 1`, not a named form.
+### Why the field is a `String` (CORRECTED — the prior "WatAST→nil" rationale was WRONG)
+A `WatAST` field cannot cross a process wire: the general wire-DECODE crashes on a form's bare symbols
+(`edn_shim.rs:1440` — "EDN Symbol: wat has no symbol value type"; wat values are keyword-based, symbols live only in
+the AST). *(The earlier claim that `value_to_edn` renders a WatAST as opaque-nil is FALSE — it serializes faithfully
+via `watast_to_edn`, but dialect-translates `::`→`.`, which `pure?`+`eval-ast!` reject.)* So the form crosses as
+**`::`-source text**, rebuilt with `read-string`. **Loci-agnostic:** a String crosses ANY coordinate (thread == process
+— NON-NEGOTIABLE; thread-only is a failure, R31/R32).
+
+### The carry — A-vs-B, resolved + weighed (do NOT re-litigate)
+- **A (span→source): INFEASIBLE** — the compilation source buffer is not reachable at macro-expand time (no registry,
+  no `span→source` verb, IO denied at expand time; cross-process rules it out too).
+- **B (`ast->source` printer): CHOSEN** — resurrect the RETIRED `wat_ast_to_source` (`crates/wat-reader/src/ast.rs:459-466`,
+  whose removal note invites `:wat::core::ast-to-source`) as a `WatAST→source` printer. Notation-AGNOSTIC (prints the
+  AST's verbatim `::` strings — confirmed `ast-name` returns `:wat::core::fn` verbatim), so it survives the medium-term
+  Clojure flip untouched — A's future-stable virtue via a feasible mechanism.
+
+### The server chain (all grounded green, weighed by own re-run)
+`read-string → ast->children + first` (**UNWRAP**: `read-string` wraps forms in an outer list — `edn_shim.rs:429`; the
+earlier "eval-ast! fails on a fn-form" was a missing-unwrap PROBE bug, not a mechanism gap) `→ pure? ∧ deterministic?`
+(now SANE — reads accessor declarations, `17437ffb`) `→ eval-ast!` (returns a `Result`, unwrap) `→ :wat::core::fn value
+→ apply` per record → `:bool`. An **impure** predicate is REJECTED by the gate — a clean located error, the
+no-hidden-failures floor.
+
+### Stones
+- **Stone 1 — `:wat::core::ast->source`** (the enabling primitive; ~60-90 lines, a runtime verb beside `write-forms`).
+  RED gate: `ast->source` of a quoted `::`-form → the `::`-source string, round-tripping green through `read-string`.
+- **Stone 2 — the delivery**: `Sieve` enum (`wat/query.wat`, `defenum :wat::enum::Pure`: `:All` | `:Predicate [pred <-
+  :wat::core::String]` | `:Rules […]`) + the `Sieve::Predicate` macro + `sift-logs`/`sift-metrics` Journal ops (the
+  `journal.wat` scan→hydrate `foldl` at `:164-192` + the filter `(if (predicate log) (conj acc log) acc)`, `query-metrics`
+  the twin) + the server chain. RED gate: a page filtered by a pure predicate returns only the survivors; an impure one
+  is rejected.
+
+### The throwaway worker + Sieve::All + Rules
+- **Worker:** `runner-count 1` locus + `map-worker` (`wat/bracket.wat:531`, spawn→run→**reap** RAII). One seed per fire
+  ⇒ alpha-only is STRUCTURAL. (No named "capacity-one" form.)
+- **`Sieve::All`** (per the RULING above) = the subsuming fast path (skips the worker; hydrates the page — today's
+  `query-*`); delivered LAST and annihilates `query-{logs,metrics}` (COMPONENDO DELEO).
+- **`Sieve::Rules`** (#6): `(:wat::rete::compile rules)` → Session (WM empty, `rete.wat:796`) → per record
+  `insert`/`fire`/query-survivors/reset; one `insert` per fire ⇒ alpha-only structural. `defs` decode the opaque
+  message (typed, or `read-foreign` → dynamic facts); holon facts admit VSA ops mid-fire.
+
+**Flags:** (1) the field is a `String` of `::`-source (a `WatAST` field's wire-DECODE crashes — NOT a nil problem);
+(2) the macro produces that String via `ast->source` (Stone 1), organic UX; (3) `pure?`/`deterministic?` are
+`:wat::rete::` verbs, now sane for accessors; (4) capacity-one = `runner-count 1`, not a named form; (5) DON'T touch
+the `::`→`.` dialect — `ast->source` is notation-agnostic and the seam is the medium-term Clojure-flip's job.

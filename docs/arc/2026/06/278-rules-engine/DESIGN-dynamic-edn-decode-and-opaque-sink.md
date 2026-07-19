@@ -82,12 +82,15 @@ parity; **reconcile the spelling** — clj writes short `#wat.core/Some`, rust w
 - **C ✓** (`COMPONENDO DELEO`): **C1** (`27737ca9`, −6557 — the 3 legacy crates + interrogate + STOP-2 probe + the
   legacy check-lint), **C2** (`3266e363`, −376 — Tagged/NoTag + write-notag; kept `value_to_json_natural`), **C3**
   (`f11e64db` — the wat-fix de-prime). `:wat::telemetry::` / `:wat::sqlite::` are OURS. (floor 4150/0.)
-- **THE SIFT TIER (T2 → R0) — the LIVE TARGET** (`DESIGN-sift-server-side-filter.md`, incl. a grounded
-  "Predicate-form strike — GROUNDED (scout)" section): the chaos engine's first (paged) form, what A/B/C were the
-  floor for. `sift-logs`/`sift-metrics` (Journal ops) taking `Sieve = Predicate | Rules` (`wat.query`); one seed per
-  fire (alpha-only structural); a `runner-count 1` throwaway worker. **Pinned contract:** the `Predicate` field is a
-  `:wat::core::String` of EDN source (NOT `:wat::WatAST` — nulls across a fork); server does `read-string → verify
-  (:wat::rete::pure? ∧ deterministic?) → eval-ast! → apply` per seed. Task #5 Predicate → #6 Rules → #7 R0 streaming.
+- **THE SIFT TIER (T2 → R0) — the LIVE TARGET; Predicate delivery now DESIGNED** (`DESIGN-sift-server-side-filter.md`,
+  "Predicate-form delivery — DESIGNED"): the chaos engine's first (paged) form. `sift-logs`/`sift-metrics` taking
+  `Sieve = All | Predicate | Rules` (`wat.query`); one seed per fire (alpha-only structural); a `runner-count 1`
+  throwaway worker. **Organic UX:** the user writes `(fn [log] …)`; the macro `ast->source`s it into a `:wat::core::String`
+  of `::`-source (a `WatAST` field's wire-DECODE crashes on symbols — `edn_shim.rs:1440`; the "nulls across a fork"
+  rationale was WRONG). Server: `read-string → ast->children+first (unwrap) → pure?(SANE, `17437ffb`) → eval-ast! →
+  apply`. Strike = **Stone 1 `:wat::core::ast->source`** (resurrect `wat_ast_to_source`) → **Stone 2** the delivery.
+  Then #6 Rules → `Sieve::All`+annihilate-`query-*` (tail) → #7 R0. This session also extended the no-hidden-failures
+  LAW to the fork freeze-window (`2f86838d`) + made purity sane for accessors (`17437ffb`).
 - **Deferred (NOT this campaign):** clippy's ~1000+ warnings are the pre-existing known-cruft pile (CI marks clippy
   "informational" — no zero-floor); a dedicated cleanup, arc-109-style. C was clippy-neutral.
 
