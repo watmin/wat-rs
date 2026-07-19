@@ -18,9 +18,12 @@ the fuller form; this runs first.
 | name | namespace | what it is |
 |---|---|---|
 | **`sift-logs` / `sift-metrics`** | Journal op (beside `query-logs`/`query-metrics`) | query a namespace + window, **filtering server-side**, returning only survivors |
-| **`Sieve`** | `wat.query` (general — it's rete-over-a-page, not telemetry-specific) | the pure filter spec: **`Sieve = Predicate \| Rules`** (a union enum — one op takes one `Sieve`) |
+| **`Sieve`** | `wat.query` (general — it's rete-over-a-page, not telemetry-specific) | the pure filter spec: **`Sieve = All \| Predicate \| Rules`** (a union enum — one op takes one `Sieve`) |
+| **`Sieve::All`** | — | **no filter** — a match arm that SKIPS the worker and just hydrates the page (today's `query-*`, the fast path preserved). Distinct variant, NOT a pass-all `Predicate` — won on *Honest* (a pass-all predicate lies: it spins the worker to filter nothing). |
 | **`Sieve::Predicate`** | — | a pure predicate **fn-form** over one seed log: `(fn [log] -> :bool …)` |
 | **`Sieve::Rules`** | — | user-supplied **`[defs <- Vec<defrecord>  rules <- Vec<Rule>]`** — the defs decode the opaque message into typed facts (or `read-foreign` → dynamic facts); the rules select. The full rete / chaos-engine form. |
+
+> **★ RULING (builder, 2026-07-19) — the reader interface CONVERGES to `sift-{logs,metrics}`; `query-*` is subsumed.** `query` IS `sift` with a pass-all sieve (grounded: `query-logs` `journal.wat:164-192` is the scan→hydrate `foldl` with no filter; `sift` is that loop + the filter). So the endpoint is ONE reader family. **`Sieve::All` is a distinct variant** (agreed — Honest: skips the worker, no read-string/verify/eval/apply for a no-op). **Order (ratified): `Predicate` (task #5) → `Rules` (task #6) → `Sieve::All` + ANNIHILATE `query-{logs,metrics}` — the LAST stone**, delivered together (COMPONENDO DELEO / R48 — `query-*` is subsumed scaffolding). Do NOT widen the Predicate strike with `All`; it is the tracked campaign tail (done-is-done). `sift-metrics` with `Sieve::Rules` is how metrics AGGREGATE (rete accumulators, R4/stone-8) — the two-op family covers filter AND aggregate; the `Sieve` carries the difference.
 
 Reads on the line — **the enum IS the interface** (R28 decomplection: the surface says "a `Sieve`, either form"):
 ```clojure
