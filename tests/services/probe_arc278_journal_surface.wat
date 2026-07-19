@@ -19,6 +19,17 @@
    (query-logs [s req]
      (:wat::service::Outcome::Reply s
        (:wat::telemetry::Journal::QueryLogsResponse::Success
+         (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))
+   ;; arc 278 Stone 2 — sift-logs/sift-metrics widened the Journal surface; the toy must
+   ;; implement every feature to satisfy it (mirrors the query-* stubs above; the sieve is
+   ;; unused by this throwaway toy).
+   (sift-metrics [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::telemetry::Journal::SiftMetricsResponse::Success
+         (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None)))
+   (sift-logs [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::telemetry::Journal::SiftLogsResponse::Success
          (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))])
 
 ;; `:probe::run` — start the toy on a thread, dial it, call `write-metrics` with a 1-element

@@ -154,6 +154,37 @@
      :Success   [logs   <- (:wat::core::Vector :wat::telemetry::Log)
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
+     :Fatal     [err <- :wat::query::Fatal])
+
+   ;; ── sift (arc 278 Stone 2 — server-side filtering, DESIGN-sift-server-side-filter.md): the
+   ;; same namespace + time-window page as query-*, PLUS a `Sieve` (the pure filter spec — this
+   ;; stone only ships `Sieve::Predicate`). The op compiles the predicate ONCE, applies it per
+   ;; row, and returns only survivors; an impure/non-deterministic predicate is REJECTED —
+   ;; `::Fatal` with a Fault, never a silent pass. ──
+   (:wat::core::defrecord :wat::telemetry::Journal::SiftLogsRequest
+     [namespace <- :wat::core::String
+      time-lo   <- :wat::core::i64
+      time-hi   <- :wat::core::i64
+      limit     <- :wat::core::i64
+      cursor    <- (:wat::core::Option :wat::core::String)
+      sieve     <- :wat::query::Sieve])
+   (:wat::core::defenum :wat::telemetry::Journal::SiftLogsResponse :wat::enum::Pure
+     :Success   [logs   <- (:wat::core::Vector :wat::telemetry::Log)
+                 cursor <- (:wat::core::Option :wat::core::String)]
+     :Transient [err <- :wat::query::Transient]
+     :Fatal     [err <- :wat::query::Fatal])
+
+   (:wat::core::defrecord :wat::telemetry::Journal::SiftMetricsRequest
+     [namespace <- :wat::core::String
+      time-lo   <- :wat::core::i64
+      time-hi   <- :wat::core::i64
+      limit     <- :wat::core::i64
+      cursor    <- (:wat::core::Option :wat::core::String)
+      sieve     <- :wat::query::Sieve])
+   (:wat::core::defenum :wat::telemetry::Journal::SiftMetricsResponse :wat::enum::Pure
+     :Success   [metrics <- (:wat::core::Vector :wat::telemetry::Metric)
+                 cursor  <- (:wat::core::Option :wat::core::String)]
+     :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal])]
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
@@ -170,7 +201,15 @@
 
    ;; query logs in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
    (query-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::QueryLogsRequest]
-     -> :wat::telemetry::Journal::QueryLogsResponse)])
+     -> :wat::telemetry::Journal::QueryLogsResponse)
+
+   ;; sift logs — query-logs + server-side filtering (Sieve compiled once, applied per row).
+   (sift-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::SiftLogsRequest]
+     -> :wat::telemetry::Journal::SiftLogsResponse)
+
+   ;; sift metrics — the mechanical twin, over the Metric partition.
+   (sift-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::SiftMetricsRequest]
+     -> :wat::telemetry::Journal::SiftMetricsResponse)])
 
 ;; ─── Span — arc 278 stone Span.1: the PRODUCER surface (a unit of work). ──────────
 ;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.

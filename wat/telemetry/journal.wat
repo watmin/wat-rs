@@ -189,4 +189,95 @@
                   (:wat::telemetry::Journal::QueryLogsResponse::Transient err))
                 ((:wat::query::Store::ScanResponse::Fatal err)
                   (:wat::telemetry::Journal::QueryLogsResponse::Fatal err)))]
+       (:wat::service::Outcome::Reply s qresp)))
+
+   ;; sift-logs — arc 278 Stone 2: query-logs + server-side filtering. The predicate (a `Sieve`'s
+   ;; `::`-source) is compiled ONCE (read-string -> unwrap -> verify pure?/deterministic? ->
+   ;; eval-ast!), outside the foldl; applied PER ROW inside it. An impure/non-deterministic
+   ;; predicate is REJECTED — `::Fatal` with a Fault, never a silent pass (no-hidden-failures).
+   (sift-logs [s req]
+     (:wat::core::let
+       [store    (:wat::telemetry::journal::State/store s)
+        pred-src (:wat::core::match (:wat::telemetry::Journal::SiftLogsRequest/sieve req) -> :wat::core::String
+                   ((:wat::query::Sieve::Predicate pred) pred))
+        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::read-string pred-src)))
+        purep    (:wat::rete::pure? pform)
+        detp     (:wat::rete::deterministic? pform)
+        qresp    (:wat::core::if (:wat::core::and purep detp)
+                   (:wat::core::let
+                     [pfn  (:wat::core::Result/expect (:wat::eval-ast! pform) "sift-logs: eval predicate")
+                      ns   (:wat::telemetry::Journal::SiftLogsRequest/namespace req)
+                      lo   (:wat::telemetry::Journal::SiftLogsRequest/time-lo req)
+                      hi   (:wat::telemetry::Journal::SiftLogsRequest/time-hi req)
+                      lim  (:wat::telemetry::Journal::SiftLogsRequest/limit req)
+                      cur  (:wat::telemetry::Journal::SiftLogsRequest/cursor req)
+                      pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Log))
+                      resp (:wat::query::Store/scan store
+                             (:wat::query::Store::ScanRequest :pk pk
+                               :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+                               :limit lim :cursor cur))]
+                     (:wat::core::match resp -> :wat::telemetry::Journal::SiftLogsResponse
+                       ((:wat::query::Store::ScanResponse::Success rows next-cur)
+                         (:wat::telemetry::Journal::SiftLogsResponse::Success
+                           (:wat::core::foldl
+                             (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Log) row <- :wat::query::Row]
+                               -> (:wat::core::Vector :wat::telemetry::Log)
+                               (:wat::core::let [log (:wat::edn::read (:wat::query::Row/data row))]
+                                 (:wat::core::if (:wat::core::apply -> :wat::core::bool pfn log [])
+                                   (:wat::core::conj acc log)
+                                   acc)))
+                             (:wat::core::Vector :wat::telemetry::Log)
+                             rows)
+                           next-cur))
+                       ((:wat::query::Store::ScanResponse::Transient err)
+                         (:wat::telemetry::Journal::SiftLogsResponse::Transient err))
+                       ((:wat::query::Store::ScanResponse::Fatal err)
+                         (:wat::telemetry::Journal::SiftLogsResponse::Fatal err))))
+                   (:wat::telemetry::Journal::SiftLogsResponse::Fatal
+                     (:wat::query::Fatal :reason
+                       (:wat::query::Fault :message "sift-logs: predicate must be pure and deterministic"))))]
+       (:wat::service::Outcome::Reply s qresp)))
+
+   ;; sift-metrics — the mechanical twin, over the Metric partition.
+   (sift-metrics [s req]
+     (:wat::core::let
+       [store    (:wat::telemetry::journal::State/store s)
+        pred-src (:wat::core::match (:wat::telemetry::Journal::SiftMetricsRequest/sieve req) -> :wat::core::String
+                   ((:wat::query::Sieve::Predicate pred) pred))
+        pform    (:wat::core::first (:wat::core::ast->children (:wat::core::read-string pred-src)))
+        purep    (:wat::rete::pure? pform)
+        detp     (:wat::rete::deterministic? pform)
+        qresp    (:wat::core::if (:wat::core::and purep detp)
+                   (:wat::core::let
+                     [pfn  (:wat::core::Result/expect (:wat::eval-ast! pform) "sift-metrics: eval predicate")
+                      ns   (:wat::telemetry::Journal::SiftMetricsRequest/namespace req)
+                      lo   (:wat::telemetry::Journal::SiftMetricsRequest/time-lo req)
+                      hi   (:wat::telemetry::Journal::SiftMetricsRequest/time-hi req)
+                      lim  (:wat::telemetry::Journal::SiftMetricsRequest/limit req)
+                      cur  (:wat::telemetry::Journal::SiftMetricsRequest/cursor req)
+                      pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Metric))
+                      resp (:wat::query::Store/scan store
+                             (:wat::query::Store::ScanRequest :pk pk
+                               :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
+                               :limit lim :cursor cur))]
+                     (:wat::core::match resp -> :wat::telemetry::Journal::SiftMetricsResponse
+                       ((:wat::query::Store::ScanResponse::Success rows next-cur)
+                         (:wat::telemetry::Journal::SiftMetricsResponse::Success
+                           (:wat::core::foldl
+                             (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Metric) row <- :wat::query::Row]
+                               -> (:wat::core::Vector :wat::telemetry::Metric)
+                               (:wat::core::let [m (:wat::edn::read (:wat::query::Row/data row))]
+                                 (:wat::core::if (:wat::core::apply -> :wat::core::bool pfn m [])
+                                   (:wat::core::conj acc m)
+                                   acc)))
+                             (:wat::core::Vector :wat::telemetry::Metric)
+                             rows)
+                           next-cur))
+                       ((:wat::query::Store::ScanResponse::Transient err)
+                         (:wat::telemetry::Journal::SiftMetricsResponse::Transient err))
+                       ((:wat::query::Store::ScanResponse::Fatal err)
+                         (:wat::telemetry::Journal::SiftMetricsResponse::Fatal err))))
+                   (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
+                     (:wat::query::Fatal :reason
+                       (:wat::query::Fault :message "sift-metrics: predicate must be pure and deterministic"))))]
        (:wat::service::Outcome::Reply s qresp)))])

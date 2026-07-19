@@ -82,6 +82,28 @@
 ;; a concrete default `Reason` satisfier for a backend with nothing more structured to say.
 (:wat::core::defrecord :wat::query::Fault [message <- :wat::core::String])
 
+;; ─── the Sieve filter spec (arc 278 Stone 2 — the sift Predicate delivery) ───────────────────
+;; DESIGN-sift-server-side-filter.md: server-side log/metric filtering — the client submits a
+;; pure filter spec, the server runs it over a page, only survivors cross the wire back. `Sieve`
+;; is general (rete-over-a-page, not telemetry-specific) — a union of filter forms. THIS STONE
+;; defines `:Predicate` only; `:All` (the pass-all fast path) and `:Rules` (the full rete form)
+;; are later stones (RULING order: Predicate -> Rules -> All+annihilate query-*).
+;;
+;; `pred` is the VERBATIM `::`-source of a user `(fn [log] -> :bool …)`, printed by
+;; `ast->source` (never hand-typed — see `sieve-pred` below). A `WatAST` field can't cross a
+;; process wire (the general wire-decode crashes on bare symbols); a `String` of `::`-source,
+;; rebuilt with `read-string` on the far side, is loci-agnostic (thread == process).
+(:wat::core::defenum :wat::query::Sieve :wat::enum::Pure
+  :Predicate [pred <- :wat::core::String])
+
+;; sieve-pred — the organic-UX capture macro. The user writes a REAL `(fn [log] -> :bool …)`;
+;; this macro (modeled on `defrule`, wat/rete.wat:1971) captures the form, `ast->source`s it into
+;; a String, and expands to a `Sieve::Predicate` — the user never types a string themselves.
+(:wat::core::defmacro :wat::query::sieve-pred
+  [fn-form <- :wat::WatAST] -> :wat::WatAST
+  (:wat::core::let [src (:wat::core::ast->source fn-form)]
+    `(:wat::query::Sieve::Predicate ~src)))
+
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed
 ;; `Peer'<Store::Op,Store::Reply>` IS a Store INTRINSICALLY (arc 293 Path B) — no wrapper struct,

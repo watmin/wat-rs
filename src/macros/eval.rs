@@ -614,6 +614,12 @@ fn is_pure_total(head: &str) -> bool {
         // node-walking defmacro, the homoiconic point of having the tooling at all.
         | ":wat::core::read-string"
         | ":wat::core::write-forms"
+        // Arc 278 Stone 2 — the sift Predicate's `sieve-pred` capture macro calls
+        // `ast->source` at expand time (captures the user's `(fn …)` form, prints it
+        // verbatim into the `Sieve::Predicate` String field). Pure ∧ deterministic —
+        // same category as its siblings (write-forms/ast-name/ast->children) above;
+        // simply never added when Stone 1 minted it (grounded gap, brief-flagged).
+        | ":wat::core::ast->source"
         | ":wat::core::ast->children"
         | ":wat::core::with-children"
         | ":wat::core::ast-kind"
