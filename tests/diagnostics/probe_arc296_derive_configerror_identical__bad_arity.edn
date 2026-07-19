@@ -1,0 +1,6 @@
+#wat.config/BadArity {
+  :head ":wat::config::set-dims!"
+  :expected 1
+  :got 2
+  :span {:file "test.wat" :line 1 :col 0}
+}

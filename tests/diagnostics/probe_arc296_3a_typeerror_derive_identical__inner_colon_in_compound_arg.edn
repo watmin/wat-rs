@@ -1,0 +1,5 @@
+#wat.type/InnerColonInCompoundArg {
+  :raw ":Vec<:String>"
+  :offending ":String"
+  :span {:file "test.wat" :line 1 :col 0}
+}

@@ -1,0 +1,10 @@
+#wat.macro/ArityMismatch {
+  :name "my-macro"
+  :expected 2
+  :got 3
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

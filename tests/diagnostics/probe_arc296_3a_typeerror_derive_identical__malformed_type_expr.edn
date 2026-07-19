@@ -1,0 +1,5 @@
+#wat.type/MalformedTypeExpr {
+  :raw ":bad"
+  :reason "unknown type"
+  :span {:file "test.wat" :line 1 :col 0}
+}

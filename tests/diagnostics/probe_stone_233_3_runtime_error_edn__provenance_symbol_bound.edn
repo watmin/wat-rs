@@ -1,0 +1,4 @@
+#wat.kernel/SymbolBound {
+  :binding-span {:file "test.wat" :line 4 :col 8}
+  :head-span {:file "test.wat" :line 5 :col 12}
+}

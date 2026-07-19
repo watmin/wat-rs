@@ -159,6 +159,7 @@ fn whitespace_and_comments_ignored() {
 fn parse_error_surfaces_as_error() {
     let (vm, se) = env();
     // Unclosed paren.
+    // rune:lint(no-inlined-edn) — input under test: an unclosed-paren wat source string fed to the parser to force a parse error
     let err = eval_algebra_source("(:wat::holon::to-holon \"x\"", &vm, &se).unwrap_err();
     match err {
         wat::Error::Parse(_) => {} // expected

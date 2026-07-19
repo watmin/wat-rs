@@ -1,0 +1,4 @@
+#wat.type/DuplicateType {
+  :name ":user::Foo"
+  :span {:file "test.wat" :line 1 :col 0}
+}

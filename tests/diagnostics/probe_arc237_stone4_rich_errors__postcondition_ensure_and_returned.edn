@@ -1,0 +1,8 @@
+#wat.runtime/PostconditionFailed {
+  :defclause-name ":my::positive"
+  :clause-index 0
+  :ensure-expr-snapshot "ENSURE_MARKER_TEXT"
+  :returned-value {:type "wat::core::i64" :rendered "-5" :provenance nil}
+  :ensure-span {:file "test.wat" :line 5 :col 3}
+  :span {:file "test.wat" :line 5 :col 3}
+}

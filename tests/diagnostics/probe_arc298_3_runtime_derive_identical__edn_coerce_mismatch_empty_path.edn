@@ -1,0 +1,11 @@
+#wat.runtime/EdnCoerceMismatch {
+  :op ":wat::kernel::readln"
+  :expected ":user::Point"
+  :got "Integer"
+  :path []
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

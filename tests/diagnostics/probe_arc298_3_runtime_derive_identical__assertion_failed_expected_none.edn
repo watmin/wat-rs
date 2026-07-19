@@ -1,0 +1,10 @@
+#wat.runtime/AssertionFailed {
+  :message "fired"
+  :actual #wat.core.Option/Some "x"
+  :expected #wat.core.Option/None nil
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

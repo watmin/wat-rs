@@ -1,0 +1,5 @@
+#wat.type/CyclicSubtype {
+  :child ":A"
+  :parent ":B"
+  :span {:file "test.wat" :line 1 :col 0}
+}

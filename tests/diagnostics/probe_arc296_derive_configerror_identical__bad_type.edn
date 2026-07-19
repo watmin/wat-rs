@@ -1,0 +1,6 @@
+#wat.config/BadType {
+  :field "dims"
+  :expected "integer"
+  :got "string"
+  :span {:file "test.wat" :line 1 :col 0}
+}

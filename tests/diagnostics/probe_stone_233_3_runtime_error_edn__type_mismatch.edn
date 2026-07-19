@@ -1,0 +1,6 @@
+#wat.runtime/TypeMismatch {
+  :op ":wat::core::+"
+  :expected "wat::core::i64"
+  :got {:type "wat::core::i64" :rendered "42" :provenance nil}
+  :span {:file "test.wat" :line 5 :col 12}
+}

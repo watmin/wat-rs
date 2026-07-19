@@ -1,0 +1,4 @@
+{
+  :arity 1
+  :param-types [":wat::core::String"]
+}

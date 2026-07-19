@@ -68,6 +68,7 @@ fn pprintln_write_pretty_produces_multi_line_for_map() {
     // Pretty output must be the exact multi-line form.
     assert_eq!(
         pretty,
+        // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact-format pretty-printer output under test; a structural comparison would defeat the whitespace assertion
         "{\n  :a 1\n  :b 2\n}",
         "write_pretty output must be the exact multi-line form"
     );

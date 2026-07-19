@@ -1,0 +1,10 @@
+#wat.runtime/MacroExpansionFailed {
+  :op ":wat::core::macroexpand"
+  :cause #wat.macro/ExpansionDepthExceeded {
+    :message "macro expansion exceeded depth limit 512 — likely infinite recursion"
+    :location {:file "probe.wat" :line 1 :col 1}
+    :causes []
+    :limit 512
+  }
+  :span {:file "probe.wat" :line 1 :col 1}
+}

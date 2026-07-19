@@ -49,6 +49,7 @@ fn multiline_edn_value_frames_as_one_over_pipe() {
     // A PRETTY (multi-line) EDN map terminated by ONE newline — exactly the
     // shape `pprintln` emits through the StdOutService: one logical value, 4
     // physical lines.
+    // rune:lint(no-inlined-edn) — input under test: a pretty multi-line EDN value written to the pipe for the reader to accumulate into one frame.
     let pretty = "{\n  :a 1\n  :b 2\n}\n";
     writer
         .write_all(pretty.as_bytes(), wat::rust_caller_span!())
@@ -93,6 +94,7 @@ fn pprintln_multiline_map_roundtrips_over_pipe() {
 
     // Build a multi-entry EDN map using wat-edn directly and pretty-print it.
     // This is what pprintln emits over the StdOutService pipe.
+    // rune:lint(no-inlined-edn) — input under test: a compact EDN map source fed to wat_edn::parse_owned to build the round-trip fixture.
     let compact = "{:x 10 :y 20 :z 30}";
     let compact_val = wat_edn::parse_owned(compact).expect("compact parse");
     // write_pretty emits multi-line EDN (e.g. "{\n  :x 10\n  :y 20\n  :z 30\n}").
@@ -196,6 +198,7 @@ fn read_framed_edn_tiny_cap_passes_small_value() {
     use wat::edn_shim::{read_framed_edn, FramedRead};
 
     // A compact map that fits in < 64 bytes including the trailing '\n'.
+    // rune:lint(no-inlined-edn) — input under test: a small EDN value fed line-by-line to read_framed_edn under the tiny cap.
     let lines: Vec<&str> = vec!["{:a 1 :b 2}"];
     let mut iter = lines.iter();
     let result = read_framed_edn(

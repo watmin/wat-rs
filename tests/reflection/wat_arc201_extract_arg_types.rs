@@ -103,9 +103,9 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_types.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert_eq!(
-        line,
-        "[wat.type/String wat.type/i64]",
+    wat::assert_edn_eq!(
+        line.clone(),
+        include_str!("wat_arc201_extract_arg_types__monomorphic_types.edn"),
         "extract-arg-types must return Vector of two Path-type wat.type/ symbols for monomorphic fn"
     );
     // The return-type `:wat::core::String` appears in the sig too, but the
@@ -134,9 +134,9 @@ fn extract_arg_types_returns_bundles_for_parametric_args() {
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundles.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert_eq!(
-        line,
-        "[(wat.type/Vector wat.type/i64)]",
+    wat::assert_edn_eq!(
+        line.clone(),
+        include_str!("wat_arc201_extract_arg_types__parametric_type.edn"),
         "extract-arg-types must return Vector with one canonical wat.type/ list for parametric fn"
     );
 }

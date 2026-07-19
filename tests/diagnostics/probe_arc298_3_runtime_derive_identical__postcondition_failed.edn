@@ -1,0 +1,20 @@
+#wat.runtime/PostconditionFailed {
+  :defclause-name ":user::positive"
+  :clause-index 0
+  :ensure-expr-snapshot "(> result 0)"
+  :returned-value {
+    :type "wat::core::i64"
+    :rendered "-5"
+    :provenance nil
+  }
+  :ensure-span {
+    :file "defs.wat"
+    :line 20
+    :col 8
+  }
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

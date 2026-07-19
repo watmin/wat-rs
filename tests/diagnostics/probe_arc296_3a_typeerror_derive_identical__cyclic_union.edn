@@ -1,0 +1,4 @@
+#wat.type/CyclicUnion {
+  :name ":MyUnion"
+  :span {:file "test.wat" :line 1 :col 0}
+}

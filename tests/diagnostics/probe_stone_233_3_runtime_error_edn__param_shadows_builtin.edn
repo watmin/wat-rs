@@ -1,0 +1,4 @@
+#wat.runtime/ParamShadowsBuiltin {
+  :name "my-fn"
+  :span {:file "test.wat" :line 9 :col 4}
+}

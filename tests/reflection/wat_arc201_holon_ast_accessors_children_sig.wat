@@ -6,9 +6,9 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
               [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-               sig     (:wat::core::match sig-opt -> :wat::holon::HolonAST
+               sig     (:wat::core::match sig-opt -> :wat::WatAST
                          ((:wat::core::Some s) s)
                          (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
-               kids    (:wat::holon::Bundle/children sig)
+               kids    (:wat::core::ast->children sig)
                rendered kids]
               (:wat::kernel::println rendered)))

@@ -1,0 +1,8 @@
+#wat.runtime/ChannelDisconnected {
+  :op ":wat::kernel::send"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

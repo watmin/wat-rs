@@ -50,9 +50,12 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn rename_callable_name_happy_path_foldl_to_reduce() {
     let line = unwrap_string(run_expr(":t::test1-rename-foldl-to-reduce"), "test1");
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a `<T,Acc>` multi-param generic head that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        r#"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::list::reduce<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a1" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a2" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]"#,
+        include_str!("wat_arc143_manipulation__reduce_head.edn").trim_end(),
         "renamed head must be :wat::list::reduce with type params T and Acc preserved"
     );
 }
@@ -60,9 +63,9 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
 #[test]
 fn rename_callable_name_no_type_params() {
     let line = unwrap_string(run_expr(":t::test2-rename-no-type-params"), "test2");
-    assert_eq!(
+    wat::assert_edn_eq!(
         line,
-        r#"#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::my-triple #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64]"#,
+        include_str!("wat_arc143_manipulation__no_type_params.edn"),
         "renamed head must be :t::my-triple with no type params"
     );
 }
@@ -82,9 +85,9 @@ fn extract_arg_names_foldl_returns_three_names() {
     // TYPE-reflection HolonAST eviction: extract-arg-names now returns
     // plain keywords, not HolonAST Symbol nodes.
     let line = unwrap_string(run_expr(":t::test4-extract-foldl-names"), "test4");
-    assert_eq!(
+    wat::assert_edn_eq!(
         line,
-        r#"[:_a0 :_a1 :_a2]"#,
+        include_str!("wat_arc143_manipulation__extract_arg_names.edn"),
         "extracted foldl arg names must be exactly _a0/_a1/_a2"
     );
 }

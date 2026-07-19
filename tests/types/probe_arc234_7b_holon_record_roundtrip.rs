@@ -44,7 +44,7 @@ fn c3_holon_tag_in_edn_string() {
         other => panic!("C3 FAIL: write-hpt returned non-String: {:?}", other),
     };
     eprintln!("C3 written EDN: {}", s);
-    assert_eq!(s, r#"#test.rd/HPt #wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "test::rd::HPt" #wat-edn.holon/Bundle [#wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "x" #wat-edn.holon/Atom #wat-edn.holon/I64 7] #wat-edn.holon/Bind [#wat-edn.holon/Atom #wat-edn.holon/String "y" #wat-edn.holon/Atom #wat-edn.holon/I64 8]]]"#);
+    wat::assert_edn_eq!(s, include_str!("probe_arc234_7b_holon_record_roundtrip__hpt_write.edn"));
 }
 
 /// C1 — round-trip: write → read → equal to original (proves holon_form round-tripped).

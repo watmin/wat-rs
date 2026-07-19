@@ -65,9 +65,9 @@ fn probe_1_type_mismatch_retired_callee_emits_remedies_not_hint() {
     let s = wat_edn::write(&edn);
 
     // Must be exact EDN: :remedies Vector with retirement entry; no :hint.
-    assert_eq!(
-        s,
-        r#"#wat.check/TypeMismatch {:callee ":wat::core::vec" :param "x" :expected ":wat::core::Vector<:wat::core::i64>" :got ":wat::core::String" :remedies [#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value"}] :span {:file "test.wat" :line 1 :col 1}}"#,
+    wat::assert_edn_eq!(
+        s.clone(),
+        include_str!("probe_arc296_remediation_collapse__type_mismatch_vec.edn"),
         "TypeMismatch on retired callee must emit structured :remedies Vector (NO :hint)"
     );
 
@@ -75,9 +75,9 @@ fn probe_1_type_mismatch_retired_callee_emits_remedies_not_hint() {
     assert!(!items.is_empty(), ":remedies must be non-empty for retired callee :wat::core::vec");
 
     let first_str = wat_edn::write(&items[0]);
-    assert_eq!(
+    wat::assert_edn_eq!(
         first_str,
-        r#"#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value"}"#,
+        include_str!("probe_arc296_remediation_collapse__vec_remedy.edn"),
         "first remedy must be exact #wat.kernel/Remedy with :kind :retirement"
     );
 
@@ -104,9 +104,9 @@ fn probe_2_type_mismatch_arc114_shape_emits_spawn_thread_remedy_not_hint() {
     let s = wat_edn::write(&edn);
 
     // Must be exact EDN: :remedies with arc 114 spawn-thread retirement remedy; no :hint.
-    assert_eq!(
-        s,
-        r#"#wat.check/TypeMismatch {:callee ":some::fn" :param "handle" :expected ":wat::kernel::ProgramHandle<:wat::core::String>" :got ":wat::kernel::Thread<:wat::core::nil,:wat::core::String>" :remedies [#wat.kernel/Remedy {:form ":wat::kernel::spawn-thread" :kind :retirement :score 0 :note "arc 114 — :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result retire. Programs deliver values only via their output channel; R-via-join is gone. Migrate: (:wat::kernel::spawn :worker args...) → (:wat::kernel::spawn-thread (:wat::core::fn ((_in :rust::crossbeam_channel::Receiver<()>) (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) returning :wat::kernel::Thread<(),()>. Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) with (:wat::kernel::Thread/join-result thr) returning :wat::core::Result<:(),:wat::core::Vector<wat::kernel::ThreadDiedError>>; match arms ((Ok _) ...) ((Err chain) ...). Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held channels; substrate-allocated `_in` / `_out` stay unused. Workers not fitting :Fn(:Receiver<I>, :Sender<O>) -> :() — non-channel sig, non-unit return, R-via-join ferrying — get a `;; ARC 114 MANUAL — needs type-design review` comment and skip; judgment calls don't auto-sweep."}] :span {:file "test.wat" :line 1 :col 1}}"#,
+    wat::assert_edn_eq!(
+        s.clone(),
+        include_str!("probe_arc296_remediation_collapse__type_mismatch_arc114.edn"),
         "TypeMismatch arc114 shape must emit exact structured :remedies Vector (NO :hint)"
     );
 
@@ -114,9 +114,9 @@ fn probe_2_type_mismatch_arc114_shape_emits_spawn_thread_remedy_not_hint() {
     assert!(!items.is_empty(), ":remedies must be non-empty for arc 114 shape mismatch");
 
     let first_str = wat_edn::write(&items[0]);
-    assert_eq!(
+    wat::assert_edn_eq!(
         first_str,
-        r#"#wat.kernel/Remedy {:form ":wat::kernel::spawn-thread" :kind :retirement :score 0 :note "arc 114 — :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result retire. Programs deliver values only via their output channel; R-via-join is gone. Migrate: (:wat::kernel::spawn :worker args...) → (:wat::kernel::spawn-thread (:wat::core::fn ((_in :rust::crossbeam_channel::Receiver<()>) (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) returning :wat::kernel::Thread<(),()>. Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) with (:wat::kernel::Thread/join-result thr) returning :wat::core::Result<:(),:wat::core::Vector<wat::kernel::ThreadDiedError>>; match arms ((Ok _) ...) ((Err chain) ...). Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held channels; substrate-allocated `_in` / `_out` stay unused. Workers not fitting :Fn(:Receiver<I>, :Sender<O>) -> :() — non-channel sig, non-unit return, R-via-join ferrying — get a `;; ARC 114 MANUAL — needs type-design review` comment and skip; judgment calls don't auto-sweep."}"#,
+        include_str!("probe_arc296_remediation_collapse__arc114_remedy.edn"),
         "arc 114 remedy must be exact #wat.kernel/Remedy with spawn-thread :form"
     );
 
@@ -148,9 +148,9 @@ fn probe_3_return_type_mismatch_retired_callee_emits_remedies_not_hint() {
     let s = wat_edn::write(&edn);
 
     // Must be exact EDN: :remedies with retirement entry for :wat::core::list; no :hint.
-    assert_eq!(
-        s,
-        r#"#wat.check/ReturnTypeMismatch {:function ":wat::core::list" :expected ":wat::core::Vector<:wat::core::i64>" :got ":wat::core::nil" :remedies [#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value"}] :span {:file "test.wat" :line 1 :col 1}}"#,
+    wat::assert_edn_eq!(
+        s.clone(),
+        include_str!("probe_arc296_remediation_collapse__return_type_mismatch_list.edn"),
         "ReturnTypeMismatch on retired list must emit structured :remedies (NO :hint)"
     );
 
@@ -158,9 +158,9 @@ fn probe_3_return_type_mismatch_retired_callee_emits_remedies_not_hint() {
     assert!(!items.is_empty(), ":remedies must be non-empty for retired function :wat::core::list");
 
     let first_str = wat_edn::write(&items[0]);
-    assert_eq!(
+    wat::assert_edn_eq!(
         first_str,
-        r#"#wat.kernel/Remedy {:form ":wat::core::Vector" :kind :retirement :score 0 :note "rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value"}"#,
+        include_str!("probe_arc296_remediation_collapse__list_remedy.edn"),
         "list retirement remedy must be exact #wat.kernel/Remedy with :kind :retirement"
     );
 

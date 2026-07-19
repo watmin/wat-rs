@@ -1,0 +1,1 @@
+(:anonymous (n wat.type/i64) (s wat.type/String) -> wat.type/String)

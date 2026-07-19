@@ -56,9 +56,9 @@ fn probe_duplicate_type_known_span() {
         known_span(),
         TypeErrorKind::DuplicateType { name: ":user::Foo".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/DuplicateType {:name ":user::Foo" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__duplicate_type.edn"),
         "DuplicateType with known span"
     );
 }
@@ -72,9 +72,9 @@ fn probe_reserved_prefix_known_span() {
         known_span(),
         TypeErrorKind::ReservedPrefix { name: ":wat::reserved".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/ReservedPrefix {:name ":wat::reserved" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__reserved_prefix.edn"),
         "ReservedPrefix with known span"
     );
 }
@@ -91,9 +91,9 @@ fn probe_malformed_decl_known_span() {
             reason: "bad form".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/MalformedDecl {:head "struct" :reason "bad form" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_decl.edn"),
         "MalformedDecl with known span"
     );
 }
@@ -110,9 +110,9 @@ fn probe_malformed_name_known_span() {
             reason: "missing prefix".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/MalformedName {:raw "bad-name" :reason "missing prefix" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_name.edn"),
         "MalformedName with known span"
     );
 }
@@ -126,9 +126,9 @@ fn probe_malformed_field_known_span() {
         known_span(),
         TypeErrorKind::MalformedField { reason: "bad field".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/MalformedField {:reason "bad field" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_field.edn"),
         "MalformedField with known span"
     );
 }
@@ -151,9 +151,9 @@ fn probe_malformed_variant_known_span() {
             remedies: vec![],
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/MalformedVariant {:enum-name "MyEnum" :offending "BadVariant" :reason "not a keyword" :remedies [] :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_variant.edn"),
         "MalformedVariant with known span"
     );
 }
@@ -170,9 +170,9 @@ fn probe_malformed_type_expr_known_span() {
             reason: "unknown type".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/MalformedTypeExpr {:raw ":bad" :reason "unknown type" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__malformed_type_expr.edn"),
         "MalformedTypeExpr with known span"
     );
 }
@@ -186,9 +186,9 @@ fn probe_any_banned_known_span() {
         known_span(),
         TypeErrorKind::AnyBanned { raw: ":Any".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/AnyBanned {:raw ":Any" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__any_banned.edn"),
         "AnyBanned with known span"
     );
 }
@@ -202,9 +202,9 @@ fn probe_cyclic_alias_known_span() {
         known_span(),
         TypeErrorKind::CyclicAlias { name: ":A".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/CyclicAlias {:name ":A" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__cyclic_alias.edn"),
         "CyclicAlias with known span"
     );
 }
@@ -225,9 +225,9 @@ fn probe_alias_arity_mismatch_known_span() {
             got: 1,
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/AliasArityMismatch {:name ":Pair" :expected 2 :got 1 :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__alias_arity_mismatch.edn"),
         "AliasArityMismatch with known span"
     );
 }
@@ -244,9 +244,9 @@ fn probe_inner_colon_in_compound_arg_known_span() {
             offending: ":String".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/InnerColonInCompoundArg {:raw ":Vec<:String>" :offending ":String" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__inner_colon_in_compound_arg.edn"),
         "InnerColonInCompoundArg with known span"
     );
 }
@@ -260,9 +260,9 @@ fn probe_cyclic_union_known_span() {
         known_span(),
         TypeErrorKind::CyclicUnion { name: ":MyUnion".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/CyclicUnion {:name ":MyUnion" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__cyclic_union.edn"),
         "CyclicUnion with known span"
     );
 }
@@ -276,9 +276,9 @@ fn probe_empty_union_known_span() {
         known_span(),
         TypeErrorKind::EmptyUnion { name: ":Empty".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/EmptyUnion {:name ":Empty" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__empty_union.edn"),
         "EmptyUnion with known span"
     );
 }
@@ -292,9 +292,9 @@ fn probe_single_member_union_known_span() {
         known_span(),
         TypeErrorKind::SingleMemberUnion { name: ":Single".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/SingleMemberUnion {:name ":Single" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__single_member_union.edn"),
         "SingleMemberUnion with known span"
     );
 }
@@ -312,9 +312,9 @@ fn probe_invalid_union_member_known_span() {
             reason: "fn not allowed".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/InvalidUnionMember {:union-name ":MyUnion" :member-form "fn" :reason "fn not allowed" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__invalid_union_member.edn"),
         "InvalidUnionMember with known span"
     );
 }
@@ -331,9 +331,9 @@ fn probe_cyclic_subtype_known_span() {
             parent: ":B".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/CyclicSubtype {:child ":A" :parent ":B" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__cyclic_subtype.edn"),
         "CyclicSubtype with known span"
     );
 }
@@ -351,9 +351,9 @@ fn probe_impure_field_in_pure_aggregate_known_span() {
             field_ty: ":user::HandleStruct".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/ImpureFieldInPureAggregate {:aggregate ":user::MyRecord" :field "handle" :field-ty ":user::HandleStruct" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__impure_field_in_pure_aggregate.edn"),
         "ImpureFieldInPureAggregate with known span"
     );
 }
@@ -372,9 +372,9 @@ fn probe_impure_variant_field_in_pure_enum_known_span() {
             field_ty: ":user::HandleStruct".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.type/ImpureVariantFieldInPureEnum {:enum-name ":user::MyEnum" :variant "WithHandle" :field "handle" :field-ty ":user::HandleStruct" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3a_typeerror_derive_identical__impure_variant_field_in_pure_enum.edn"),
         "ImpureVariantFieldInPureEnum with known span"
     );
 }

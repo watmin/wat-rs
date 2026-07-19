@@ -54,7 +54,7 @@ fn parse_triples(
 #[test]
 fn contract_01_empty_argspec() {
     // [] → fixed_params empty, rest_param None.
-    let result = parse_triples("[]", false);
+    let result = parse_triples("[]", false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let spec = result.expect("empty argspec parses cleanly");
     assert!(spec.fixed_params.is_empty(), "fixed_params should be empty");
     assert!(spec.rest_param.is_none(), "rest_param should be None");
@@ -63,7 +63,7 @@ fn contract_01_empty_argspec() {
 #[test]
 fn contract_02_single_fixed_param() {
     // [x <- :wat::core::i64] → one fixed param, no rest.
-    let result = parse_triples("[x <- :wat::core::i64]", false);
+    let result = parse_triples("[x <- :wat::core::i64]", false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let spec = result.expect("single fixed param parses cleanly");
     assert_eq!(spec.fixed_params.len(), 1, "exactly one fixed param");
     assert_eq!(spec.fixed_params[0].0.as_str(), "x", "name slot is 'x'");
@@ -73,7 +73,7 @@ fn contract_02_single_fixed_param() {
 #[test]
 fn contract_03_multiple_fixed_params() {
     // [x <- :wat::core::i64 y <- :wat::core::i64] — two fixed params, no ret.
-    let result = parse_triples("[x <- :wat::core::i64 y <- :wat::core::i64]", false);
+    let result = parse_triples("[x <- :wat::core::i64 y <- :wat::core::i64]", false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let spec = result.expect("multi-param argspec parses cleanly");
     assert_eq!(spec.fixed_params.len(), 2, "two fixed params");
     assert_eq!(spec.fixed_params[0].0.as_str(), "x", "first name is 'x'");
@@ -86,7 +86,7 @@ fn contract_03_multiple_fixed_params() {
 #[test]
 fn contract_04_non_symbol_at_name_slot() {
     // [:keyword-not-symbol <- :wat::core::i64] — slot 0 is Keyword, must be Symbol.
-    let result = parse_triples("[:keyword-not-symbol <- :wat::core::i64]", false);
+    let result = parse_triples("[:keyword-not-symbol <- :wat::core::i64]", false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let err = result.expect_err("non-Symbol at name slot must error");
     assert!(
         matches!(err.kind, ArgSpecErrorKind::NameNotSymbol),
@@ -98,7 +98,7 @@ fn contract_04_non_symbol_at_name_slot() {
 #[test]
 fn contract_05_missing_arrow_token() {
     // [x = :wat::core::i64] — slot 1 is Symbol("=") not Symbol("<-").
-    let result = parse_triples("[x = :wat::core::i64]", false);
+    let result = parse_triples("[x = :wat::core::i64]", false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let err = result.expect_err("missing <- arrow must error");
     assert!(
         matches!(err.kind, ArgSpecErrorKind::MissingArrow),
@@ -110,7 +110,7 @@ fn contract_05_missing_arrow_token() {
 #[test]
 fn contract_06_non_keyword_at_type_slot() {
     // [x <- "string-not-keyword"] — slot 2 is StringLit, must be Keyword.
-    let result = parse_triples(r#"[x <- "string-not-keyword"]"#, false);
+    let result = parse_triples(r#"[x <- "string-not-keyword"]"#, false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let err = result.expect_err("non-Keyword at type slot must error");
     assert!(
         matches!(err.kind, ArgSpecErrorKind::TypeNotKeyword),
@@ -124,7 +124,7 @@ fn contract_07_rest_binder_rejected() {
     // [x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]
     // with allow_rest_binder=false → must error explicitly (rest support is Stone 241.4).
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]",
+        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         false,
     );
     let err = result.expect_err("& rest-binder must error when disallowed");
@@ -139,7 +139,7 @@ fn contract_07_rest_binder_rejected() {
 fn contract_08_malformed_type_keyword() {
     // [x <- :Any] — parse_type_expr_with_span rejects :Any via reject_any() → AnyBanned →
     // MalformedTypeKeyword. :Any is a structurally valid keyword but the type system bans it.
-    let result = parse_triples("[x <- :Any]", false);
+    let result = parse_triples("[x <- :Any]", false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let err = result.expect_err("banned :Any type keyword must error");
     assert!(
         matches!(err.kind, ArgSpecErrorKind::MalformedTypeKeyword { .. }),
@@ -151,7 +151,7 @@ fn contract_08_malformed_type_keyword() {
 #[test]
 fn contract_09_incomplete_triple() {
     // [x <-] — fewer than 3 items, runs out before triple completes.
-    let result = parse_triples("[x <-]", false);
+    let result = parse_triples("[x <-]", false); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let err = result.expect_err("incomplete triple must error");
     assert!(
         matches!(err.kind, ArgSpecErrorKind::IncompleteTriple),
@@ -172,7 +172,7 @@ fn contract_10_rest_only_succeeds() {
     // rest_param = Some(("rest", Vector<i64>)).
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[& rest <- :wat::core::Vector<wat::core::i64>]",
+        "[& rest <- :wat::core::Vector<wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         true,
     );
     let spec = result.expect("rest-only argspec parses cleanly when opted in");
@@ -186,7 +186,7 @@ fn contract_11_fixed_plus_rest_succeeds() {
     // [x <- :i64 & rest <- :Vector<i64>] → fixed_params: [(x, i64)]; rest_param: Some.
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]",
+        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         true,
     );
     let spec = result.expect("fixed+rest argspec parses cleanly when opted in");
@@ -202,7 +202,7 @@ fn contract_12_trailing_items_after_rest_errors() {
     // VERIFIES Stone 241.1.fix DESIGN T2 verdict β (TrailingItems becomes reachable here).
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[& rest <- :wat::core::Vector<wat::core::i64> extra]",
+        "[& rest <- :wat::core::Vector<wat::core::i64> extra]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         true,
     );
     let err = result.expect_err("trailing items after rest-binder must error");
@@ -216,7 +216,7 @@ fn contract_12_trailing_items_after_rest_errors() {
 #[test]
 fn contract_13_incomplete_rest_only_errors() {
     // [&] — only the rest-marker, no triple after it.
-    let result = parse_triples("[&]", true);
+    let result = parse_triples("[&]", true); // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
     let err = result.expect_err("rest-marker without triple must error");
     assert!(
         matches!(err.kind, ArgSpecErrorKind::IncompleteTriple),
@@ -229,7 +229,7 @@ fn contract_13_incomplete_rest_only_errors() {
 fn contract_14_rest_name_not_symbol_errors() {
     // [& :kw <- :wat::core::i64] — name slot of rest-binder triple is a Keyword.
     let result = parse_triples(
-        "[& :kw <- :wat::core::i64]",
+        "[& :kw <- :wat::core::i64]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         true,
     );
     let err = result.expect_err("non-Symbol at rest-binder name slot must error");
@@ -246,7 +246,7 @@ fn contract_15_rest_binder_rejected_when_disallowed_preserved() {
     // Distinct test name preserves contract_07 semantics with the post-Stone-241.4 framing.
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]",
+        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         false,
     );
     let err = result.expect_err("& rest-binder must STILL error when disallowed");

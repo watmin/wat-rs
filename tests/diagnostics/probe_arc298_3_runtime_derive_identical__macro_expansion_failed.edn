@@ -1,0 +1,18 @@
+#wat.runtime/MacroExpansionFailed {
+  :op ":user::expand"
+  :cause #wat.macro/DuplicateMacro {
+    :message "duplicate macro registration: my-macro"
+    :location {
+      :file "macro.wat"
+      :line 5
+      :col 2
+    }
+    :causes []
+    :name "my-macro"
+  }
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

@@ -1,0 +1,9 @@
+#wat.macro/ProgramBodyIntroducesName {
+  :macro-name "my-loop"
+  :binder "i"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

@@ -54,9 +54,9 @@ fn probe_1_return_type_mismatch_remedies_field_is_vector_not_prose() {
     let s = wat_edn::write(&edn);
 
     // :remedies must be a Vector field (even when empty); no prose "did you mean" blob.
-    assert_eq!(
-        s,
-        r#"#wat.check/ReturnTypeMismatch {:function ":user::main" :expected ":wat::core::nil" :got ":wat::core::String" :remedies [] :span {:file "test.wat" :line 1 :col 1}}"#,
+    wat::assert_edn_eq!(
+        s.clone(),
+        include_str!("probe_arc296_d1_structured_not_prose__return_type_mismatch_remedies.edn"),
         "ReturnTypeMismatch must always emit :remedies [] (never absent)"
     );
 
@@ -164,9 +164,9 @@ fn probe_3_no_matching_clause_at_call_site_is_structured() {
     let s = wat_edn::write(&edn);
 
     // :called-arg-types must be a Vector; :attempted-clauses must be present (was DROPPED before fix).
-    assert_eq!(
-        s,
-        r#"#wat.check/NoMatchingClauseAtCallSite {:name ":user::greet" :called-arity 1 :called-arg-types [":wat::core::i64"] :attempted-clauses [{:arity 1 :param-types [":wat::core::String"]}] :span {:file "test.wat" :line 1 :col 1}}"#,
+    wat::assert_edn_eq!(
+        s.clone(),
+        include_str!("probe_arc296_d1_structured_not_prose__no_matching_clause_at_call_site.edn"),
         "NoMatchingClauseAtCallSite must emit structured :called-arg-types Vector + :attempted-clauses"
     );
 
@@ -201,9 +201,9 @@ fn probe_3_no_matching_clause_at_call_site_is_structured() {
             if let OwnedValue::Vector(clauses) = ac_val {
                 assert!(!clauses.is_empty(), "attempted-clauses must be non-empty");
                 let clause_str = wat_edn::write(&clauses[0]);
-                assert_eq!(
+                wat::assert_edn_eq!(
                     clause_str,
-                    r#"{:arity 1 :param-types [":wat::core::String"]}"#,
+                    include_str!("probe_arc296_d1_structured_not_prose__clause_element.edn"),
                     "clause element must have :arity and :param-types"
                 );
             }

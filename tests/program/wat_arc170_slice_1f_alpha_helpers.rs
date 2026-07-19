@@ -472,6 +472,7 @@ fn row_g_println_polymorphic_value_types() {
         // `:wat::core::Tuple` is the verb-equals-type constructor
         // (arc 109 slice 1g). The runtime produces a Value::Tuple
         // which value_to_edn maps to an EDN Vector.
+        // rune:lint(no-inlined-edn) — is the EDN tooling correct: the exact serializer output for a 2-tuple is under test, so assert_edn_eq whitespace-blindness would defeat it
         (":probe::println-tuple", "[1 2]"),
     ];
 

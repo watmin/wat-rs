@@ -35,9 +35,10 @@ fn round_trip(v: &Value) -> Value {
 fn option_none_serializes_as_tagged_none() {
     let v = Value::Option(Arc::new(None));
     let s = write_value(&v);
-    assert_eq!(
-        s, "#wat.core.Option/None nil",
-        "Option(None) must serialize as #wat.core.Option/None nil; got: {s}"
+    wat::assert_edn_eq!(
+        s,
+        include_str!("probe_arc298_1_option_result_tagged__option_none.edn"),
+        "Option None must serialize as the tagged none form"
     );
 }
 
@@ -45,9 +46,10 @@ fn option_none_serializes_as_tagged_none() {
 fn option_some_serializes_as_tagged_some() {
     let v = Value::Option(Arc::new(Some(Value::String(Arc::new("x".into())))));
     let s = write_value(&v);
-    assert_eq!(
-        s, "#wat.core.Option/Some \"x\"",
-        "Option(Some(\"x\")) must serialize as #wat.core.Option/Some \"x\"; got: {s}"
+    wat::assert_edn_eq!(
+        s,
+        include_str!("probe_arc298_1_option_result_tagged__option_some.edn"),
+        "Option Some must serialize as the tagged some form"
     );
 }
 
@@ -57,9 +59,10 @@ fn option_some_serializes_as_tagged_some() {
 fn result_ok_serializes_as_tagged_ok() {
     let v = Value::Result(Arc::new(Ok(Value::i64(42))));
     let s = write_value(&v);
-    assert_eq!(
-        s, "#wat.core.Result/Ok 42",
-        "Result(Ok(42)) must serialize as #wat.core.Result/Ok 42; got: {s}"
+    wat::assert_edn_eq!(
+        s,
+        include_str!("probe_arc298_1_option_result_tagged__result_ok.edn"),
+        "Result Ok must serialize as the tagged ok form"
     );
 }
 
@@ -67,9 +70,10 @@ fn result_ok_serializes_as_tagged_ok() {
 fn result_err_serializes_as_tagged_err() {
     let v = Value::Result(Arc::new(Err(Value::String(Arc::new("e".into())))));
     let s = write_value(&v);
-    assert_eq!(
-        s, "#wat.core.Result/Err \"e\"",
-        "Result(Err(\"e\")) must serialize as #wat.core.Result/Err \"e\"; got: {s}"
+    wat::assert_edn_eq!(
+        s,
+        include_str!("probe_arc298_1_option_result_tagged__result_err.edn"),
+        "Result Err must serialize as the tagged err form"
     );
 }
 

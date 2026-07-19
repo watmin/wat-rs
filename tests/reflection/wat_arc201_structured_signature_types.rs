@@ -102,9 +102,9 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
     let out = run_file("tests/reflection/wat_arc201_structured_signature_types_parametric_fn.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert_eq!(
-        line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"init\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"&\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"xs\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
+    wat::assert_edn_eq!(
+        line.clone(),
+        include_str!("wat_arc201_structured_signature_types__parametric_fn.edn"),
         "signature-of-defn must emit structured parametric Bundle for sum-list fn"
     );
 }
@@ -120,9 +120,9 @@ fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     let line = render_signature_from_file(
         "tests/reflection/wat_arc201_structured_signature_types_atomic_plus.wat",
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::i64::+ #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a0\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a1\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
+        include_str!("wat_arc201_structured_signature_types__atomic_plus.edn"),
         "signature-of-defn must emit atomic Symbols for i64::+ monomorphic signature"
     );
 }
@@ -143,9 +143,12 @@ fn signature_of_defn_foldl_emits_structured_parametric_and_fn() {
     let line = render_signature_from_file(
         "tests/reflection/wat_arc201_structured_signature_types_foldl.wat",
     );
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a `<T,Acc>` multi-param generic head that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::foldl<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a0\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a1\" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a2\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :Acc]",
+        include_str!("wat_arc201_structured_signature_types__foldl.edn").trim_end(),
         "signature-of-defn must emit structured Parametric+Fn Bundles for foldl"
     );
 }
@@ -160,9 +163,9 @@ fn signature_of_defn_emits_structured_tuple_return_type() {
     let out = run_file("tests/reflection/wat_arc201_structured_signature_types_tuple.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert_eq!(
-        line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::make-pair #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Tuple #wat-edn.holon/Keyword :wat::core::i64 #wat-edn.holon/Keyword :wat::core::String]]",
+    wat::assert_edn_eq!(
+        line.clone(),
+        include_str!("wat_arc201_structured_signature_types__tuple.edn"),
         "signature-of-defn must emit structured Tuple Bundle for make-pair return type"
     );
 }

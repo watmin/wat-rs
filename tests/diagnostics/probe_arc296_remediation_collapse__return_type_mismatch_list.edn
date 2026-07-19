@@ -1,0 +1,14 @@
+#wat.check/ReturnTypeMismatch {
+  :function ":wat::core::list"
+  :expected ":wat::core::Vector<:wat::core::i64>"
+  :got ":wat::core::nil"
+  :remedies [
+    #wat.kernel/Remedy {
+      :form ":wat::core::Vector"
+      :kind :retirement
+      :score 0
+      :note "rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value"
+    }
+  ]
+  :span {:file "test.wat" :line 1 :col 1}
+}

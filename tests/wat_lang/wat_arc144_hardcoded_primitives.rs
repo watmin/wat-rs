@@ -128,9 +128,12 @@ fn body_of_length_returns_none() {
 #[test]
 fn lookup_define_length_renders_primitive_sentinel() {
     let line = unwrap_string(run_expr(":t::lookup-vector-length-render"));
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a multi-slash `Vector/length` method keyword that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector/length<T> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/primitive #wat-edn.holon/Keyword :wat::core::Vector/length]]"#,
+        include_str!("wat_arc144_hardcoded_primitives__length_primitive.edn").trim_end(),
         "rendered AST must carry __internal/primitive sentinel and length name"
     );
 }

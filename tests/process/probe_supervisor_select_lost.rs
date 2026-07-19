@@ -122,9 +122,9 @@ fn select_prime_yields_lost_when_process_child_crashes() {
                             );
                             match s.fields.first() {
                                 Some(Value::String(msg)) => {
-                                    assert_eq!(
-                                        msg.as_str(),
-                                        "#wat.kernel/ProcessPanics [#wat.kernel.ProcessDiedError/Panic [\"boom\" #wat.core.Option/Some #wat.kernel/Failure {:message \"boom\" :location #wat.core.Option/Some #wat.kernel/Location {:file \"<spawn-process-program>\" :line 3 :col 34} :frames [#wat.kernel/Frame {:file #wat.core.Option/Some \"wat-rs/src/freeze.rs\" :line #wat.core.Option/Some 1014 :symbol #wat.core.Option/Some \":user::main\"}] :actual #wat.core.Option/None nil :expected #wat.core.Option/None nil}]]",
+                                    wat::assert_edn_eq!(
+                                        msg.as_str().to_string(),
+                                        include_str!("probe_supervisor_select_lost__process_panics.edn"),
                                         "Failure.message must match the process crash sentinel golden"
                                     );
                                 }

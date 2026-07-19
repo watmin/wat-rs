@@ -86,9 +86,9 @@ fn run_i64(fixture_path: &str) -> i64 {
 fn user_function_lookup_define_emits_defn_head() {
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_defn_head.wat");
     // Stone 241.16 — reflection emits :wat::core::defn (not :wat::core::define)
-    assert_eq!(
+    wat::assert_edn_eq!(
         line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :user::greet #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"n\" #wat-edn.holon/Keyword :wat::core::String] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::String] #wat-edn.holon/Symbol \"n\"]",
+        include_str!("wat_arc144_uniform_reflection__user_function_defn_head.edn"),
         "user-function lookup-define must emit :wat::core::defn head with greet body"
     );
 }
@@ -145,9 +145,12 @@ fn special_form_lookup_define_smoke() {
     // representative special form and asserts the slice-1 sentinel
     // marker is preserved in the rendered AST.
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_special_form.wat");
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a multi-slash `__internal/…` sentinel keyword that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/special-form #wat-edn.holon/Keyword :wat::core::if]",
+        include_str!("wat_arc144_uniform_reflection__special_form.edn").trim_end(),
         "special-form lookup-define must emit sentinel head and :if name"
     );
 }
@@ -161,9 +164,12 @@ fn type_lookup_define_smoke() {
     // (full trio with head + body-of returns :None). This pins the
     // cross-test invariant on a different struct shape.
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_type.wat");
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a multi-slash `__internal/…` sentinel keyword that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defstruct #wat-edn.holon/Keyword :my::Pair #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/type-decl #wat-edn.holon/Keyword :my::Pair]]",
+        include_str!("wat_arc144_uniform_reflection__type_defstruct.edn").trim_end(),
         "type lookup-define must emit :defstruct head with my::Pair name"
     );
 }
@@ -180,9 +186,12 @@ fn primitive_empty_lookup_define_emits_define_head() {
     let line = run_string("tests/reflection/wat_arc144_uniform_reflection_empty.wat");
     // Stone 241.16 — primitive reflection emits :wat::core::defn (not :wat::core::define),
     // and Stone 241.13 — no define-dispatch; empty? is a ∀T intrinsic Primitive.
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a multi-slash `__internal/…` sentinel keyword that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        "#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::empty?<T> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"_a0\" #wat-edn.holon/Keyword :T] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::bool] #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/primitive #wat-edn.holon/Keyword :wat::core::empty?]]",
+        include_str!("wat_arc144_uniform_reflection__primitive_empty.edn").trim_end(),
         "empty? lookup-define must emit :defn head with internal-primitive sentinel body"
     );
 }

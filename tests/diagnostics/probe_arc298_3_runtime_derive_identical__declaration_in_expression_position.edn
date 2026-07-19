@@ -1,0 +1,8 @@
+#wat.runtime/DeclarationInExpressionPosition {
+  :head ":wat::core::define"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

@@ -1,0 +1,4 @@
+#wat.load/MalformedLoadForm {
+  :reason "bad form"
+  :span {:file "test.wat" :line 1 :col 0}
+}

@@ -31,6 +31,7 @@ fn truncated_frame_eof_returns_disconnected() {
     );
 
     // Write a partial EDN value — no closing `}`, no `\n`.
+    // rune:lint(no-inlined-edn) — input under test: a partial EDN byte sequence written then closed to exercise the truncated-frame path.
     let partial = b"{:a 1";
     let n = unsafe {
         libc::write(fds[1], partial.as_ptr() as *const libc::c_void, partial.len())

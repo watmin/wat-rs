@@ -1,0 +1,3 @@
+#wat.macro/SigmaFnError {
+  :detail "sigma fn registration failed: bad config"
+}

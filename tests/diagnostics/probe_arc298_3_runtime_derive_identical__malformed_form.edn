@@ -1,0 +1,9 @@
+#wat.runtime/MalformedForm {
+  :head ":wat::core::fn"
+  :reason "param list must be a vector"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

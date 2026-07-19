@@ -1,0 +1,15 @@
+#wat.check/TypeMismatch {
+  :callee ":wat::core::vec"
+  :param "x"
+  :expected ":wat::core::Vector<:wat::core::i64>"
+  :got ":wat::core::String"
+  :remedies [
+    #wat.kernel/Remedy {
+      :form ":wat::core::Vector"
+      :kind :retirement
+      :score 0
+      :note "rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value"
+    }
+  ]
+  :span {:file "test.wat" :line 1 :col 1}
+}

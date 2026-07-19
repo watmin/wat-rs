@@ -1,0 +1,7 @@
+#wat.type/ImpureVariantFieldInPureEnum {
+  :enum-name ":user::MyEnum"
+  :variant "WithHandle"
+  :field "handle"
+  :field-ty ":user::HandleStruct"
+  :span {:file "test.wat" :line 1 :col 0}
+}

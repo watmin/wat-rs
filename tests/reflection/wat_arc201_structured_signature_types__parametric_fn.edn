@@ -1,0 +1,8 @@
+#wat.core.Option/Some (
+  :user/sum-list
+  (init wat.type/i64)
+  &
+  (xs (wat.type/Vector wat.type/i64))
+  ->
+  wat.type/i64
+)

@@ -1,0 +1,8 @@
+#wat.runtime/ServiceNotRunning {
+  :op ":wat::kernel::println"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

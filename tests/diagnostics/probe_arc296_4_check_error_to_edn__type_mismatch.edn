@@ -1,0 +1,8 @@
+#wat.check/TypeMismatch {
+  :callee ":user::greet"
+  :param "name"
+  :expected ":wat::core::String"
+  :got ":wat::core::i64"
+  :remedies []
+  :span {:file "test.wat" :line 10 :col 5}
+}

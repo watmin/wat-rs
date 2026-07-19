@@ -1,0 +1,6 @@
+#wat.runtime/AssertionFailed {
+  :message "assertion fired"
+  :actual #wat.core.Option/Some "42"
+  :expected #wat.core.Option/None nil
+  :span {:file "test.wat" :line 1 :col 1}
+}

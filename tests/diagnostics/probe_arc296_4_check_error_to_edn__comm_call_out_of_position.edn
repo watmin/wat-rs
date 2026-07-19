@@ -1,0 +1,4 @@
+#wat.check/CommCallOutOfPosition {
+  :callee ":wat::kernel::send"
+  :span {:file "user.wat" :line 8 :col 3}
+}

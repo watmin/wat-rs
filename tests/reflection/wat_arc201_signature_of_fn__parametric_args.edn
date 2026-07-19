@@ -1,0 +1,1 @@
+(:anonymous (xs (wat.type/Vector wat.type/i64)) -> wat.type/i64)

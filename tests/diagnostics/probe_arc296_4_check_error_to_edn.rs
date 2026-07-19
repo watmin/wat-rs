@@ -35,9 +35,9 @@ fn type_mismatch_to_edn_is_byte_identical() {
         10,
         5,
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.check/TypeMismatch {:callee ":user::greet" :param "name" :expected ":wat::core::String" :got ":wat::core::i64" :remedies [] :span {:file "test.wat" :line 10 :col 5}}"#,
+        include_str!("probe_arc296_4_check_error_to_edn__type_mismatch.edn")
     );
 }
 
@@ -56,9 +56,9 @@ fn arity_mismatch_to_edn_is_byte_identical() {
         5,
         1,
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.check/ArityMismatch {:callee ":user::add" :expected 2 :got 3 :span {:file "src/main.wat" :line 5 :col 1}}"#,
+        include_str!("probe_arc296_4_check_error_to_edn__arity_mismatch.edn")
     );
 }
 
@@ -75,9 +75,9 @@ fn unknown_callee_to_edn_is_byte_identical() {
         3,
         7,
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.check/UnknownCallee {:callee ":user::do-thing" :span {:file "lib.wat" :line 3 :col 7}}"#,
+        include_str!("probe_arc296_4_check_error_to_edn__unknown_callee.edn")
     );
 }
 
@@ -94,8 +94,8 @@ fn comm_call_out_of_position_to_edn_is_byte_identical() {
         8,
         3,
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.check/CommCallOutOfPosition {:callee ":wat::kernel::send" :span {:file "user.wat" :line 8 :col 3}}"#,
+        include_str!("probe_arc296_4_check_error_to_edn__comm_call_out_of_position.edn")
     );
 }

@@ -7,6 +7,6 @@
                        -> :wat::core::String
                        "ok")
                sig    (:wat::runtime::signature-of-fn f)
-               kids   (:wat::holon::Bundle/children sig)
+               kids   (:wat::core::ast->children sig)
                rendered kids]
               (:wat::kernel::println rendered)))

@@ -58,7 +58,7 @@ fn cond_with_single_else_only() {
 
 #[test]
 fn cond_dispatches_on_bound_value() {
-    assert_eq!(unwrap_string(run_expr(":t::cond-dispatch")), "[startup error]");
+    assert_eq!(unwrap_string(run_expr(":t::cond-dispatch")), "[startup error]"); // rune:lint(no-inlined-edn) — sentinel marker string returned on startup failure, not a structural EDN golden
 }
 
 // ─── Type-checker refusals ──────────────────────────────────────────────

@@ -104,9 +104,9 @@ fn do_non_final_type_is_unconstrained() {
 #[test]
 fn do_reflection_round_trip_emits_variadic_sketch() {
     let rendered = unwrap_string(run_expr(":t::test7-signature"));
-    assert_eq!(
+    wat::assert_edn_eq!(
         rendered,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::do #wat-edn.holon/Symbol "<form>+"]"#,
+        include_str!("wat_arc136_do_form__do_signature.edn"),
         "expected do keyword as signature head with variadic <form>+ slot"
     );
 }

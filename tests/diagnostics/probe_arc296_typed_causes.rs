@@ -50,9 +50,9 @@ fn s1_macro_expansion_failed_carries_typed_cause_not_reason_string() {
     let s = wat_edn::write(&edn);
 
     // Must be exact tagged EDN in wat.runtime namespace with nested #wat.macro/ :cause.
-    assert_eq!(
-        s,
-        r#"#wat.runtime/MacroExpansionFailed {:op ":wat::core::macroexpand-1" :cause #wat.macro/ArityMismatch {:message "macro :user::my-macro expects 1 arguments; got 2" :location {:file "probe.wat" :line 1 :col 1} :causes [] :name ":user::my-macro" :expected 1 :got 2} :span {:file "probe.wat" :line 1 :col 1}}"#,
+    wat::assert_edn_eq!(
+        s.clone(),
+        include_str!("probe_arc296_typed_causes__macro_expansion_arity_mismatch.edn"),
         "MacroExpansionFailed must carry exact nested #wat.macro/ :cause (NOT old :reason String)"
     );
 
@@ -82,9 +82,9 @@ fn s1_macro_expansion_failed_fixpoint_site_carries_depth_exceeded_cause() {
     let edn = runtime_err.to_edn();
     let s = wat_edn::write(&edn);
 
-    assert_eq!(
-        s,
-        r#"#wat.runtime/MacroExpansionFailed {:op ":wat::core::macroexpand" :cause #wat.macro/ExpansionDepthExceeded {:message "macro expansion exceeded depth limit 512 — likely infinite recursion" :location {:file "probe.wat" :line 1 :col 1} :causes [] :limit 512} :span {:file "probe.wat" :line 1 :col 1}}"#,
+    wat::assert_edn_eq!(
+        s.clone(),
+        include_str!("probe_arc296_typed_causes__macro_expansion_depth_exceeded.edn"),
         "fixpoint MacroExpansionFailed must carry exact nested ExpansionDepthExceeded :cause"
     );
     wat_edn::parse_owned(&s).expect("must be valid EDN");
@@ -110,9 +110,9 @@ fn s2_runtime_error_wire_edn_is_structured_not_prose() {
     let wire_edn = wat::to_edn::to_wire_edn(&runtime_err);
 
     // Wire payload must be exact tagged EDN with floor fields (:message / :location / :causes).
-    assert_eq!(
-        wire_edn,
-        r#"#wat.runtime/UnboundSymbol {:message "unbound symbol: some-var" :location {:file "probe.wat" :line 1 :col 1} :causes [] :name "some-var"}"#,
+    wat::assert_edn_eq!(
+        wire_edn.clone(),
+        include_str!("probe_arc296_typed_causes__runtime_wire_unbound_symbol.edn"),
         "process_died_error_runtime_value wire payload must be exact structured EDN (NOT prose)"
     );
 

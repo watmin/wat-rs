@@ -117,9 +117,12 @@ fn body_of_unknown_name_returns_none() {
 #[test]
 fn signature_of_defn_foldl_renders_synthesised_shape() {
     let line = unwrap_string(run_expr(":t::test10-sig-render"), "sig-render");
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a `<T,Acc>` multi-param generic head that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::foldl<T_Acc> #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a0" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :Fn #wat-edn.holon/Keyword :Acc #wat-edn.holon/Keyword :T #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a1" #wat-edn.holon/Keyword :Acc] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "_a2" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :T]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :Acc]"#,
+        include_str!("wat_arc143_lookup__foldl_signature.edn").trim_end(),
         "foldl signature must render with synthesised param names and type params"
     );
 }
@@ -127,9 +130,9 @@ fn signature_of_defn_foldl_renders_synthesised_shape() {
 #[test]
 fn lookup_define_user_function_contains_defn_keyword() {
     let line = unwrap_string(run_expr(":t::test11-def-render"), "def-render");
-    assert_eq!(
+    wat::assert_edn_eq!(
         line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defn #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::my-square #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::* #wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "x"]]"#,
+        include_str!("wat_arc143_lookup__defn_render.edn"),
         "rendered define-ast must show defn head and my-square name"
     );
 }

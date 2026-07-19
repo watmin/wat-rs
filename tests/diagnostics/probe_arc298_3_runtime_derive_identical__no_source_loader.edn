@@ -1,0 +1,8 @@
+#wat.runtime/NoSourceLoader {
+  :op ":wat::eval-file!"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

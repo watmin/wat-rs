@@ -1,0 +1,15 @@
+#wat.macro/ProgramBodyEvalFailed {
+  :macro-name "my-macro"
+  :cause #wat.macro/MacroEvalRuntimeFailed {
+    :message "macro_eval: runtime::eval failed"
+    :location {:file "test.wat" :line 3 :col 5}
+    :causes []
+    :cause #wat.runtime/UnboundSymbol {
+      :message "unbound symbol: str"
+      :location {:file "test.wat" :line 3 :col 5}
+      :causes []
+      :name "str"
+    }
+  }
+  :span {:file "test.wat" :line 1 :col 1}
+}

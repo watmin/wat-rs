@@ -1,0 +1,12 @@
+#wat.runtime/MacroExpansionFailed {
+  :op ":wat::core::macroexpand-1"
+  :cause #wat.macro/ArityMismatch {
+    :message "macro :user::my-macro expects 1 arguments; got 2"
+    :location {:file "probe.wat" :line 1 :col 1}
+    :causes []
+    :name ":user::my-macro"
+    :expected 1
+    :got 2
+  }
+  :span {:file "probe.wat" :line 1 :col 1}
+}

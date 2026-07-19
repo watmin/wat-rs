@@ -1,0 +1,3 @@
+#wat.config/MalformedSetter {
+  :span {:file "test.wat" :line 1 :col 0}
+}

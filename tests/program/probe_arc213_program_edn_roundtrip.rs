@@ -70,9 +70,9 @@ fn t1_program_to_edn_is_plain_edn() {
 
     // Exact golden covers all property checks: no holon tags, native set/map
     // syntax present, :wat.core/ keywords emitted — all verified implicitly.
-    assert_eq!(
-        frame,
-        r#"[(:wat.config/set-capacity-mode! :error) (:wat.core/defstruct :myapp/Pt [x <- :wat.core/i64 y <- :wat.core/i64]) (:wat.core/defn :myapp/sum [p <- :myapp/Pt] -> :wat.core/i64 (:wat.core/let [{:keys [x y]} p] (:wat.core.i64/+ x y))) (:wat.core/defn :myapp/tags [] -> :wat.core/i64 (:wat.core/let [m {:a 1 :b 2} s #{:x :y :z}] 42)) (:wat.core/defn :user/main [] -> :wat.core/nil nil)]"#,
+    wat::assert_edn_eq!(
+        frame.clone(),
+        include_str!("probe_arc213_program_edn_roundtrip__program_frame.edn"),
         "t1_frame: program_to_edn golden"
     );
 

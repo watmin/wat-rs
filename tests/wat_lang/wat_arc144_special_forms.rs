@@ -60,7 +60,7 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
     let body_is_none = body_none(probe);
     // rune:lint(loose-assert) — property-over-variable-set: called from multiple test fns with different `probe` values; `define_line` differs per form but every valid special form must carry this sentinel
     assert!(
-        define_line.contains(":wat::core::__internal/special-form"),
+        define_line.contains(":wat.core/__internal/special-form"),
         "lookup-define for {} should emit the special-form sentinel; got: {}",
         name_keyword, define_line
     );
@@ -81,33 +81,33 @@ fn assert_special_form(probe: &str, name_keyword: &str, name_fragment: &str) {
 
 #[test]
 fn lookup_form_if_returns_special_form() {
-    assert_special_form("if", ":wat::core::if", ":wat::core::if");
+    assert_special_form("if", ":wat::core::if", ":wat.core/if");
     let signature_line = sig_str("if");
-    assert_eq!(
+    wat::assert_edn_eq!(
         signature_line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::if #wat-edn.holon/Symbol "<cond>" #wat-edn.holon/Symbol "<then>" #wat-edn.holon/Symbol "<else>"]"#,
+        include_str!("wat_arc144_special_forms__if.edn"),
         "if signature must carry <cond>/<then>/<else> slots"
     );
 }
 
 #[test]
 fn lookup_form_let_returns_special_form() {
-    assert_special_form("let", ":wat::core::let", ":wat::core::let");
+    assert_special_form("let", ":wat::core::let", ":wat.core/let");
     let signature_line = sig_str("let");
-    assert_eq!(
+    wat::assert_edn_eq!(
         signature_line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::let #wat-edn.holon/Symbol "<bindings>" #wat-edn.holon/Symbol "<body>+"]"#,
+        include_str!("wat_arc144_special_forms__let.edn"),
         "let signature must carry <bindings>/<body>+ slots"
     );
 }
 
 #[test]
 fn lookup_form_fn_returns_special_form() {
-    assert_special_form("fn", ":wat::core::fn", ":wat::core::fn");
+    assert_special_form("fn", ":wat::core::fn", ":wat.core/fn");
     let sig = sig_str("fn");
-    assert_eq!(
+    wat::assert_edn_eq!(
         sig,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::fn #wat-edn.holon/Symbol "<params>" #wat-edn.holon/Symbol "<body>+"]"#,
+        include_str!("wat_arc144_special_forms__fn.edn"),
         "fn signature must carry <params>/<body>+ slots"
     );
 }
@@ -125,22 +125,22 @@ fn lookup_form_define_is_absent_from_registry() {
 
 #[test]
 fn lookup_form_match_returns_special_form() {
-    assert_special_form("match", ":wat::core::match", ":wat::core::match");
+    assert_special_form("match", ":wat::core::match", ":wat.core/match");
     let sig = sig_str("match");
-    assert_eq!(
+    wat::assert_edn_eq!(
         sig,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::match #wat-edn.holon/Symbol "<scrutinee>" #wat-edn.holon/Symbol "->" #wat-edn.holon/Symbol "<T>" #wat-edn.holon/Symbol "<arm>+"]"#,
+        include_str!("wat_arc144_special_forms__match.edn"),
         "match signature must carry <scrutinee>/<arm>+ slots"
     );
 }
 
 #[test]
 fn lookup_form_quasiquote_returns_special_form() {
-    assert_special_form("quasiquote", ":wat::core::quasiquote", ":wat::core::quasiquote");
+    assert_special_form("quasiquote", ":wat::core::quasiquote", ":wat.core/quasiquote");
     let sig = sig_str("quasiquote");
-    assert_eq!(
+    wat::assert_edn_eq!(
         sig,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::quasiquote #wat-edn.holon/Symbol "<template>"]"#,
+        include_str!("wat_arc144_special_forms__quasiquote.edn"),
         "quasiquote signature must carry <template> slot"
     );
 }
@@ -202,11 +202,11 @@ fn lookup_form_struct_returns_special_form() {
 
 #[test]
 fn lookup_form_kernel_spawn_returns_special_form() {
-    assert_special_form("spawn", ":wat::kernel::spawn", ":wat::kernel::spawn");
+    assert_special_form("spawn", ":wat::kernel::spawn", ":wat.kernel/spawn");
     let sig = sig_str("spawn");
-    assert_eq!(
+    wat::assert_edn_eq!(
         sig,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::kernel::spawn #wat-edn.holon/Symbol "<retired-use-spawn-thread>"]"#,
+        include_str!("wat_arc144_special_forms__spawn.edn"),
         "spawn signature must carry :wat::kernel::spawn head"
     );
 }

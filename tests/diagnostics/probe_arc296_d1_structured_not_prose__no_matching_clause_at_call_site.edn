@@ -1,0 +1,9 @@
+#wat.check/NoMatchingClauseAtCallSite {
+  :name ":user::greet"
+  :called-arity 1
+  :called-arg-types [":wat::core::i64"]
+  :attempted-clauses [
+    {:arity 1 :param-types [":wat::core::String"]}
+  ]
+  :span {:file "test.wat" :line 1 :col 1}
+}

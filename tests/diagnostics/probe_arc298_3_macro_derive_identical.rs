@@ -47,9 +47,9 @@ fn write(err: &MacroError) -> String {
 #[test]
 fn probe_duplicate_macro() {
     let err = make(MacroErrorKind::DuplicateMacro("my-macro".into()));
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/DuplicateMacro {:name "my-macro" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__duplicate_macro.edn")
     );
 }
 
@@ -59,9 +59,9 @@ fn probe_duplicate_macro() {
 #[test]
 fn probe_reserved_prefix() {
     let err = make(MacroErrorKind::ReservedPrefix(":wat::my-thing".into()));
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/ReservedPrefix {:name ":wat::my-thing" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__reserved_prefix.edn")
     );
 }
 
@@ -71,9 +71,9 @@ fn probe_reserved_prefix() {
 #[test]
 fn probe_malformed_defmacro() {
     let err = make(MacroErrorKind::MalformedDefmacro { reason: "missing name".into() });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/MalformedDefmacro {:reason "missing name" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__malformed_defmacro.edn")
     );
 }
 
@@ -87,9 +87,9 @@ fn probe_arity_mismatch() {
         expected: 2,
         got: 3,
     });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/ArityMismatch {:name "my-macro" :expected 2 :got 3 :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__arity_mismatch.edn")
     );
 }
 
@@ -103,9 +103,9 @@ fn probe_arity_too_few() {
         minimum: 1,
         got: 0,
     });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/ArityTooFew {:name "my-macro" :minimum 1 :got 0 :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__arity_too_few.edn")
     );
 }
 
@@ -115,9 +115,9 @@ fn probe_arity_too_few() {
 #[test]
 fn probe_unbound_macro_param() {
     let err = make(MacroErrorKind::UnboundMacroParam { name: "x".into() });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/UnboundMacroParam {:name "x" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__unbound_macro_param.edn")
     );
 }
 
@@ -130,9 +130,9 @@ fn probe_splice_not_sequence() {
         name: "items".into(),
         got: "String",
     });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/SpliceNotSequence {:name "items" :got "String" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__splice_not_sequence.edn")
     );
 }
 
@@ -142,9 +142,9 @@ fn probe_splice_not_sequence() {
 #[test]
 fn probe_expansion_depth_exceeded() {
     let err = make(MacroErrorKind::ExpansionDepthExceeded { limit: 64 });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/ExpansionDepthExceeded {:limit 64 :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__expansion_depth_exceeded.edn")
     );
 }
 
@@ -154,9 +154,9 @@ fn probe_expansion_depth_exceeded() {
 #[test]
 fn probe_malformed_template() {
     let err = make(MacroErrorKind::MalformedTemplate { reason: "unexpected form".into() });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/MalformedTemplate {:reason "unexpected form" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__malformed_template.edn")
     );
 }
 
@@ -166,9 +166,9 @@ fn probe_malformed_template() {
 #[test]
 fn probe_refused_in_macro() {
     let err = make(MacroErrorKind::RefusedInMacro { head: ":wat::kernel::println".into() });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/RefusedInMacro {:head ":wat::kernel::println" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__refused_in_macro.edn")
     );
 }
 
@@ -181,9 +181,9 @@ fn probe_program_body_introduces_name() {
         macro_name: "my-loop".into(),
         binder: "i".into(),
     });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/ProgramBodyIntroducesName {:macro-name "my-loop" :binder "i" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__program_body_introduces_name.edn")
     );
 }
 
@@ -205,9 +205,9 @@ fn probe_program_body_eval_failed() {
         macro_name: "my-macro".into(),
         cause: inner,
     });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/ProgramBodyEvalFailed {:macro-name "my-macro" :cause #wat.macro/MalformedTemplate {:message "malformed template: bad form" :location {:file "inner.wat" :line 3 :col 1} :causes [] :reason "bad form"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__program_body_eval_failed.edn")
     );
 }
 
@@ -225,8 +225,8 @@ fn probe_macro_eval_runtime_failed() {
         kind: RuntimeErrorKind::UnboundSymbol("foo".into()),
     });
     let err = make(MacroErrorKind::MacroEvalRuntimeFailed { cause });
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.macro/MacroEvalRuntimeFailed {:cause #wat.runtime/UnboundSymbol {:message "unbound symbol: foo" :location {:file "rt.wat" :line 7 :col 3} :causes [] :name "foo"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc298_3_macro_derive_identical__macro_eval_runtime_failed.edn")
     );
 }

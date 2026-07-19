@@ -1,0 +1,6 @@
+#wat.check/ArityMismatch {
+  :callee ":user::add"
+  :expected 2
+  :got 3
+  :span {:file "src/main.wat" :line 5 :col 1}
+}

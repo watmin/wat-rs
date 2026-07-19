@@ -1,0 +1,8 @@
+#wat.core.Option/Some (
+  :wat.core/defmacro
+  :my/ident
+  [x <- :AST<wat/WatAST>]
+  ->
+  :AST<wat/WatAST>
+  (:wat.core/quasiquote (:wat.core/unquote x))
+)

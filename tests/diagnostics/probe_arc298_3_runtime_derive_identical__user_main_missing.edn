@@ -1,0 +1,7 @@
+#wat.runtime/UserMainMissing {
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

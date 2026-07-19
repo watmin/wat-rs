@@ -1,0 +1,4 @@
+#wat.check/UnknownCallee {
+  :callee ":user::do-thing"
+  :span {:file "lib.wat" :line 3 :col 7}
+}

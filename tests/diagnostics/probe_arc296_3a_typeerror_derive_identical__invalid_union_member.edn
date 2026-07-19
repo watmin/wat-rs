@@ -1,0 +1,6 @@
+#wat.type/InvalidUnionMember {
+  :union-name ":MyUnion"
+  :member-form "fn"
+  :reason "fn not allowed"
+  :span {:file "test.wat" :line 1 :col 0}
+}

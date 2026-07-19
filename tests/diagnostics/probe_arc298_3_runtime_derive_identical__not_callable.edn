@@ -1,0 +1,12 @@
+#wat.runtime/NotCallable {
+  :got {
+    :type "wat::core::String"
+    :rendered "\"hello\""
+    :provenance nil
+  }
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

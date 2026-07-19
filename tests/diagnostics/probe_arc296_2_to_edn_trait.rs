@@ -33,9 +33,9 @@ fn probe_2_span_to_edn_is_structured_map() {
     let s = wat_edn::write(&edn);
 
     // Arc 298.3: upgraded from contains-checks to byte-identical assert_eq!
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"{:file "src/lib.wat" :line 10 :col 3}"#,
+        include_str!("probe_arc296_2_to_edn_trait__span_structured_map.edn"),
         "Span.to_edn() must produce exact structured map"
     );
     assert!(

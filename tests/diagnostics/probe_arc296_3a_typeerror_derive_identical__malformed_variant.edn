@@ -1,0 +1,7 @@
+#wat.type/MalformedVariant {
+  :enum-name "MyEnum"
+  :offending "BadVariant"
+  :reason "not a keyword"
+  :remedies []
+  :span {:file "test.wat" :line 1 :col 0}
+}

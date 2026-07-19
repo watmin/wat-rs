@@ -263,9 +263,9 @@ fn edn_elides_unknown_span() {
     // D1 (arc 296 Strike 2b): primary span key is now uniformly `:span`
     // across ALL CheckErrorKind variants. The outer CheckError::to_edn()
     // calls splice_span(kind.to_edn(), &self.span) which always appends `:span`.
-    assert_eq!(
+    wat::assert_edn_eq!(
         edn_str_known,
-        r#"#wat.check/ScopeDeadlock {:thread-binding "t" :offending-binding "tx" :offending-kind "Sender" :span {:file "src/baz.wat" :line 7 :col 4}}"#,
+        include_str!("probe_arc243_stone6_checkerror_pattern_a__scope_deadlock_known_span.edn"),
         "known span must produce :span key + file data in EDN output (D1: primary span normalized)"
     );
 }

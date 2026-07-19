@@ -59,9 +59,13 @@ fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, fn_name: &str) ->
 fn probe_1_rename_callable_name_accepts_keyword_first_child() {
     let world = startup_beside(file!()).expect("startup");
     let s = run_string(&world, ":t::probe-1");
-    assert_eq!(
+    // Arc 294.f — rename-callable-name now returns :wat::WatAST (a List rebuild), rendered by
+    // :wat::edn::write as canonical `wat.type/` plain EDN: `(:t/probe-1-renamed (x wat.type/i64)
+    // -> wat.type/i64)`. Single-slash keywords, no `<>` type params → round-trips as plain EDN,
+    // so this uses the structural assert_edn_eq (cf. the green no-type-params sibling).
+    wat::assert_edn_eq!(
         s,
-        "#wat-edn.holon/Bundle [#wat-edn.holon/Keyword :t::probe-1-renamed #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"x\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
+        include_str!("wat_arc221b_macro_support_keyword_shape__probe_1_renamed.edn"),
         "rename-callable-name must emit exact golden"
     );
 }

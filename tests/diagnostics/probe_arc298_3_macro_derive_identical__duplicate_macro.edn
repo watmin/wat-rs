@@ -1,0 +1,8 @@
+#wat.macro/DuplicateMacro {
+  :name "my-macro"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

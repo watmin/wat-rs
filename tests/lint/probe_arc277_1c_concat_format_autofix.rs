@@ -37,6 +37,7 @@ fn bare_symbol_concat_rewrites_to_format() {
     assert_eq!(
         fixed,
         concat!(
+            // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
             "(:wat::core::defn :u::g [a <- :wat::core::String b <- :wat::core::String] ",
             "-> :wat::core::String (:wat::core::format ",
             "\"x: {a} y: {b}\" :a a :b b))"
@@ -52,7 +53,9 @@ fn compound_slot_concat_is_left_untouched() {
     assert_eq!(
         fixed,
         concat!(
+            // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
             "(:wat::core::defn :u::h [n <- :wat::core::i64] -> :wat::core::String ",
+            // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
             "(:wat::core::string::concat ",
             "\"n=\" (:wat::core::i64::to-string n)))"
         ),

@@ -102,6 +102,10 @@
 //! `rune:lint(<name>)` is the repo's project-custom-lint exemption form (owner `lint` = the project
 //! lint suite, NOT a grimoire spell); excusare audits the reason so "legitimate" stays honest.
 
+// rune:lint(no-inlined-wat) — this detector's doc + unit tests carry inline wat FORMS as the input
+// under test (e.g. `is_inline_wat_form("(:wat::core::+ 2 3)")`, `is_edn_esque("(:wat::core::+ 2 3)")`)
+// to exercise the wat/EDN complementarity boundary — the exact parser-test carve-out `no_inlined_wat`
+// grants for a literal that IS the reader input, not a fixture world.
 use std::path::{Path, PathBuf};
 
 use wat::parser::parse_one_with_file;
@@ -485,7 +489,7 @@ fn is_form_then_trailing(content: &str) -> bool {
 /// `is_form_then_trailing` class. Checked on the literal's own source line (`no_loose_string_assert`
 /// scans the same way).
 fn is_output_or_search_position(line: &str) -> bool {
-    const MARKERS: [&str; 10] = [
+    const MARKERS: [&str; 13] = [
         "eprintln!(",
         "println!(",
         "eprint!(",
@@ -496,6 +500,13 @@ fn is_output_or_search_position(line: &str) -> bool {
         ".matches(",
         ".split(",
         ".replace(",
+        // Substring-search predicates: a literal fed to these is a search PATTERN over rendered
+        // text (an error-message fragment, a tag prefix), never a golden. A real golden compared
+        // via `.contains` would already be a `no_loose_string_assert` violation, so claiming these
+        // here can't hide a golden.
+        ".contains(",
+        ".starts_with(",
+        ".ends_with(",
     ];
     MARKERS.iter().any(|m| line.contains(m))
 }

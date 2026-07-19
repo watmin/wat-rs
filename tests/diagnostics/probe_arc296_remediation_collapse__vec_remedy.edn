@@ -1,0 +1,6 @@
+#wat.kernel/Remedy {
+  :form ":wat::core::Vector"
+  :kind :retirement
+  :score 0
+  :note "rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value"
+}

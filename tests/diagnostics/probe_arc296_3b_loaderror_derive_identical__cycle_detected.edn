@@ -1,0 +1,4 @@
+#wat.load/CycleDetected {
+  :cycle ["a.wat" "b.wat"]
+  :span {:file "test.wat" :line 1 :col 0}
+}

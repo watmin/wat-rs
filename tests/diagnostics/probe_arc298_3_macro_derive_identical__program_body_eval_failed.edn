@@ -1,0 +1,18 @@
+#wat.macro/ProgramBodyEvalFailed {
+  :macro-name "my-macro"
+  :cause #wat.macro/MalformedTemplate {
+    :message "malformed template: bad form"
+    :location {
+      :file "inner.wat"
+      :line 3
+      :col 1
+    }
+    :causes []
+    :reason "bad form"
+  }
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

@@ -48,9 +48,9 @@ fn stone_b_user_namespace_thread_join_result_is_rejected() {
     // the diagnostic names the callee + the allowed-caller whitelist.
     let err = startup_err("tests/channel/wat_arc170_stone_b_walker_collapse_thread_violation.wat");
     // Stone B (arc 296): Debug now emits EDN (the {:?}-impostor wall). Golden recaptured.
-    assert_eq!(
+    wat::assert_edn_eq!(
         err,
-        "#wat.check/CheckErrors {:message \"1 type-check error\" :location nil :causes [] :errors [#wat.check/DefRestrictedCallerNotAllowed {:message \"\u{60}:wat::kernel::Thread/join-result\u{60} has a restricted caller whitelist [:wat::]; the enclosing fn \u{60}:my::test::call-thread-join\u{60} does not match any entry (declared via \u{60}{:restricted-to [...]}\u{60} metadata-map). An entry ending in \u{60}::\u{60} is a namespace prefix (caller FQDN must start with it); an entry without trailing \u{60}::\u{60} is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add \u{60}:my::test::call-thread-join\u{60} to the \u{60}:restricted-to\u{60} list at the binding site.\" :location #wat.core/Span {:file \"tests/channel/wat_arc170_stone_b_walker_collapse_thread_violation.wat\" :line 4 :col 195 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 227}} :causes [] :callee \":wat::kernel::Thread/join-result\" :enclosing-fn \":my::test::call-thread-join\" :prefixes [\":wat::\"]}]}",
+        include_str!("wat_arc170_stone_b_walker_collapse__thread_join_result.edn"),
         "error must match arc 198 DefRestrictedCallerNotAllowed golden for Thread/join-result"
     );
 }
@@ -62,9 +62,9 @@ fn stone_b_user_namespace_process_join_result_is_rejected() {
     // `eval_kernel_process_join_result`; arc 198's walker now enforces.
     let err = startup_err("tests/channel/wat_arc170_stone_b_walker_collapse_process_violation.wat");
     // Stone B (arc 296): Debug now emits EDN (the {:?}-impostor wall). Golden recaptured.
-    assert_eq!(
+    wat::assert_edn_eq!(
         err,
-        "#wat.check/CheckErrors {:message \"1 type-check error\" :location nil :causes [] :errors [#wat.check/DefRestrictedCallerNotAllowed {:message \"`:wat::kernel::Process/join-result` has a restricted caller whitelist [:wat::]; the enclosing fn `:my::test::call-process-join` does not match any entry (declared via `{:restricted-to [...]}` metadata-map). An entry ending in `::` is a namespace prefix (caller FQDN must start with it); an entry without trailing `::` is an exact-FQDN match. Either move the caller into one of the allowed namespaces, or add `:my::test::call-process-join` to the `:restricted-to` list at the binding site.\" :location #wat.core/Span {:file \"tests/channel/wat_arc170_stone_b_walker_collapse_process_violation.wat\" :line 4 :col 199 :end #wat.core.Option/Some #wat.core/Pos {:line 4 :col 232}} :causes [] :callee \":wat::kernel::Process/join-result\" :enclosing-fn \":my::test::call-process-join\" :prefixes [\":wat::\"]}]}",
+        include_str!("wat_arc170_stone_b_walker_collapse__process_join_result.edn"),
         "error must match arc 198 DefRestrictedCallerNotAllowed golden for Process/join-result"
     );
 }

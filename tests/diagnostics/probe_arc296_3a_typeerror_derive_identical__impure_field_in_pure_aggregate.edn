@@ -1,0 +1,6 @@
+#wat.type/ImpureFieldInPureAggregate {
+  :aggregate ":user::MyRecord"
+  :field "handle"
+  :field-ty ":user::HandleStruct"
+  :span {:file "test.wat" :line 1 :col 0}
+}

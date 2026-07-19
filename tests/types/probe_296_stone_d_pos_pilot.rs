@@ -29,6 +29,7 @@ fn c1_pos_is_registered_via_derive_drain() {
 #[test]
 fn c2_pos_edn_read_reconstructs() {
     let types = TypeEnv::with_builtins();
+    // rune:lint(no-inlined-edn) — input under test: a tagged Pos record source fed to read_edn
     let result = read_edn(r##"#wat.core/Pos {:line 1 :col 2}"##, Some(&types));
     match result {
         Ok(Value::Aggregate(agg)) => {
@@ -52,5 +53,5 @@ fn c3_pos_to_edn_write() {
     let edn_value = pos.to_edn();
     let s = wat_edn::write(&edn_value);
     eprintln!("C3 written EDN: {}", s);
-    assert_eq!(s, "#wat.core/Pos {:line 5 :col 12}", "C3 FAIL: write output mismatch");
+    wat::assert_edn_eq!(s, include_str!("probe_296_stone_d_pos_pilot__pos_write.edn"), "C3 FAIL: write output mismatch");
 }

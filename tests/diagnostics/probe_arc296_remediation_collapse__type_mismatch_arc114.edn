@@ -1,0 +1,15 @@
+#wat.check/TypeMismatch {
+  :callee ":some::fn"
+  :param "handle"
+  :expected ":wat::kernel::ProgramHandle<:wat::core::String>"
+  :got ":wat::kernel::Thread<:wat::core::nil,:wat::core::String>"
+  :remedies [
+    #wat.kernel/Remedy {
+      :form ":wat::kernel::spawn-thread"
+      :kind :retirement
+      :score 0
+      :note "arc 114 — :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result retire. Programs deliver values only via their output channel; R-via-join is gone. Migrate: (:wat::kernel::spawn :worker args...) → (:wat::kernel::spawn-thread (:wat::core::fn ((_in :rust::crossbeam_channel::Receiver<()>) (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) returning :wat::kernel::Thread<(),()>. Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) with (:wat::kernel::Thread/join-result thr) returning :wat::core::Result<:(),:wat::core::Vector<wat::kernel::ThreadDiedError>>; match arms ((Ok _) ...) ((Err chain) ...). Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held channels; substrate-allocated `_in` / `_out` stay unused. Workers not fitting :Fn(:Receiver<I>, :Sender<O>) -> :() — non-channel sig, non-unit return, R-via-join ferrying — get a `;; ARC 114 MANUAL — needs type-design review` comment and skip; judgment calls don't auto-sweep."
+    }
+  ]
+  :span {:file "test.wat" :line 1 :col 1}
+}

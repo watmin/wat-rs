@@ -40,9 +40,9 @@ fn probe_1_not_callable_serializes_to_tagged_edn() {
 
     // Round-trip via wat-edn writer + parser.
     let serialized = wat_edn::write(&edn);
-    assert_eq!(
-        serialized,
-        r#"#wat.runtime/NotCallable {:got {:type "wat::core::String" :rendered "\"not-fn\"" :provenance nil} :span {:file "test.wat" :line 3 :col 7}}"#,
+    wat::assert_edn_eq!(
+        serialized.clone(),
+        include_str!("probe_stone_233_3_runtime_error_edn__not_callable.edn"),
         "Stone 233.3: NotCallable RuntimeError must serialize to exact tagged EDN"
     );
     let parsed = wat_edn::parse_owned(&serialized).expect("parse round-trip");
@@ -70,9 +70,9 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
     let serialized = wat_edn::write(&edn);
 
     // All 4 struct fields (op, expected, got, span) must surface in exact EDN.
-    assert_eq!(
+    wat::assert_edn_eq!(
         serialized,
-        r#"#wat.runtime/TypeMismatch {:op ":wat::core::+" :expected "wat::core::i64" :got {:type "wat::core::i64" :rendered "42" :provenance nil} :span {:file "test.wat" :line 5 :col 12}}"#,
+        include_str!("probe_stone_233_3_runtime_error_edn__type_mismatch.edn"),
         "TypeMismatch serialization must include all fields: op, expected, got, span"
     );
 }
@@ -92,9 +92,9 @@ fn probe_3_assertion_failed_with_optional_fields() {
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
 
-    assert_eq!(
+    wat::assert_edn_eq!(
         serialized,
-        r#"#wat.runtime/AssertionFailed {:message "assertion fired" :actual #wat.core.Option/Some "42" :expected #wat.core.Option/None nil :span {:file "test.wat" :line 1 :col 1}}"#,
+        include_str!("probe_stone_233_3_runtime_error_edn__assertion_failed.edn"),
         "AssertionFailed must surface message, actual (Some), and expected (None/nil)"
     );
 }
@@ -110,9 +110,9 @@ fn probe_4_tuple_variant_serializes() {
     let edn = err.to_edn();
     let serialized = wat_edn::write(&edn);
 
-    assert_eq!(
+    wat::assert_edn_eq!(
         serialized,
-        r#"#wat.runtime/ParamShadowsBuiltin {:name "my-fn" :span {:file "test.wat" :line 9 :col 4}}"#,
+        include_str!("probe_stone_233_3_runtime_error_edn__param_shadows_builtin.edn"),
         "ParamShadowsBuiltin must serialize to exact tagged EDN with :name and :span"
     );
 }
@@ -133,9 +133,9 @@ fn probe_5_provenance_variants_render_with_tags() {
     let edn = wat::runtime_error_edn::provenance_to_edn(&prov);
     let serialized = wat_edn::write(&edn);
 
-    assert_eq!(
+    wat::assert_edn_eq!(
         serialized,
-        r#"#wat.kernel/SymbolBound {:binding-span {:file "test.wat" :line 4 :col 8} :head-span {:file "test.wat" :line 5 :col 12}}"#,
+        include_str!("probe_stone_233_3_runtime_error_edn__provenance_symbol_bound.edn"),
         "Provenance::SymbolBound must surface exact binding-span + head-span in EDN"
     );
 
@@ -147,9 +147,9 @@ fn probe_5_provenance_variants_render_with_tags() {
     let edn_rb = wat::runtime_error_edn::provenance_to_edn(&prov_rb);
     let serialized_rb = wat_edn::write(&edn_rb);
 
-    assert_eq!(
+    wat::assert_edn_eq!(
         serialized_rb,
-        r#"#wat.kernel/RuntimeBuilt {:producer ":wat::core::keyword/from-string" :call-span {:file "test.wat" :line 4 :col 8}}"#,
+        include_str!("probe_stone_233_3_runtime_error_edn__provenance_runtime_built.edn"),
         "Provenance::RuntimeBuilt must surface exact producer + call-span in EDN"
     );
 }

@@ -62,9 +62,9 @@ fn probe_malformed_load_form_known_span() {
         known_span(),
         LoadErrorKind::MalformedLoadForm { reason: "bad form".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.load/MalformedLoadForm {:reason "bad form" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3b_loaderror_derive_identical__malformed_load_form.edn"),
         "MalformedLoadForm with known span"
     );
 }
@@ -81,9 +81,9 @@ fn probe_setter_in_loaded_file_known_span() {
             setter_head: "set-dims!".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.load/SetterInLoadedFile {:loaded-path "foo.wat" :setter-head "set-dims!" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3b_loaderror_derive_identical__setter_in_loaded_file.edn"),
         "SetterInLoadedFile with known span"
     );
 }
@@ -97,9 +97,9 @@ fn probe_duplicate_load_known_span() {
         known_span(),
         LoadErrorKind::DuplicateLoad { path: "foo.wat".to_string() },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.load/DuplicateLoad {:path "foo.wat" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3b_loaderror_derive_identical__duplicate_load.edn"),
         "DuplicateLoad with known span"
     );
 }
@@ -115,9 +115,9 @@ fn probe_cycle_detected_known_span() {
             cycle: vec!["a.wat".to_string(), "b.wat".to_string()],
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.load/CycleDetected {:cycle ["a.wat" "b.wat"] :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3b_loaderror_derive_identical__cycle_detected.edn"),
         "CycleDetected with known span"
     );
 }
@@ -131,9 +131,9 @@ fn probe_fetch_known_span() {
         known_span(),
         LoadErrorKind::Fetch(LoadFetchError::NotFound("missing.wat".to_string())),
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.load/Fetch {:cause #wat.kernel/NotFound {:path "missing.wat"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3b_loaderror_derive_identical__fetch.edn"),
         "Fetch with known span"
     );
 }
@@ -155,9 +155,9 @@ fn probe_parse_known_span() {
             },
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.load/Parse {:path "foo.wat" :cause #wat.parse/UnexpectedRParen {:message "unexpected ')'" :location {:file "inner.wat" :line 7 :col 3} :causes []} :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3b_loaderror_derive_identical__parse.edn"),
         "Parse with known outer + inner span"
     );
 }
@@ -174,9 +174,9 @@ fn probe_verification_failed_known_span() {
             err: HashError::UnsupportedAlgorithm { algo: "SHA1".to_string() },
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.load/VerificationFailed {:path "foo.wat" :cause #wat.kernel/UnsupportedAlgorithm {:algo "SHA1"} :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_3b_loaderror_derive_identical__verification_failed.edn"),
         "VerificationFailed with known span"
     );
 }

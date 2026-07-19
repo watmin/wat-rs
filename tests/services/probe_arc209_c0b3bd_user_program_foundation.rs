@@ -88,8 +88,13 @@ fn injected_user_program_flows_to_main() {
             .unwrap_or_else(|e| panic!("invoke_user_main_with_program raised: {e:?}"));
     });
     assert_eq!(
-        lines,
-        vec!["#user/MyEnv {:token 42}".to_string()],
+        lines.len(),
+        1,
+        "expected main to read + emit the INJECTED user.program (user::MyEnv), not EmptyEnv"
+    );
+    wat::assert_edn_eq!(
+        lines[0].clone(),
+        include_str!("probe_arc209_c0b3bd_user_program_foundation__injected_user_program_flows_to_main.edn"),
         "expected main to read + emit the INJECTED user.program (user::MyEnv), not EmptyEnv"
     );
 }
@@ -103,8 +108,13 @@ fn default_user_program_is_empty_env() {
             .unwrap_or_else(|e| panic!("invoke_user_main raised: {e:?}"));
     });
     assert_eq!(
-        lines,
-        vec!["#wat.program/EmptyEnv {}".to_string()],
+        lines.len(),
+        1,
+        "expected the default user.program to be EmptyEnv when none is injected"
+    );
+    wat::assert_edn_eq!(
+        lines[0].clone(),
+        include_str!("probe_arc209_c0b3bd_user_program_foundation__default_user_program_is_empty_env.edn"),
         "expected the default user.program to be EmptyEnv when none is injected"
     );
 }

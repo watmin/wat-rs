@@ -1,0 +1,9 @@
+#wat.load/Parse {
+  :path "foo.wat"
+  :cause #wat.parse/UnexpectedRParen {
+    :message "unexpected ')'"
+    :location {:file "inner.wat" :line 7 :col 3}
+    :causes []
+  }
+  :span {:file "test.wat" :line 1 :col 0}
+}

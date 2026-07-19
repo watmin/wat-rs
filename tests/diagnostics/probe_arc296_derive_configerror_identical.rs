@@ -57,9 +57,9 @@ fn probe_setter_after_non_setter_known_span() {
             setter_head: "set-dims!".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/SetterAfterNonSetter {:setter-head "set-dims!" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__setter_after_non_setter.edn"),
         "SetterAfterNonSetter with known span"
     );
 }
@@ -75,9 +75,9 @@ fn probe_duplicate_field_known_span() {
             field: "dims".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/DuplicateField {:field "dims" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__duplicate_field.edn"),
         "DuplicateField with known span"
     );
 }
@@ -93,9 +93,9 @@ fn probe_required_field_missing_known_span() {
             field: "dims".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/RequiredFieldMissing {:field "dims" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__required_field_missing.edn"),
         "RequiredFieldMissing with known span"
     );
 }
@@ -111,9 +111,9 @@ fn probe_unknown_setter_known_span() {
             head: ":wat::config::set-foo!".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/UnknownSetter {:head ":wat::config::set-foo!" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__unknown_setter.edn"),
         "UnknownSetter with known span"
     );
 }
@@ -131,9 +131,9 @@ fn probe_bad_arity_known_span() {
             got: 2,
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/BadArity {:head ":wat::config::set-dims!" :expected 1 :got 2 :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__bad_arity.edn"),
         "BadArity with known span"
     );
 }
@@ -151,9 +151,9 @@ fn probe_bad_type_known_span() {
             got: "string",
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/BadType {:field "dims" :expected "integer" :got "string" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__bad_type.edn"),
         "BadType with known span"
     );
 }
@@ -170,9 +170,9 @@ fn probe_bad_value_known_span() {
             reason: "must be positive".to_string(),
         },
     );
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/BadValue {:field "dims" :reason "must be positive" :span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__bad_value.edn"),
         "BadValue with known span"
     );
 }
@@ -183,9 +183,9 @@ fn probe_bad_value_known_span() {
 #[test]
 fn probe_malformed_setter_known_span() {
     let err = make(known_span(), ConfigErrorKind::MalformedSetter);
-    assert_eq!(
+    wat::assert_edn_eq!(
         write(&err),
-        r#"#wat.config/MalformedSetter {:span {:file "test.wat" :line 1 :col 0}}"#,
+        include_str!("probe_arc296_derive_configerror_identical__malformed_setter.edn"),
         "MalformedSetter with known span"
     );
 }

@@ -1,0 +1,9 @@
+#wat.macro/SpliceNotSequence {
+  :name "items"
+  :got "String"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

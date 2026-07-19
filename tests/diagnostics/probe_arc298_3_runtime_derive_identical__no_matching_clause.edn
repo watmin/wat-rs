@@ -1,0 +1,37 @@
+#wat.runtime/NoMatchingClause {
+  :name ":user::process"
+  :called-arity 1
+  :called-args [
+    {
+      :type "wat::core::i64"
+      :rendered "42"
+      :provenance nil
+    }
+  ]
+  :attempted-clauses [
+    #wat.kernel/ClauseAttempt {
+      :clause-index 0
+      :declared-arity 2
+      :declared-arg-types ["i64" "i64"]
+      :failure-reason #wat.kernel/ArityMismatch {
+        :expected 2
+        :got 1
+      }
+    }
+    #wat.kernel/ClauseAttempt {
+      :clause-index 1
+      :declared-arity 1
+      :declared-arg-types ["String"]
+      :failure-reason #wat.kernel/ArgTypeMismatch {
+        :position 0
+        :expected "String"
+        :got "i64"
+      }
+    }
+  ]
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

@@ -34,9 +34,9 @@ fn error_families_tag_under_their_phase_namespace() {
         kind: CheckErrorKind::UnknownCallee { callee: ":user::do-thing".into() },
     };
     let s = wat_edn::write(&check.to_edn());
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.check/UnknownCallee {:callee ":user::do-thing" :span {:file "test.wat" :line 1 :col 1}}"#,
+        include_str!("probe_arc296_n3_per_phase_namespaces__check_unknown_callee.edn"),
         "CheckError must tag under #wat.check/"
     );
 
@@ -46,9 +46,9 @@ fn error_families_tag_under_their_phase_namespace() {
         kind: TypeErrorKind::DuplicateType { name: ":user::T".into() },
     };
     let s = wat_edn::write(&ty.to_edn());
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.type/DuplicateType {:name ":user::T" :span {:file "test.wat" :line 1 :col 1}}"#,
+        include_str!("probe_arc296_n3_per_phase_namespaces__type_duplicate_type.edn"),
         "TypeError must tag under #wat.type/"
     );
 
@@ -58,9 +58,9 @@ fn error_families_tag_under_their_phase_namespace() {
         kind: RuntimeErrorKind::UnboundSymbol("x".into()),
     };
     let s = wat_edn::write(&rt.to_edn());
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.runtime/UnboundSymbol {:name "x" :span {:file "test.wat" :line 1 :col 1}}"#,
+        include_str!("probe_arc296_n3_per_phase_namespaces__runtime_unbound_symbol.edn"),
         "RuntimeError must tag under #wat.runtime/"
     );
 
@@ -72,9 +72,9 @@ fn error_families_tag_under_their_phase_namespace() {
     };
     let s = wat_edn::write(&load.to_edn());
     // LoadError under #wat.load/; embedded LoadFetchError STAYS #wat.kernel/NotFound (shared infra).
-    assert_eq!(
+    wat::assert_edn_eq!(
         s,
-        r#"#wat.load/Fetch {:cause #wat.kernel/NotFound {:path "/no/such.wat"} :span {:file "test.wat" :line 1 :col 1}}"#,
+        include_str!("probe_arc296_n3_per_phase_namespaces__load_fetch_not_found.edn"),
         "LoadError must tag under #wat.load/; embedded LoadFetchError must stay #wat.kernel/"
     );
 }

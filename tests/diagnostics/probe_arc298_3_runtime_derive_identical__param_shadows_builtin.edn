@@ -1,0 +1,8 @@
+#wat.runtime/ParamShadowsBuiltin {
+  :name "map"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

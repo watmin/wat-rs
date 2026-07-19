@@ -1,0 +1,10 @@
+#wat.macro/ArityTooFew {
+  :name "my-macro"
+  :minimum 1
+  :got 0
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

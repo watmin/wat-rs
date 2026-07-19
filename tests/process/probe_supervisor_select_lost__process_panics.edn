@@ -1,0 +1,22 @@
+#wat.kernel/ProcessPanics [
+  #wat.kernel.ProcessDiedError/Panic [
+    "boom"
+    #wat.core.Option/Some #wat.kernel/Failure {
+      :message "boom"
+      :location #wat.core.Option/Some #wat.kernel/Location {
+        :file "<spawn-process-program>"
+        :line 3
+        :col 34
+      }
+      :frames [
+        #wat.kernel/Frame {
+          :file #wat.core.Option/Some "wat-rs/src/freeze.rs"
+          :line #wat.core.Option/Some 1014
+          :symbol #wat.core.Option/Some ":user::main"
+        }
+      ]
+      :actual #wat.core.Option/None nil
+      :expected #wat.core.Option/None nil
+    }
+  ]
+]

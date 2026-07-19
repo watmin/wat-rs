@@ -10152,39 +10152,34 @@ fn eval_struct_to_form(
 fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
     let span = crate::rust_caller_span!();
     match ty {
-        crate::types::TypeExpr::Path(p) => WatAST::Keyword(p.clone(), span),
-        crate::types::TypeExpr::Parametric { head, args } => {
-            let mut items: Vec<WatAST> = Vec::with_capacity(1 + args.len());
-            items.push(WatAST::Keyword(format!(":{}", head), span.clone()));
-            for a in args {
-                items.push(type_expr_to_ast(a));
-            }
-            WatAST::List(items, span)
-        }
-        crate::types::TypeExpr::Tuple(args) => {
-            let mut items: Vec<WatAST> = Vec::with_capacity(1 + args.len());
-            items.push(WatAST::Keyword(":Tuple".into(), span.clone()));
-            for a in args {
-                items.push(type_expr_to_ast(a));
-            }
-            WatAST::List(items, span)
-        }
-        crate::types::TypeExpr::Fn { args, ret } => {
-            let mut items: Vec<WatAST> = Vec::with_capacity(3 + args.len());
-            items.push(WatAST::Keyword(":Fn".into(), span.clone()));
-            for a in args {
-                items.push(type_expr_to_ast(a));
-            }
-            items.push(WatAST::Symbol(
-                crate::scope::Identifier::bare("->"),
-                span.clone(),
-            ));
-            items.push(type_expr_to_ast(ret));
-            WatAST::List(items, span)
-        }
+        // Arc 294.f — the reflection surface emits canonical `wat.type/` type
+        // nodes (`WatAST::Symbol` for leaves, `WatAST::List`/`Vector` for
+        // Parametric/Tuple/Fn), so the generic WatAST→plain-EDN bridge
+        // serializes them faithfully. The pre-294.f rust-scheme
+        // `:wat::core::i64` KEYWORD leaked through the bridge as the mangled
+        // `:wat.core/i64`; delegating to the canonicalizer produces the
+        // reserved `wat.type/i64` symbol instead. Reflection is now ZERO-holon.
+        //
+        // `type_expr_to_clojure_form` panics on `Var` (it only ever sees
+        // parsed-from-source types); `type_scheme_to_signature_ast` genuinely
+        // carries `Var` for a generic primitive's params, so handle it here as
+        // a bare-symbol type-var (the same shape the canonicalizer's Path
+        // type-var — Case 4 — produces), never a panic.
         crate::types::TypeExpr::Var(id) => {
-            WatAST::Keyword(format!(":?{}", id), span)
+            WatAST::Symbol(crate::scope::Identifier::bare(format!("t{id}")), span)
         }
+        other => match crate::edn_shim::type_expr_to_clojure_form(other) {
+            Ok(node) => node,
+            // Unmodeled shape (malformed trailing-`::` path, or a
+            // bare/higher-kinded parametric head) — never reachable from a
+            // type-checked signature, but fall back to a faithful bare symbol
+            // rather than panic (mirrors the canonicalizer's own clean-`Err`
+            // discipline).
+            Err(_) => WatAST::Symbol(
+                crate::scope::Identifier::bare(crate::check::format_type(other)),
+                span,
+            ),
+        },
     }
 }
 
@@ -10726,26 +10721,26 @@ fn eval_lookup_define(
     match lookup_form(&name, sym) {
         Some(Binding::UserFunction { f, .. }) => {
             let ast = function_to_define_ast(f);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::Primitive { name: n, scheme, .. }) => {
             let ast = primitive_to_define_ast(&n, &scheme);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::Macro { def, .. }) => {
             let ast = macrodef_to_define_ast(def);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::Type { def, .. }) => {
             let ast = typedef_to_define_ast(def);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::SpecialForm { name: n, .. }) => {
@@ -10760,8 +10755,8 @@ fn eval_lookup_define(
                 ],
                 span,
             );
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&sentinel)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(sentinel),
             )))))
         }
         None => Ok(Value::Option(Arc::new(None))),
@@ -10819,33 +10814,36 @@ fn eval_signature_of_defn(
     match lookup_form(&name, sym) {
         Some(Binding::UserFunction { f, .. }) => {
             let ast = function_to_signature_ast(f);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::Primitive { name: n, scheme, .. }) => {
             let ast = type_scheme_to_signature_ast(&n, &scheme);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::Macro { def, .. }) => {
             let ast = macrodef_to_signature_ast(def);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::Type { def, .. }) => {
             let ast = typedef_to_signature_ast(def);
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&ast)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(ast),
             )))))
         }
         Some(Binding::SpecialForm { signature, .. }) => {
             // Slice 2 populates SpecialForm.signature with a synthetic
-            // HolonAST at registration time; emit it directly.
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(signature),
+            // HolonAST at registration time; lower it to WatAST so the
+            // reflection surface emits plain EDN (arc 294.f) — unlike the
+            // other arms whose `*_to_signature_ast` builders already return
+            // WatAST, this arm carries a stored HolonAST field.
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(holon_to_watast(&signature)),
             )))))
         }
         None => Ok(Value::Option(Arc::new(None))),
@@ -10921,7 +10919,7 @@ fn eval_signature_of_fn(
         }
     };
     let ast = function_to_signature_ast(&f);
-    Ok(Value::holon__HolonAST(Arc::new(watast_to_holon(&ast))))
+    Ok(Value::wat__WatAST(Arc::new(ast)))
 }
 
 /// `(:wat::runtime::return-type-of <fn-value>) -> :wat::core::String`
@@ -11052,14 +11050,14 @@ fn eval_body_of(
                 FunctionBody::Native => return Ok(Value::Option(Arc::new(None))),
             };
             let body = (**ast).clone();
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&body)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(body),
             )))))
         }
         Some(Binding::Macro { def, .. }) => {
             let body = def.body.clone();
-            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-                Arc::new(watast_to_holon(&body)),
+            Ok(Value::Option(Arc::new(Some(Value::wat__WatAST(
+                Arc::new(body),
             )))))
         }
         Some(Binding::Primitive { .. }) => Ok(Value::Option(Arc::new(None))),
@@ -11188,7 +11186,7 @@ fn eval_metadata_of(
             for (k, v) in meta {
                 map.insert(
                     Value::wat__core__keyword(Arc::new(k.clone())),
-                    Value::holon__HolonAST(Arc::new(watast_to_holon(v))),
+                    Value::wat__WatAST(Arc::new(v.clone())),
                 );
             }
             Ok(Value::Option(Arc::new(Some(Value::wat__std__HashMap(Arc::new(map))))))
@@ -11212,6 +11210,25 @@ fn require_bundle<'a>(
             op: op.into(),
             expected: "Bundle (signature head HolonAST)",
             got: Box::new(ValueSnapshot::unavailable("non-Bundle HolonAST variant"))
+        } }.into()),
+    }
+}
+
+/// Arc 294.f — the WatAST analogue of [`require_bundle`]. Reflection signature
+/// heads are now `WatAST` compound nodes (a `List` for function/primitive
+/// signatures, a `Vector` for macro/variadic argspecs), NOT lowered
+/// `HolonAST::Bundle`s. Borrow the child forms, or error on a leaf node.
+fn require_ast_children<'a>(
+    op: &'static str,
+    ast: &'a WatAST,
+    arg_span: &Span,
+) -> Result<&'a Vec<WatAST>, EvalBreak> {
+    match ast {
+        WatAST::List(children, _) | WatAST::Vector(children, _) => Ok(children),
+        _ => Err(RuntimeError { span: arg_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
+            expected: "List/Vector (signature head :wat::WatAST)",
+            got: Box::new(ValueSnapshot::unavailable("non-compound WatAST variant"))
         } }.into()),
     }
 }
@@ -11290,13 +11307,13 @@ fn eval_rename_callable_name(
         eval_inner(&args[2], env, sym)?.value_owned()
     };
 
-    // Extract HolonAST from head arg.
-    let holon_arc = match head_val {
-        Value::holon__HolonAST(h) => h,
+    // Extract WatAST from head arg (arc 294.f — signature heads are now WatAST).
+    let ast_arc = match head_val {
+        Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::holon::HolonAST (signature head)",
+                expected: ":wat::WatAST (signature head)",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }
@@ -11326,24 +11343,25 @@ fn eval_rename_callable_name(
         }
     };
 
-    // Destructure Bundle; check children[0] is a Keyword (arc 221 Stone 221.4b).
-    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    // Destructure the signature head; children[0] is the name Keyword.
+    // Preserve the compound kind (List for fn/primitive signatures, Vector for
+    // macro argspecs) so the rebuilt head round-trips faithfully.
+    let children = require_ast_children(OP, &*ast_arc, &args[0].span())?;
     if children.is_empty() {
         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Bundle with at least one Keyword child (the function name, arc 221 doctrine)",
-            got: Box::new(ValueSnapshot::unavailable("empty Bundle"))
+            expected: "compound WatAST with at least one Keyword child (the function name)",
+            got: Box::new(ValueSnapshot::unavailable("empty signature head"))
         } }.into());
     }
-    // Arc 230: children[0] is a Keyword composition (Bind(Atom("Keyword"), Atom(s))).
-    // Arc 221 Stone 221.4b established Keyword as first Bundle child.
-    // as_keyword() recognises the Bind composition.
-    let first_str = if let Some(s) = children[0].as_keyword() {
-        s
+    // children[0] is a `WatAST::Keyword` — its stored string INCLUDES the
+    // leading colon (e.g. `:user::add-two<T>`).
+    let first_str = if let WatAST::Keyword(s, _) = &children[0] {
+        s.as_str()
     } else {
         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Keyword composition as first Bundle child (the function name, arc 230 doctrine)",
+            expected: "Keyword as first child (the function name)",
             got: Box::new(ValueSnapshot::unavailable("non-Keyword first child"))
         } }.into());
     };
@@ -11351,11 +11369,10 @@ fn eval_rename_callable_name(
     // Split name at `<` to preserve type-param suffix.
     let (base, suffix) = split_type_params(first_str);
 
-    // Arc 221 Stone 221.4b — `base` has NO leading colon (Keyword payload);
-    // `from_str` (from name_from_keyword_or_fn / Value::wat__core__keyword) has
-    // the leading colon. Strip it before comparing.
-    let from_base = from_str.strip_prefix(':').unwrap_or(from_str.as_str());
-    if base != from_base {
+    // Both `base` (from the WatAST Keyword) and `from_str` (from
+    // name_from_keyword_or_fn / Value::wat__core__keyword) carry the leading
+    // colon; compare them directly.
+    if base != from_str.as_str() {
         return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
@@ -11365,18 +11382,25 @@ fn eval_rename_callable_name(
         } }.into());
     }
 
-    // Arc 221 Stone 221.4b — construct new first Keyword (not Symbol).
-    // to_str comes from name_from_keyword_or_fn (includes leading colon e.g. ":bar::fn").
-    // HolonAST::keyword() strips the leading colon → stored as "bar::fn" (no colon).
+    // Construct the new first Keyword. `to_str` (from name_from_keyword_or_fn)
+    // already includes the leading colon (e.g. `:bar::fn`); the WatAST Keyword
+    // payload keeps the colon, so `to_str + suffix` is the correct stored form.
     let new_name = format!("{}{}", to_str, suffix);
-    let new_first = HolonAST::keyword(new_name.as_str());
+    let head_span = children[0].span().clone();
+    let new_first = WatAST::Keyword(new_name, head_span);
 
-    // Rebuild Bundle: [new_first] ++ children[1..].
-    let mut new_children: Vec<HolonAST> = Vec::with_capacity(children.len());
+    // Rebuild the head, preserving its compound kind: [new_first] ++ children[1..].
+    let mut new_children: Vec<WatAST> = Vec::with_capacity(children.len());
     new_children.push(new_first);
     new_children.extend_from_slice(&children[1..]);
+    let rebuilt = match &*ast_arc {
+        WatAST::Vector(_, span) => WatAST::Vector(new_children, span.clone()),
+        WatAST::List(_, span) => WatAST::List(new_children, span.clone()),
+        // require_ast_children already rejected leaf nodes.
+        other => other.clone(),
+    };
 
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(new_children))))
+    Ok(Value::wat__WatAST(Arc::new(rebuilt)))
 }
 
 /// `(:wat::runtime::extract-arg-names head) -> :wat::core::Vector<wat::core::keyword>`
@@ -11415,46 +11439,42 @@ fn eval_extract_arg_names(
         } }.into());
     }
     let head_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon_arc = match head_val {
-        Value::holon__HolonAST(h) => h,
+    let ast_arc = match head_val {
+        Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::holon::HolonAST (signature head)",
+                expected: ":wat::WatAST (signature head)",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }
     };
-    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    let children = require_ast_children(OP, &*ast_arc, &args[0].span())?;
 
     let mut names: Vec<Value> = Vec::new();
-    // Skip children[0] (function name symbol); walk from index 1.
+    // Skip children[0] (function name keyword); walk from index 1.
     for child in children.iter().skip(1) {
-        // Arc 230: Symbol composition recognised via as_symbol().
-        if let Some(s) = child.as_symbol() {
-            if s == "->" {
+        if let WatAST::Symbol(ident, _) = child {
+            if ident.as_str() == "->" {
                 break; // Arrow sentinel — stop collecting.
             }
-            // Bare symbol at top level (rare but possible) — skip.
+            // Bare symbol at top level (`&` variadic marker, etc.) — skip.
             continue;
         }
-        match child {
-            // Arg-pair Bundle: [Symbol(arg_name), type_ast].
-            // Arc 230: pair[0] is a Symbol composition; as_symbol() extracts the name.
-            HolonAST::Bundle(pair) if pair.len() == 2 => {
-                if let Some(arg_name) = pair[0].as_symbol() {
-                    // Reflection-eviction (HolonAST retired from TYPE
-                    // reflection output): return the bare name as a plain
-                    // keyword, e.g. `logger` -> `:logger` — matching the
-                    // leading-colon convention every other keyword VALUE in
-                    // this file follows (runtime.rs:8150,14839).
-                    names.push(Value::wat__core__keyword(Arc::new(format!(":{}", arg_name))));
+        // Arg-pair `(arg_name <type>)` — a two-element List (function
+        // signatures) or Vector (macro/variadic surfaces). pair[0] is the
+        // arg-name Symbol; pair[1] is the (canonical `wat.type/`) type node.
+        if let WatAST::List(pair, _) | WatAST::Vector(pair, _) = child {
+            if pair.len() == 2 {
+                if let WatAST::Symbol(arg_name, _) = &pair[0] {
+                    // Return the bare name as a plain keyword, e.g. `logger`
+                    // -> `:logger` — the leading-colon convention every other
+                    // keyword VALUE in this file follows.
+                    names.push(Value::wat__core__keyword(Arc::new(format!(":{}", arg_name.as_str()))));
                 }
-                // If first child isn't a Symbol composition, skip (not a recognised pair).
             }
-            // Any other shape: skip.
-            _ => {}
         }
+        // Any other shape: skip.
     }
 
     Ok(Value::Vec(Arc::new(names)))
@@ -11513,171 +11533,41 @@ fn eval_extract_arg_types(
         } }.into());
     }
     let head_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let holon_arc = match head_val {
-        Value::holon__HolonAST(h) => h,
+    let ast_arc = match head_val {
+        Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "wat::holon::HolonAST (signature head)",
+                expected: ":wat::WatAST (signature head)",
                 got: Box::new(ValueSnapshot::of(&other))
             } }.into());
         }
     };
-    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    let children = require_ast_children(OP, &*ast_arc, &args[0].span())?;
 
     let mut types: Vec<Value> = Vec::new();
-    // Skip children[0] (function name symbol); walk from index 1.
+    // Skip children[0] (function name keyword); walk from index 1.
     for child in children.iter().skip(1) {
-        // Arc 230: Symbol composition recognised via as_symbol().
-        if let Some(s) = child.as_symbol() {
-            if s == "->" {
+        if let WatAST::Symbol(ident, _) = child {
+            if ident.as_str() == "->" {
                 break; // Arrow sentinel — stop collecting.
             }
-            continue; // Bare symbol at top level — skip.
+            continue; // Bare symbol at top level (`&`, etc.) — skip.
         }
-        match child {
-            // Arg-pair Bundle: [Symbol(arg_name), type_ast].
-            // Extract pair[1] (the structured type AST per slice 1 emission rules).
-            HolonAST::Bundle(pair) if pair.len() == 2 => {
-                // pair[0] is the arg name (Symbol composition); pair[1] is the type AST.
-                // Render pair[1] to the canonical `wat.type/` WatAST form — see
-                // `holon_type_ast_to_wat_type_form` doc for why this renders
-                // rather than flattens to a keyword.
-                let node = holon_type_ast_to_wat_type_form(&pair[1]).map_err(|reason| RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm { head: OP.into(), reason },
-                })?;
-                types.push(Value::wat__WatAST(Arc::new(node)));
+        // Arg-pair `(arg_name <type>)` — a two-element List/Vector; pair[1] is
+        // the type node. Post arc-294.f the signature already carries canonical
+        // `wat.type/` WatAST type nodes (emitted by `type_expr_to_ast` via
+        // `type_expr_to_clojure_form`), so we RETURN the sub-node verbatim — no
+        // re-canonicalization, no HolonAST bridge.
+        if let WatAST::List(pair, _) | WatAST::Vector(pair, _) = child {
+            if pair.len() == 2 {
+                types.push(Value::wat__WatAST(Arc::new(pair[1].clone())));
             }
-            // Any other shape: skip.
-            _ => {}
         }
+        // Any other shape: skip.
     }
 
     Ok(Value::Vec(Arc::new(types)))
-}
-
-/// Render a signature-emission type-AST subtree (the shape
-/// `type_expr_to_ast` produces, lowered through `watast_to_holon`) to the
-/// canonical arc-251 `wat.type/` `WatAST` form — the SAME form
-/// [`crate::edn_shim::type_expr_to_clojure_form`] would produce from the
-/// original `TypeExpr`, but operating on the already-lowered HolonAST shape
-/// (see `eval_extract_arg_types`'s doc for why the original `TypeExpr`
-/// isn't reachable at that call site).
-///
-/// Structurally mirrors `type_expr_to_clojure_form`'s 4-way Path/leaf
-/// discriminator (core `wat::core::X` -> `wat.type/X`; bare primitive ->
-/// `wat.type/X`; user/library `a::b::C` -> namespace-preserving `a.b/C`;
-/// type-var -> bare symbol) and its Parametric/Tuple/Fn Bundle handling.
-///
-/// `type_expr_to_ast`'s emission rules (mirrored here in reverse):
-/// - `TypeExpr::Path(p)` -> `HolonAST::Keyword` leaf, content = `p` minus
-///   leading colon (`as_keyword()` already strips it).
-/// - `TypeExpr::Var(id)` -> `HolonAST::Keyword` leaf, content = `"?{id}"`.
-///   Unlike `type_expr_to_clojure_form` (which only ever sees
-///   parsed-from-source `TypeExpr`s and panics on `Var`), this walker DOES
-///   reach `Var`: `extract-arg-types` also reflects over primitive
-///   signatures built from `TypeScheme` (`type_scheme_to_signature_ast`),
-///   which genuinely carries `Var` for generic params. Rendered as the
-///   same bare-symbol type-var case as a `Path` type-var, `?` stripped.
-/// - `TypeExpr::Parametric { head, args }` -> `HolonAST::Bundle` whose
-///   first child is the head keyword (colon-stripped) and remaining
-///   children are the recursively-rendered args.
-/// - `TypeExpr::Tuple(args)` -> `HolonAST::Bundle` headed by keyword
-///   `"Tuple"`.
-/// - `TypeExpr::Fn { args, ret }` -> `HolonAST::Bundle` headed by keyword
-///   `"Fn"`, followed by arg subtrees, a `Symbol("->")` sentinel, then the
-///   ret subtree.
-///
-/// Fallible for the same reasons `type_expr_to_clojure_form` is: a
-/// malformed trailing-`::` path, or a bare/higher-kinded parametric head —
-/// clean `Err`, never a panic.
-fn holon_type_ast_to_wat_type_form(h: &HolonAST) -> Result<WatAST, String> {
-    let unk = crate::rust_caller_span!();
-    if let Some(kw) = h.as_keyword() {
-        // Path or Var leaf — content is already colon-stripped by
-        // `HolonAST::keyword()`. Strip the synthetic `?` Var marker (if
-        // present) before running the same 4-way ladder `Path` uses.
-        let body = kw.strip_prefix('?').unwrap_or(kw);
-        return Ok(if let Some(tail) = body.strip_prefix("wat::core::") {
-            // Case 1: core FQDN -> flat wat.type/ namespace.
-            WatAST::Symbol(crate::scope::Identifier::bare(format!("wat.type/{tail}")), unk)
-        } else if crate::check::BARE_PRIMITIVES.iter().any(|(bare, _)| *bare == format!(":{body}").as_str()) {
-            // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body}.
-            WatAST::Symbol(crate::scope::Identifier::bare(format!("wat.type/{body}")), unk)
-        } else if body.contains("::") {
-            // Case 3: user/library type -> namespace-preserving.
-            let sym = crate::edn_shim::wat_keyword_to_clojure_symbol(&format!(":{body}")).ok_or_else(|| {
-                format!("cannot render type `:{body}` to a faithful form (malformed namespaced path — trailing `::` or empty segment)")
-            })?;
-            WatAST::Symbol(crate::scope::Identifier::bare(sym), unk)
-        } else {
-            // Case 4: type-var (or Var-leaf with `?` stripped) -- bare symbol.
-            WatAST::Symbol(crate::scope::Identifier::bare(body.to_string()), unk)
-        });
-    }
-    if let HolonAST::Bundle(children) = h {
-        if let Some(head) = children.first().and_then(|c| c.as_keyword()) {
-            return Ok(match head {
-                "Tuple" => {
-                    let mut elems = vec![WatAST::Symbol(crate::scope::Identifier::bare("wat.type/Tuple".to_string()), unk.clone())];
-                    for c in &children[1..] {
-                        elems.push(holon_type_ast_to_wat_type_form(c)?);
-                    }
-                    WatAST::List(elems, unk)
-                }
-                "Fn" => {
-                    // children[1..] = args..., Symbol("->"), ret.
-                    let arrow_pos = children[1..]
-                        .iter()
-                        .position(|c| c.as_symbol() == Some("->"));
-                    let pos = arrow_pos.ok_or_else(|| "malformed Fn type AST: missing `->` sentinel".to_string())?;
-                    let args_end = 1 + pos;
-                    let mut items: Vec<WatAST> = Vec::with_capacity(children.len());
-                    for c in &children[1..args_end] {
-                        items.push(holon_type_ast_to_wat_type_form(c)?);
-                    }
-                    items.push(WatAST::Keyword(":->".into(), unk.clone()));
-                    let ret = children.get(args_end + 1)
-                        .ok_or_else(|| "malformed Fn type AST: missing return type".to_string())?;
-                    items.push(holon_type_ast_to_wat_type_form(ret)?);
-                    WatAST::Vector(items, unk)
-                }
-                _ => {
-                    // Parametric: head is the type-param-suffixed name
-                    // (e.g. "wat::core::Vector", "wat::kernel::Peer'").
-                    // 4-way ladder mirrors Path.
-                    let sym = if let Some(tail) = head.strip_prefix("wat::core::") {
-                        // Case 1: core FQDN -> flat wat.type/ namespace.
-                        format!("wat.type/{tail}")
-                    } else if let Some((_bare, fqdn)) = crate::check::BARE_CONTAINER_HEADS.iter().find(|(bare, _)| *bare == head) {
-                        // Case 2: bare container head (Option, Vec, ...) -> canonical FQDN's last segment.
-                        let tail = fqdn.rsplit("::").next().unwrap();
-                        format!("wat.type/{tail}")
-                    } else if head.contains("::") {
-                        // Case 3: user/library type -> namespace-preserving.
-                        crate::edn_shim::wat_keyword_to_clojure_symbol(&format!(":{head}")).ok_or_else(|| {
-                            format!("cannot render parametric head `:{head}` (malformed namespaced path)")
-                        })?
-                    } else {
-                        // Case 4: bare/higher-kinded head — not in the model.
-                        return Err(format!(
-                            "cannot render parametric type with bare head `{head}` — not a core container and not FQDN; \
-                             use the fully-qualified type name (bare/higher-kinded heads are unsupported)"
-                        ));
-                    };
-                    let mut items = vec![WatAST::Symbol(crate::scope::Identifier::bare(sym), unk.clone())];
-                    for c in &children[1..] {
-                        items.push(holon_type_ast_to_wat_type_form(c)?);
-                    }
-                    WatAST::List(items, unk)
-                }
-            });
-        }
-    }
-    // Unrecognised shape — should not occur for a signature-emitted type
-    // AST; clean error rather than a panic.
-    Err(format!("unrecognised signature type-AST shape: {:?}", h))
 }
 
 /// `(:wat::runtime::field-names-of type-kw) -> :wat::core::Vector<wat::core::Keyword>`

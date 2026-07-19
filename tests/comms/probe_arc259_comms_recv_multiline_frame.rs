@@ -31,6 +31,7 @@ fn comms_recv_value_frames_a_multiline_edn_value() {
     // Raw-write a MULTI-LINE EDN value to the pipe — exactly what a child's
     // `pprintln` puts on its stdout. Bypass the compact Sender; this is the
     // raw byte stream the comms reader must frame.
+    // rune:lint(no-inlined-edn) — input under test: a multi-line EDN value raw-written to the pipe as the byte stream the comms reader must frame.
     let msg = "{\n  :a 1\n}\n";
     let n = unsafe {
         libc::write(fds[1], msg.as_ptr() as *const libc::c_void, msg.len())
@@ -47,6 +48,7 @@ fn comms_recv_value_frames_a_multiline_edn_value() {
     // GREEN: value-framed → the whole multi-line value (terminating \n stripped).
     match receiver.recv() {
         Ok(s) => assert_eq!(
+            // rune:lint(no-inlined-edn) — is the EDN tooling correct: the framer's exact bytes are under test; assert_edn_eq is whitespace-blind and would not catch a mangled frame.
             s, "{\n  :a 1\n}",
             "comms recv must value-frame the WHOLE multi-line EDN value, \
              not split on the first newline (got the truncated prefix)"

@@ -1,0 +1,13 @@
+#wat.runtime/SandboxScopeLeak {
+  :offending-name ":user::my-helper"
+  :outer-define-span {
+    :file "outer.wat"
+    :line 10
+    :col 4
+  }
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

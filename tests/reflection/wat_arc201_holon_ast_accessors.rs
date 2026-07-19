@@ -105,9 +105,9 @@ fn bundle_children_returns_vec_of_holonast_from_signature() {
     let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_children_sig.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert_eq!(
-        line,
-        "[#wat-edn.holon/Keyword :user::add-two #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"a\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"b\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
+    wat::assert_edn_eq!(
+        line.clone(),
+        include_str!("wat_arc201_holon_ast_accessors__children_sig.edn"),
         "Bundle/children on add-two signature must yield head + arg-pair Bundles + arrow + ret"
     );
 }
@@ -133,9 +133,9 @@ fn bundle_children_walks_parametric_type_slot() {
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
     // The parametric type appears as a structured Bundle (not a fused flat keyword).
-    assert_eq!(
-        line,
-        "[#wat-edn.holon/Keyword :user::sum-list #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"init\" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol \"&\" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol \"xs\" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol \"->\" #wat-edn.holon/Keyword :wat::core::i64]",
+    wat::assert_edn_eq!(
+        line.clone(),
+        include_str!("wat_arc201_holon_ast_accessors__children_parametric.edn"),
         "Bundle/children on sum-list signature must show :Vector standalone in nested Bundle"
     );
 }
@@ -169,9 +169,9 @@ fn bundle_first_returns_head_keyword_of_signature() {
     let out = run_file("tests/reflection/wat_arc201_holon_ast_accessors_first_head.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
     let line = &out[0];
-    assert_eq!(
-        line,
-        "#wat-edn.holon/Keyword :user::add-two",
+    wat::assert_edn_eq!(
+        line.clone(),
+        include_str!("wat_arc201_holon_ast_accessors__first_head.edn"),
         "Bundle/first on add-two signature must return the head Keyword Symbol"
     );
 }

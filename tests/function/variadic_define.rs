@@ -132,9 +132,9 @@ fn signature_of_defn_variadic_define_returns_rest_shape() {
     // their own Symbol entry inside a Bundle: `Symbol ":wat::core::Vector"`
     // and `Symbol ":wat::core::i64"`. Asserting both confirms the
     // structured emission reached the variadic rest slot.
-    assert_eq!(
+    wat::assert_edn_eq!(
         rendered,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :my::sum-of #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "init" #wat-edn.holon/Keyword :wat::core::i64] #wat-edn.holon/Symbol "&" #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "xs" #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::Vector #wat-edn.holon/Keyword :wat::core::i64]] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :wat::core::i64]"#,
+        include_str!("variadic_define__signature.edn"),
         "vd_sig: variadic defn signature golden"
     );
 }

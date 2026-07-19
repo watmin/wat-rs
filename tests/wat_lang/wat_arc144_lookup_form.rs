@@ -49,9 +49,9 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
     let line = unwrap_string(run_expr(":t::test1-lookup-macro-render"), "test1");
-    assert_eq!(
+    wat::assert_edn_eq!(
         line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defmacro #wat-edn.holon/Keyword :my::ident #wat-edn.holon/Bundle [#wat-edn.holon/Symbol "x" #wat-edn.holon/Symbol "<-" #wat-edn.holon/Keyword :AST<wat::WatAST>] #wat-edn.holon/Symbol "->" #wat-edn.holon/Keyword :AST<wat::WatAST> #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::quasiquote #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::unquote #wat-edn.holon/Symbol "x"]]]"#,
+        include_str!("wat_arc144_lookup_form__macro_head.edn"),
         "rendered macro define-ast must carry defmacro head and my::ident name"
     );
 }
@@ -77,9 +77,12 @@ fn body_of_macro_returns_some_with_template() {
 #[test]
 fn lookup_define_struct_returns_some_and_emits_struct_head() {
     let line = unwrap_string(run_expr(":t::test4-lookup-struct-render"), "test4");
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a multi-slash struct-member keyword that plain
+    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
+    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
     assert_eq!(
         line,
-        r#"#wat.core.Option/Some #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::defstruct #wat-edn.holon/Keyword :my::Bar #wat-edn.holon/Bundle [#wat-edn.holon/Keyword :wat::core::__internal/type-decl #wat-edn.holon/Keyword :my::Bar]]"#,
+        include_str!("wat_arc144_lookup_form__struct_head.edn").trim_end(),
         "rendered struct define-ast must carry defstruct head and my::Bar name"
     );
 }

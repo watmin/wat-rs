@@ -4407,7 +4407,7 @@ fn infer_list(
                 }
                 let ty = TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
                 };
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
@@ -4458,7 +4458,7 @@ fn infer_list(
                 if args.len() >= 1 {
                     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
-                let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
+                let ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::runtime::return-type-of" => {
@@ -4516,7 +4516,8 @@ fn infer_list(
                 for arg in args.iter() {
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
-                let ty = TypeExpr::Path(":wat::holon::HolonAST".into());
+                // Arc 294.f — rename-callable-name now returns :wat::WatAST.
+                let ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
             ":wat::runtime::extract-arg-names" => {
@@ -19748,9 +19749,10 @@ fn register_builtins(env: &mut CheckEnv) {
     //   signature-of-defn — head only
     //   body-of        — body only (:None for substrate primitives)
     let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    // Arc 294.f — reflection verbs now emit WatAST (plain EDN), not HolonAST.
     let opt_holon_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
-        args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+        args: vec![TypeExpr::Path(":wat::WatAST".into())],
     };
     env.register(
         ":wat::runtime::lookup-define".into(),
@@ -19801,7 +19803,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![fn_ty()],
-            ret: TypeExpr::Path(":wat::holon::HolonAST".into()),
+            ret: TypeExpr::Path(":wat::WatAST".into()),
             rest_param_type: None,
         },
     );
@@ -19821,15 +19823,18 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 143 slice 3 — HolonAST manipulation primitives.
     //
-    // rename-callable-name (head :HolonAST) (from :keyword) (to :keyword) -> :HolonAST
-    // extract-arg-names    (head :HolonAST)                               -> :wat::core::Vector<keyword>
+    // Arc 294.f — these reflection verbs now consume + produce `:wat::WatAST`
+    // (plain-EDN), NOT `:wat::holon::HolonAST`. Reflection is ZERO-holon; holon
+    // tooling is reserved for holographic (VSA) operations.
+    // rename-callable-name (head :WatAST) (from :keyword) (to :keyword) -> :WatAST
+    // extract-arg-names    (head :WatAST)                               -> :wat::core::Vector<keyword>
     //
     // The type-checker special-case in `infer_list` (check.rs:3126+) bypasses
     // normal type-unification for these primitives because the first argument
-    // is a HolonAST value (not a plain keyword), which interacts with the arc-009
+    // is a WatAST value (not a plain keyword), which interacts with the arc-009
     // "names are values" dispatch the same way as the slice-1 introspection
     // primitives.
-    let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
+    let watast_ty = || TypeExpr::Path(":wat::WatAST".into());
     let vec_kw_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::core::keyword".into())],
@@ -19838,8 +19843,8 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::rename-callable-name".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![holon_ty(), keyword_ty(), keyword_ty()],
-            ret: holon_ty(),
+            params: vec![watast_ty(), keyword_ty(), keyword_ty()],
+            ret: watast_ty(),
             rest_param_type: None,
         },
     );
@@ -19847,15 +19852,15 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::extract-arg-names".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![holon_ty()],
+            params: vec![watast_ty()],
             ret: vec_kw_ty(),
             rest_param_type: None,
         },
     );
     // Arc 201 slice 5 — extract-arg-types: type-direction sibling.
-    // extract-arg-types (head :HolonAST) -> :wat::core::Vector<wat::WatAST>
-    // Arc-251 canonical-form rewire: each arg type renders to the canonical
-    // `wat.type/` WatAST form — no HolonAST, no mangled keyword, in the output.
+    // extract-arg-types (head :WatAST) -> :wat::core::Vector<wat::WatAST>
+    // Post arc-294.f the signature head already carries canonical `wat.type/`
+    // WatAST type nodes; this verb returns each verbatim — no HolonAST anywhere.
     let vec_watast_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::WatAST".into())],
@@ -19864,7 +19869,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::runtime::extract-arg-types".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![holon_ty()],
+            params: vec![watast_ty()],
             ret: vec_watast_ty(),
             rest_param_type: None,
         },
@@ -19882,6 +19887,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // leaves Symbol/String/I64/F64/Bool). Bundle/children + Bundle/first
     // complete the structural decomposition surface; Atom/value would
     // duplicate the existing accessor.
+    // VSA (holographic) accessors below genuinely operate on HolonAST — this is
+    // NOT the reflection surface (arc 294.f moved reflection to WatAST).
+    let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
     let vec_holon_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
         args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],

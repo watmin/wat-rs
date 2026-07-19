@@ -1,0 +1,1 @@
+#wat.core.Option/Some (:wat.core/defn (:user/greet (n wat.type/String) -> wat.type/String) n)

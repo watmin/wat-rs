@@ -33,9 +33,9 @@ fn bare_sender_payload_rejected_by_type_keyword_gate_not_portability() {
     let result = check_result("tests/channel/probe_arc254_channel_payload_portable_senders.wat.bad");
     let msg = result.expect_err("bare Sender payload is rejected today");
     // Stone B (arc 296): Display now emits EDN (the {:?}-impostor wall). Golden recaptured.
-    assert_eq!(
+    wat::assert_edn_eq!(
         msg,
-        "#wat.check/CheckErrors {:message \"1 type-check error\" :location nil :causes [] :errors [#wat.check/MalformedForm {:message \"malformed :wat::kernel::make-channel form: first argument :wat::kernel::Sender<:wat::core::i64> is not a valid type keyword\" :location #wat.core/Span {:file \"tests/channel/probe_arc254_channel_payload_portable_senders.wat.bad\" :line 2 :col 57 :end #wat.core.Option/Some #wat.core/Pos {:line 2 :col 94}} :causes [] :head \":wat::kernel::make-channel\" :reason \"first argument :wat::kernel::Sender<:wat::core::i64> is not a valid type keyword\" :remedies []}]}",
+        include_str!("probe_arc254_channel_payload_portable__bare_sender_payload.edn"),
         "expected the existing type-keyword gate (not a portability check)"
     );
 }

@@ -33,6 +33,7 @@ fn read_frame_multiline_edn_map() {
     let sym = world.symbols();
 
     // A multi-line EDN map: 4 physical lines, 1 logical value.
+    // rune:lint(no-inlined-edn) — input under test: a multi-line EDN map written to a StringIoReader for read-frame to accumulate.
     let frame_src = "{\n  :a 1\n  :b 2\n}\n";
     let reader_arc: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(frame_src.to_string()));
     let reader_val = Value::io__IOReader(reader_arc);
@@ -53,6 +54,7 @@ fn read_frame_multiline_edn_map() {
             Some(Value::String(s)) => {
                 assert_eq!(
                     s.as_str(),
+                    // rune:lint(no-inlined-edn) — is the EDN tooling correct: read-frame's exact returned bytes are under test; assert_edn_eq is whitespace-blind and would not catch a mangled frame.
                     "{\n  :a 1\n  :b 2\n}",
                     "read-frame must return the exact EDN map frame golden"
                 );

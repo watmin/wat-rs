@@ -1,0 +1,10 @@
+#wat.runtime/UnknownField {
+  :record-class "user::Point"
+  :field "z"
+  :available ["x" "y"]
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

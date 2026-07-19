@@ -37,6 +37,7 @@ use wat::types::error::{TypeError, TypeErrorKind};
 #[test]
 fn probe_1_parse_startup_error_to_edn_is_structured_not_detail() {
     // Construct a StartupError::Parse the same way a child process would see one.
+    // rune:lint(no-inlined-edn) — input under test: malformed wat source with an unclosed paren, fed to the parser
     let bad_source = "(defn :user::main [] (unclosed";
     let parse_err = match wat::parser::parse_all_with_file(bad_source, "test.wat") {
         Err(e) => e,
@@ -49,9 +50,9 @@ fn probe_1_parse_startup_error_to_edn_is_structured_not_detail() {
 
     // Must be a tagged form in the wat.parse namespace (delegates to
     // ParseError::to_edn → #wat.parse/<ParseErrorVariant>); NO :detail blob.
-    assert_eq!(
-        edn_str,
-        r#"#wat.parse/UnclosedParen {:span {:file "test.wat" :line 1 :col 22}}"#,
+    wat::assert_edn_eq!(
+        edn_str.clone(),
+        include_str!("probe_arc296_3_holdout_edn__parse_unclosed_paren.edn"),
         "Parse startup error must produce exact structured #wat.parse/ EDN"
     );
 
@@ -78,9 +79,9 @@ fn probe_2_sigmafn_startup_error_keeps_honest_detail() {
     let edn_str = wat_edn::write(&startup_err.to_edn());
 
     // SigmaFn's :detail is the honest, deliberate exception (bare message).
-    assert_eq!(
-        edn_str,
-        r#"#wat.macro/SigmaFnError {:detail "sigma fn registration failed: bad config"}"#,
+    wat::assert_edn_eq!(
+        edn_str.clone(),
+        include_str!("probe_arc296_3_holdout_edn__sigmafn_detail.edn"),
         "SigmaFn must produce exact #wat.macro/SigmaFnError tagged EDN with :detail"
     );
     assert_ne!(edn_str, display_str, "to_edn() must differ from Display string");
@@ -133,9 +134,9 @@ fn probe_4_check_startup_error_emits_structured_vector_not_detail() {
     let edn_str = wat_edn::write(&startup_err.to_edn());
 
     // Must be the structured collection envelope with navigable inner CheckErrors; NO :detail.
-    assert_eq!(
-        edn_str,
-        r#"#wat.check/CheckErrors {:errors [#wat.check/UnknownCallee {:callee ":user::do-thing" :span {:file "user.wat" :line 8 :col 3}} #wat.check/CommCallOutOfPosition {:callee ":wat::kernel::send" :span {:file "user.wat" :line 8 :col 3}}]}"#,
+    wat::assert_edn_eq!(
+        edn_str.clone(),
+        include_str!("probe_arc296_3_holdout_edn__check_errors_structured.edn"),
         "Check startup error must produce exact structured #wat.check/CheckErrors EDN"
     );
     // Must differ from Display.
@@ -169,6 +170,7 @@ fn probe_5_every_startup_variant_is_structured_not_stringly() {
     let span = || Span::new(Arc::new("probe.wat".to_string()), 1, 1);
 
     // Parse — via a real parse failure.
+    // rune:lint(no-inlined-edn) — input under test: malformed wat source fed to the parser
     let parse_err = wat::parser::parse_all_with_file("(unclosed", "probe.wat")
         .expect_err("must fail to parse");
     assert_structured("Parse", StartupError::Parse(parse_err));

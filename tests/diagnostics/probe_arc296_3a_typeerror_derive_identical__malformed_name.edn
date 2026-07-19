@@ -1,0 +1,5 @@
+#wat.type/MalformedName {
+  :raw "bad-name"
+  :reason "missing prefix"
+  :span {:file "test.wat" :line 1 :col 0}
+}

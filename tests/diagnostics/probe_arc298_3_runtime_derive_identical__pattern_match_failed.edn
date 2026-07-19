@@ -1,0 +1,8 @@
+#wat.runtime/PatternMatchFailed {
+  :value-type "i64"
+  :span {
+    :file "test.wat"
+    :line 1
+    :col 0
+  }
+}

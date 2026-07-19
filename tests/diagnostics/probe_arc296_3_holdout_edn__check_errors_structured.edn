@@ -1,0 +1,12 @@
+#wat.check/CheckErrors {
+  :errors [
+    #wat.check/UnknownCallee {
+      :callee ":user::do-thing"
+      :span {:file "user.wat" :line 8 :col 3}
+    }
+    #wat.check/CommCallOutOfPosition {
+      :callee ":wat::kernel::send"
+      :span {:file "user.wat" :line 8 :col 3}
+    }
+  ]
+}
