@@ -598,6 +598,11 @@
                         (:wat::core::string::interpolate "{fqdn-str}::Admin::Resume" :fqdn-str fqdn-str))
      status-started-kw (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{fqdn-str}::Status::Started" :fqdn-str fqdn-str))
+     ;; arc 278: the Status::Started ctor as a colon-free STRING (mirror of extract-addr-name-str),
+     ;; so start/resume pass it as a runtime `(keyword/from-string …)` — an opaque :keyword the
+     ;; launch surface accepts — rather than the resolved literal (which the checker would type as
+     ;; the variant ctor Fn). The thread tier resolves it via `apply` at runtime → Status::Started.
+     status-started-str (:wat::core::string::interpolate "{fqdn-str}::Status::Started" :fqdn-str fqdn-str)
      ;; arc 291 3a-ii-β: Status::Stopped — service replies with final state on admin stop.
      status-stopped-kw  (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{fqdn-str}::Status::Stopped" :fqdn-str fqdn-str))
@@ -1109,15 +1114,21 @@
      ;; The recv' gets Admin; dispatch-admin applies to it (was: init applied to raw ship).
      child-main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                         (:wat::core::let
+                          ;; arc 278 startup-crash parity: recv ship → run :init → send Started
+                          ;; (was: send Started → recv ship → run :init). :init now runs BEFORE
+                          ;; Status::Started, so an :init crash dies before the send → the parent's
+                          ;; crash-aware `recv' svc` (spawn.wat ProcessOpts, reordered to send-ship-
+                          ;; then-recv-Started) RAISES the child's reason instead of /start
+                          ;; succeeding and the owner's later connect' getting a bare ECONNREFUSED.
                           [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
                                             ~enum-name ~reply-name)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty ~admin-ty)
-                           ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
-                                            (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
                            ~cm-ship-sym (:wat::kernel::recv' ~cm-self-sym)
                            ~cm-st-sym   (:wat::core::apply -> ~state-ty
                                             (:wat::core::keyword/from-string ~dispatch-admin-name-str)
-                                            ~cm-ship-sym [])]
+                                            ~cm-ship-sym [])
+                           ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
+                                            (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))]
                           (:wat::core::apply -> :wat::core::nil
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)
@@ -1182,7 +1193,10 @@
                                  (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                  (:wat::core::keyword/from-string ~serve-name-str)
                                  (~service-forms-kw)
-                                 (:wat::core::keyword/from-string ~extract-addr-name-str))]
+                                 (:wat::core::keyword/from-string ~extract-addr-name-str)
+                                 ;; arc 278: lu-mk-kw = the Status::Started ctor (thread tier's
+                                 ;; generic serve closure uses it to send Started after :init).
+                                 (:wat::core::keyword/from-string ~status-started-str))]
                       (~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
                                       (:wat::spawn::Launched/address ~lr-sym)))
      start-fn      `(:wat::core::defn ~start-name ~start-params -> ~handle-name ~start-body)
@@ -1205,7 +1219,9 @@
                                   (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                   (:wat::core::keyword/from-string ~serve-name-str)
                                   (~service-forms-kw)
-                                  (:wat::core::keyword/from-string ~extract-addr-name-str))]
+                                  (:wat::core::keyword/from-string ~extract-addr-name-str)
+                                  ;; arc 278: lu-mk-kw = the Status::Started ctor (see start-body).
+                                  (:wat::core::keyword/from-string ~status-started-str))]
                        (~handle-new-kw (:wat::spawn::Launched/handle ~lr-sym)
                                        (:wat::spawn::Launched/address ~lr-sym)))
      resume-fn      `(:wat::core::defn ~resume-name ~resume-params -> ~handle-name ~resume-body)

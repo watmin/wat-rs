@@ -305,7 +305,16 @@
                           init          <- :wat::core::keyword
                           serve         <- :wat::core::keyword
                           service-forms <- :wat::core::Vector<wat::WatAST>
-                          lu-addr-kw    <- :wat::core::keyword] -> :wat::spawn::Launched<S,R,Sh,Lu>)
+                          lu-addr-kw    <- :wat::core::keyword
+                          ;; arc 278 startup-crash parity: lu-mk-kw is the CONSTRUCTOR twin of
+                          ;; lu-addr-kw (which extracts the addr FROM the lineage-up value). It builds
+                          ;; the lineage-up value FROM the address — for defservice, Status::Started.
+                          ;; The thread tier uses it so its serve closure (built generically here, with
+                          ;; no per-service Status ctor in scope) can send Status::Started AFTER :init
+                          ;; runs, making an :init crash surface over the crash-aware launch handshake
+                          ;; instead of deadlocking the owner's connect'. Process ignores it (its
+                          ;; child-main-form owns the ctor).
+                          lu-mk-kw      <- :wat::core::keyword] -> :wat::spawn::Launched<S,R,Sh,Lu>)
    ;; Arc 170 M1-pool — work-fn is a GENERIC W (not `Fn(I)->O`): the thread/non-dial
    ;; tiers pass a 1-param `Fn(I)->O`, the process DIAL tier a 2-param `Fn(Peer'<S,R>,I)->O`.
    ;; The impl reifies (process, fn-forms) or applies (thread, unifying W~Fn(I)->O locally)
@@ -329,15 +338,30 @@
 ;; Returns Launched{handle=Thread', address=Bound/address}.
 ;; service-forms: thread arm ignores it (serve is already in the parent universe).
 (:wat::core::extend-type :wat::spawn::ThreadOpts :wat::spawn::Locus
-  (launch [self ship init serve service-forms lu-addr-kw]
+  (launch [self ship init serve service-forms lu-addr-kw lu-mk-kw]
     (:wat::core::let
+      ;; arc 278 startup-crash parity: the thread tier gains a Status::Started handshake it
+      ;; previously LACKED (it returned the parent-minted address immediately, so an :init
+      ;; crash left a bound-but-never-accepted address → the owner's connect' deadlocked on
+      ;; the rendezvous). Now the child runs :init FIRST, then sends Status::Started UP; the
+      ;; parent blocks on the crash-aware `recv' sp` before returning. An :init crash EOFs the
+      ;; self-peer output + puts the reason on crash_tx (kernel/spawn.rs) → `recv' sp` RAISES
+      ;; the reason (parity with the honest serve-loop-crash path), instead of hanging.
       [b  (:wat::kernel::listener' self :S :R)
        sp (:wat::kernel::spawn-program' self
             (:wat::core::fn [self-peer <- :wat::kernel::ThreadSelfPeer'<Lu,Sh>] -> :wat::core::nil
-              (:wat::core::apply -> :wat::core::nil serve self-peer
-                (:wat::spawn::Bound/listener b)
-                (:wat::core::Vector :wat::kernel::Peer'<R,S>)
-                (:wat::core::apply -> :St init ship []) [])))]
+              (:wat::core::let
+                ;; :init runs BEFORE Started is sent — a crash here dies before the send.
+                [st (:wat::core::apply -> :St init ship [])
+                 _  (:wat::kernel::send' self-peer
+                      (:wat::core::apply -> :Lu lu-mk-kw (:wat::spawn::Bound/address b) []))]
+                (:wat::core::apply -> :wat::core::nil serve self-peer
+                  (:wat::spawn::Bound/listener b)
+                  (:wat::core::Vector :wat::kernel::Peer'<R,S>)
+                  st []))))
+       ;; Crash-aware readiness barrier: value discarded (the parent already holds the address);
+       ;; the point is that recv' RAISES the :init crash reason instead of the owner deadlocking.
+       _  (:wat::kernel::recv' sp)]
       (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
@@ -349,14 +373,21 @@
 ;; Returns Launched{handle=Process', address=child-minted Address'}.
 ;; The (process) literal lives ONLY here — the per-locus arm owns its transport.
 (:wat::core::extend-type :wat::spawn::ProcessOpts :wat::spawn::Locus
-  (launch [self ship init serve service-forms lu-addr-kw]
+  ;; arc 278 startup-crash parity: lu-mk-kw is accepted (surface arity) but UNUSED here — the
+  ;; process child-main-form owns the Status::Started ctor. The handshake is REORDERED so :init
+  ;; runs before Status::Started is sent: send' the ship (Admin::Init) DOWN first, THEN recv'
+  ;; the Started UP. The child (child-main-form) now recvs ship → runs :init → sends Started, so
+  ;; an :init crash dies BEFORE Started → the crash-aware `recv' svc` RAISES the child's reason
+  ;; (the ProcessPanics envelope) instead of /start succeeding and the owner's later connect'
+  ;; collapsing to a bare ECONNREFUSED with the reason discarded.
+  (launch [self ship init serve service-forms lu-addr-kw lu-mk-kw]
     (:wat::core::let
       [prog (:wat::core::concat
               (:wat::core::forms
                 (:wat::core::def :wat::spawn::service-locus (:wat::spawn::process)))
               service-forms)
        svc  (:wat::kernel::spawn-program' self prog)
+       _    (:wat::kernel::send' svc ship)
        lu   (:wat::kernel::recv' svc)
-       addr (:wat::core::apply -> :wat::kernel::Address'<S,R> lu-addr-kw lu [])
-       _    (:wat::kernel::send' svc ship)]
+       addr (:wat::core::apply -> :wat::kernel::Address'<S,R> lu-addr-kw lu [])]
       (:wat::spawn::Launched :handle svc :address addr))))

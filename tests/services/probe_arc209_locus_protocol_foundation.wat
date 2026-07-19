@@ -10,6 +10,12 @@
 ;; arc 291: launch now takes [self ship init serve service-forms lu-addr-kw] (6 args).
 (:wat::core::defn :my::svc::init [ship <- :wat::core::i64] -> :wat::core::i64 ship)
 
+;; arc 278: lu-mk-kw ctor twin — builds the lineage-up value (here Lu=i64) FROM the address.
+;; The thread tier's serve closure sends `(apply lu-mk-kw (Bound/address b) [])` as its
+;; readiness Started after :init; the parent discards it (crash-aware barrier), so any i64 does.
+(:wat::core::defn :my::svc::mk-lu
+  [a <- :wat::kernel::Address'<wat::core::i64,wat::core::i64>] -> :wat::core::i64 0)
+
 ;; Locus-AGNOSTIC: the param is the abstract `:wat::spawn::Locus`. `Locus/launch` routes through it.
 ;; arc 291: launch signature = [self ship init serve service-forms lu-addr-kw] (6 args).
 ;; Launched now has 4 type params <S,R,Sh,Lu>; here all are i64.
@@ -18,7 +24,8 @@
     (:wat::core::keyword/from-string "my::svc::init")
     (:wat::core::keyword/from-string "my::svc::serve")
     (:wat::core::forms)
-    (:wat::core::keyword/from-string "my::svc::init")))
+    (:wat::core::keyword/from-string "my::svc::init")
+    (:wat::core::keyword/from-string "my::svc::mk-lu")))
 
 ;; Drive it with a concrete (thread): reaching `true` means the whole locus-agnostic launch wired and
 ;; ran without crashing (listener' accepted :Locus, launch dispatched, apply invoked serve, peer spawned).
