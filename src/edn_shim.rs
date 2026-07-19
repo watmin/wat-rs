@@ -480,6 +480,139 @@ pub fn eval_write_forms(
     ))
 }
 
+/// `(:wat::core::ast->source <ast>)` — arc 278 Stone 1 (the sift Predicate's enabling
+/// primitive).
+///
+/// The resurrection of the retired `wat_ast_to_source` (`crates/wat-reader/src/ast.rs:459-466`,
+/// RETIRED in arc 012 slice 3, explicitly inviting reintroduction as a stdlib primitive).
+/// Serializes a `Value::wat__WatAST` back to VERBATIM wat source — every `::` keyword/symbol
+/// printed UNTOUCHED. This is deliberately NOT `write-forms` (which goes through
+/// `watast_to_edn` + `wat_edn::write`, and those dial `::` → `.` — GROUNDED: `write-forms` on a
+/// `::`-form emits `:wat.core/fn`, not `:wat::core::fn`). `ast->source` walks the AST directly
+/// so `read-string(ast->source(form))` reproduces the SAME form — the `::` notation survives
+/// round-trip untranslated. See `write_wat_source` below for the per-variant spellings, each
+/// grounded against the parser/lexer so `read-string` re-reads to an identical node.
+pub fn eval_ast_to_source(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::ast->source";
+    let v = require_one_arg(OP, args, env, sym, list_span)?;
+    let ast: &WatAST = match &v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::WatAST",
+                got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+            } });
+        }
+    };
+    let mut out = String::new();
+    write_wat_source(ast, &mut out);
+    Ok(crate::value::TrackedValue::new(
+        Value::String(std::sync::Arc::new(out)),
+        crate::value::Provenance::RuntimeBuilt {
+            producer: OP,
+            call_span: list_span.clone(),
+        },
+    ))
+}
+
+/// Recursive verbatim printer for [`eval_ast_to_source`]. Resurrects the retired
+/// `write_wat_ast` (`b5bca8be^:src/ast.rs:101-138`) and ADDS the 6 variants born since:
+/// `RationalLit`, `BigIntLit`, `NilLit`, `Vector`, `Map`, `Set`. Each spelling is grounded
+/// against the parser (`crates/wat-reader/src/parser.rs`) / lexer
+/// (`crates/wat-reader/src/lexer.rs`) so `read-string` re-reads the printed text to an
+/// identical node:
+/// - `RationalLit`: `BigRational`'s `Display` prints `numer/denom` (already-reduced, sign on
+///   numerator, den >= 2 by construction — `lexer.rs:888-902` mirrors this on the read side).
+/// - `BigIntLit`: digits + trailing `N` suffix (`lexer.rs:911-917`, the `N`-suffix lane).
+/// - `NilLit`: bare `nil` (parser produces `NilLit` for bare `nil`, per `ast.rs:94-98`).
+/// - `Vector`: `[` items space-joined `]` (`parser.rs:283-296`, `Token::LBracket`).
+/// - `Map`: `{` alternating key/value space-joined `}` (`parser.rs:528-556`,
+///   `parse_map_literal_body` — comma is EDN whitespace, `lexer.rs:379`, so plain spaces
+///   round-trip identically).
+/// - `Set`: `#{` items space-joined `}` (`parser.rs:571-576`, `Token::LHashBrace`).
+fn write_wat_source(ast: &WatAST, out: &mut String) {
+    match ast {
+        WatAST::IntLit(n, _) => out.push_str(&n.to_string()),
+        WatAST::FloatLit(x, _) => {
+            // `{:?}` keeps the decimal point for integral floats — `3.0` serializes as
+            // `3.0`, which parses back as FloatLit. `{}` would emit `3`, which parses as
+            // IntLit and would round-trip to a different variant.
+            out.push_str(&format!("{:?}", x));
+        }
+        WatAST::RationalLit(r, _) => out.push_str(&r.to_string()),
+        WatAST::BigIntLit(n, _) => {
+            out.push_str(&n.to_string());
+            out.push('N');
+        }
+        WatAST::BoolLit(b, _) => out.push_str(if *b { "true" } else { "false" }),
+        WatAST::StringLit(s, _) => {
+            out.push('"');
+            for c in s.chars() {
+                match c {
+                    '\\' => out.push_str("\\\\"),
+                    '"' => out.push_str("\\\""),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    other => out.push(other),
+                }
+            }
+            out.push('"');
+        }
+        WatAST::NilLit(_) => out.push_str("nil"),
+        WatAST::Keyword(k, _) => out.push_str(k),
+        WatAST::Symbol(ident, _) => out.push_str(ident.as_str()),
+        WatAST::List(items, _) => {
+            out.push('(');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                write_wat_source(item, out);
+            }
+            out.push(')');
+        }
+        WatAST::Vector(items, _) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                write_wat_source(item, out);
+            }
+            out.push(']');
+        }
+        WatAST::Set(items, _) => {
+            out.push_str("#{");
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                write_wat_source(item, out);
+            }
+            out.push('}');
+        }
+        WatAST::Map(pairs, _) => {
+            out.push('{');
+            for (i, (k, val)) in pairs.iter().enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                write_wat_source(k, out);
+                out.push(' ');
+                write_wat_source(val, out);
+            }
+            out.push('}');
+        }
+    }
+}
+
 /// `(:wat::core::ast->children <ast>)` — arc 251 Stone 251.5a-iii (the bridge).
 ///
 /// The AST↔walkable bridge: decompose a `:wat::WatAST` node into a

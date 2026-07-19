@@ -19304,6 +19304,18 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 Stone 1 — `(:wat::core::ast->source ast)` → `:wat::core::String`. The sift
+    // Predicate's enabling primitive: forms-as-data → VERBATIM `::`-source text (identical
+    // shape to write-forms; distinct behavior — does not dial `::`→`.`).
+    env.register(
+        ":wat::core::ast->source".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
+            ret: TypeExpr::Path(":wat::core::String".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 251.5a-iii — `(:wat::core::ast->children ast)` → `Vector<:wat::WatAST>`.
     // The AST↔walkable bridge: a node's children as the collection the first/rest/map
     // vocab walks (same shape as `:wat::core::forms`).

@@ -461,9 +461,15 @@ impl WatAST {
 // the AST → source → subprocess boundary of the old hermetic-ast
 // primitive. With spawn-process, the child inherits AST in
 // memory via COW — no textual round-trip, no serializer needed.
-// Zero remaining callers. If a future use case surfaces (pretty-
-// printer, REPL history, or a :wat::core::ast-to-source stdlib
-// primitive), reintroduce with that caller's concrete shape.
+//
+// REINTRODUCED in arc 278 Stone 1 as `:wat::core::ast->source`
+// (src/edn_shim.rs, `write_wat_source` beside `eval_write_forms`)
+// — the sift Predicate's enabling primitive. Lives in edn_shim
+// rather than here because it's a runtime primitive (dispatched
+// from runtime.rs, typed in check.rs), not a wat-reader-internal
+// concern; the shape mirrors this retired printer plus the 6
+// variants born since (RationalLit, BigIntLit, NilLit, Vector,
+// Map, Set).
 
 /// Arc 216 Stone 216.5a — `impl Hash for WatAST`.
 ///

@@ -3974,6 +3974,9 @@ fn dispatch_keyword_head(
         // Arc 251.5a-ii — write side: forms-as-data → clean EDN String (the inverse
         // of read-string; the fixer's read→transform→write cycle closes here).
         ":wat::core::write-forms" => return crate::edn_shim::eval_write_forms(args, list_span, env, sym).map_err(Into::into),
+        // Arc 278 Stone 1 — the sift Predicate's enabling primitive: forms-as-data →
+        // VERBATIM `::`-source text (does NOT dial `::`→`.` the way write-forms does).
+        ":wat::core::ast->source" => return crate::edn_shim::eval_ast_to_source(args, list_span, env, sym).map_err(Into::into),
         // Arc 251.5a-iii — the AST↔walkable bridge: decompose a :wat::WatAST node
         // into a Vector<:wat::WatAST> the first/rest/map vocab walks (so a recursive
         // role-inversion transform can be written IN WAT).
