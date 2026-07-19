@@ -72,6 +72,14 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head.starts_with(":wat::core::string::") || head.starts_with(":wat::core::regex::") {
         return Some(OpMeta { pure: true, deterministic: true });
     }
+    // The whole `:wat::edn::` namespace is pure data transforms — parse/serialize/navigate
+    // (read, read-foreign, write, write-pretty, write-json, write-json-natural,
+    // ForeignRecord/get, ForeignRecord/class, ForeignVariant/variant, ForeignVariant/enum-class,
+    // ForeignVariant/fields), no IO, no entropy. Root-level by namespace, not a per-verb
+    // hand-list — the next foreign verb slips past a hand-list.
+    if head.starts_with(":wat::edn::") {
+        return Some(OpMeta { pure: true, deterministic: true });
+    }
     // Pure ∧ deterministic explicit `:wat::core::` ops.
     let pure_det = matches!(
         head,
