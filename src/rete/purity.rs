@@ -219,14 +219,45 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     None
 }
 
-/// Does `head` satisfy `axis`? Data constructors are recognized first (pure-by-construction, interim
-/// pre-255); then user fns recurse transitively; intrinsics consult `intrinsic_meta`; unknown heads
-/// default-deny.
+/// A generated field ACCESSOR (`{TypePath}/{field}`) is as pure as the aggregate it reads: a
+/// Record/HolonRecord accessor is pure ∧ deterministic, a Struct accessor is impure (a struct can
+/// hold a live resource, arc 293.W) — the exact declaration `constructor_meta` / `is_pure_type`
+/// reads. Declaration-read from the frozen TypeEnv (resolve the type, don't string-match), so it
+/// covers every user record; NOT a hand-list. INTERIM recognizer keyed on the frozen TypeEnv, until
+/// arc 255's builtin-registry becomes the single queryable purity source and subsumes it.
+fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
+    let types = sym.types.as_deref()?;
+    // Accessors register as `{agg.name}/{field}` (runtime.rs); `agg.name` carries the leading
+    // colon (e.g. ":wat::telemetry::Log"), so the type-path splits off verbatim for `types.get`.
+    let (type_path, field) = head.rsplit_once('/')?;
+    if let Some(crate::types::TypeDef::Aggregate(a)) = types.get(type_path) {
+        if a.field_names().any(|n| n == field) {
+            return Some(OpMeta { pure: a.nature.is_pure(), deterministic: true });
+        }
+    }
+    // Enum-variant field accessors (tagged-variant field readers) are left to None here — their
+    // head shape is not the flat `Type/field` form resolved above (STOP-3); the RED gate covers
+    // records, and forcing the enum case is out of scope.
+    None
+}
+
+/// Does `head` satisfy `axis`? Data constructors and field accessors are recognized first
+/// (pure-by-declaration, interim pre-255); then user fns recurse transitively; intrinsics consult
+/// `intrinsic_meta`; unknown heads default-deny.
 fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> bool {
     // Data constructor (record/holon/enum-variant pure; struct impure) — recognized BEFORE the
     // sym.functions branch, because tagged-variant constructors are registered there as opaque stubs
     // that classify_fn would default-deny.
     if let Some(m) = constructor_meta(head, sym) {
+        return match axis {
+            Axis::Pure => m.pure,
+            Axis::Deterministic => m.deterministic,
+        };
+    }
+    // Generated field accessor (`Type/field`) — same declaration-read as constructors, and likewise
+    // BEFORE the sym.functions branch: accessors register there as Native stubs that classify_fn
+    // default-denies, so we MUST intercept the accessor here.
+    if let Some(m) = accessor_meta(head, sym) {
         return match axis {
             Axis::Pure => m.pure,
             Axis::Deterministic => m.deterministic,
