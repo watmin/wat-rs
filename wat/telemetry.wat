@@ -78,11 +78,6 @@
              tags      <- :wat::telemetry'::Tags
              time-ns   <- :wat::core::i64])
 
-;; ─── LogMessage — an OPEN surface (any record with a message shape satisfies it). ─
-(:wat::core::defsurface :wat::telemetry'::LogMessage
-  :nature :wat::core::Record
-  :features [])
-
 ;; ─── Metric — a measurement. Splices Scope (4 fields), then 4 own. ───────────────
 ;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  start-time-ns name value unit.
 (:wat::core::defrecord :wat::telemetry'::Metric
@@ -98,7 +93,9 @@
   [~@:wat::telemetry'::Scope
    caller  <- :wat::core::keyword
    level   <- :wat::telemetry'::Level
-   message <- :wat::telemetry'::LogMessage])
+   ;; message is OPAQUE (arc 278 Stone B): EDN text the producer `edn::write`s at the call site;
+   ;; the sink stores/returns it verbatim and never decodes (no `UnknownTag` across a fork).
+   message <- :wat::core::String])
 
 ;; ─── Journal — arc 278 stone T1b.1: the telemetry sink's S4c contract, write half. ─
 ;; A `:nature :wat::kernel::Peer'` surface — a dialed `Peer'<Journal::Op,Journal::Reply>` IS a
@@ -197,7 +194,9 @@
    (:wat::core::defrecord :wat::telemetry'::Span::LogRequest
      [caller  <- :wat::core::keyword
       level   <- :wat::telemetry'::Level
-      message <- :wat::telemetry'::LogMessage])
+      ;; message OPAQUE (arc 278 Stone B): the `Span/log` caller `edn::write`s its record here, so
+      ;; a forked `span'` never hits `UnknownTag` on a user type either — opaque before both wires.
+      message <- :wat::core::String])
    (:wat::core::defenum :wat::telemetry'::Span::LogResponse :wat::enum::Pure :Ok [])
 
    (:wat::core::defrecord :wat::telemetry'::Span::CloseRequest [])

@@ -1,10 +1,11 @@
 ;; Co-located fixture for probe_arc278_journal_service_logs.rs — arc 278 T1b.2 write-logs coverage.
 ;;
 ;; The write-LOGS half of journal' (symmetric to write-metrics): journal' given a mem-store',
-;; write-logs a 1-Log batch, a separate client scans back, return the stored `data`. The Log carries
-;; a concrete payload record satisfying the OPEN :wat::telemetry'::LogMessage surface (any record).
+;; write-logs a 1-Log batch, a separate client scans back, return the stored `data`. The Log's
+;; message is OPAQUE (arc 278 Stone B): the producer `edn::write`s its payload record at the call
+;; site, so a plain String crosses the wire and is stored verbatim.
 
-;; a concrete log payload — a user record satisfying the open LogMessage surface.
+;; a concrete log payload — a user record the producer `edn::write`s into the opaque message String.
 (:wat::core::defrecord :user::PriceEvent
   [asset <- :wat::core::keyword
    price <- :wat::core::i64])
@@ -18,7 +19,7 @@
                :record (:wat::telemetry'::journal'::Record) :store-addr saddr)
      journal (:wat::kernel::connect' (:wat::telemetry'::journal'::Handle/addr jh))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     msg     (:user::PriceEvent :asset :BTC :price 100000)
+     msg     (:wat::edn::write (:user::PriceEvent :asset :BTC :price 100000))
      l       (:wat::telemetry'::Log
                :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags :time-ns 456
                :caller :evaluator :level :wat::telemetry'::Level::Info :message msg)

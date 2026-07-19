@@ -5,7 +5,7 @@
 ;; probe_arc278_journal_surface's toy `Journal` satisfier. The toy holds no sink and accumulates no
 ;; state — each op just replies its Ok/Done.
 
-;; a trivial payload record satisfying the open LogMessage surface.
+;; a trivial payload record the producer `edn::write`s into the opaque log message String (Stone B).
 (:wat::core::defrecord :probe::Note [text <- :wat::core::String])
 
 (:wat::service::defservice :probe::toy-span'
@@ -28,7 +28,7 @@
             (:wat::telemetry'::Span::TimedRequest :name :fetch :nanos 100))
      _l   (:wat::telemetry'::Span/log span
             (:wat::telemetry'::Span::LogRequest :caller :probe :level :wat::telemetry'::Level::Info
-              :message (:probe::Note :text "hello")))
+              :message (:wat::edn::write (:probe::Note :text "hello"))))
      c    (:wat::telemetry'::Span/close span (:wat::telemetry'::Span::CloseRequest))]
     (:wat::core::match c -> :wat::core::i64
       ((:wat::telemetry'::Span::CloseResponse::Done) 1)

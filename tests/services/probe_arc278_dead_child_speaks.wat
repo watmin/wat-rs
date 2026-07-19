@@ -1,32 +1,47 @@
 ;; Co-located fixture for probe_arc278_dead_child_speaks.rs — arc 278: wat NEVER HIDES A FAILURE.
 ;;
-;; A journal' service forked to a PROCESS receives a client message it cannot decode: a Log whose
-;; `message` is a user record (:probe::Note) absent from the forked child's baked type registry.
-;; At HEAD the child dies decoding it — its real, located reason
+;; Mechanism A at the GENERAL level (arc 278 Stone B re-point): any :satisfies service forked to a
+;; PROCESS whose op-request record carries an OPEN Record-surface field will fault if the client sends
+;; a value the forked child cannot decode. Here a tiny :probe::echo' service is forked; its
+;; EchoRequest.payload is typed as the open surface :wat::query::Reason (zero features — any pure
+;; record satisfies it ambiently). The parent sends a payload holding :probe::Note, a PARENT-ONLY record
+;; absent from the forked child's baked type registry (top-level user defrecords do NOT cross a fork;
+;; only the surface's :messages do). The child faults decoding it —
 ;;   "poll' (process tier): client message decode failed: ... unknown tag #probe/Note (body shape:
 ;;    map); no matching struct or enum in the type registry"
-;; is written to an ALREADY-CLOSED err pipe (EPIPE) and LOST; the caller's write-logs recv' raises a
-;; MUTE "recv failed: peer closed / channel disconnected". The .rs harness asserts the raised error
-;; CARRIES THE REASON. RED at HEAD (mute); GREEN when the masking is pulled out by the root.
+;; — and, at HEAD, that real reason was written to an ALREADY-CLOSED err pipe (EPIPE) and LOST; the
+;; caller's `echo` recv' raised a MUTE "recv failed: peer closed / channel disconnected". Mechanism A:
+;; poll' returns ServiceEvent::Malformed carrying the cause; the serve loop replies Reply::Failed{cause}
+;; and keeps serving; recv' surfaces the raise CARRYING THE REASON. The .rs harness asserts the raised
+;; error carries it. (Stone B removed telemetry as one incidental trigger — Log.message is now an
+;; opaque String, so a Log CANNOT carry a foreign-typed message; the LAW is kept live at the general
+;; open-surface-field level, where it belongs.)
 
+;; the parent-only payload record — NOT baked into the forked child's registry.
 (:wat::core::defrecord :probe::Note [text <- :wat::core::String])
+
+;; a minimal Peer' service whose op-request carries an OPEN Record-surface field (the general
+;; capability). `:wat::query::Reason` is a zero-feature Record surface baked into the child (stdlib) —
+;; any pure record satisfies it ambiently, exactly as the retired `LogMessage` did for `Log.message`.
+;; The surface itself crosses the fork; a CONCRETE user record placed in the field does not.
+(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
+  :messages
+  [(:wat::core::defrecord :probe::Echo::EchoRequest  [payload <- :wat::query::Reason])
+   (:wat::core::defrecord :probe::Echo::EchoResponse [])]
+  :features
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+
+(:wat::service::defservice :probe::echo'
+  :satisfies :probe::Echo
+  :durable   []
+  :ephemeral []
+  :impls
+  [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse)))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [sh    (:wat::query::mem-store'/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     saddr (:wat::query::mem-store'::Handle/addr sh)
-     jh    (:wat::telemetry'::journal'/start
-             :locus (:wat::spawn::process/post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::query::mem-store'/grant sh
-                          (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
-             :record (:wat::telemetry'::journal'::Record) :store-addr saddr)
-     journal (:wat::kernel::connect' (:wat::telemetry'::journal'::Handle/addr jh))
-     tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry'::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1000000000 :caller :c1 :level :wat::telemetry'::Level::Info
-             :message (:probe::Note :text "one"))
-     _wr   (:wat::telemetry'::Journal/write-logs journal
-             (:wat::telemetry'::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry'::Log l1)))]
+    [h    (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
+     echo (:wat::kernel::connect' (:probe::echo'::Handle/addr h))
+     _e   (:probe::Echo/echo echo
+            (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom")))]
     2))

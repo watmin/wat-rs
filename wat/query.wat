@@ -71,8 +71,8 @@
    isk <- :wat::core::String])
 
 ;; ─── the error vocabulary — recovery-axis records over an OPEN Reason surface ───────────────────
-;; `Reason` has zero features: any pure record satisfies it ambiently (mirrors
-;; `:wat::telemetry'::LogMessage`, wat/telemetry.wat) — no `extend-type`/`derive` needed.
+;; `Reason` has zero features: any pure record satisfies it ambiently (an OPEN Record surface)
+;; — no `extend-type`/`derive` needed.
 (:wat::core::defsurface :wat::query::Reason :nature :wat::core::Record :features [])
 
 (:wat::core::defrecord :wat::query::Transient  [reason <- :wat::query::Reason]) ;; retry — momentarily unavailable

@@ -5,5 +5,5 @@
   :time-ns 456
   :caller :evaluator
   :level #wat.telemetry'.Level/Info []
-  :message #user/PriceEvent {:asset :BTC :price 100000}
+  :message "#user/PriceEvent {:asset :BTC :price 100000}"
 }

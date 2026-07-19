@@ -392,8 +392,9 @@ const STDLIB_FILES: &[WatSource] = &[
     },
     // wat/telemetry.wat — arc 278 stone ①: the `:wat::telemetry'` DATA VOCABULARY, PLUS (stone
     // T1b.1) the `Journal` surface — the telemetry sink's S4c contract, write half
-    // (`write-metrics`/`write-logs`). The 8 pure vocabulary declarations (Tags/Numeric/Unit/Level/
-    // Scope/LogMessage/Metric/Log) the telemetry sink + producer services (later stones) build on.
+    // (`write-metrics`/`write-logs`). The 7 pure vocabulary declarations (Tags/Numeric/Unit/Level/
+    // Scope/Metric/Log) the telemetry sink + producer services (later stones) build on. (`Log.message`
+    // is opaque `:wat::core::String` EDN text — arc 278 Stone B; the `LogMessage` open surface retired.)
     // Metric/Log are `defrecord`s that SPLICE the Scope surface via `~@:wat::telemetry'::Scope`
     // (arc-293 surface-splice) — spliced fields inline first, then own; the unified aggregate ctor
     // + register_aggregate_methods mint the spliced accessors. Namespace is PRIMED

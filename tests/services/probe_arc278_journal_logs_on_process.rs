@@ -12,7 +12,6 @@ use wat::runtime::{apply_function, Value};
 // channel ("recv': peer closed"). Metrics cross fine (all-stdlib fields). The fix under discussion:
 // the Log message should cross + store as OPAQUE tagged-EDN (CloudWatch-blob shape), not a typed
 // record the receiver must decode. Un-ignore when that lands.
-#[ignore = "known bug: user LogMessage payload can't decode in a forked journal' child; fix = opaque message"]
 #[test]
 fn journal_writes_and_queries_logs_across_a_process_fork() {
     let world = startup_beside(file!()).expect("startup should succeed");

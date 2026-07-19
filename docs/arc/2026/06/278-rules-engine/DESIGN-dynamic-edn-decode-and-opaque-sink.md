@@ -74,6 +74,23 @@ encoders** (`value_to_edn_with` `:1992-2005`+`:2984`, `value_to_edn_notag`, the 
 src/wat_edn/core.clj:40-49` readers + `:217-222` writers → vector bodies; `produce_shapes.clj`, `prove.clj`,
 parity; **reconcile the spelling** — clj writes short `#wat.core/Some`, rust writes `#wat.core.Option/Some`).
 
+## STATUS (2026-07-19+)
+- **A.0 ✓ landed** (`c9bfa8fd`) — uniform variant encoding (the floor).
+- **A ✓ landed** (`b68a130a`) — `read-foreign` / `ForeignRecord` / `ForeignVariant`; strict `read` untouched.
+  Weighed green (gate 2/2; floor 4207/0). Names ratified-by-use (R45's UX forms).
+- **B — IN FLIGHT** — opaque `Log.message`. RED gate CONFIRMED (the un-ignored `probe_arc278_journal_logs_on_process`
+  fails at HEAD on `unknown tag #probe/Note` across the fork). Design grounded (both `Log.message` +
+  `Span::LogRequest.message` → `:wat::core::String`, producer `edn::write`s at the call site; `journal.wat`
+  unchanged; `LogMessage` surface retirable; ~6 ctor sites → `(edn::write …)`). The `dead_child_speaks` disposition
+  ruled by the four-questions → **(a)** re-point it to a still-typed decode-failure trigger (keeps the Mechanism-A /
+  LAW probe live; (b) fails Honest — silent decode-coverage loss).
+- **C — pending** (annihilate + fold + de-prime).
+- **THE SIFT TIER (T2 / R0) — designed + named this session** (`DESIGN-sift-server-side-filter.md`): server-side
+  log filtering, the chaos engine's first concrete (paged) form. Ratified vocab: `sift-logs`/`sift-metrics` (Journal
+  ops) taking a `Sieve = Predicate | Rules` union (`wat.query`). One-seed-per-fire (alpha-only structural), a
+  throwaway capacity-one bracket, both spec forms pure DATA verified `pure?` + sandboxed. Builds **after B**; it is
+  what A + B are the floor for.
+
 ## The campaign — all committed, no deferral (builder: "i do not wish to defer this")
 - **Stone A.0 — uniform variant encoding: every variant is vector-bodied (the floor).** `None → []`,
   `Some(v) → [v]`, `Ok(v) → [v]`, `Err(e) → [e]`, user unit → `[]`, user tagged → `[items]`; **arc-298.1
