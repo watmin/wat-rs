@@ -1,1 +1,1 @@
-(wat.core/typealias wat.edn/Tagged wat.holon/HolonAST)
+(wat.core/typealias demo.edn/Tagged wat.holon/HolonAST)

@@ -257,13 +257,6 @@ const STDLIB_FILES: &[WatSource] = &[
     // mediated stdio access fully retired; consumers call the
     // ambient operations directly.
     //
-    // Arc 091 slice 1 — :wat::edn::Tagged + :wat::edn::NoTag newtypes
-    // around HolonAST. Used by wat-sqlite's auto-dispatch (arc 085) to
-    // pick :wat::edn::write vs :wat::edn::write-notag at TEXT-bind time.
-    WatSource {
-        path: "wat/edn.wat",
-        source: include_str!("../wat/edn.wat"),
-    },
     // Arc 209 naming-conversion stone — wat-level string helpers (kebab->pascal + capitalize).
     // Loads after core.wat so the Rust string primitives (to-uppercase, split, subs, concat, join)
     // are registered before this file's defns are evaluated.

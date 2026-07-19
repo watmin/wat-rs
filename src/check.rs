@@ -19179,7 +19179,6 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::write",
         ":wat::edn::write-pretty",
         ":wat::edn::write-json",
-        ":wat::edn::write-notag",
         ":wat::edn::write-json-natural",
     ] {
         env.register(

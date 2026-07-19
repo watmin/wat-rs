@@ -1,1 +1,1 @@
-(wat.core/newtype wat.edn/NoTag wat.holon/HolonAST)
+(wat.core/newtype demo.edn/NoTag wat.holon/HolonAST)

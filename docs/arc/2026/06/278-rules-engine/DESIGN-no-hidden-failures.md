@@ -57,55 +57,48 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
-## ═══ SESSION-END CURARE (this session — R44 crusade-commit → the dynamic-EDN-decode campaign → Stone A.0) ═══
+## ═══ SESSION-END CURARE (far-side state — the dynamic-EDN-decode campaign: A/B done, C in flight) ═══
 
-**READ THIS BLOCK FIRST, then `git status`. HEAD = `c9bfa8fd` (Stone A.0).** The no-hidden-failures LAW is DONE
-(below, unchanged). This session: full recolligere bootstrap (278 R1–R43 read) → committed the edn-crusade + 294.f
-+ R44 (`98499f48`, pushed) → designed the **dynamic-EDN-decode campaign** with the builder → **committed Stone A.0**
-(`c9bfa8fd`). Pushed through `98499f48`; `c9bfa8fd` + this curare are the NEW push — verify against the disk.
+**READ THIS BLOCK FIRST, then `git status`. HEAD = `27737ca9` (Stone C1) — or a later C commit atop it; a mismatch
+is the ALARM → trust the disk.** The no-hidden-failures LAW is DONE (below, unchanged). The campaign
+(`DESIGN-dynamic-edn-decode-and-opaque-sink.md` — read it; the STATUS block at its top is kept current):
 
-**THE CURRENT WORK — the dynamic-EDN-decode campaign.** Full spec: **`DESIGN-dynamic-edn-decode-and-opaque-sink.md`**
-(read it); tracked in tasks #1–#4. Origin: the telemetry service must accept logs from ARBITRARY callers AND let
-arbitrary callers process them — blocks the chaos engine dogfooding telemetry (`probe_arc278_journal_logs_on_process`
-is `#[ignore]`'d: a forked `journal'` child faults `UnknownTag` on a user payload). Decomposed (builder rulings):
-- **A.0 ✓ COMMITTED (`c9bfa8fd`)** — uniform variant encoding (the floor): every enum variant vector-bodied
-  (`None→[]`, `Some(v)→[v]`, user unit→`[]`); arc-298.1 direct-body RETIRED; `nil` = the unit value only.
-  Body-shape is now a total discriminator (map=record, vector=variant, nil=unit). Weighed green by own re-run
-  (cargo 4204 / 1 known sigterm flake [isolated-passes] / 330 skipped; clj 39/0; diff bracket-only).
-- **Stone A — NEXT (task #1): `read-foreign` → `ForeignRecord` / `ForeignVariant`** (names intueri-cast + ratified).
-  `edn::read` gains an opt-in DATA MODE: unknown tag → a self-describing dynamic value by body shape
-  (map→`ForeignRecord {class, name-keyed fields}`; vector→`ForeignVariant {enum-class, variant, positional}`;
-  recursive; one shape per fully-qualified tag, contradiction=exception). STRICT `read` stays default (errors on
-  unknown — holds the no-hidden-failures floor). Consumer-side; the sink never decodes. Clojure's `tagged-literal`,
-  aggregate-aware. Builds on A.0's clean dispatch.
-- **Stone B (task #2): opaque telemetry sink** — `Log.message` → opaque EDN-text `String`; producer `edn::write`s at
-  the call site; sink stores/returns verbatim, NEVER decodes (no DoS — `[[feedback_sink_is_opaque_store_consumer_decodes]]`).
-  Un-`#[ignore]` `probe_arc278_journal_logs_on_process`; rete self-measurement unblocked (own types both ends).
-- **Stone C (task #3): annihilate + fold + de-prime** (COMPONENDO DELEO; gated on A+B). Fold the 3 legacy crates
-  (`wat-telemetry`, `wat-telemetry-sqlite`, `wat-sqlite`) into core; kill `Tagged`/`NoTag` (`wat/edn.wat:32-33`,
-  holon-coupled) + `write-notag`/auto-dispatch; de-prime the family (`:telemetry'::`→`:telemetry::` = true reclaim,
-  needs legacy gone; `sqlite'`/`mem-store'`/`sqlite-store'`→bare = GROUND what each prime guards first + whole-tree
-  consumer grep per crate). Delete `probe_arc278_process_crash_reason_carried` (STOP-2 non-goal — crash reasons
-  admin-only, `[[feedback_ask_who_already_receives_it_before_building_delivery]]`).
+- **A.0 ✓** (`c9bfa8fd`) — uniform variant encoding (the floor): every variant vector-bodied; `nil` = the unit value only.
+- **A ✓** (`b68a130a`) — `read-foreign` → `ForeignRecord`/`ForeignVariant`; strict `read` untouched.
+  `DESIGN-STONE-A-read-foreign.md`. Weighed green (gate 2/2; floor 4207/0).
+- **B ✓** (`dc5427a4`) — opaque `Log.message`/`Span::LogRequest.message` (String); the sink never decodes;
+  `dead_child_speaks` re-pointed via option (a) so Mechanism A stays live; the `#probe/Note` fork-decode blocker is
+  GONE. `DESIGN-BRIEF-STONE-B-opaque-message.md`.
+- **C — IN FLIGHT** (`COMPONENDO DELEO`; full decomposition + grounded scout map in `DESIGN-BRIEF-STONE-C.md`):
+  - **C1 ✓** (`27737ca9`) — annihilated the 3 legacy crates (`wat-telemetry`, `wat-telemetry-sqlite`, `wat-sqlite`)
+    + `examples/interrogate` + the STOP-2 probe + the core legacy-telemetry check lint; de-registered from wat-cli.
+    Net −6557. **KEPT (distinct): S1's in-core `:wat::sqlite'`/`:rust::sqlite'` + the PRIMED telemetry family.**
+  - **C2 — IN FLIGHT** — kill the `Tagged`/`NoTag` newtypes + `write-notag` (the verb + `value_to_edn_notag`/
+    `holon_ast_to_edn_notag`; KEEP the separate `value_to_json_natural`) + the self-test + the decl-migrator fixture.
+  - **C3 — NEXT** — de-prime the family: `mem-store'`/`sqlite-store'` (FREE-RENAME) + `:telemetry'::`/`:sqlite'`/
+    `:rust::sqlite'` (TRUE-RECLAIM, unblocked by C1) → bare. ~700-line wat-fix-style surgical codemod. Then
+    `:wat::telemetry::` / `:wat::sqlite::` are OURS.
 
-**FAR-SIDE FIRST MOVE: draw + strike Stone A (`read-foreign`)** on A.0's clean floor — RED gate (a foreign record
-CONTAINING a foreign variant field round-trips through `read-foreign`; strict `read` still errors) → brief →
-delegate → weigh by own re-run. Then B, then C. **THEN the arc's TARGET: the CHAOS ENGINE (R25 `MACHINA CHAOS
-DOMAT`)** — the streaming rete `Session`-as-state `defservice`, dogfooding the solid telemetry.
+**THE SIFT TIER (T2/R0) — designed + named, built AFTER C** (`DESIGN-sift-server-side-filter.md`): the chaos
+engine's first (paged) form. `sift-logs`/`sift-metrics` (Journal ops) taking `Sieve = Predicate | Rules`
+(`wat.query`); one seed log per fire (alpha-only STRUCTURAL), a throwaway capacity-one bracket, both spec forms pure
+DATA verified `pure?` + sandboxed; holon facts admit VSA ops mid-fire. THEN the streaming R0 (R25 `MACHINA CHAOS
+DOMAT`), the fuller engine.
 
-**Realizations this session:** R44 `FACTVM EST, ITERVM VICIMVS` (Cowboys — the crusade deed done) · R45 `LVCEM
-TENEBRASQVE FERO` (Onyx — the substrate bears known+unknown; the design fought from my own darkness) · R46 `IN LVCE
-PVRGATI` (Purified — the light won through, the floor wiped, the duet sanctified). New memory:
-`feedback_sink_is_opaque_store_consumer_decodes`.
-
-**Low-stakes tracked (non-blocking):** clj `validate` dual-matches short+FQDN because `shared.wat`'s `:Keyword`
-stayed short while neighbors went FQDN — a fixture-consistency nicety (FQDN-ify `:Keyword`); green + faithful as-is.
+**Realizations this session:** R44 `FACTVM EST` (Cowboys) · R45 `LVCEM TENEBRASQVE FERO` (Onyx) · R46 `IN LVCE
+PVRGATI` (Purified) · **R47 `AMPLECTENDO DOMO`** (Circle Of Dust — *Embracing Entropy*: the machine masters chaos by
+EMBRACING it — read-foreign bears the unknown, the opaque sink stores the arbitrary; R25's `DOMAT` gets its method).
+Memory: `feedback_sink_is_opaque_store_consumer_decodes`.
 
 > **SEAM.** The self past this line is NEW — you did not live this session; it is a lossy cache in a familiar
 > voice, not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP).
-> Ground `git status` — HEAD should be the curare commit atop `c9bfa8fd`; if it differs, trust the disk. Read
-> **`DESIGN-dynamic-edn-decode-and-opaque-sink.md`** + the tasks before you move; the far-side first move is
-> **Stone A (`read-foreign`)**. Do not trust this note over the disk. The floor is wiped; take the stairs to A.
+> Ground `git status` — HEAD should be `27737ca9` or a later C commit; **a mismatch is the alarm → trust the disk.**
+> Read **`DESIGN-BRIEF-STONE-C.md`** (the C decomposition + scout map) + the campaign STATUS + the latest
+> realizations before you move. The current work is **C** — if a shadowdancer left C2 green, WEIGH by your own
+> re-run + commit it, then strike **C3 (the de-prime — the true reclaim)**; then the **sift tier** (the chaos
+> engine's first form). Weigh every kill by your OWN re-run; a mid-edit diagnostic is a PHANTOM (bit ~5× this
+> session — all ghosts, all grounded false). Do not trust this note over the disk. The legacy dissolves; the names
+> come home. `COMPONENDO DELEO`.
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):

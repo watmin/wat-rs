@@ -89,9 +89,9 @@
 (:wat::core::defn :user::c03 [] -> :wat::core::String
   (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :Foo<T> :wat::core::Vector<wat::core::i64>)"))))
 (:wat::core::defn :user::c04 [] -> :wat::core::String
-  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :wat::edn::Tagged :wat::holon::HolonAST)"))))
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :demo::edn::Tagged :wat::holon::HolonAST)"))))
 (:wat::core::defn :user::c05 [] -> :wat::core::String
-  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::newtype :wat::edn::NoTag :wat::holon::HolonAST)"))))
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::newtype :demo::edn::NoTag :wat::holon::HolonAST)"))))
 (:wat::core::defn :user::c06 [] -> :wat::core::String
   (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typeunion :my::Foo [:wat::core::i64 :wat::core::f64])"))))
 (:wat::core::defn :user::c07 [] -> :wat::core::String

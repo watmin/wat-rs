@@ -4915,7 +4915,6 @@ fn dispatch_keyword_head_value(
         ":wat::edn::write" => crate::edn_shim::eval_edn_write(args, list_span, env, sym).map_err(Into::into),
         ":wat::edn::write-pretty" => crate::edn_shim::eval_edn_write_pretty(args, list_span, env, sym).map_err(Into::into),
         ":wat::edn::write-json" => crate::edn_shim::eval_edn_write_json(args, list_span, env, sym).map_err(Into::into),
-        ":wat::edn::write-notag" => crate::edn_shim::eval_edn_write_notag(args, list_span, env, sym).map_err(Into::into),
         ":wat::edn::write-json-natural" => {
             crate::edn_shim::eval_edn_write_json_natural(args, list_span, env, sym).map_err(Into::into)
         }

@@ -117,27 +117,6 @@ pub(crate) fn require_one_arg(
     eval(&args[0], env, sym).map(|tv| tv.value_owned())
 }
 
-/// `(:wat::edn::write-notag v)` → `:String`. Tagless EDN. Drops
-/// the `#namespace/Type` wrapper from struct + enum-variant
-/// renders, producing flat maps for structs and discriminator-
-/// keyed maps for enum tagged variants. Keywords + Insts retain
-/// their EDN-natural form (`:foo`, `#inst "..."`).
-///
-/// Lossy vs `:wat::edn::write` — natural-EDN rendering can't be
-/// `read` back into the original wat value (no tags ⇒ no
-/// reconstruction signal). For round-trip use the tagged form.
-pub fn eval_edn_write_notag(
-    args: &[WatAST],
-    list_span: &crate::span::Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::edn::write-notag";
-    let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = value_to_edn_notag(&v, sym.types().map(|a| a.as_ref()));
-    Ok(Value::String(Arc::new(wat_edn::write(&edn))))
-}
-
 /// `(:wat::edn::write-json-natural v)` → `:String`. Ingestion-tooling-
 /// friendly JSON. Drops the `#tag`/`body` sentinel wrapping (so
 /// struct fields land at the top level of the JSON object), drops
@@ -2127,125 +2106,8 @@ fn enum_variant_ns(type_path: &str) -> String {
 
 // ─── Natural / tagless renderers ──────────────────────────────────
 
-/// Tagless EDN walker. Drops `#tag` wrappers from struct + enum
-/// renders; emits flat maps for structs and discriminator-keyed
-/// maps for enum tagged variants. Keywords/Insts retain EDN form.
-pub fn value_to_edn_notag(
-    v: &Value,
-    types: Option<&crate::types::TypeEnv>,
-) -> OwnedValue {
-    match v {
-        // ── Struct: drop tag; body is the named-field map ───────
-        Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
-            // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-            let type_key = format!(":{}", sv.class);
-            let field_names: Vec<String> = match types.and_then(|t| t.get(&type_key)) {
-                Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
-                    a.fields.iter().map(|(name, _)| name.clone()).collect()
-                }
-                _ => (0..sv.fields.len()).map(|i| format!("field-{}", i)).collect(),
-            };
-            let entries: Vec<(OwnedValue, OwnedValue)> = sv
-                .fields
-                .iter()
-                .enumerate()
-                .map(|(i, fv)| {
-                    let key = field_names
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| format!("field-{}", i));
-                    (
-                        OwnedValue::Keyword(Keyword::new(key)),
-                        value_to_edn_notag(fv, types),
-                    )
-                })
-                .collect();
-            OwnedValue::Map(entries)
-        }
-        // ── Enum: fully-qualified variant as discriminator ──────
-        // The _type value is a namespaced keyword `:<dotted-ns>/<Variant>`
-        // (e.g. `:demo.Event/Buy`) — bare variant names like `:Buy`
-        // are ambiguous across enums; the FQDN is the honest identity.
-        Value::Enum(ev) => {
-            let ns = type_path_to_namespace(&ev.type_path);
-            let qualified_kw = make_qualified_keyword(&ns, &ev.variant_name);
-            if ev.fields.is_empty() {
-                // Unit variant — emit just the qualified keyword.
-                qualified_kw
-            } else {
-                let field_names = enum_variant_field_names(&ev.type_path, &ev.variant_name, types);
-                let mut entries: Vec<(OwnedValue, OwnedValue)> =
-                    Vec::with_capacity(ev.fields.len() + 1);
-                entries.push((
-                    OwnedValue::Keyword(Keyword::new("_type")),
-                    qualified_kw,
-                ));
-                for (i, fv) in ev.fields.iter().enumerate() {
-                    let key = field_names
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| format!("field-{}", i));
-                    entries.push((
-                        OwnedValue::Keyword(Keyword::new(key)),
-                        value_to_edn_notag(fv, types),
-                    ));
-                }
-                OwnedValue::Map(entries)
-            }
-        }
-        // ── Recurse on collections ───────────────────────────────
-        Value::Vec(xs) => {
-            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_notag(x, types)).collect())
-        }
-        Value::Tuple(xs) => {
-            OwnedValue::Vector(xs.iter().map(|x| value_to_edn_notag(x, types)).collect())
-        }
-        // Stone 216.5c — iterate m.iter() for (k, v) directly (native HashMap<Value, Value>).
-        Value::wat__std__HashMap(m) => OwnedValue::Map(
-            m.iter()
-                .map(|(k, v)| {
-                    (
-                        value_to_edn_notag(k, types),
-                        value_to_edn_notag(v, types),
-                    )
-                })
-                .collect(),
-        ),
-        // Arc 278 Stone A.0 — Option is a discriminated type; tag it honestly with
-        // a VECTOR body: `None → []`, `Some(v) → [v]`. `Some(nil)` ≠ `None`.
-        Value::Option(opt) => match &**opt {
-            None => OwnedValue::Tagged(
-                Tag::ns("wat.core.Option", "None"),
-                Box::new(OwnedValue::Vector(vec![])),
-            ),
-            Some(inner) => OwnedValue::Tagged(
-                Tag::ns("wat.core.Option", "Some"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_notag(inner, types)])),
-            ),
-        },
-        Value::Result(r) => match &**r {
-            // Arc 278 Stone A.0 — type-namespaced capitalized variant, vector body.
-            Ok(inner) => OwnedValue::Tagged(
-                Tag::ns("wat.core.Result", "Ok"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_notag(inner, types)])),
-            ),
-            Err(inner) => OwnedValue::Tagged(
-                Tag::ns("wat.core.Result", "Err"),
-                Box::new(OwnedValue::Vector(vec![value_to_edn_notag(inner, types)])),
-            ),
-        },
-        // HolonAST: render in natural form — primitive leaves
-        // unwrap to their bare EDN equivalent; Atom drops its
-        // wrapper. Composite operators (Bind, Bundle, Permute,
-        // Thermometer, SlotMarker, Blend) keep their tags because
-        // dropping them loses the operation's identity.
-        Value::holon__HolonAST(h) => holon_ast_to_edn_notag(h),
-        // ── Everything else: same as the tagged walker ───────────
-        _ => value_to_edn_with(v, types),
-    }
-}
-
-/// Natural-JSON walker. Same tagless transforms as `notag`, plus:
+/// Natural-JSON walker. Same tagless transforms as the tagless EDN
+/// renderer, plus:
 /// - keywords downgrade to plain strings (no `:` prefix)
 /// - Instants render as bare ISO-8601 strings (no `#inst` sentinel wrapper)
 /// - enum unit variants render as plain strings
@@ -2369,22 +2231,6 @@ fn type_path_to_namespace(type_path: &str) -> String {
         .strip_prefix(':')
         .unwrap_or(type_path)
         .replace("::", ".")
-}
-
-/// Build a namespaced EDN keyword, falling back to a non-namespaced
-/// one if the namespace fails wat-edn's first-character validation
-/// (variant names always validate; the namespace might not if the
-/// type path is unusual). The fallback is `<ns>/<name>` shoved into
-/// the name slot — visually identical but loses the namespace
-/// distinction at the wat-edn API layer.
-fn make_qualified_keyword(ns: &str, name: &str) -> OwnedValue {
-    match Keyword::try_ns(ns, name) {
-        Ok(kw) => OwnedValue::Keyword(kw),
-        Err(_) => match Keyword::try_new(format!("{ns}/{name}")) {
-            Ok(kw) => OwnedValue::Keyword(kw),
-            Err(_) => OwnedValue::String(std::borrow::Cow::Owned(format!(":{ns}/{name}"))),
-        },
-    }
 }
 
 fn enum_variant_field_names(
@@ -3904,49 +3750,6 @@ pub fn read_holon_ast_natural(s: &str) -> Result<Arc<holon::HolonAST>, EdnReadEr
         // arc 138: no span — read_holon_ast_natural operates on a raw &str with no WatAST trace
         .map_err(|e| EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other(format!("EDN parse error: {e}")) })?;
     edn_to_holon_ast_natural(&edn)
-}
-
-/// Render a HolonAST as a tagless EDN value — primitives unwrap to
-/// their bare EDN form; `Atom` drops its wrapper. Composite operators
-/// (Bind, Bundle, Permute, Thermometer, SlotMarker, Blend) keep their
-/// `#wat-edn.holon/...` tag because dropping it would lose the
-/// operation's identity (Bind vs Bundle vs Blend all carry vectors of
-/// children — only the tag tells them apart).
-///
-/// Used by `value_to_edn_notag` (arc 091) when a `:wat::edn::NoTag`
-/// field of a struct is a HolonAST. Indexed-column queries match
-/// against the natural form: `:metrics` instead of
-/// `#wat-edn.holon/Symbol "metrics"`; `"request_count"` instead of
-/// `#wat-edn.holon/String "request_count"`.
-fn holon_ast_to_edn_notag(h: &holon::HolonAST) -> OwnedValue {
-    use holon::HolonAST;
-    // Arc 230: Symbol composition is Bind(Atom(String("Symbol")), Atom(String(s))).
-    // as_symbol() recognises the composition; pass the content through keyword_from_wat_path
-    // (same semantics as the old HolonAST::Symbol(s) arm — Symbol stored colon-prefixed
-    // keywords in the old encoding; in the new encoding the symbol content carries the
-    // raw identifier or colon-prefixed keyword string).
-    if let Some(s) = h.as_symbol() {
-        return keyword_from_wat_path(s);
-    }
-    // Arc 230: Keyword composition is Bind(Atom(String("Keyword")), Atom(String(s))).
-    // as_keyword() recognises the composition; pass the content through keyword_from_wat_path
-    // to translate wat-path `::` separators to EDN `/` (e.g. `test::reader` → `:test/reader`).
-    // Without this arm, keyword compositions fall to the `_ => holon_ast_to_edn(h)` branch
-    // which calls Keyword::new(s) without namespace translation, producing `:test::reader`
-    // — invalid EDN (double-colon inside a keyword).
-    if let Some(s) = h.as_keyword() {
-        return keyword_from_wat_path(s);
-    }
-    match h {
-        HolonAST::String(s) => OwnedValue::String(std::borrow::Cow::Owned(s.to_string())),
-        HolonAST::I64(n) => OwnedValue::Integer(*n),
-        HolonAST::F64(x) => OwnedValue::Float(*x),
-        HolonAST::Bool(b) => OwnedValue::Bool(*b),
-        HolonAST::Atom(inner) => holon_ast_to_edn_notag(inner),
-        // Composites: keep the tag so the operation's identity
-        // survives the strip — same rule that keeps :Result tagged.
-        _ => holon_ast_to_edn(h),
-    }
 }
 
 #[cfg(test)]
