@@ -82,15 +82,17 @@ parity; **reconcile the spelling** — clj writes short `#wat.core/Some`, rust w
 - **C ✓** (`COMPONENDO DELEO`): **C1** (`27737ca9`, −6557 — the 3 legacy crates + interrogate + STOP-2 probe + the
   legacy check-lint), **C2** (`3266e363`, −376 — Tagged/NoTag + write-notag; kept `value_to_json_natural`), **C3**
   (`f11e64db` — the wat-fix de-prime). `:wat::telemetry::` / `:wat::sqlite::` are OURS. (floor 4150/0.)
-- **THE SIFT TIER (T2 → R0) — the LIVE TARGET; Predicate delivery now DESIGNED** (`DESIGN-sift-server-side-filter.md`,
-  "Predicate-form delivery — DESIGNED"): the chaos engine's first (paged) form. `sift-logs`/`sift-metrics` taking
-  `Sieve = All | Predicate | Rules` (`wat.query`); one seed per fire (alpha-only structural); a `runner-count 1`
-  throwaway worker. **Organic UX:** the user writes `(fn [log] …)`; the macro `ast->source`s it into a `:wat::core::String`
-  of `::`-source (a `WatAST` field's wire-DECODE crashes on symbols — `edn_shim.rs:1440`; the "nulls across a fork"
-  rationale was WRONG). Server: `read-string → ast->children+first (unwrap) → pure?(SANE, `17437ffb`) → eval-ast! →
-  apply`. Strike = **Stone 1 `:wat::core::ast->source`** (resurrect `wat_ast_to_source`) → **Stone 2** the delivery.
-  Then #6 Rules → `Sieve::All`+annihilate-`query-*` (tail) → #7 R0. This session also extended the no-hidden-failures
-  LAW to the fork freeze-window (`2f86838d`) + made purity sane for accessors (`17437ffb`).
+- **THE SIFT TIER (T2 → R0) — PREDICATE DONE + PROVEN; RULES form BLOCKED on a substrate expansion fix.**
+  (`DESIGN-sift-server-side-filter.md` + the SESSION-END breadcrumb in `DESIGN-no-hidden-failures.md`.) The chaos
+  engine's first (paged) form. **Predicate ✓** — Stone 1 `ast->source` (`037ddf88`) + Stone 2 the delivery (`76ae47c6`,
+  `sieve-pred` macro / organic `(fn …)` → `ast->source` String; `sift-logs`/`sift-metrics`; compile-once, apply-per-row,
+  impure→`::Fatal`) + the two-universe foreign ARENA (`d7fa8e5f` — a consumer that CANNOT hold the producer's types
+  filters via `read-foreign`, exact 60 across pages) + the `:wat::edn::` purity-prefix fence fix. BOTH loci (thread ≡
+  process, grant-before-dial). R49 `GLADIVS LOQVITVR` (`ec8ae424`). **Rules (#6) ⛔ BLOCKED:** the macro-emitting-a-
+  `defservice` UX hits a substrate gap — a `defsurface` nested in an outer-macro's `do` doesn't hoist its `:messages`
+  accessors (`src/macros/expand.rs:53`; STOP-1 confirmed). FIX FIRST (extirpare, general): extend `expand_all_with` to
+  hoist a nested-`do` defsurface's `:messages`. Rules design fully grounded (`BRIEF-STONE-sift-rules.md`; rete=typed,
+  user brings defs; infers — output > input). Then `Sieve::All` + annihilate `query-*` (tail) → #7 R0.
 - **Deferred (NOT this campaign):** clippy's ~1000+ warnings are the pre-existing known-cruft pile (CI marks clippy
   "informational" — no zero-floor); a dedicated cleanup, arc-109-style. C was clippy-neutral.
 
