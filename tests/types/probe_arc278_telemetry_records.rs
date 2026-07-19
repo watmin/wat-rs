@@ -14,7 +14,7 @@ fn telemetry_records_exist_and_splice_scope() {
     let world = startup_beside(file!());
     assert!(
         world.is_ok(),
-        ":wat::telemetry'::Metric/Log must exist in core and splice the Scope surface (Metric/namespace \
+        ":wat::telemetry::Metric/Log must exist in core and splice the Scope surface (Metric/namespace \
          is a spliced accessor, Metric/name an own one); got: {:?}",
         world.err()
     );

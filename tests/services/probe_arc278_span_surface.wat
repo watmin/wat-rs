@@ -9,27 +9,27 @@
 (:wat::core::defrecord :probe::Note [text <- :wat::core::String])
 
 (:wat::service::defservice :probe::toy-span'
-  :satisfies :wat::telemetry'::Span
+  :satisfies :wat::telemetry::Span
   :durable   []
   :ephemeral []
   :impls
-  [(incr  [s req] (:wat::service::Outcome::Reply s (:wat::telemetry'::Span::IncrResponse::Ok)))
-   (timed [s req] (:wat::service::Outcome::Reply s (:wat::telemetry'::Span::TimedResponse::Ok)))
-   (log   [s req] (:wat::service::Outcome::Reply s (:wat::telemetry'::Span::LogResponse::Ok)))
-   (close [s req] (:wat::service::Outcome::Reply s (:wat::telemetry'::Span::CloseResponse::Done)))])
+  [(incr  [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::IncrResponse::Ok)))
+   (timed [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::TimedResponse::Ok)))
+   (log   [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::LogResponse::Ok)))
+   (close [s req] (:wat::service::Outcome::Reply s (:wat::telemetry::Span::CloseResponse::Done)))])
 
 ;; :user::compute — start the toy on a thread, dial it, drive all four ops, return 1 iff close -> Done.
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [h    (:probe::toy-span'/start :locus (:wat::spawn::thread) :record (:probe::toy-span'::Record))
      span (:wat::kernel::connect' (:probe::toy-span'::Handle/addr h))
-     _i   (:wat::telemetry'::Span/incr span (:wat::telemetry'::Span::IncrRequest :name :requests))
-     _t   (:wat::telemetry'::Span/timed span
-            (:wat::telemetry'::Span::TimedRequest :name :fetch :nanos 100))
-     _l   (:wat::telemetry'::Span/log span
-            (:wat::telemetry'::Span::LogRequest :caller :probe :level :wat::telemetry'::Level::Info
+     _i   (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
+     _t   (:wat::telemetry::Span/timed span
+            (:wat::telemetry::Span::TimedRequest :name :fetch :nanos 100))
+     _l   (:wat::telemetry::Span/log span
+            (:wat::telemetry::Span::LogRequest :caller :probe :level :wat::telemetry::Level::Info
               :message (:wat::edn::write (:probe::Note :text "hello"))))
-     c    (:wat::telemetry'::Span/close span (:wat::telemetry'::Span::CloseRequest))]
+     c    (:wat::telemetry::Span/close span (:wat::telemetry::Span::CloseRequest))]
     (:wat::core::match c -> :wat::core::i64
-      ((:wat::telemetry'::Span::CloseResponse::Done) 1)
+      ((:wat::telemetry::Span::CloseResponse::Done) 1)
       (_ 0))))

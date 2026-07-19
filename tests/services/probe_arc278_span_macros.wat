@@ -8,22 +8,22 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [msh   (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     maddr (:wat::query::mem-store'::Handle/addr msh)
-     jh    (:wat::telemetry'::journal'/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry'::journal'::Record) :store-addr maddr)
-     jaddr (:wat::telemetry'::journal'::Handle/addr jh)
+    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     maddr (:wat::query::mem-store::Handle/addr msh)
+     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
+             :record (:wat::telemetry::journal::Record) :store-addr maddr)
+     jaddr (:wat::telemetry::journal::Handle/addr jh)
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      ;; the whole caller surface: a sink addr + a fresh span; no open/close by hand.
-     _ws   (:wat::telemetry'::with-span span jaddr "probe-ns" tags
+     _ws   (:wat::telemetry::with-span span jaddr "probe-ns" tags
              (:wat::core::do
-               (:wat::telemetry'::Span/incr span (:wat::telemetry'::Span::IncrRequest :name :requests))
-               (:wat::telemetry'::Span/incr span (:wat::telemetry'::Span::IncrRequest :name :requests))
-               (:wat::telemetry'::timed span :fetch 42)))
+               (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
+               (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
+               (:wat::telemetry::timed span :fetch 42)))
      client (:wat::kernel::connect' maddr)
-     pk    (:wat::edn::write (:wat::telemetry'::PartitionKey
-                               :namespace "probe-ns" :kind :wat::telemetry'::Kind::Metric))
+     pk    (:wat::edn::write (:wat::telemetry::PartitionKey
+                               :namespace "probe-ns" :kind :wat::telemetry::Kind::Metric))
      resp  (:wat::query::Store/scan client
              (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 20 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::i64

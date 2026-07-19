@@ -12,20 +12,20 @@
   [store-addr <- :wat::kernel::Address'<wat::query::Store::Op,wat::query::Store::Reply>]
   -> :wat::core::String
   (:wat::core::let
-    [jh      (:wat::telemetry'::journal'/start :locus (:wat::spawn::thread)
-               :record (:wat::telemetry'::journal'::Record) :store-addr store-addr)
-     journal (:wat::kernel::connect' (:wat::telemetry'::journal'::Handle/addr jh))
+    [jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
+               :record (:wat::telemetry::journal::Record) :store-addr store-addr)
+     journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     m       (:wat::telemetry'::Metric
+     m       (:wat::telemetry::Metric
                :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags :time-ns 123
-               :start-time-ns 100 :name :requests :value (:wat::telemetry'::Numeric::I64 7)
-               :unit :wat::telemetry'::Unit::Count)
-     batch   (:wat::core::Vector :wat::telemetry'::Metric m)
-     _wr     (:wat::telemetry'::Journal/write-metrics journal
-               (:wat::telemetry'::Journal::WriteMetricsRequest batch))
+               :start-time-ns 100 :name :requests :value (:wat::telemetry::Numeric::I64 7)
+               :unit :wat::telemetry::Unit::Count)
+     batch   (:wat::core::Vector :wat::telemetry::Metric m)
+     _wr     (:wat::telemetry::Journal/write-metrics journal
+               (:wat::telemetry::Journal::WriteMetricsRequest batch))
      client  (:wat::kernel::connect' store-addr)
-     pk      (:wat::edn::write (:wat::telemetry'::PartitionKey
-                                 :namespace "probe-ns" :kind :wat::telemetry'::Kind::Metric))
+     pk      (:wat::edn::write (:wat::telemetry::PartitionKey
+                                 :namespace "probe-ns" :kind :wat::telemetry::Kind::Metric))
      resp    (:wat::query::Store/scan client
                (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::String
@@ -39,13 +39,13 @@
 ;; row's data (the differential), else a mismatch sentinel the .rs catches.
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [msh        (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-                  :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     maddr      (:wat::query::mem-store'::Handle/addr msh)
-     ssh        (:wat::query::sqlite-store'/start :locus (:wat::spawn::thread)
-                  :record (:wat::query::sqlite-store'::Record
+    [msh        (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+                  :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     maddr      (:wat::query::mem-store::Handle/addr msh)
+     ssh        (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
+                  :record (:wat::query::sqlite-store::Record
                             :path ":memory:" :index-names (:wat::core::Vector :wat::core::String "by-uuid")))
-     saddr      (:wat::query::sqlite-store'::Handle/addr ssh)
+     saddr      (:wat::query::sqlite-store::Handle/addr ssh)
      mem-data   (:user::journal-roundtrip maddr)
      sqlite-data (:user::journal-roundtrip saddr)]
     (:wat::core::if (:wat::core::= mem-data sqlite-data)

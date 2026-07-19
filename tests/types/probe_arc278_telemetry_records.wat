@@ -9,14 +9,14 @@
      ;; Arc 294 item (C) — spliced records are constructed via KWARGS at the bare name
      ;; (order-free; the whole point of surface-splice legibility). Bare-positional is
      ;; retired (positional belongs to the prime `:T'`).
-     m    (:wat::telemetry'::Metric
+     m    (:wat::telemetry::Metric
             :namespace     "market-eval"                     ;; spliced from Scope
             :uuid          (:wat::core::Uuid/nil)            ;; spliced
             :tags          tags                              ;; spliced
             :time-ns       123                               ;; spliced
             :start-time-ns 100                               ;; own
             :name          :requests                         ;; own
-            :value         (:wat::telemetry'::Numeric::I64 7) ;; own
-            :unit          :wat::telemetry'::Unit::Count)]    ;; own (bare unit variant)
-    (:wat::kernel::println (:wat::telemetry'::Metric/namespace m))   ;; a SPLICED accessor
-    (:wat::kernel::println (:wat::telemetry'::Metric/name m))))      ;; an OWN accessor
+            :value         (:wat::telemetry::Numeric::I64 7) ;; own
+            :unit          :wat::telemetry::Unit::Count)]    ;; own (bare unit variant)
+    (:wat::kernel::println (:wat::telemetry::Metric/namespace m))   ;; a SPLICED accessor
+    (:wat::kernel::println (:wat::telemetry::Metric/name m))))      ;; an OWN accessor

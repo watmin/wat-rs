@@ -40,8 +40,8 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/core.wat",
         source: include_str!("../wat/core.wat"),
     },
-    // Arc 278 stone S1 — :wat::sqlite'::* — the RAW sqlite interop surface over the fresh
-    // `:rust::sqlite'` shim (src/rust_deps/sqlite.rs, core's FIRST default :rust:: shim).
+    // Arc 278 stone S1 — :wat::sqlite::* — the RAW sqlite interop surface over the fresh
+    // `:rust::sqlite` shim (src/rust_deps/sqlite.rs, core's FIRST default :rust:: shim).
     // Below the backend-agnostic :wat::query::Store contract (wat/query.wat, S2 satisfies it
     // with this). No eval-deps beyond wat/core.wat's builtins (defrecord/defenum/defclause/
     // typealias/Result/Option/Vector/keyword) — loads immediately after core.wat.
@@ -344,8 +344,8 @@ const STDLIB_FILES: &[WatSource] = &[
     // the Reason open-record error surface + Transient/Constraint/Fatal/Fault records, the
     // per-op `Store::<Op>Request`/`Store::<Op>Response` (outcome enum) records, and the plain
     // records every satisfier speaks (StoredRow/IndexKey/Row/IndexRow/Page/IndexPage/
-    // TableSchema/IndexSchema). NO backend, NO logic (a satisfier — `mem-store'`/
-    // `sqlite-store'` — lives in its own sibling file).
+    // TableSchema/IndexSchema). NO backend, NO logic (a satisfier — `mem-store`/
+    // `sqlite-store` — lives in its own sibling file).
     // Loads AFTER wat/core.wat (defrecord/defenum/defsurface + Result/Option/Vector/HashMap/
     // keyword primitives); placed beside wat/rete.wat — this is the query engine's vocabulary.
     // `:wat::query::` is net-new + unprimed (no battery collides); a baked core source may
@@ -355,7 +355,7 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query.wat",
         source: include_str!("../wat/query.wat"),
     },
-    // wat/query/mem.wat — `:wat::query::mem-store'`, the FIRST `:wat::query::Store` satisfier (a
+    // wat/query/mem.wat — `:wat::query::mem-store`, the FIRST `:wat::query::Store` satisfier (a
     // `:wat::service::defservice :satisfies :wat::query::Store` holding a
     // PersistentVector<StoredRow>; a real in-memory backend AND the oracle sqlite will be
     // differential-tested against). A dialed peer IS the Store — no wrapper struct. Baked in
@@ -372,27 +372,28 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/query/mem.wat",
         source: include_str!("../wat/query/mem.wat"),
     },
-    // wat/query/sqlite-store.wat — arc 278 stone S4: `:wat::query::sqlite-store'`, the sqlite
+    // wat/query/sqlite-store.wat — arc 278 stone S4: `:wat::query::sqlite-store`, the sqlite
     // `:wat::query::Store` satisfier (`:satisfies :wat::query::Store`; SQL over S1's
-    // `:wat::sqlite'` verbs, DDB-faithful secondary-complete-tables GSIs, clear-then-insert
+    // `:wat::sqlite` verbs, DDB-faithful secondary-complete-tables GSIs, clear-then-insert
     // `put`). A dialed peer IS the Store — no wrapper struct. Differential-tested against
-    // `:wat::query::mem-store'` (this file's sibling above). Loads after wat/sqlite.wat (S1
+    // `:wat::query::mem-store` (this file's sibling above). Loads after wat/sqlite.wat (S1
     // verbs), wat/query.wat (the Store contract + records), and wat/query/mem.wat (no eval-dep on
     // mem.wat, but grouped beside it as the query engine's second Store satisfier).
     WatSource {
         path: "wat/query/sqlite-store.wat",
         source: include_str!("../wat/query/sqlite-store.wat"),
     },
-    // wat/telemetry.wat — arc 278 stone ①: the `:wat::telemetry'` DATA VOCABULARY, PLUS (stone
+    // wat/telemetry.wat — arc 278 stone ①: the `:wat::telemetry` DATA VOCABULARY, PLUS (stone
     // T1b.1) the `Journal` surface — the telemetry sink's S4c contract, write half
     // (`write-metrics`/`write-logs`). The 7 pure vocabulary declarations (Tags/Numeric/Unit/Level/
     // Scope/Metric/Log) the telemetry sink + producer services (later stones) build on. (`Log.message`
     // is opaque `:wat::core::String` EDN text — arc 278 Stone B; the `LogMessage` open surface retired.)
-    // Metric/Log are `defrecord`s that SPLICE the Scope surface via `~@:wat::telemetry'::Scope`
+    // Metric/Log are `defrecord`s that SPLICE the Scope surface via `~@:wat::telemetry::Scope`
     // (arc-293 surface-splice) — spliced fields inline first, then own; the unified aggregate ctor
-    // + register_aggregate_methods mint the spliced accessors. Namespace is PRIMED
-    // (`:wat::telemetry'`, staged to replace the loaded wat-telemetry battery bridge — no
-    // collision); a baked core source may declare under `:wat::` (stdlib bypasses the
+    // + register_aggregate_methods mint the spliced accessors. Namespace is `:wat::telemetry`
+    // (Stone C1 annihilated the legacy wat-telemetry battery crate that squatted the bare name;
+    // Stone C3 reclaimed it — the prime is gone); a baked core source may declare under `:wat::`
+    // (stdlib bypasses the
     // reserved-prefix gate). Loads AFTER wat/core.wat (defrecord/defenum/defsurface/typealias +
     // splice) AND, since T1b.1, AFTER wat/query.wat: the `Journal` surface's
     // `Journal::Write{Metrics,Logs}Response` enums reuse `:wat::query::{Constraint,Transient,
@@ -404,16 +405,16 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/telemetry.wat",
         source: include_str!("../wat/telemetry.wat"),
     },
-    // wat/telemetry/journal.wat — `:wat::telemetry'::journal'` (arc 278 T1b.2), the telemetry sink
-    // service. `:satisfies :wat::telemetry'::Journal`, HOLDS a `:wat::query::Store` peer (S4d
+    // wat/telemetry/journal.wat — `:wat::telemetry::journal` (arc 278 T1b.2), the telemetry sink
+    // service. `:satisfies :wat::telemetry::Journal`, HOLDS a `:wat::query::Store` peer (S4d
     // `:peers`), serializes Metric/Log -> StoredRow -> Store/put. Loads LAST — after telemetry.wat
     // (Journal/Metric/Log/PartitionKey/Kind), query.wat (Store), and service.wat (defservice).
     WatSource {
         path: "wat/telemetry/journal.wat",
         source: include_str!("../wat/telemetry/journal.wat"),
     },
-    // wat/telemetry/span.wat — `:wat::telemetry'::span'` (arc 278 Span.2), the PRODUCER service.
-    // `:satisfies :wat::telemetry'::Span`, HOLDS a `:wat::telemetry'::Journal` peer; accumulates
+    // wat/telemetry/span.wat — `:wat::telemetry::span` (arc 278 Span.2), the PRODUCER service.
+    // `:satisfies :wat::telemetry::Span`, HOLDS a `:wat::telemetry::Journal` peer; accumulates
     // counters/durations and emits them as Metrics on `close`. Loads after journal.wat.
     WatSource {
         path: "wat/telemetry/span.wat",

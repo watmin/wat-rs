@@ -20,24 +20,24 @@
 ;; file's stdlib.rs manifest slot now ALSO depends on wat/query.wat and must load after it.
 
 ;; ─── Tags — the dimension map every scope carries (keyword → string). ────────────
-(:wat::core::typealias :wat::telemetry'::Tags
+(:wat::core::typealias :wat::telemetry::Tags
   (:wat::core::HashMap :wat::core::keyword :wat::core::String))
 
 ;; ─── Samples — a span's duration samples (nanos) under one name. A bare keyword alias so it
 ;; can name a HashMap value type + a `match ->` annotation (compound types can't sit there). ─
-(:wat::core::typealias :wat::telemetry'::Samples
+(:wat::core::typealias :wat::telemetry::Samples
   (:wat::core::Vector :wat::core::i64))
 
 ;; ─── Numeric — a metric's value: an i64 count or an f64 gauge (fielded variants). ─
 ;; Variant names are :I64/:F64 (capitalized, per the sqlite Cell/Param exemplar): the
 ;; lowercase :i64/:f64 the design doc sketched collide with the RETIRED bare primitives
 ;; :i64/:f64 (arc-109) and are rejected as enum-variant names.
-(:wat::core::defenum :wat::telemetry'::Numeric :wat::enum::Pure
+(:wat::core::defenum :wat::telemetry::Numeric :wat::enum::Pure
   :I64 [val <- :wat::core::i64]
   :F64 [val <- :wat::core::f64])
 
 ;; ─── Unit — the unit a metric's value is measured in (bare variants). ────────────
-(:wat::core::defenum :wat::telemetry'::Unit :wat::enum::Pure
+(:wat::core::defenum :wat::telemetry::Unit :wat::enum::Pure
   :Count
   :Nanos
   :Millis
@@ -45,7 +45,7 @@
   :Percent)
 
 ;; ─── Level — a log record's severity (bare variants). ────────────────────────────
-(:wat::core::defenum :wat::telemetry'::Level :wat::enum::Pure
+(:wat::core::defenum :wat::telemetry::Level :wat::enum::Pure
   :Debug
   :Info
   :Warn
@@ -55,7 +55,7 @@
 ;; Discriminates the two record shapes at the partition-key level (metrics and logs
 ;; are different shapes; the pk carries the kind so a namespace's metrics and logs
 ;; partition distinctly).
-(:wat::core::defenum :wat::telemetry'::Kind :wat::enum::Pure
+(:wat::core::defenum :wat::telemetry::Kind :wat::enum::Pure
   :Metric
   :Log)
 
@@ -64,35 +64,35 @@
 ;; — self-describing AND round-trippable (an EDN reader hydrates it back to this record),
 ;; unlike a `#`-delimited flat string which cannot be read back. Fields render in
 ;; declaration order, so the partition groups hierarchically (namespace, then kind).
-(:wat::core::defrecord :wat::telemetry'::PartitionKey
+(:wat::core::defrecord :wat::telemetry::PartitionKey
   [namespace <- :wat::core::String
-   kind      <- :wat::telemetry'::Kind])
+   kind      <- :wat::telemetry::Kind])
 
 ;; ─── Scope — the EXACT surface every telemetry record satisfies (identity + when). ─
 ;; namespace (facility), uuid (correlation id), tags (dimensions), time-ns (event time).
 ;; Spliced into Metric/Log via `~@:wat::telemetry'::Scope`.
-(:wat::core::defsurface :wat::telemetry'::Scope
+(:wat::core::defsurface :wat::telemetry::Scope
   :nature :wat::core::Record
   :features [namespace <- :wat::core::String
              uuid      <- :wat::core::Uuid
-             tags      <- :wat::telemetry'::Tags
+             tags      <- :wat::telemetry::Tags
              time-ns   <- :wat::core::i64])
 
 ;; ─── Metric — a measurement. Splices Scope (4 fields), then 4 own. ───────────────
 ;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  start-time-ns name value unit.
-(:wat::core::defrecord :wat::telemetry'::Metric
-  [~@:wat::telemetry'::Scope
+(:wat::core::defrecord :wat::telemetry::Metric
+  [~@:wat::telemetry::Scope
    start-time-ns <- :wat::core::i64
    name          <- :wat::core::keyword
-   value         <- :wat::telemetry'::Numeric
-   unit          <- :wat::telemetry'::Unit])
+   value         <- :wat::telemetry::Numeric
+   unit          <- :wat::telemetry::Unit])
 
 ;; ─── Log — a log event. Splices Scope (4 fields), then 3 own. ────────────────────
 ;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  caller level message.
-(:wat::core::defrecord :wat::telemetry'::Log
-  [~@:wat::telemetry'::Scope
+(:wat::core::defrecord :wat::telemetry::Log
+  [~@:wat::telemetry::Scope
    caller  <- :wat::core::keyword
-   level   <- :wat::telemetry'::Level
+   level   <- :wat::telemetry::Level
    ;; message is OPAQUE (arc 278 Stone B): EDN text the producer `edn::write`s at the call site;
    ;; the sink stores/returns it verbatim and never decodes (no `UnknownTag` across a fork).
    message <- :wat::core::String])
@@ -112,65 +112,65 @@
 ;; The minimal-CloudWatch contract: write + query, for metrics + logs. `write-*` persist a batch;
 ;; `query-*` read a namespace back over a time window (a filtered store scan, hydrating the rows to
 ;; Metric/Log — NO rete: rete is a CONSUMER that instruments itself and queries back, not the engine).
-(:wat::core::defsurface :wat::telemetry'::Journal :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::telemetry::Journal :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :wat::telemetry'::Journal::WriteMetricsRequest
-     [batch <- (:wat::core::Vector :wat::telemetry'::Metric)])
-   (:wat::core::defenum :wat::telemetry'::Journal::WriteMetricsResponse :wat::enum::Pure
+  [(:wat::core::defrecord :wat::telemetry::Journal::WriteMetricsRequest
+     [batch <- (:wat::core::Vector :wat::telemetry::Metric)])
+   (:wat::core::defenum :wat::telemetry::Journal::WriteMetricsResponse :wat::enum::Pure
      :Success    []
      :Constraint [err <- :wat::query::Constraint]
      :Transient  [err <- :wat::query::Transient]
      :Fatal      [err <- :wat::query::Fatal])
 
-   (:wat::core::defrecord :wat::telemetry'::Journal::WriteLogsRequest
-     [batch <- (:wat::core::Vector :wat::telemetry'::Log)])
-   (:wat::core::defenum :wat::telemetry'::Journal::WriteLogsResponse :wat::enum::Pure
+   (:wat::core::defrecord :wat::telemetry::Journal::WriteLogsRequest
+     [batch <- (:wat::core::Vector :wat::telemetry::Log)])
+   (:wat::core::defenum :wat::telemetry::Journal::WriteLogsResponse :wat::enum::Pure
      :Success    []
      :Constraint [err <- :wat::query::Constraint]
      :Transient  [err <- :wat::query::Transient]
      :Fatal      [err <- :wat::query::Fatal])
 
    ;; ── query (CloudWatch read side): a namespace + time window [lo,hi] in epoch nanos, paged. ──
-   (:wat::core::defrecord :wat::telemetry'::Journal::QueryMetricsRequest
+   (:wat::core::defrecord :wat::telemetry::Journal::QueryMetricsRequest
      [namespace <- :wat::core::String
       time-lo   <- :wat::core::i64
       time-hi   <- :wat::core::i64
       limit     <- :wat::core::i64
       cursor    <- (:wat::core::Option :wat::core::String)])
    ;; scan yields Success/Transient/Fatal only (a read can't constraint-fail) — mirror that.
-   (:wat::core::defenum :wat::telemetry'::Journal::QueryMetricsResponse :wat::enum::Pure
-     :Success   [metrics <- (:wat::core::Vector :wat::telemetry'::Metric)
+   (:wat::core::defenum :wat::telemetry::Journal::QueryMetricsResponse :wat::enum::Pure
+     :Success   [metrics <- (:wat::core::Vector :wat::telemetry::Metric)
                  cursor  <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal])
 
-   (:wat::core::defrecord :wat::telemetry'::Journal::QueryLogsRequest
+   (:wat::core::defrecord :wat::telemetry::Journal::QueryLogsRequest
      [namespace <- :wat::core::String
       time-lo   <- :wat::core::i64
       time-hi   <- :wat::core::i64
       limit     <- :wat::core::i64
       cursor    <- (:wat::core::Option :wat::core::String)])
-   (:wat::core::defenum :wat::telemetry'::Journal::QueryLogsResponse :wat::enum::Pure
-     :Success   [logs   <- (:wat::core::Vector :wat::telemetry'::Log)
+   (:wat::core::defenum :wat::telemetry::Journal::QueryLogsResponse :wat::enum::Pure
+     :Success   [logs   <- (:wat::core::Vector :wat::telemetry::Log)
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal])]
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
-   (write-metrics [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::WriteMetricsRequest]
-     -> :wat::telemetry'::Journal::WriteMetricsResponse)
+   (write-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteMetricsRequest]
+     -> :wat::telemetry::Journal::WriteMetricsResponse)
 
    ;; write a logs batch (>=1, homogeneous) ATOMICALLY through the owned store.
-   (write-logs [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::WriteLogsRequest]
-     -> :wat::telemetry'::Journal::WriteLogsResponse)
+   (write-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteLogsRequest]
+     -> :wat::telemetry::Journal::WriteLogsResponse)
 
    ;; query metrics in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
-   (query-metrics [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::QueryMetricsRequest]
-     -> :wat::telemetry'::Journal::QueryMetricsResponse)
+   (query-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::QueryMetricsRequest]
+     -> :wat::telemetry::Journal::QueryMetricsResponse)
 
    ;; query logs in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
-   (query-logs [self <- :wat::telemetry'::Journal  req <- :wat::telemetry'::Journal::QueryLogsRequest]
-     -> :wat::telemetry'::Journal::QueryLogsResponse)])
+   (query-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::QueryLogsRequest]
+     -> :wat::telemetry::Journal::QueryLogsResponse)])
 
 ;; ─── Span — arc 278 stone Span.1: the PRODUCER surface (a unit of work). ──────────
 ;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.
@@ -181,40 +181,40 @@
 ;; stone Span.2) holds a `:wat::telemetry'::Journal` peer. Nesting is a call-site `open` with the same
 ;; sink (NOT a surface op). `timed` the OP (`Span/timed`) is distinct from the `timed` call-site widget
 ;; macro (`:wat::telemetry'::timed`) — FQDN disambiguates.
-(:wat::core::defsurface :wat::telemetry'::Span :nature :wat::kernel::Peer'
+(:wat::core::defsurface :wat::telemetry::Span :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :wat::telemetry'::Span::IncrRequest
+  [(:wat::core::defrecord :wat::telemetry::Span::IncrRequest
      [name <- :wat::core::keyword])
-   (:wat::core::defenum :wat::telemetry'::Span::IncrResponse :wat::enum::Pure :Ok [])
+   (:wat::core::defenum :wat::telemetry::Span::IncrResponse :wat::enum::Pure :Ok [])
 
-   (:wat::core::defrecord :wat::telemetry'::Span::TimedRequest
+   (:wat::core::defrecord :wat::telemetry::Span::TimedRequest
      [name <- :wat::core::keyword  nanos <- :wat::core::i64])
-   (:wat::core::defenum :wat::telemetry'::Span::TimedResponse :wat::enum::Pure :Ok [])
+   (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure :Ok [])
 
-   (:wat::core::defrecord :wat::telemetry'::Span::LogRequest
+   (:wat::core::defrecord :wat::telemetry::Span::LogRequest
      [caller  <- :wat::core::keyword
-      level   <- :wat::telemetry'::Level
+      level   <- :wat::telemetry::Level
       ;; message OPAQUE (arc 278 Stone B): the `Span/log` caller `edn::write`s its record here, so
       ;; a forked `span'` never hits `UnknownTag` on a user type either — opaque before both wires.
       message <- :wat::core::String])
-   (:wat::core::defenum :wat::telemetry'::Span::LogResponse :wat::enum::Pure :Ok [])
+   (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure :Ok [])
 
-   (:wat::core::defrecord :wat::telemetry'::Span::CloseRequest [])
-   (:wat::core::defenum :wat::telemetry'::Span::CloseResponse :wat::enum::Pure
+   (:wat::core::defrecord :wat::telemetry::Span::CloseRequest [])
+   (:wat::core::defenum :wat::telemetry::Span::CloseResponse :wat::enum::Pure
      :Done       []
      :Constraint [err <- :wat::query::Constraint]
      :Transient  [err <- :wat::query::Transient]
      :Fatal      [err <- :wat::query::Fatal])]
   :features
   [;; increment a named counter by 1 — a PURE state transition (emitted on close).
-   (incr [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::IncrRequest]
-     -> :wat::telemetry'::Span::IncrResponse)
+   (incr [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::IncrRequest]
+     -> :wat::telemetry::Span::IncrResponse)
    ;; record a duration sample (nanos) under a name — PURE (the timing widget already measured).
-   (timed [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::TimedRequest]
-     -> :wat::telemetry'::Span::TimedResponse)
+   (timed [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::TimedRequest]
+     -> :wat::telemetry::Span::TimedResponse)
    ;; write a Log NOW through the sink, correlated by this span's scope.
-   (log [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::LogRequest]
-     -> :wat::telemetry'::Span::LogResponse)
+   (log [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::LogRequest]
+     -> :wat::telemetry::Span::LogResponse)
    ;; close the unit of work: emit accumulated counters + durations as Metrics to the sink.
-   (close [self <- :wat::telemetry'::Span  req <- :wat::telemetry'::Span::CloseRequest]
-     -> :wat::telemetry'::Span::CloseResponse)])
+   (close [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::CloseRequest]
+     -> :wat::telemetry::Span::CloseResponse)])

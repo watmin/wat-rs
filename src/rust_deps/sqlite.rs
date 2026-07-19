@@ -1,4 +1,4 @@
-//! `:rust::sqlite'` — arc 278 stone S1: a FRESH, thread-owned binding to
+//! `:rust::sqlite` — arc 278 stone S1: a FRESH, thread-owned binding to
 //! rusqlite, ships as core's FIRST default `:rust::` shim (registered from
 //! `with_wat_rs_defaults`, `src/rust_deps/mod.rs`).
 //!
@@ -44,14 +44,14 @@
 //! same primary `19`, matching the design's "SQLITE_CONSTRAINT + its
 //! extended codes -> Constraint" rule.
 //!
-//! `op` (the ratified `:wat::sqlite'::Fault.op` keyword field) is
+//! `op` (the ratified `:wat::sqlite::Fault.op` keyword field) is
 //! deliberately NOT threaded through this raw 3-tuple: wat's `Tuple` only has
 //! `first`/`second`/`third` accessors (index 0-2, no fourth — see
 //! `wat/core.wat`'s `format` macro accumulator note), and every
-//! `:rust::sqlite'::*` dispatch fn already corresponds to exactly one
+//! `:rust::sqlite::*` dispatch fn already corresponds to exactly one
 //! `wat/sqlite.wat` surface verb, which therefore already knows which op
 //! faulted — it supplies the `:keyword` literal itself when it lifts this
-//! raw fault into `:wat::sqlite'::Fault` (see `wat/sqlite.wat::classify`).
+//! raw fault into `:wat::sqlite::Fault` (see `wat/sqlite.wat::classify`).
 //! Net effect on the wire: an open on a bad path yields `Err((code, diag,
 //! msg))`, never a panic — proven first, per the build order, before the
 //! rest of the verbs were added.
@@ -80,12 +80,12 @@ use wat_macros::wat_dispatch;
 use crate::rust_deps::{make_rust_opaque, RustDepsBuilder, ThreadOwnedCell, ToWat};
 use crate::runtime::{EnumValue, Value};
 
-/// The raw fault payload marshaled across the `:rust::sqlite'` boundary on
+/// The raw fault payload marshaled across the `:rust::sqlite` boundary on
 /// failure: `(code, diagnostic, message)`. See the module doc for why `op`
 /// isn't a fourth element here.
 pub type RawFault = (i64, String, String);
 
-/// `:rust::sqlite'::Connection` — the read/write handle. `Send`, not `Sync`;
+/// `:rust::sqlite::Connection` — the read/write handle. `Send`, not `Sync`;
 /// thread-owned via `ThreadOwnedCell` (see [`ToWat`] impl below).
 pub struct WatSqliteConnection {
     conn: Connection,
@@ -93,11 +93,11 @@ pub struct WatSqliteConnection {
 
 impl ToWat for WatSqliteConnection {
     fn to_wat(self) -> Value {
-        make_rust_opaque(":rust::sqlite'::Connection", ThreadOwnedCell::new(self))
+        make_rust_opaque(":rust::sqlite::Connection", ThreadOwnedCell::new(self))
     }
 }
 
-/// `:rust::sqlite'::ReadConnection` — the read-only handle (`open-readonly`'s
+/// `:rust::sqlite::ReadConnection` — the read-only handle (`open-readonly`'s
 /// return). A distinct opaque type from `Connection` (not a newtype wrapper
 /// at the wat level) — the capability split is enforced BY TYPE: no
 /// `execute`/`execute-ddl`/`pragma`/`begin`/`commit` dispatch is registered
@@ -109,7 +109,7 @@ pub struct WatSqliteReadConnection {
 
 impl ToWat for WatSqliteReadConnection {
     fn to_wat(self) -> Value {
-        make_rust_opaque(":rust::sqlite'::ReadConnection", ThreadOwnedCell::new(self))
+        make_rust_opaque(":rust::sqlite::ReadConnection", ThreadOwnedCell::new(self))
     }
 }
 
@@ -132,9 +132,9 @@ fn fault_from_rusqlite(e: &rusqlite::Error) -> RawFault {
     }
 }
 
-/// Decode one `:wat::sqlite'::Param` value (arriving as a generic
+/// Decode one `:wat::sqlite::Param` value (arriving as a generic
 /// `Value::Enum` — the type checker already enforced the element type is
-/// `:wat::sqlite'::Param` before this dispatch fn runs) into a
+/// `:wat::sqlite::Param` before this dispatch fn runs) into a
 /// rusqlite-bindable `Box<dyn ToSql>`. A malformed Param (wrong type_path /
 /// wrong variant / payload mismatch) is a type-checker-contract violation,
 /// not a sqlite error — still returned as a `RawFault` value (code 0, never
@@ -148,17 +148,17 @@ fn param_to_tosql(idx: usize, v: &Value) -> Result<Box<dyn ToSql>, RawFault> {
                 0,
                 format!("param[{idx}]"),
                 format!(
-                    "expected :wat::sqlite'::Param, got {}",
+                    "expected :wat::sqlite::Param, got {}",
                     other.type_name()
                 ),
             ))
         }
     };
-    if ev.type_path != ":wat::sqlite'::Param" {
+    if ev.type_path != ":wat::sqlite::Param" {
         return Err((
             0,
             format!("param[{idx}]"),
-            format!("expected :wat::sqlite'::Param, got {}", ev.type_path),
+            format!("expected :wat::sqlite::Param, got {}", ev.type_path),
         ));
     }
     match (ev.variant_name.as_str(), ev.fields.first()) {
@@ -182,9 +182,9 @@ fn bind_params(params: &[Value]) -> Result<Vec<Box<dyn ToSql>>, RawFault> {
         .collect()
 }
 
-/// One read column -> a `:wat::sqlite'::Cell` value (a generic `Value::Enum`
+/// One read column -> a `:wat::sqlite::Cell` value (a generic `Value::Enum`
 /// constructed directly — mirrors how the type checker expects a
-/// `:wat::sqlite'::Cell` instance to look at runtime). Blob is out of scope
+/// `:wat::sqlite::Cell` instance to look at runtime). Blob is out of scope
 /// (DESIGN-STONE-S1-sqlite-interop.md § out of scope) — degrades to `Nil`
 /// rather than dropping the row; a later stone adds a real `Blob` variant if
 /// a consumer needs it.
@@ -200,7 +200,7 @@ fn cell_to_wat(v: ValueRef) -> Value {
         ValueRef::Blob(_) => ("Nil", vec![]),
     };
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::sqlite'::Cell".to_string(),
+        type_path: ":wat::sqlite::Cell".to_string(),
         variant_name: variant.to_string(),
         fields,
     }))
@@ -246,9 +246,9 @@ fn select_impl(
 
 // ─── Connection (RW) ────────────────────────────────────────────────────
 
-#[wat_dispatch(path = ":rust::sqlite'::Connection", scope = "thread_owned")]
+#[wat_dispatch(path = ":rust::sqlite::Connection", scope = "thread_owned")]
 impl WatSqliteConnection {
-    /// `:rust::sqlite'::Connection::open path` — open or create a sqlite
+    /// `:rust::sqlite::Connection::open path` — open or create a sqlite
     /// file at `path`. No pragmas set (the consumer picks its own policy via
     /// `pragma`); no schema install (the consumer calls `execute-ddl`). A
     /// bad path (e.g. a nonexistent directory) yields `Err(RawFault)`, never
@@ -268,7 +268,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite'::Connection::execute_ddl conn ddl` — run a DDL string
+    /// `:rust::sqlite::Connection::execute_ddl conn ddl` — run a DDL string
     /// (CREATE TABLE/INDEX, …) via `execute_batch`. No parameter binding —
     /// for parameterized statements use `execute`.
     pub fn execute_ddl(&self, ddl: String) -> Result<(), (i64, String, String)> {
@@ -277,7 +277,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite'::Connection::execute conn sql params` — run a
+    /// `:rust::sqlite::Connection::execute conn sql params` — run a
     /// parameterized DML statement (INSERT/UPDATE/DELETE). Returns rows
     /// affected. `params` arrives as `Vector<Param>`; each element is
     /// decoded via `param_to_tosql` (never panics on a malformed element —
@@ -286,13 +286,13 @@ impl WatSqliteConnection {
         execute_impl(&self.conn, &sql, &params)
     }
 
-    /// `:rust::sqlite'::Connection::select conn sql params` — the raw read.
+    /// `:rust::sqlite::Connection::select conn sql params` — the raw read.
     /// Returns one `Vector<Cell>` per row.
     pub fn select(&self, sql: String, params: Vec<Value>) -> Result<Vec<Vec<Value>>, (i64, String, String)> {
         select_impl(&self.conn, &sql, &params)
     }
 
-    /// `:rust::sqlite'::Connection::pragma conn name value` — set a pragma
+    /// `:rust::sqlite::Connection::pragma conn name value` — set a pragma
     /// via `conn.pragma_update(None, name, value)`. Substrate is a thin
     /// proxy; the consumer picks its own policy (journal_mode, synchronous,
     /// foreign_keys, …).
@@ -302,7 +302,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite'::Connection::begin conn` — `BEGIN;`. Pairs with
+    /// `:rust::sqlite::Connection::begin conn` — `BEGIN;`. Pairs with
     /// `commit` to wrap a batch in one transaction.
     pub fn begin(&self) -> Result<(), (i64, String, String)> {
         self.conn
@@ -310,7 +310,7 @@ impl WatSqliteConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite'::Connection::commit conn` — `COMMIT;`.
+    /// `:rust::sqlite::Connection::commit conn` — `COMMIT;`.
     pub fn commit(&self) -> Result<(), (i64, String, String)> {
         self.conn
             .execute_batch("COMMIT")
@@ -320,9 +320,9 @@ impl WatSqliteConnection {
 
 // ─── ReadConnection (RO) ────────────────────────────────────────────────
 
-#[wat_dispatch(path = ":rust::sqlite'::ReadConnection", scope = "thread_owned")]
+#[wat_dispatch(path = ":rust::sqlite::ReadConnection", scope = "thread_owned")]
 impl WatSqliteReadConnection {
-    /// `:rust::sqlite'::ReadConnection::open_readonly path` — open an
+    /// `:rust::sqlite::ReadConnection::open_readonly path` — open an
     /// EXISTING sqlite file read-only (`SQLITE_OPEN_READ_ONLY`); a missing
     /// file or permission failure yields `Err((i64, String, String))`, never
     /// a panic. `Result<Self, (i64, String, String)>` marshals automatically
@@ -333,7 +333,7 @@ impl WatSqliteReadConnection {
             .map_err(|e| fault_from_rusqlite(&e))
     }
 
-    /// `:rust::sqlite'::ReadConnection::select conn sql params` — the raw
+    /// `:rust::sqlite::ReadConnection::select conn sql params` — the raw
     /// read, identical shape to `Connection::select`; a `ReadConnection`
     /// simply has no other verb registered under its type path (the
     /// capability-honest half).
@@ -342,7 +342,7 @@ impl WatSqliteReadConnection {
     }
 }
 
-/// Registrar for `:rust::sqlite'` — wires both `Connection` (RW) and
+/// Registrar for `:rust::sqlite` — wires both `Connection` (RW) and
 /// `ReadConnection` (RO) dispatch tables. Called from
 /// `RustDepsBuilder::with_wat_rs_defaults` (`src/rust_deps/mod.rs`) — the
 /// FIRST core default shim (lru was moved OUT to the `wat-lru` crate; sqlite

@@ -90,7 +90,7 @@
 ;; puts this on the operation model: each impl is `(<op> [s req] body)` — `req` is the
 ;; `Store::<Op>Request` record; the body returns the `Store::<Op>Response` outcome enum via
 ;; `Outcome::Reply`. MemStore never errors — always `:Success`.
-(:wat::service::defservice :wat::query::mem-store'
+(:wat::service::defservice :wat::query::mem-store
   :satisfies :wat::query::Store
   :durable [rows <- :wat::core::PersistentVector<wat::query::StoredRow>]
   :ephemeral []
@@ -108,10 +108,10 @@
                                   r   <- :wat::query::StoredRow]
                    -> (:wat::core::PersistentVector :wat::query::StoredRow)
                    (:wat::core::PersistentVector/conj acc r))
-                 (:wat::query::mem-store'::Record/rows (:wat::query::mem-store'::State/durable s))
+                 (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s))
                  new-rows)]
        (:wat::service::Outcome::Reply
-         (:wat::query::mem-store'::State (:wat::query::mem-store'::Record merged))
+         (:wat::query::mem-store::State (:wat::query::mem-store::Record merged))
          (:wat::query::Store::PutResponse::Success))))
 
    (scan [s req]
@@ -128,7 +128,7 @@
                       (:wat::core::conj acc (:wat::query::StoredRow->Row r))
                       acc))
                   (:wat::core::Vector :wat::query::Row)
-                  (:wat::query::mem-store'::Record/rows (:wat::query::mem-store'::State/durable s)))
+                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s)))
         sorted   (:wat::core::sort-by :wat::query::Row/sk matches)
         limited  (:wat::core::into [] (:wat::core::take sorted lim))
         full?    (:wat::core::= (:wat::core::count limited) lim)
@@ -155,7 +155,7 @@
                           (:wat::core::conj acc (:wat::query::StoredRow->IndexRow r ik))
                           acc))))
                   (:wat::core::Vector :wat::query::IndexRow)
-                  (:wat::query::mem-store'::Record/rows (:wat::query::mem-store'::State/durable s)))
+                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s)))
         sorted   (:wat::core::sort-by :wat::query::IndexRow/isk matches)
         limited  (:wat::core::into [] (:wat::core::take sorted lim))
         full?    (:wat::core::= (:wat::core::count limited) lim)

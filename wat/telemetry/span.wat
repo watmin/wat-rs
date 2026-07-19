@@ -13,109 +13,109 @@
 ;; Loads after wat/telemetry/journal.wat (needs Journal + Metric/Log/Scope + time).
 
 ;; ── the service ─────────────────────────────────────────────────────────────────
-(:wat::service::defservice :wat::telemetry'::span'
-  :satisfies :wat::telemetry'::Span
+(:wat::service::defservice :wat::telemetry::span
+  :satisfies :wat::telemetry::Span
   :durable   [namespace     <- :wat::core::String
               uuid          <- :wat::core::Uuid
-              tags          <- :wat::telemetry'::Tags
+              tags          <- :wat::telemetry::Tags
               start-time-ns <- :wat::core::i64
               counters      <- (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-              durations     <- (:wat::core::HashMap :wat::core::keyword :wat::telemetry'::Samples)]
-  :ephemeral [sink <- :wat::kernel::Peer'<wat::telemetry'::Journal::Op,wat::telemetry'::Journal::Reply>]
-  :peers     [:wat::telemetry'::Journal]
+              durations     <- (:wat::core::HashMap :wat::core::keyword :wat::telemetry::Samples)]
+  :ephemeral [sink <- :wat::kernel::Peer'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+  :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
-          [record    <- :wat::telemetry'::span'::Record
-           sink-addr <- :wat::kernel::Address'<wat::telemetry'::Journal::Op,wat::telemetry'::Journal::Reply>]
-          -> :wat::telemetry'::span'::State
-          (:wat::telemetry'::span'::State :durable record :sink (:wat::kernel::connect' sink-addr)))
+          [record    <- :wat::telemetry::span::Record
+           sink-addr <- :wat::kernel::Address'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+          -> :wat::telemetry::span::State
+          (:wat::telemetry::span::State :durable record :sink (:wat::kernel::connect' sink-addr)))
   :impls
   [;; incr — PURE: counters[name] + 1, thread new state.
    (incr [s req]
      (:wat::core::let
-       [name (:wat::telemetry'::Span::IncrRequest/name req)
-        rec  (:wat::telemetry'::span'::State/durable s)
-        cs   (:wat::telemetry'::span'::Record/counters rec)
+       [name (:wat::telemetry::Span::IncrRequest/name req)
+        rec  (:wat::telemetry::span::State/durable s)
+        cs   (:wat::telemetry::span::Record/counters rec)
         next (:wat::core::match (:wat::core::HashMap/get cs name) -> :wat::core::i64
                (:wat::core::None 1)
                ((:wat::core::Some v) (:wat::core::+ v 1)))
-        rec' (:wat::telemetry'::span'::Record
-               :namespace (:wat::telemetry'::span'::Record/namespace rec)
-               :uuid (:wat::telemetry'::span'::Record/uuid rec)
-               :tags (:wat::telemetry'::span'::Record/tags rec)
-               :start-time-ns (:wat::telemetry'::span'::Record/start-time-ns rec)
+        rec' (:wat::telemetry::span::Record
+               :namespace (:wat::telemetry::span::Record/namespace rec)
+               :uuid (:wat::telemetry::span::Record/uuid rec)
+               :tags (:wat::telemetry::span::Record/tags rec)
+               :start-time-ns (:wat::telemetry::span::Record/start-time-ns rec)
                :counters (:wat::core::HashMap/assoc cs name next)
-               :durations (:wat::telemetry'::span'::Record/durations rec))]
+               :durations (:wat::telemetry::span::Record/durations rec))]
        (:wat::service::Outcome::Reply
-         (:wat::telemetry'::span'::State :durable rec' :sink (:wat::telemetry'::span'::State/sink s))
-         (:wat::telemetry'::Span::IncrResponse::Ok))))
+         (:wat::telemetry::span::State :durable rec' :sink (:wat::telemetry::span::State/sink s))
+         (:wat::telemetry::Span::IncrResponse::Ok))))
 
    ;; timed — PURE: durations[name] ++ nanos, thread new state.
    (timed [s req]
      (:wat::core::let
-       [name  (:wat::telemetry'::Span::TimedRequest/name req)
-        nanos (:wat::telemetry'::Span::TimedRequest/nanos req)
-        rec   (:wat::telemetry'::span'::State/durable s)
-        ds    (:wat::telemetry'::span'::Record/durations rec)
-        samples (:wat::core::match (:wat::core::HashMap/get ds name) -> :wat::telemetry'::Samples
+       [name  (:wat::telemetry::Span::TimedRequest/name req)
+        nanos (:wat::telemetry::Span::TimedRequest/nanos req)
+        rec   (:wat::telemetry::span::State/durable s)
+        ds    (:wat::telemetry::span::Record/durations rec)
+        samples (:wat::core::match (:wat::core::HashMap/get ds name) -> :wat::telemetry::Samples
                   (:wat::core::None (:wat::core::Vector :wat::core::i64))
                   ((:wat::core::Some v) v))
-        rec'  (:wat::telemetry'::span'::Record
-                :namespace (:wat::telemetry'::span'::Record/namespace rec)
-                :uuid (:wat::telemetry'::span'::Record/uuid rec)
-                :tags (:wat::telemetry'::span'::Record/tags rec)
-                :start-time-ns (:wat::telemetry'::span'::Record/start-time-ns rec)
-                :counters (:wat::telemetry'::span'::Record/counters rec)
+        rec'  (:wat::telemetry::span::Record
+                :namespace (:wat::telemetry::span::Record/namespace rec)
+                :uuid (:wat::telemetry::span::Record/uuid rec)
+                :tags (:wat::telemetry::span::Record/tags rec)
+                :start-time-ns (:wat::telemetry::span::Record/start-time-ns rec)
+                :counters (:wat::telemetry::span::Record/counters rec)
                 :durations (:wat::core::HashMap/assoc ds name (:wat::core::conj samples nanos)))]
        (:wat::service::Outcome::Reply
-         (:wat::telemetry'::span'::State :durable rec' :sink (:wat::telemetry'::span'::State/sink s))
-         (:wat::telemetry'::Span::TimedResponse::Ok))))
+         (:wat::telemetry::span::State :durable rec' :sink (:wat::telemetry::span::State/sink s))
+         (:wat::telemetry::Span::TimedResponse::Ok))))
 
    ;; log — build a Log from this span's scope, write it through the sink NOW; state unchanged.
    (log [s req]
      (:wat::core::let
-       [rec (:wat::telemetry'::span'::State/durable s)
+       [rec (:wat::telemetry::span::State/durable s)
         now (:wat::time::epoch-nanos (:wat::time::now))
-        l   (:wat::telemetry'::Log
-              :namespace (:wat::telemetry'::span'::Record/namespace rec)
-              :uuid (:wat::telemetry'::span'::Record/uuid rec)
-              :tags (:wat::telemetry'::span'::Record/tags rec)
+        l   (:wat::telemetry::Log
+              :namespace (:wat::telemetry::span::Record/namespace rec)
+              :uuid (:wat::telemetry::span::Record/uuid rec)
+              :tags (:wat::telemetry::span::Record/tags rec)
               :time-ns now
-              :caller (:wat::telemetry'::Span::LogRequest/caller req)
-              :level (:wat::telemetry'::Span::LogRequest/level req)
-              :message (:wat::telemetry'::Span::LogRequest/message req))
-        _w  (:wat::telemetry'::Journal/write-logs (:wat::telemetry'::span'::State/sink s)
-              (:wat::telemetry'::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry'::Log l)))]
-       (:wat::service::Outcome::Reply s (:wat::telemetry'::Span::LogResponse::Ok))))
+              :caller (:wat::telemetry::Span::LogRequest/caller req)
+              :level (:wat::telemetry::Span::LogRequest/level req)
+              :message (:wat::telemetry::Span::LogRequest/message req))
+        _w  (:wat::telemetry::Journal/write-logs (:wat::telemetry::span::State/sink s)
+              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l)))]
+       (:wat::service::Outcome::Reply s (:wat::telemetry::Span::LogResponse::Ok))))
 
    ;; close — emit counters + durations as Metrics to the sink; pass the write outcome through.
    (close [s req]
      (:wat::core::let
-       [rec (:wat::telemetry'::span'::State/durable s)
-        ns    (:wat::telemetry'::span'::Record/namespace rec)
-        uuid  (:wat::telemetry'::span'::Record/uuid rec)
-        tags  (:wat::telemetry'::span'::Record/tags rec)
-        start (:wat::telemetry'::span'::Record/start-time-ns rec)
-        cs    (:wat::telemetry'::span'::Record/counters rec)
-        ds    (:wat::telemetry'::span'::Record/durations rec)
+       [rec (:wat::telemetry::span::State/durable s)
+        ns    (:wat::telemetry::span::Record/namespace rec)
+        uuid  (:wat::telemetry::span::Record/uuid rec)
+        tags  (:wat::telemetry::span::Record/tags rec)
+        start (:wat::telemetry::span::Record/start-time-ns rec)
+        cs    (:wat::telemetry::span::Record/counters rec)
+        ds    (:wat::telemetry::span::Record/durations rec)
         now   (:wat::time::epoch-nanos (:wat::time::now))
         ;; counter metrics: one per counter key.
         counter-metrics
         (:wat::core::foldl
-          (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry'::Metric) name <- :wat::core::keyword]
-            -> (:wat::core::Vector :wat::telemetry'::Metric)
+          (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Metric) name <- :wat::core::keyword]
+            -> (:wat::core::Vector :wat::telemetry::Metric)
             (:wat::core::conj acc
-              (:wat::telemetry'::Metric :namespace ns :uuid uuid :tags tags :time-ns now
+              (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
                 :start-time-ns start :name name
-                :value (:wat::telemetry'::Numeric::I64
+                :value (:wat::telemetry::Numeric::I64
                          (:wat::core::Option/expect (:wat::core::HashMap/get cs name) "counter present"))
-                :unit :wat::telemetry'::Unit::Count)))
-          (:wat::core::Vector :wat::telemetry'::Metric)
+                :unit :wat::telemetry::Unit::Count)))
+          (:wat::core::Vector :wat::telemetry::Metric)
           (:wat::core::HashMap/keys cs))
         ;; duration metrics: <name>/count + <name>/duration per duration key, folded onto the counters.
         all-metrics
         (:wat::core::foldl
-          (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry'::Metric) name <- :wat::core::keyword]
-            -> (:wat::core::Vector :wat::telemetry'::Metric)
+          (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Metric) name <- :wat::core::keyword]
+            -> (:wat::core::Vector :wat::telemetry::Metric)
             (:wat::core::let
               [samples (:wat::core::Option/expect (:wat::core::HashMap/get ds name) "duration present")
                cnt (:wat::core::count samples)
@@ -127,32 +127,32 @@
                dur-name   (:wat::core::keyword/from-string (:wat::core::string::concat base "/duration"))]
               (:wat::core::conj
                 (:wat::core::conj acc
-                  (:wat::telemetry'::Metric :namespace ns :uuid uuid :tags tags :time-ns now
+                  (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
                     :start-time-ns start :name count-name
-                    :value (:wat::telemetry'::Numeric::I64 cnt) :unit :wat::telemetry'::Unit::Count))
-                (:wat::telemetry'::Metric :namespace ns :uuid uuid :tags tags :time-ns now
+                    :value (:wat::telemetry::Numeric::I64 cnt) :unit :wat::telemetry::Unit::Count))
+                (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
                   :start-time-ns start :name dur-name
-                  :value (:wat::telemetry'::Numeric::I64 total) :unit :wat::telemetry'::Unit::Nanos))))
+                  :value (:wat::telemetry::Numeric::I64 total) :unit :wat::telemetry::Unit::Nanos))))
           counter-metrics
           (:wat::core::HashMap/keys ds))
-        resp (:wat::telemetry'::Journal/write-metrics (:wat::telemetry'::span'::State/sink s)
-               (:wat::telemetry'::Journal::WriteMetricsRequest all-metrics))
-        cresp (:wat::core::match resp -> :wat::telemetry'::Span::CloseResponse
-                ((:wat::telemetry'::Journal::WriteMetricsResponse::Success)
-                  (:wat::telemetry'::Span::CloseResponse::Done))
-                ((:wat::telemetry'::Journal::WriteMetricsResponse::Constraint err)
-                  (:wat::telemetry'::Span::CloseResponse::Constraint err))
-                ((:wat::telemetry'::Journal::WriteMetricsResponse::Transient err)
-                  (:wat::telemetry'::Span::CloseResponse::Transient err))
-                ((:wat::telemetry'::Journal::WriteMetricsResponse::Fatal err)
-                  (:wat::telemetry'::Span::CloseResponse::Fatal err)))]
+        resp (:wat::telemetry::Journal/write-metrics (:wat::telemetry::span::State/sink s)
+               (:wat::telemetry::Journal::WriteMetricsRequest all-metrics))
+        cresp (:wat::core::match resp -> :wat::telemetry::Span::CloseResponse
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Success)
+                  (:wat::telemetry::Span::CloseResponse::Done))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Constraint err)
+                  (:wat::telemetry::Span::CloseResponse::Constraint err))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Transient err)
+                  (:wat::telemetry::Span::CloseResponse::Transient err))
+                ((:wat::telemetry::Journal::WriteMetricsResponse::Fatal err)
+                  (:wat::telemetry::Span::CloseResponse::Fatal err)))]
        (:wat::service::Outcome::Reply s cresp)))])
 
 ;; ── the call-site macros (STONE Span.3) ──────────────────────────────────────────
 ;; `timed` — the timing widget (Clojure `time` idiom): read the clock, run the body, feed
 ;; name + elapsed-nanos to the PURE `Span/timed` op, return the body's value untouched. No closure
 ;; enters the actor. `Span/timed` (the op) ≠ `:wat::telemetry'::timed` (this macro) — FQDN.
-(:wat::core::defmacro :wat::telemetry'::timed
+(:wat::core::defmacro :wat::telemetry::timed
   [span <- :wat::WatAST  name <- :wat::WatAST  body <- :wat::WatAST]
   -> :wat::WatAST
   (:wat::core::let
@@ -164,15 +164,15 @@
        [~start-sym   (:wat::time::epoch-nanos (:wat::time::now))
         ~ret-sym     ~body
         ~elapsed-sym (:wat::core::- (:wat::time::epoch-nanos (:wat::time::now)) ~start-sym)
-        ~t-sym       (:wat::telemetry'::Span/timed ~span
-                       (:wat::telemetry'::Span::TimedRequest :name ~name :nanos ~elapsed-sym))]
+        ~t-sym       (:wat::telemetry::Span/timed ~span
+                       (:wat::telemetry::Span::TimedRequest :name ~name :nanos ~elapsed-sym))]
        ~ret-sym)))
 
 ;; `with-span` — acquire / use / guaranteed close, INLINE (the scope law: the span' handle must
 ;; share one lexical scope with its use + close). binding = [span-name sink-addr namespace tags];
 ;; mints uuid + start-time at the call site, starts + dials span', runs the body, closes.
 ;; (Close-on-error needs a wat unwind primitive — a named follow-on; the happy path always closes.)
-(:wat::core::defmacro :wat::telemetry'::with-span
+(:wat::core::defmacro :wat::telemetry::with-span
   [span-name <- :wat::WatAST  sink-addr <- :wat::WatAST
    namespace <- :wat::WatAST  tags <- :wat::WatAST  body <- :wat::WatAST]
   -> :wat::WatAST
@@ -186,13 +186,13 @@
     `(:wat::core::let
        [~uuid-sym  (:wat::core::Uuid/v4)
         ~start-sym (:wat::time::epoch-nanos (:wat::time::now))
-        ~rec-sym   (:wat::telemetry'::span'::Record
+        ~rec-sym   (:wat::telemetry::span::Record
                      :namespace ~namespace :uuid ~uuid-sym :tags ~tags :start-time-ns ~start-sym
                      :counters (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-                     :durations (:wat::core::HashMap :wat::core::keyword :wat::telemetry'::Samples))
-        ~h-sym     (:wat::telemetry'::span'/start :locus (:wat::spawn::thread)
+                     :durations (:wat::core::HashMap :wat::core::keyword :wat::telemetry::Samples))
+        ~h-sym     (:wat::telemetry::span/start :locus (:wat::spawn::thread)
                      :record ~rec-sym :sink-addr ~sink-addr)
-        ~span-name (:wat::kernel::connect' (:wat::telemetry'::span'::Handle/addr ~h-sym))
+        ~span-name (:wat::kernel::connect' (:wat::telemetry::span::Handle/addr ~h-sym))
         ~result-sym ~body
-        ~close-sym (:wat::telemetry'::Span/close ~span-name (:wat::telemetry'::Span::CloseRequest))]
+        ~close-sym (:wat::telemetry::Span/close ~span-name (:wat::telemetry::Span::CloseRequest))]
        ~result-sym)))

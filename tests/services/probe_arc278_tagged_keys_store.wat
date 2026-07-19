@@ -13,7 +13,7 @@
 ;; ── key builders ─────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::pk [] -> :wat::core::String
   (:wat::edn::write
-    (:wat::telemetry'::PartitionKey :namespace "some-ns" :kind :wat::telemetry'::Kind::Metric)))
+    (:wat::telemetry::PartitionKey :namespace "some-ns" :kind :wat::telemetry::Kind::Metric)))
 
 ;; sk = #inst "<iso8601 with 9 fixed fractional digits, Z>" — constant width, sort-safe.
 (:wat::core::defn :user::mk-sk [ns <- :wat::core::i64] -> :wat::core::String
@@ -30,9 +30,9 @@
 ;; (…01.000000001) — so a wrong (variable-width) render would misorder the boundary vs the sub-second.
 (:wat::core::defn :user::scan-order [] -> :wat::core::String
   (:wat::core::let
-    [h     (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     store (:wat::kernel::connect' (:wat::query::mem-store'::Handle/addr h))
+    [h     (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     store (:wat::kernel::connect' (:wat::query::mem-store::Handle/addr h))
      pk    (:user::pk)
      u1    (:user::uuid-edn "11111111-1111-4111-8111-111111111111")
      sk-late  (:user::mk-sk 2000000000)   ;; 1970-01-01T00:00:02.000000000Z (boundary)
@@ -63,9 +63,9 @@
 ;; Three rows: two share uuid u1, one has u2. scan-index by u1 must return exactly 2.
 (:wat::core::defn :user::index-count [] -> :wat::core::i64
   (:wat::core::let
-    [h     (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     store (:wat::kernel::connect' (:wat::query::mem-store'::Handle/addr h))
+    [h     (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     store (:wat::kernel::connect' (:wat::query::mem-store::Handle/addr h))
      pk    (:user::pk)
      u1    (:user::uuid-edn "11111111-1111-4111-8111-111111111111")
      u2    (:user::uuid-edn "22222222-2222-4222-8222-222222222222")

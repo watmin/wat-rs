@@ -49,16 +49,34 @@ weighed by the orchestrator's own re-run before the next.
   update or drop those lines). GROUND: after C1, `examples/interrogate` is already gone (was a consumer).
 - **Gate:** build + floor green; `grep -rn ":wat::edn::Tagged\|:wat::edn::NoTag\|write-notag" .` → zero live refs.
 
-### ── STRIKE C3 — de-prime the family (the reclaim, unblocked by C1) ──
-- **FREE-RENAME (independent):** `:wat::query::mem-store'` → `:wat::query::mem-store`; `:wat::query::sqlite-store'` →
-  bare. (~83 sites.)
-- **TRUE-RECLAIM (now unblocked):** `:wat::telemetry'::*` → `:wat::telemetry::*` (~406 sites); `:wat::sqlite'` +
-  `:rust::sqlite'` → bare (~181 sites); `journal'`→`journal`, `span'`→`span`, and the adjacent primed toy/test names.
-- Edit the `src/stdlib.rs` manifest slots' prose (the "PRIMED … staged to replace the wat-telemetry battery" comments
-  are now false). A wat-fix-style surgical codemod (read → targeted replace → write; NOT whole-file rewrites); watch
-  the false-positives the scout flagged (`"mem-store'"` EDN fixtures in `crates/wat-edn`; `rusqlite'` possessives).
-- **Gate:** build + floor green; `grep -rn "telemetry'\|sqlite'\|store'\|journal'\|span'" .` → zero (modulo the flagged
-  EDN-apostrophe fixtures). The de-primed family is the true reclaim — `:wat::telemetry::` / `:wat::sqlite::` now OURS.
+### ── STRIKE C3 — de-prime the family (the reclaim, unblocked by C1) — USE WAT-FIX ──
+This is a NAME-TRANSLATION → the self-hosted `wat-fix` tool, NOT a manual edit-farm (builder: "we use wat-fix to
+unfuck the farm — refactors are one-to-three-shot"). Model on `wat-scripts/fixes/rename-kernel-to-spawn.wat` (the
+namespace-rename precedent): `:user::migrate` (String→String via `:wat::fix::rename-keyword-prefix "old" "new"`,
+`wat/fix.wat:744`) + `:user::apply-each` (read-file→migrate→write-file) + `:user::main` (paths from stdin). Run:
+`printf '["p1" "p2" …]\n' | cargo wat ./wat-scripts/fixes/deprime-telemetry-sqlite.wat`. Comment-faithful + idempotent.
+
+- **Write `wat-scripts/fixes/deprime-telemetry-sqlite.wat`** — the `rename-keyword-prefix` sequence, SPECIFIC-FIRST
+  (so `journal'`/`span'`'s own prime drops before the family prefix rename, per the kernel-precedent's disjoint-prefix
+  discipline):
+  1. `:wat::telemetry'::journal'` → `:wat::telemetry::journal`   (both primes, before the family)
+  2. `:wat::telemetry'::span'` → `:wat::telemetry::span`
+  3. `:wat::telemetry'::` → `:wat::telemetry::`                  (the family — Log/Metric/Scope/Journal/Span/Level/…)
+  4. `:wat::query::mem-store'` → `:wat::query::mem-store`        (FREE-RENAME)
+  5. `:wat::query::sqlite-store'` → `:wat::query::sqlite-store`  (FREE-RENAME)
+  6. `:wat::sqlite'` → `:wat::sqlite`                            (TRUE-RECLAIM — catches `::Connection`/`::open`/bare)
+  7. `:rust::sqlite'` → `:rust::sqlite`                          (for any .wat refs to the rust dispatch)
+- **Run it over the 30 `.wat` files** carrying primed names (`grep -rl "telemetry'\|:wat::sqlite'\|mem-store'\|
+  sqlite-store'\|journal'\|span'" --include=*.wat wat/ tests/ wat-scripts/ docs/` — regenerate the list live). The
+  `crates/wat-edn` `"mem-store'"` EDN-apostrophe fixtures are `.rs`, auto-excluded — do NOT touch them.
+- **HAND-FIX the 23 Rust-side refs** wat-fix can't reach (string literals): `src/rust_deps/sqlite.rs` +
+  `src/rust_deps/mod.rs` (`:rust::sqlite'`→`:rust::sqlite`, `:wat::sqlite'`→`:wat::sqlite`), `src/stdlib.rs` (the
+  manifest slot comments — the "PRIMED … staged to replace the wat-telemetry battery" prose is now false; the
+  include paths are unprimed filenames, unchanged), `src/check.rs` (any primed refs). Surgical edits, not rewrites.
+- **Gate:** build + floor green; `grep -rn "telemetry'\|:wat::sqlite'\|:rust::sqlite'\|mem-store'\|sqlite-store'\|
+  journal'\|span'" . --include=*.wat --include=*.rs | grep -v "crates/wat-edn"` → zero (modulo doc-comments + the
+  flagged EDN fixtures). Re-run the script → zero further changes (idempotent). `:wat::telemetry::` / `:wat::sqlite::`
+  are now OURS — the reclaim complete, C closed.
 
 ## STOP triggers (all strikes)
 1. Never delete a crate/name until a WHOLE-TREE grep proves zero live consumers outside the annihilation set — STOP + surface if a consumer appears.

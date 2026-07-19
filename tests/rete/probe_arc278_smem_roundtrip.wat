@@ -9,9 +9,9 @@
 
 (:wat::test::deftest' :user::smem_roundtrip ()
   (:wat::core::let
-    [h          (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-                  :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     store      (:wat::kernel::connect' (:wat::query::mem-store'::Handle/addr h))
+    [h          (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+                  :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     store      (:wat::kernel::connect' (:wat::query::mem-store::Handle/addr h))
      empty-ik   (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
      ik-a       (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
      ik-c       (:wat::core::HashMap :wat::core::String :wat::query::IndexKey "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))

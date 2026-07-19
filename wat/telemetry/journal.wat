@@ -20,47 +20,47 @@
 ;; ── small pure helpers ──────────────────────────────────────────────────────────
 ;; sk = #inst "<iso8601 with 9 fixed fractional digits, Z>" — CONSTANT WIDTH, so it sorts
 ;; lexicographically = chronologically (the store's `sort-by Row/sk` is the range order).
-(:wat::core::defn :wat::telemetry'::time-sk [ns <- :wat::core::i64] -> :wat::core::String
+(:wat::core::defn :wat::telemetry::time-sk [ns <- :wat::core::i64] -> :wat::core::String
   (:wat::core::string::concat
     (:wat::core::string::concat "#inst \"" (:wat::time::to-iso8601 (:wat::time::at-nanos ns) 9))
     "\""))
 
 ;; the uuid correlation GSI's index-keys for a scope uuid + the row's sk.
-(:wat::core::defn :wat::telemetry'::uuid-index-keys
+(:wat::core::defn :wat::telemetry::uuid-index-keys
   [uuid <- :wat::core::Uuid  sk <- :wat::core::String]
   -> (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)
   (:wat::core::HashMap :wat::core::String :wat::query::IndexKey
     "by-uuid" (:wat::query::IndexKey :ipk (:wat::edn::write uuid) :isk sk)))
 
 ;; Metric -> StoredRow (pk = namespace+:Metric; sk = #inst; data = the tagged Metric EDN).
-(:wat::core::defn :wat::telemetry'::metric->row
-  [m <- :wat::telemetry'::Metric] -> :wat::query::StoredRow
+(:wat::core::defn :wat::telemetry::metric->row
+  [m <- :wat::telemetry::Metric] -> :wat::query::StoredRow
   (:wat::core::let
-    [sk (:wat::telemetry'::time-sk (:wat::telemetry'::Metric/time-ns m))]
+    [sk (:wat::telemetry::time-sk (:wat::telemetry::Metric/time-ns m))]
     (:wat::query::StoredRow
-      :pk (:wat::edn::write (:wat::telemetry'::PartitionKey
-                              :namespace (:wat::telemetry'::Metric/namespace m)
-                              :kind :wat::telemetry'::Kind::Metric))
+      :pk (:wat::edn::write (:wat::telemetry::PartitionKey
+                              :namespace (:wat::telemetry::Metric/namespace m)
+                              :kind :wat::telemetry::Kind::Metric))
       :sk sk
       :data (:wat::edn::write m)
-      :index-keys (:wat::telemetry'::uuid-index-keys (:wat::telemetry'::Metric/uuid m) sk))))
+      :index-keys (:wat::telemetry::uuid-index-keys (:wat::telemetry::Metric/uuid m) sk))))
 
 ;; Log -> StoredRow (pk = namespace+:Log; sk = #inst; data = the tagged Log EDN).
-(:wat::core::defn :wat::telemetry'::log->row
-  [l <- :wat::telemetry'::Log] -> :wat::query::StoredRow
+(:wat::core::defn :wat::telemetry::log->row
+  [l <- :wat::telemetry::Log] -> :wat::query::StoredRow
   (:wat::core::let
-    [sk (:wat::telemetry'::time-sk (:wat::telemetry'::Log/time-ns l))]
+    [sk (:wat::telemetry::time-sk (:wat::telemetry::Log/time-ns l))]
     (:wat::query::StoredRow
-      :pk (:wat::edn::write (:wat::telemetry'::PartitionKey
-                              :namespace (:wat::telemetry'::Log/namespace l)
-                              :kind :wat::telemetry'::Kind::Log))
+      :pk (:wat::edn::write (:wat::telemetry::PartitionKey
+                              :namespace (:wat::telemetry::Log/namespace l)
+                              :kind :wat::telemetry::Kind::Log))
       :sk sk
       :data (:wat::edn::write l)
-      :index-keys (:wat::telemetry'::uuid-index-keys (:wat::telemetry'::Log/uuid l) sk))))
+      :index-keys (:wat::telemetry::uuid-index-keys (:wat::telemetry::Log/uuid l) sk))))
 
 ;; ── the service ─────────────────────────────────────────────────────────────────
-(:wat::service::defservice :wat::telemetry'::journal'
-  :satisfies :wat::telemetry'::Journal
+(:wat::service::defservice :wat::telemetry::journal
+  :satisfies :wat::telemetry::Journal
   :durable   []
   ;; the dialed backend peer — a client Peer'<Store::Op,Store::Reply>, held as a ROOT ephemeral field
   :ephemeral [store <- :wat::kernel::Peer'<wat::query::Store::Op,wat::query::Store::Reply>]
@@ -71,9 +71,9 @@
   ;; journal' owns the schema because the store is domain-blind. A no-op on mem-store'; on
   ;; sqlite-store' this CREATEs the table + index, so the later `put`s succeed (mem hid this need).
   :init (:wat::core::fn
-          [record     <- :wat::telemetry'::journal'::Record
+          [record     <- :wat::telemetry::journal::Record
            store-addr <- :wat::kernel::Address'<wat::query::Store::Op,wat::query::Store::Reply>]
-          -> :wat::telemetry'::journal'::State
+          -> :wat::telemetry::journal::State
           (:wat::core::let
             [store (:wat::kernel::connect' store-addr)
              _es   (:wat::query::Store/ensure-schema store
@@ -82,111 +82,111 @@
                        :indexes (:wat::core::Vector :wat::query::IndexSchema
                                   (:wat::query::IndexSchema
                                     :name "by-uuid" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))]
-            (:wat::telemetry'::journal'::State :durable record :store store)))
+            (:wat::telemetry::journal::State :durable record :store store)))
   :impls
   [(write-metrics [s req]
      (:wat::core::let
-       [store (:wat::telemetry'::journal'::State/store s)
-        batch (:wat::telemetry'::Journal::WriteMetricsRequest/batch req)
+       [store (:wat::telemetry::journal::State/store s)
+        batch (:wat::telemetry::Journal::WriteMetricsRequest/batch req)
         rows  (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::StoredRow)
-                                 m   <- :wat::telemetry'::Metric]
+                                 m   <- :wat::telemetry::Metric]
                   -> (:wat::core::Vector :wat::query::StoredRow)
-                  (:wat::core::conj acc (:wat::telemetry'::metric->row m)))
+                  (:wat::core::conj acc (:wat::telemetry::metric->row m)))
                 (:wat::core::Vector :wat::query::StoredRow)
                 batch)
         put-resp (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
-        wresp (:wat::core::match put-resp -> :wat::telemetry'::Journal::WriteMetricsResponse
+        wresp (:wat::core::match put-resp -> :wat::telemetry::Journal::WriteMetricsResponse
                 ((:wat::query::Store::PutResponse::Success)
-                  (:wat::telemetry'::Journal::WriteMetricsResponse::Success))
+                  (:wat::telemetry::Journal::WriteMetricsResponse::Success))
                 ((:wat::query::Store::PutResponse::Constraint err)
-                  (:wat::telemetry'::Journal::WriteMetricsResponse::Constraint err))
+                  (:wat::telemetry::Journal::WriteMetricsResponse::Constraint err))
                 ((:wat::query::Store::PutResponse::Transient err)
-                  (:wat::telemetry'::Journal::WriteMetricsResponse::Transient err))
+                  (:wat::telemetry::Journal::WriteMetricsResponse::Transient err))
                 ((:wat::query::Store::PutResponse::Fatal err)
-                  (:wat::telemetry'::Journal::WriteMetricsResponse::Fatal err)))]
+                  (:wat::telemetry::Journal::WriteMetricsResponse::Fatal err)))]
        (:wat::service::Outcome::Reply s wresp)))
 
    (write-logs [s req]
      (:wat::core::let
-       [store (:wat::telemetry'::journal'::State/store s)
-        batch (:wat::telemetry'::Journal::WriteLogsRequest/batch req)
+       [store (:wat::telemetry::journal::State/store s)
+        batch (:wat::telemetry::Journal::WriteLogsRequest/batch req)
         rows  (:wat::core::foldl
                 (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::StoredRow)
-                                 l   <- :wat::telemetry'::Log]
+                                 l   <- :wat::telemetry::Log]
                   -> (:wat::core::Vector :wat::query::StoredRow)
-                  (:wat::core::conj acc (:wat::telemetry'::log->row l)))
+                  (:wat::core::conj acc (:wat::telemetry::log->row l)))
                 (:wat::core::Vector :wat::query::StoredRow)
                 batch)
         put-resp (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
-        wresp (:wat::core::match put-resp -> :wat::telemetry'::Journal::WriteLogsResponse
+        wresp (:wat::core::match put-resp -> :wat::telemetry::Journal::WriteLogsResponse
                 ((:wat::query::Store::PutResponse::Success)
-                  (:wat::telemetry'::Journal::WriteLogsResponse::Success))
+                  (:wat::telemetry::Journal::WriteLogsResponse::Success))
                 ((:wat::query::Store::PutResponse::Constraint err)
-                  (:wat::telemetry'::Journal::WriteLogsResponse::Constraint err))
+                  (:wat::telemetry::Journal::WriteLogsResponse::Constraint err))
                 ((:wat::query::Store::PutResponse::Transient err)
-                  (:wat::telemetry'::Journal::WriteLogsResponse::Transient err))
+                  (:wat::telemetry::Journal::WriteLogsResponse::Transient err))
                 ((:wat::query::Store::PutResponse::Fatal err)
-                  (:wat::telemetry'::Journal::WriteLogsResponse::Fatal err)))]
+                  (:wat::telemetry::Journal::WriteLogsResponse::Fatal err)))]
        (:wat::service::Outcome::Reply s wresp)))
 
    ;; query-metrics — scan the namespace's Metric partition over [time-lo, time-hi], hydrate each
    ;; stored row back to a Metric (:wat::edn::read off the tag), page via cursor. NO rete.
    (query-metrics [s req]
      (:wat::core::let
-       [store (:wat::telemetry'::journal'::State/store s)
-        ns   (:wat::telemetry'::Journal::QueryMetricsRequest/namespace req)
-        lo   (:wat::telemetry'::Journal::QueryMetricsRequest/time-lo req)
-        hi   (:wat::telemetry'::Journal::QueryMetricsRequest/time-hi req)
-        lim  (:wat::telemetry'::Journal::QueryMetricsRequest/limit req)
-        cur  (:wat::telemetry'::Journal::QueryMetricsRequest/cursor req)
-        pk   (:wat::edn::write (:wat::telemetry'::PartitionKey :namespace ns :kind :wat::telemetry'::Kind::Metric))
+       [store (:wat::telemetry::journal::State/store s)
+        ns   (:wat::telemetry::Journal::QueryMetricsRequest/namespace req)
+        lo   (:wat::telemetry::Journal::QueryMetricsRequest/time-lo req)
+        hi   (:wat::telemetry::Journal::QueryMetricsRequest/time-hi req)
+        lim  (:wat::telemetry::Journal::QueryMetricsRequest/limit req)
+        cur  (:wat::telemetry::Journal::QueryMetricsRequest/cursor req)
+        pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Metric))
         resp (:wat::query::Store/scan store
                (:wat::query::Store::ScanRequest :pk pk
-                 :sk-lo (:wat::telemetry'::time-sk lo) :sk-hi (:wat::telemetry'::time-sk hi)
+                 :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
                  :limit lim :cursor cur))
-        qresp (:wat::core::match resp -> :wat::telemetry'::Journal::QueryMetricsResponse
+        qresp (:wat::core::match resp -> :wat::telemetry::Journal::QueryMetricsResponse
                 ((:wat::query::Store::ScanResponse::Success rows next-cur)
-                  (:wat::telemetry'::Journal::QueryMetricsResponse::Success
+                  (:wat::telemetry::Journal::QueryMetricsResponse::Success
                     (:wat::core::foldl
-                      (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry'::Metric) row <- :wat::query::Row]
-                        -> (:wat::core::Vector :wat::telemetry'::Metric)
+                      (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Metric) row <- :wat::query::Row]
+                        -> (:wat::core::Vector :wat::telemetry::Metric)
                         (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
-                      (:wat::core::Vector :wat::telemetry'::Metric)
+                      (:wat::core::Vector :wat::telemetry::Metric)
                       rows)
                     next-cur))
                 ((:wat::query::Store::ScanResponse::Transient err)
-                  (:wat::telemetry'::Journal::QueryMetricsResponse::Transient err))
+                  (:wat::telemetry::Journal::QueryMetricsResponse::Transient err))
                 ((:wat::query::Store::ScanResponse::Fatal err)
-                  (:wat::telemetry'::Journal::QueryMetricsResponse::Fatal err)))]
+                  (:wat::telemetry::Journal::QueryMetricsResponse::Fatal err)))]
        (:wat::service::Outcome::Reply s qresp)))
 
    ;; query-logs — the same for the Log partition.
    (query-logs [s req]
      (:wat::core::let
-       [store (:wat::telemetry'::journal'::State/store s)
-        ns   (:wat::telemetry'::Journal::QueryLogsRequest/namespace req)
-        lo   (:wat::telemetry'::Journal::QueryLogsRequest/time-lo req)
-        hi   (:wat::telemetry'::Journal::QueryLogsRequest/time-hi req)
-        lim  (:wat::telemetry'::Journal::QueryLogsRequest/limit req)
-        cur  (:wat::telemetry'::Journal::QueryLogsRequest/cursor req)
-        pk   (:wat::edn::write (:wat::telemetry'::PartitionKey :namespace ns :kind :wat::telemetry'::Kind::Log))
+       [store (:wat::telemetry::journal::State/store s)
+        ns   (:wat::telemetry::Journal::QueryLogsRequest/namespace req)
+        lo   (:wat::telemetry::Journal::QueryLogsRequest/time-lo req)
+        hi   (:wat::telemetry::Journal::QueryLogsRequest/time-hi req)
+        lim  (:wat::telemetry::Journal::QueryLogsRequest/limit req)
+        cur  (:wat::telemetry::Journal::QueryLogsRequest/cursor req)
+        pk   (:wat::edn::write (:wat::telemetry::PartitionKey :namespace ns :kind :wat::telemetry::Kind::Log))
         resp (:wat::query::Store/scan store
                (:wat::query::Store::ScanRequest :pk pk
-                 :sk-lo (:wat::telemetry'::time-sk lo) :sk-hi (:wat::telemetry'::time-sk hi)
+                 :sk-lo (:wat::telemetry::time-sk lo) :sk-hi (:wat::telemetry::time-sk hi)
                  :limit lim :cursor cur))
-        qresp (:wat::core::match resp -> :wat::telemetry'::Journal::QueryLogsResponse
+        qresp (:wat::core::match resp -> :wat::telemetry::Journal::QueryLogsResponse
                 ((:wat::query::Store::ScanResponse::Success rows next-cur)
-                  (:wat::telemetry'::Journal::QueryLogsResponse::Success
+                  (:wat::telemetry::Journal::QueryLogsResponse::Success
                     (:wat::core::foldl
-                      (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry'::Log) row <- :wat::query::Row]
-                        -> (:wat::core::Vector :wat::telemetry'::Log)
+                      (:wat::core::fn [acc <- (:wat::core::Vector :wat::telemetry::Log) row <- :wat::query::Row]
+                        -> (:wat::core::Vector :wat::telemetry::Log)
                         (:wat::core::conj acc (:wat::edn::read (:wat::query::Row/data row))))
-                      (:wat::core::Vector :wat::telemetry'::Log)
+                      (:wat::core::Vector :wat::telemetry::Log)
                       rows)
                     next-cur))
                 ((:wat::query::Store::ScanResponse::Transient err)
-                  (:wat::telemetry'::Journal::QueryLogsResponse::Transient err))
+                  (:wat::telemetry::Journal::QueryLogsResponse::Transient err))
                 ((:wat::query::Store::ScanResponse::Fatal err)
-                  (:wat::telemetry'::Journal::QueryLogsResponse::Fatal err)))]
+                  (:wat::telemetry::Journal::QueryLogsResponse::Fatal err)))]
        (:wat::service::Outcome::Reply s qresp)))])

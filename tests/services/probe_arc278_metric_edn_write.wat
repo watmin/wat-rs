@@ -12,13 +12,13 @@
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [tags (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     m    (:wat::telemetry'::Metric
+     m    (:wat::telemetry::Metric
             :namespace     "probe-ns"
             :uuid          (:wat::core::Uuid/nil)
             :tags          tags
             :time-ns       123
             :start-time-ns 100
             :name          :requests
-            :value         (:wat::telemetry'::Numeric::I64 7)
-            :unit          :wat::telemetry'::Unit::Count)]
+            :value         (:wat::telemetry::Numeric::I64 7)
+            :unit          :wat::telemetry::Unit::Count)]
     (:wat::edn::write m)))

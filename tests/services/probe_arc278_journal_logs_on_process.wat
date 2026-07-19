@@ -8,28 +8,28 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [sh    (:wat::query::mem-store'/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     saddr (:wat::query::mem-store'::Handle/addr sh)
-     jh    (:wat::telemetry'::journal'/start
+    [sh    (:wat::query::mem-store/start :locus (:wat::spawn::process)
+             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     saddr (:wat::query::mem-store::Handle/addr sh)
+     jh    (:wat::telemetry::journal/start
              :locus (:wat::spawn::process/post-spawn
                       (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> :wat::core::nil
-                        (:wat::query::mem-store'/grant sh
+                        (:wat::query::mem-store/grant sh
                           (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
-             :record (:wat::telemetry'::journal'::Record) :store-addr saddr)
-     journal (:wat::kernel::connect' (:wat::telemetry'::journal'::Handle/addr jh))
+             :record (:wat::telemetry::journal::Record) :store-addr saddr)
+     journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry'::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1000000000 :caller :c1 :level :wat::telemetry'::Level::Info
+     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+             :time-ns 1000000000 :caller :c1 :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "one")))
-     l2    (:wat::telemetry'::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2000000000 :caller :c2 :level :wat::telemetry'::Level::Warn
+     l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+             :time-ns 2000000000 :caller :c2 :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "two")))
-     _wr   (:wat::telemetry'::Journal/write-logs journal
-             (:wat::telemetry'::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry'::Log l1 l2)))
-     bq    (:wat::telemetry'::Journal/query-logs journal
-             (:wat::telemetry'::Journal::QueryLogsRequest :namespace "probe-ns"
+     _wr   (:wat::telemetry::Journal/write-logs journal
+             (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2)))
+     bq    (:wat::telemetry::Journal/query-logs journal
+             (:wat::telemetry::Journal::QueryLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::None))]
     (:wat::core::match bq -> :wat::core::i64
-      ((:wat::telemetry'::Journal::QueryLogsResponse::Success ls _c) (:wat::core::count ls))
+      ((:wat::telemetry::Journal::QueryLogsResponse::Success ls _c) (:wat::core::count ls))
       (_ -1))))

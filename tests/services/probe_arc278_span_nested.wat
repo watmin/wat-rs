@@ -10,29 +10,29 @@
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-    [msh   (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store'::Record :rows (:wat::core::PersistentVector)))
-     maddr (:wat::query::mem-store'::Handle/addr msh)
-     jh    (:wat::telemetry'::journal'/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry'::journal'::Record) :store-addr maddr)
-     jaddr (:wat::telemetry'::journal'::Handle/addr jh)
+    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+             :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))
+     maddr (:wat::query::mem-store::Handle/addr msh)
+     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
+             :record (:wat::telemetry::journal::Record) :store-addr maddr)
+     jaddr (:wat::telemetry::journal::Handle/addr jh)
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     _ws   (:wat::telemetry'::with-span outer jaddr "outer-ns" tags
+     _ws   (:wat::telemetry::with-span outer jaddr "outer-ns" tags
              (:wat::core::do
-               (:wat::telemetry'::Span/incr outer (:wat::telemetry'::Span::IncrRequest :name :o))
-               (:wat::telemetry'::with-span inner jaddr "inner-ns" tags
-                 (:wat::telemetry'::Span/incr inner (:wat::telemetry'::Span::IncrRequest :name :i)))))
+               (:wat::telemetry::Span/incr outer (:wat::telemetry::Span::IncrRequest :name :o))
+               (:wat::telemetry::with-span inner jaddr "inner-ns" tags
+                 (:wat::telemetry::Span/incr inner (:wat::telemetry::Span::IncrRequest :name :i)))))
      jclient (:wat::kernel::connect' jaddr)
-     oq    (:wat::telemetry'::Journal/query-metrics jclient
-             (:wat::telemetry'::Journal::QueryMetricsRequest :namespace "outer-ns"
+     oq    (:wat::telemetry::Journal/query-metrics jclient
+             (:wat::telemetry::Journal::QueryMetricsRequest :namespace "outer-ns"
                :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::None))
-     iq    (:wat::telemetry'::Journal/query-metrics jclient
-             (:wat::telemetry'::Journal::QueryMetricsRequest :namespace "inner-ns"
+     iq    (:wat::telemetry::Journal/query-metrics jclient
+             (:wat::telemetry::Journal::QueryMetricsRequest :namespace "inner-ns"
                :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::None))
      oc    (:wat::core::match oq -> :wat::core::i64
-             ((:wat::telemetry'::Journal::QueryMetricsResponse::Success ms _c) (:wat::core::count ms))
+             ((:wat::telemetry::Journal::QueryMetricsResponse::Success ms _c) (:wat::core::count ms))
              (_ -1))
      ic    (:wat::core::match iq -> :wat::core::i64
-             ((:wat::telemetry'::Journal::QueryMetricsResponse::Success ms _c) (:wat::core::count ms))
+             ((:wat::telemetry::Journal::QueryMetricsResponse::Success ms _c) (:wat::core::count ms))
              (_ -1))]
     (:wat::core::+ (:wat::core::* oc 10) ic)))

@@ -72,18 +72,18 @@
 
 (:wat::test::deftest' :user::sqlite_store_differential ()
   (:wat::core::let
-    [h            (:wat::query::mem-store'/start :locus (:wat::spawn::thread)
-                    :record (:wat::query::mem-store'::Record (:wat::core::PersistentVector)))
-     mem-store    (:wat::kernel::connect' (:wat::query::mem-store'::Handle/addr h))
+    [h            (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+                    :record (:wat::query::mem-store::Record (:wat::core::PersistentVector)))
+     mem-store    (:wat::kernel::connect' (:wat::query::mem-store::Handle/addr h))
 
      ;; sqlite-store' is the sibling `:satisfies :wat::query::Store` service — start INLINE (scope
      ;; law), connect'; the dialed peer IS the Store. The durable Record carries the path
      ;; (":memory:") + the declared GSI-name set ("by-v").
-     sh           (:wat::query::sqlite-store'/start :locus (:wat::spawn::thread)
-                    :record (:wat::query::sqlite-store'::Record
+     sh           (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
+                    :record (:wat::query::sqlite-store::Record
                               :path        ":memory:"
                               :index-names (:wat::core::Vector :wat::core::String "by-v")))
-     sqlite-store (:wat::kernel::connect' (:wat::query::sqlite-store'::Handle/addr sh))
+     sqlite-store (:wat::kernel::connect' (:wat::query::sqlite-store::Handle/addr sh))
 
      mem-result    (:probe::run-ops mem-store)
      sqlite-result (:probe::run-ops sqlite-store)]

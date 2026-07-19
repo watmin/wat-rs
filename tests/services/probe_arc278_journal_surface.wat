@@ -4,39 +4,39 @@
 ;; proving the surface freezes, is satisfiable via `:satisfies`, and replies through the wire —
 ;; mirrors `mem-store'`'s satisfaction of `Store` (wat/query/mem.wat).
 (:wat::service::defservice :probe::toy-journal'
-  :satisfies :wat::telemetry'::Journal
+  :satisfies :wat::telemetry::Journal
   :durable   []
   :ephemeral []
   :impls
   [(write-metrics [s req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteMetricsResponse::Success)))
+     (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteMetricsResponse::Success)))
    (write-logs [s req]
-     (:wat::service::Outcome::Reply s (:wat::telemetry'::Journal::WriteLogsResponse::Success)))
+     (:wat::service::Outcome::Reply s (:wat::telemetry::Journal::WriteLogsResponse::Success)))
    (query-metrics [s req]
      (:wat::service::Outcome::Reply s
-       (:wat::telemetry'::Journal::QueryMetricsResponse::Success
-         (:wat::core::Vector :wat::telemetry'::Metric) :wat::core::None)))
+       (:wat::telemetry::Journal::QueryMetricsResponse::Success
+         (:wat::core::Vector :wat::telemetry::Metric) :wat::core::None)))
    (query-logs [s req]
      (:wat::service::Outcome::Reply s
-       (:wat::telemetry'::Journal::QueryLogsResponse::Success
-         (:wat::core::Vector :wat::telemetry'::Log) :wat::core::None)))])
+       (:wat::telemetry::Journal::QueryLogsResponse::Success
+         (:wat::core::Vector :wat::telemetry::Log) :wat::core::None)))])
 
 ;; `:probe::run` — start the toy on a thread, dial it, call `write-metrics` with a 1-element
 ;; `Metric` batch, and return the raw response (the .rs asserts it is `WriteMetricsResponse::Success`).
-(:wat::core::defn :probe::run [] -> :wat::telemetry'::Journal::WriteMetricsResponse
+(:wat::core::defn :probe::run [] -> :wat::telemetry::Journal::WriteMetricsResponse
   (:wat::core::let
     [h       (:probe::toy-journal'/start :locus (:wat::spawn::thread) :record (:probe::toy-journal'::Record))
      journal (:wat::kernel::connect' (:probe::toy-journal'::Handle/addr h))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
-     m       (:wat::telemetry'::Metric
+     m       (:wat::telemetry::Metric
                :namespace     "probe-ns"                      ;; spliced from Scope
                :uuid          (:wat::core::Uuid/nil)          ;; spliced
                :tags          tags                            ;; spliced
                :time-ns       123                             ;; spliced
                :start-time-ns 100                             ;; own
                :name          :requests                       ;; own
-               :value         (:wat::telemetry'::Numeric::I64 7) ;; own
-               :unit          :wat::telemetry'::Unit::Count)    ;; own
-     batch   (:wat::core::Vector :wat::telemetry'::Metric m)]
-    (:wat::telemetry'::Journal/write-metrics journal (:wat::telemetry'::Journal::WriteMetricsRequest batch))))
+               :value         (:wat::telemetry::Numeric::I64 7) ;; own
+               :unit          :wat::telemetry::Unit::Count)    ;; own
+     batch   (:wat::core::Vector :wat::telemetry::Metric m)]
+    (:wat::telemetry::Journal/write-metrics journal (:wat::telemetry::Journal::WriteMetricsRequest batch))))

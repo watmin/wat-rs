@@ -23,7 +23,7 @@
 //!
 //! # Transitivity
 //!
-//! wat-rs ships with its own set of default shims (`:rust::sqlite'` — arc
+//! wat-rs ships with its own set of default shims (`:rust::sqlite` — arc
 //! 278 stone S1, a fresh errors-as-values rusqlite binding; sqlite is CORE).
 //! Consumer crates (e.g., holon-lab-trading) depend on wat-rs, inherit
 //! those defaults via Cargo, and add their own shims (aya, …) via the
@@ -164,7 +164,7 @@ impl RustDepsBuilder {
 
     /// Start a builder pre-loaded with wat-rs's default shims.
     ///
-    /// Arc 278 stone S1 — `:rust::sqlite'` (`sqlite.rs`, a fresh
+    /// Arc 278 stone S1 — `:rust::sqlite` (`sqlite.rs`, a fresh
     /// errors-as-values rusqlite binding) is the FIRST core default shim.
     /// Prior to this, `with_wat_rs_defaults` was a no-op alias for `new()`
     /// (LRU moved OUT to the sibling `wat-lru` crate for leanness); sqlite

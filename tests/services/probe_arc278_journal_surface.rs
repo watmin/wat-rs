@@ -37,7 +37,7 @@ fn toy_journal_satisfies_surface_and_replies_success() {
     match got {
         Value::Enum(ev) => {
             assert_eq!(
-                ev.type_path, ":wat::telemetry'::Journal::WriteMetricsResponse",
+                ev.type_path, ":wat::telemetry::Journal::WriteMetricsResponse",
                 "expected a WriteMetricsResponse enum; got type_path {:?}",
                 ev.type_path
             );
@@ -61,7 +61,7 @@ fn wrong_response_type_at_reply_site_is_compile_error() {
     };
     match &errs[0].kind {
         CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            assert_eq!(expected, ":wat::telemetry'::Journal::WriteMetricsResponse");
+            assert_eq!(expected, ":wat::telemetry::Journal::WriteMetricsResponse");
             assert_eq!(got, ":wat::query::Store::PutResponse");
         }
         other => panic!("expected TypeMismatch, got {other:?}"),
