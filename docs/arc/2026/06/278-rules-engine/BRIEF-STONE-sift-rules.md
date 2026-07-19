@@ -7,17 +7,34 @@
 > legacy bare spawn-program / spawn-program-ast.
 
 ## What is already PROVEN by a run (do not re-derive; build on these)
+- **★ STOP-1 CLEARED — a macro CAN generate a service (LANDED `26e4eace`, 2026-07-19).** The substrate gap is fixed:
+  a macro emitting `(do (defsurface … :messages […]) (defservice :satisfies …))` now hoists the nested surface's
+  `:messages` accessors + `::Variant` ctors (Option A — `expand.rs` do-splice re-enters the per-form dispatch).
+  Exemplar + regression gate: `tests/macros/probe_arc278_macro_generates_service.{rs,wat}`. **Do NOT re-run STOP-1;
+  build straight on it.** ⚠ The generated per-op message types MUST follow defservice's S1/gRPC naming convention
+  (`service.wat:894`): op `sift-rules` → `<Surface>::SiftRulesRequest` / `<Surface>::SiftRulesResponse` (PascalCase
+  of the op name). A mis-named message → a TypeMismatch in the generated client stub.
 - **Def-feeding = surface-splice.** A `:satisfies` service ships its surface's `:messages` to its forked worker's
   freeze — the arena proved it: the producer's `:prod::*` types lived in its surface `:messages` and were present at
   its worker's freeze (`tests/services/probe_arc278_sift_arena.wat`). So the user's `defrecord`s go into the adhoc
   service's surface `:messages`; the worker freezes with them. Runtime `eval-ast!` registration does NOT work
   (probed: it fails) — types are freeze-time. This is why the def must ride the surface.
-- **Rete inference.** `compile [rules] → Session` (rete.wat:796) → `insert session fact` (:827) → `fire-rules` →
-  `query fired :Type`. Proven: `scratchpad/probe-rules-inference.wat` — ONE seed (a `Temp`) fired two rules and
-  derived TWO facts (output 2 > input 1). Syntax reference: `tests/rete/probe_arc278_query_type_safe.wat`.
+- **★ Rete-in-a-service core — RE-PROVEN 2026-07-19 (`scratchpad/probe-rules-core.wat`, `cargo wat`):**
+  `compile [rules] → template Session` (WM empty, rete.wat:796) → per seed `(insert template seed)` (:827) →
+  `fire-rules` (:1832) → `query fired :Type` (:1919) / or set-diff on `Session/facts`. Three things proven in one run:
+  (1) **per-item RESET is FREE** — a `Session` is an immutable value, so each item fires from the SAME `template`
+  and one seed never poisons the next (`hot=2`, then `cold=0` from the same template → `total=2`); (2) **inference
+  output > input** — one hot `Temp` seed fired TWO rules → TWO deductions; (3) **heterogeneous return** — the
+  deductions (a `Hot` AND a `Warn`) collect into one `PersistentVector<wat::core::Value>` (the reply-wire carrier;
+  Value is the universal top, R7). Syntax reference: `tests/rete/probe_arc278_query_type_safe.wat`.
+- **Deducing the derived facts (recommended, rule-agnostic):** deductions = post-fire facts − pre-fire facts —
+  `(Session/facts (fire-rules pre)) \ (Session/facts pre)` where `pre = (insert template seed)`. This excludes the
+  seed and needs NO per-rule knowledge (the RED gate wants derived-only: 30 hot × 2 = 60, the seeds NOT counted).
+  Proven-alternative fallback: explicit `(query fired :DerivedType)` per type (probe-rules-core), if the macro
+  emits them. Pick the rule-agnostic set-diff unless `Session/facts` set-diff isn't cleanly expressible → STOP-3b.
 - **The macro/splice pattern.** `defservice` IS a `defmacro` (`wat/service.wat:71`) and splices via `~@` throughout
   (`~@init-arg-names`, `~@serve-op-arms`, `~@init-param`). Splicing the user's forms into a generated service is the
-  same move — see STOP-1, the one piece not yet run.
+  same move — now proven end to end by the Option-A exemplar above.
 
 ## The shape (grounded end to end)
 ```
@@ -50,14 +67,11 @@ user (compile-time — their defs + rules are literal forms):
 6. `wat/telemetry/journal.wat:164-192` (`query-logs`/`sift-logs`) + `tests/services/probe_arc278_sift_logs.wat` —
    the page read + `Sieve` + the paging shape.
 
-## STOP-1 FIRST — prove the macro-emits-a-defservice-with-spliced-defs crux (a disconfirming probe)
-Before the full build, write + RUN a MINIMAL disconfirming probe (scratchpad or a throwaway fixture): a `defmacro`
-that takes ONE `defrecord` form + ONE rule and emits a `defsurface` (`:messages` = `~@` the def + a trivial request/
-response) and a `:satisfies` `defservice` whose op fires the rule on a typed item and returns a deduction. `/start`
-it on a PROCESS locus; confirm the worker freezes with the spliced def (it typed-reads/constructs an instance and
-fires → a deduction). **If a macro CANNOT emit a `defservice` call (macro-generating-a-macro-call fails), or the
-spliced def does not reach the worker's freeze — STOP and report the exact failure.** That is a load-bearing finding
-(the whole Rules-form UX rests on it); do not route around it. If it works, proceed to the full build.
+## STOP-1 — CLEARED (do NOT re-run). Proceed straight to the full build.
+The macro-emits-a-defservice-with-spliced-defs crux is PROVEN + LANDED this session (Option A, `26e4eace`; exemplar
+`tests/macros/probe_arc278_macro_generates_service.{rs,wat}`). The whole Rules-form UX rested on it; it now stands.
+The remaining trap-doors are STOP-2 (per-item reset — also proven, see probe-rules-core) and STOP-3 (return type —
+proven) + the new STOP-3b (deduction set-diff) and STOP-J (Journal page-read integration), below.
 
 ## The full build (after STOP-1 clears)
 - **The `sift-rules-defsvc` macro** — emits the adhoc `defsurface` (`:messages` = `~@:defs` + `SiftRulesRequest
