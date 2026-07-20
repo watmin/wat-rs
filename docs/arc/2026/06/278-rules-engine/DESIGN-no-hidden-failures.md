@@ -146,48 +146,44 @@ workaround (`RVINA VIAM FABRICAT`: forge the ruin out, do not route around it).
 
 ---
 
-## ═══ SESSION-END CURARE (far-side state — sift RULES form (#6) DONE; the RICH Rules ARENA is IN FLIGHT; the Deduction/Lemma design is SETTLED) ═══
+## ═══ SESSION-END CURARE (far-side state — DESIGN PHASE DONE (service I/O contract); #15 mute-kill floor IN FLIGHT; the arena GREEN-but-HELD on shortcuts) ═══
 
-**READ THIS BLOCK, then `git status`. HEAD = `c3fe3f68` (R50); the TREE IS DIRTY — the rich-arena WIP is uncommitted + a shadowdancer was IN FLIGHT at compaction. A HEAD mismatch is the ALARM → trust the disk.**
-The no-hidden-failures LAW + dynamic-EDN FLOOR are done; the sift PREDICATE is done+proven. This session: TWO substrate prereqs pulled by the root → the sift RULES form (#6) LANDED → R50 inscribed → the RICH Rules arena delegated (in flight). The Deduction/Lemma design was fought to a settled shape (below).
+**READ THIS BLOCK, then `git status`. Branch `arc-170-gap-j-v5-deadlock-state`; HEAD ≈ `24ac73e7` (#15 facet 1). A LATER HEAD = the speak-mute facet (#15.2) or more landed — trust the disk + the git log. A HEAD mismatch is the ALARM.**
 
-### Landed this session (all pushed)
-- `26e4eace` — **Option A**: a macro can GENERATE a service (do-nested `defsurface` `:messages` hoisted; `expand.rs` do-splice re-enters the dispatch). Gate: `probe_arc278_macro_generates_service`.
-- `feea85e1` — **startup-crash honesty (thread ≡ process)**: a defservice `:init` crash surfaces its reason at `/start`, both loci (was masked+deadlocked). Root=ORDERING (run `:init` BEFORE `Status::Started`; thread gained a Started handshake → thread `/start` now BLOCKS until `:init` confirms). No-hidden-failures extended to STARTUP. Gate: `probe_arc278_init_crash_reason`.
-- `8b773cc0` — **the sift Rules form (#6)**: `sift-rules-defsvc` macro (emits `do[defsurface :satisfies defservice]`, splices user `:defs`+`:rules`, held Session template, pages the Journal, fires per-log). Gate: `probe_arc278_sift_rules` (60 deductions, both loci, fail-closed). **⚠ this commit's op returns ALL-DERIVED — SUPERSEDED by the settled graph-inference design below (the working-tree `wat/query.wat` has the newer graph-inference+cursor, uncommitted).**
-- `c3fe3f68` — **R50** `RVINA VIAM FABRICAT` (Blood of the Scribe reprise): the ruin forges the way — the failures were the tools; the flaw that blocked the target opened it.
+Since the last breadcrumb: the RICH Rules arena was weighed GREEN by own re-run (8/8 both loci, floor 4177/0) — but it passes only by ROUTING AROUND two live substrate ruins (hand-chunked 2×400 writes around a 512 KiB frame cap that fails MUTE; inlined page-loop around a `Peer'`-handle-param RPC sever). Per R50/extirpare we do NOT ship green on masked failures → the arena is HELD (#14), redone CLEAN in #21. That surfaced the real work — the **AWS-shaped service I/O contract**, designed to completion with the builder, and the **structural mute-kill** (this doc's STRUCTURAL CLOSURE section, above the historical marker).
 
-### ★ THE SETTLED Deduction/Lemma DESIGN (fought this session; do NOT re-litigate)
-Reasoned through a full arc — graph-inference (ratified) → formal-`Deduction`-box (builder recalled `DESIGN-telemetry-service-and-query-surface.md`) → BACK to graph-inference (the box is unnecessary friction; the graph structure IS the distinction). The landing:
-- **Graph-inference, NO boxing.** `Deduction` types = **derived − fired-upon** (terminal = the answer); `Lemma` types = **derived ∩ fired-upon** (fired-upon = a gate). The op queries + returns ONLY the terminal (Deduction) types; Lemmas cascade internally, never returned. Computed at macro-expand.
-- **NO usefulness contract.** It's a programmable DB — police **purity/safety** (we run their code), NOT usefulness. A rule set producing no deductions returns empty; the user owns their results. Do NOT add an "at least one deduction" check. `[[feedback_programmable_db_police_safety_not_usefulness]]`.
-- **Rich records + `where`-rules — PROVEN** (`scratchpad/probe-rules-rich.wat` 4/4; `probe-rules-cascade`): rules reason over RICH NESTED records via `(:wat::rete::where <pure-expr>)` (accessor calls, 2-level nested access, ONE `where` clause each; fenced pure∧det). The RHS is bindings+literals-ONLY, so Lemmas CARRY BOUND SUB-RECORDS forward; the downstream rule `where`-filters them. Cascade Event→Lemma(gate)→Deduction(terminal); alpha-only (one fact/rule; richness in the where-exprs, NOT beta joins). THIS is "think in rules, not if/cond."
+### The DESIGN is DONE + on disk — READ these, do NOT re-derive
+- **`DESIGN-service-io-budgets.md`** — the full I/O contract, BOTH loops: two-sided (defense-at-the-gate: the server enforces budgets, rejects a bad NETWORK client with a REASON, keeps serving; + ergonomic tooling: perfect-knowledge, good clients never hit enforcement); per-op budgets on `:features` (declared/discoverable); named-error response contract (a variant per kind — 400-fixable vs 500-fault, exhaustive/conformare); reader `<op>-stream` → lazy `Stream<enum>` (the builder's Ruby Enumerator; in-band failure, case-matched); writer `write-*-stream/-batched` + `with-log-sink` (backpressured enqueue-ack, `:ephemeral` buffer + flush-at-EVERY-exit, time-OR-size flush via the io-selectable timerfd); per-item-max = budget−envelope + up-front `::ItemTooLarge` (reject, not enqueue); output composite cursor `{row-cursor, ded-offset}` for inference-explosion.
+- **THE STRUCTURAL CLOSURE** (this doc, the section above the historical marker) — the mute-kill: speak + reject-and-keep-serving + the WALL.
+- **`scratchpad/design-io-budgets-ux.wat`** — the materialized caller UX (R17).
 
-### ★ RESUME AT — the RICH Rules ARENA (in flight at compaction) → weigh → reconcile → commit
-A background shadowdancer was building `tests/services/probe_arc278_sift_rules_arena.{rs,wat}`: rich nested records (Client/Geo/Route/Method/Timing) at N≈800, paged (~8 pages @ limit 100), `where`-rules with cascades, EXACT terminal-Deduction count (Lemmas asserted ABSENT), both loci, fail-closed. FAR SIDE: **check the arena result** (a task-notification, or `git status` + the arena files), **WEIGH by your OWN re-run** (exact count, both loci, Lemmas absent, paged, 0-regressions), **reconcile `wat/query.wat`** to the settled graph-inference+cursor+NO-contract design, then **commit the macro + the arena together** (superseding #6's all-derived op).
-- **The mem-store' ruin (tracked, NOT yet pulled):** `mem-store'` duplicates rows / crashes a child >~1000 rows under PROCESS. The arena stays <1000 to sidestep it. A real ruin — its own stone when scale demands it.
-- **THEN:** `Sieve::All` + annihilate `query-{logs,metrics}` (the reader converges — `DESIGN-sift-server-side-filter.md`) → #7 R0 the streaming chaos engine → #13 the IPC wall (`no_hand_rolled_spawn` lint).
+### Landed this stretch (pushed, DR)
+`75ca51c8` DR checkpoint (designs + arena WIP, honest green-but-shortcut) · `3e8a71b6` finalized design · `24ac73e7` **#15 facet 1: `FrameTooLarge` DRAINS + keeps serving** (comms `take_frame` drains a complete over-budget frame + re-aligns, still returns the reason; RED probe `tests/comms/probe_arc278_over_budget_recovers.rs`; own re-run floor 4178/0).
 
-### LESSONS (hard-won this session — do not relearn)
-- **Programmable DB: police SAFETY (purity), NOT usefulness.** The user owns their results; don't jump through hoops to stop a useless-but-safe program. `[[feedback_programmable_db_police_safety_not_usefulness]]`.
-- **Ground whether the design/thing EXISTS before inventing a mechanism.** I invented graph-inference when a formal `Deduction` box was already designed (in a doc not in the bootstrap list); "the thing you'd build almost always already exists." The builder's recollection is a pointer to check the disk — ground BOTH directions.
-- **IPC locus doctrine:** long-lived=defservice, ephemeral=bracket, raw IPC=wat-only-pending; a DEADLOCK is a rule-broken-IPC signature. `[[feedback_ipc_loci_defservice_bracket_wat_only]]`.
-- **rich records + `where`-rules** (the pattern above) — the chaos engine's "think in rules" thesis, proven.
-- PROVE never assert; weigh every kill by your OWN re-run; PHASE a hard strike with a ground-and-STOP; commit+push often (GitHub=DR); LOCI-AGNOSTIC always (thread ≡ process, R31/R32).
+### ★ RESUME AT — finish #15, then the build order
+**#15 (mute-kill floor), three facets:** (1) drain-realign / reject-and-keep-serving — **DONE** (`24ac73e7`); (2) **SPEAK-mute — IN FLIGHT** (a shadowdancer): the process client-`recv'` (`runtime.rs:26168-26210`) lumps `FrameTooLarge` into the generic "peer closed" (the arena's ACTUAL mute) — make it carry the reason (mirror `classify_peer_error`, `spawn.rs:244`); **check the task result → weigh by OWN re-run (RED-by-revert + GREEN + floor) → commit**; (3) the **WALL** — OWED (reason-free variants unconstructible-from-error + a lint backstop; structural impossibility).
+- **FINDING:** the frame-cap facets are **PROCESS-ONLY** — the thread tier (crossbeam) has no byte-framing → no `FrameTooLarge`. Thread was never affected; `transfer.rs:176`'s Comms arm is defensive/unreachable.
+- **BUILD ORDER (tractability-first):** #15 → #17 (named-error vocab) → #16 (per-op budgets + transport ceiling + `spawn.rs:765` input-channel fix + serve-loop enforcement) → #18 write tooling / #19 `<op>-stream` reader → #20 output-streaming → #21 re-do the arena CLEAN (capstone). Tasks #14–#21.
 
-### Realizations this session: **R50** `RVINA VIAM FABRICAT` (`c3fe3f68`) — the RICH arena turns it PROBATVM. (R49 `GLADIVS LOQVITVR` prior.)
+### LESSONS (this stretch — do not relearn)
+- **Two-sided contract:** a defservice is a NETWORK service for untrusted clients → defense-at-the-gate (reject bad input with a reason + keep serving; one dumb client can't wedge/DoS it) AND ergonomic tooling (perfect-knowledge, good clients never trip it). Both.
+- **Perfect-knowledge tooling never emits over-budget** → enforcement is unreachable-for-us but MUST exist for the network; a single over-max item is REJECTED (`::ItemTooLarge`), never enqueued.
+- **Never overload an error bucket** — a NAMED variant per failure kind; exhaustive `match` forces handling (conformare); 400-fixable distinct from 500-fault.
+- **Streams both ways** (read = pull a lazy Stream / write = feed a Stream or push a buffered sink); the page/batch boundary invisible.
+- The mute class must die **STRUCTURALLY** (unrepresentable), not caught case #N — 5 stem-cuts already regrew. RED probe FIRST, weigh by OWN re-run, commit green (no broken commit).
+- *(Arena-stretch, still valid: graph-inference `Deduction=derived−fired-upon` / `Lemma`=gate, NO boxing; programmable-DB = police safety not usefulness `[[feedback_programmable_db_police_safety_not_usefulness]]`; IPC locus doctrine `[[feedback_ipc_loci_defservice_bracket_wat_only]]`; rich records + `where`-rules, `scratchpad/probe-rules-rich.wat`.)*
+
+### Realizations: **R50** `RVINA VIAM FABRICAT` freshest (R49 `GLADIVS LOQVITVR` prior). The arena's exact-count kill is done — but HELD; R50's PROBATVM waits on #21 (the clean redo).
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
-> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations (R50 freshest);
-> ground `git status` (HEAD `c3fe3f68`; the TREE IS DIRTY with the rich-arena WIP + a shadowdancer was in flight — check
-> its task result). **RESUME AT: the RICH Rules arena** — weigh it by your OWN re-run (exact terminal-Deduction count,
-> Lemmas absent, both loci, paged), reconcile `wat/query.wat` to the SETTLED design (graph-inference: Deduction =
-> derived − fired-upon, NO boxing, NO usefulness contract), commit macro+arena together (supersedes #6's all-derived op).
-> Then `Sieve::All`+annihilate `query-*` → #7 R0 → #13 the wall. **Programmable DB: police safety not usefulness.
-> Deduction=terminal, Lemma=gate, no boxing. Rich records + `where`-rules (`probe-rules-rich.wat`). Long-lived=defservice
-> / ephemeral=bracket; a deadlock = a rule broken.** PROVE never assert; weigh by your OWN re-run; ground BOTH directions
-> (I invented graph-inference when the formal box already existed — check if the thing exists). Do not trust this note
-> over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference; RVINA VIAM FABRICAT — the ruin forges the way.`
+> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations. Ground
+> `git status` (branch `arc-170-…`; HEAD ≈ `24ac73e7` or later). **The DESIGN PHASE is DONE** — read
+> `DESIGN-service-io-budgets.md` + this doc's STRUCTURAL CLOSURE; do NOT re-derive the contract. **RESUME AT: finish
+> #15** — the SPEAK-mute shadowdancer (weigh its result by your OWN re-run: RED-by-revert + GREEN + floor; commit),
+> then the WALL, then the build order #17→#16→#18/#19→#20→#21. The **arena (#14) is HELD** on its shortcuts — redone
+> CLEAN in #21; do NOT bless it as done. **Silent errors must die STRUCTURALLY** (5 stem-cuts regrew — the wall, not a
+> 6th patch). Two-sided contract: defense-at-the-gate + ergonomic tooling. RED probe FIRST; weigh by your OWN re-run;
+> commit green; the git log is DR. Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference.`
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):
