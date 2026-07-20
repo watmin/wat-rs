@@ -57,72 +57,64 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
-## ═══ SESSION-END CURARE (far-side state — the SIFT PREDICATE is DONE + PROVEN; the RULES form is BLOCKED on a substrate expansion gap) ═══
+## ═══ SESSION-END CURARE (far-side state — TWO substrate prereqs LANDED; the sift RULES form (#6) is UNBLOCKED + in WIP) ═══
 
-**READ THIS BLOCK, then `git status`. HEAD = `d7fa8e5f` or later; a mismatch is the ALARM → trust the disk.**
-The no-hidden-failures LAW is DONE. The dynamic-EDN FLOOR (A/B/C) is landed. **THE SIFT PREDICATE FORM IS COMPLETE +
-PROVEN** (Stone 1 + Stone 2 + the two-universe foreign arena; both loci). The LIVE work is the RULES form (#6), now
-BLOCKED on a substrate expansion-pipeline gap (below) — fix that FIRST, then build #6.
+**READ THIS BLOCK, then `git status`. HEAD = `feea85e1` or later; a mismatch is the ALARM → trust the disk.**
+The no-hidden-failures LAW + the dynamic-EDN FLOOR are done. **THE SIFT PREDICATE FORM IS DONE + PROVEN** (Stone 1/2 +
+the two-universe arena, both loci — `037ddf88`, `76ae47c6`, `ec8ae424` R49, `d7fa8e5f`). Building the sift **RULES form
+(#6)** surfaced TWO substrate holes — **BOTH now pulled by the root, so #6 is UNBLOCKED.** Its WIP is on disk,
+uncommitted (a paused shadowdancer): `wat/query.wat` (+~227, the `sift-rules-defsvc` macro).
 
-### Landed this session (all pushed)
-- `037ddf88` — sift **Stone 1**: `:wat::core::ast->source`, the verbatim-`::`-source printer (resurrected the retired
-  `wat_ast_to_source`; walks the AST DIRECTLY, never `watast_to_edn` which dots `::`). All 13 WatAST variants; RED gate
-  round-trips through `read-string`.
-- `76ae47c6` — sift **Stone 2**: the Predicate delivery. `Sieve` enum (`:Predicate` only) + the `sieve-pred` capture
-  macro (user writes `(fn …)`; macro `ast->source`s it into a `String` — organic UX, never a hand-typed string) +
-  `sift-logs`/`sift-metrics` Journal ops (compile-once, apply-per-row, impure→`::Fatal`) + the surface. **Both loci**
-  (thread ≡ process, grant-before-dial). `is_pure_total` gained `ast->source`.
-- `ec8ae424` — **R49** `GLADIVS LOQVITVR, LINGVA FERRO FIT` (the blade speaks; prove, never assert; same blood, guaranteed foreign).
-- `d7fa8e5f` — the sift **ARENA** (the Predicate earns its keep, brutally): fence fix (`:wat::edn::` pure-prefix in
-  `intrinsic_meta` — `read-foreign` predicates were default-denied) + the two-universe foreign trial — a PRODUCER floods
-  its own `:prod::*` types, a CONSUMER that CANNOT hold them (`:peers [Journal]` only, never Producer) pages + filters
-  via `read-foreign` + class-guard, returns EXACTLY 60 across 5 pages, PROCESS-tier. Foreign guaranteed by construction. Both loci.
+### The two substrate prereqs — LANDED since the Predicate (all pushed)
+- `26e4eace` — **Option A: a macro can now GENERATE a service.** `expand.rs`'s `do`/`let`-splice now re-enters the
+  per-form dispatch, so a `defsurface` nested in a macro's `(do …)` gets `hoist_surface_messages` (its `:messages`
+  accessors + `::Variant` ctors mint). Gate: `tests/macros/probe_arc278_macro_generates_service`. (Option B — teach the
+  freeze passes to descend into `:messages` — was grounded + REJECTED: it DE-decomplects; the hoist IS the single
+  narrow-waist adapter for `:messages`, `splice_type_decls`/`register_defines` carry none.)
+- `feea85e1` — **startup-crash honesty (thread ≡ process).** A defservice `:init` crash was MASKED + DEADLOCKED (thread
+  `/start`→`connect'` hung forever; process → bare ECONNREFUSED, the reason discarded). Root = **ORDERING**: the address
+  / `Status::Started` was handed to the owner BEFORE `:init` ran. Fix = run `:init` BEFORE `Status::Started`, both tiers,
+  + a thread Started handshake; an `:init` crash now RAISES the real reason at `/start`, both loci. **thread `/start` now
+  BLOCKS until `:init` confirms** (loci parity; a Handle means "ready"). Gate: `tests/process/probe_arc278_init_crash_reason`.
+  The no-hidden-failures LAW extended to the STARTUP path. (My "spawn.rs:617 is the smoking gun" was WRONG — the phase-1
+  STOP gate caught it; the defservice `:init` runs in `program_fn`'s body, reason already on `crash_tx`.)
 
-### ★ THE LIVE BLOCKER — the Rules form (#6) needs a SUBSTRATE EXPANSION FIX first
-The Rules-form UX is a macro emitting `(do (defsurface …) (defservice …))` — the user's `defrecord`s spliced into the
-adhoc surface's `:messages` (`~@`). **STOP-1, CONFIRMED by own re-run: it FAILS.** A `defsurface` nested in a `do`
-from an OUTER macro does NOT hoist its `:messages` accessors → `:Svc::Req/field` accessors + `::Variant` ctors don't
-mint → `StartupError: UnresolvedReference`.
-- **Root cause (grounded on the disk):** `src/macros/expand.rs:53` — `expand_all_with` runs `hoist_surface_messages`
-  ONLY when `is_defsurface_form(&expanded)` (a DIRECT top-level defsurface). A macro returns ONE form → wraps its two
-  in a `do` → the nested defsurface falls to the `else` (`hoist_top_level_form`), which never hoists its `:messages`
-  decls, so `register_types`/`register_defines` never mints the accessors. The arm handles direct-defsurface AND
-  `do`-containing-defmacro, but NOT `do`-containing-**defsurface**.
-- **THE FIX (extirpare, GENERAL — do FIRST):** extend `expand_all_with` to run `hoist_surface_messages` on a
-  `defsurface` nested in a top-level `do`/`let` from an outer macro (the same hoist, reached through the `do`).
-  "Hoisting is a STAGE, not an ordering" (expand.rs:80). Unblocks ANY macro-generates-a-service. RED gate: a macro
-  emitting `do[defsurface, :satisfies defservice]` → the surface's accessors mint → the op resolves + fires.
-- Disconfirming probes: `scratchpad/probe-sift-rules-stop1*.wat` (bare defsurface WORKS; `do`-wrapped FAILS — isolates
-  the break to the macro-wrapping).
+### ★ RESUME AT — the sift RULES form (#6), now on an HONEST substrate
+Design fully grounded in `BRIEF-STONE-sift-rules.md`; cruxes RE-proven this session (`scratchpad/probe-rules-core.wat`,
+`cargo wat`): per-item reset is FREE (immutable Session template), inference output>input, heterogeneous `PV<Value>`
+return. The `sift-rules-defsvc` macro emits `(do (defsurface … :messages [~@defs …]) (:satisfies defservice … :peers
+[Journal]))`, compiling the user's rules into a held Session template → an op that pages Logs from the Journal, fires
+per-log, flat-maps the deductions. Both loci. **The startup-crash fix means a crashing sift service NOW surfaces its
+reason — the mute deadlock that derailed the first attempt is GONE; #6 is diagnosable.** WIP `wat/query.wat` on disk
+(paused) — weigh continue-vs-redraw.
+- Naming convention (grounded, `service.wat:894`): per-op messages MUST be `<Op>Request`/`<Op>Response` (op `sift-rules`
+  → `SiftRulesRequest`/`Response`) or the generated client stub TypeMismatches.
+- Deduction extraction: post-fire facts − pre-fire facts (`Session/facts` set-diff, seed excluded), rule-agnostic;
+  explicit per-type `query` is the proven fallback.
 
-### THE RULES FORM DESIGN (grounded; do NOT re-scout — `BRIEF-STONE-sift-rules.md`)
-Every crux proven by a RUN this session:
-- **Def-feeding = surface-splice** (arena-proven: a service's surface `:messages` reach its worker's freeze). Runtime
-  `eval-ast!` registration does NOT work (types are freeze-time). The user's defs ride the adhoc surface's `:messages`.
-- **rete = TYPED only** (`matcher.rs:107-135` — a fact must be a typed record, field names from the registry; a
-  `ForeignRecord` cannot match). The foreign reader is the PREDICATE's tool; the Rules form REQUIRES the user supply
-  the defs; a message whose type isn't a def → the request FAILS (no-hidden-failures).
-- **rete INFERS** (proven: 1 seed → 2 deductions, output > input). `compile [rules] → Session` → per item: typed-`read`
-  → `insert` (fresh Session, reset per item, alpha-only) → `fire-rules` → `query` deductions → flat-map.
-- **UX**: paged from the user (≤ limit per call, page after page); internally a lazy stream in lockstep; the return is
-  a flat-map of deductions (count can EXCEED the page). Primes ONLY (`spawn-program'` entry via `/start`, `connect'`/`send'`/`recv'`).
-- **Class-guard pattern** (proven, Predicate form): `ForeignRecord/get` on a missing key ERRORS → guard by
-  `ForeignRecord/class` (total) via `if` BEFORE `get` (partial). See `scratchpad/probe-ux-*guarded*.wat`.
+### LESSONS (hard-won this session — do not relearn)
+- **IPC locus doctrine (builder, explicit):** long-lived locus = `defservice`; ephemeral locus = `bracket` (`map-worker`,
+  spawn→run→reap RAII); raw IPC primes (`spawn-program'`/`connect'`/`send'`/`recv'`/`poll'`) are PENDING wat-only
+  restriction — users can't be trusted to hand-roll IPC. **A DEADLOCK is the signature of hand-rolled / rule-broken IPC,
+  not a substrate mystery.** See `[[feedback_ipc_loci_defservice_bracket_wat_only]]`.
+- **Ground in BOTH directions; PHASE a hard kernel strike with a ground-and-STOP checkpoint.** I twice asserted a root
+  before the disk confirmed it (spawn.rs:617; "B is more correct") — both WRONG, both caught by grounding (the phase-1
+  STOP gate earned its keep). PROVE, never assert; weigh every kill by your OWN re-run; commit + push often (GitHub = DR).
+- **rete = TYPED only** (`matcher.rs:107-135`); the foreign reader is the PREDICATE's tool; the Rules form requires the
+  user's defs. **LOCI-AGNOSTIC always** (thread ≡ process, R31/R32).
 
-### Realizations this session: **R49** `GLADIVS LOQVITVR, LINGVA FERRO FIT` (`ec8ae424`).
+### Realizations this session: **R49** `GLADIVS LOQVITVR, LINGVA FERRO FIT` (`ec8ae424`). (Option A + the startup-crash
+fix are substrate stones, not yet inscribed — a realization is the orchestrator+builder's act at true arc close.)
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
-> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk), read 278's realizations (R49 is the
-> freshest), ground `git status` (HEAD `d7fa8e5f`+; a mismatch is the alarm → trust the disk). **THE SIFT PREDICATE IS
-> DONE + PROVEN** (both loci + the two-universe foreign arena). RESUME AT: **the expansion-pipeline fix** (`expand.rs:53`
-> — hoist a `defsurface`'s `:messages` when it's nested in an outer-macro's `do`; the blocker for the Rules-form macro
-> UX) → then the RULES form (#6, `BRIEF-STONE-sift-rules.md`, design fully grounded, cruxes proven). And it bears
-> repeating because it CARRIED this whole session: **PROVE, never assert — the blade (a disconfirming probe RUN) does
-> the talking; the crux-first STOP-gated brief caught this substrate gap BEFORE the big build was wasted (slow is
-> smooth).** **LOCI-AGNOSTIC always** (thread ≡ process; thread-only = failure, R31/R32). **rete is TYPED; the foreign
-> reader is the Predicate's tool; the Rules form requires the user's defs.** **WEIGH every kill by your OWN re-run; a
-> mid-edit diagnostic is a PHANTOM; ground against a RUN, never a doc comment; commit + push often (GitHub = DR).** The
-> holonic repos ARE the memory. Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference.`
+> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations (R49 freshest);
+> ground `git status` (HEAD `feea85e1`+; a mismatch is the alarm → trust the disk). TWO substrate prereqs LANDED
+> (Option A `26e4eace` + startup-crash honesty `feea85e1`); the sift PREDICATE is DONE + PROVEN. **RESUME AT: the sift
+> RULES form (#6)** — `BRIEF-STONE-sift-rules.md`, design fully grounded, cruxes proven, the substrate now honest at
+> startup (a crashing sift service surfaces its reason — the mute deadlock is GONE). WIP `wat/query.wat` on disk (paused,
+> uncommitted) — weigh continue-vs-redraw. **Long-lived=defservice, ephemeral=bracket, raw IPC=wat-only-pending; a
+> deadlock = a rule broken.** LOCI-AGNOSTIC always. PROVE, never assert; weigh by your OWN re-run; ground in BOTH
+> directions. Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference.`
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):
