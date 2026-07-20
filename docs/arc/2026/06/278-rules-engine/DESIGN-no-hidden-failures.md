@@ -57,64 +57,48 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
-## ═══ SESSION-END CURARE (far-side state — TWO substrate prereqs LANDED; the sift RULES form (#6) is UNBLOCKED + in WIP) ═══
+## ═══ SESSION-END CURARE (far-side state — sift RULES form (#6) DONE; the RICH Rules ARENA is IN FLIGHT; the Deduction/Lemma design is SETTLED) ═══
 
-**READ THIS BLOCK, then `git status`. HEAD = `feea85e1` or later; a mismatch is the ALARM → trust the disk.**
-The no-hidden-failures LAW + the dynamic-EDN FLOOR are done. **THE SIFT PREDICATE FORM IS DONE + PROVEN** (Stone 1/2 +
-the two-universe arena, both loci — `037ddf88`, `76ae47c6`, `ec8ae424` R49, `d7fa8e5f`). Building the sift **RULES form
-(#6)** surfaced TWO substrate holes — **BOTH now pulled by the root, so #6 is UNBLOCKED.** Its WIP is on disk,
-uncommitted (a paused shadowdancer): `wat/query.wat` (+~227, the `sift-rules-defsvc` macro).
+**READ THIS BLOCK, then `git status`. HEAD = `c3fe3f68` (R50); the TREE IS DIRTY — the rich-arena WIP is uncommitted + a shadowdancer was IN FLIGHT at compaction. A HEAD mismatch is the ALARM → trust the disk.**
+The no-hidden-failures LAW + dynamic-EDN FLOOR are done; the sift PREDICATE is done+proven. This session: TWO substrate prereqs pulled by the root → the sift RULES form (#6) LANDED → R50 inscribed → the RICH Rules arena delegated (in flight). The Deduction/Lemma design was fought to a settled shape (below).
 
-### The two substrate prereqs — LANDED since the Predicate (all pushed)
-- `26e4eace` — **Option A: a macro can now GENERATE a service.** `expand.rs`'s `do`/`let`-splice now re-enters the
-  per-form dispatch, so a `defsurface` nested in a macro's `(do …)` gets `hoist_surface_messages` (its `:messages`
-  accessors + `::Variant` ctors mint). Gate: `tests/macros/probe_arc278_macro_generates_service`. (Option B — teach the
-  freeze passes to descend into `:messages` — was grounded + REJECTED: it DE-decomplects; the hoist IS the single
-  narrow-waist adapter for `:messages`, `splice_type_decls`/`register_defines` carry none.)
-- `feea85e1` — **startup-crash honesty (thread ≡ process).** A defservice `:init` crash was MASKED + DEADLOCKED (thread
-  `/start`→`connect'` hung forever; process → bare ECONNREFUSED, the reason discarded). Root = **ORDERING**: the address
-  / `Status::Started` was handed to the owner BEFORE `:init` ran. Fix = run `:init` BEFORE `Status::Started`, both tiers,
-  + a thread Started handshake; an `:init` crash now RAISES the real reason at `/start`, both loci. **thread `/start` now
-  BLOCKS until `:init` confirms** (loci parity; a Handle means "ready"). Gate: `tests/process/probe_arc278_init_crash_reason`.
-  The no-hidden-failures LAW extended to the STARTUP path. (My "spawn.rs:617 is the smoking gun" was WRONG — the phase-1
-  STOP gate caught it; the defservice `:init` runs in `program_fn`'s body, reason already on `crash_tx`.)
+### Landed this session (all pushed)
+- `26e4eace` — **Option A**: a macro can GENERATE a service (do-nested `defsurface` `:messages` hoisted; `expand.rs` do-splice re-enters the dispatch). Gate: `probe_arc278_macro_generates_service`.
+- `feea85e1` — **startup-crash honesty (thread ≡ process)**: a defservice `:init` crash surfaces its reason at `/start`, both loci (was masked+deadlocked). Root=ORDERING (run `:init` BEFORE `Status::Started`; thread gained a Started handshake → thread `/start` now BLOCKS until `:init` confirms). No-hidden-failures extended to STARTUP. Gate: `probe_arc278_init_crash_reason`.
+- `8b773cc0` — **the sift Rules form (#6)**: `sift-rules-defsvc` macro (emits `do[defsurface :satisfies defservice]`, splices user `:defs`+`:rules`, held Session template, pages the Journal, fires per-log). Gate: `probe_arc278_sift_rules` (60 deductions, both loci, fail-closed). **⚠ this commit's op returns ALL-DERIVED — SUPERSEDED by the settled graph-inference design below (the working-tree `wat/query.wat` has the newer graph-inference+cursor, uncommitted).**
+- `c3fe3f68` — **R50** `RVINA VIAM FABRICAT` (Blood of the Scribe reprise): the ruin forges the way — the failures were the tools; the flaw that blocked the target opened it.
 
-### ★ RESUME AT — the sift RULES form (#6), now on an HONEST substrate
-Design fully grounded in `BRIEF-STONE-sift-rules.md`; cruxes RE-proven this session (`scratchpad/probe-rules-core.wat`,
-`cargo wat`): per-item reset is FREE (immutable Session template), inference output>input, heterogeneous `PV<Value>`
-return. The `sift-rules-defsvc` macro emits `(do (defsurface … :messages [~@defs …]) (:satisfies defservice … :peers
-[Journal]))`, compiling the user's rules into a held Session template → an op that pages Logs from the Journal, fires
-per-log, flat-maps the deductions. Both loci. **The startup-crash fix means a crashing sift service NOW surfaces its
-reason — the mute deadlock that derailed the first attempt is GONE; #6 is diagnosable.** WIP `wat/query.wat` on disk
-(paused) — weigh continue-vs-redraw.
-- Naming convention (grounded, `service.wat:894`): per-op messages MUST be `<Op>Request`/`<Op>Response` (op `sift-rules`
-  → `SiftRulesRequest`/`Response`) or the generated client stub TypeMismatches.
-- Deduction extraction: post-fire facts − pre-fire facts (`Session/facts` set-diff, seed excluded), rule-agnostic;
-  explicit per-type `query` is the proven fallback.
+### ★ THE SETTLED Deduction/Lemma DESIGN (fought this session; do NOT re-litigate)
+Reasoned through a full arc — graph-inference (ratified) → formal-`Deduction`-box (builder recalled `DESIGN-telemetry-service-and-query-surface.md`) → BACK to graph-inference (the box is unnecessary friction; the graph structure IS the distinction). The landing:
+- **Graph-inference, NO boxing.** `Deduction` types = **derived − fired-upon** (terminal = the answer); `Lemma` types = **derived ∩ fired-upon** (fired-upon = a gate). The op queries + returns ONLY the terminal (Deduction) types; Lemmas cascade internally, never returned. Computed at macro-expand.
+- **NO usefulness contract.** It's a programmable DB — police **purity/safety** (we run their code), NOT usefulness. A rule set producing no deductions returns empty; the user owns their results. Do NOT add an "at least one deduction" check. `[[feedback_programmable_db_police_safety_not_usefulness]]`.
+- **Rich records + `where`-rules — PROVEN** (`scratchpad/probe-rules-rich.wat` 4/4; `probe-rules-cascade`): rules reason over RICH NESTED records via `(:wat::rete::where <pure-expr>)` (accessor calls, 2-level nested access, ONE `where` clause each; fenced pure∧det). The RHS is bindings+literals-ONLY, so Lemmas CARRY BOUND SUB-RECORDS forward; the downstream rule `where`-filters them. Cascade Event→Lemma(gate)→Deduction(terminal); alpha-only (one fact/rule; richness in the where-exprs, NOT beta joins). THIS is "think in rules, not if/cond."
+
+### ★ RESUME AT — the RICH Rules ARENA (in flight at compaction) → weigh → reconcile → commit
+A background shadowdancer was building `tests/services/probe_arc278_sift_rules_arena.{rs,wat}`: rich nested records (Client/Geo/Route/Method/Timing) at N≈800, paged (~8 pages @ limit 100), `where`-rules with cascades, EXACT terminal-Deduction count (Lemmas asserted ABSENT), both loci, fail-closed. FAR SIDE: **check the arena result** (a task-notification, or `git status` + the arena files), **WEIGH by your OWN re-run** (exact count, both loci, Lemmas absent, paged, 0-regressions), **reconcile `wat/query.wat`** to the settled graph-inference+cursor+NO-contract design, then **commit the macro + the arena together** (superseding #6's all-derived op).
+- **The mem-store' ruin (tracked, NOT yet pulled):** `mem-store'` duplicates rows / crashes a child >~1000 rows under PROCESS. The arena stays <1000 to sidestep it. A real ruin — its own stone when scale demands it.
+- **THEN:** `Sieve::All` + annihilate `query-{logs,metrics}` (the reader converges — `DESIGN-sift-server-side-filter.md`) → #7 R0 the streaming chaos engine → #13 the IPC wall (`no_hand_rolled_spawn` lint).
 
 ### LESSONS (hard-won this session — do not relearn)
-- **IPC locus doctrine (builder, explicit):** long-lived locus = `defservice`; ephemeral locus = `bracket` (`map-worker`,
-  spawn→run→reap RAII); raw IPC primes (`spawn-program'`/`connect'`/`send'`/`recv'`/`poll'`) are PENDING wat-only
-  restriction — users can't be trusted to hand-roll IPC. **A DEADLOCK is the signature of hand-rolled / rule-broken IPC,
-  not a substrate mystery.** See `[[feedback_ipc_loci_defservice_bracket_wat_only]]`.
-- **Ground in BOTH directions; PHASE a hard kernel strike with a ground-and-STOP checkpoint.** I twice asserted a root
-  before the disk confirmed it (spawn.rs:617; "B is more correct") — both WRONG, both caught by grounding (the phase-1
-  STOP gate earned its keep). PROVE, never assert; weigh every kill by your OWN re-run; commit + push often (GitHub = DR).
-- **rete = TYPED only** (`matcher.rs:107-135`); the foreign reader is the PREDICATE's tool; the Rules form requires the
-  user's defs. **LOCI-AGNOSTIC always** (thread ≡ process, R31/R32).
+- **Programmable DB: police SAFETY (purity), NOT usefulness.** The user owns their results; don't jump through hoops to stop a useless-but-safe program. `[[feedback_programmable_db_police_safety_not_usefulness]]`.
+- **Ground whether the design/thing EXISTS before inventing a mechanism.** I invented graph-inference when a formal `Deduction` box was already designed (in a doc not in the bootstrap list); "the thing you'd build almost always already exists." The builder's recollection is a pointer to check the disk — ground BOTH directions.
+- **IPC locus doctrine:** long-lived=defservice, ephemeral=bracket, raw IPC=wat-only-pending; a DEADLOCK is a rule-broken-IPC signature. `[[feedback_ipc_loci_defservice_bracket_wat_only]]`.
+- **rich records + `where`-rules** (the pattern above) — the chaos engine's "think in rules" thesis, proven.
+- PROVE never assert; weigh every kill by your OWN re-run; PHASE a hard strike with a ground-and-STOP; commit+push often (GitHub=DR); LOCI-AGNOSTIC always (thread ≡ process, R31/R32).
 
-### Realizations this session: **R49** `GLADIVS LOQVITVR, LINGVA FERRO FIT` (`ec8ae424`). (Option A + the startup-crash
-fix are substrate stones, not yet inscribed — a realization is the orchestrator+builder's act at true arc close.)
+### Realizations this session: **R50** `RVINA VIAM FABRICAT` (`c3fe3f68`) — the RICH arena turns it PROBATVM. (R49 `GLADIVS LOQVITVR` prior.)
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
-> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations (R49 freshest);
-> ground `git status` (HEAD `feea85e1`+; a mismatch is the alarm → trust the disk). TWO substrate prereqs LANDED
-> (Option A `26e4eace` + startup-crash honesty `feea85e1`); the sift PREDICATE is DONE + PROVEN. **RESUME AT: the sift
-> RULES form (#6)** — `BRIEF-STONE-sift-rules.md`, design fully grounded, cruxes proven, the substrate now honest at
-> startup (a crashing sift service surfaces its reason — the mute deadlock is GONE). WIP `wat/query.wat` on disk (paused,
-> uncommitted) — weigh continue-vs-redraw. **Long-lived=defservice, ephemeral=bracket, raw IPC=wat-only-pending; a
-> deadlock = a rule broken.** LOCI-AGNOSTIC always. PROVE, never assert; weigh by your OWN re-run; ground in BOTH
-> directions. Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference.`
+> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations (R50 freshest);
+> ground `git status` (HEAD `c3fe3f68`; the TREE IS DIRTY with the rich-arena WIP + a shadowdancer was in flight — check
+> its task result). **RESUME AT: the RICH Rules arena** — weigh it by your OWN re-run (exact terminal-Deduction count,
+> Lemmas absent, both loci, paged), reconcile `wat/query.wat` to the SETTLED design (graph-inference: Deduction =
+> derived − fired-upon, NO boxing, NO usefulness contract), commit macro+arena together (supersedes #6's all-derived op).
+> Then `Sieve::All`+annihilate `query-*` → #7 R0 → #13 the wall. **Programmable DB: police safety not usefulness.
+> Deduction=terminal, Lemma=gate, no boxing. Rich records + `where`-rules (`probe-rules-rich.wat`). Long-lived=defservice
+> / ephemeral=bracket; a deadlock = a rule broken.** PROVE never assert; weigh by your OWN re-run; ground BOTH directions
+> (I invented graph-inference when the formal box already existed — check if the thing exists). Do not trust this note
+> over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference; RVINA VIAM FABRICAT — the ruin forges the way.`
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):
