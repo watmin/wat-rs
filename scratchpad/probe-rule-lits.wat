@@ -1,0 +1,97 @@
+;; Probe (v2): sift-rules-defsvc's two macro-time extraction problems, end to end:
+;;   (1) build Rule VALUES from raw (defrule …) forms (no top-level defn needed) — via make-rule.
+;;   (2) macro-emit a per-derived-type `query` flat-map (Session/facts set-diff does NOT carry
+;;       derived facts — proven false below; the per-type `query` fallback is what actually works).
+;; Both probed together, then wired into a deduce-one that flat-maps ALL derived types into one
+;; PersistentVector<Value> — the exact shape sift-rules' op needs per Log/seed.
+
+(:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
+(:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])
+
+;; take-rules — builds (1) the compiled-rules Vector-of-Rule-VALUES call AND (2) a flat-map
+;; query expression over the UNIQUE derived types found across all rules' :then forms. Returns
+;; a 2-elem Vector literal `[rules-call flatmap-fn-call]` is awkward across macro boundary, so
+;; instead expand STRAIGHT to the full deduce-one defn (mirrors what sift-rules-defsvc's :init +
+;; op body will do, minus the service wrapper).
+(:wat::core::defmacro :probe::mk-deduce
+  [rules-vec <- :wat::WatAST] -> :wat::WatAST
+  (:wat::core::let
+    [rules-children (:wat::core::ast->children rules-vec)
+     rule-lits (:wat::core::foldl
+                 (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> rf <- :wat::WatAST]
+                   -> :wat::core::Vector<wat::WatAST>
+                   (:wat::core::let
+                     [rch       (:wat::core::ast->children rf)
+                      rname     (:wat::core::Option/expect (:wat::core::get rch 1) "mk-deduce: rule missing name")
+                      raw-name  (:wat::core::ast-name rname)
+                      name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
+                                   (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+                                   raw-name)
+                      when-vec  (:wat::core::Option/expect (:wat::core::get rch 3) "mk-deduce: rule missing :when")
+                      then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest rch)))))
+                      rule-lit  `(:wat::rete::make-rule ~name-str (:wat::core::quote ~when-vec) (:wat::core::quote [~@then-forms]))]
+                     (:wat::core::conj acc rule-lit)))
+                 (:wat::core::Vector :wat::WatAST)
+                 rules-children)
+     ;; derived-type-strs: unique type names across every rule's :then (:wat::rete::insert (:Type …)) forms.
+     derived-type-strs
+               (:wat::core::foldl
+                 (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> rf <- :wat::WatAST]
+                   -> :wat::core::Vector<wat::core::String>
+                   (:wat::core::let
+                     [rch (:wat::core::ast->children rf)
+                      then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest rch)))))]
+                     (:wat::core::foldl
+                       (:wat::core::fn [acc2 <- :wat::core::Vector<wat::core::String> tf <- :wat::WatAST]
+                         -> :wat::core::Vector<wat::core::String>
+                         (:wat::core::let
+                           [tch  (:wat::core::ast->children tf)
+                            ctor (:wat::core::Option/expect (:wat::core::get tch 1) "mk-deduce: :then form must be (insert (:Type …))")
+                            cch  (:wat::core::ast->children ctor)
+                            tkw  (:wat::core::Option/expect (:wat::core::get cch 0) "mk-deduce: :then insert ctor missing type")
+                            traw (:wat::core::ast-name tkw)
+                            tstr (:wat::core::if (:wat::core::= (:wat::core::string::subs traw 0 1) ":")
+                                   (:wat::core::string::subs traw 1 (:wat::core::string::length traw))
+                                   traw)]
+                           (:wat::core::if (:wat::core::Vector/contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
+                       acc
+                       then-forms)))
+                 (:wat::core::Vector :wat::core::String)
+                 rules-children)
+     fired-sym  (:wat::core::symbol-node "fired")
+     query-calls
+               (:wat::core::foldl
+                 (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> tstr <- :wat::core::String]
+                   -> :wat::core::Vector<wat::WatAST>
+                   (:wat::core::let
+                     [tkw (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))]
+                     (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~tkw))))
+                 (:wat::core::Vector :wat::WatAST)
+                 derived-type-strs)]
+    `(:wat::core::do
+       (:wat::core::defn :usr::rules-template [] -> :wat::rete::Session
+         (:wat::rete::compile (:wat::core::PersistentVector ~@rule-lits)))
+       (:wat::core::defn :usr::deduce-one
+         [template <- :wat::rete::Session  seed <- :usr::Temp]
+         -> :wat::core::PersistentVector<wat::core::Value>
+         (:wat::core::let
+           [~fired-sym (:wat::rete::fire-rules (:wat::rete::insert template seed))]
+           (:wat::core::concat ~@query-calls))))))
+
+(:probe::mk-deduce
+  [(:wat::rete::defrule :usr::hot-rule
+     :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
+     :then (:wat::rete::insert (:usr::Hot :c ?c)))
+   (:wat::rete::defrule :usr::warn-rule
+     :when [(:usr::Temp (?c <- :c) (:wat::core::> ?c 50))]
+     :then (:wat::rete::insert (:usr::Warn :c ?c)))])
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [template (:usr::rules-template)
+     hot   (:usr::deduce-one template (:usr::Temp :c 60))
+     cold  (:usr::deduce-one template (:usr::Temp :c 10))]
+    (:wat::core::do
+      (:wat::kernel::println (:wat::core::string::concat "hot="  (:wat::core::str (:wat::core::length hot))))
+      (:wat::kernel::println (:wat::core::string::concat "cold=" (:wat::core::str (:wat::core::length cold)))))))

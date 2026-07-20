@@ -57,6 +57,95 @@ its channel to hide). Delivering crash reasons to connected clients is an **abse
 client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 `probe_arc278_process_crash_reason_carried.{rs,wat}` (finding in its module doc).
 
+## ═══ THE STRUCTURAL CLOSURE — the over-budget mute, and killing the class so it CANNOT regrow (2026-07-20) ═══
+
+> **THE LAW, RESTATED (builder, 2026-07-20):** *"silent errors — they must die — now — we've killed them like 5 times on this arc AND THEY REFUSE TO DIE."* Every prior kill was a **stem-cut** (bind the mute site we found). The class regrows because a mute failure still has a **representation**. This closure climbs to the top of the extirpare ladder: make a mute failure **unconstructible** (structural impossibility — builder: *"structural impossibilities are the best in any situation"*), not caught case-by-case.
+
+### The incident that surfaced it (grounded this session, reproduced by own hand)
+The RICH Rules arena: a single `write-logs` of ~700 rich nested `Event`s on **PROCESS** locus →
+`recv failed: peer closed / channel disconnected` — **mute**. Reproduced at `scratchpad/probe-arena-scale-n700.wat`
+(THREAD=630 correct; PROCESS mute at the `write-logs` recv', line 176). The ~650–700-row threshold is exactly
+where the frame crosses **512 KiB** (`DEFAULT_MAX_FRAME_BYTES`, `edn_shim.rs:1330`). Not a crash — a **frame-cap
+rejection failing mute**.
+
+### The grounded root — a reason that EXISTS, discarded at ONE site, then mislabeled CLEAN
+1. The receiver hits the cap → `RecvError::FrameTooLarge`, whose `Display` is a perfectly good reason
+   (`comms/mod.rs:990` — "frame exceeded cap (message larger than the receiver's max-message-bytes budget)").
+2. **`channel/transfer.rs:176`** (the crossbeam/thread client-recv path): `FrameTooLarge => RecvOutcome::Disconnected`
+   — the reason is **discarded**, collapsed into the reason-free clean-EOF variant. (Comment: *"per the arc 278
+   contract, FrameTooLarge is NEVER read off the err channel"* — the deadlock-avoidance rationale is real but does
+   NOT justify muting: the FrameTooLarge reason is **local to the receiver**, needs no err-channel read.)
+3. `poll'` sees `Disconnected` → `ServiceEvent::Closed{idx}` (`runtime.rs:27666`) — the **clean-hangup** arm (no
+   cause; *"bare Peer' has no crash channel"*).
+4. The serve loop's `Closed` arm (`service.wat`) drops the client and keeps serving — **silently**, because it
+   believes the client hung up normally.
+5. The caller's `recv'` gets the mute `peer closed`.
+So a **frame-cap rejection is relabeled a clean goodbye** three layers deep. (Grounded contrast: the *process
+peer OUTPUT* path already speaks — `classify_peer_error` (`spawn.rs:244`) maps `FrameTooLarge => Lost(reason)`.
+The inconsistency between the two paths is the stem.)
+
+### Why the class refuses to die — 5 stem-cuts, never a wall
+Mechanism A · eprintln-terminal · transport-twin `RecvError::Failed` · RST `PeerCrashed` · startup-crash honesty
+— each bound a *known* mute site. None made mute **unrepresentable**. `transfer.rs:176` is stem #6-in-waiting.
+The root: **reason-free failure variants remain constructible from error paths** (`=> Disconnected`,
+`map_err(|_|)`), so a mute failure always has a form to hide in (the arc-278 masking table already named this at
+"site R — no slot for a reason", then added `Failed(String)` beside the reason-free variants but left them
+constructible-from-error).
+
+### The fix — three escalating moves; the builder's own reframing
+The builder decomposed it exactly (kept literal): *"a > max-bytes message is a 400-esque error — the server is
+still alive, just tossing a bad request… should there even be a disconnect? 400 should be a thing a client can
+just deal with without faulting hard."* And on WHO learns why: *"clients should never be told [internal crash
+reasons] — the admin holder MUST KNOW"* — but a frame-cap rejection is a **client-input error (a 400)**, not an
+internal crash, so telling the client "your request is too large" is honest and correct (it's about *their*
+input), while genuine internal crashes stay admin-channel-only (STOP-2, `feedback_ask_who_already_receives_it…`).
+
+1. **SPEAK — never mute, never mislabeled-clean.** `FrameTooLarge` (and every genuine failure) carries its reason
+   to `recv'`; it is NEVER collapsed to `Disconnected`/`Closed`. `transfer.rs:176` → carry the reason (the
+   `DecodeError(reason)` outcome the sibling `Failed` arm already uses, or a distinct reasoned outcome). The floor.
+2. **400-and-continue — no hard fault.** An over-budget request is a client error: the serve loop replies
+   `Reply::Failed{cause: "request exceeds the N-byte cap"}` to *that* client and **keeps serving**; the connection
+   **lives** (Mechanism A shape, extended to the frame cap). The client catches a normal error and moves on.
+3. **THE WALL — structural impossibility (top rung).** Reason-free variants (`RecvError::Disconnected`,
+   `RecvOutcome::Disconnected`, `PeerDeath::Closed`, `ServiceEvent::Closed`) mean **clean EOF ONLY**, and **no
+   failure path may construct them** — make mute **unrepresentable**, not merely caught. Preferred: the type
+   level (a failure value cannot be built without a reason; the clean-EOF variant is producible only from a
+   genuine EOF, structurally). Backstop: a **lint** (sibling of `no_inlined_wat`) that RED-flags any `=> …Disconnected`
+   / `map_err(|_|)` in `comms/`,`channel/`,`kernel/spawn.rs`,`runtime.rs` recv paths — so stem #7 is a build error.
+   *This check is what the previous five kills never planted.*
+
+### Feasibility of 400-and-continue — GROUNDED (the drain-realign, and why no deadlock)
+The wire is **newline-framed** (`next_complete_frame` scans `\n`, `edn_shim.rs:1387`), single-writer
+(interleave-safe, `process.rs:296`), and the receiver's accumulator **persists** across reads (`take_frame` only
+`split_off`s on a *good* frame — on `TooLarge` the bytes stay). So recovery is a **caller-policy change**, not a
+transport rewrite. Two `TooLarge` cases (`next_complete_frame`):
+- **complete-but-too-big** (a full newline-terminated frame over budget): trivial — discard `acc[..end]`, continue
+  with `acc[end..]`; wire already re-aligned.
+- **incomplete-and-already-over-budget** (the sender blocked mid-`write_all`, big frame still arriving): **drain to
+  the terminating `\n`** — which unblocks the sender and re-aligns — then discard + reply 400 + continue. This
+  **sidesteps the cited deadlock** because it only drains the DATA channel and **never reads `err`** (the deadlock
+  was reading `err` while the sender is blocked). **DoS bound:** drain up to K× the budget; a frame that never
+  terminates within the bound is a pathological client → reasoned teardown (never mute).
+The current code just tears down on `TooLarge` because it never implemented the drain-loop — a convenience, not a
+necessity.
+
+### RED gate (acceptance — the probe that would have caught this from day one)
+A service with an op budgeted at N bytes receives a request > N (both loci). Assert BOTH:
+- **the caller's error carries the real reason** (contains "exceeds"/"too large"/the byte figure), NOT the bare
+  `peer closed / channel disconnected`; and
+- **the service + connection are still alive** — a subsequent, in-budget request to the SAME service succeeds.
+Plus the pathological case: an endless (no-newline) frame past the drain-bound → a *reasoned* teardown, still not
+mute. At HEAD the first two fail (mute + connection dead). GREEN when moves 1–3 land.
+
+### Sequencing + the arena hold
+This structural closure is the **floor** the service-I/O-budget contract stands on
+(`DESIGN-service-io-budgets.md` — per-op declared budgets, fragmentation/pagination tooling, output-side
+streaming). Land the closure (speak + 400-and-continue + the wall) FIRST. **The RICH Rules arena commit is HELD**
+until at least move 1 lands — it must never ship green on the masked teardown + the shadowdancer's chunking
+workaround (`RVINA VIAM FABRICAT`: forge the ruin out, do not route around it).
+
+---
+
 ## ═══ SESSION-END CURARE (far-side state — sift RULES form (#6) DONE; the RICH Rules ARENA is IN FLIGHT; the Deduction/Lemma design is SETTLED) ═══
 
 **READ THIS BLOCK, then `git status`. HEAD = `c3fe3f68` (R50); the TREE IS DIRTY — the rich-arena WIP is uncommitted + a shadowdancer was IN FLIGHT at compaction. A HEAD mismatch is the ALARM → trust the disk.**

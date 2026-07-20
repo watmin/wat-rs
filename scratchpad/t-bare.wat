@@ -1,0 +1,1 @@
+(:wat::core::println "hi from top level")

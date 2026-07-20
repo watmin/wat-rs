@@ -1,0 +1,1 @@
+(:wat::core::defn :user::helper [] -> :wat::core::i64 42)

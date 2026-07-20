@@ -64,9 +64,9 @@
              :record (:usr::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300))]
+             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::i64
-      ((:usr::my-sift::SiftRulesResponse::Deductions items) (:wat::core::length items))
+      ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1))))
 
 ;; ── PROCESS locus — the loci-agnostic proof. SAME scenario across a FORK: mem-store' + journal'
@@ -106,9 +106,9 @@
              :record (:usr::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300))]
+             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::i64
-      ((:usr::my-sift::SiftRulesResponse::Deductions items) (:wat::core::length items))
+      ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1))))
 
 ;; ── THREAD locus — fail-closed: one Log's message is `:usr::Other`, NOT among :defs. The WHOLE
@@ -135,7 +135,7 @@
              :record (:usr::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50))]
+             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::bool
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) true)
       (_ false))))
@@ -171,7 +171,7 @@
              :record (:usr::my-sift'::Record) :journal-addr jaddr)
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50))]
+             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::bool
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) true)
       (_ false))))

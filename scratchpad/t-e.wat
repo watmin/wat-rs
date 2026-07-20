@@ -1,0 +1,1 @@
+(:wat::core::let [f (:wat::core::read-string "(:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool (:wat::core::> n 3))") pf (:wat::core::Result/expect (:wat::eval-ast! f) "eval failed") r (:wat::core::apply -> :wat::core::bool pf [5])] r)

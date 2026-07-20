@@ -156,6 +156,7 @@
      req-lo-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-lo")))
      req-hi-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-hi")))
      req-lim-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/limit")))
+     req-cur-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/cursor")))
 
      record-ty-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::Record")))
      state-ty-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State")))
@@ -216,10 +217,55 @@
          (:wat::core::Vector :wat::core::String)
          rules-children)
 
+     ;; ── (2b) fired-upon-type-strs: UNIQUE type names appearing as the HEAD of any rule's
+     ;; `:when` condition (mirrors (2)'s ctor-head walk, but over when-vec conditions directly —
+     ;; every `:when` clause is `(:Type (?bind <- :field) …tests…)`, per make-rule/compile-rule's
+     ;; own "form::matches?-shaped clauses" contract). This is the CASCADED-UPON set.
+     fired-upon-type-strs
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> rf <- :wat::WatAST]
+           -> :wat::core::Vector<wat::core::String>
+           (:wat::core::let
+             [rch      (:wat::core::ast->children rf)
+              when-vec (:wat::core::Option/expect (:wat::core::get rch 3)
+                         "sift-rules-defsvc: rule missing :when")
+              conds    (:wat::core::ast->children when-vec)]
+             (:wat::core::foldl
+               (:wat::core::fn [acc2 <- :wat::core::Vector<wat::core::String> cf <- :wat::WatAST]
+                 -> :wat::core::Vector<wat::core::String>
+                 (:wat::core::let
+                   [cch  (:wat::core::ast->children cf)
+                    ckw  (:wat::core::Option/expect (:wat::core::get cch 0)
+                           "sift-rules-defsvc: :when condition missing a type")
+                    craw (:wat::core::ast-name ckw)
+                    cstr (:wat::core::if (:wat::core::= (:wat::core::string::subs craw 0 1) ":")
+                           (:wat::core::string::subs craw 1 (:wat::core::string::length craw))
+                           craw)]
+                   (:wat::core::if (:wat::core::Vector/contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
+               acc
+               conds)))
+         (:wat::core::Vector :wat::core::String)
+         rules-children)
+
+     ;; ── (2c) deduction-type-strs: derived − fired-upon — the TERMINAL types (derived and no
+     ;; rule ever matches on them). Lemma types (derived ∩ fired-upon) cascade internally
+     ;; (fire-to-fixpoint, already proven) but are deliberately EXCLUDED here — never returned.
+     deduction-type-strs
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> tstr <- :wat::core::String]
+           -> :wat::core::Vector<wat::core::String>
+           (:wat::core::if (:wat::core::Vector/contains? fired-upon-type-strs tstr)
+             acc
+             (:wat::core::conj acc tstr)))
+         (:wat::core::Vector :wat::core::String)
+         derived-type-strs)
+
      fired-sym (:wat::core::symbol-node "fired")
-     ;; query-calls: one `(:wat::rete::query fired :Type)` per unique derived type — flat-mapped
-     ;; via `:wat::core::concat` into the reply's PersistentVector<Value> (probed: `concat` on
-     ;; PersistentVectors unifies to the declared Value-typed return; no `into` needed/accepted).
+     ;; query-calls: one `(:wat::rete::query fired :Type)` per unique DEDUCTION (derived −
+     ;; fired-upon) type — flat-mapped via `:wat::core::concat` into the reply's
+     ;; PersistentVector<Value> (probed: `concat` on PersistentVectors unifies to the declared
+     ;; Value-typed return; no `into` needed/accepted). Lemma types are NOT queried back — they
+     ;; stay internal to the fired session, cascaded-upon only.
      query-calls
        (:wat::core::foldl
          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> tstr <- :wat::core::String]
@@ -228,7 +274,21 @@
              [tkw (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))]
              (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~tkw))))
          (:wat::core::Vector :wat::WatAST)
-         derived-type-strs)
+         deduction-type-strs)
+
+     ;; concat-chain: `:wat::core::concat` is BINARY (Vector/concat's arity, not variadic) —
+     ;; `(:wat::core::concat ~@query-calls)` only type-checks when there are exactly 2 deduction
+     ;; types (the #6 gate's Hot/Warn happened to be 2 — masking this). A richer graph (3+
+     ;; deduction types) needs a LEFT-FOLDED chain of binary concats, built here at expand time.
+     ;; Zero deduction types (theoretically possible) folds to an empty PersistentVector literal.
+     concat-chain
+       (:wat::core::if (:wat::core::= (:wat::core::length query-calls) 0)
+         `(:wat::core::PersistentVector)
+         (:wat::core::foldl
+           (:wat::core::fn [acc <- :wat::WatAST qc <- :wat::WatAST] -> :wat::WatAST
+             `(:wat::core::concat ~acc ~qc))
+           (:wat::core::first query-calls)
+           (:wat::core::rest query-calls)))
 
      ;; def-type-strs: colon-free type names of the user's `:defs` — the class-guard vocabulary
      ;; (fail-closed: a Log whose decoded message class isn't among these → ::Fatal, never a crash
@@ -265,9 +325,11 @@
             [namespace <- :wat::core::String
              time-lo   <- :wat::core::i64
              time-hi   <- :wat::core::i64
-             limit     <- :wat::core::i64])
+             limit     <- :wat::core::i64
+             cursor    <- (:wat::core::Option :wat::core::String)])
           (:wat::core::defenum ~resp-kw :wat::enum::Pure
-            :Deductions [items <- :wat::core::PersistentVector<wat::core::Value>]
+            :Deductions [items  <- :wat::core::PersistentVector<wat::core::Value>
+                         cursor <- (:wat::core::Option :wat::core::String)]
             :Fatal      [err   <- :wat::query::Fault])]
          :features
          [(sift-rules [self <- ~surface-kw req <- ~req-kw] -> ~resp-kw)])
@@ -299,9 +361,9 @@
                     :time-lo   (~req-lo-kw req)
                     :time-hi   (~req-hi-kw req)
                     :limit     (~req-lim-kw req)
-                    :cursor    :wat::core::None))
+                    :cursor    (~req-cur-kw req)))
                 -> ~resp-kw
-                ((:wat::telemetry::Journal::QueryLogsResponse::Success logs _cur)
+                ((:wat::telemetry::Journal::QueryLogsResponse::Success logs next-cur)
                   (:wat::core::if
                     (:wat::core::foldl
                       (:wat::core::fn [~ok-sym <- :wat::core::bool ~log-sym <- :wat::telemetry::Log]
@@ -324,9 +386,10 @@
                               [~fired-sym (:wat::rete::fire-rules
                                             (:wat::rete::insert (~state-template-kw s)
                                               (:wat::edn::read (:wat::telemetry::Log/message ~log-sym))))]
-                              (:wat::core::concat ~@query-calls))))
+                              ~concat-chain)))
                         (:wat::core::PersistentVector)
-                        logs))
+                        logs)
+                      next-cur)
                     (~resp-fat-kw
                       (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs"))))
                 (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed"))))))]))))
