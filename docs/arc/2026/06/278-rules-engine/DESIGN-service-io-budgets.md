@@ -102,6 +102,26 @@ cause to learn whether it was too-large vs impure-params vs unknown-type. Exampl
 - Shared kinds (`RequestTooLarge`, `ImpureRules`) likely draw from a common failure-record vocabulary in
   `:wat::query`; the exact sharing is a build detail, the *naming-per-kind* is the law.
 
+## The two-sided contract (builder-ruled 2026-07-20) — defense at the gate + ergonomic tooling
+
+A defservice is a **network service facing untrusted clients who will do dumb shit.** So the contract has two
+sides, and both are mandatory:
+- **Defense at the gate (server):** the API **MUST enforce** every budget — a bad/hostile/buggy client's
+  over-budget frame gets a *reasoned* rejection (the named `::RequestTooLarge`, never mute — #15) and the
+  service **keeps serving everyone else** (one dumb client cannot mute-crash or DoS the shared service). The
+  transport `FrameTooLarge` guard + the serve-loop per-op enforcement are the gate.
+- **Ergonomic tooling (good client):** the tooling has **perfect byte-knowledge** (it encodes + measures), so
+  it **never emits an over-budget frame** — the enforcement path is *unreachable for a well-behaved caller.*
+  Good clients are just good. The enforcement is real and mandatory; it is simply the path our own tooling
+  never walks.
+
+**Per-item ceiling (the one thing even good tooling must reject up front):** a *single* item whose encoded size
+— alone in a request, envelope included — exceeds the op budget **cannot be chunked** and is **rejected, not
+enqueued**: `::ItemTooLarge{item, bytes, cap}`, returned *before* any write or buffer. So effectively a single
+log line must be ≤ `:max-request-bytes` − envelope-overhead (~9.99 MiB for a 10 MiB cap); the tooling does the
+*exact* per-item check (encode-alone-in-a-request, measure), not a fixed number. In `with-log-sink`, a `push`
+of an over-max item returns `::ItemTooLarge` immediately and never buffers it.
+
 ## Writer tooling — the write loop (symmetric with read: consume a Stream / push with backpressure)
 
 Streams are the bulk-I/O interface **both** ways: read *produces* a lazy `Stream` the client pulls; write
