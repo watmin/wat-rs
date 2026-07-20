@@ -104,6 +104,233 @@
   (:wat::core::let [src (:wat::core::ast->source fn-form)]
     `(:wat::query::Sieve::Predicate ~src)))
 
+;; ─── sift-rules-defsvc — arc 278 task #6: the Rules form (the chaos engine's inference tier) ────
+;; DESIGN-sift-server-side-filter.md / BRIEF-STONE-sift-rules.md. The user hands `:defs` (their
+;; `defrecord`s) + `:rules` (their `defrule`s); this macro emits an ADHOC `:satisfies` service
+;; (surface + defservice) whose `sift-rules` op reads a page of Logs from a held Journal peer and
+;; fires the user's rules PER LOG (one seed per fire — alpha-only structural, RENASCOR NON RETRACTO
+;; at the record grain), flat-mapping the DERIVED facts (not the seeds) into one
+;; `PersistentVector<wat::core::Value>` reply — the level-up from the Predicate's SELECT to INFER
+;; (one log can yield MANY deductions; the returned count can exceed the page size).
+;;
+;; Canonical kwargs order assumed (defrule precedent, wat/rete.wat:1971): `:name :defs :rules`.
+;;
+;; ── the two macro-time extraction problems (both probed clean, scratchpad/probe-rule-lits.wat) ──
+;;   (1) Rule VALUES, not defns: `:rules` are literal `(defrule name :when […] :then …)` forms. A
+;;       spliced top-level defn would NOT cross a process fork (only the satisfied surface's
+;;       :messages + :peers surfaces' :messages + this defservice's own internals ship —
+;;       tests/services/probe_arc278_sift_arena.wat's `:cons::sift-loop` note). So each rule form
+;;       is decomposed (name/`:when`/`:then`, mirroring defrule's own body) into a
+;;       `(:wat::rete::make-rule …)` call LITERAL — no defn, no cross-fork gap.
+;;   (2) Deduction extraction: `Session/facts` does NOT carry derived facts post-fire (proven false
+;;       — probed: pre == post even though the rules demonstrably fired); the query-per-type
+;;       fallback DOES (STOP-3b's designated fallback). So this macro walks every rule's `:then`
+;;       `(insert (:Type …))` forms, collects the UNIQUE derived type names, and emits one
+;;       `(:wat::rete::query fired :Type)` per unique type, flat-mapped via `:wat::core::concat`.
+;;
+;; Everything (both extractions above, the Journal page read, the class-guarded foreign decode, the
+;; fire/collect fold) is INLINED directly into the `:impls` op body — never a sibling top-level
+;; defn — for the same cross-fork reason as (1).
+(:wat::core::defmacro :wat::query::sift-rules-defsvc
+  [& clauses <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST
+  (:wat::core::let
+    [name-node  (:wat::core::Option/expect (:wat::core::get clauses 1) "sift-rules-defsvc: missing :name")
+     defs-node  (:wat::core::Option/expect (:wat::core::get clauses 3) "sift-rules-defsvc: missing :defs")
+     rules-node (:wat::core::Option/expect (:wat::core::get clauses 5) "sift-rules-defsvc: missing :rules")
+
+     ;; strip-leading-colon inline (defrule's own idiom — can't call a user-defn from a
+     ;; program-body macro).
+     raw-name   (:wat::core::ast-name name-node)
+     name-str   (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
+                  (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+                  raw-name)
+     svc-str    (:wat::core::string::concat name-str "'")
+
+     surface-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" name-str))
+     svc-kw      (:wat::core::keyword-node (:wat::core::string::concat ":" svc-str))
+     req-kw      (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest")))
+     resp-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse")))
+     resp-ded-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Deductions")))
+     resp-fat-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Fatal")))
+     req-ns-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/namespace")))
+     req-lo-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-lo")))
+     req-hi-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-hi")))
+     req-lim-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/limit")))
+
+     record-ty-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::Record")))
+     state-ty-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State")))
+     state-journal-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/journal")))
+     state-template-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/template")))
+
+     defs-children  (:wat::core::ast->children defs-node)
+     rules-children (:wat::core::ast->children rules-node)
+
+     ;; ── (1) rule-lits: Vector<WatAST> of `(make-rule name-str (quote when-vec) (quote [then…]))`
+     ;; call literals — one per :rules form. Mirrors defrule's own body (rete.wat:1971) exactly,
+     ;; minus the defn wrapper (see the doc comment above).
+     rule-lits
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> rf <- :wat::WatAST]
+           -> :wat::core::Vector<wat::WatAST>
+           (:wat::core::let
+             [rch        (:wat::core::ast->children rf)
+              rname      (:wat::core::Option/expect (:wat::core::get rch 1) "sift-rules-defsvc: rule missing name")
+              raw-rname  (:wat::core::ast-name rname)
+              rname-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-rname 0 1) ":")
+                           (:wat::core::string::subs raw-rname 1 (:wat::core::string::length raw-rname))
+                           raw-rname)
+              when-vec   (:wat::core::Option/expect (:wat::core::get rch 3) "sift-rules-defsvc: rule missing :when")
+              then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest rch)))))
+              rule-lit   `(:wat::rete::make-rule ~rname-str (:wat::core::quote ~when-vec) (:wat::core::quote [~@then-forms]))]
+             (:wat::core::conj acc rule-lit)))
+         (:wat::core::Vector :wat::WatAST)
+         rules-children)
+
+     ;; ── (2) derived-type-strs: UNIQUE type names across every rule's `:then (insert (:Type …))`
+     ;; forms — the set of types this Rules-form ever DERIVES (query'd back per type; the proven
+     ;; fallback, since Session/facts doesn't carry them).
+     derived-type-strs
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> rf <- :wat::WatAST]
+           -> :wat::core::Vector<wat::core::String>
+           (:wat::core::let
+             [rch (:wat::core::ast->children rf)
+              then-forms (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest (:wat::core::rest rch)))))]
+             (:wat::core::foldl
+               (:wat::core::fn [acc2 <- :wat::core::Vector<wat::core::String> tf <- :wat::WatAST]
+                 -> :wat::core::Vector<wat::core::String>
+                 (:wat::core::let
+                   [tch  (:wat::core::ast->children tf)
+                    ctor (:wat::core::Option/expect (:wat::core::get tch 1)
+                           "sift-rules-defsvc: :then form must be (insert (:Type …))")
+                    cch  (:wat::core::ast->children ctor)
+                    tkw  (:wat::core::Option/expect (:wat::core::get cch 0)
+                           "sift-rules-defsvc: :then insert ctor missing a type")
+                    traw (:wat::core::ast-name tkw)
+                    tstr (:wat::core::if (:wat::core::= (:wat::core::string::subs traw 0 1) ":")
+                           (:wat::core::string::subs traw 1 (:wat::core::string::length traw))
+                           traw)]
+                   (:wat::core::if (:wat::core::Vector/contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
+               acc
+               then-forms)))
+         (:wat::core::Vector :wat::core::String)
+         rules-children)
+
+     fired-sym (:wat::core::symbol-node "fired")
+     ;; query-calls: one `(:wat::rete::query fired :Type)` per unique derived type — flat-mapped
+     ;; via `:wat::core::concat` into the reply's PersistentVector<Value> (probed: `concat` on
+     ;; PersistentVectors unifies to the declared Value-typed return; no `into` needed/accepted).
+     query-calls
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> tstr <- :wat::core::String]
+           -> :wat::core::Vector<wat::WatAST>
+           (:wat::core::let
+             [tkw (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))]
+             (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~tkw))))
+         (:wat::core::Vector :wat::WatAST)
+         derived-type-strs)
+
+     ;; def-type-strs: colon-free type names of the user's `:defs` — the class-guard vocabulary
+     ;; (fail-closed: a Log whose decoded message class isn't among these → ::Fatal, never a crash
+     ;; or a silent skip — no-hidden-failures).
+     def-type-strs
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> df <- :wat::WatAST]
+           -> :wat::core::Vector<wat::core::String>
+           (:wat::core::let
+             [dch  (:wat::core::ast->children df)
+              dn   (:wat::core::Option/expect (:wat::core::get dch 1) "sift-rules-defsvc: def missing a name")
+              draw (:wat::core::ast-name dn)
+              dstr (:wat::core::if (:wat::core::= (:wat::core::string::subs draw 0 1) ":")
+                     (:wat::core::string::subs draw 1 (:wat::core::string::length draw))
+                     draw)]
+             (:wat::core::conj acc dstr)))
+         (:wat::core::Vector :wat::core::String)
+         defs-children)
+
+     ;; synthetic binder symbols — every literal `let`/`fn` inside the templates below must use
+     ;; one of these (Unquote nodes), never a bare Symbol, per the ProgramBodyIntroducesName gate
+     ;; (expand.rs:875) — a bare Symbol at a let-binder/fn-param slot directly inside a quasiquote
+     ;; reads as accidental capture, not intentional hygiene.
+     record-sym (:wat::core::symbol-node "record")
+     jaddr-sym  (:wat::core::symbol-node "journal-addr")
+     ok-sym     (:wat::core::symbol-node "ok")
+     log-sym    (:wat::core::symbol-node "log")
+     acc-sym    (:wat::core::symbol-node "acc")]
+    `(:wat::core::do
+       (:wat::core::defsurface ~surface-kw :nature :wat::kernel::Peer'
+         :messages
+         [~@defs-children
+          (:wat::core::defrecord ~req-kw
+            [namespace <- :wat::core::String
+             time-lo   <- :wat::core::i64
+             time-hi   <- :wat::core::i64
+             limit     <- :wat::core::i64])
+          (:wat::core::defenum ~resp-kw :wat::enum::Pure
+            :Deductions [items <- :wat::core::PersistentVector<wat::core::Value>]
+            :Fatal      [err   <- :wat::query::Fault])]
+         :features
+         [(sift-rules [self <- ~surface-kw req <- ~req-kw] -> ~resp-kw)])
+       (:wat::service::defservice ~svc-kw
+         :satisfies ~surface-kw
+         :durable   []
+         :ephemeral [journal  <- :wat::kernel::Peer'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>
+                     template <- :wat::rete::Session]
+         :peers     [:wat::telemetry::Journal]
+         ;; :init compiles ~@:rules into a Session TEMPLATE (WM empty) held in :ephemeral state —
+         ;; the arena's `journal` peer field is the precedent for a derived-at-init, never-mutated
+         ;; resource living there (mem.wat's `rows` is the :durable precedent for a plain held
+         ;; value; a Session is closer to "a resource" than "mutated data").
+         :init (:wat::core::fn
+                 [~record-sym <- ~record-ty-kw
+                  ~jaddr-sym  <- :wat::kernel::Address'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+                 -> ~state-ty-kw
+                 (~state-ty-kw
+                   :durable  ~record-sym
+                   :journal  (:wat::kernel::connect' ~jaddr-sym)
+                   :template (:wat::rete::compile (:wat::core::PersistentVector ~@rule-lits))))
+         :impls
+         [(sift-rules [s req]
+            (:wat::service::Outcome::Reply s
+              (:wat::core::match
+                (:wat::telemetry::Journal/query-logs (~state-journal-kw s)
+                  (:wat::telemetry::Journal::QueryLogsRequest
+                    :namespace (~req-ns-kw req)
+                    :time-lo   (~req-lo-kw req)
+                    :time-hi   (~req-hi-kw req)
+                    :limit     (~req-lim-kw req)
+                    :cursor    :wat::core::None))
+                -> ~resp-kw
+                ((:wat::telemetry::Journal::QueryLogsResponse::Success logs _cur)
+                  (:wat::core::if
+                    (:wat::core::foldl
+                      (:wat::core::fn [~ok-sym <- :wat::core::bool ~log-sym <- :wat::telemetry::Log]
+                        -> :wat::core::bool
+                        (:wat::core::if ~ok-sym
+                          (:wat::core::Vector/contains?
+                            (:wat::core::Vector :wat::core::String ~@def-type-strs)
+                            (:wat::core::type
+                              (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))))
+                          false))
+                      true
+                      logs)
+                    (~resp-ded-kw
+                      (:wat::core::foldl
+                        (:wat::core::fn [~acc-sym <- :wat::core::PersistentVector<wat::core::Value>
+                                         ~log-sym <- :wat::telemetry::Log]
+                          -> :wat::core::PersistentVector<wat::core::Value>
+                          (:wat::core::concat ~acc-sym
+                            (:wat::core::let
+                              [~fired-sym (:wat::rete::fire-rules
+                                            (:wat::rete::insert (~state-template-kw s)
+                                              (:wat::edn::read (:wat::telemetry::Log/message ~log-sym))))]
+                              (:wat::core::concat ~@query-calls))))
+                        (:wat::core::PersistentVector)
+                        logs))
+                    (~resp-fat-kw
+                      (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs"))))
+                (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed"))))))]))))
+
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed
 ;; `Peer'<Store::Op,Store::Reply>` IS a Store INTRINSICALLY (arc 293 Path B) — no wrapper struct,
