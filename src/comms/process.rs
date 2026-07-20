@@ -1097,7 +1097,27 @@ fn take_frame(acc: &mut Vec<u8>, max_frame_bytes: usize) -> Result<Option<Frame>
         // Disconnected here would make ProcessPeerBundle::recv() call err.recv()
         // while the peer cannot write to the error channel — DEADLOCK. Return
         // FrameTooLarge distinctly so callers can tear down the peer immediately.
-        FrameScan::TooLarge(_) => Err(RecvError::FrameTooLarge),
+        //
+        // Arc 278 #15 (reject-and-keep-serving): a COMPLETE over-budget frame
+        // (a full `\n`-terminated prefix whose length `end` exceeds the cap —
+        // `next_complete_frame`'s semantics-B rejection: `acc[end-1] == b'\n'`)
+        // must be DRAINED so the accumulator re-aligns to the next frame and the
+        // NEXT recv() reads it — one dumb client's oversized frame must not wedge
+        // the wire. We STILL return FrameTooLarge (SPEAK / no-hidden-failures):
+        // the caller MUST learn the frame was rejected; we only discard the bytes.
+        //
+        // The INCOMPLETE over-budget case (no `\n` yet — `end == acc.len()`, no
+        // terminating newline) is the endless-frame/DoS case and is OUT OF SCOPE
+        // here: we do NOT drain it (there is no frame boundary to re-align to);
+        // it keeps returning FrameTooLarge exactly as before.
+        FrameScan::TooLarge(end) => {
+            if end >= 1 && acc.get(end - 1) == Some(&b'\n') {
+                // Complete over-budget frame: discard it, re-align to the residual.
+                let suffix = acc.split_off(end);
+                *acc = suffix;
+            }
+            Err(RecvError::FrameTooLarge)
+        }
         // Malformed: wire-level encoding error (non-UTF-8); the peer may or may
         // not be alive. Arc 278 no-hidden-failures: carry FrameScan::Malformed's
         // own message (e.g. "non-UTF-8 bytes in frame") via Failed instead of
