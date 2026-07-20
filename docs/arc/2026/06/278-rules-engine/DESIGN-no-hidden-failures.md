@@ -158,11 +158,11 @@ Since the last breadcrumb: the RICH Rules arena was weighed GREEN by own re-run 
 - **`scratchpad/design-io-budgets-ux.wat`** — the materialized caller UX (R17).
 
 ### Landed this stretch (pushed, DR)
-`75ca51c8` DR checkpoint (designs + arena WIP, honest green-but-shortcut) · `3e8a71b6` finalized design · `24ac73e7` **#15 facet 1: `FrameTooLarge` DRAINS + keeps serving** (comms `take_frame` drains a complete over-budget frame + re-aligns, still returns the reason; RED probe `tests/comms/probe_arc278_over_budget_recovers.rs`; own re-run floor 4178/0).
+`75ca51c8` DR checkpoint (designs + arena WIP, honest green-but-shortcut) · `3e8a71b6` finalized design · `24ac73e7` **#15 facet 1: `FrameTooLarge` DRAINS + keeps serving** (comms `take_frame` drains a complete over-budget frame + re-aligns, still returns the reason; RED probe `tests/comms/probe_arc278_over_budget_recovers.rs`; own re-run floor 4178/0) · `dc5dd99c` breadcrumb trued · `c26cd189` **#15 process-peer regression guard** (`probe_arc278_recv_over_budget_reason` — locks the already-dead process-peer over-budget mute; floor 4179/0).
 
 ### ★ RESUME AT — finish #15, then the build order
-**#15 (mute-kill floor), three facets:** (1) drain-realign / reject-and-keep-serving — **DONE** (`24ac73e7`); (2) **SPEAK-mute — IN FLIGHT** (a shadowdancer): the process client-`recv'` (`runtime.rs:26168-26210`) lumps `FrameTooLarge` into the generic "peer closed" (the arena's ACTUAL mute) — make it carry the reason (mirror `classify_peer_error`, `spawn.rs:244`); **check the task result → weigh by OWN re-run (RED-by-revert + GREEN + floor) → commit**; (3) the **WALL** — OWED (reason-free variants unconstructible-from-error + a lint backstop; structural impossibility).
-- **FINDING:** the frame-cap facets are **PROCESS-ONLY** — the thread tier (crossbeam) has no byte-framing → no `FrameTooLarge`. Thread was never affected; `transfer.rs:176`'s Comms arm is defensive/unreachable.
+**#15 (mute-kill floor), three facets:** (1) drain-realign / reject-and-keep-serving — **DONE** (`24ac73e7`). (2) **SPEAK-mute — TARGET CORRECTED by STOP-1 (verified by own read):** the `spawn-program'` PROCESS-peer `recv'` ALREADY speaks (`classify_peer_error → Crashed(reason)`; guard `c26cd189` locks it green). The REAL remaining mute is the **SOCKET-tier `recv_wire` arm, `runtime.rs:~26177`** — its `_ =>` lumps `FrameTooLarge` into the generic "peer closed"; the arena dials via `connect'` = socket-tier, so this is the arena's ACTUAL mute. **DECISION (four-questions all YES — KILL NOW, do NOT defer):** apply the 1-line fix `RecvError::FrameTooLarge => e.to_string()` at `~26177` (mirror the `Failed` arm just above it), verify RED-before/GREEN-after via `scratchpad/probe-arena-scale-n700.wat` (still hits `26177`); the COMMITTED *light* RED gate is **OWED → it RIDES #16** (socket peers hardcode 512 KiB with no wat knob; a light small-cap probe needs #16's budget knob — a heavy >512 KiB+concurrent probe now would be a throwaway). *(The "fold both into #16" option was struck DEGENERATE — it is just this-deferred, offering nothing.)* (3) the **WALL** — OWED (reason-free variants unconstructible-from-error + a lint backstop; structural impossibility).
+- **FINDING (recv-path topology, grounded):** `FrameTooLarge` is a byte-framing (PROCESS) phenomenon only — the thread tier (crossbeam) has no frames. Three client-`recv'` arms: PROCESS-peer (`runtime.rs:~26053`, `spawn-program'`) already SPEAKS; SOCKET-tier (`~26177`, `connect'`/`accept'`) MUTES `FrameTooLarge` (the #15.2 target); thread-tier (`~26210`) + `transfer.rs:176` are defensive/unreachable (no frames).
 - **BUILD ORDER (tractability-first):** #15 → #17 (named-error vocab) → #16 (per-op budgets + transport ceiling + `spawn.rs:765` input-channel fix + serve-loop enforcement) → #18 write tooling / #19 `<op>-stream` reader → #20 output-streaming → #21 re-do the arena CLEAN (capstone). Tasks #14–#21.
 
 ### LESSONS (this stretch — do not relearn)
@@ -171,16 +171,18 @@ Since the last breadcrumb: the RICH Rules arena was weighed GREEN by own re-run 
 - **Never overload an error bucket** — a NAMED variant per failure kind; exhaustive `match` forces handling (conformare); 400-fixable distinct from 500-fault.
 - **Streams both ways** (read = pull a lazy Stream / write = feed a Stream or push a buffered sink); the page/batch boundary invisible.
 - The mute class must die **STRUCTURALLY** (unrepresentable), not caught case #N — 5 stem-cuts already regrew. RED probe FIRST, weigh by OWN re-run, commit green (no broken commit).
+- **Ground the recv-path topology BEFORE writing the probe** — a spec that targets the wrong `recv'` arm comes up GREEN, not RED (STOP-1: my `spawn-program'`/process-peer spec was already-fixed; the real mute is socket-tier). A shadowdancer's STOP that surfaces a re-scope is CORRECT + valuable — never force a false RED, never improvise the fix past the spec.
 - *(Arena-stretch, still valid: graph-inference `Deduction=derived−fired-upon` / `Lemma`=gate, NO boxing; programmable-DB = police safety not usefulness `[[feedback_programmable_db_police_safety_not_usefulness]]`; IPC locus doctrine `[[feedback_ipc_loci_defservice_bracket_wat_only]]`; rich records + `where`-rules, `scratchpad/probe-rules-rich.wat`.)*
 
 ### Realizations: **R50** `RVINA VIAM FABRICAT` freshest (R49 `GLADIVS LOQVITVR` prior). The arena's exact-count kill is done — but HELD; R50's PROBATVM waits on #21 (the clean redo).
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
 > bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations. Ground
-> `git status` (branch `arc-170-…`; HEAD ≈ `24ac73e7` or later). **The DESIGN PHASE is DONE** — read
+> `git status` (branch `arc-170-…`; HEAD ≈ `c26cd189` or later). **The DESIGN PHASE is DONE** — read
 > `DESIGN-service-io-budgets.md` + this doc's STRUCTURAL CLOSURE; do NOT re-derive the contract. **RESUME AT: finish
-> #15** — the SPEAK-mute shadowdancer (weigh its result by your OWN re-run: RED-by-revert + GREEN + floor; commit),
-> then the WALL, then the build order #17→#16→#18/#19→#20→#21. The **arena (#14) is HELD** on its shortcuts — redone
+> #15** — apply the SPEAK-mute 1-line fix (`runtime.rs:~26177`: `FrameTooLarge => e.to_string()`, mirror the `Failed`
+> arm; verify RED→GREEN via `scratchpad/probe-arena-scale-n700.wat`; the committed light gate RIDES #16's socket-budget
+> knob), then the WALL (structural), then the build order #17→#16→#18/#19→#20→#21. The **arena (#14) is HELD** on its shortcuts — redone
 > CLEAN in #21; do NOT bless it as done. **Silent errors must die STRUCTURALLY** (5 stem-cuts regrew — the wall, not a
 > 6th patch). Two-sided contract: defense-at-the-gate + ergonomic tooling. RED probe FIRST; weigh by your OWN re-run;
 > commit green; the git log is DR. Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference.`
