@@ -1,0 +1,20 @@
+STOP — there is no `scratchpad/` directory, by design.
+
+This is a FILE, not a directory, on purpose: it holds the name `scratchpad`
+so `mkdir scratchpad` fails (File exists) and `scratchpad/foo.wat` fails
+(Not a directory). The dead scratch dir cannot be recreated — a structural
+block, not a convention.
+
+Scratch goes here instead:
+  • throwaway / reconnaissance .wat  → wat-scripts/scratch-pad/**.wat
+      Loader-gated: every .wat under wat-scripts/ is parsed + type-checked by
+      the `every_wat_scripts_file_loads` test, so a scratch .wat that rots goes
+      RED — it can never become a graveyard that reads like live code. All wat
+      stays correct, always. (Per-file check: `target/release/wat --check f.wat`
+      — the same load verdict in ~0.2s.)
+  • non-.wat temp files (logs, patches, data) → the session scratchpad
+      (/tmp/claude-.../scratchpad), never the repo.
+
+Agent reading this because you tried to write here: redirect to
+wat-scripts/scratch-pad/ (.wat) or the session scratchpad (everything else).
+Do NOT delete or convert this file back into a directory — it IS the block.

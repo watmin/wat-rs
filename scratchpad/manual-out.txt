@@ -1,4 +1,0 @@
-"main: wrote logs"
-"main: started sift svc"
-"main: connected"
-#wat.kernel/ProcessPanics [#wat.kernel.ProcessDiedError/RuntimeError ["#wat.runtime/MalformedForm {:message \"malformed :wat::kernel::recv' form: recv failed: peer closed / channel disconnected\" :location #wat.core/Span {:file \"/home/watmin/work/holon/wat-rs/scratchpad/probe-sift-rules-manual.wat\" :line 127 :col 12 :end #wat.core.Option/Some [#wat.core/Pos {:line 128 :col 106}]} :causes [] :head \":wat::kernel::recv'\" :reason \"recv failed: peer closed / channel disconnected\"}"]]

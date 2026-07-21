@@ -1,1 +1,0 @@
-(:wat::core::let [pf (:wat::core::Result/expect (:wat::eval-ast! (:wat::core::read-string "(:wat::core::this-verb-does-not-exist)")) "freeze-time boom")] pf)

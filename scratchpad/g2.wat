@@ -1,1 +1,0 @@
-(:wat::core::let [f (:wat::core::read-string "(:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool (:wat::core::> n 3))") pf (:wat::core::Result/expect (:wat::eval-ast! f) "freeze-time boom")] pf)
