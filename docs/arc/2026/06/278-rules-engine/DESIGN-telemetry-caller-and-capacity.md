@@ -268,7 +268,15 @@ brief) → the `:wat::telemetry::log` widget macro → weigh `--release` by own 
   − floor`; RED gate = a record with an extra fixed field yields a larger floor) — buildable now, no
   substrate gap — **BUILDING**. Refinements (follow-ons): `variants-of` (enum-in-floor by reflection) + a
   UTF-8 byte-length prim.
-- §4 log macro + `macro-call-site`: **RATIFIED (2026-07-21), BUILDING** — see §4. Mechanism A1 (the
+- §4 log macro + `macro-call-site`: **DONE (2026-07-21)** — `macro-call-site` verb (`620f931c`) + the
+  `:wat::telemetry::log` widget (`b60cb09b`), both weighed green by own `--release` re-run (4198/0). The
+  widget is **POSITIONAL** `[span level message]` (same grain as `timed`/`with-span`), 4 lines composing
+  `macro-call-site` + `Span/log` + `edn::write`; **kwargs was rejected on the four-questions** — the
+  opaque-message `edn::write` transform (Stone B) denies free `~@kw` splicing into the LogRequest ctor, and
+  the only kwargs path is a braided hand-rolled scan that fails Simple. The seam CORRECTION held (a
+  thread-local `MACRO_CALL_SITE`, NOT a param-thread — `macro_eval` delegates to `runtime::eval`); the
+  guard is pushed in `expand_macro_call` (both eval paths converge there, not `expand_program_body` — the
+  one grounded delta from the drawn seam). `symbol = None`. Design record below. — see §4. Mechanism A1 (the
   expand-only `:wat::kernel::macro-call-site` verb, four-questions all-YES; A2 binding rejected); name
   intueri-cast + weighed; seam grounded + CORRECTED to a THREAD-LOCAL (`macro_eval` delegates to
   `runtime::eval`, so a param-thread was rejected — mirror `CALL_STACK`/`FrameGuard`, frame.rs:11: a
