@@ -423,6 +423,16 @@ fn is_pure_total(head: &str) -> bool {
         // → same MacroError); the deliberate abort is safe at expand time.
         | ":wat::core::macro-error"
 
+        // Arc 278 §4 — `:wat::kernel::macro-call-site`: reads the expand-time
+        // `MACRO_CALL_SITE` thread-local (the CURRENT macro invocation's own
+        // source span, pushed by `expand_macro_call`) and returns a
+        // spliceable Frame-constructor FORM. Pure + deterministic PER
+        // EXPANSION (same invocation → same span, every time it's read
+        // during that invocation's expansion) and does no IO — it is the
+        // `log`-macro's per-log-line `emitted-from` primitive, so it must be
+        // permitted in a macro body for that macro to ever exist.
+        | ":wat::kernel::macro-call-site"
+
         // ── String ops (pure) ─────────────────────────────────────────
         | ":wat::core::string::concat"
         // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as

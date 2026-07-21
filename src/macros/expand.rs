@@ -652,6 +652,16 @@ pub(super) fn expand_macro_call(
     // a mutable counter through the whole expansion tree would expose it
     // through every caller's signature.
     let macro_scope = fresh_scope();
+    // Arc 278 §4 — push this invocation's call-site span for the duration of
+    // its expansion so `:wat::kernel::macro-call-site` (runtime.rs, gated
+    // pure-total via macros/eval.rs) can read it regardless of which
+    // downstream path evaluates the macro body: the bare-quasiquote path
+    // (`expand_quasiquote_body` → `walk_template` → `unquote_argument` →
+    // `macro_eval`) or the program-body path (`expand_program_body` →
+    // `macro_eval_pre_validated`). Both are reached only through
+    // `expand_template` below, so pushing once here (RAII pop on return)
+    // covers both uniformly and matches "one push per macro invocation."
+    let _mcs = crate::value::MacroCallSiteGuard::push(call_site_span.clone());
     let expanded = expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)?;
     // Diagnostic fidelity (arc 209, C.1): bridge constructors (`keyword-node`/`symbol-node`/
     // `read-string`, edn_shim) build `WatAST` nodes stamped with rust_caller_span!() (arc 298.2).

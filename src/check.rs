@@ -18289,6 +18289,23 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 "caller.2 §4" — `(:wat::kernel::macro-call-site) → :wat::WatAST`.
+    // The expand-time twin of `call-site`: used inside a macro body, returns
+    // the macro invocation's own call-site as a spliceable
+    // `:wat::kernel::Frame` constructor FORM (not a `Frame` value — a macro's
+    // return type is always `:wat::WatAST`, a macro always expands to a
+    // form). Runtime: reads the `MACRO_CALL_SITE` thread-local top span
+    // (src/value/frame.rs), pushed by `expand_macro_call` for the duration
+    // of expanding each macro invocation.
+    env.register(
+        ":wat::kernel::macro-call-site".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::WatAST".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 259 — The Forced Hand: ambient program environment.
     // `(:wat::program::env) → :wat::program::Env` — returns the current
     // thread's installed program env (a :wat::program::Env record or subtype).

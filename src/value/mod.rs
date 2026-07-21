@@ -38,7 +38,7 @@ pub mod value;
 pub use encoding_ctx::EncodingCtx;
 pub use environment::{Function, FunctionBody, Environment, EnvBuilder, BoundEntry};
 pub use frame::{FrameInfo, snapshot_call_stack};
-pub(crate) use frame::{FrameGuard, replace_top_frame};
+pub(crate) use frame::{FrameGuard, replace_top_frame, MacroCallSiteGuard, current_macro_call_site};
 pub use observe::{Provenance, TrackedValue, ValueSnapshot};
 pub use signal::{EvalBreak, EvalSignal, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;

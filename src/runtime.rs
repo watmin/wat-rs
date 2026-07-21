@@ -4992,6 +4992,7 @@ fn dispatch_keyword_head_value(
         // Kernel primitives — channel IO + stop flag + user signals.
         ":wat::kernel::stopped?" => eval_kernel_stopped(args, list_span),
         ":wat::kernel::call-site" => eval_kernel_call_site(args, list_span),
+        ":wat::kernel::macro-call-site" => eval_kernel_macro_call_site(args, list_span),
         // Arc 170 slice 1f-α — thread-aware stdio helpers. Look up
         // the calling thread's per-service channel handles from
         // the `services::client::THREAD_IO` cell and run the mini-TCP
@@ -20286,6 +20287,77 @@ fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
             ]),
         )))),
     }
+}
+
+/// `(:wat::kernel::macro-call-site)` — nullary; the EXPAND-TIME twin of
+/// `:wat::kernel::call-site`. Meaningful only inside a macro body: returns
+/// the macro INVOCATION's own source span — not the runtime call stack
+/// (macro expansion runs before any wat fn-call happens, so `CALL_STACK` is
+/// irrelevant here) — as a SPLICEABLE `:wat::kernel::Frame` constructor
+/// FORM, `Value::wat__WatAST`, not a `Frame` value. A `Frame` VALUE cannot
+/// cross `value_to_watast` (it errors on aggregates), so returning one would
+/// make `~(:wat::kernel::macro-call-site)` fail to splice; a FORM round-trips
+/// through `value_to_watast`'s `wat__WatAST` arm untouched.
+///
+/// The span comes from the `MACRO_CALL_SITE` thread-local stack
+/// (`src/value/frame.rs`), pushed by `expand_macro_call`
+/// (src/macros/expand.rs) for the duration of expanding each macro
+/// invocation — read the TOP (innermost currently-expanding invocation;
+/// nested macro expansion pushes/pops correctly).
+///
+/// Arc 278 §4 — DESIGN-telemetry-caller-and-capacity.md §4. Uses the
+/// generated POSITIONAL PRIME constructor `:wat::kernel::Frame'` (arc 294
+/// item 9a: machinery/generated code uses the prime ctor, never hand-rolled
+/// kwargs) — mirrors `eval_struct_to_form`'s ctor-form-building convention.
+/// `symbol` is always `:wat::core::None`: at expand time there is no
+/// enclosing fn (honest — the runtime `call-site` fills `symbol` from the
+/// wat call stack, which doesn't exist yet at macro-expansion).
+fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::macro-call-site";
+    if !args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len()
+        } }.into());
+    }
+    let call_site = match crate::value::current_macro_call_site() {
+        Some(span) => span,
+        None => {
+            return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "`:wat::kernel::macro-call-site` is only valid inside a macro body / \
+                         at expand time (no macro invocation is currently being expanded on \
+                         this thread)".into(),
+            } }.into());
+        }
+    };
+    let span = crate::rust_caller_span!();
+    let form = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::kernel::Frame'".into(), span.clone()),
+            // file: (:wat::core::Some "<file>")
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::Some".into(), span.clone()),
+                    WatAST::StringLit((*call_site.file).clone(), span.clone()),
+                ],
+                span.clone(),
+            ),
+            // line: (:wat::core::Some <line>)
+            WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::Some".into(), span.clone()),
+                    WatAST::IntLit(call_site.line, span.clone()),
+                ],
+                span.clone(),
+            ),
+            // symbol: :wat::core::None — no enclosing fn at expand time.
+            WatAST::Keyword(":wat::core::None".into(), span.clone()),
+        ],
+        span,
+    );
+    Ok(Value::wat__WatAST(Arc::new(form)))
 }
 
 /// Returns the host parallelism as `i64` — `std::thread::available_parallelism()`,
