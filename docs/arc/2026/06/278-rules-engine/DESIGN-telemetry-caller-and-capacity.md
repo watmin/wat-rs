@@ -70,19 +70,26 @@ recommendation) or `Vector<Frame>` (a full backtrace)? Default: one `Frame`; a f
 
 ---
 
-## 2. Arith → the F5 macro-expand allow-list ("label it")
+## 2. Arith at macro-expand — RESOLVED (no substrate change): use fully-qualified TYPED arith
 
-**Finding (proven by a probe that RED-failed).** `:wat::core::+` is REFUSED at macro-expand time:
-*"not on the pure-combinator allow-list (default-deny F5 gate, arc 249 stone 249.2b-i); only pure-total
-heads are permitted."* The gate is `is_pure_total(head)` in `src/macros/eval.rs:169` — the pure-total
-subset of `dispatch_keyword_head`. `length` (returns i64) is allowed; `+`/`-`/`*` are not — an
-oversight, not a principle. Arith IS pure-total; it just needs labeling.
+**Corrected finding (grounded 2026-07-21 — the earlier "add polymorphic heads" premise was STALE and
+wrong).** The gate is `is_pure_total(head)` (`src/macros/eval.rs:351`). It ALREADY blesses the
+fully-qualified **TYPED** arith — `:wat::core::i64::+/-/*//`, `i64::mod/rem/quot`, `i64::>/</>=/<=`,
+`f64::…` — plus `:wat::core::=`/`not=`/`and`/`or`/`not`. And those **fold at macro-expand today** (PROVEN:
+a `defmacro` computing `(:wat::core::i64::+ …)` through `(:wat::core::i64::/ …)` + the `i64::` comparisons
+`--check`s CLEAN and splices the computed literal `56`).
 
-**The label (strike):** add `:wat::core::+` / `-` / `*` and the comparisons (`<`/`>`/`<=`/`>=`/`=`/
-`not=`) to `is_pure_total`. **Keep `/`, `mod`, `rem`, `quot` OFF** — they are pure but *partial*
-(div-by-zero raises), and the gate's contract is *total*. Capacity math is only `+`/`-`, so the total
-subset suffices. Strike = add heads + a probe proving expansion-time arith (the removed
-`log-msg-capacity-probe.wat` returns) + `--release` weigh.
+**Only the POLYMORPHIC un-suffixed heads (`:wat::core::+`, `-`, `*`, `/`, `<`, `>`, `<=`, `>=`) are
+refused — and that refusal is CORRECT.** Polymorphic arith is **NOT viable at macro-expand** (builder,
+2026-07-21): it needs runtime type dispatch, not a macro-time capability — `(wat.core/+ …)` can't be used
+at expand, but `(wat.core.i64/+ …)` can. Blessing the polymorphic heads would label something unusable —
+leave them refused. (The RED I proved was the F5 *refusal*; I never confirmed a polymorphic *fold*, and
+typed already covered the need — the wrong-premise strike is retired.)
+
+**Resolution: NO `is_pure_total` change. arith is DONE.** Capacity (§3) and any expand-time arith use the
+fully-qualified TYPED forms (`:wat::core::i64::+`/`i64::-`/… — capacity math is i64 `+`/`-`), already
+blessed and folding. `/`,`mod`,`rem`,`quot` are moot here (typed-only, already on; div-by-zero = a
+deterministic located abort, the gate's real "no-panic" contract).
 
 **Macro-expand engine facts (grounded):**
 - A `defmacro` body is pure code run AT EXPANSION; `~value` splices the computed result as a baked
@@ -136,9 +143,12 @@ MECHANISM is proven; the exact costs are the build's job. Depends on §1 (final 
 - §1 caller: **DONE** — caller.1 (the `:wat::kernel::call-site` verb, `60fbef21`) + caller.2 (the
   `emitted-from <- :wat::kernel::Frame` field flip + structural codemod + gate, `31b3d1ac`), both weighed
   green by own re-run (4194→4195/0). `:caller'` arena service verified untouched.
-- §2 arith: finding proven (RED); one-spot label strike (`is_pure_total` += `+`/`-`/`*` + comparisons;
-  `/`,`mod`,`rem`,`quot` stay OFF — partial) — **NEXT**.
-- §3 capacity: designed + the fixed-vs-variable rule ratified (above); needs §2 (arith); the payoff.
+- §2 arith: **DONE (no substrate change)** — the fully-qualified TYPED arith (`:wat::core::i64::+`/`-`/…)
+  is already blessed on `is_pure_total` and folds at macro-expand (proven, `--check` clean → literal 56);
+  polymorphic arith is correctly refused (not macro-time-viable per the builder — needs runtime dispatch).
+  Capacity uses the typed forms. The earlier "add 8 polymorphic heads" strike was retired (wrong premise).
+- §3 capacity: designed + the fixed-vs-variable rule ratified (above); arith prerequisite is MET (use typed);
+  the payoff — **NEXT**.
   **Also owed (surfaced by caller.2):** a `log` MACRO that captures `(:wat::kernel::call-site)` AT the
   user's log-call boundary — caller.2 fills *constructions*, which capture the enclosing-fn's caller (offset
   0), so a Log built in a Rust-invoked fn gets the Rust site (absolute path); the precise per-log-line
