@@ -171,6 +171,20 @@
                        (:wat::telemetry::Span::TimedRequest :name ~name :nanos ~elapsed-sym))]
        ~ret-sym)))
 
+;; `log` — the client call-site widget: bake emitted-from at the (log …) line via macro-call-site,
+;; edn::write the message opaque (Stone B), issue the span's `log` op. POSITIONAL [span level message]
+;; — same grain as `timed`/`with-span` above; the message is a record the widget edn::write's (opaque,
+;; Stone B) so the caller never serializes by hand. `:wat::telemetry::log` (this macro) ≠ `Span/log`
+;; (the op) — FQDN disambiguates.
+(:wat::core::defmacro :wat::telemetry::log
+  [span <- :wat::WatAST  level <- :wat::WatAST  message <- :wat::WatAST]
+  -> :wat::WatAST
+  `(:wat::telemetry::Span/log ~span
+     (:wat::telemetry::Span::LogRequest
+       :emitted-from ~(:wat::kernel::macro-call-site)
+       :level ~level
+       :message (:wat::edn::write ~message))))
+
 ;; `with-span` — acquire / use / guaranteed close, INLINE (the scope law: the span' handle must
 ;; share one lexical scope with its use + close). binding = [span-name sink-addr namespace tags];
 ;; mints uuid + start-time at the call site, starts + dials span', runs the body, closes.
