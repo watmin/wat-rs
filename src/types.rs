@@ -326,6 +326,13 @@ pub enum SurfaceMember {
         args: crate::argspec::ArgSpec,
         ret: TypeExpr,
         type_params: Vec<String>,
+        /// Arc 278 #16 Stone 16.0 — per-operation request-byte budget, parsed from the
+        /// OPTIONAL `:max-request-bytes N` key in the kwargs options map that may follow
+        /// `-> :RetType` on a `:features` op (options are order-independent `:keyword value`
+        /// pairs; a later stone adds `:max-page-bytes` to that same map). When the op omits
+        /// the key, this defaults to `edn_shim::DEFAULT_MAX_FRAME_BYTES` (512 KiB) cast to
+        /// `i64`. FIELD ONLY — no enforcement, no checker rule, no codegen (later stone).
+        max_request_bytes: i64,
     },
 }
 

@@ -367,11 +367,125 @@ fn parse_method_member_sig(
         }
     };
 
+    // Arc 278 #16 Stone 16.0 — OPTIONAL kwargs OPTIONS MAP after `-> :RetType`.
+    // Everything past index 3 (`sig_items[4..]`) is an order-INDEPENDENT sequence of
+    // `:keyword value` PAIRS (kwargs — NOT positional; the design needs a second option
+    // `:max-page-bytes` in a later stone, and a positional parse could not hold it). The
+    // loop is a general kwargs reader: adding a recognized key later touches only the
+    // match arm below, nothing structural.
+    //
+    // Recognized keys (only one today):
+    //   `:max-request-bytes` → a positive i64 literal → `max_request_bytes`.
+    // Absent from the map → DEFAULT_MAX_FRAME_BYTES (512 KiB) cast to i64.
+    //
+    // Every malformation is a LOCATED `MalformedDecl` (no-hidden-failures), matching the
+    // surrounding surface-parse error shape: an UNKNOWN key, an odd tail (a key with no
+    // value), a non-keyword where a key is expected, a DUPLICATE key, a non-i64 value, or
+    // a value <= 0. (Enforcement / checker rule / codegen are a LATER stone — parse only.)
+    let mut max_request_bytes: Option<i64> = None;
+    let opts = &sig_items[4..];
+    let mut i = 0usize;
+    while i < opts.len() {
+        // Option KEY — must be a keyword.
+        let key = match &opts[i] {
+            WatAST::Keyword(k, _) => k.as_str(),
+            other => {
+                return Err(TypeError {
+                    span: other.span().clone(),
+                    kind: TypeErrorKind::MalformedDecl {
+                        head: HEAD.into(),
+                        reason: format!(
+                            "method member `{}`: options after `-> :RetType` are `:keyword value` \
+                             pairs; expected an option keyword, got {}",
+                            method_name,
+                            other.variant_name()
+                        ),
+                    },
+                })
+            }
+        };
+        // Option VALUE — must be present (no dangling key at the tail).
+        let val = opts.get(i + 1).ok_or_else(|| TypeError {
+            span: opts[i].span().clone(),
+            kind: TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: format!(
+                    "method member `{}`: option `{}` has no value — options are `:keyword value` pairs",
+                    method_name, key
+                ),
+            },
+        })?;
+        match key {
+            ":max-request-bytes" => {
+                if max_request_bytes.is_some() {
+                    return Err(TypeError {
+                        span: opts[i].span().clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "method member `{}`: duplicate option `:max-request-bytes`",
+                                method_name
+                            ),
+                        },
+                    });
+                }
+                let n = match val {
+                    WatAST::IntLit(n, _) => *n,
+                    other => {
+                        return Err(TypeError {
+                            span: other.span().clone(),
+                            kind: TypeErrorKind::MalformedDecl {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    "method member `{}`: `:max-request-bytes` must be a positive \
+                                     i64 literal; got {}",
+                                    method_name,
+                                    other.variant_name()
+                                ),
+                            },
+                        })
+                    }
+                };
+                if n <= 0 {
+                    return Err(TypeError {
+                        span: val.span().clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "method member `{}`: `:max-request-bytes` must be POSITIVE; got {}",
+                                method_name, n
+                            ),
+                        },
+                    });
+                }
+                max_request_bytes = Some(n);
+            }
+            unknown => {
+                return Err(TypeError {
+                    span: opts[i].span().clone(),
+                    kind: TypeErrorKind::MalformedDecl {
+                        head: HEAD.into(),
+                        reason: format!(
+                            "method member `{}`: unrecognized option `{}` — recognized options: \
+                             `:max-request-bytes`",
+                            method_name, unknown
+                        ),
+                    },
+                })
+            }
+        }
+        i += 2;
+    }
+    // Unset → the DEFAULT_MAX_FRAME_BYTES (512 KiB) default, cast to i64.
+    let max_request_bytes: i64 =
+        max_request_bytes.unwrap_or(crate::edn_shim::DEFAULT_MAX_FRAME_BYTES as i64);
+
     Ok(SurfaceMember::Method {
         name: method_name,
         args,
         ret,
         type_params, // Arc 293.4e-pre.ii — extracted by split_method_name_type_params above
+        max_request_bytes, // Arc 278 #16 Stone 16.0 — kwargs option `:max-request-bytes N` (default: 512 KiB)
     })
 }
 
@@ -833,4 +947,122 @@ fn flush_field_items(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    //! Arc 278 #16 Stone 16.0 — the optional `:max-request-bytes N` annotation on a
+    //! `:features` method member parses into `SurfaceMember::Method.max_request_bytes`.
+    use super::*;
+    use crate::edn_shim::DEFAULT_MAX_FRAME_BYTES;
+
+    /// Parse a single defsurface source into its `SurfaceDef` (strips the head keyword and
+    /// routes through `parse_defsurface`, the same path `register_types` uses).
+    fn parse_surface(src: &str) -> Result<SurfaceDef, TypeError> {
+        let form = crate::parser::parse_one_with_file(src, "max_request_bytes_test")
+            .expect("test source must read cleanly");
+        let (items, span) = match form {
+            WatAST::List(items, span) => (items, span),
+            other => panic!("expected a defsurface List, got {}", other.variant_name()),
+        };
+        // Strip the head keyword (`:wat::core::defsurface`); parse_defsurface takes the rest.
+        let args: Vec<WatAST> = items.into_iter().skip(1).collect();
+        match parse_defsurface(args, span)? {
+            TypeDef::Surface(s) => Ok(s),
+            other => panic!("expected TypeDef::Surface, got {:?}", other),
+        }
+    }
+
+    fn method_budget(surf: &SurfaceDef, name: &str) -> i64 {
+        surf.members
+            .iter()
+            .find_map(|m| match m {
+                SurfaceMember::Method { name: n, max_request_bytes, .. } if n == name => {
+                    Some(*max_request_bytes)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no method member named {name:?}"))
+    }
+
+    #[test]
+    fn declared_max_request_bytes_is_parsed_and_undeclared_defaults() {
+        let surf = parse_surface(
+            "(:wat::core::defsurface :t::Svc :nature :wat::core::Struct :features [\
+               (write-logs [self <- :t::Svc] -> :t::Resp :max-request-bytes 300)\
+               (stats [self <- :t::Svc] -> :t::Resp)])",
+        )
+        .expect("defsurface with a declared + an undeclared op must parse");
+
+        // Declared op → its literal value.
+        assert_eq!(
+            method_budget(&surf, "write-logs"),
+            300,
+            "declared `:max-request-bytes 300` must land in max_request_bytes"
+        );
+        // Undeclared op → the DEFAULT_MAX_FRAME_BYTES (512 KiB) default, cast to i64.
+        assert_eq!(
+            method_budget(&surf, "stats"),
+            DEFAULT_MAX_FRAME_BYTES as i64,
+            "undeclared op must default to DEFAULT_MAX_FRAME_BYTES as i64"
+        );
+    }
+
+    #[test]
+    fn nonpositive_max_request_bytes_is_a_located_error() {
+        let err = parse_surface(
+            "(:wat::core::defsurface :t::Bad :nature :wat::core::Struct :features [\
+               (write-logs [self <- :t::Bad] -> :t::Resp :max-request-bytes -5)])",
+        )
+        .expect_err("`:max-request-bytes -5` (non-positive) must be a LOCATED error, not silently accepted");
+        // It is a MalformedDecl carrying the surface head (the surrounding surface-parse shape).
+        match err.kind {
+            TypeErrorKind::MalformedDecl { .. } => {}
+            other => panic!("expected a MalformedDecl for a non-positive budget; got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn noninteger_max_request_bytes_is_a_located_error() {
+        let err = parse_surface(
+            "(:wat::core::defsurface :t::Bad2 :nature :wat::core::Struct :features [\
+               (write-logs [self <- :t::Bad2] -> :t::Resp :max-request-bytes :nope)])",
+        )
+        .expect_err("`:max-request-bytes :nope` (non-integer) must be a LOCATED error");
+        match err.kind {
+            TypeErrorKind::MalformedDecl { .. } => {}
+            other => panic!("expected a MalformedDecl for a non-integer budget; got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unknown_option_key_is_a_located_error() {
+        // An unrecognized kwargs key is NEVER silently ignored (no-hidden-failures) — this is
+        // what keeps the options map extensible: a future stone adds `:max-page-bytes` to the
+        // recognized set and this test's key stays rejected.
+        let err = parse_surface(
+            "(:wat::core::defsurface :t::Bad3 :nature :wat::core::Struct :features [\
+               (write-logs [self <- :t::Bad3] -> :t::Resp :max-frobnicate 5)])",
+        )
+        .expect_err("an unrecognized option key must be a LOCATED error, not silently ignored");
+        match err.kind {
+            TypeErrorKind::MalformedDecl { .. } => {}
+            other => panic!("expected a MalformedDecl for an unknown option key; got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn duplicate_max_request_bytes_is_a_located_error() {
+        // The options loop is order-INDEPENDENT (not observable with a single recognized key);
+        // a repeated key is a located error rather than a silent last-wins overwrite.
+        let err = parse_surface(
+            "(:wat::core::defsurface :t::Bad4 :nature :wat::core::Struct :features [\
+               (write-logs [self <- :t::Bad4] -> :t::Resp :max-request-bytes 300 :max-request-bytes 400)])",
+        )
+        .expect_err("a duplicate `:max-request-bytes` must be a LOCATED error");
+        match err.kind {
+            TypeErrorKind::MalformedDecl { .. } => {}
+            other => panic!("expected a MalformedDecl for a duplicate option; got {other:?}"),
+        }
+    }
 }
