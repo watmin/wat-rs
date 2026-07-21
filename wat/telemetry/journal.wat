@@ -61,6 +61,10 @@
 ;; ── the service ─────────────────────────────────────────────────────────────────
 (:wat::service::defservice :wat::telemetry::journal
   :satisfies :wat::telemetry::Journal
+  ;; arc 278 Stone 1b — the per-service hard frame limit FOO (bytes-per-read): the journal accepts
+  ;; BULK log writes, so it declares 10 MiB (the 512 KiB default would reject a real batch). Threaded
+  ;; to this service's accepted-connection receivers; a frame over this → a reasoned 400 + close, not mute.
+  :max-frame-bytes 10485760
   :durable   []
   ;; the dialed backend peer — a client Peer'<Store::Op,Store::Reply>, held as a ROOT ephemeral field
   :ephemeral [store <- :wat::kernel::Peer'<wat::query::Store::Op,wat::query::Store::Reply>]

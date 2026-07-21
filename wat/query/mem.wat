@@ -92,6 +92,10 @@
 ;; `Outcome::Reply`. MemStore never errors — always `:Success`.
 (:wat::service::defservice :wat::query::mem-store
   :satisfies :wat::query::Store
+  ;; arc 278 Stone 1b — the per-service hard frame limit FOO (bytes-per-read): the store backs BULK
+  ;; writes (the journal forwards batches here), so it declares 10 MiB. Threaded to accepted-connection
+  ;; receivers; a frame over this → a reasoned 400 + close, not mute. (512 KiB default is too small.)
+  :max-frame-bytes 10485760
   :durable [rows <- :wat::core::PersistentVector<wat::query::StoredRow>]
   :ephemeral []
   :impls
