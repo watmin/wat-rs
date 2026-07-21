@@ -417,18 +417,20 @@
       indexes <- (:wat::core::Vector :wat::query::IndexSchema)])
 
    (:wat::core::defenum :wat::query::Store::EnsureSchemaResponse :wat::enum::Pure
-     :Success    []
-     :Constraint [err <- :wat::query::Constraint]
-     :Fatal      [err <- :wat::query::Fatal])
+     :Success        []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Fatal          [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::query::Store::PutRequest
      [rows <- (:wat::core::Vector :wat::query::StoredRow)])
 
    (:wat::core::defenum :wat::query::Store::PutResponse :wat::enum::Pure
-     :Success    []
-     :Constraint [err <- :wat::query::Constraint]
-     :Transient  [err <- :wat::query::Transient]
-     :Fatal      [err <- :wat::query::Fatal])
+     :Success        []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::query::Store::ScanRequest         ;; a base-table page request
      [pk     <- :wat::core::String
@@ -441,7 +443,8 @@
      :Success   [rows   <- (:wat::core::Vector :wat::query::Row)
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal])
+     :Fatal     [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::query::Store::ScanIndexRequest    ;; a GSI page request
      [index  <- :wat::core::String
@@ -455,7 +458,8 @@
      :Success   [rows   <- (:wat::core::Vector :wat::query::IndexRow)
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal])]
+     :Fatal     [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at
    ;; consumer init.

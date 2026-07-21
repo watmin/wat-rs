@@ -8,7 +8,9 @@
 (:wat::core::defsurface :probe::Big :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Big::PutRequest  [payload <- :wat::core::String])
-   (:wat::core::defrecord :probe::Big::PutResponse [ok <- :wat::core::i64])]
+   (:wat::core::defenum :probe::Big::PutResponse :wat::enum::Pure
+     :Ok              [ok <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(put [self <- :probe::Big  req <- :probe::Big::PutRequest] -> :probe::Big::PutResponse)])
 
@@ -19,7 +21,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse :ok 7)))])
+  [(put [s req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse::Ok 7)))])
 
 ;; (b) a SMALL-FOO service: declares FOO = 4096, so a > 4 KiB request is rejected + closed.
 (:wat::service::defservice :probe::smallfoo'
@@ -28,7 +30,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(put [s req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse :ok 7)))])
+  [(put [s req] (:wat::service::Outcome::Reply s (:probe::Big::PutResponse::Ok 7)))])
 
 ;; Build a String of exactly n*32 bytes.
 (:wat::core::defn :probe::payload-of [n <- :wat::core::i64] -> :wat::core::String
@@ -45,7 +47,12 @@
      h    (:probe::bigfoo'/start :locus (:wat::spawn::process) :record (:probe::bigfoo'::Record))
      c    (:wat::kernel::connect' (:probe::bigfoo'::Handle/addr h))
      r    (:probe::Big/put c (:probe::Big::PutRequest :payload big))]
-    (:probe::Big::PutResponse/ok r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:probe::Big::PutResponse::Ok ok) ok)
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:probe::Big::PutResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "large-foo-accepts: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))
 
 ;; ── (b) small FOO REJECTS a > 4 KiB request: the caller's op must FAIL WITH A REASON (not the
 ;; mute "peer closed"). The .rs harness captures the raise.
@@ -55,7 +62,12 @@
      h    (:probe::smallfoo'/start :locus (:wat::spawn::process) :record (:probe::smallfoo'::Record))
      c    (:wat::kernel::connect' (:probe::smallfoo'::Handle/addr h))
      r    (:probe::Big/put c (:probe::Big::PutRequest :payload big))]
-    (:probe::Big::PutResponse/ok r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:probe::Big::PutResponse::Ok ok) ok)
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:probe::Big::PutResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "small-foo-rejects: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))
 
 ;; ── (b') SURVIVAL probe: c1 fires an over-FOO frame (send' only, fire-and-forget — no recv, so
 ;; this fn does not raise on c1); then a FRESH connection c2 issues an in-budget request. If the
@@ -70,4 +82,9 @@
      c2   (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c1 (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big)))
      r    (:probe::Big/put c2 (:probe::Big::PutRequest :payload "small"))]
-    (:probe::Big::PutResponse/ok r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:probe::Big::PutResponse::Ok ok) ok)
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:probe::Big::PutResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "small-foo-survives: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))

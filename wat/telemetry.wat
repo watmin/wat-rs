@@ -117,18 +117,20 @@
   [(:wat::core::defrecord :wat::telemetry::Journal::WriteMetricsRequest
      [batch <- (:wat::core::Vector :wat::telemetry::Metric)])
    (:wat::core::defenum :wat::telemetry::Journal::WriteMetricsResponse :wat::enum::Pure
-     :Success    []
-     :Constraint [err <- :wat::query::Constraint]
-     :Transient  [err <- :wat::query::Transient]
-     :Fatal      [err <- :wat::query::Fatal])
+     :Success        []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::telemetry::Journal::WriteLogsRequest
      [batch <- (:wat::core::Vector :wat::telemetry::Log)])
    (:wat::core::defenum :wat::telemetry::Journal::WriteLogsResponse :wat::enum::Pure
-     :Success    []
-     :Constraint [err <- :wat::query::Constraint]
-     :Transient  [err <- :wat::query::Transient]
-     :Fatal      [err <- :wat::query::Fatal])
+     :Success        []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    ;; ── query (CloudWatch read side): a namespace + time window [lo,hi] in epoch nanos, paged. ──
    (:wat::core::defrecord :wat::telemetry::Journal::QueryMetricsRequest
@@ -142,7 +144,8 @@
      :Success   [metrics <- (:wat::core::Vector :wat::telemetry::Metric)
                  cursor  <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal])
+     :Fatal     [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::telemetry::Journal::QueryLogsRequest
      [namespace <- :wat::core::String
@@ -154,7 +157,8 @@
      :Success   [logs   <- (:wat::core::Vector :wat::telemetry::Log)
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal])
+     :Fatal     [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    ;; ── sift (arc 278 Stone 2 — server-side filtering, DESIGN-sift-server-side-filter.md): the
    ;; same namespace + time-window page as query-*, PLUS a `Sieve` (the pure filter spec — this
@@ -172,7 +176,8 @@
      :Success   [logs   <- (:wat::core::Vector :wat::telemetry::Log)
                  cursor <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal])
+     :Fatal     [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::telemetry::Journal::SiftMetricsRequest
      [namespace <- :wat::core::String
@@ -185,7 +190,8 @@
      :Success   [metrics <- (:wat::core::Vector :wat::telemetry::Metric)
                  cursor  <- (:wat::core::Option :wat::core::String)]
      :Transient [err <- :wat::query::Transient]
-     :Fatal     [err <- :wat::query::Fatal])]
+     :Fatal     [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteMetricsRequest]
@@ -224,11 +230,15 @@
   :messages
   [(:wat::core::defrecord :wat::telemetry::Span::IncrRequest
      [name <- :wat::core::keyword])
-   (:wat::core::defenum :wat::telemetry::Span::IncrResponse :wat::enum::Pure :Ok [])
+   (:wat::core::defenum :wat::telemetry::Span::IncrResponse :wat::enum::Pure
+     :Ok              []
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::telemetry::Span::TimedRequest
      [name <- :wat::core::keyword  nanos <- :wat::core::i64])
-   (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure :Ok [])
+   (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure
+     :Ok              []
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::telemetry::Span::LogRequest
      [caller  <- :wat::core::keyword
@@ -236,14 +246,17 @@
       ;; message OPAQUE (arc 278 Stone B): the `Span/log` caller `edn::write`s its record here, so
       ;; a forked `span'` never hits `UnknownTag` on a user type either — opaque before both wires.
       message <- :wat::core::String])
-   (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure :Ok [])
+   (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure
+     :Ok              []
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::telemetry::Span::CloseRequest [])
    (:wat::core::defenum :wat::telemetry::Span::CloseResponse :wat::enum::Pure
-     :Done       []
-     :Constraint [err <- :wat::query::Constraint]
-     :Transient  [err <- :wat::query::Transient]
-     :Fatal      [err <- :wat::query::Fatal])]
+     :Done           []
+     :Constraint     [err <- :wat::query::Constraint]
+     :Transient      [err <- :wat::query::Transient]
+     :Fatal          [err <- :wat::query::Fatal]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [;; increment a named counter by 1 — a PURE state transition (emitted on close).
    (incr [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::IncrRequest]

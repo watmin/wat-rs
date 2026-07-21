@@ -145,7 +145,10 @@
                 ((:wat::telemetry::Journal::WriteMetricsResponse::Transient err)
                   (:wat::telemetry::Span::CloseResponse::Transient err))
                 ((:wat::telemetry::Journal::WriteMetricsResponse::Fatal err)
-                  (:wat::telemetry::Span::CloseResponse::Fatal err)))]
+                  (:wat::telemetry::Span::CloseResponse::Fatal err))
+                ;; wire-breach at the sink peer propagates outward as our own op's breach.
+                ((:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap)
+                  (:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap)))]
        (:wat::service::Outcome::Reply s cresp)))])
 
 ;; ── the call-site macros (STONE Span.3) ──────────────────────────────────────────
