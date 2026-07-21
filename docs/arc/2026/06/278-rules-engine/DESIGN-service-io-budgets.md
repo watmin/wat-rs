@@ -54,27 +54,85 @@ surface's `:messages`/protocol and discoverable by any holder.
   (open):** the exact discovery accessor — a synthesized `<Surface>::<op>/max-request-bytes` constant vs a
   budget table on the surface value. Resolve when the fragment tooling is drawn (it's the first consumer).
 
-## Two budget layers (per-op is primary; the transport ceiling is derived)
+## Two budget layers — the server hard limit and the per-op limit (both INDEPENDENT, builder-ruled 2026-07-19)
 
-The wire is **newline-framed, no length header** (`comms/process.rs:300`), so the transport frame cap fires
-*during* accumulation — **before** the op is known. Therefore:
+The wire is **newline-framed, no length header** (`comms/process.rs:300`), so the transport cap fires *during*
+accumulation — **before** the op is known. There are **two independent limits**, and a request is **good or it
+isn't — we never process a bad request** (no partial consumption, no "be nice, we gotcha… uh, wtf do we do when
+we don't"):
 
-| layer | granularity | when enforced | who uses it |
+| layer | the limit | when enforced | on violation |
 |---|---|---|---|
-| **contract / app** | **per-op** (declared) | **post-decode**, in the serve loop | fragment/page tooling + serve-layer 400 |
-| **transport** | **per-connection** (`max_frame_bytes`) | **during accumulation** (pre-decode) | DoS backstop only |
+| **transport** | the **service hard limit `FOO`** — **per-service, DECLARED** ("how many bytes I'll attempt per read"), op-agnostic | **during accumulation** (pre-decode) | **reject + CLOSE that connection** (reasoned, never mute); keep serving everyone else |
+| **contract / app** | the **per-op limit** — the service's choice, **`≤ FOO`** | **post-decode**, in the serve loop | the op's **named `RequestTooLarge` response** (a matchable reply); connection **LIVES** |
 
-- **Per-op (primary):** the serve loop, after decoding a request, checks it against *that op's* declared
-  `:max-request-bytes` → over → the op's **named 400 variant** (`::RequestTooLarge{bytes, cap}`, see "The
-  response contract" below), service keeps serving. Paged ops keep each response page ≤ `:max-page-bytes`.
-- **Transport ceiling (derived):** the per-connection `max_frame_bytes` = **max over the service's declared
-  op request-budgets** (auto-derived at spawn from the surface's annotations — no hand-set number). A frame
-  bigger than *any* op could accept is rejected at the transport, but — per the mute-kill — it **speaks**
-  ("frame exceeds the N-byte ceiling") and **does not fault the wire** (drain-realign → 400 → keep serving;
-  see `DESIGN-no-hidden-failures.md`). Wiring: `spawn_process_peer(max_frame_bytes)` already threads a budget
-  (`spawn.rs:756/775`) — derive it from the surface instead of the `ProcessOpts` default, **and** apply it to
-  the **input** channel too (`spawn.rs:765` currently hardcodes `pair()` = 512 KiB — the gap that let the
-  arena's *write* die; the output channel at `:775` already takes the budget).
+- **The service hard limit `FOO` (the transport floor — the DoS backstop):** *"this service will never
+  accumulate more than `FOO` bytes for any inbound frame, period."* It is **PER-SERVICE and DECLARED** — the
+  service says *how many bytes it will attempt per read*, threaded into its socket **listener** →
+  accepted-connection receivers. **Not** global, **not** derived from the ops. Read up to that service's `FOO`;
+  the instant a frame exceeds it → **stop reading, reject, close that connection.** Accumulation is bounded by
+  `FOO`, so there is **no endless drain, no reply-to-a-blocked-sender, no deadlock.** The client's op fails with
+  a *reason*, never a mute clean-close (see the SPEAK mechanism below).
+  - **The 512 KiB global default stays** (`DEFAULT_MAX_FRAME_BYTES`, `edn_shim.rs:1330`) — the conservative
+    fallback for a service that declares nothing (a service with only small ops should NOT be made to hold
+    10 MiB per connection — that is the 20× memory/DoS surface a global raise would inflict on everyone).
+  - **A bulk service DECLARES more** — the telemetry `journal`/`mem-store` declare e.g. `10 MiB` (the arena's
+    ~600 KiB write then arrives). Grounded that this is a real per-connection knob: socket receivers already
+    carry a `max_frame_bytes` (`comms/process.rs`), settable via `pair_with_budget(n)` — Stone 1 threads a
+    declared `FOO` from the defservice through `listener'`/`accept'`/`from_socket` to the accepted connections.
+    (Different services, different limits — proven by the raise-experiment: PROCESS went mute→630 at 10 MiB.)
+- **The per-op limit (the graceful, matchable tier):** the request already **fully arrived** (it was ≤ `FOO`)
+  and decoded, so the client **is reading** — the serve loop checks it against *that op's* declared
+  `:max-request-bytes` and, if over, replies the op's **named `RequestTooLarge{bytes, cap}` variant** (see
+  "The response contract"), service keeps serving, connection lives. This is where the *matchable*, graceful
+  "your request is too big for this op, here's the cap" belongs. A single request whose op is unknowable (over
+  `FOO`) can only get the transport reject+close — which is why `FOO` is set well above any real op's budget, so
+  a legitimate over-*op* request still arrives and gets the matchable answer. Paged ops keep each response page
+  ≤ `:max-page-bytes`.
+
+**The SPEAK mechanism — the client is TOLD, nobody dies (builder-ruled 2026-07-19; grounded):** a bad request
+does not burn anything down — **the client is told its request is too large (a 400), the client survives, the
+server survives.** On an over-`FOO` frame the serve loop, via a new **`ServiceEvent::Rejected{idx, cause}`** arm:
+(1) **replies `Reply::Failed{cause}`** to that client — the client is READING when this fires (the diagnostic
+proved its `send'` completes and it blocks in `recv'` awaiting the reply), so the reply LANDS; `Reply::Failed`
+is a *catchable* reason via Mechanism A, so the client is told and handles it (does not die); (2) **evicts that
+one connection** (`remove-at`) — discarding the un-read residual of the oversized frame, which would otherwise
+desync the wire (this is why `Malformed`, which *keeps* the connection, is wrong here, and why no drain-realign
+is needed — closing discards the residual); (3) **keeps serving everyone else** (recur).
+
+> **★ Kicking is correct; the pipe is reaped by Linux (builder-ruled 2026-07-19).** The client is *told* (a
+> catchable 400) then the connection resets — it just **reconnects** and retries. We do **NOT** spend a cycle
+> draining the pipe to salvage a bad connection: evicting drops the `Peer` → `OwnedFd::drop` → **`libc::close(2)`**
+> → the kernel reaps the pipe (discards the buffered residual) for free (grounded: `comms/process.rs` `Sender`/
+> `Receiver` own `OwnedFd`s, `:310/:496`). *A bad request is bad; don't waste resources making it not-bad.*
+> **Recoverable-*on-the-same-connection* lives one tier up — the per-op limit:** there the request *arrives* (it
+> was ≤ `FOO`), the wire is in sync, so an over-op-budget request gets a matchable `RequestTooLarge` and the
+> client fixes+retries on the same socket. The transport `FOO` kick is the **DoS backstop** for frames so large
+> the wire desyncs — with per-service `FOO`, it only fires on genuinely-huge (abuse/bug) frames.
+
+The poll' process
+client-read arm (`runtime.rs:27658`) currently collapses `RecvError::FrameTooLarge` into a reason-free `Closed`
+(the mute) → Stone 1 routes it to `Rejected{cause}`. The reply `send'` must be **non-blocking** (an extreme
+over-`FOO` frame could leave a client blocked mid-`send` and not reading — a blocking reply would deadlock the
+serve loop; non-blocking → skip the reply, evict anyway, the client gets an honest EPIPE on its own `send`).
+
+> **★ NOT `Lost` / NOT `eprintln` (a grounded finding, 2026-07-19):** `eprintln` **is wat's panic** —
+> `panic_any` → structured exit, never returns (it is the "I'm dying, here's why" primitive). The serve loop's
+> existing `Lost` arm uses `eprintln` *intending* "log the reason + keep serving," but because `eprintln`
+> terminates, its `(recur)` is **dead code** — so routing a **client-triggerable** over-`FOO` frame to `Lost`
+> would let any client **crash the whole shared service** (a DoS the two-sided contract forbids; proven: a
+> `Lost`-routed survival probe fails, the child dies). A client-reachable path must **never** be able to fire the
+> terminal `eprintln`. Over-`FOO` is a **400-class client error**, handled by `Reply::Failed` to the client
+> (above), no `eprintln`. **Separately: the `Lost` arm's `eprintln` is a latent burn-it-down bug** (a genuine
+> peer break crashes the whole service instead of evict-and-keep-serving) — its own stone: the substrate needs a
+> **non-terminal warn/log sink** ("bad thing happened, I'm continuing"), distinct from `eprintln` ("I'm dying").
+
+**RETIRED — the drain-realign "be nice" model (`24ac73e7`, `DESIGN-no-hidden-failures.md` facet 1):** the
+earlier design *drained part of an over-budget frame, re-aligned the wire, and kept the connection alive for its
+next request*. A request/reply transaction is **atomic** — there is no half-request to process — and keeping
+the connection alive forces re-syncing the wire off a sender that may be blocked mid-write → **deadlock** (this
+is the deadlock a shadowdancer chased, 2026-07-19). **Retired.** Too big is too big: reject + close; there is
+nothing left to re-align.
 
 ## The response contract — a NAMED variant per failure kind (builder-ruled 2026-07-20)
 
@@ -106,10 +164,12 @@ cause to learn whether it was too-large vs impure-params vs unknown-type. Exampl
 
 A defservice is a **network service facing untrusted clients who will do dumb shit.** So the contract has two
 sides, and both are mandatory:
-- **Defense at the gate (server):** the API **MUST enforce** every budget — a bad/hostile/buggy client's
-  over-budget frame gets a *reasoned* rejection (the named `::RequestTooLarge`, never mute — #15) and the
-  service **keeps serving everyone else** (one dumb client cannot mute-crash or DoS the shared service). The
-  transport `FrameTooLarge` guard + the serve-loop per-op enforcement are the gate.
+- **Defense at the gate (server):** the API **MUST enforce** both limits, and neither is ever mute — one dumb
+  client cannot mute-crash or DoS the shared service:
+  - a frame over the **server hard limit `FOO`** → the transport rejects it and **closes that connection** with
+    a *reason* (`Lost{cause}`, never mute); the service keeps serving everyone else.
+  - a request that arrived (≤ `FOO`) but is over its **per-op limit** → the serve loop replies the op's named
+    `RequestTooLarge` variant and **keeps the connection alive**.
 - **Ergonomic tooling (good client):** the tooling has **perfect byte-knowledge** (it encodes + measures), so
   it **never emits an over-budget frame** — the enforcement path is *unreachable for a well-behaved caller.*
   Good clients are just good. The enforcement is real and mandatory; it is simply the path our own tooling
@@ -272,22 +332,32 @@ the **output** needs its own budget + resume point.
 
 ## Scope + sequencing
 
-- **Floor (must land first):** the structural mute-kill — over-budget *speaks* + 400-and-continue + the wall
-  (`DESIGN-no-hidden-failures.md`). Without it, every budget is a mute cliff. RED probe: send >cap → client
-  gets a *reasoned* 400 **and** a follow-up request on the same service succeeds (connection + service alive),
-  both loci.
-- **Then, in order:** (1) per-op budget declaration on `:features` + discovery + derived transport ceiling +
-  the `spawn.rs:765` input-channel fix; (2) writer fragmentation + reader pagination tooling; (3) output-side
-  streaming (the composite cursor). Each: DESIGN → RED disconfirming probe → brief → shadowdancer → weigh by
-  own re-run.
-- **Then re-do the arena on the fixed substrate, shortcuts DELETED:** a single `write-logs` within the raised
-  cap (no hand-chunking — or `write-logs-batched` if genuinely over 10 MB); real `page-all` tooling; and a
-  RED assertion that an over-budget request 400s-without-faulting on both loci. The arena commit stays
-  **HELD** until at least the floor lands (never ship green on the masked teardown).
-- **OUT (rejected):** raising the *global* `DEFAULT_MAX_FRAME_BYTES` (the per-op knob is the point — 512 KiB
-  stays the default for most things); a length-prefixed rewrite of the wire (the newline framing + drain-
-  realign is sufficient); silent chunking inside the transport (fragmentation is the *client's* tooling,
-  explicit, AWS-shaped).
+- **Stone 1 (must land first) — the per-service hard limit `FOO`:** let a defservice **declare** its `FOO`
+  (bytes-per-read) and **thread it** from the service through `listener'`/`accept'`/`from_socket` to its
+  accepted-connection receivers (the 512 KiB `DEFAULT_MAX_FRAME_BYTES` stays the fallback; the journal/mem-store
+  declare ~10 MiB); and make an over-`FOO` frame **reject + close with a reason** (`FrameTooLarge` →
+  `ServiceEvent::Lost{cause}`, not the mute `Closed`) while the service **keeps serving everyone else**. This
+  one stone kills the mute floor AND unblocks the arena (the ~600 KiB legit write now arrives — proven by the
+  raise-experiment). The drain-realign (`24ac73e7`) becomes moot (reject+close closes the connection) — retire
+  it as cleanup. RED probe (both loci): (a) a service declaring a large `FOO` accepts a legit ~600 KiB request
+  → **succeeds**; (b) a service declaring a *small* `FOO` gets a frame > its `FOO` → the caller's op fails with
+  a *reason* (owner sees the cause via `Lost`, not the mute "peer closed") **and** the service stays alive (a
+  follow-up in-budget request on a fresh connection succeeds). At HEAD both fail (mute + 512 KiB cap).
+- **Then, in order:** (1) **per-op limits** — declare `:max-request-bytes` (`≤ FOO`) on `:features` + discovery,
+  and **post-decode enforcement** in the serve loop returning the op's named `RequestTooLarge` response (the
+  matchable, graceful tier — the request already arrived, so no transport work here); (2) writer fragmentation +
+  reader pagination tooling; (3) output-side streaming (the composite cursor). Each: DESIGN → RED disconfirming
+  probe → brief → shadowdancer → weigh by own re-run.
+- **Then re-do the arena on the fixed substrate, shortcuts DELETED:** a single `write-logs` within `FOO` (no
+  hand-chunking — or `write-logs-batched` if genuinely over an op limit); real `page-all` tooling; and a RED
+  assertion that an over-`FOO` request rejects-with-a-reason-and-closes (service alive) on both loci. The arena
+  commit stays **HELD** until at least Stone 1 lands (never ship green on the masked teardown).
+- **OUT (rejected):** a length-prefixed rewrite of the wire (newline framing + a bounded read-to-`FOO` is
+  sufficient); silent chunking inside the transport (fragmentation is the *client's* tooling, explicit,
+  AWS-shaped); the **drain-realign / keep-the-connection-alive** model (retired — a transactional request is
+  atomic, "too big is too big", reject + close); and **deriving** the transport ceiling from the op budgets
+  (rejected in favor of the independent server hard limit `FOO` — the ops choose limits `≤ FOO`, they do not
+  set it).
 
 ## Open cruxes (tracked)
 

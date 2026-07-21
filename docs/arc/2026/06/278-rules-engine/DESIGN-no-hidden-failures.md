@@ -61,6 +61,38 @@ client before exit) — its own arc when it's wanted. Tracked, `#[ignore]`'d:
 
 > **THE LAW, RESTATED (builder, 2026-07-20):** *"silent errors — they must die — now — we've killed them like 5 times on this arc AND THEY REFUSE TO DIE."* Every prior kill was a **stem-cut** (bind the mute site we found). The class regrows because a mute failure still has a **representation**. This closure climbs to the top of the extirpare ladder: make a mute failure **unconstructible** (structural impossibility — builder: *"structural impossibilities are the best in any situation"*), not caught case-by-case.
 
+### ★ PIVOT (2026-07-19) — reject + close, NOT drain-and-be-nice (the model below is SUPERSEDED in part)
+
+> **Builder ruling:** *"the request is good or it isn't — we do not process bad requests."* And: *"we need a
+> limit that's like 'we will never process more than FOO bytes period', independent of per-request limits —
+> there's a server limit for any inbound thing, and then a per-op limit as the service chooses."*
+
+The original fix below tried to be **nice** to a bad request — drain part of the over-budget frame, re-align the
+wire, reply a 400, and **keep the connection alive** ("400-and-continue"). That is wrong for a **transactional**
+request/reply API: a request is **atomic** (there is no half-request to process), and keeping the connection
+alive forces re-syncing the wire off a sender that may be blocked mid-write → **deadlock** (a shadowdancer
+chased exactly this, 2026-07-19). The corrected model — **two independent ceilings**, full spec in
+`DESIGN-service-io-budgets.md`:
+
+- **The service hard limit `FOO`** (**per-service, DECLARED** — bytes-per-read; op-agnostic; the 512 KiB
+  `DEFAULT_MAX_FRAME_BYTES` stays the fallback for undeclared services, NOT a global raise): read up to that
+  service's `FOO`; a frame exceeding it → **the client is TOLD (a 400), nobody dies** — route
+  `RecvError::FrameTooLarge` to a new **`ServiceEvent::Rejected{cause}`** whose serve-loop arm **replies
+  `Reply::Failed{cause}` to that client** (a catchable "too large" reason — the client is reading, so it lands)
+  **+ evicts that one connection** (discards the desync'd residual) **+ keeps serving everyone else**. **NOT
+  `Lost`/`eprintln`** — `eprintln` is wat's PANIC, so a client-triggerable `Lost` would crash the whole service
+  (a DoS; grounded finding); NOT `Malformed` (keeps the connection → residual desync); NOT the reason-free
+  `Closed`. The reply `send'` is non-blocking (a blocked-mid-send client → skip reply, evict, honest EPIPE). The
+  service DECLARES its `FOO` and it threads to its accepted-connection receivers (the journal/mem-store declare
+  ~10 MiB so the arena's ~600 KiB write arrives — proven). **Retire the drain-realign** (`24ac73e7`) as moot.
+- **The per-op limit** (`≤ FOO`, the service's choice, post-decode): a request that *arrived* but is over its
+  op budget → the op's **named `RequestTooLarge` response** (matchable, connection lives). The graceful,
+  "400-and-continue"-flavored tier lives HERE, where the whole request is in hand — not at the transport.
+
+So: **SPEAK** (Lost, not the mute Closed) + **reject-and-close** (not drain-and-keep-alive) + **the WALL**
+(reason-free variants unconstructible-from-error, below — unchanged, still the top rung). The "400-and-continue"
++ "drain-realign feasibility" subsections below are **SUPERSEDED** by this pivot; kept for lineage.
+
 ### The incident that surfaced it (grounded this session, reproduced by own hand)
 The RICH Rules arena: a single `write-logs` of ~700 rich nested `Event`s on **PROCESS** locus →
 `recv failed: peer closed / channel disconnected` — **mute**. Reproduced at `scratchpad/probe-arena-scale-n700.wat`
@@ -92,7 +124,7 @@ The root: **reason-free failure variants remain constructible from error paths**
 "site R — no slot for a reason", then added `Failed(String)` beside the reason-free variants but left them
 constructible-from-error).
 
-### The fix — three escalating moves; the builder's own reframing
+### The fix — three escalating moves; the builder's own reframing  *(★ SUPERSEDED by the PIVOT above — move 2 "400-and-continue / drain" is RETIRED; moves 1 SPEAK + 3 WALL survive, now via `Lost` + reject-and-close)*
 The builder decomposed it exactly (kept literal): *"a > max-bytes message is a 400-esque error — the server is
 still alive, just tossing a bad request… should there even be a disconnect? 400 should be a thing a client can
 just deal with without faulting hard."* And on WHO learns why: *"clients should never be told [internal crash
@@ -114,7 +146,7 @@ input), while genuine internal crashes stay admin-channel-only (STOP-2, `feedbac
    / `map_err(|_|)` in `comms/`,`channel/`,`kernel/spawn.rs`,`runtime.rs` recv paths — so stem #7 is a build error.
    *This check is what the previous five kills never planted.*
 
-### Feasibility of 400-and-continue — GROUNDED (the drain-realign, and why no deadlock)
+### Feasibility of 400-and-continue — GROUNDED (the drain-realign, and why no deadlock)  *(★ SUPERSEDED — the drain-realign is RETIRED; it deadlocks on a blocked-mid-write sender. Too big is too big: reject + close. See the PIVOT above.)*
 The wire is **newline-framed** (`next_complete_frame` scans `\n`, `edn_shim.rs:1387`), single-writer
 (interleave-safe, `process.rs:296`), and the receiver's accumulator **persists** across reads (`take_frame` only
 `split_off`s on a *good* frame — on `TooLarge` the bytes stay). So recovery is a **caller-policy change**, not a
@@ -129,20 +161,24 @@ transport rewrite. Two `TooLarge` cases (`next_complete_frame`):
 The current code just tears down on `TooLarge` because it never implemented the drain-loop — a convenience, not a
 necessity.
 
-### RED gate (acceptance — the probe that would have caught this from day one)
-A service with an op budgeted at N bytes receives a request > N (both loci). Assert BOTH:
-- **the caller's error carries the real reason** (contains "exceeds"/"too large"/the byte figure), NOT the bare
-  `peer closed / channel disconnected`; and
-- **the service + connection are still alive** — a subsequent, in-budget request to the SAME service succeeds.
-Plus the pathological case: an endless (no-newline) frame past the drain-bound → a *reasoned* teardown, still not
-mute. At HEAD the first two fail (mute + connection dead). GREEN when moves 1–3 land.
+### RED gate (acceptance — the Stone-1 probe, per the PIVOT)
+A defservice with a server hard limit `FOO` (small, e.g. 64 bytes, for the test) receives a frame > `FOO`, both
+loci. Assert BOTH:
+- **the caller's op fails with a reason**, NOT the bare mute `peer closed / channel disconnected` — and the
+  serve loop routed it to `ServiceEvent::Lost{cause}` (owner sees the cause), not the reason-free `Closed`; and
+- **the service is still alive** — a subsequent, in-budget request to the SAME service succeeds (a *different*
+  connection is fine; the over-`FOO` connection is intentionally closed — reject + close, not keep-alive).
+Plus the delivery half (Stone 1's other coordinate): with `FOO` raised to a sane default, a **legit ~600 KiB
+request succeeds** (the arena's write). At HEAD: the over-`FOO` case mutes + drops; the legit case dies at 512 KiB.
+GREEN when Stone 1 lands (SPEAK-via-`Lost` + raise `FOO` + retire drain + the WALL).
 
 ### Sequencing + the arena hold
-This structural closure is the **floor** the service-I/O-budget contract stands on
-(`DESIGN-service-io-budgets.md` — per-op declared budgets, fragmentation/pagination tooling, output-side
-streaming). Land the closure (speak + 400-and-continue + the wall) FIRST. **The RICH Rules arena commit is HELD**
-until at least move 1 lands — it must never ship green on the masked teardown + the shadowdancer's chunking
-workaround (`RVINA VIAM FABRICAT`: forge the ruin out, do not route around it).
+This structural closure is **Stone 1** — the floor the service-I/O-budget contract stands on
+(`DESIGN-service-io-budgets.md` — the two-ceiling model, per-op limits, fragmentation/pagination tooling,
+output-side streaming). Land Stone 1 (**SPEAK via `Lost` + reject-and-close + raise `FOO` + retire drain-realign
++ the wall**) FIRST. **The RICH Rules arena commit is HELD** until Stone 1 lands — it must never ship green on
+the masked teardown + the shadowdancer's chunking workaround (`RVINA VIAM FABRICAT`: forge the ruin out, do not
+route around it).
 
 ---
 
@@ -160,10 +196,43 @@ Since the last breadcrumb: the RICH Rules arena was weighed GREEN by own re-run 
 ### Landed this stretch (pushed, DR)
 `75ca51c8` DR checkpoint (designs + arena WIP, honest green-but-shortcut) · `3e8a71b6` finalized design · `24ac73e7` **#15 facet 1: `FrameTooLarge` DRAINS + keeps serving** (comms `take_frame` drains a complete over-budget frame + re-aligns, still returns the reason; RED probe `tests/comms/probe_arc278_over_budget_recovers.rs`; own re-run floor 4178/0) · `dc5dd99c` breadcrumb trued · `c26cd189` **#15 process-peer regression guard** (`probe_arc278_recv_over_budget_reason` — locks the already-dead process-peer over-budget mute; floor 4179/0).
 
-### ★ RESUME AT — finish #15, then the build order
-**#15 (mute-kill floor), three facets:** (1) drain-realign / reject-and-keep-serving — **DONE** (`24ac73e7`). (2) **SPEAK-mute — TARGET CORRECTED by STOP-1 (verified by own read):** the `spawn-program'` PROCESS-peer `recv'` ALREADY speaks (`classify_peer_error → Crashed(reason)`; guard `c26cd189` locks it green). The REAL remaining mute is the **SOCKET-tier `recv_wire` arm, `runtime.rs:~26177`** — its `_ =>` lumps `FrameTooLarge` into the generic "peer closed"; the arena dials via `connect'` = socket-tier, so this is the arena's ACTUAL mute. **DECISION (four-questions all YES — KILL NOW, do NOT defer):** apply the 1-line fix `RecvError::FrameTooLarge => e.to_string()` at `~26177` (mirror the `Failed` arm just above it), verify RED-before/GREEN-after via `scratchpad/probe-arena-scale-n700.wat` (still hits `26177`); the COMMITTED *light* RED gate is **OWED → it RIDES #16** (socket peers hardcode 512 KiB with no wat knob; a light small-cap probe needs #16's budget knob — a heavy >512 KiB+concurrent probe now would be a throwaway). *(The "fold both into #16" option was struck DEGENERATE — it is just this-deferred, offering nothing.)* (3) the **WALL** — OWED (reason-free variants unconstructible-from-error + a lint backstop; structural impossibility).
-- **FINDING (recv-path topology, grounded):** `FrameTooLarge` is a byte-framing (PROCESS) phenomenon only — the thread tier (crossbeam) has no frames. Three client-`recv'` arms: PROCESS-peer (`runtime.rs:~26053`, `spawn-program'`) already SPEAKS; SOCKET-tier (`~26177`, `connect'`/`accept'`) MUTES `FrameTooLarge` (the #15.2 target); thread-tier (`~26210`) + `transfer.rs:176` are defensive/unreachable (no frames).
-- **BUILD ORDER (tractability-first):** #15 → #17 (named-error vocab) → #16 (per-op budgets + transport ceiling + `spawn.rs:765` input-channel fix + serve-loop enforcement) → #18 write tooling / #19 `<op>-stream` reader → #20 output-streaming → #21 re-do the arena CLEAN (capstone). Tasks #14–#21.
+### ★ RESUME AT — Stone 1 (the PIVOT), then the build order
+
+**The 1-line client-recv fix (`runtime.rs:26177`) is DISCONFIRMED — do NOT apply it.** A diagnostic build
+(2026-07-19) proved the client's socket `recv'` receives **`Disconnected`**, NOT `FrameTooLarge` — the client
+never sees the frame cap. The mute is **server-side**: the poll' process client-read arm (`runtime.rs:27658`)
+collapses the server's own `FrameTooLarge` into a reason-free **`ServiceEvent::Closed`** (clean-hangup), so the
+serve loop drops the client without replying → the client inherits a clean `Disconnected`. The breadcrumb's
+`26177` target was the wrong arm/variant (the STOP-1 lesson, at the variant grain).
+
+**STONE 1 (mute-kill floor + arena unblock) — the two-ceiling PIVOT** (full: the PIVOT + STRUCTURAL CLOSURE
+above; `DESIGN-service-io-budgets.md`):
+1. **SPEAK via a new `Rejected` arm (reply + evict + keep serving), NOT `Lost`:** at `runtime.rs:27658` (poll'
+   process client-read `Err(_)` arm), route `RecvError::FrameTooLarge` → a new **`ServiceEvent::Rejected{peer_idx,
+   cause}`**; keep genuine `Disconnected`/`Shutdown` → `Closed`. The new serve-loop arm **replies
+   `Reply::Failed{cause}` to that client** (catchable "too large" — client is reading, it lands; NON-BLOCKING
+   send so a blocked-mid-send client can't wedge us) **+ evicts** that connection (discards the residual) **+ keeps
+   serving**. NOT `Lost`/`eprintln` (terminal = client-triggerable DoS — grounded); NOT `Malformed` (keeps the
+   connection → residual desync). The client is told, the client survives, the server survives.
+2. **Per-service declared `FOO`:** a defservice declares its `FOO` (bytes-per-read); thread it from the service
+   through `listener'`/`accept'`/`from_socket` to its accepted-connection receivers (`comms/process.rs`
+   `max_frame_bytes` / `pair_with_budget`). The 512 KiB `DEFAULT_MAX_FRAME_BYTES` stays the fallback; the
+   journal/mem-store declare ~10 MiB so the arena's ~600 KiB legit write **arrives + succeeds** (proven by the
+   raise-experiment: PROCESS mute→630). **NOT** a global raise (that would inflict 10 MiB/connection on every
+   service).
+3. **RETIRE the drain-realign** (`24ac73e7`) — with reject+close, there is nothing to re-align; it deadlocks on
+   a blocked-mid-write sender.
+4. **The WALL** — reason-free variants unconstructible-from-error + a lint backstop (structural impossibility) —
+   still owed; land after the per-op tier so the sweep covers every recv/serve site.
+- **RED gate:** a defservice with a small `FOO` (test) gets a frame > `FOO`, both loci → the caller's op fails
+  with a *reason* (routed to `Lost`, owner sees the cause) + the service stays alive (a follow-up in-budget
+  request succeeds); AND with `FOO` raised, a legit ~600 KiB request succeeds. RED at HEAD (mute + dead client +
+  512 KiB cap).
+- **BUILD ORDER (tractability-first, re-derived):** **Stone 1** (this — server hard limit `FOO`, SPEAK-via-`Lost`,
+  raise `FOO`, retire drain) → **per-op limits** (declare `:max-request-bytes ≤ FOO` on `:features` + post-decode
+  serve-loop enforcement → named `RequestTooLarge` response = #16+#17 merged, the graceful matchable tier) →
+  **the WALL** (structural) → #18 write tooling / #19 `<op>-stream` reader → #20 output-streaming → #21 re-do the
+  arena CLEAN (capstone). Tasks #14–#21.
 
 ### LESSONS (this stretch — do not relearn)
 - **Two-sided contract:** a defservice is a NETWORK service for untrusted clients → defense-at-the-gate (reject bad input with a reason + keep serving; one dumb client can't wedge/DoS it) AND ergonomic tooling (perfect-knowledge, good clients never trip it). Both.
