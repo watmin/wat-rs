@@ -1,8 +1,10 @@
 # DESIGN — telemetry `caller` as call-site, arith at expansion, and derived log capacity
 
-**Arc 278, post-Stone-16.1.** Three linked sub-threads on the telemetry `Log`, discovered together
-while exploring "can we evaluate a code form during macro expansion to derive a byte budget from a
-log's required params?" All grounded against the disk this session; names cast + ratified by intueri.
+**Arc 278, post-Stone-16.1.** Four linked sub-threads on the telemetry `Log`: §1 caller (call-site
+`Frame`), §2 arith-at-expansion, §3 derived log capacity — discovered together while exploring "can we
+evaluate a code form during macro expansion to derive a byte budget from a log's required params?" — and
+§4 the `log` macro + `:wat::kernel::macro-call-site` (per-log-line capture, the follow-on caller.2
+surfaced). All grounded against the disk; names cast + ratified by intueri.
 
 ## Ordering (tractability: each step makes the next more tractable)
 
@@ -170,6 +172,67 @@ byte-length prim.
 
 ---
 
+## 4. The `log` macro + `:wat::kernel::macro-call-site` — per-log-line capture (RATIFIED 2026-07-21)
+
+**Problem (surfaced by caller.2).** caller.2 fills `emitted-from` in *constructions*, but the runtime
+`(:wat::kernel::call-site)` captures the ENCLOSING fn's caller (offset 0, `snapshot_call_stack()`,
+runtime.rs:20265) — so a `Log` built inside a fn records where that fn was *called*, not the `(log …)`
+line. The per-log-line WHERE is the macro's job: capture-at-EXPANSION, like `assertion-failed!` stamps
+the author's assert line. The `(log …)` line lives only in `call_site_span` — the macro-invocation span
+the engine holds at EXPAND, NOT in any runtime stack.
+
+**Mechanism — RATIFIED A1 (four-questions, all four YES): a new expand-time VERB, not a binding.**
+`:wat::kernel::macro-call-site` — a pure-total NULLARY verb meaningful ONLY inside a macro body at
+expansion; returns the macro invocation's call-site as `:wat::kernel::Frame {file, line, symbol}`, built
+from `call_site_span`. **A2 (a bare engine-injected binding `macro-call-site` in every macro body's env)
+was REJECTED** — it reserves a *bare* name (breaks FQDN-at-all-times, R27; shadowable by a macro author's
+param), "magic in scope" (fails Obvious + Honest + Good UX). A1 keeps everything FQDN + opt-in, mirrors
+the runtime `call-site` (same namespace, same `Frame` return), and is consistent with the substrate's
+existing expand-only macro verbs (`:wat::core::macro-error` on `is_pure_total`). The "Simple?" question is
+about braid, not effort — A1 is one un-braided primitive; its threading cost is effort, and difficulty is
+not a design axis.
+
+**Name — intueri cast + weighed.** `:wat::kernel::macro-call-site` — the `macro-` qualifier is
+load-bearing: a *macro call* is intrinsically a compile-time event, so the name CANNOT be conflated with
+the runtime `call-site` verb, and it is plainly not the `emitted-from` field (it is the *source* of that
+field's value). Kept in `:wat::kernel::` beside the runtime `call-site` — the compile/runtime pair.
+Rejected: `here` (Level-1 lie — reads as this-expression's location, but it is the *caller's*),
+`caller-frame`/`call-frame` (evoke the runtime stack → collide with `call-site`), `expansion-site`
+(misnames — the site is the CALL, not the expansion).
+
+**Grounded seam (the inquisitor draws the strike + RED probe; a shadowdancer builds — R20):**
+1. `expand_program_body` (src/macros/expand.rs:776) HAS `call_site_span: &Span` in scope;
+   `macro_eval_pre_validated` (src/macros/eval.rs:99) does NOT — thread `call_site_span` into it, down to
+   the head dispatch. (One param down the eval chain — genuine data the primitive needs, not a
+   flag-through-the-world; STOP-CASCADE-clean.)
+2. Add `:wat::kernel::macro-call-site` to `is_pure_total` (src/macros/eval.rs:351).
+3. A dispatch arm builds the `:wat::kernel::Frame` from the threaded `call_site_span` — `Span =
+   {file, line, col, end}` (crates/wat-reader/src/span.rs:74) carries `file` + `line`; build the same
+   `{file, line, symbol}` shape as `value_from_frame_info` (runtime.rs:23124) but from the span.
+   **Sub-decision — the `symbol` field:** at expand there is no enclosing fn; recommend `symbol = None`
+   (the span carries no callee — honest), or the enclosing macro-def name if reachable. Default: None.
+
+**The `log` macro (the consumer of `macro-call-site`).** A call-site WIDGET macro `:wat::telemetry::log`
+— sibling of the `timed` widget macro (span.wat:228 note; FQDN disambiguates it from the `Span` `log` OP,
+the `Span::LogRequest`/`LogResponse` pair at span.wat:243-251). Recommended form: `(:wat::telemetry::log
+<span> :level <Level> :message <record>)` → expands to the `Span` log op with `:emitted-from
+(:wat::kernel::macro-call-site)` baked at the author's line and the message `edn::write`d opaque (Stone
+B). **Sub-decision — target:** issue the `Span` log op through a span peer (recommended — the producer
+surface), OR build a bare `:wat::telemetry::Log` for direct-to-journal callers. Settle when drawing the
+macro strike; `macro-call-site` is target-agnostic.
+
+**RED gate — `probe_arc278_log_captures_call_line`** (mirrors tests/services/probe_arc278_emitted_from.wat):
+two `(:wat::telemetry::log …)` invocations on ADJACENT source lines; assert `line(log₂) − line(log₁) == 1`
+on the captured `emitted-from.line`. RED now (macro absent → unknown callee); GREEN after (per-call-line
+capture). Disproves the failure mode the macro fixes — inline `call-site` captures the enclosing fn's
+caller, a CONSTANT for both calls → difference 0. Self-consistent with NO magic absolute line (a relative
+invariant the code structure guarantees; the probe-numbers-must-match-the-code discipline).
+
+**Build order:** `macro-call-site` verb (the enabling primitive) → the RED probe (committed before the
+brief) → the `:wat::telemetry::log` widget macro → weigh `--release` by own re-run.
+
+---
+
 ## Status
 - §1 caller: **DONE** — caller.1 (the `:wat::kernel::call-site` verb, `60fbef21`) + caller.2 (the
   `emitted-from <- :wat::kernel::Frame` field flip + structural codemod + gate, `31b3d1ac`), both weighed
@@ -185,8 +248,11 @@ byte-length prim.
   − floor`; RED gate = a record with an extra fixed field yields a larger floor) — buildable now, no
   substrate gap — **BUILDING**. Refinements (follow-ons): `variants-of` (enum-in-floor by reflection) + a
   UTF-8 byte-length prim.
-  **Also owed (surfaced by caller.2):** a `log` MACRO that captures `(:wat::kernel::call-site)` AT the
-  user's log-call boundary — caller.2 fills *constructions*, which capture the enclosing-fn's caller (offset
-  0), so a Log built in a Rust-invoked fn gets the Rust site (absolute path); the precise per-log-line
-  capture is the macro's job (capture-at-expansion, like `assertion-failed!` fires at the author's line).
+- §4 log macro + `macro-call-site`: **RATIFIED (2026-07-21), BUILDING** — see §4. Mechanism A1 (the
+  expand-only `:wat::kernel::macro-call-site` verb, four-questions all-YES; A2 binding rejected); name
+  intueri-cast + weighed; seam grounded (thread `call_site_span` into `macro_eval_pre_validated`
+  eval.rs:99 + an `is_pure_total` arm + a Frame-from-span builder); RED gate drawn
+  (`probe_arc278_log_captures_call_line` — adjacent `(log …)` lines differ by exactly 1). Build order:
+  `macro-call-site` verb → RED probe → the `:wat::telemetry::log` widget macro. Open sub-decisions: the
+  `symbol` field (default None) + the macro target (`Span` log op vs a bare `Log`).
 - Stone 16.1 (the ruling-A / RequestTooLarge lock) is DONE + committed (9ca2e88d, 25ca431b).
