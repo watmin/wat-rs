@@ -266,6 +266,16 @@ pub struct SocketListener {
     /// by a lock: a cross-thread touch is a `RuntimeError`, never a contended wait. The old
     /// `Mutex` was paying for contention that cannot occur. (`docs/ZERO-MUTEX.md`, tier 2.)
     pub(crate) allowed_pids: ThreadOwnedCell<HashSet<i32>>,
+
+    /// Arc 278 Stone 1 — the per-service hard frame limit `FOO` (bytes-per-read),
+    /// DECLARED by the defservice and threaded here from `listener'`. Every
+    /// ACCEPTED-connection receiver (the server side reading client requests) is
+    /// constructed with THIS budget, so a frame over `FOO` is rejected
+    /// (`RecvError::FrameTooLarge` → a reasoned `ServiceEvent::Lost`, never a
+    /// mute close) and the service keeps serving everyone else. A service that
+    /// declares nothing inherits `DEFAULT_MAX_FRAME_BYTES` (512 KiB). PER-SERVICE,
+    /// not a global raise.
+    pub(crate) max_frame_bytes: usize,
 }
 
 impl SocketListener {
@@ -362,8 +372,9 @@ impl CommListener for SocketListener {
                             }
                             // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String>.
                             let (tx, rx) =
-                                crate::comms::process::sender_receiver_from_fd::<Value>(
+                                crate::comms::process::sender_receiver_from_fd_with_budget::<Value>(
                                     OwnedFd::from(stream),
+                                    self.max_frame_bytes,
                                 )
                                 .map_err(|e| RuntimeError {
                                     span: span.clone(),
@@ -445,12 +456,20 @@ impl Listener {
     ///   CLONE_PARENT; clone.rs) and the body runs in that child (spawn.rs), so `getppid()` IS the
     ///   spawner — the gate is LIVE from construction.
     /// Further peers (spawned children) are admitted by the owner via `allow'`.
-    pub fn from_socket(listener: UnixListener) -> Self {
+    /// Arc 278 Stone 1 — `max_frame_bytes` is the service's declared hard frame
+    /// limit `FOO`, threaded from `listener'` (default `DEFAULT_MAX_FRAME_BYTES`
+    /// = 512 KiB when the defservice declares nothing). It is carried on the
+    /// `SocketListener` and applied to every accepted-connection receiver.
+    pub fn from_socket(listener: UnixListener, max_frame_bytes: usize) -> Self {
         let mut seed = HashSet::new();
         seed.insert(unsafe { libc::getpid() }); // self — a process is its own peer
         seed.insert(unsafe { libc::getppid() }); // owner — the spawner, trusted by construction
         Listener {
-            inner: Box::new(SocketListener { listener, allowed_pids: ThreadOwnedCell::new(seed) }),
+            inner: Box::new(SocketListener {
+                listener,
+                allowed_pids: ThreadOwnedCell::new(seed),
+                max_frame_bytes,
+            }),
         }
     }
 
@@ -482,6 +501,7 @@ mod tests {
         SocketListener {
             listener,
             allowed_pids: ThreadOwnedCell::new(pids.iter().copied().collect()),
+            max_frame_bytes: crate::edn_shim::DEFAULT_MAX_FRAME_BYTES,
         }
     }
 

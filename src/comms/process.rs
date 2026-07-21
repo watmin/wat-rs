@@ -1930,6 +1930,23 @@ pub fn pair_with_budget<T: EdnRepresentable>(max_frame_bytes: usize) -> std::io:
 pub fn sender_receiver_from_fd<T: EdnRepresentable>(
     fd: OwnedFd,
 ) -> std::io::Result<(Sender<T>, Receiver<T>)> {
+    sender_receiver_from_fd_with_budget(fd, DEFAULT_MAX_FRAME_BYTES)
+}
+
+/// Like [`sender_receiver_from_fd`] but sets the receiver's per-frame cap to
+/// `max_frame_bytes` instead of the default `DEFAULT_MAX_FRAME_BYTES` (512 KiB).
+///
+/// Arc 278 Stone 1 — the per-service hard frame limit `FOO`. A defservice
+/// declares its `FOO` and it threads to the accepted-connection receivers here
+/// (via `SocketListener`), so a server reading client requests bounds each
+/// inbound frame at the service's declared budget. A frame over it → the
+/// receiver returns `RecvError::FrameTooLarge` (routed to a reasoned
+/// `ServiceEvent::Lost` in `poll'`, never a mute clean-close). `FOO`-agnostic
+/// callers keep the 512 KiB default via `sender_receiver_from_fd`.
+pub fn sender_receiver_from_fd_with_budget<T: EdnRepresentable>(
+    fd: OwnedFd,
+    max_frame_bytes: usize,
+) -> std::io::Result<(Sender<T>, Receiver<T>)> {
     // SAFETY: `fd.try_clone()` is a standard `dup(2)` call on a valid OwnedFd;
     // the resulting OwnedFd is independent — closing either does not close the other.
     let read_fd = fd.try_clone()
@@ -1937,7 +1954,7 @@ pub fn sender_receiver_from_fd<T: EdnRepresentable>(
     let receiver = Receiver {
         source: Source::Pipe { read_fd },
         accumulator: RefCell::new(Vec::new()),
-        max_frame_bytes: DEFAULT_MAX_FRAME_BYTES,
+        max_frame_bytes,
         ring: RefCell::new(
             IoUring::new(4).map_err(|e| std::io::Error::other(
                 format!("IoUring::new(4) failed at sender_receiver_from_fd: {}", e)))?,

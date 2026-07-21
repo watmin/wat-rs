@@ -21,6 +21,7 @@
     ((:wat::spawn::ServiceEvent::Closed _idx) nil)
     ((:wat::spawn::ServiceEvent::Lost _idx _cause) nil)
     ((:wat::spawn::ServiceEvent::Malformed _idx _cause) nil)  ;; arc 278 — unreachable for a timer
+    ((:wat::spawn::ServiceEvent::Rejected _idx _cause) nil)   ;; arc 278 Stone 1a — unreachable for a timer
     (:wat::spawn::ServiceEvent::Shutdown nil)
     ((:wat::spawn::ServiceEvent::Connection _peer) nil)
     ((:wat::spawn::ServiceEvent::Admin _msg) nil)))
@@ -63,6 +64,7 @@
       ((:wat::spawn::ServiceEvent::Closed _idx) :none)
       ((:wat::spawn::ServiceEvent::Lost _idx _cause) :none)
       ((:wat::spawn::ServiceEvent::Malformed _idx _cause) :none)  ;; arc 278 — unreachable for a timer
+      ((:wat::spawn::ServiceEvent::Rejected _idx _cause) :none)   ;; arc 278 Stone 1a — unreachable for a timer
       (:wat::spawn::ServiceEvent::Shutdown :none)
       ((:wat::spawn::ServiceEvent::Connection _peer) :none)
       ((:wat::spawn::ServiceEvent::Admin _msg) :none))

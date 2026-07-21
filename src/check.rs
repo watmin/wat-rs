@@ -5084,6 +5084,17 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 278 Stone 1a — try-send' has the SAME type contract as send'
+            // (peer<I,O>, payload<-I -> nil); only the runtime blocking behavior
+            // differs (best-effort non-blocking). Reuse infer_send_prime.
+            ":wat::kernel::try-send'" => {
+                let (val, mut errs) = infer_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             ":wat::kernel::recv'" => {
                 let (val, mut errs) = infer_recv_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -10904,9 +10915,31 @@ fn infer_listener_prime(
             // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)` → `Bound<S,R>`,
             // mirroring the thread tier (the listener mints its own kernel-unique address;
             // no name arg). The 2-arg named form below is LEGACY — annihilated in arc 272 step 5.
-            if args.len() == 3 {
+            // Arc 278 Stone 1 — an OPTIONAL 4th arg carries the service's declared hard frame
+            // limit `FOO` (bytes-per-read); `(listener' (process) :S :R FOO)`. It is threaded by
+            // defservice's child-main from the `:max-frame-bytes` clause (default 512 KiB).
+            if args.len() == 3 || args.len() == 4 {
                 let s_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
                 let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
+                if args.len() == 4 {
+                    // Infer the budget arg (must be an i64) so a mistyped FOO is caught.
+                    let b = infer(&args[3], env, locals, fresh, subst)
+                        .drain_errors_into(&mut local_errors);
+                    if let Some(b_ty) = b {
+                        let b_reduced = reduce(&apply_subst(&b_ty, subst), subst, env.types());
+                        if b_reduced != TypeExpr::Path(":wat::core::i64".into()) {
+                            local_errors.push(CheckError {
+                                span: args[3].span().clone(),
+                                kind: CheckErrorKind::TypeMismatch {
+                                    callee: OP.into(),
+                                    param: "max-frame-bytes".into(),
+                                    expected: ":wat::core::i64".into(),
+                                    got: format_type(&b_reduced),
+                                },
+                            });
+                        }
+                    }
+                }
                 let ty = bound_type(s_ty, r_ty);
                 return if local_errors.is_empty() {
                     CheckResult::ok(ty)

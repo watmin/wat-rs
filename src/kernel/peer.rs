@@ -290,6 +290,37 @@ impl Peer {
         }
     }
 
+    /// Best-effort NON-BLOCKING send of a `Value` (thread tier) — mirrors
+    /// [`send`](Self::send) but NEVER blocks: a full channel or a gone peer is a
+    /// silent skip. Returns `true` iff the value was accepted.
+    ///
+    /// Arc 278 Stone 1a — the over-FOO `Rejected` serve-loop reply sends through
+    /// `try_send` so a client blocked mid-`send` (an EXTREME oversized frame,
+    /// not draining its reply side) can NEVER wedge the serve loop; if it isn't
+    /// reading, the reply is skipped and the connection is evicted (the client
+    /// gets an EPIPE on its own `send` — honest). Same non-blocking primitive as
+    /// [`notify_peer_crashed_best_effort`](Self::notify_peer_crashed_best_effort).
+    pub fn try_send(&self, value: crate::value::Value) -> bool {
+        match &self.tx {
+            PeerTx::Thread(tx) => tx.try_send(value).is_ok(),
+            PeerTx::Socket(_) => {
+                panic!("Peer::try_send called on socket-tier peer — use try_send_wire")
+            }
+        }
+    }
+
+    /// Best-effort NON-BLOCKING send of a pre-encoded wire `String` (socket
+    /// tier). Never blocks (see [`try_send`](Self::try_send)). Returns `true`
+    /// iff the frame was accepted.
+    pub fn try_send_wire(&self, wire: String) -> bool {
+        match &self.tx {
+            PeerTx::Socket(tx) => tx.try_send(wire).is_ok(),
+            PeerTx::Thread(_) => {
+                panic!("Peer::try_send_wire called on thread-tier peer — use try_send")
+            }
+        }
+    }
+
     /// Blocking recv.  Decoding is handled internally by the boxed transport impl.
     ///
     /// Cascade-aware (inherited from the underlying comms tier): wakes on

@@ -95,18 +95,23 @@
                                 (:wat::core::HashMap/assoc
                                   (:wat::core::HashMap/assoc
                                     (:wat::core::HashMap/assoc
-                                      (:wat::core::HashMap :wat::core::String :wat::core::bool)
-                                      "durable" true)
-                                    "ephemeral" true)
-                                  "ops" true)
-                                "init" true)
-                              "hibernate" true)
-                            "stop" true)
-                          "durable-parent" true)
-                        "satisfies" true)
-                      "impls" true)
+                                      (:wat::core::HashMap/assoc
+                                        (:wat::core::HashMap :wat::core::String :wat::core::bool)
+                                        "durable" true)
+                                      "ephemeral" true)
+                                    "ops" true)
+                                  "init" true)
+                                "hibernate" true)
+                              "stop" true)
+                            "durable-parent" true)
+                          "satisfies" true)
+                        "impls" true)
                       ;; Arc 278 S4d: :peers — the explicit s2s dependency DAG (dialed peer surfaces).
                       "peers" true)
+                      ;; Arc 278 Stone 1: :max-frame-bytes — the per-service hard frame limit `FOO`
+                      ;; (bytes-per-read), threaded to the accepted-connection receivers. Optional;
+                      ;; default DEFAULT_MAX_FRAME_BYTES (512 KiB).
+                      "max-frame-bytes" true)
      clauses-len    (:wat::core::length clauses)
      n-clause-pairs (:wat::core::i64::/ clauses-len 2)
      ;; even-length guard
@@ -135,7 +140,7 @@
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown clause :"
                                 (:wat::core::string::concat key
-                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers"))))))
+                                  " — recognized clauses: :durable :ephemeral :ops :init :hibernate :stop :durable-parent :satisfies :impls :peers :max-frame-bytes"))))))
                       (:wat::core::HashMap :wat::core::String :wat::WatAST)
                       (:wat::core::range 0 n-clause-pairs))
      ;; ── Arc 293 S2: :ops vs :satisfies mode ────────────────────────────────────
@@ -225,6 +230,19 @@
                         (:wat::core::HashMap/get clause-map "durable-parent")
                         "defservice: :durable-parent needs a value")
                       :wat::core::Record)
+
+     ;; ── Arc 278 Stone 1: :max-frame-bytes — the per-service hard frame limit `FOO` ──
+     ;; Optional; default DEFAULT_MAX_FRAME_BYTES (512 KiB = 524288). The declared value
+     ;; (a bare i64 literal node) is threaded into the process child-main's `listener'`
+     ;; call as the 4th arg, so the accepted-connection receivers read client requests at
+     ;; this budget. A frame over it → RecvError::FrameTooLarge → ServiceEvent::Lost (a
+     ;; reasoned close), never a mute clean-hangup. Thread tier has no byte frames → no-op.
+     max-frame-bytes-node (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "max-frame-bytes")
+                            -> :wat::WatAST
+                            (:wat::core::Option/expect
+                              (:wat::core::HashMap/get clause-map "max-frame-bytes")
+                              "defservice: :max-frame-bytes needs a value")
+                            `524288)
 
      ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
      state-ty       (:wat::core::keyword/from-string
@@ -886,7 +904,23 @@
                      ((:wat::spawn::ServiceEvent::Malformed idx cause)
                        (:wat::core::do
                          (:wat::kernel::send' (:wat::core::nth clients idx) (~reply-failed-kw cause))
-                         (~serve-name self l clients state))))
+                         (~serve-name self l clients state)))
+                     ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
+                     ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
+                     ;; client (reply `Reply::Failed[cause]` — its generated method raises with the
+                     ;; reason, so the caller is never left blind), then EVICT (close) that ONE
+                     ;; connection (discarding the un-read oversized residual that would otherwise
+                     ;; desync the wire — this is why Malformed, which KEEPS the client, is wrong
+                     ;; here), then KEEP SERVING everyone else. The reply is a NON-BLOCKING
+                     ;; `try-send'` (the deadlock guard): a client blocked mid-send on an extreme
+                     ;; oversized frame is not reading its reply side, so a blocking send' could
+                     ;; wedge the serve loop — try-send' skips a non-draining client and we still
+                     ;; evict (it learns via EPIPE on its own send). NO eprintln (that is wat's
+                     ;; panic — a client-triggerable crash / DoS).
+                     ((:wat::spawn::ServiceEvent::Rejected idx cause)
+                       (:wat::core::do
+                         (:wat::kernel::try-send' (:wat::core::nth clients idx) (~reply-failed-kw cause))
+                         (~serve-name self l (:wat::std::list::remove-at clients idx) state))))
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- Peer'<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
@@ -1121,7 +1155,7 @@
                           ;; then-recv-Started) RAISES the child's reason instead of /start
                           ;; succeeding and the owner's later connect' getting a bare ECONNREFUSED.
                           [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
-                                            ~enum-name ~reply-name)
+                                            ~enum-name ~reply-name ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty ~admin-ty)
                            ~cm-ship-sym (:wat::kernel::recv' ~cm-self-sym)
                            ~cm-st-sym   (:wat::core::apply -> ~state-ty

@@ -5190,6 +5190,14 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::send'" => {
             eval_peer_send_prime(args, list_span, env, sym)
         }
+        // Arc 278 Stone 1a — try-send': best-effort NON-BLOCKING send. Same
+        // (peer<I,O>, payload<-I) -> nil contract as send', but a full channel /
+        // gone peer is a silent skip, never a block. The over-FOO `Rejected`
+        // serve-loop reply uses it so a client blocked mid-send cannot wedge the
+        // serve loop (the deadlock guard).
+        ":wat::kernel::try-send'" => {
+            eval_peer_try_send_prime(args, list_span, env, sym)
+        }
         ":wat::kernel::recv'" => {
             eval_peer_recv_prime(args, list_span, env, sym)
         }
@@ -20719,7 +20727,11 @@ fn eval_listener_prime(
         // below is LEGACY — annihilated in arc 272 step 5 with the rest of the name-discovery
         // stack.) The SO_PEERCRED uid+pid checks are the security; the autobind name is the
         // exclusive-bind rendezvous token, not a secret.
-        if args.len() == 3 {
+        // Arc 278 Stone 1 — the process form accepts an OPTIONAL 4th arg: the
+        // service's declared hard frame limit `FOO` (bytes-per-read), threaded to
+        // the accepted-connection receivers via `SocketListener`. 3 args → default
+        // `DEFAULT_MAX_FRAME_BYTES` (512 KiB); 4 args → the declared `FOO`.
+        if args.len() == 3 || args.len() == 4 {
             for i in [1usize, 2usize] {
                 if !matches!(args[i], WatAST::Keyword(_, _)) {
                     return Err(RuntimeError {
@@ -20731,6 +20743,27 @@ fn eval_listener_prime(
                     }.into());
                 }
             }
+            // Evaluate the optional per-service frame budget `FOO` (arg 3).
+            let max_frame_bytes: usize = if args.len() == 4 {
+                match eval_inner(&args[3], env, sym)?.value_owned() {
+                    Value::i64(n) if n > 0 => n as usize,
+                    other => {
+                        return Err(RuntimeError {
+                            span: args[3].span().clone(),
+                            kind: RuntimeErrorKind::MalformedForm {
+                                head: OP.into(),
+                                reason: format!(
+                                    "argument 3 (:max-frame-bytes FOO) must be a positive i64; got {:?}",
+                                    other.type_name()
+                                ),
+                            },
+                        }
+                        .into());
+                    }
+                }
+            } else {
+                crate::edn_shim::DEFAULT_MAX_FRAME_BYTES
+            };
             // autobind_listener creates the socket SOCK_NONBLOCK (the C0b.3a-i invariant).
             let (ul, name_bytes) = crate::comms::process::autobind_listener(128)
                 .map_err(|e| RuntimeError {
@@ -20750,7 +20783,7 @@ fn eval_listener_prime(
             return Ok(Value::Aggregate(Arc::new(AggregateValue::struct_(
                 "wat::spawn::Bound".into(),
                 vec![
-                    make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_socket(ul)),
+                    make_rust_opaque(LISTENER_TYPE_PATH, Listener::from_socket(ul, max_frame_bytes)),
                     make_rust_opaque(ADDRESS_TYPE_PATH, Address::from_socket_name_bytes(name_bytes, minter_pid)),
                 ],
             ))));
@@ -25835,6 +25868,75 @@ fn eval_peer_send_prime(
     }
 }
 
+/// `(:wat::kernel::try-send' peer payload)` — Arc 278 Stone 1a.
+///
+/// Best-effort, NON-BLOCKING twin of `send'` for the unified `Peer'<S,R>`. Same
+/// type contract (payload unifies with the peer's I) but the write NEVER blocks:
+/// a full kernel buffer (peer not draining) or a gone peer is a **silent skip**
+/// — the value is dropped and `nil` is returned. Used by the serve loop's
+/// over-FOO `Rejected` arm to reply `Reply::Failed{cause}` to a client that may
+/// be blocked mid-`send` on an extreme oversized frame: if it isn't reading its
+/// reply side, the reply is skipped and the connection is evicted (the client
+/// learns via EPIPE on its own `send`), so one client can never wedge the loop.
+fn eval_peer_try_send_prime(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::try-send'";
+    if args.len() != 2 {
+        return Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        }
+        .into());
+    }
+    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let payload_val = eval_inner(&args[1], env, sym)?.value_owned();
+
+    match &peer_val {
+        // Unified Peer' arm (the serve loop's `clients` are PEER_TYPE_PATH — socket
+        // tier on process, thread tier on thread). Best-effort: any failure is a skip.
+        Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
+            let cell: &crate::kernel::spawn::PeerCell =
+                crate::rust_deps::marshal::downcast_ref_opaque(
+                    inner,
+                    crate::kernel::spawn::PEER_TYPE_PATH,
+                    OP,
+                    list_span.clone(),
+                )?;
+            cell.with_ref(OP, |opt_peer| {
+                match opt_peer {
+                    // Already closed → best-effort skip (never an error).
+                    None => {}
+                    Some(peer) if peer.is_socket_tier() => {
+                        let wire = crate::edn_shim::value_to_edn_string_with(
+                            &payload_val,
+                            sym.types().map(|a| a.as_ref()),
+                        );
+                        let _ = peer.try_send_wire(wire); // best-effort, non-blocking
+                    }
+                    Some(peer) => {
+                        let _ = peer.try_send(payload_val.clone()); // thread tier, best-effort
+                    }
+                }
+            })
+            .map_err(Into::<EvalBreak>::into)?;
+            Ok(Value::Unit)
+        }
+        other => Err(RuntimeError {
+            span: list_span.clone(),
+            kind: RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "peer (unified Peer'<S,R>)",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        }
+        .into()),
+    }
+}
+
 /// `(:wat::kernel::peer-pid peer)` — arc 170 capability circuit, stone 2.
 ///
 /// PURE PROJECTION of the far-end child pid off a peer value — no effect, no
@@ -27655,21 +27757,38 @@ fn eval_poll_prime(
                                     })),
                                 }
                             }
-                            Err(_) => {
-                                // Output EOF — bare Peer' has no crash channel, so there
-                                // is no abnormal-exit distinction here.  The canonical
-                                // Lost-vs-Closed classifier is
-                                // `crate::kernel::spawn::classify_peer_death`; poll' keeps
-                                // emitting :Closed because bare peers carry no crash
-                                // channel.  Upgrading poll' to emit :Lost requires adding
-                                // a crash channel to `Peer` (peer.rs) — the next slice.
-                                // ServiceEvent::Closed [idx <- i64]
-                                Value::Enum(Arc::new(EnumValue {
-                                    type_path: SELECT_EVENT_TYPE.into(),
-                                    variant_name: "Closed".into(),
-                                    fields: vec![Value::i64(peer_idx)],
-                                }))
-                            }
+                            // Arc 278 Stone 1a — over-FOO is a 400-class CLIENT error, NOT a
+                            // 500-class internal crash. A frame exceeding THIS service's declared
+                            // hard frame limit `FOO` (RecvError::FrameTooLarge) routes to
+                            // ServiceEvent::Rejected{idx, cause}: the serve loop TELLS that client
+                            // (`Reply::Failed{cause}` via a non-blocking try-send'), EVICTS just that
+                            // connection (discarding the un-read oversized residual that would desync
+                            // the wire), and KEEPS SERVING everyone else. NOT the reason-free `Closed`
+                            // (mute), NOT the terminal `Lost` (whose `eprintln` is wat's panic — a
+                            // client-triggerable service crash = DoS). `message_only_failure` mirrors
+                            // the Malformed construction above.
+                            Err(crate::comms::RecvError::FrameTooLarge) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Rejected".into(),
+                                fields: vec![
+                                    Value::i64(peer_idx),
+                                    message_only_failure(format!(
+                                        "request too large — exceeded this service's \
+                                         max-frame-bytes limit; request rejected, connection closed"
+                                    )),
+                                ],
+                            })),
+                            // Genuine clean EOF (Disconnected / Shutdown), a reason-free abnormal
+                            // reset (PeerCrashed — administrative, owner-crash-channel only), or a
+                            // raw transport Failed(reason) (kept at the HEAD `Closed` path — its
+                            // reason-surfacing is a separate stone, NOT this over-FOO disposition).
+                            // A bare Peer' has no crash channel here → clean `Closed`.
+                            // ServiceEvent::Closed [idx <- i64]
+                            Err(_) => Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE.into(),
+                                variant_name: "Closed".into(),
+                                fields: vec![Value::i64(peer_idx)],
+                            })),
                         }
                     }
                 }
@@ -27704,10 +27823,14 @@ fn eval_poll_prime(
                                 }
                                 let peer_value = {
                                     // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String>.
-                                    let (tx, rx) = crate::comms::process::sender_receiver_from_fd::<
+                                    // Arc 278 Stone 1: the accepted receiver reads client requests
+                                    // at the service's declared hard frame limit `FOO`
+                                    // (socket_listener.max_frame_bytes), NOT the global default.
+                                    let (tx, rx) = crate::comms::process::sender_receiver_from_fd_with_budget::<
                                         Value,
                                     >(
-                                        OwnedFd::from(stream)
+                                        OwnedFd::from(stream),
+                                        socket_listener.max_frame_bytes,
                                     )
                                     .map_err(|e| RuntimeError {
                                         span: list_span.clone(),
@@ -27841,6 +27964,18 @@ fn eval_poll_prime(
                                                                 })),
                                                             }
                                                         }
+                                                        // Arc 278 Stone 1a — over-FOO → Rejected
+                                                        // here too (parity with the main client
+                                                        // arm), so an over-budget frame is never
+                                                        // muted even on the rare re-poll path.
+                                                        Err(crate::comms::RecvError::FrameTooLarge) => Value::Enum(Arc::new(EnumValue {
+                                                            type_path: SELECT_EVENT_TYPE.into(),
+                                                            variant_name: "Rejected".into(),
+                                                            fields: vec![
+                                                                Value::i64(pidx),
+                                                                message_only_failure(format!("request too large — exceeded this service's max-frame-bytes limit; request rejected, connection closed")),
+                                                            ],
+                                                        })),
                                                         Err(_) => Value::Enum(Arc::new(
                                                             EnumValue {
                                                                 type_path: SELECT_EVENT_TYPE

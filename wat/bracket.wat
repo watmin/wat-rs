@@ -487,6 +487,15 @@
               "bracket collect-loop: runner {idx} sent an undecodable result: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
+        ;; arc 278 Stone 1a — a pool runner sent an OVER-FOO (over-budget) frame. A bracket
+        ;; runner speaks a fixed (i64,O) protocol; an oversized result is a should-never-happen.
+        ;; Mirror :Malformed — raise LOUD with the reason (never a `_` wildcard that re-hides it).
+        ((:wat::spawn::ServiceEvent::Rejected idx cause)
+          (:wat::kernel::assertion-failed!
+            (:wat::core::string::interpolate
+              "bracket collect-loop: runner {idx} sent an over-budget frame: {cause}"
+              :idx idx :cause (:wat::kernel::Failure/message cause))
+            :wat::core::None :wat::core::None))
         (:wat::spawn::ServiceEvent::Shutdown
           (:wat::kernel::assertion-failed!
             "bracket collect-loop: unexpected Shutdown event"

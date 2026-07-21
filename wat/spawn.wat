@@ -176,7 +176,8 @@
   :Message    [idx   <- :wat::core::i64  msg   <- :O]
   :Closed     [idx   <- :wat::core::i64]
   :Lost       [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]
-  :Malformed  [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
+  :Malformed  [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
+  :Rejected   [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])   ;; arc 278 Stone 1a: over-FOO (400-class) — reply cause (non-blocking) + EVICT + keep serving
 
 ;; ── PoolMsg<D,I> — the universal pool wire message (arc 170 M1-pool) ──────────
 ;;
