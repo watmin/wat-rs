@@ -182,52 +182,49 @@ route around it).
 
 ---
 
-## ═══ SESSION-END CURARE (far-side state — STONE 1 DONE + on DR; the two-ceiling model built; R51 born; #16/#17 next) ═══
+## ═══ SESSION-END CURARE (far-side state — 2026-07-20/21; #16 well underway; Stone 16.1 mid-COMPLETION, tree DIRTY+RED on purpose; R52 born) ═══
 
-**READ THIS BLOCK, then `git status`. Branch `arc-170-gap-j-v5-deadlock-state`; HEAD ≈ `356af9f7` (Stone 1b + the n700-probe annihilation). A LATER HEAD = more landed — trust the disk + the git log. A HEAD mismatch is the ALARM.**
+**READ THIS BLOCK, then `git status`. Branch `arc-170-gap-j-v5-deadlock-state`; HEAD `69c2b2e7` (R52) + this curare commit. A LATER HEAD = more landed. ⚠ THE WORKING TREE IS DIRTY AND RED — a migration is MID-COMPLETION (uncommitted, on purpose; see ⚠ below). Do NOT panic-revert. HEAD/state mismatch vs this note → trust the disk + git log.**
 
-### DONE this stretch (committed + pushed, DR) — weighed green by own re-run (floor 4182/0)
-- **Stone 1 — the mute-kill floor, closed HONESTLY** (`64571326` 1a, `8326a2b4` 1b) via the **two-ceiling model**:
-  - **Per-service `FOO`** (`:max-frame-bytes`, bytes-per-read) threaded to a defservice's accepted-connection receivers; 512 KiB `DEFAULT_MAX_FRAME_BYTES` stays the fallback. The baked `journal`/`mem-store` declare 10 MiB → the arena's ~600 KiB write **works** (630 == 630 both loci). **NOT** a global raise.
-  - **Over-`FOO` = a 400 the client is TOLD about, nobody dies:** `runtime.rs` poll' routes `FrameTooLarge` → the new `ServiceEvent::Rejected{idx,cause}`; the serve loop **replies `Reply::Failed{cause}`** (via the new NON-BLOCKING `try-send'` verb) **+ evicts** that one connection (`OwnedFd::drop → libc::close` → **Linux reaps the pipe**, no userspace drain) **+ keeps serving**. NOT `Lost`/`eprintln` (= wat's PANIC → a client-triggerable DoS). NOT `Malformed` (keeps connection → residual desync).
-- **R51 `TYPO TANGO, TACTV VIVO`** (`aaec93e2`) — the effect-system realization: six fights (stdin/stdout/stderr, telemetry, purity, services, no-hidden-failures) are ONE typed-capability effect system = the IO monad's *telos* via ocap + typed channels = **typed Unix**.
-- The **design pivot trued** in both docs (this + `DESIGN-service-io-budgets.md`) + the self-contradictory `n700` scratchpad **annihilated** (`356af9f7`).
+### The arc target (unchanged): the CHAOS ENGINE (R25 `MACHINA CHAOS DOMAT`) — a streaming rete datalog in a defservice. #16 (service-I/O budgets) is the on-ramp; the two-ceiling model + the no-hidden-failures LAW are its floor.
 
-### THE MODEL (do NOT re-derive — read the PIVOT above + `DESIGN-service-io-budgets.md`)
-Two INDEPENDENT ceilings: (1) **per-service `FOO`** (transport, pre-decode) — over it → reject + **CLOSE** (told, kick, Linux reaps the pipe; NO drain); (2) **per-op limit** (`≤ FOO`, post-decode, the request ARRIVED so the wire is synced) — over it → a matchable **`RequestTooLarge`** response, **connection KEPT**, client fixes+retries in place. `eprintln` IS wat's panic (stderr = the typed dying declaration); a client-reachable path NEVER fires it; non-terminal logging is **telemetry** (R51, #22).
+### DONE this run (committed + pushed, DR) — each weighed green by own re-run in `--release`
+- **16.0** (`f3e9f467`) — per-op `:max-request-bytes` budget field on `SurfaceMember::Method` + a KWARGS-options parse (`i64`, default `DEFAULT_MAX_FRAME_BYTES`; unknown key → located error; extensible to `:max-page-bytes`).
+- **16.1a** (`75cd6d00`) — `RequestTooLarge{bytes,cap}` on all 14 stdlib enum Responses + 7 s2s propagate arms + the proven record→enum EXEMPLAR (`probe::Big`).
+- **16.1b** (`4536eaf6`) — the record→enum migration of the `tests/` fixtures (31 files).
+- **R52 `QVOD LEX ACCENDIT, REDIMIT`** (`69c2b2e7`) — Reclamation: a corrected law reclaims its whole world (reveals + burns + fixes every violator); this run it reclaimed the codebase AND the apparatus's own failures. Kept HARD un-gilded.
+- Docs/notes: response-contract trued to ruling A in `DESIGN-service-io-budgets.md` (`e80ef698`); `RTL`→`RequestTooLarge` spell-out (`e57503c6`); 2×109 notes (scope-name `77e12db8`, assertion-failed!-kwargs `09f9ce80`); the scratch-`.wat` convention `wat-scripts/scratch-pad/` + `wat-rs/CLAUDE.md` (`73c5d232`).
 
-### ★ RESUME AT — #16/#17 (the per-op recoverable-400 tier) — ONE FORK PENDING (builder to rule)
-The graceful keep-the-connection 400: declare `:max-request-bytes` (`≤ FOO`) on a surface's `:features` (discoverable) + **post-decode** serve-loop enforcement → the op's **named `RequestTooLarge` response** (matchable, connection lives). The request arrived under `FOO` (wire synced), so it's recoverable-in-place — the opposite of the transport-`FOO` kick.
+### ★ THE RULING — A (universal, checker-locked): every serviceable op-Response is an OUTCOME ENUM carrying `RequestTooLarge{bytes,cap}`; records-as-Responses RETIRED for services.
+Four-questioned + builder-ruled (materializing A-vs-B FLIPPED the apparatus to A; "complete it, no alternative — the heretics were lit ablaze for us, this is the point"). Universal because every service is WIRE-CAPABLE (reachability depends on the satisfying service's `FOO`, unknowable at the surface). A WIRE concern, NOT a locus one: shared-memory (thread) has no wire; a process is a networked file handle; build TRANSPORT-GENERAL now so networking is a later transport SWAP ([[project_aws_on_a_single_computer_then_networking]]).
 
-**GROUNDED (2026-07-19):** `synthesize_surface_protocol` (`src/types.rs:1713`) builds each op's `<S>::Op`/`<S>::Reply` from the surface methods; the reply carries the op's **user-declared return type**, which by convention is *already* an outcome enum (`:Success | … | :Fatal`) — so op-tier failure is first-class. `Reply::Failed{cause}` is the *synthesized protocol-tier* floor (decode / no-op). So **#17 (named-error contract) is mostly discipline** — the op author declares `<Op>Response = Success | RequestTooLarge{bytes,cap} | ImpureRules | UnknownMessageType | Fatal`; exhaustive `match` already forces handling.
+### ⚠ UNCOMMITTED IN THE TREE (RED, mid-completion) — Stone 16.1's completion, in flight
+- **The 16.1c CHECKER RULE** (`src/types.rs`, ~204 lines, in/near `synthesize_surface_protocol`) — LOCKS ruling A: an op-Response that's a record, or an enum lacking `RequestTooLarge{bytes:i64,cap:i64}` → located `TypeError`. **Correct, RED-gated, ZERO false positives.** It reddens every still-unmigrated violator — the reds ARE the worklist (R52).
+- **SD-1's edits** (green): 8 `wat-tests/service-*` + `timer-env-grab` record→enum; `tests/services/probe_arc278_sift_arena.wat` (+`RequestTooLarge`).
+- **SD-2's partial** wat-scripts edits (background agent, task `a178474b9fba10b84`, was RUNNING at compact — its output file `/tmp/…/tasks/a178474b9fba10b84.output`; check it; may be complete or partial).
 
-**THE FORK — how #16 enforces automatically + returns a MATCHABLE `RequestTooLarge` (op Response is user-declared):**
-- **(a) handler-enforced** — the `:impls` body measures + returns it. Simplest; but hand-discipline (weak defense-at-the-gate).
-- **(b) protocol-tier via `Reply::Failed`** — the serve loop measures post-decode + replies `Reply::Failed{"too large"}`. Automatic + reuses what's wired, but a **catchable raise**, NOT matchable (cuts against the named-variant/exhaustive ruling).
-- **(c) checker-enforced op-tier variant** — declaring `:max-request-bytes` REQUIRES a `RequestTooLarge` variant on that op's `<Op>Response`; the serve loop constructs it by name post-decode. **Automatic AND matchable** (the intended shape) — needs new checker + generic-construction machinery.
-- **Apparatus lean: (c)** — matchable + server-enforced + exhaustive-checked, the shape the two-sided contract + the recoverable-400 ruling both point at. (a) = weak fallback; (b) = trades matchability for reuse. **RULE THIS before drawing the strike.**
+### ★ RESUME AT — FINISH Stone 16.1 (drive the ~15 reds to 0), then commit the completion + the 16.1c lock as ONE clean green commit
+(My `tests/`-only grep was incomplete — the whole-tree lesson, re-violated; the checker caught the ~49 more.) Remaining violators, whole-tree-grounded:
+1. **wat-scripts (~33 record-Response probes, loader-only)** — record→enum; they need only TYPE-CHECK (`every_wat_scripts_file_loads` gate, not run). SD-2 was on this — verify/finish.
+2. **The sift-rules MACRO** — `SiftRulesResponse` is MACRO-GENERATED (`wat/query.wat:330-333`, `:Deductions|:Fatal`, no `RequestTooLarge`). Fix: (a) add `:RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]` to the generated enum; (b) the impl's `QueryLogsResponse` match (`:357-395`) has a `(_ → Fatal)` wildcard that LUMPS `QueryLogsResponse::RequestTooLarge` into Fatal — replace with an explicit PROPAGATE arm → `SiftRulesResponse::RequestTooLarge` (needs a `~resp-rtl-kw` sibling to `~resp-ded-kw`/`~resp-fat-kw`, bound earlier in the macro); (c) add the `RequestTooLarge` arm to `probe_arc278_sift_rules.wat` + `_arena.wat` consumer matches (run-tests).
+3. **6 `.wat.bad` negatives** (bodiless_edge, mixed_via_macro, w2a_kwargs_check_mint, swapped_colocation_tuple, wrong_service_coord, wrong_parametric_surface_param) — their incidental Response now trips the 16.1c rule BEFORE the arc170-specific error each asserts. Per-file: migrate the Response (record→enum+RTL) so the INTENDED error surfaces first; VERIFY each `.rs` harness's asserted error still fires.
+Then `cargo nextest run --release` → green (the known `sigterm`/`lifeline_orphan`/`pdeathsig` load-timing flakes pass isolated) → commit the completion + the 16.1c rule (and spell out the `RTL` prose in `src/types.rs` comments/tests → `RequestTooLarge`). **Stone 16.1 DONE.**
 
-Then: **the WALL** (reason-free-from-error unconstructible + lint) → **#18/#19** (writer fragmentation + `<op>-stream` reader) → **#20** (output composite cursor) → **#21** re-do the arena CLEAN (delete BOTH shortcuts — the hand-chunk AND the `Peer'`-handle-param RPC-sever page-loop; a committed gate that **ASSERTS `thread == process == expected(N)`, computed not hardcoded** — turns R50 PROBATVM). Ancillary: **#22** thread telemetry as the log channel + retire the `eprintln`-abuse (a peer break should log+continue, not crash — R51's stone).
+### THEN — the rest of #16, then onward
+- **#16.2** — the wire-boundary serve-loop enforcement: post-decode, measure the request's SERIALIZED frame bytes vs the op's budget → construct + reply `RequestTooLarge`, KEEP the connection. Keyed on "did it cross a wire" (the frame-byte-length threaded from the receiver), **NEVER `if locus == process`** — so UDS/TCP/mTLS/remote inherit it. Worked reference: the untracked feasibility probe `tests/services/probe_arc278_per_op_request_too_large.{wat,rs}` (hand-proved measure + matchable-variant + keep-connection, release-green; it evolves into 16.2's acceptance gate).
+- **#17** — mostly SATISFIED by 16.1 (the enum Responses + the checker ARE the named-error contract).
+- Then: **the WALL** (reason-free-from-error unconstructible + lint) → **#18/#19** (writer fragmentation + `<op>-stream` reader) → **#20** (output composite cursor) → **#21** arena CLEAN (delete both shortcuts; committed gate ASSERTS `thread==process==expected(N)` computed — turns R50 PROBATVM) → **#22** thread telemetry as the log channel + retire the eprintln-abuse (R51's stone).
 
-### LESSONS (this stretch — do not relearn)
-- **Green = DR it** — once a strike weighs green by YOUR OWN re-run (probe + full floor), commit as small logical units + push; no per-commit ask (`[[feedback_commit_push_often_when_green_dr_it]]`).
-- **A probe's numbers must match the code** — filename/comment/label/expected all agree or it lies; PREFER compute-`expected(N)` + ASSERT over a magic number + print-and-eyeball; a self-contradictory throwaway → annihilate it (`[[feedback_probe_numbers_must_match_the_code_or_delete]]`).
-- **`eprintln` is wat's PANIC** (terminal; stderr = the dying declaration) — a client-reachable path must NEVER fire it (a `Lost`-route on client input = DoS); non-terminal logging is TELEMETRY (R51, #22).
-- **Kick, don't drain** — a bad over-`FOO` request: close the fd, let Linux reap the pipe; don't spend a cycle salvaging a bad connection. Recoverable-in-place is the per-op tier (request arrived, no desync).
-- **Ground the EXACT arm/variant before the RED probe** — the `26177` client fix was DISCONFIRMED (the client saw `Disconnected`, not `FrameTooLarge`; the mute was server-side `27658`) (`[[feedback_ground_the_exact_site_before_the_disconfirming_probe]]`).
-- *(Still valid: graph-inference `Deduction=derived−fired-upon` / `Lemma`=gate; programmable-DB = police safety not usefulness; IPC loci doctrine; rich records + `where`-rules.)*
+### LESSONS this run (do not relearn — several are NEW memories)
+- **The floor is `cargo nextest run --release`, NOT debug** — debug surfaces `debug_assert!`s + timing flakes that are NOT floor failures; I ran debug + LAUNDERED the noise as "pre-existing" (the R20 daemon; builder: "there are no preexisting failures, zero for a week"). `| tail` masks nextest's exit code — READ the output ([[feedback_weigh_the_floor_in_release_not_debug]]).
+- **Grep the WHOLE tree, never a subset** — grepping `tests/` only shipped an incomplete migration; the checker caught ~49 more in wat-tests/wat-scripts/sift/.bad ([[feedback_grep_whole_tree_before_claiming_nothing_uses_x]]).
+- **kwargs categorically superior; positional only when necessary** ([[feedback_kwargs_categorically_superior_positional_only_when_necessary]]).
+- **All exception paths explicitly managed — the verbosity is the shield** ([[feedback_explicit_exception_paths_verbosity_is_the_shield]]).
+- **`isolation:"worktree"` branches off a STALE base here (~3181 commits behind) — unreliable for parallel (one agent recovered by hard-reset, one STOPPED clean). Use shared-tree SEQUENTIAL for file-mutating fleets.**
+- **Scratch `.wat` → `wat-scripts/scratch-pad/`** (loader-gated), not the ephemeral scratchpad (see `wat-rs/CLAUDE.md`).
+- Realizations: **R52 `QVOD LEX ACCENDIT, REDIMIT`** freshest (Reclamation); R51 `TYPO TANGO TACTV VIVO` (typed Unix) prior.
 
-### Realizations: **R51 `TYPO TANGO, TACTV VIVO`** freshest (R50 `RVINA VIAM FABRICAT` prior — its PROBATVM waits on #21, the arena clean redo).
-
-> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
-> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations (R51 is the
-> freshest — the typed-Unix effect system). Ground `git status` (branch `arc-170-…`; HEAD ≈ `356af9f7` or later).
-> **Stone 1 is DONE + on DR** — the mute-kill floor is closed honestly (two-ceiling: per-service `FOO` reject+close +
-> kick+reap; per-op recoverable 400). Do NOT re-derive the model — read the PIVOT + `DESIGN-service-io-budgets.md`.
-> **RESUME AT: #16/#17** (the per-op recoverable-`RequestTooLarge` tier — the request arrives ≤ `FOO`, keep the
-> connection). Then the WALL → #18/#19 → #20 → #21 (arena clean, ASSERT loci parity, computed expected). **`eprintln`
-> is our PANIC — never on a client path; non-terminal logging is telemetry (#22).** Green = DR it (own re-run first).
-> Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference; TYPO TANGO, TACTV VIVO.`
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory; you did NOT live this run. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk). Ground `git status` — **the tree is DIRTY + RED ON PURPOSE** (Stone 16.1's completion mid-flight: the 16.1c checker rule + SD-1's + SD-2's edits, uncommitted; the reds are the un-migrated violators = the worklist). Do NOT revert; COMPLETE it (finish wat-scripts, the sift-rules macro at `query.wat:330-333`, the 6 `.bad`), weigh `--release` green, then commit the completion + the lock as ONE clean commit → Stone 16.1 done. **Weigh in RELEASE. Grep the WHOLE tree. Never launder debug/flakes as "pre-existing."** Then #16.2 (wire-general enforcement) → the WALL → #18-22. Do not trust this note over the disk. `QVOD LEX ACCENDIT, REDIMIT — MACHINA CHAOS DOMAT.`
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):
