@@ -9,6 +9,19 @@
 > "freaks out on the budget." This doc is that contract for wat services. Its floor is the structural
 > mute-kill (`DESIGN-no-hidden-failures.md` — over-budget must *speak* and must *not fault the wire*).
 
+## STATUS (2026-07-21) — Stone 1 + 16.0/16.1 DONE; RESUME at 16.2 (the per-op ENFORCEMENT codegen)
+
+**Grounded against the disk, not asserted (`AD ORACVLVM` — a prior breadcrumb wrongly said "Stone 1 HELD"):**
+- **Stone 1 (the per-service hard limit `FOO`): DONE.** `:max-frame-bytes` is DECLARED on the defservice (`wat/service.wat`; `journal`/`mem-store` declare 10 MiB), threaded via `pair_with_budget` to the accepted-connection receivers, and over-`FOO` → reasoned reject-close (`ServiceEvent::Lost{cause}`, never mute `Closed`). Gate `probe_arc278_service_max_frame_bytes` is GREEN. The masking LAW (Mechanism A / transport-twin `Failed→DecodeError` / RST) is in. **⇒ "Stone 1 (must land first)" in Scope+sequencing below is SATISFIED.**
+- **16.0 (parse `:max-request-bytes` onto each op): DONE** (`src/types.rs:335`, "Stone 16.0").
+- **16.1 (Ruling A — every op-Response an enum carrying `RequestTooLarge{bytes,cap}`, checker-locked): DONE** (`9ca2e88d`).
+- **16.2 (the per-op ENFORCEMENT codegen): ← RESUME HERE.** Feasibility proven HAND-ROLLED (`probe_arc278_per_op_request_too_large`, the `:impls` body measures+returns). 16.2 MOVES the measure+construct into the serve-loop CODEGEN so no service hand-rolls it. **Scout (2026-07-21):**
+  - **Injection:** the `serve-op-arms` foldl (`wat/service.wat:753`) — wrap each op's arm BEFORE `<outcome-match>` (the `:impls` dispatch): `((<S>::Op::<Op> req) (if (> (measure req) <op-cap>) (do (send' … (<S>::Reply::<Op> (<Op>Response::RequestTooLarge n <op-cap>))) (serve …)) <outcome-match>))`; keep the connection.
+  - **Byte-source SETTLED = re-encode** `(string::length (edn::write req))` — the serve arm holds the DECODED `req`, not the raw frame bytes (consumed upstream); and it matches how the client tooling fragments (both measure `edn::write` length → they agree). The frame-length option is not reachable here.
+  - **CRUX-1 is the GATING decision** (see Open cruxes): the `serve-op-arms` foldl walks `:impls` *bodies* (no budget); the budget's on the *surface* (`types.rs:335`) with no wat accessor yet. 16.2 must build the discovery accessor FIRST — **rec (i): a synthesized per-op constant `<Surface>::<op>/max-request-bytes`** (`synthesize_surface_protocol`, `types.rs:1720`), reachable by BOTH the codegen AND the future client fragment tooling.
+  - **RED gate:** an op DECLARES `:max-request-bytes 200`, its `:impls` body does NOT hand-roll (returns `:Ok`); an over-200-byte request → `RequestTooLarge` (from the codegen) + a follow-up small request on the SAME connection → `:Ok`. RED now (the body's `:Ok` comes back), GREEN after.
+- **The batching stream tooling (item (c) — `with-log-sink`/`write-*-stream`/`<op>-stream`) + output-side streaming: NOT built** (nothing on the disk). Item (c) is where the `:wat::telemetry::log` widget threads into the buffered `with-log-sink` collector — unblocked once CRUX-1's accessor exists.
+
 ## The model (builder-ratified 2026-07-20)
 
 Three pillars, exactly the AWS pattern:
