@@ -270,3 +270,52 @@
    ;; close the unit of work: emit accumulated counters + durations as Metrics to the sink.
    (close [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::CloseRequest]
      -> :wat::telemetry::Span::CloseResponse)])
+
+;; ─── framing-floor-of — arc 278 capacity stone 1: the RUNTIME adaptive framing-floor derive. ──
+;; DESIGN-telemetry-caller-and-capacity.md §3. Reflects a record type's fields at RUNTIME
+;; (field-names-of/field-types-of — compile-time/macro-expand reflection of a baked record is
+;; DEAD, proven; runtime resolves for both stdlib and user records) and sums the byte cost of:
+;;   1. FIXED-VALUE costs — per field, classify its type-node's `ast-name` string against the
+;;      "explicitly-defined-known-size" set (i64/f64/Uuid/bool, max EDN-text bytes). Everything
+;;      else (String, Tags/maps, records, Frame, enums) is VARIABLE and contributes 0 here — an
+;;      under-count is a SAFE conservative floor, never an over-count (the runtime remainder is
+;;      the exact per-caller gate; enum-by-reflection via a future `variants-of` is the deferred
+;;      refinement that moves enums from variable into fixed, sized to their longest variant).
+;;   2. Field-name KEY costs — every field name is a wire key; its serialized byte cost is
+;;      `string::length` of the field keyword's text (ASCII → char-length = byte-length; a UTF-8
+;;      byte-length prim is a deferred refinement for non-ASCII keys).
+;;   3. TAG cost — the record's own EDN tag bytes, approximated via `string::length` of the type
+;;      keyword's own text (the fqdn passed in by the caller IS the tag written on the wire).
+;; This is the whole point: re-run this on ANY type keyword and the floor RE-DERIVES from the
+;; LIVE field set — a field added/removed/retyped tomorrow needs no hand edits here.
+(:wat::core::defn :wat::telemetry::framing-floor-of [ty <- :wat::core::keyword] -> :wat::core::i64
+  (:wat::core::let
+    [tag-cost   (:wat::core::string::length (:wat::core::keyword/to-string ty))
+     fixed-cost (:wat::core::foldl
+                  (:wat::core::fn [acc <- :wat::core::i64  t <- :wat::WatAST] -> :wat::core::i64
+                    (:wat::core::i64::+ acc
+                      (:wat::core::cond
+                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/i64")  20)
+                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/f64")  24)
+                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/Uuid") 36)
+                        ((:wat::core::= (:wat::core::ast-name t) "wat.type/bool")  5)
+                        (:else 0))))
+                  0 (:wat::runtime::field-types-of ty))
+     key-cost   (:wat::core::foldl
+                  (:wat::core::fn [acc <- :wat::core::i64  k <- :wat::core::keyword] -> :wat::core::i64
+                    (:wat::core::i64::+ acc (:wat::core::string::length (:wat::core::keyword/to-string k))))
+                  0 (:wat::runtime::field-names-of ty))]
+    (:wat::core::i64::+ tag-cost (:wat::core::i64::+ fixed-cost key-cost))))
+
+;; ─── LOG-MSG-CAPACITY — the derived, zero-waste-ish log message byte budget. ──────
+;; BUDGET is the named server read ceiling (10 MiB — matches the `journal'`/`mem-store`
+;; `:max-request-bytes 10485760` bulk-service declaration, DESIGN-service-io-budgets.md:41;
+;; `:wat::spawn::DEFAULT-MAX-MESSAGE-BYTES`-style named constant, never a bare magic number).
+;; LOG-MSG-CAPACITY is the ADVISORY remainder after the adaptive framing floor of `Log` itself —
+;; re-derives automatically whenever `Log`'s field set changes (a field added tomorrow shrinks
+;; this without a hand edit). This is a conservative HINT; the exact per-caller gate is the
+;; runtime remainder against the actually-filled-in required params (§3, deferred wiring).
+(:wat::core::def :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES 10485760)
+(:wat::core::def :wat::telemetry::LOG-MSG-CAPACITY
+  (:wat::core::i64::- :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES
+    (:wat::telemetry::framing-floor-of :wat::telemetry::Log)))
