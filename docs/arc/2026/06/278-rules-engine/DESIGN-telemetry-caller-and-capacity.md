@@ -212,14 +212,22 @@ Rejected: `here` (Level-1 lie — reads as this-expression's location, but it is
    **Sub-decision — the `symbol` field:** at expand there is no enclosing fn; recommend `symbol = None`
    (the span carries no callee — honest), or the enclosing macro-def name if reachable. Default: None.
 
-**The `log` macro (the consumer of `macro-call-site`).** A call-site WIDGET macro `:wat::telemetry::log`
-— sibling of the `timed` widget macro (span.wat:228 note; FQDN disambiguates it from the `Span` `log` OP,
-the `Span::LogRequest`/`LogResponse` pair at span.wat:243-251). Recommended form: `(:wat::telemetry::log
-<span> :level <Level> :message <record>)` → expands to the `Span` log op with `:emitted-from
-(:wat::kernel::macro-call-site)` baked at the author's line and the message `edn::write`d opaque (Stone
-B). **Sub-decision — target:** issue the `Span` log op through a span peer (recommended — the producer
-surface), OR build a bare `:wat::telemetry::Log` for direct-to-journal callers. Settle when drawing the
-macro strike; `macro-call-site` is target-agnostic.
+**The `log` macro (the consumer of `macro-call-site`) — TARGET SETTLED: the `Span` log op.** A
+CLIENT-side call-site WIDGET macro `:wat::telemetry::log` — sibling of the `timed` widget macro
+(span.wat:228 note; FQDN disambiguates it from the `Span` `log` OP). Form: `(:wat::telemetry::log <span>
+:level <Level> :message <record>)` → issues the span's `log` op with a `Span::LogRequest` whose
+`:emitted-from (:wat::kernel::macro-call-site)` is baked at the author's line and whose `:message` is the
+record `edn::write`d opaque (Stone B).
+
+**Why it MUST take the span (the settling reason — the correlation `uuid`).** The `span` defservice holds
+`{namespace, uuid, tags}` in `:durable` (wat/telemetry/span.wat:18-19), minted ONCE at open (`with-span`
+→ `Uuid/v4`, :190). Its `log` op (:74-88) stamps the `Log` with the span's OWN `uuid` (:80) and takes
+only `emitted-from`/`level`/`message` from the incoming `Span::LogRequest` (:83-85, client-supplied); the
+Metrics it emits on `close` carry the SAME `uuid` (:107/130/133). So logs-now and metrics-on-close JOIN
+on the span's `uuid` — the unit-of-work correlation (R27/R32). A bare standalone `:wat::telemetry::Log`
+would have NO unit-of-work `uuid` → no join with the metrics → the correlation is dead. **The bare-Log
+alt is REJECTED.** `emitted-from` is the one Scope-independent field the client supplies — exactly the
+slot `macro-call-site` fills.
 
 **RED gate — `probe_arc278_log_captures_call_line`** (mirrors tests/services/probe_arc278_emitted_from.wat):
 two `(:wat::telemetry::log …)` invocations on ADJACENT source lines; assert `line(log₂) − line(log₁) == 1`
@@ -253,6 +261,7 @@ brief) → the `:wat::telemetry::log` widget macro → weigh `--release` by own 
   intueri-cast + weighed; seam grounded (thread `call_site_span` into `macro_eval_pre_validated`
   eval.rs:99 + an `is_pure_total` arm + a Frame-from-span builder); RED gate drawn
   (`probe_arc278_log_captures_call_line` — adjacent `(log …)` lines differ by exactly 1). Build order:
-  `macro-call-site` verb → RED probe → the `:wat::telemetry::log` widget macro. Open sub-decisions: the
-  `symbol` field (default None) + the macro target (`Span` log op vs a bare `Log`).
+  `macro-call-site` verb → RED probe → the `:wat::telemetry::log` widget macro. Target SETTLED: the `Span`
+  log op (the span carries the correlation `uuid` that joins logs with metrics; bare-`Log` rejected). One
+  open sub-decision: the `symbol` field (default None).
 - Stone 16.1 (the ruling-A / RequestTooLarge lock) is DONE + committed (9ca2e88d, 25ca431b).
