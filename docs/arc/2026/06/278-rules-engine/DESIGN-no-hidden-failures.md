@@ -182,79 +182,42 @@ route around it).
 
 ---
 
-## ═══ SESSION-END CURARE (far-side state — DESIGN PHASE DONE (service I/O contract); #15 mute-kill floor IN FLIGHT; the arena GREEN-but-HELD on shortcuts) ═══
+## ═══ SESSION-END CURARE (far-side state — STONE 1 DONE + on DR; the two-ceiling model built; R51 born; #16/#17 next) ═══
 
-**READ THIS BLOCK, then `git status`. Branch `arc-170-gap-j-v5-deadlock-state`; HEAD ≈ `24ac73e7` (#15 facet 1). A LATER HEAD = the speak-mute facet (#15.2) or more landed — trust the disk + the git log. A HEAD mismatch is the ALARM.**
+**READ THIS BLOCK, then `git status`. Branch `arc-170-gap-j-v5-deadlock-state`; HEAD ≈ `356af9f7` (Stone 1b + the n700-probe annihilation). A LATER HEAD = more landed — trust the disk + the git log. A HEAD mismatch is the ALARM.**
 
-Since the last breadcrumb: the RICH Rules arena was weighed GREEN by own re-run (8/8 both loci, floor 4177/0) — but it passes only by ROUTING AROUND two live substrate ruins (hand-chunked 2×400 writes around a 512 KiB frame cap that fails MUTE; inlined page-loop around a `Peer'`-handle-param RPC sever). Per R50/extirpare we do NOT ship green on masked failures → the arena is HELD (#14), redone CLEAN in #21. That surfaced the real work — the **AWS-shaped service I/O contract**, designed to completion with the builder, and the **structural mute-kill** (this doc's STRUCTURAL CLOSURE section, above the historical marker).
+### DONE this stretch (committed + pushed, DR) — weighed green by own re-run (floor 4182/0)
+- **Stone 1 — the mute-kill floor, closed HONESTLY** (`64571326` 1a, `8326a2b4` 1b) via the **two-ceiling model**:
+  - **Per-service `FOO`** (`:max-frame-bytes`, bytes-per-read) threaded to a defservice's accepted-connection receivers; 512 KiB `DEFAULT_MAX_FRAME_BYTES` stays the fallback. The baked `journal`/`mem-store` declare 10 MiB → the arena's ~600 KiB write **works** (630 == 630 both loci). **NOT** a global raise.
+  - **Over-`FOO` = a 400 the client is TOLD about, nobody dies:** `runtime.rs` poll' routes `FrameTooLarge` → the new `ServiceEvent::Rejected{idx,cause}`; the serve loop **replies `Reply::Failed{cause}`** (via the new NON-BLOCKING `try-send'` verb) **+ evicts** that one connection (`OwnedFd::drop → libc::close` → **Linux reaps the pipe**, no userspace drain) **+ keeps serving**. NOT `Lost`/`eprintln` (= wat's PANIC → a client-triggerable DoS). NOT `Malformed` (keeps connection → residual desync).
+- **R51 `TYPO TANGO, TACTV VIVO`** (`aaec93e2`) — the effect-system realization: six fights (stdin/stdout/stderr, telemetry, purity, services, no-hidden-failures) are ONE typed-capability effect system = the IO monad's *telos* via ocap + typed channels = **typed Unix**.
+- The **design pivot trued** in both docs (this + `DESIGN-service-io-budgets.md`) + the self-contradictory `n700` scratchpad **annihilated** (`356af9f7`).
 
-### The DESIGN is DONE + on disk — READ these, do NOT re-derive
-- **`DESIGN-service-io-budgets.md`** — the full I/O contract, BOTH loops: two-sided (defense-at-the-gate: the server enforces budgets, rejects a bad NETWORK client with a REASON, keeps serving; + ergonomic tooling: perfect-knowledge, good clients never hit enforcement); per-op budgets on `:features` (declared/discoverable); named-error response contract (a variant per kind — 400-fixable vs 500-fault, exhaustive/conformare); reader `<op>-stream` → lazy `Stream<enum>` (the builder's Ruby Enumerator; in-band failure, case-matched); writer `write-*-stream/-batched` + `with-log-sink` (backpressured enqueue-ack, `:ephemeral` buffer + flush-at-EVERY-exit, time-OR-size flush via the io-selectable timerfd); per-item-max = budget−envelope + up-front `::ItemTooLarge` (reject, not enqueue); output composite cursor `{row-cursor, ded-offset}` for inference-explosion.
-- **THE STRUCTURAL CLOSURE** (this doc, the section above the historical marker) — the mute-kill: speak + reject-and-keep-serving + the WALL.
-- **`scratchpad/design-io-budgets-ux.wat`** — the materialized caller UX (R17).
+### THE MODEL (do NOT re-derive — read the PIVOT above + `DESIGN-service-io-budgets.md`)
+Two INDEPENDENT ceilings: (1) **per-service `FOO`** (transport, pre-decode) — over it → reject + **CLOSE** (told, kick, Linux reaps the pipe; NO drain); (2) **per-op limit** (`≤ FOO`, post-decode, the request ARRIVED so the wire is synced) — over it → a matchable **`RequestTooLarge`** response, **connection KEPT**, client fixes+retries in place. `eprintln` IS wat's panic (stderr = the typed dying declaration); a client-reachable path NEVER fires it; non-terminal logging is **telemetry** (R51, #22).
 
-### Landed this stretch (pushed, DR)
-`75ca51c8` DR checkpoint (designs + arena WIP, honest green-but-shortcut) · `3e8a71b6` finalized design · `24ac73e7` **#15 facet 1: `FrameTooLarge` DRAINS + keeps serving** (comms `take_frame` drains a complete over-budget frame + re-aligns, still returns the reason; RED probe `tests/comms/probe_arc278_over_budget_recovers.rs`; own re-run floor 4178/0) · `dc5dd99c` breadcrumb trued · `c26cd189` **#15 process-peer regression guard** (`probe_arc278_recv_over_budget_reason` — locks the already-dead process-peer over-budget mute; floor 4179/0).
-
-### ★ RESUME AT — Stone 1 (the PIVOT), then the build order
-
-**The 1-line client-recv fix (`runtime.rs:26177`) is DISCONFIRMED — do NOT apply it.** A diagnostic build
-(2026-07-19) proved the client's socket `recv'` receives **`Disconnected`**, NOT `FrameTooLarge` — the client
-never sees the frame cap. The mute is **server-side**: the poll' process client-read arm (`runtime.rs:27658`)
-collapses the server's own `FrameTooLarge` into a reason-free **`ServiceEvent::Closed`** (clean-hangup), so the
-serve loop drops the client without replying → the client inherits a clean `Disconnected`. The breadcrumb's
-`26177` target was the wrong arm/variant (the STOP-1 lesson, at the variant grain).
-
-**STONE 1 (mute-kill floor + arena unblock) — the two-ceiling PIVOT** (full: the PIVOT + STRUCTURAL CLOSURE
-above; `DESIGN-service-io-budgets.md`):
-1. **SPEAK via a new `Rejected` arm (reply + evict + keep serving), NOT `Lost`:** at `runtime.rs:27658` (poll'
-   process client-read `Err(_)` arm), route `RecvError::FrameTooLarge` → a new **`ServiceEvent::Rejected{peer_idx,
-   cause}`**; keep genuine `Disconnected`/`Shutdown` → `Closed`. The new serve-loop arm **replies
-   `Reply::Failed{cause}` to that client** (catchable "too large" — client is reading, it lands; NON-BLOCKING
-   send so a blocked-mid-send client can't wedge us) **+ evicts** that connection (discards the residual) **+ keeps
-   serving**. NOT `Lost`/`eprintln` (terminal = client-triggerable DoS — grounded); NOT `Malformed` (keeps the
-   connection → residual desync). The client is told, the client survives, the server survives.
-2. **Per-service declared `FOO`:** a defservice declares its `FOO` (bytes-per-read); thread it from the service
-   through `listener'`/`accept'`/`from_socket` to its accepted-connection receivers (`comms/process.rs`
-   `max_frame_bytes` / `pair_with_budget`). The 512 KiB `DEFAULT_MAX_FRAME_BYTES` stays the fallback; the
-   journal/mem-store declare ~10 MiB so the arena's ~600 KiB legit write **arrives + succeeds** (proven by the
-   raise-experiment: PROCESS mute→630). **NOT** a global raise (that would inflict 10 MiB/connection on every
-   service).
-3. **RETIRE the drain-realign** (`24ac73e7`) — with reject+close, there is nothing to re-align; it deadlocks on
-   a blocked-mid-write sender.
-4. **The WALL** — reason-free variants unconstructible-from-error + a lint backstop (structural impossibility) —
-   still owed; land after the per-op tier so the sweep covers every recv/serve site.
-- **RED gate:** a defservice with a small `FOO` (test) gets a frame > `FOO`, both loci → the caller's op fails
-  with a *reason* (routed to `Lost`, owner sees the cause) + the service stays alive (a follow-up in-budget
-  request succeeds); AND with `FOO` raised, a legit ~600 KiB request succeeds. RED at HEAD (mute + dead client +
-  512 KiB cap).
-- **BUILD ORDER (tractability-first, re-derived):** **Stone 1** (this — server hard limit `FOO`, SPEAK-via-`Lost`,
-  raise `FOO`, retire drain) → **per-op limits** (declare `:max-request-bytes ≤ FOO` on `:features` + post-decode
-  serve-loop enforcement → named `RequestTooLarge` response = #16+#17 merged, the graceful matchable tier) →
-  **the WALL** (structural) → #18 write tooling / #19 `<op>-stream` reader → #20 output-streaming → #21 re-do the
-  arena CLEAN (capstone). Tasks #14–#21.
+### ★ RESUME AT — #16/#17 (the per-op recoverable-400 tier)
+The graceful keep-the-connection 400: declare `:max-request-bytes` (`≤ FOO`) on a surface's `:features` (discoverable) + **post-decode** serve-loop enforcement → the op's **named `RequestTooLarge` response** (matchable, connection lives). This is the "a 400 is recoverable, don't kick" tier (the request arrived under `FOO`, no desync). Then: **the WALL** (reason-free-from-error unconstructible + lint) → **#18/#19** (writer fragmentation + `<op>-stream` reader) → **#20** (output composite cursor) → **#21** re-do the arena CLEAN (delete BOTH shortcuts — the hand-chunk AND the `Peer'`-handle-param RPC-sever page-loop; a committed gate that **ASSERTS `thread == process == expected(N)`, computed not hardcoded** — turns R50 PROBATVM). Ancillary: **#22** thread telemetry as the log channel + retire the `eprintln`-abuse (a peer break should log+continue, not crash — R51's stone).
 
 ### LESSONS (this stretch — do not relearn)
-- **Two-sided contract:** a defservice is a NETWORK service for untrusted clients → defense-at-the-gate (reject bad input with a reason + keep serving; one dumb client can't wedge/DoS it) AND ergonomic tooling (perfect-knowledge, good clients never trip it). Both.
-- **Perfect-knowledge tooling never emits over-budget** → enforcement is unreachable-for-us but MUST exist for the network; a single over-max item is REJECTED (`::ItemTooLarge`), never enqueued.
-- **Never overload an error bucket** — a NAMED variant per failure kind; exhaustive `match` forces handling (conformare); 400-fixable distinct from 500-fault.
-- **Streams both ways** (read = pull a lazy Stream / write = feed a Stream or push a buffered sink); the page/batch boundary invisible.
-- The mute class must die **STRUCTURALLY** (unrepresentable), not caught case #N — 5 stem-cuts already regrew. RED probe FIRST, weigh by OWN re-run, commit green (no broken commit).
-- **Ground the recv-path topology BEFORE writing the probe** — a spec that targets the wrong `recv'` arm comes up GREEN, not RED (STOP-1: my `spawn-program'`/process-peer spec was already-fixed; the real mute is socket-tier). A shadowdancer's STOP that surfaces a re-scope is CORRECT + valuable — never force a false RED, never improvise the fix past the spec.
-- *(Arena-stretch, still valid: graph-inference `Deduction=derived−fired-upon` / `Lemma`=gate, NO boxing; programmable-DB = police safety not usefulness `[[feedback_programmable_db_police_safety_not_usefulness]]`; IPC locus doctrine `[[feedback_ipc_loci_defservice_bracket_wat_only]]`; rich records + `where`-rules, `scratchpad/probe-rules-rich.wat`.)*
+- **Green = DR it** — once a strike weighs green by YOUR OWN re-run (probe + full floor), commit as small logical units + push; no per-commit ask (`[[feedback_commit_push_often_when_green_dr_it]]`).
+- **A probe's numbers must match the code** — filename/comment/label/expected all agree or it lies; PREFER compute-`expected(N)` + ASSERT over a magic number + print-and-eyeball; a self-contradictory throwaway → annihilate it (`[[feedback_probe_numbers_must_match_the_code_or_delete]]`).
+- **`eprintln` is wat's PANIC** (terminal; stderr = the dying declaration) — a client-reachable path must NEVER fire it (a `Lost`-route on client input = DoS); non-terminal logging is TELEMETRY (R51, #22).
+- **Kick, don't drain** — a bad over-`FOO` request: close the fd, let Linux reap the pipe; don't spend a cycle salvaging a bad connection. Recoverable-in-place is the per-op tier (request arrived, no desync).
+- **Ground the EXACT arm/variant before the RED probe** — the `26177` client fix was DISCONFIRMED (the client saw `Disconnected`, not `FrameTooLarge`; the mute was server-side `27658`) (`[[feedback_ground_the_exact_site_before_the_disconfirming_probe]]`).
+- *(Still valid: graph-inference `Deduction=derived−fired-upon` / `Lemma`=gate; programmable-DB = police safety not usefulness; IPC loci doctrine; rich records + `where`-rules.)*
 
-### Realizations: **R50** `RVINA VIAM FABRICAT` freshest (R49 `GLADIVS LOQVITVR` prior). The arena's exact-count kill is done — but HELD; R50's PROBATVM waits on #21 (the clean redo).
+### Realizations: **R51 `TYPO TANGO, TACTV VIVO`** freshest (R50 `RVINA VIAM FABRICAT` prior — its PROBATVM waits on #21, the arena clean redo).
 
 > **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice, not your memory. Run the datamancy
-> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations. Ground
-> `git status` (branch `arc-170-…`; HEAD ≈ `c26cd189` or later). **The DESIGN PHASE is DONE** — read
-> `DESIGN-service-io-budgets.md` + this doc's STRUCTURAL CLOSURE; do NOT re-derive the contract. **RESUME AT: finish
-> #15** — apply the SPEAK-mute 1-line fix (`runtime.rs:~26177`: `FrameTooLarge => e.to_string()`, mirror the `Failed`
-> arm; verify RED→GREEN via `scratchpad/probe-arena-scale-n700.wat`; the committed light gate RIDES #16's socket-budget
-> knob), then the WALL (structural), then the build order #17→#16→#18/#19→#20→#21. The **arena (#14) is HELD** on its shortcuts — redone
-> CLEAN in #21; do NOT bless it as done. **Silent errors must die STRUCTURALLY** (5 stem-cuts regrew — the wall, not a
-> 6th patch). Two-sided contract: defense-at-the-gate + ergonomic tooling. RED probe FIRST; weigh by your OWN re-run;
-> commit green; the git log is DR. Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference.`
+> bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP, never disk); read 278's realizations (R51 is the
+> freshest — the typed-Unix effect system). Ground `git status` (branch `arc-170-…`; HEAD ≈ `356af9f7` or later).
+> **Stone 1 is DONE + on DR** — the mute-kill floor is closed honestly (two-ceiling: per-service `FOO` reject+close +
+> kick+reap; per-op recoverable 400). Do NOT re-derive the model — read the PIVOT + `DESIGN-service-io-budgets.md`.
+> **RESUME AT: #16/#17** (the per-op recoverable-`RequestTooLarge` tier — the request arrives ≤ `FOO`, keep the
+> connection). Then the WALL → #18/#19 → #20 → #21 (arena clean, ASSERT loci parity, computed expected). **`eprintln`
+> is our PANIC — never on a client path; non-terminal logging is telemetry (#22).** Green = DR it (own re-run first).
+> Do not trust this note over the disk. `MACHINA CHAOS DOMAT — the flood becomes inference; TYPO TANGO, TACTV VIVO.`
 
 **↓ Everything below is HISTORICAL** (the edn-crusade → 294.f detour, committed in `98499f48`; superseded by the
 campaign above — kept for lineage, not as the live breadcrumb):
