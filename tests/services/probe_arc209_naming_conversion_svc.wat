@@ -10,7 +10,9 @@
 (:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :my::Svc::GetObjectRequest  [n <- :wat::core::i64])
-   (:wat::core::defrecord :my::Svc::GetObjectResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :my::Svc::GetObjectResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get-object [self <- :my::Svc  req <- :my::Svc::GetObjectRequest] -> :my::Svc::GetObjectResponse)])
 
@@ -20,7 +22,7 @@
   :ephemeral []
   :impls
   [(get-object [s req]
-     (:wat::service::Outcome::Reply s (:my::Svc::GetObjectResponse :value (:my::Svc::GetObjectRequest/n req))))])
+     (:wat::service::Outcome::Reply s (:my::Svc::GetObjectResponse::Ok (:my::Svc::GetObjectRequest/n req))))])
 
 ;; End-to-end through the KEBAB client method `:my::svc/get-object` (multi-word); echoes the
 ;; request's n back as the response value (42), proving the whole multi-word wiring resolved.
@@ -30,4 +32,9 @@
      c (:wat::kernel::connect' (:my::svc::Handle/addr h))
      r (:my::svc/get-object c (:my::Svc::GetObjectRequest :n 42))
      _ (:my::svc/stop h)]
-    (:my::Svc::GetObjectResponse/value r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:my::Svc::GetObjectResponse::Ok value) value)
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:my::Svc::GetObjectResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "req-id: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))

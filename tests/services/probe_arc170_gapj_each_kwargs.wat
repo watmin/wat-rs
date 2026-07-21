@@ -13,9 +13,13 @@
 (:wat::core::defsurface :probe::Counter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Counter::GetRequest       [])
-   (:wat::core::defrecord :probe::Counter::GetResponse       [value <- :wat::core::i64])
+   (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
    (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- :wat::core::i64])
-   (:wat::core::defrecord :probe::Counter::IncrementResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse)
    (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse)])
@@ -27,7 +31,7 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:probe::Counter::GetResponse :value
+       (:probe::Counter::GetResponse::Ok
          (:probe::counter::Record/count (:probe::counter::State/durable s)))))
    (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+
@@ -35,7 +39,7 @@
                            (:probe::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
          (:probe::counter::State :durable (:probe::counter::Record :count c))
-         (:probe::Counter::IncrementResponse :value c))))])
+         (:probe::Counter::IncrementResponse::Ok c))))])
 
 ;; kwargs work-fn: item positional, `counter` a dialed `:key` kwarg (grant+Setup ride `each`'s
 ;; own tail). The side effect is the increment; the return value is discarded by `each`.
@@ -43,8 +47,13 @@
   [item <- :wat::core::String
    & [counter <- :wat::kernel::Peer'<probe::Counter::Op,probe::Counter::Reply>]]
   -> :wat::core::i64
-  (:probe::Counter::IncrementResponse/value
-    (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1))))
+  (:wat::core::match
+    (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) -> :wat::core::i64
+    ((:probe::Counter::IncrementResponse::Ok value) value)
+    ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+    ((:probe::Counter::IncrementResponse::RequestTooLarge bytes cap)
+      (:wat::kernel::assertion-failed! "record-hit: unexpected RequestTooLarge"
+        :wat::core::None :wat::core::None))))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
 ;; Returns (each's own return value, the counter's final durable count) so the Rust driver can
@@ -55,4 +64,10 @@
      each-out (:wat::bracket::each (:wat::spawn::process) ["a" "b" "c" "d" "e"] :probe::record-hit :counter h)
      c        (:wat::kernel::connect' (:probe::counter::Handle/addr h))
      r        (:probe::Counter/get c (:probe::Counter::GetRequest))]
-    (:wat::core::Tuple each-out (:probe::Counter::GetResponse/value r))))
+    (:wat::core::Tuple each-out
+      (:wat::core::match r -> :wat::core::i64
+        ((:probe::Counter::GetResponse::Ok value) value)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:probe::Counter::GetResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "run: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))))

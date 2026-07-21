@@ -23,9 +23,13 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::PingRequest  [])
-   (:wat::core::defrecord :probe::Echo::PingResponse [value <- :wat::core::i64])
+   (:wat::core::defenum :probe::Echo::PingResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
    (:wat::core::defrecord :probe::Echo::BumpRequest  [])
-   (:wat::core::defrecord :probe::Echo::BumpResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :probe::Echo::BumpResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(ping [self <- :probe::Echo  req <- :probe::Echo::PingRequest] -> :probe::Echo::PingResponse)
    (bump [self <- :probe::Echo  req <- :probe::Echo::BumpRequest] -> :probe::Echo::BumpResponse)])
@@ -37,12 +41,12 @@
   :impls
   [(ping [s req]
      ;; CONTROL — no minted construction; state returned unchanged.
-     (:wat::service::Outcome::Reply s (:probe::Echo::PingResponse :value 1)))
+     (:wat::service::Outcome::Reply s (:probe::Echo::PingResponse::Ok 1)))
    (bump [s req]
      ;; THE REGRESSION — constructs this defservice's OWN minted `::State`/`::Record`.
      (:wat::service::Outcome::Reply
        (:probe::echo::State :durable (:probe::echo::Record :count 7))
-       (:probe::Echo::BumpResponse :value 7)))])
+       (:probe::Echo::BumpResponse::Ok 7)))])
 
 ;; CONTROL: ping round-trips (and proves the caller-world construction at /start works).
 (:wat::core::defn :user::compute-ping [] -> :wat::core::i64
@@ -50,7 +54,11 @@
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record :count 0))
      c (:wat::kernel::connect' (:probe::echo::Handle/addr h))
      r (:probe::Echo/ping c (:probe::Echo::PingRequest))]
-    (:probe::Echo::PingResponse/value r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:probe::Echo::PingResponse::Ok value) value)
+      ((:probe::Echo::PingResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "compute-ping: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))
 
 ;; THE REGRESSION: bump round-trips — the handler's own minted construction must expand.
 (:wat::core::defn :user::compute-bump [] -> :wat::core::i64
@@ -58,4 +66,8 @@
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record :count 0))
      c (:wat::kernel::connect' (:probe::echo::Handle/addr h))
      r (:probe::Echo/bump c (:probe::Echo::BumpRequest))]
-    (:probe::Echo::BumpResponse/value r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:probe::Echo::BumpResponse::Ok value) value)
+      ((:probe::Echo::BumpResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "compute-bump: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))

@@ -16,7 +16,9 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+     :Ok              [reply <- :wat::core::String]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
@@ -24,7 +26,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse :reply
+              (:probe::Echo::EchoResponse::Ok
                 (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
@@ -39,7 +41,9 @@
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-                   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+                     :Ok              [reply <- :wat::core::String]
+                     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
                 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -49,11 +53,19 @@
                      addr (:wat::kernel::recv' self)                                  ;; A's addr (down)
                      c1   (:wat::kernel::connect' addr)
                      er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))     ;; dial #1 — ADMITTED
-                     _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er1)) ;; report "echo:hi" UP
+                     _    (:wat::kernel::send' self (:wat::core::match er1 -> :wat::core::String
+                              ((:probe::Echo::EchoResponse::Ok reply) reply)
+                              ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+                                (:wat::kernel::assertion-failed! "prober dial #1: unexpected RequestTooLarge"
+                                  :wat::core::None :wat::core::None)))) ;; report "echo:hi" UP
                      _sig (:wat::kernel::recv' self)                                  ;; BLOCK for re-dial (2nd addr)
                      c2   (:wat::kernel::connect' addr)
                      er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))     ;; dial #2 — after revoke: BOUNCED → RAISE → die (before the send below)
-                     _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er2))] ;; dial #2 reply UP — ONLY reached if ADMITTED. makes the test DISCRIMINATE: if the revoke ever regressed, dial #2 admits, this fires, the owner's r2 = "echo:hi" → compute Ok → the test (asserts Err) goes RED. without it, the prober's clean exit ALSO disconnects the channel → recv' raises → Err either way (vacuous).
+                     _    (:wat::kernel::send' self (:wat::core::match er2 -> :wat::core::String
+                              ((:probe::Echo::EchoResponse::Ok reply) reply)
+                              ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+                                (:wat::kernel::assertion-failed! "prober dial #2: unexpected RequestTooLarge"
+                                  :wat::core::None :wat::core::None))))] ;; dial #2 reply UP — ONLY reached if ADMITTED. makes the test DISCRIMINATE: if the revoke ever regressed, dial #2 admits, this fires, the owner's r2 = "echo:hi" → compute Ok → the test (asserts Err) goes RED. without it, the prober's clean exit ALSO disconnects the channel → recv' raises → Err either way (vacuous).
                     nil))))
      r2  (:wat::core::match (:wat::kernel::peer-pid prober) -> :wat::core::String
            ((:wat::core::Some p)

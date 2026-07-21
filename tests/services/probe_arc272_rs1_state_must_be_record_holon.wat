@@ -5,7 +5,9 @@
 (:wat::core::defsurface :my::HCounter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :my::HCounter::IsHolonRecordRequest  [])
-   (:wat::core::defrecord :my::HCounter::IsHolonRecordResponse [yes <- :wat::core::bool])]
+   (:wat::core::defenum :my::HCounter::IsHolonRecordResponse :wat::enum::Pure
+     :Ok              [yes <- :wat::core::bool]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(is-holon-record [self <- :my::HCounter  req <- :my::HCounter::IsHolonRecordRequest] -> :my::HCounter::IsHolonRecordResponse)])
 
@@ -15,7 +17,7 @@
   :ephemeral []
   :impls
   [(is-holon-record [s req]
-     (:wat::service::Outcome::Reply s (:my::HCounter::IsHolonRecordResponse :yes
+     (:wat::service::Outcome::Reply s (:my::HCounter::IsHolonRecordResponse::Ok
                                         (:wat::core::record? (:my::hcounter::State/durable s)))))]
   :durable-parent :wat::holon::Record)
 
@@ -24,4 +26,9 @@
     [h (:my::hcounter/start :locus (:wat::spawn::thread) :record (:my::hcounter::Record :count 0))
      c (:wat::kernel::connect' (:my::hcounter::Handle/addr h))
      r (:my::hcounter/is-holon-record c (:my::HCounter::IsHolonRecordRequest))]
-    (:my::HCounter::IsHolonRecordResponse/yes r)))
+    (:wat::core::match r -> :wat::core::bool
+      ((:my::HCounter::IsHolonRecordResponse::Ok yes) yes)
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:my::HCounter::IsHolonRecordResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))

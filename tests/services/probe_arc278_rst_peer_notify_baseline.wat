@@ -4,7 +4,9 @@
 (:wat::core::defsurface :my::RstSvc :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :my::RstSvc::BoomRequest  [])
-   (:wat::core::defrecord :my::RstSvc::BoomResponse [ok <- :wat::core::bool])]
+   (:wat::core::defenum :my::RstSvc::BoomResponse :wat::enum::Pure
+     :Ok              [ok <- :wat::core::bool]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(boom [self <- :my::RstSvc  req <- :my::RstSvc::BoomRequest] -> :my::RstSvc::BoomResponse)])
 

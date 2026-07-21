@@ -6,9 +6,13 @@
 (:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest        [])
-   (:wat::core::defrecord :my::Counter::GetResponse       [value <- :wat::core::i64])
+   (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
    (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
-   (:wat::core::defrecord :my::Counter::IncrementResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :my::Counter::IncrementResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse)
    (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse)])
@@ -20,19 +24,29 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:my::Counter::GetResponse :value (:my::counter::Record/count (:my::counter::State/durable s)))))
+       (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))
    (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
-                                      (:my::Counter::IncrementResponse :value c))))])
+                                      (:my::Counter::IncrementResponse::Ok c))))])
 
 ;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
 ;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
 (:wat::core::defn :user::reply-value [r <- :my::Counter::Reply] -> :wat::core::i64
   (:wat::core::match r -> :wat::core::i64
-    ((:my::Counter::Reply::Get resp) (:my::Counter::GetResponse/value resp))
-    ((:my::Counter::Reply::Increment resp) (:my::Counter::IncrementResponse/value resp))
+    ((:my::Counter::Reply::Get resp)
+     (:wat::core::match resp -> :wat::core::i64
+       ((:my::Counter::GetResponse::Ok value) value)
+       ((:my::Counter::GetResponse::RequestTooLarge bytes cap)
+         (:wat::kernel::assertion-failed! "reply-value: unexpected GetResponse::RequestTooLarge"
+           :wat::core::None :wat::core::None))))
+    ((:my::Counter::Reply::Increment resp)
+     (:wat::core::match resp -> :wat::core::i64
+       ((:my::Counter::IncrementResponse::Ok value) value)
+       ((:my::Counter::IncrementResponse::RequestTooLarge bytes cap)
+         (:wat::kernel::assertion-failed! "reply-value: unexpected IncrementResponse::RequestTooLarge"
+           :wat::core::None :wat::core::None))))
     ;; arc 278 no-hidden-failures — the reserved protocol-tier failure. Unreachable here
     ;; (recv' surfaces Reply::Failed as a raise BEFORE this helper sees it), but the
     ;; hand-written match must stay exhaustive + honest: surface the cause, never `_`-swallow.

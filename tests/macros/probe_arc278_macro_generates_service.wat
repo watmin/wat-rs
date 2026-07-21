@@ -27,7 +27,9 @@
        :messages
        [~def-form
         (:wat::core::defrecord :probe::Echo::EchoRequest [c <- :wat::core::i64])
-        (:wat::core::defrecord :probe::Echo::EchoResponse [n <- :wat::core::i64])]
+        (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+          :Ok              [n <- :wat::core::i64]
+          :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
        :features
        [(echo [self <- :probe::Echo req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
      (:wat::service::defservice :probe::echosvc'
@@ -37,7 +39,7 @@
        [(echo [s req]
           (:wat::core::let
             [c (:probe::Echo::EchoRequest/c req)]
-            (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse :n c))))])))
+            (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok c))))])))
 
 ;; Invoke the macro: it emits the do-wrapped surface+service, splicing in a user
 ;; def (a Marker record) as the surface's first :messages member.

@@ -27,7 +27,9 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [payload <- :wat::query::Reason])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+     :Ok              []
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
@@ -36,7 +38,7 @@
   :durable   []
   :ephemeral []
   :impls
-  [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse)))])
+  [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok)))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let

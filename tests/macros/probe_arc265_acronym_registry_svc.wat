@@ -15,7 +15,9 @@
 (:wat::core::defsurface :my::aws::Waf :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :my::aws::Waf::CreateWebACLRequest  [n     <- :wat::core::i64])
-   (:wat::core::defrecord :my::aws::Waf::CreateWebACLResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :my::aws::Waf::CreateWebACLResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(create-web-acl [self <- :my::aws::Waf  req <- :my::aws::Waf::CreateWebACLRequest]
                    -> :my::aws::Waf::CreateWebACLResponse)])
@@ -27,7 +29,7 @@
   :impls
   [(create-web-acl [s req]
      (:wat::service::Outcome::Reply s
-       (:my::aws::Waf::CreateWebACLResponse :value (:my::waf::Record/count (:my::waf::State/durable s)))))])
+       (:my::aws::Waf::CreateWebACLResponse::Ok (:my::waf::Record/count (:my::waf::State/durable s)))))])
 
 ;; Prove the surface synthesized `:my::aws::Waf::Op::CreateWebACL` (acronym-cased). Constructing
 ;; and matching that EXACT variant type-checks + evals ONLY if S1 threaded the `ACL` acronym; with

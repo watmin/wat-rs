@@ -4,9 +4,13 @@
 (:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest        [])
-   (:wat::core::defrecord :my::Counter::GetResponse       [value <- :wat::core::i64])
+   (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
    (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
-   (:wat::core::defrecord :my::Counter::IncrementResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :my::Counter::IncrementResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse)
    (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse)])
@@ -18,12 +22,12 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:my::Counter::GetResponse :value (:my::counter::Record/count (:my::counter::State/durable s)))))
+       (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))
    (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
-                                      (:my::Counter::IncrementResponse :value c))))])
+                                      (:my::Counter::IncrementResponse::Ok c))))])
 
 ;; Drive through the client face; start takes a LOCUS — `(thread)` selects the shared-memory
 ;; launch via the Locus protocol. Same round-trip as C.3 (increment 5 → get → 5).
@@ -33,4 +37,9 @@
      c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _  (:my::Counter/increment c (:my::Counter::IncrementRequest :n 5))
      r  (:my::Counter/get c (:my::Counter::GetRequest))]
-    (:my::Counter::GetResponse/value r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:my::Counter::GetResponse::Ok value) value)
+      ;; terminal test caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:my::Counter::GetResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))

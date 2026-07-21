@@ -11,7 +11,9 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+     :Ok              [reply <- :wat::core::String]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
@@ -19,8 +21,8 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse
-                :reply (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok
+                (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
@@ -34,7 +36,9 @@
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-                   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+                     :Ok              [reply <- :wat::core::String]
+                     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
                 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -45,7 +49,11 @@
                      addr (:wat::kernel::recv' self)
                      c    (:wat::kernel::connect' addr)
                      er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er))]
+                     _    (:wat::kernel::send' self (:wat::core::match er -> :wat::core::String
+                              ((:probe::Echo::EchoResponse::Ok reply) reply)
+                              ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+                                (:wat::kernel::assertion-failed! "prober dial: unexpected RequestTooLarge"
+                                  :wat::core::None :wat::core::None))))]
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) -> :wat::core::nil

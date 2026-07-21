@@ -11,7 +11,9 @@
 (:wat::core::defsurface :t::Boom :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :t::Boom::PingRequest  [x <- :wat::core::i64])
-   (:wat::core::defrecord :t::Boom::PingResponse [x <- :wat::core::i64])]
+   (:wat::core::defenum :t::Boom::PingResponse :wat::enum::Pure
+     :Ok              [x <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(ping [self <- :t::Boom req <- :t::Boom::PingRequest] -> :t::Boom::PingResponse)])
 
@@ -26,7 +28,7 @@
             (:t::boominit'::State :durable record)))
   :impls
   [(ping [s req]
-     (:wat::service::Outcome::Reply s (:t::Boom::PingResponse :x 0)))])
+     (:wat::service::Outcome::Reply s (:t::Boom::PingResponse::Ok 0)))])
 
 ;; The owner starts the crashing service and dials it. This MUST raise carrying the sentinel
 ;; (the :init crash reason reached the owner), not hang and not lose the reason.
@@ -37,7 +39,12 @@
     [h   (:t::boominit'/start :locus (:wat::spawn::thread) :record (:t::boominit'::Record))
      svc (:wat::kernel::connect' (:t::boominit'::Handle/addr h))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
-    (:t::Boom::PingResponse/x r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:t::Boom::PingResponse::Ok x) x)
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:t::Boom::PingResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))
 
 ;; PROCESS locus — at HEAD /start SUCCEEDED (Started sent before :init ran) and the owner's
 ;; connect' collapsed to a bare ECONNREFUSED with the reason discarded. GREEN: the reordered
@@ -48,4 +55,9 @@
     [h   (:t::boominit'/start :locus (:wat::spawn::process) :record (:t::boominit'::Record))
      svc (:wat::kernel::connect' (:t::boominit'::Handle/addr h))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
-    (:t::Boom::PingResponse/x r)))
+    (:wat::core::match r -> :wat::core::i64
+      ((:t::Boom::PingResponse::Ok x) x)
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:t::Boom::PingResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "compute-process: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))

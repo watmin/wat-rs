@@ -15,10 +15,12 @@
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg <- :wat::core::String])
-             (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+               :Ok              [reply <- :wat::core::String]
+               :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 (:wat::service::defservice :probe::echo' :satisfies :probe::Echo :durable [] :ephemeral []
-  :impls [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
+  :impls [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 (:wat::core::defsurface :probe::TypedCapability<S,R> :nature :wat::core::Struct
   :features
   [(coord  [self <- :probe::TypedCapability<S,R>] -> :wat::kernel::Address'<S,R>)
