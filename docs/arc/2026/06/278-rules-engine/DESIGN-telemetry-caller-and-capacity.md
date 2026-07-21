@@ -200,17 +200,29 @@ Rejected: `here` (Level-1 lie — reads as this-expression's location, but it is
 `caller-frame`/`call-frame` (evoke the runtime stack → collide with `call-site`), `expansion-site`
 (misnames — the site is the CALL, not the expansion).
 
-**Grounded seam (the inquisitor draws the strike + RED probe; a shadowdancer builds — R20):**
-1. `expand_program_body` (src/macros/expand.rs:776) HAS `call_site_span: &Span` in scope;
-   `macro_eval_pre_validated` (src/macros/eval.rs:99) does NOT — thread `call_site_span` into it, down to
-   the head dispatch. (One param down the eval chain — genuine data the primitive needs, not a
-   flag-through-the-world; STOP-CASCADE-clean.)
-2. Add `:wat::kernel::macro-call-site` to `is_pure_total` (src/macros/eval.rs:351).
-3. A dispatch arm builds the `:wat::kernel::Frame` from the threaded `call_site_span` — `Span =
-   {file, line, col, end}` (crates/wat-reader/src/span.rs:74) carries `file` + `line`; build the same
-   `{file, line, symbol}` shape as `value_from_frame_info` (runtime.rs:23124) but from the span.
-   **Sub-decision — the `symbol` field:** at expand there is no enclosing fn; recommend `symbol = None`
-   (the span carries no callee — honest), or the enclosing macro-def name if reachable. Default: None.
+**Grounded seam (the inquisitor draws the strike + RED probe; a shadowdancer builds — R20). CORRECTED
+2026-07-21 — a param-thread was DISPROVEN by grounding:** `macro_eval_pre_validated` (eval.rs:99)
+DELEGATES to `runtime::eval` (eval.rs:107), so the macro body is run by the *runtime* evaluator, which has
+no `call_site_span`; threading it through `runtime::eval` is a cascade-through-the-world → REJECTED. The
+honest seam is a **THREAD-LOCAL**, mirroring the runtime `call-site`'s own mechanism (`snapshot_call_stack`
+reads the thread-local `CALL_STACK`, src/value/frame.rs:11).
+1. **A thread-local `MACRO_CALL_SITE: RefCell<Vec<Span>>` + an RAII guard** — mirror `CALL_STACK` /
+   `FrameGuard` (src/value/frame.rs:11-32; a *stack* for nested macro expansion, read the top).
+2. **`expand_program_body` (src/macros/expand.rs:776)** pushes `call_site_span` via the guard before
+   `macro_eval_pre_validated` (:827); it pops on scope exit. The guard rides the span ALREADY in scope —
+   ZERO param threading (STOP-CASCADE-clean).
+3. **The runtime head dispatch (src/runtime.rs:4994, beside `":wat::kernel::call-site" =>`)** gains
+   `":wat::kernel::macro-call-site" => eval_kernel_macro_call_site(...)`.
+4. **`eval_kernel_macro_call_site` (beside `eval_kernel_call_site`, runtime.rs:20265)** reads the
+   `MACRO_CALL_SITE` top span and returns `Value::wat__WatAST` = the Frame CONSTRUCTION FORM
+   `(:wat::kernel::Frame :file (Some "<file>") :line (Some <line>) :symbol (None))` — Span carries
+   `file`+`line` (span.rs:74); shape mirrors `value_from_frame_info` (runtime.rs:23124). It returns a
+   FORM, not a Frame value, so it splices via `value_to_watast`'s `wat__WatAST` arm (a Frame VALUE would
+   error — aggregates aren't spliceable). Empty thread-local (called OUTSIDE expansion) → a located error
+   (`macro-call-site` is expand-only). `symbol = None` (at expand there is no enclosing fn — honest).
+5. **Add `:wat::kernel::macro-call-site` to `is_pure_total` (src/macros/eval.rs:351)** — the F5 gate
+   permits it in a macro body. (A macro's return type is `:wat::WatAST` — a macro always expands to a
+   form; the checker enforces this.)
 
 **The `log` macro (the consumer of `macro-call-site`) — TARGET SETTLED: the `Span` log op.** A
 CLIENT-side call-site WIDGET macro `:wat::telemetry::log` — sibling of the `timed` widget macro
@@ -258,9 +270,14 @@ brief) → the `:wat::telemetry::log` widget macro → weigh `--release` by own 
   UTF-8 byte-length prim.
 - §4 log macro + `macro-call-site`: **RATIFIED (2026-07-21), BUILDING** — see §4. Mechanism A1 (the
   expand-only `:wat::kernel::macro-call-site` verb, four-questions all-YES; A2 binding rejected); name
-  intueri-cast + weighed; seam grounded (thread `call_site_span` into `macro_eval_pre_validated`
-  eval.rs:99 + an `is_pure_total` arm + a Frame-from-span builder); RED gate drawn
-  (`probe_arc278_log_captures_call_line` — adjacent `(log …)` lines differ by exactly 1). Build order:
+  intueri-cast + weighed; seam grounded + CORRECTED to a THREAD-LOCAL (`macro_eval` delegates to
+  `runtime::eval`, so a param-thread was rejected — mirror `CALL_STACK`/`FrameGuard`, frame.rs:11: a
+  `MACRO_CALL_SITE` stack pushed by `expand_program_body`, read by an `eval_kernel_macro_call_site` arm
+  beside `call-site` at runtime.rs:4994/20265, returning a spliceable Frame-construction form + an
+  `is_pure_total` entry); RED gate drawn + CONFIRMED RED-on-gap
+  (`tests/macros/probe_arc278_macro_call_site.{rs,wat}` — adjacent macro invocations' captured lines
+  differ by exactly 1; `--check` shows the sole failure is `RefusedInMacro` on the un-blessed head). Build
+  order:
   `macro-call-site` verb → RED probe → the `:wat::telemetry::log` widget macro. Target SETTLED: the `Span`
   log op (the span carries the correlation `uuid` that joins logs with metrics; bare-`Log` rejected). One
   open sub-decision: the `symbol` field (default None).
