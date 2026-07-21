@@ -20,13 +20,13 @@
      journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1000000000 :caller :c1 :level :wat::telemetry::Level::Info
+             :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
      l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2000000000 :caller :c2 :level :wat::telemetry::Level::Error
+             :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "error-one")))
      l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 3000000000 :caller :c3 :level :wat::telemetry::Level::Warn
+             :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2 l3)))
@@ -52,7 +52,7 @@
      journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1000000000 :caller :c1 :level :wat::telemetry::Level::Error
+             :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1)))
@@ -85,13 +85,13 @@
      journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1000000000 :caller :c1 :level :wat::telemetry::Level::Info
+             :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
      l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2000000000 :caller :c2 :level :wat::telemetry::Level::Error
+             :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "error-one")))
      l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 3000000000 :caller :c3 :level :wat::telemetry::Level::Warn
+             :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2 l3)))
@@ -121,7 +121,7 @@
      journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1000000000 :caller :c1 :level :wat::telemetry::Level::Error
+             :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1)))

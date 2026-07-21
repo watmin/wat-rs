@@ -1,9 +1,0 @@
-#wat.telemetry/Log {
-  :namespace "probe-ns"
-  :uuid #uuid "00000000-0000-0000-0000-000000000000"
-  :tags {}
-  :time-ns 456
-  :caller :evaluator
-  :level #wat.telemetry.Level/Info []
-  :message "#user/PriceEvent {:asset :BTC :price 100000}"
-}

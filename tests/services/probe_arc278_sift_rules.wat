@@ -56,7 +56,7 @@
                     c    (:wat::core::if hot? 60 10)
                     msg  (:wat::edn::write (:usr::Temp :c c))]
                    (:wat::telemetry::Log :namespace "sift-rules-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-                     :time-ns (:wat::core::i64::+ i 1) :caller :probe
+                     :time-ns (:wat::core::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
                      :level :wat::telemetry::Level::Info :message msg)))
                idxs))
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
@@ -96,7 +96,7 @@
                     c    (:wat::core::if hot? 60 10)
                     msg  (:wat::edn::write (:usr::Temp :c c))]
                    (:wat::telemetry::Log :namespace "sift-rules-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-                     :time-ns (:wat::core::i64::+ i 1) :caller :probe
+                     :time-ns (:wat::core::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
                      :level :wat::telemetry::Level::Info :message msg)))
                idxs))
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
@@ -128,10 +128,10 @@
      journal (:wat::kernel::connect' jaddr)
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:usr::Temp :c 60)))
      l2    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:usr::Other :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2)))
@@ -160,10 +160,10 @@
      journal (:wat::kernel::connect' jaddr)
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:usr::Temp :c 60)))
      l2    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:usr::Other :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2)))

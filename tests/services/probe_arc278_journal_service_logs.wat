@@ -22,7 +22,7 @@
      msg     (:wat::edn::write (:user::PriceEvent :asset :BTC :price 100000))
      l       (:wat::telemetry::Log
                :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags :time-ns 456
-               :caller :evaluator :level :wat::telemetry::Level::Info :message msg)
+               :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info :message msg)
      batch   (:wat::core::Vector :wat::telemetry::Log l)
      _wr     (:wat::telemetry::Journal/write-logs journal
                (:wat::telemetry::Journal::WriteLogsRequest batch))

@@ -20,10 +20,10 @@
      journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1000000000 :caller :c1 :level :wat::telemetry::Level::Info
+             :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "one")))
      l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2000000000 :caller :c2 :level :wat::telemetry::Level::Warn
+             :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "two")))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2)))

@@ -167,7 +167,7 @@
   [i <- :wat::core::i64  tags <- (:wat::core::HashMap :wat::core::keyword :wat::core::String)]
   -> :wat::telemetry::Log
   (:wat::telemetry::Log :namespace "arena-rules-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-    :time-ns (:wat::core::i64::+ i 1) :caller :probe
+    :time-ns (:wat::core::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
     :level :wat::telemetry::Level::Info :message (:wat::edn::write (:arena::event-for-i i))))
 
 ;; ── THREAD locus — flood 800 rich Events (10-way cycle) in ONE write-logs call (fine on thread —
@@ -331,10 +331,10 @@
      journal (:wat::kernel::connect' jaddr)
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::event-for-i 2)))
      l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::Bogus :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2)))
@@ -364,10 +364,10 @@
      journal (:wat::kernel::connect' jaddr)
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 1 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::event-for-i 2)))
      l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
-             :time-ns 2 :caller :probe :level :wat::telemetry::Level::Info
+             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::Bogus :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2)))

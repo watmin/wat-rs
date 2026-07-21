@@ -80,7 +80,7 @@
               :uuid (:wat::telemetry::span::Record/uuid rec)
               :tags (:wat::telemetry::span::Record/tags rec)
               :time-ns now
-              :caller (:wat::telemetry::Span::LogRequest/caller req)
+              :emitted-from (:wat::telemetry::Span::LogRequest/emitted-from req)
               :level (:wat::telemetry::Span::LogRequest/level req)
               :message (:wat::telemetry::Span::LogRequest/message req))
         _w  (:wat::telemetry::Journal/write-logs (:wat::telemetry::span::State/sink s)

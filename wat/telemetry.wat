@@ -88,10 +88,10 @@
    unit          <- :wat::telemetry::Unit])
 
 ;; ─── Log — a log event. Splices Scope (4 fields), then 3 own. ────────────────────
-;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  caller level message.
+;; Ctor field order (splice-first, arc-293): namespace uuid tags time-ns  emitted-from level message.
 (:wat::core::defrecord :wat::telemetry::Log
   [~@:wat::telemetry::Scope
-   caller  <- :wat::core::keyword
+   emitted-from  <- :wat::kernel::Frame
    level   <- :wat::telemetry::Level
    ;; message is OPAQUE (arc 278 Stone B): EDN text the producer `edn::write`s at the call site;
    ;; the sink stores/returns it verbatim and never decodes (no `UnknownTag` across a fork).
@@ -241,7 +241,7 @@
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
 
    (:wat::core::defrecord :wat::telemetry::Span::LogRequest
-     [caller  <- :wat::core::keyword
+     [emitted-from  <- :wat::kernel::Frame
       level   <- :wat::telemetry::Level
       ;; message OPAQUE (arc 278 Stone B): the `Span/log` caller `edn::write`s its record here, so
       ;; a forked `span'` never hits `UnknownTag` on a user type either — opaque before both wires.

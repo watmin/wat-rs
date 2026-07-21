@@ -27,7 +27,7 @@
      _t   (:wat::telemetry::Span/timed span
             (:wat::telemetry::Span::TimedRequest :name :fetch :nanos 100))
      _l   (:wat::telemetry::Span/log span
-            (:wat::telemetry::Span::LogRequest :caller :probe :level :wat::telemetry::Level::Info
+            (:wat::telemetry::Span::LogRequest :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
               :message (:wat::edn::write (:probe::Note :text "hello"))))
      c    (:wat::telemetry::Span/close span (:wat::telemetry::Span::CloseRequest))]
     (:wat::core::match c -> :wat::core::i64
