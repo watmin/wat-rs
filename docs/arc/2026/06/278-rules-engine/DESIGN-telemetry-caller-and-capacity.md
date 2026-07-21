@@ -124,18 +124,40 @@ variable — confirmed by caller.2). So for the current `Log`: FIXED = the tag +
 (16B) + `time-ns` (i64) + `level` (Level @ longest variant); VARIABLE = `namespace` + `tags` + `emitted-from`
 + `message`. The framing floor sums only the FIXED set; the per-caller remainder is the runtime layer below.
 
-**Design (two layers, one reflected field set):**
-- **Compile-time (a `defmacro`, needs §2 arith):** reflect `field-names-of :…::Log` at expansion, sum
-  the framing bytes (tag + per-field key cost), emit `(def :…::LOG-MSG-CEILING (- BUDGET framing))` as a
-  baked literal — the max message bytes if all other required values were empty. The type IS the schema
-  (R26 derive) — change the required fields, the ceiling moves with them, checked.
-- **Runtime (the exact, zero-waste-per-caller remainder):** `budget − serialized-bytes(the filled-in
-  required params)`, generated from the same reflected field set.
+**Design (two layers, one reflected field set — the type IS the schema, R26 derive-is-the-wall).**
+Both layers ADAPT: they reflect the CURRENT `Log` field set at derivation, so a field added/removed/retyped
+tomorrow re-derives the capacity, checked — never a hand-maintained constant (builder: *"i do not know what
+we'll do tomorrow… all i know is that we need tooling who'll adapt"*; `caller`→`emitted-from` was one such
+swap).
+- **Compile-time — the adaptive framing floor (a `defmacro`).** Reflect `field-types-of :…::Log` at
+  expansion (shipped, green — `wat/bracket.wat:272`; returns each field's type as a WatAST node) → classify
+  each field FIXED vs VARIABLE against the explicitly-known-size set → sum the FIXED via typed `i64::+`
+  (folds at expand, §2) → bake `(def :…::LOG-MSG-CEILING (:wat::core::i64::- BUDGET floor))`. The advisory
+  static "your message can be ~N bytes."
+- **Runtime — the EXACT gate.** `budget − serialized-bytes(the filled-in required params)`, from the same
+  reflected field set; runtime HAS `edn::write` + real byte sizing, so the exact per-caller enforcement
+  lives here. **The compile floor is a conservative hint; the runtime remainder is the gate.**
 
-**Caveat to resolve at build:** the exact per-field wire cost needs grounding the EDN encoder (or an
-expansion-time `edn::write` of a zeroed template + a byte-length prim — only `string::length`
-(char-length) was found; UTF-8 byte-length TBD). The illustrative probe used +3/field, +2/tag — the
-MECHANISM is proven; the exact costs are the build's job. Depends on §1 (final schema) + §2 (arith).
+**Ratified build order (four-questions, 2026-07-21 — corrected: lead with the mechanism, not the plumbing).**
+1. **Stone 1 — the adaptive derive (the deliverable; buildable today, NO substrate gap).** Reflect →
+   classify → sum the *unambiguously* fixed (`i64`/`f64`/`Uuid`/`bool`) + the ASCII field-name keys
+   (char-length = byte-length for ASCII) + the tag → the adaptive floor. Enums/strings/records/`Frame` sit
+   in the VARIABLE part for now (the runtime remainder sizes them exactly; a floor that under-counts is a
+   safe conservative hint *because* runtime is the real gate). **RED gate: add a field to `Log` →
+   `LOG-MSG-CEILING` re-derives** — adaptivity proven. This is "tooling that adapts."
+2. **Refinements (sharpen the floor, NOT prerequisites), each a small substrate prim:**
+   - **`variants-of`** — expand-time enum-variant reflection (`:wat::runtime::`) → pull enums from VARIABLE
+     into the fixed floor, sized to their longest variant BY REFLECTION. **Ratified option (b): reflection,
+     NEVER a hand-maintained enum-size table** — a table drifts the instant a variant is added (fails Honest;
+     the rot `derive-is-the-wall` kills; no check catches it), reflection cannot. (Grounded gap: no
+     expand-time variant reflection today — `enum_def.variants` exists internally in `runtime.rs`; expose it.)
+   - **A UTF-8 byte-length prim** — only `string::length` (char-length) exists → exact non-ASCII keys.
+
+**Grounded substrate facts (2026-07-21):** `field-names-of`/`field-types-of` reflect at expansion (green,
+`wat/bracket.wat:272`; `field-types-of` → `Vector<wat::WatAST>`, `runtime.rs:11656`); typed `i64::` arith
+folds at expand (§2). GAPS (refinement-only, NOT stone-1 blockers): no UTF-8 byte-length prim; `edn::write`
+is NOT on `is_pure_total` (can't serialize-to-measure at expansion — sizes come from the known-size set per
+the ratified rule, not from serializing); no expand-time enum-variant reflection.
 
 ---
 
@@ -147,8 +169,11 @@ MECHANISM is proven; the exact costs are the build's job. Depends on §1 (final 
   is already blessed on `is_pure_total` and folds at macro-expand (proven, `--check` clean → literal 56);
   polymorphic arith is correctly refused (not macro-time-viable per the builder — needs runtime dispatch).
   Capacity uses the typed forms. The earlier "add 8 polymorphic heads" strike was retired (wrong premise).
-- §3 capacity: designed + the fixed-vs-variable rule ratified (above); arith prerequisite is MET (use typed);
-  the payoff — **NEXT**.
+- §3 capacity: designed + RATIFIED (fixed-vs-variable rule; corrected build order via the four-questions;
+  option (b) enum-by-reflection, never a table). Stone 1 = the adaptive derive (reflect → classify → sum
+  the unambiguously-fixed + ASCII keys → bake `LOG-MSG-CEILING`; RED gate = add-a-field-re-derives) —
+  buildable today, no substrate gap — **NEXT / BUILDING**. Refinements (follow-ons): `variants-of`
+  (enum-in-floor by reflection) + a UTF-8 byte-length prim.
   **Also owed (surfaced by caller.2):** a `log` MACRO that captures `(:wat::kernel::call-site)` AT the
   user's log-call boundary — caller.2 fills *constructions*, which capture the enclosing-fn's caller (offset
   0), so a Log built in a Rust-invoked fn gets the Rust site (absolute path); the precise per-log-line
