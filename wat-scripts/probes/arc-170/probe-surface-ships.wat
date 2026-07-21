@@ -7,7 +7,7 @@
 (:wat::core::defsurface :probe::Foo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Foo::Req  [x <- :wat::core::i64])
-   (:wat::core::defrecord :probe::Foo::Resp [y <- :wat::core::i64])]
+   (:wat::core::defenum :probe::Foo::Resp :wat::enum::Pure :Ok [y <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(f [self <- :probe::Foo  req <- :probe::Foo::Req] -> :probe::Foo::Resp)])
 

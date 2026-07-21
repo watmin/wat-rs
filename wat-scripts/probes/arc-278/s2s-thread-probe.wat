@@ -15,7 +15,7 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
@@ -26,14 +26,13 @@
   :impls
   [(echo [s req]
      (:wat::service::Outcome::Reply s
-       (:probe::Echo::EchoResponse :reply
-         (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+       (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
 (:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Caller::RunRequest  [])
-   (:wat::core::defrecord :probe::Caller::RunResponse [out <- :wat::core::String])]
+   (:wat::core::defenum :probe::Caller::RunResponse :wat::enum::Pure :Ok [out <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(run [self <- :probe::Caller  req <- :probe::Caller::RunRequest] -> :probe::Caller::RunResponse)])
 
@@ -55,8 +54,11 @@
      (:wat::core::let
        [echo (:probe::caller'::State/echo s)
         er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg "hi"))
-        out  (:probe::Echo::EchoResponse/reply er)]
-       (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse :out out))))])
+        out  (:wat::core::match er -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))]
+       (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse::Ok out))))])
 
 ;; ── the crossing: start both on PROCESSES, dial caller', which dials echo' ───────
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -66,5 +68,8 @@
      ch  (:probe::caller'/start  :locus (:wat::spawn::thread) :record (:probe::caller'::Record) :echo-addr ea)
      cc  (:wat::kernel::connect' (:probe::caller'::Handle/addr ch))
      rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))
-     out (:probe::Caller::RunResponse/out rr)]
+     out (:wat::core::match rr -> :wat::core::String
+  ((:probe::Caller::RunResponse::Ok out) out)
+  ((:probe::Caller::RunResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println out)))

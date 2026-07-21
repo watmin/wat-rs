@@ -13,7 +13,7 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
@@ -21,8 +21,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse :reply
-                (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -33,7 +32,7 @@
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-                   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
                 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -43,11 +42,17 @@
                      addr (:wat::kernel::recv' self)
                      c1   (:wat::kernel::connect' addr)
                      er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er1))
+                     _    (:wat::kernel::send' self (:wat::core::match er1 -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
                      _sig (:wat::kernel::recv' self)
                      c2   (:wat::kernel::connect' addr)
                      er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))
-                     _2   (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er2))]
+                     _2   (:wat::kernel::send' self (:wat::core::match er2 -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))]
                     nil))))
      _   (:wat::core::match (:wat::kernel::peer-pid prober) -> :wat::core::nil
            ((:wat::core::Some p)

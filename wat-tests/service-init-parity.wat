@@ -17,7 +17,9 @@
 (:wat::core::defsurface :wat-tests::SeededCounter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat-tests::SeededCounter::GetRequest  [])
-   (:wat::core::defrecord :wat-tests::SeededCounter::GetResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :wat-tests::SeededCounter::GetResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get [self <- :wat-tests::SeededCounter  req <- :wat-tests::SeededCounter::GetRequest] -> :wat-tests::SeededCounter::GetResponse)])
 
@@ -30,8 +32,8 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::SeededCounter::GetResponse
-         :value (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])
+       (:wat-tests::SeededCounter::GetResponse::Ok
+         (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s)))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; start takes the Record (seeded-counter::Record 42); init defaults to State/new(d).
@@ -42,7 +44,12 @@
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record :count 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
-      (:wat-tests::SeededCounter::GetResponse/value r))
+      (:wat::core::match r -> :wat::core::i64
+        ((:wat-tests::SeededCounter::GetResponse::Ok value) value)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::SeededCounter::GetResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "seeded-counter-get: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     42))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -54,5 +61,10 @@
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record :count 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
-      (:wat-tests::SeededCounter::GetResponse/value r))
+      (:wat::core::match r -> :wat::core::i64
+        ((:wat-tests::SeededCounter::GetResponse::Ok value) value)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::SeededCounter::GetResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "seeded-counter-get: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     42))

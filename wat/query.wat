@@ -152,6 +152,7 @@
      resp-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse")))
      resp-ded-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Deductions")))
      resp-fat-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Fatal")))
+     resp-rtl-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::RequestTooLarge")))
      req-ns-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/namespace")))
      req-lo-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-lo")))
      req-hi-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-hi")))
@@ -330,7 +331,8 @@
           (:wat::core::defenum ~resp-kw :wat::enum::Pure
             :Deductions [items  <- :wat::core::PersistentVector<wat::core::Value>
                          cursor <- (:wat::core::Option :wat::core::String)]
-            :Fatal      [err   <- :wat::query::Fault])]
+            :Fatal      [err   <- :wat::query::Fault]
+            :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
          :features
          [(sift-rules [self <- ~surface-kw req <- ~req-kw] -> ~resp-kw)])
        (:wat::service::defservice ~svc-kw
@@ -392,6 +394,9 @@
                       next-cur)
                     (~resp-fat-kw
                       (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs"))))
+                ;; propagate the budget signal EXPLICITLY — never lump RequestTooLarge into Fatal (ruling A).
+                ((:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge bytes cap)
+                  (~resp-rtl-kw bytes cap))
                 (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed"))))))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────

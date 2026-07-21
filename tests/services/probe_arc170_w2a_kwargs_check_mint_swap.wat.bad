@@ -8,26 +8,26 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 (:wat::service::defservice :probe::echo'
   :satisfies :probe::Echo  :durable []  :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse :reply (:probe::Echo::EchoRequest/msg req))))])
+              (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
-   (:wat::core::defrecord :probe::Kv::GetResponse [v <- :wat::core::String])]
+   (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse)])
 (:wat::service::defservice :probe::kv'
   :satisfies :probe::Kv  :durable []  :ephemeral []
   :impls [(get [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Kv::GetResponse :v (:probe::Kv::GetRequest/k req))))])
+              (:probe::Kv::GetResponse::Ok (:probe::Kv::GetRequest/k req))))])
 
 ;; the kwargs work-fn -> AUTO-mints :probe::enrich::kwargs-check
 (:wat::core::defn :probe::enrich
@@ -35,7 +35,10 @@
    & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
       kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
   -> :wat::core::String
-  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item))))
+  (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

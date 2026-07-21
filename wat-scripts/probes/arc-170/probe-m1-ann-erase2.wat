@@ -7,7 +7,7 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
@@ -15,8 +15,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse :reply
-                (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; PARENT-side PoolMsg with BARE Address' payload (erased D).
 (:wat::core::defenum :probe::PoolMsg<I> :wat::enum::Pure
@@ -35,7 +34,7 @@
                 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-                   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+                   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
                 ;; CHILD-side PoolMsg with CONCRETE Address'<Op,Reply> payload.
@@ -53,7 +52,10 @@
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")
                          er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s))
-                         _  (:wat::kernel::send' self (:probe::Echo::EchoResponse/reply er))]
+                         _  (:wat::kernel::send' self (:wat::core::match er -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))]
                         (:probe::serve self held)))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let

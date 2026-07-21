@@ -67,7 +67,9 @@
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::i64
       ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
-      ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1))))
+      ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1)
+      ((:usr::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
+        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))))
 
 ;; ── PROCESS locus — the loci-agnostic proof. SAME scenario across a FORK: mem-store' + journal'
 ;; + my-sift' all on process, grant-before-dial at every hop (mirrors the arena's chain). ──
@@ -109,7 +111,9 @@
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
     (:wat::core::match resp -> :wat::core::i64
       ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
-      ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1))))
+      ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1)
+      ((:usr::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
+        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))))
 
 ;; ── THREAD locus — fail-closed: one Log's message is `:usr::Other`, NOT among :defs. The WHOLE
 ;; page must come back ::Fatal (never a silent skip / partial result). ──

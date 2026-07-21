@@ -6,7 +6,7 @@
 ;; (print-on-edn is heresy; edn/write is only for EDN-as-a-String: wire send / sqlite / concat.)
 (:wat::core::defrecord :probe::Bag [kv <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>  n <- :wat::core::i64])
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
-  :messages [(:wat::core::defrecord :probe::Kv::R [x <- :wat::core::String])]
+  :messages [(:wat::core::defenum :probe::Kv::R :wat::enum::Pure :Ok [x <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features [(get [self <- :probe::Kv req <- :probe::Kv::R] -> :probe::Kv::R)])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

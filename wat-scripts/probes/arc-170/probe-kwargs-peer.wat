@@ -5,11 +5,11 @@
 ;; EXPECT (wall): a nature/purity error rejecting Peer' in the kwargs bundle.
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Kv::GetReq  [k <- :wat::core::String])
-             (:wat::core::defrecord :probe::Kv::GetResp [v <- :wat::core::String])]
+             (:wat::core::defenum :probe::Kv::GetResp :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features [(get [self <- :probe::Kv  req <- :probe::Kv::GetReq] -> :probe::Kv::GetResp)])
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Echo::Req  [msg <- :wat::core::String])
-             (:wat::core::defrecord :probe::Echo::Resp [reply <- :wat::core::String])]
+             (:wat::core::defenum :probe::Echo::Resp :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::Req] -> :probe::Echo::Resp)])
 
 ;; the bracket work-fn: item POSITIONAL, the services as Peer' KWARGS — bound directly in the body
@@ -18,10 +18,16 @@
    & [kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>
       echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]]
   -> :wat::core::String
-  (:probe::Echo::Resp/reply
+  (:wat::core::match
     (:probe::Echo/echo echo
       (:probe::Echo::Req :msg
-        (:probe::Kv::GetResp/v (:probe::Kv/get kv (:probe::Kv::GetReq :k item)))))))
+        (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetReq :k item)) -> :wat::core::String
+  ((:probe::Kv::GetResp::Ok v) v)
+  ((:probe::Kv::GetResp::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))) -> :wat::core::String
+  ((:probe::Echo::Resp::Ok reply) reply)
+  ((:probe::Echo::Resp::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println "kwargs work-fn with Peer' kwargs: defined + type-checked ok"))

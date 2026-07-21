@@ -2,14 +2,17 @@
 ;; param type annotations as? Mirrors spawn-runner's arity-6 c-nm derivation exactly.
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-             (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
 (:wat::core::defn :probe::dial-work
   [peer <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
    item <- :wat::core::String]
   -> :wat::core::String
-  (:probe::Echo::EchoResponse/reply (:probe::Echo/echo peer (:probe::Echo::EchoRequest :msg item))))
+  (:wat::core::match (:probe::Echo/echo peer (:probe::Echo::EchoRequest :msg item)) -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

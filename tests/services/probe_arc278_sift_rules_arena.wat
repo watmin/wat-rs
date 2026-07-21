@@ -235,7 +235,9 @@
                            (:wat::core::None (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean))
                            ((:wat::core::Some c) (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)))))
                      ((:arena::my-sift::SiftRulesResponse::Fatal _err)
-                       (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))))))
+                       (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))
+                     ((:arena::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
+                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None))))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))
@@ -309,7 +311,9 @@
                            (:wat::core::None (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean))
                            ((:wat::core::Some c) (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)))))
                      ((:arena::my-sift::SiftRulesResponse::Fatal _err)
-                       (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))))))
+                       (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))
+                     ((:arena::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
+                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None))))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))

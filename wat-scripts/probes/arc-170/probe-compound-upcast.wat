@@ -16,12 +16,12 @@
 ;; a runtime hashing limitation, out of this strike's "no runtime.rs change" scope).
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-             (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
 (:wat::service::defservice :probe::echo' :satisfies :probe::Echo :durable [] :ephemeral []
   :impls [(echo [s req] (:wat::service::Outcome::Reply s
-            (:probe::Echo::EchoResponse :reply (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+            (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :probe::as-map [m <- :wat::core::HashMap<wat::core::keyword,wat::capability::Capability>]
   -> :wat::core::HashMap<wat::core::keyword,wat::capability::Capability>

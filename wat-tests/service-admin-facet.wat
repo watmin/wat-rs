@@ -20,7 +20,9 @@
 (:wat::core::defsurface :wat-tests::AdminCounter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat-tests::AdminCounter::IncrementRequest  [n <- :wat::core::i64])
-   (:wat::core::defrecord :wat-tests::AdminCounter::IncrementResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :wat-tests::AdminCounter::IncrementResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(increment [self <- :wat-tests::AdminCounter  req <- :wat-tests::AdminCounter::IncrementRequest] -> :wat-tests::AdminCounter::IncrementResponse)])
 
@@ -36,7 +38,7 @@
                            (:wat-tests::AdminCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
          (:wat-tests::admin-counter::State :durable (:wat-tests::admin-counter::Record :count c))
-         (:wat-tests::AdminCounter::IncrementResponse :value c))))])
+         (:wat-tests::AdminCounter::IncrementResponse::Ok c))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.

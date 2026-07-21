@@ -11,7 +11,7 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 
@@ -19,8 +19,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse :reply
-                (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; a typed helper: the param pins the reconstructed addr's S,R (unify ? = Echo::Op/Reply).
 (:wat::core::defn :probe::dial-and-echo
@@ -28,7 +27,10 @@
   (:wat::core::let
     [c  (:wat::kernel::connect' a)
      er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "roundtrip"))]
-    (:probe::Echo::EchoResponse/reply er)))
+    (:wat::core::match er -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

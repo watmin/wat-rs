@@ -13,9 +13,13 @@
 (:wat::core::defsurface :wat-tests::Recorder :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat-tests::Recorder::RecordRequest  [n     <- :wat::core::i64])
-   (:wat::core::defrecord :wat-tests::Recorder::RecordResponse [ok    <- :wat::core::bool])
+   (:wat::core::defenum :wat-tests::Recorder::RecordResponse :wat::enum::Pure
+     :Ok              [ok    <- :wat::core::bool]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
    (:wat::core::defrecord :wat-tests::Recorder::TotalRequest   [])
-   (:wat::core::defrecord :wat-tests::Recorder::TotalResponse  [value <- :wat::core::i64])]
+   (:wat::core::defenum :wat-tests::Recorder::TotalResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(record [self <- :wat-tests::Recorder req <- :wat-tests::Recorder::RecordRequest]
            -> :wat-tests::Recorder::RecordResponse)
@@ -26,7 +30,9 @@
 (:wat::core::defsurface :wat-tests::Worker :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat-tests::Worker::WorkRequest  [n    <- :wat::core::i64])
-   (:wat::core::defrecord :wat-tests::Worker::WorkResponse [done <- :wat::core::bool])]
+   (:wat::core::defenum :wat-tests::Worker::WorkResponse :wat::enum::Pure
+     :Ok              [done  <- :wat::core::bool]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(work [self <- :wat-tests::Worker req <- :wat-tests::Worker::WorkRequest]
          -> :wat-tests::Worker::WorkResponse)])
@@ -44,10 +50,10 @@
            (:wat::core::i64::+
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
              (:wat-tests::Recorder::RecordRequest/n req))))
-       (:wat-tests::Recorder::RecordResponse :ok true)))
+       (:wat-tests::Recorder::RecordResponse::Ok true)))
    (total [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::Recorder::TotalResponse :value
+       (:wat-tests::Recorder::TotalResponse::Ok
          (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s)))))])
 
 ;; ── the worker service — wears :wat-tests::Worker, dials a :wat-tests::Recorder peer ─────────────
@@ -64,10 +70,16 @@
   :impls
   [(work [s req]
      (:wat::core::let
-       [_ (:wat-tests::Recorder/record
-            (:wat-tests::worker::State/recorder s)
-            (:wat-tests::Recorder::RecordRequest :n (:wat-tests::Worker::WorkRequest/n req)))]
-       (:wat::service::Outcome::Reply s (:wat-tests::Worker::WorkResponse :done true))))])
+       [rresp (:wat-tests::Recorder/record
+                (:wat-tests::worker::State/recorder s)
+                (:wat-tests::Recorder::RecordRequest :n (:wat-tests::Worker::WorkRequest/n req)))
+        wresp (:wat::core::match rresp -> :wat-tests::Worker::WorkResponse
+                ((:wat-tests::Recorder::RecordResponse::Ok _ok)
+                  (:wat-tests::Worker::WorkResponse::Ok true))
+                ;; s2s consumer: a downstream wire-breach propagates outward as our own op's breach.
+                ((:wat-tests::Recorder::RecordResponse::RequestTooLarge bytes cap)
+                  (:wat-tests::Worker::WorkResponse::RequestTooLarge bytes cap)))]
+       (:wat::service::Outcome::Reply s wresp)))])
 
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
 ;; start threads the LIVE recorder address as the worker's 2nd start arg (the :init operating-input).
@@ -84,7 +96,12 @@
        _2 (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 3))
        rc (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
        r  (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
-      (:wat-tests::Recorder::TotalResponse/value r))
+      (:wat::core::match r -> :wat::core::i64
+        ((:wat-tests::Recorder::TotalResponse::Ok value) value)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::Recorder::TotalResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "recorder-total: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     8))
 
 ;; hibernate -> resume: worker sheds its client + reconnects on resume. resume takes the saved record AND
@@ -106,5 +123,10 @@
        _2   (:wat-tests::Worker/work wc2 (:wat-tests::Worker::WorkRequest :n 3))
        rc   (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
        r    (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
-      (:wat-tests::Recorder::TotalResponse/value r))
+      (:wat::core::match r -> :wat::core::i64
+        ((:wat-tests::Recorder::TotalResponse::Ok value) value)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::Recorder::TotalResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "recorder-total: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     8))

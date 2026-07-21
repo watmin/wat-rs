@@ -2,7 +2,7 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
-   (:wat::core::defrecord :probe::Echo::EchoResponse [reply <- :wat::core::String])]
+   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
 (:wat::service::defservice :probe::echo'
@@ -10,10 +10,13 @@
   :impls
   [(echo [s req]
      (:wat::service::Outcome::Reply s
-       (:probe::Echo::EchoResponse :reply (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+       (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [eh (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      c  (:wat::kernel::connect' (:probe::echo'::Handle/addr eh))
      r  (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))]
-    (:wat::kernel::println (:probe::Echo::EchoResponse/reply r))))
+    (:wat::kernel::println (:wat::core::match r -> :wat::core::String
+  ((:probe::Echo::EchoResponse::Ok reply) reply)
+  ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))))

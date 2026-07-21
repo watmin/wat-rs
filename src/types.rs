@@ -1736,6 +1736,22 @@ fn synthesize_surface_protocol(
     let mut reply_variants: Vec<EnumVariant> = Vec::new();
     let mut saw_method = false;
 
+    // Arc 278 #16 Stone 16.1c — the required shape of the ruling-A `RequestTooLarge` variant:
+    // exactly `[bytes <- :wat::core::i64  cap <- :wat::core::i64]` (matched against each
+    // serviceable op-Response enum below). `:wat::core::i64` is how the parser represents an
+    // i64 field type (see `TypeExpr::Path(":wat::core::i64")` throughout, e.g. wat/query.wat).
+    const RTL_VARIANT: &str = "RequestTooLarge";
+    let rtl_fields: Vec<(String, TypeExpr)> = vec![
+        ("bytes".to_string(), TypeExpr::Path(":wat::core::i64".into())),
+        ("cap".to_string(), TypeExpr::Path(":wat::core::i64".into())),
+    ];
+    // Ruling A binds SERVICEABLE ops — the wire ops of a service. Only a `:nature
+    // :wat::kernel::Peer'` surface is a service (its ops' returns ARE `<Op>Response`s
+    // that cross the wire and can face a too-large request); a `:Struct`/`:Record`/
+    // `:HolonRecord` surface's methods are in-thread accessors whose returns are ordinary
+    // values, not Responses, so the RequestTooLarge lock does not apply to them.
+    let enforce_rtl_lock = surface.nature == Some(Nature::Peer);
+
     for member in &surface.members {
         let SurfaceMember::Method { name, args, ret, .. } = member else {
             continue; // Field members are data, not operations.
@@ -1756,6 +1772,73 @@ fn synthesize_surface_protocol(
         {
             return Ok(vec![]);
         }
+
+        // Arc 278 #16 Stone 16.1c — LOCK ruling A. Every serviceable op-Response must be an
+        // outcome ENUM carrying a well-shaped `RequestTooLarge [bytes <- i64  cap <- i64]`
+        // variant: any wire op can face a request that overruns its `:max-request-bytes`
+        // budget, and that breach must be a first-class, non-swallowable outcome of the op
+        // (records-as-Responses are retired for services). A fleet migration (git 4536eaf6)
+        // already brought every Response into conformance — this rule is the CONTRACT LOCK:
+        // a future op whose Response is a record, or an enum missing/malforming
+        // `RequestTooLarge`, becomes a LOCATED compile error instead of a silent drift.
+        //
+        // Resolution (STOP-1 cleared): `ret` is the op's `<Op>Response` path. Its type-decl
+        // was hoisted OUT of this surface's `:messages` block to the top-level form stream
+        // BEFORE the defsurface form (expand_all's `hoist_surface_messages`, src/macros/
+        // expand.rs), so it is already registered in `env` by the time this synthesis runs —
+        // `env.get(<path>)` resolves it. (This is why the rule can live at synthesize time:
+        // enums, unlike the retired record Responses, resolve here.) A Response declared
+        // AFTER the surface is not our concern — it is an unknown path with its own
+        // unresolved-reference diagnostic downstream, so we only lock what we can resolve.
+        if enforce_rtl_lock { if let TypeExpr::Path(resp_path) = ret {
+            match env.get(resp_path) {
+                Some(TypeDef::Aggregate(_)) => {
+                    return Err(TypeError {
+                        span: decl_span.clone(),
+                        kind: TypeErrorKind::MalformedVariant {
+                            enum_name: resp_path.clone(),
+                            offending: RTL_VARIANT.to_string(),
+                            reason: format!(
+                                "op `{}` in surface {}: `{}` must be an outcome enum carrying \
+                                 `{}` (records-as-Responses are retired for services — arc 278 \
+                                 ruling A); make it `(:wat::core::defenum {} :wat::enum::Pure \
+                                 :Ok [...] :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64])`",
+                                name, surface.name, resp_path, RTL_VARIANT, resp_path
+                            ),
+                            remedies: vec![],
+                        },
+                    });
+                }
+                Some(TypeDef::Enum(EnumDef { variants, .. })) => {
+                    let well_shaped = variants.iter().any(|v| {
+                        matches!(v,
+                            EnumVariant::Tagged { name: vn, fields }
+                                if vn == RTL_VARIANT && *fields == rtl_fields)
+                    });
+                    if !well_shaped {
+                        return Err(TypeError {
+                            span: decl_span.clone(),
+                            kind: TypeErrorKind::MalformedVariant {
+                                enum_name: resp_path.clone(),
+                                offending: RTL_VARIANT.to_string(),
+                                reason: format!(
+                                    "op `{}` in surface {}: `{}` must carry \
+                                     `:RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]` \
+                                     (arc 278 ruling A — every serviceable op-Response is an outcome \
+                                     enum that can face a too-large request)",
+                                    name, surface.name, resp_path
+                                ),
+                                remedies: vec![],
+                            },
+                        });
+                    }
+                }
+                // Non-Path ret, or a ret that resolves to a Newtype/Alias/Union/Surface, or an
+                // as-yet-unregistered path — out of this lock's scope (each has its own
+                // diagnostic elsewhere). Only records and enums are Response candidates.
+                _ => {}
+            }
+        } }
 
         // Variant name = PascalCase(method-name) via the EXISTING kebab→pascal conversion
         // (`put` → `Put`, `scan-index` → `ScanIndex`), threading the surface's namespace
@@ -4408,6 +4491,127 @@ mod tests {
             matches!(err, TypeError { kind: TypeErrorKind::MalformedDecl { .. }, .. }),
             "expected MalformedDecl, got: {:?}",
             err
+        );
+    }
+
+    // ─── Arc 278 #16 Stone 16.1c — the ruling-A CONTRACT LOCK ────────────────────
+    //
+    // `synthesize_surface_protocol` enforces: every serviceable op-Response must be an
+    // outcome ENUM carrying a well-shaped `RequestTooLarge [bytes <- i64  cap <- i64]`
+    // variant. A `:nature :wat::kernel::Peer'` surface OWNS its protocol types in a
+    // mandatory `:messages` block; `expand_all`'s `hoist_surface_messages` lifts those
+    // decls to the top-level form stream AHEAD of the surface form, so they are registered
+    // in `env` before `synthesize_surface_protocol` runs. `expand_then_register` mirrors
+    // that production pipeline (expand_all → register_types).
+    //
+    // Each RED error FIRING is itself the STOP-1 confirmation: the Aggregate branch only
+    // fires when `env.get(ret)` returned `Some(Aggregate)`, the Enum branch only when it
+    // returned `Some(Enum)` — i.e. the Response resolves at synthesize time (enums, unlike
+    // the retired record Responses, are in `env` when the surface's protocol synthesizes).
+
+    /// Mirror the production surface pipeline: parse → register defmacros → `expand_all`
+    /// (which hoists a peer surface's `:messages` decls ahead of the surface form) →
+    /// `register_types` (where `synthesize_surface_protocol`'s ruling-A lock lives).
+    fn expand_then_register(src: &str) -> Result<TypeEnv, TypeError> {
+        let forms = crate::parse_all!(src).expect("parse ok");
+        let mut reg = crate::macros::MacroRegistry::new();
+        let rest = crate::macros::register_defmacros(forms, &mut reg)
+            .expect("register_defmacros ok");
+        let renv = crate::runtime::Environment::default();
+        let sym = crate::runtime::SymbolTable::default();
+        let expanded = crate::macros::expand_all(rest, &mut reg, &renv, &sym)
+            .expect("expand_all ok");
+        let mut env = TypeEnv::with_builtins();
+        register_types(expanded, &mut env)?;
+        Ok(env)
+    }
+
+    #[test]
+    fn stone_16_1c_record_response_is_a_located_error() {
+        // An op whose `<Op>Response` is a RECORD (records-as-Responses are retired for
+        // services) is a located ruling-A error. Also confirms STOP-1: env.get(ret)
+        // resolved to Aggregate at synthesize time (only then does the record branch fire).
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad :nature :wat::kernel::Peer'
+                  :messages [(:wat::core::recordtype :t::Bad::FooResponse :wat::core::Record
+                                [ok <- :wat::core::String])]
+                  :features [(foo [self <- :t::Bad  req <- :wat::core::String]
+                               -> :t::Bad::FooResponse)])"#,
+        )
+        .expect_err("a record-typed op-Response must be a located ruling-A error");
+        match err.kind {
+            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+                assert_eq!(enum_name, ":t::Bad::FooResponse");
+                assert_eq!(offending, "RequestTooLarge");
+            }
+            other => panic!("expected MalformedVariant (records-retired); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stone_16_1c_enum_response_missing_rtl_is_a_located_error() {
+        // An outcome enum that omits the `RequestTooLarge` variant is a located ruling-A
+        // error. Also confirms STOP-1: env.get(ret) resolved to Enum at synthesize time.
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad2 :nature :wat::kernel::Peer'
+                  :messages [(:wat::core::defenum :t::Bad2::FooResponse :wat::enum::Pure
+                                :Ok [reply <- :wat::core::String])]
+                  :features [(foo [self <- :t::Bad2  req <- :wat::core::String]
+                               -> :t::Bad2::FooResponse)])"#,
+        )
+        .expect_err("an enum Response lacking RequestTooLarge must be a located ruling-A error");
+        match err.kind {
+            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+                assert_eq!(enum_name, ":t::Bad2::FooResponse");
+                assert_eq!(offending, "RequestTooLarge");
+            }
+            other => panic!("expected MalformedVariant (missing RequestTooLarge); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stone_16_1c_enum_response_malformed_rtl_is_a_located_error() {
+        // A `RequestTooLarge` variant whose fields are the WRONG shape (String, not i64) is
+        // NOT well-shaped → located ruling-A error. Locks the field-shape, not just the name.
+        let err = expand_then_register(
+            r#"(:wat::core::defsurface :t::Bad3 :nature :wat::kernel::Peer'
+                  :messages [(:wat::core::defenum :t::Bad3::FooResponse :wat::enum::Pure
+                                :Ok [reply <- :wat::core::String]
+                                :RequestTooLarge [bytes <- :wat::core::String  cap <- :wat::core::String])]
+                  :features [(foo [self <- :t::Bad3  req <- :wat::core::String]
+                               -> :t::Bad3::FooResponse)])"#,
+        )
+        .expect_err("a mis-shaped RequestTooLarge (non-i64 fields) must be a located error");
+        match err.kind {
+            TypeErrorKind::MalformedVariant { enum_name, offending, .. } => {
+                assert_eq!(enum_name, ":t::Bad3::FooResponse");
+                assert_eq!(offending, "RequestTooLarge");
+            }
+            other => panic!("expected MalformedVariant (malformed RequestTooLarge); got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stone_16_1c_wellshaped_enum_response_passes_and_synthesizes() {
+        // The GREEN half: a conforming outcome enum (`:Ok | :RequestTooLarge [bytes cap]`)
+        // clears the lock, and the protocol enums `::Op` / `::Reply` synthesize as before.
+        // Proves the lock does not false-positive on the migrated (conforming) fleet.
+        let env = expand_then_register(
+            r#"(:wat::core::defsurface :t::Ok1 :nature :wat::kernel::Peer'
+                  :messages [(:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
+                                :Ok [reply <- :wat::core::String]
+                                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
+                  :features [(foo [self <- :t::Ok1  req <- :wat::core::String]
+                               -> :t::Ok1::FooResponse)])"#,
+        )
+        .expect("a conforming outcome-enum Response must clear the ruling-A lock");
+        assert!(
+            matches!(env.get(":t::Ok1::Op"), Some(TypeDef::Enum(_))),
+            "the synthesized `::Op` protocol enum must exist"
+        );
+        assert!(
+            matches!(env.get(":t::Ok1::Reply"), Some(TypeDef::Enum(_))),
+            "the synthesized `::Reply` protocol enum must exist"
         );
     }
 }

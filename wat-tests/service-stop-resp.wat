@@ -19,7 +19,9 @@
 (:wat::core::defsurface :wat-tests::RespCounter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat-tests::RespCounter::IncrementRequest  [n <- :wat::core::i64])
-   (:wat::core::defrecord :wat-tests::RespCounter::IncrementResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :wat-tests::RespCounter::IncrementResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(increment [self <- :wat-tests::RespCounter  req <- :wat-tests::RespCounter::IncrementRequest] -> :wat-tests::RespCounter::IncrementResponse)])
 
@@ -35,7 +37,7 @@
                            (:wat-tests::RespCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
          (:wat-tests::resp-counter::State :durable (:wat-tests::resp-counter::Record :count c))
-         (:wat-tests::RespCounter::IncrementResponse :value c))))  ]
+         (:wat-tests::RespCounter::IncrementResponse::Ok c))))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
   ;; decoupled from the ::Record. Read count through State/durable.
   :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> :wat::core::i64

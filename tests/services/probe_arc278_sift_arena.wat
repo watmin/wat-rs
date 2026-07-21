@@ -29,7 +29,8 @@
      [count     <- :wat::core::i64
       namespace <- :wat::core::String])
    (:wat::core::defenum :prod::Producer::FloodResponse :wat::enum::Pure
-     :Done [written <- :wat::core::i64])]
+     :Done            [written <- :wat::core::i64]
+     :RequestTooLarge [bytes   <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(flood [self <- :prod::Producer  req <- :prod::Producer::FloodRequest] -> :prod::Producer::FloodResponse)])
 
@@ -93,7 +94,8 @@
   :messages
   [(:wat::core::defrecord :cons::Consumer::SiftRequest [namespace <- :wat::core::String])
    (:wat::core::defenum :cons::Consumer::SiftResponse :wat::enum::Pure
-     :Count [n <- :wat::core::i64])
+     :Count           [n <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
    (:wat::core::defrecord :cons::Consumer::PageState
      [done <- :wat::core::bool
       cur  <- (:wat::core::Option :wat::core::String)
@@ -192,4 +194,7 @@
      sr       (:cons::Consumer/sift consumer (:cons::Consumer::SiftRequest :namespace "arena-ns"))]
     (:wat::core::match sr -> :wat::core::i64
       ((:cons::Consumer::SiftResponse::Count n) n)
-      (_ -1))))
+      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+      ((:cons::Consumer::SiftResponse::RequestTooLarge bytes cap)
+        (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
+          :wat::core::None :wat::core::None)))))

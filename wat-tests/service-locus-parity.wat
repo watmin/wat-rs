@@ -18,9 +18,13 @@
 (:wat::core::defsurface :wat-tests::Counter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat-tests::Counter::GetRequest       [])
-   (:wat::core::defrecord :wat-tests::Counter::GetResponse       [value <- :wat::core::i64])
+   (:wat::core::defenum :wat-tests::Counter::GetResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])
    (:wat::core::defrecord :wat-tests::Counter::IncrementRequest  [n <- :wat::core::i64])
-   (:wat::core::defrecord :wat-tests::Counter::IncrementResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :wat-tests::Counter::IncrementResponse :wat::enum::Pure
+     :Ok              [value <- :wat::core::i64]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get       [self <- :wat-tests::Counter  req <- :wat-tests::Counter::GetRequest]       -> :wat-tests::Counter::GetResponse)
    (increment [self <- :wat-tests::Counter  req <- :wat-tests::Counter::IncrementRequest] -> :wat-tests::Counter::IncrementResponse)])
@@ -33,7 +37,7 @@
   :impls
   [(get [s req]
      (:wat::service::Outcome::Reply s
-       (:wat-tests::Counter::GetResponse :value
+       (:wat-tests::Counter::GetResponse::Ok
          (:wat-tests::counter::Record/count (:wat-tests::counter::State/durable s)))))
    (increment [s req]
      (:wat::core::let [c (:wat::core::i64::+
@@ -41,7 +45,7 @@
                            (:wat-tests::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply
          (:wat-tests::counter::State :durable (:wat-tests::counter::Record :count c))
-         (:wat-tests::Counter::IncrementResponse :value c))))])
+         (:wat-tests::Counter::IncrementResponse::Ok c))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::service::counter-on-thread
@@ -52,7 +56,12 @@
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
        _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
        r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
-      (:wat-tests::Counter::GetResponse/value r))
+      (:wat::core::match r -> :wat::core::i64
+        ((:wat-tests::Counter::GetResponse::Ok value) value)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::Counter::GetResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "counter-get: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     5))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -64,5 +73,10 @@
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
        _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
        r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
-      (:wat-tests::Counter::GetResponse/value r))
+      (:wat::core::match r -> :wat::core::i64
+        ((:wat-tests::Counter::GetResponse::Ok value) value)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::Counter::GetResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "counter-get: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     5))

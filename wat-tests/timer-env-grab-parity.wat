@@ -20,7 +20,9 @@
 (:wat::core::defsurface :wat-tests::Deadline :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :wat-tests::Deadline::WaitTickRequest  [])
-   (:wat::core::defrecord :wat-tests::Deadline::WaitTickResponse [fired <- :wat::core::keyword])]
+   (:wat::core::defenum :wat-tests::Deadline::WaitTickResponse :wat::enum::Pure
+     :Ok              [fired <- :wat::core::keyword]
+     :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(wait-tick [self <- :wat-tests::Deadline  req <- :wat-tests::Deadline::WaitTickRequest] -> :wat-tests::Deadline::WaitTickResponse)])
 
@@ -42,7 +44,7 @@
             -> :wat::core::keyword
             ((:wat::spawn::ServiceEvent::Message _idx mm) mm)
             (_ :no-tick))]
-       (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse :fired m))))])
+       (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse::Ok m))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::timer::env-grab-on-thread
@@ -52,7 +54,12 @@
       [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
-      (:wat-tests::Deadline::WaitTickResponse/fired r))
+      (:wat::core::match r -> :wat::core::keyword
+        ((:wat-tests::Deadline::WaitTickResponse::Ok fired) fired)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::Deadline::WaitTickResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "deadline-wait-tick: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     :tick))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -63,5 +70,10 @@
       [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
-      (:wat-tests::Deadline::WaitTickResponse/fired r))
+      (:wat::core::match r -> :wat::core::keyword
+        ((:wat-tests::Deadline::WaitTickResponse::Ok fired) fired)
+        ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
+        ((:wat-tests::Deadline::WaitTickResponse::RequestTooLarge bytes cap)
+          (:wat::kernel::assertion-failed! "deadline-wait-tick: unexpected RequestTooLarge"
+            :wat::core::None :wat::core::None))))
     :tick))

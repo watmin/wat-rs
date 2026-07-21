@@ -1,7 +1,7 @@
 (:wat::core::defsurface :my::Counter :nature :wat::kernel::Peer'
   :messages
   [(:wat::core::defrecord :my::Counter::GetRequest  [])
-   (:wat::core::defrecord :my::Counter::GetResponse [value <- :wat::core::i64])]
+   (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure :Ok [value <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(get [self <- :my::Counter  req <- :my::Counter::GetRequest] -> :my::Counter::GetResponse)])
 
