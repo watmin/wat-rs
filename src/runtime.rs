@@ -4991,6 +4991,7 @@ fn dispatch_keyword_head_value(
 
         // Kernel primitives — channel IO + stop flag + user signals.
         ":wat::kernel::stopped?" => eval_kernel_stopped(args, list_span),
+        ":wat::kernel::call-site" => eval_kernel_call_site(args, list_span),
         // Arc 170 slice 1f-α — thread-aware stdio helpers. Look up
         // the calling thread's per-service channel handles from
         // the `services::client::THREAD_IO` cell and run the mini-TCP
@@ -20249,6 +20250,42 @@ fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, EvalB
         } }.into());
     }
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
+}
+
+/// `(:wat::kernel::call-site)` — nullary; returns the caller's
+/// `:wat::kernel::Frame {file, line, symbol}` — the wat equivalent of
+/// Ruby's `caller` / Rust's `Location::caller()`.
+///
+/// A native verb pushes no wat frame of its own (only wat fn-calls push,
+/// via `FrameGuard`), so from inside this native verb
+/// `snapshot_call_stack().first()` IS the caller's frame — the innermost
+/// user call that invoked `(:wat::kernel::call-site)`. Mirrors the
+/// mechanism `:wat::kernel::assertion-failed!` uses to find "where the
+/// author wrote the assert" (src/assertion.rs).
+fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::call-site";
+    if !args.is_empty() {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 0,
+            got: args.len()
+        } }.into());
+    }
+    match snapshot_call_stack().first().cloned() {
+        Some(frame) => Ok(value_from_frame_info(frame)),
+        // Defensive: an empty stack should not happen from wat (every
+        // wat fn-call pushes a FrameGuard before evaluating its body),
+        // but don't panic — mirror assertion-failed!'s defensive stance
+        // with an all-None Frame rather than inventing an error variant.
+        None => Ok(Value::Aggregate(Arc::new(AggregateValue::record(
+            "wat::kernel::Frame".into(),
+            Arc::new(vec![
+                Value::Option(Arc::new(None)),
+                Value::Option(Arc::new(None)),
+                Value::Option(Arc::new(None)),
+            ]),
+        )))),
+    }
 }
 
 /// Returns the host parallelism as `i64` — `std::thread::available_parallelism()`,

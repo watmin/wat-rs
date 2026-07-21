@@ -18275,6 +18275,20 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 "caller.1" — `(:wat::kernel::call-site) → :wat::kernel::Frame`.
+    // Returns the caller's source frame (file/line/symbol) — the wat
+    // equivalent of Ruby's `caller` / Rust's `Location::caller()`.
+    // Runtime: snapshot_call_stack().first() from inside the native verb
+    // IS the caller's frame (native verbs push no FrameGuard of their own).
+    env.register(
+        ":wat::kernel::call-site".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::kernel::Frame".into()),
+            rest_param_type: None,
+        },
+    );
     // Arc 259 — The Forced Hand: ambient program environment.
     // `(:wat::program::env) → :wat::program::Env` — returns the current
     // thread's installed program env (a :wat::program::Env record or subtype).
