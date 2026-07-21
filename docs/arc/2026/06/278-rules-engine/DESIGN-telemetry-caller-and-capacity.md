@@ -100,10 +100,22 @@ per req; a single log record must fit just under it; the dynamic `message` gets 
 required params.
 
 **Honest boundary (grounded — the real `Log` has variable-length required params).** `Log` = `Scope`
-splice (`namespace <- String`, `uuid <- Uuid`, `tags <- Tags`, `time-ns <- i64`) + `caller`/`level`/
-`message` (wat/telemetry.wat:83-99). `namespace`/`tags`/`caller` are VARIABLE-length → a truly-exact,
-zero-waste per-record limit is inherently RUNTIME. What IS compile-time-derivable is the **framing
-floor**: the record tag + the field-name keys (all literals via `field-names-of`) + fixed-width fields.
+splice (`namespace <- String`, `uuid <- Uuid`, `tags <- Tags`, `time-ns <- i64`) + `emitted-from`/`level`/
+`message` (wat/telemetry.wat:83-99; `caller <- keyword` → `emitted-from <- :wat::kernel::Frame` as of
+caller.2). `namespace`/`tags`/`emitted-from`/`message` are VARIABLE-length → a truly-exact, zero-waste
+per-record limit is inherently RUNTIME. What IS compile-time-derivable is the **framing floor**: the record
+tag + the field-name keys (all literals via `field-names-of`) + the fixed-width fields.
+
+**The fixed-vs-variable rule (ratified 2026-07-21, builder).** A field contributes to the fixed framing
+floor ONLY if its type is an **explicitly-defined-known-size** wat type — *"we can only assert what we
+explicitly define to have a known size; any field that is not a symbol of a wat-provided [known-size] field
+must be assumed variable width."* FIXED: the sized primitives (`i64`, `f64`, `Uuid` = 16B, `bool`, …) and an
+**enum** — sized to its **LONGEST variant** so every variant fits (`level <- Level` is fixed at its longest).
+Everything else is **VARIABLE** and contributes ZERO to the fixed floor (runtime-only bytes): any `String`,
+`Tags`/map, record, user type, or `:wat::kernel::Frame` (it carries a path `String`, so `emitted-from` is
+variable — confirmed by caller.2). So for the current `Log`: FIXED = the tag + all field-name keys + `uuid`
+(16B) + `time-ns` (i64) + `level` (Level @ longest variant); VARIABLE = `namespace` + `tags` + `emitted-from`
++ `message`. The framing floor sums only the FIXED set; the per-caller remainder is the runtime layer below.
 
 **Design (two layers, one reflected field set):**
 - **Compile-time (a `defmacro`, needs §2 arith):** reflect `field-names-of :…::Log` at expansion, sum
@@ -121,7 +133,14 @@ MECHANISM is proven; the exact costs are the build's job. Depends on §1 (final 
 ---
 
 ## Status
-- §1 caller: designed + names ratified; RED probe + shadowdancer strike NEXT (per the ordering).
-- §2 arith: finding proven (RED); one-spot label strike, queued after §1.
-- §3 capacity: designed; needs §1 (schema) + §2 (arith); the payoff.
+- §1 caller: **DONE** — caller.1 (the `:wat::kernel::call-site` verb, `60fbef21`) + caller.2 (the
+  `emitted-from <- :wat::kernel::Frame` field flip + structural codemod + gate, `31b3d1ac`), both weighed
+  green by own re-run (4194→4195/0). `:caller'` arena service verified untouched.
+- §2 arith: finding proven (RED); one-spot label strike (`is_pure_total` += `+`/`-`/`*` + comparisons;
+  `/`,`mod`,`rem`,`quot` stay OFF — partial) — **NEXT**.
+- §3 capacity: designed + the fixed-vs-variable rule ratified (above); needs §2 (arith); the payoff.
+  **Also owed (surfaced by caller.2):** a `log` MACRO that captures `(:wat::kernel::call-site)` AT the
+  user's log-call boundary — caller.2 fills *constructions*, which capture the enclosing-fn's caller (offset
+  0), so a Log built in a Rust-invoked fn gets the Rust site (absolute path); the precise per-log-line
+  capture is the macro's job (capture-at-expansion, like `assertion-failed!` fires at the author's line).
 - Stone 16.1 (the ruling-A / RequestTooLarge lock) is DONE + committed (9ca2e88d, 25ca431b).
