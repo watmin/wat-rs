@@ -7,7 +7,7 @@
 (:wat::core::defrecord :probe::Bag [kv <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>  n <- :wat::core::i64])
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages [(:wat::core::defenum :probe::Kv::R :wat::enum::Pure :Ok [x <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(get [self <- :probe::Kv req <- :probe::Kv::R] -> :probe::Kv::R)])
+  :features [(get [self <- :probe::Kv req <- :probe::Kv::R] -> :probe::Kv::R :max-request-bytes 524288)])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [_ (:wat::kernel::println (:wat::runtime::field-names-of :probe::Bag))

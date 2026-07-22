@@ -2,9 +2,9 @@
   :message "malformed :wat::kernel::recv' form: peer crashed (abnormal far-side crash — no reason; the crash reason is administrative and travels only to the owner's crash channel)"
   :location #wat.core/Span {
     :file "wat/service.wat"
-    :line 969
+    :line 997
     :col 54
-    :end #wat.core.Option/Some [#wat.core/Pos {:line 969 :col 77}]
+    :end #wat.core.Option/Some [#wat.core/Pos {:line 997 :col 77}]
   }
   :causes []
   :head ":wat::kernel::recv'"

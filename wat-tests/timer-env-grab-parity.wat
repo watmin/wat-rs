@@ -24,7 +24,7 @@
      :Ok              [fired <- :wat::core::keyword]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(wait-tick [self <- :wat-tests::Deadline  req <- :wat-tests::Deadline::WaitTickRequest] -> :wat-tests::Deadline::WaitTickResponse)])
+  [(wait-tick [self <- :wat-tests::Deadline  req <- :wat-tests::Deadline::WaitTickRequest] -> :wat-tests::Deadline::WaitTickResponse :max-request-bytes 524288)])
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::deadline

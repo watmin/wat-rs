@@ -9,7 +9,7 @@
   [(:wat::core::defrecord :probe::Foo::Req  [x <- :wat::core::i64])
    (:wat::core::defenum :probe::Foo::Resp :wat::enum::Pure :Ok [y <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(f [self <- :probe::Foo  req <- :probe::Foo::Req] -> :probe::Foo::Resp)])
+  [(f [self <- :probe::Foo  req <- :probe::Foo::Req] -> :probe::Foo::Resp :max-request-bytes 524288)])
 
 (:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::* n 2))

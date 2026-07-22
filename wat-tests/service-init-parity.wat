@@ -21,7 +21,7 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(get [self <- :wat-tests::SeededCounter  req <- :wat-tests::SeededCounter::GetRequest] -> :wat-tests::SeededCounter::GetResponse)])
+  [(get [self <- :wat-tests::SeededCounter  req <- :wat-tests::SeededCounter::GetRequest] -> :wat-tests::SeededCounter::GetResponse :max-request-bytes 524288)])
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 ;; :init defaults — pure-data service, ephemeral empty → default init = (fn [d <- ::Record] -> ::State (::State d))

@@ -6,11 +6,11 @@
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Kv::GetReq  [k <- :wat::core::String])
              (:wat::core::defenum :probe::Kv::GetResp :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(get [self <- :probe::Kv  req <- :probe::Kv::GetReq] -> :probe::Kv::GetResp)])
+  :features [(get [self <- :probe::Kv  req <- :probe::Kv::GetReq] -> :probe::Kv::GetResp :max-request-bytes 524288)])
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Echo::Req  [msg <- :wat::core::String])
              (:wat::core::defenum :probe::Echo::Resp :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(echo [self <- :probe::Echo  req <- :probe::Echo::Req] -> :probe::Echo::Resp)])
+  :features [(echo [self <- :probe::Echo  req <- :probe::Echo::Req] -> :probe::Echo::Resp :max-request-bytes 524288)])
 
 ;; the bracket work-fn: item POSITIONAL, the services as Peer' KWARGS — bound directly in the body
 (:wat::core::defn :probe::work

@@ -14,7 +14,7 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(get-object [self <- :my::Svc  req <- :my::Svc::GetObjectRequest] -> :my::Svc::GetObjectResponse)])
+  [(get-object [self <- :my::Svc  req <- :my::Svc::GetObjectRequest] -> :my::Svc::GetObjectResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::svc
   :satisfies :my::Svc

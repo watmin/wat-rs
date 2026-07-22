@@ -21,8 +21,8 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse)
-   (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse)])
+  [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse :max-request-bytes 524288)
+   (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::counter
   :satisfies :probe::Counter

@@ -32,7 +32,7 @@
      :Done            [written <- :wat::core::i64]
      :RequestTooLarge [bytes   <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(flood [self <- :prod::Producer  req <- :prod::Producer::FloodRequest] -> :prod::Producer::FloodResponse)])
+  [(flood [self <- :prod::Producer  req <- :prod::Producer::FloodRequest] -> :prod::Producer::FloodResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :prod::producer'
   :satisfies :prod::Producer
@@ -101,7 +101,7 @@
       cur  <- (:wat::core::Option :wat::core::String)
       acc  <- :wat::core::i64])]
   :features
-  [(sift [self <- :cons::Consumer  req <- :cons::Consumer::SiftRequest] -> :cons::Consumer::SiftResponse)])
+  [(sift [self <- :cons::Consumer  req <- :cons::Consumer::SiftRequest] -> :cons::Consumer::SiftResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :cons::consumer'
   :satisfies :cons::Consumer

@@ -330,9 +330,20 @@ pub enum SurfaceMember {
         /// OPTIONAL `:max-request-bytes N` key in the kwargs options map that may follow
         /// `-> :RetType` on a `:features` op (options are order-independent `:keyword value`
         /// pairs; a later stone adds `:max-page-bytes` to that same map). When the op omits
-        /// the key, this defaults to `edn_shim::DEFAULT_MAX_FRAME_BYTES` (512 KiB) cast to
-        /// `i64`. FIELD ONLY — no enforcement, no checker rule, no codegen (later stone).
+        /// the key, this still defaults to `edn_shim::DEFAULT_MAX_FRAME_BYTES` (512 KiB) cast
+        /// to `i64` at PARSE time (non-serviceable surfaces — `:Struct`/`:Record`/
+        /// `:HolonRecord` — legitimately ride this default forever; their methods are
+        /// in-thread accessors, not wire ops). See `max_request_bytes_explicit` below for
+        /// whether the value in this field was actually written by the source.
         max_request_bytes: i64,
+        /// Arc 278 #16 Stone 16.3 — true iff the source explicitly wrote `:max-request-bytes`
+        /// on this op (false = it rode the silent parse-time default above). Consulted ONLY
+        /// by `synthesize_surface_protocol`'s mandatory-budget lock: a `:nature :Peer'`
+        /// surface's op omitting `:max-request-bytes` is a LOCATED compile error — a
+        /// serviceable op must explicitly speak its wire cap, never ride the silent default
+        /// (the whole point of Stone 16.2's per-op enforcement codegen). Non-serviceable
+        /// surfaces never consult this field, so their methods staying implicit is fine.
+        max_request_bytes_explicit: bool,
     },
 }
 
@@ -1753,10 +1764,39 @@ fn synthesize_surface_protocol(
     let enforce_rtl_lock = surface.nature == Some(Nature::Peer);
 
     for member in &surface.members {
-        let SurfaceMember::Method { name, args, ret, .. } = member else {
+        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, .. } = member
+        else {
             continue; // Field members are data, not operations.
         };
         saw_method = true;
+
+        // Arc 278 #16 Stone 16.3 — MANDATORY `:max-request-bytes` lock. Mirrors 16.1c's
+        // RequestTooLarge lock immediately below: same gate (`enforce_rtl_lock` — ONLY a
+        // `:nature :Peer'` surface's ops are wire ops), same site (this per-member loop, before
+        // any downstream codegen consumes the surface), same shape (a located `MalformedDecl`
+        // naming the offending op + surface). A serviceable op that omits the key would
+        // otherwise ride the silent `DEFAULT_MAX_FRAME_BYTES` parse-time default (see
+        // `SurfaceMember::Method::max_request_bytes` doc) straight into 16.2's per-op
+        // enforcement codegen — a silent cap nobody chose. Make the omission a compile error
+        // instead: every wire op must explicitly speak its own budget.
+        if enforce_rtl_lock && !max_request_bytes_explicit {
+            return Err(TypeError {
+                span: decl_span.clone(),
+                kind: TypeErrorKind::MalformedDecl {
+                    head: ":wat::core::defsurface".to_string(),
+                    reason: format!(
+                        "op `{}` in surface {}: `:max-request-bytes N` is MANDATORY on a \
+                         serviceable (`:nature :Peer'`) op — a wire op must explicitly declare \
+                         its request-byte budget, never ride the silent {}-byte default (arc \
+                         278 #16 Stone 16.3). Add `:max-request-bytes <N>` after the op's \
+                         `-> :Response` in its `:features` clause.",
+                        name,
+                        surface.name,
+                        crate::edn_shim::DEFAULT_MAX_FRAME_BYTES,
+                    ),
+                },
+            });
+        }
 
         // Request payload = the arg AFTER `self` (`args[1]`). A method with no request arg
         // carries no wire payload → this surface is not a clean protocol; synthesize nothing.
@@ -1972,6 +2012,38 @@ fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: S
     )
 }
 
+/// Arc 278 #16.2 — build one `(:wat::core::def :<S>::<OP>-MAX-REQUEST-BYTES <n>)` `WatAST` per
+/// serviceable op on `surface`, carrying each `SurfaceMember::Method`'s parsed
+/// `:max-request-bytes` budget (16.0) as a runtime constant the serve-loop codegen
+/// (`wat/service.wat`'s `serve-op-arms`) can reference by keyword to build its
+/// measure+flag guard (see `build_surface_forms_carrier` just above — same shape, same
+/// downstream channel: a runtime `def`, spliced into `rest` alongside the surface carrier).
+/// Field members are skipped (no wire budget). `CONST_NAME = "<Surface>::<OP>-MAX-REQUEST-BYTES"`
+/// (op name upper-cased), e.g. surface `:probe::Cap1`, op `do-op` → `:probe::Cap1::DO-OP-MAX-REQUEST-BYTES`.
+fn build_op_budget_constants(surface: &SurfaceDef, span: &Span) -> Vec<WatAST> {
+    surface
+        .members
+        .iter()
+        .filter_map(|member| match member {
+            SurfaceMember::Method { name, max_request_bytes, .. } => {
+                // `surface.name` already carries the leading `:` sigil (matches every other
+                // `WatAST::Keyword` string in this codebase) — do NOT prepend another.
+                let const_name =
+                    format!("{}::{}-MAX-REQUEST-BYTES", surface.name, name.to_uppercase());
+                Some(WatAST::List(
+                    vec![
+                        WatAST::Keyword(":wat::core::def".into(), span.clone()),
+                        WatAST::Keyword(const_name, span.clone()),
+                        WatAST::IntLit(*max_request_bytes, span.clone()),
+                    ],
+                    span.clone(),
+                ))
+            }
+            SurfaceMember::Field { .. } => None,
+        })
+        .collect()
+}
+
 /// Shared loop body for [`register_types`] and [`register_stdlib_types`].
 /// Differs only in which `env` registration method is called — passed as
 /// `register`. Non-type-decl forms are spliced via `splice` (handles
@@ -2014,6 +2086,9 @@ fn register_types_impl(
                 // Arc 278 S4c — capture `(surface-name, is-peer)` to emit the `surface-forms`
                 // carrier AFTER the surface + its messages register.
                 let mut surface_carrier: Option<(String, WatAST)> = None;
+                // Arc 278 #16.2 — the per-op `:max-request-bytes` budget constants (one per
+                // serviceable method), emitted alongside the surface carrier below.
+                let mut op_budget_consts: Vec<WatAST> = Vec::new();
                 let derived = if let TypeDef::Surface(ref surf) = def {
                     // Arc 293 K3-revise — the backing record PAIR ($core-record / $holon-record).
                     let mut d = derive_surface_backing_records(surf);
@@ -2034,6 +2109,9 @@ fn register_types_impl(
                             // re-registers messages + re-synthesizes `::Op`/`::Reply` from it identically.
                             surface_carrier = Some((surf.name.clone(), build_surface_forms_carrier(&surf.name, sform.clone(), decl_span.clone())));
                         }
+                        // Arc 278 #16.2 — one `<S>::<OP>-MAX-REQUEST-BYTES` runtime const per
+                        // serviceable op, so `serve-op-arms` can reference the budget by keyword.
+                        op_budget_consts = build_op_budget_constants(surf, &decl_span);
                     }
                     // Arc 293 S1 — the wire-protocol enums (`::Op` / `::Reply`) when the method
                     // sigs are pure. Same `register` closure → same privilege as the surface.
@@ -2060,6 +2138,8 @@ fn register_types_impl(
                 if let Some((_name, carrier)) = surface_carrier {
                     rest.push(carrier);
                 }
+                // Arc 278 #16.2 — the op budget consts are runtime `def`s too; same channel.
+                rest.extend(op_budget_consts);
             }
             None => {
                 let spliced = splice(form, env)?;
@@ -4536,7 +4616,7 @@ mod tests {
                   :messages [(:wat::core::recordtype :t::Bad::FooResponse :wat::core::Record
                                 [ok <- :wat::core::String])]
                   :features [(foo [self <- :t::Bad  req <- :wat::core::String]
-                               -> :t::Bad::FooResponse)])"#,
+                               -> :t::Bad::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a record-typed op-Response must be a located ruling-A error");
         match err.kind {
@@ -4557,7 +4637,7 @@ mod tests {
                   :messages [(:wat::core::defenum :t::Bad2::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String])]
                   :features [(foo [self <- :t::Bad2  req <- :wat::core::String]
-                               -> :t::Bad2::FooResponse)])"#,
+                               -> :t::Bad2::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("an enum Response lacking RequestTooLarge must be a located ruling-A error");
         match err.kind {
@@ -4579,7 +4659,7 @@ mod tests {
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::String  cap <- :wat::core::String])]
                   :features [(foo [self <- :t::Bad3  req <- :wat::core::String]
-                               -> :t::Bad3::FooResponse)])"#,
+                               -> :t::Bad3::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect_err("a mis-shaped RequestTooLarge (non-i64 fields) must be a located error");
         match err.kind {
@@ -4602,7 +4682,7 @@ mod tests {
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
                   :features [(foo [self <- :t::Ok1  req <- :wat::core::String]
-                               -> :t::Ok1::FooResponse)])"#,
+                               -> :t::Ok1::FooResponse :max-request-bytes 524288)])"#,
         )
         .expect("a conforming outcome-enum Response must clear the ruling-A lock");
         assert!(

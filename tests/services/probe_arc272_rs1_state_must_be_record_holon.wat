@@ -9,7 +9,7 @@
      :Ok              [yes <- :wat::core::bool]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(is-holon-record [self <- :my::HCounter  req <- :my::HCounter::IsHolonRecordRequest] -> :my::HCounter::IsHolonRecordResponse)])
+  [(is-holon-record [self <- :my::HCounter  req <- :my::HCounter::IsHolonRecordRequest] -> :my::HCounter::IsHolonRecordResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::hcounter
   :satisfies :my::HCounter

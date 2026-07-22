@@ -26,7 +26,7 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(increment [self <- :wat-tests::HibCounter  req <- :wat-tests::HibCounter::IncrementRequest] -> :wat-tests::HibCounter::IncrementResponse)])
+  [(increment [self <- :wat-tests::HibCounter  req <- :wat-tests::HibCounter::IncrementRequest] -> :wat-tests::HibCounter::IncrementResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :wat-tests::hib-counter
   :satisfies :wat-tests::HibCounter

@@ -12,7 +12,7 @@
      :Ok              [reply <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::echo'
   :satisfies :probe::Echo  :durable [] :ephemeral []
@@ -38,7 +38,7 @@
                      :Ok              [reply <- :wat::core::String]
                      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
                   :features
-                  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+                  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 (:wat::core::defenum :probe::Msg :wat::enum::Pure
                   :Setup [addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
                   :Work  [s    <- :wat::core::String])

@@ -31,8 +31,8 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(ping [self <- :probe::Echo  req <- :probe::Echo::PingRequest] -> :probe::Echo::PingResponse)
-   (bump [self <- :probe::Echo  req <- :probe::Echo::BumpRequest] -> :probe::Echo::BumpResponse)])
+  [(ping [self <- :probe::Echo  req <- :probe::Echo::PingRequest] -> :probe::Echo::PingResponse :max-request-bytes 524288)
+   (bump [self <- :probe::Echo  req <- :probe::Echo::BumpRequest] -> :probe::Echo::BumpResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::echo
   :satisfies :probe::Echo

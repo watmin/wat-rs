@@ -8,7 +8,7 @@
      :Ok              [ok <- :wat::core::bool]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(boom [self <- :my::RstSvc  req <- :my::RstSvc::BoomRequest] -> :my::RstSvc::BoomResponse)])
+  [(boom [self <- :my::RstSvc  req <- :my::RstSvc::BoomRequest] -> :my::RstSvc::BoomResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::rstsvc
   :satisfies :my::RstSvc

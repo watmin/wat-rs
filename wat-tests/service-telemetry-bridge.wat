@@ -22,9 +22,9 @@
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(record [self <- :wat-tests::Recorder req <- :wat-tests::Recorder::RecordRequest]
-           -> :wat-tests::Recorder::RecordResponse)
+           -> :wat-tests::Recorder::RecordResponse :max-request-bytes 524288)
    (total  [self <- :wat-tests::Recorder req <- :wat-tests::Recorder::TotalRequest]
-           -> :wat-tests::Recorder::TotalResponse)])
+           -> :wat-tests::Recorder::TotalResponse :max-request-bytes 524288)])
 
 ;; ── the Worker surface ──────────────────────────────────────────────────────────────────────────
 (:wat::core::defsurface :wat-tests::Worker :nature :wat::kernel::Peer'
@@ -35,7 +35,7 @@
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(work [self <- :wat-tests::Worker req <- :wat-tests::Worker::WorkRequest]
-         -> :wat-tests::Worker::WorkResponse)])
+         -> :wat-tests::Worker::WorkResponse :max-request-bytes 524288)])
 
 ;; ── the recorder service — wears :wat-tests::Recorder ───────────────────────────────────────────
 (:wat::service::defservice :wat-tests::recorder

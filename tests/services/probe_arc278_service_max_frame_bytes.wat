@@ -12,7 +12,7 @@
      :Ok              [ok <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(put [self <- :probe::Big  req <- :probe::Big::PutRequest] -> :probe::Big::PutResponse)])
+  [(put [self <- :probe::Big  req <- :probe::Big::PutRequest] -> :probe::Big::PutResponse :max-request-bytes 1048576)])
 
 ;; (a) a BULK service: declares a large FOO (1 MiB) so a ~600 KiB request ARRIVES.
 (:wat::service::defservice :probe::bigfoo'

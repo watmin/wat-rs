@@ -18,7 +18,7 @@
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
                :Ok              [reply <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+  :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo' :satisfies :probe::Echo :durable [] :ephemeral []
   :impls [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 (:wat::core::defsurface :probe::TypedCapability<S,R> :nature :wat::core::Struct

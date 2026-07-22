@@ -476,6 +476,10 @@ fn parse_method_member_sig(
         }
         i += 2;
     }
+    // Arc 278 #16 Stone 16.3 — capture explicitness BEFORE defaulting: this is what
+    // `synthesize_surface_protocol`'s mandatory-budget lock consults for `:nature :Peer'`
+    // surfaces (a non-serviceable surface's methods legitimately ride the default forever).
+    let max_request_bytes_explicit = max_request_bytes.is_some();
     // Unset → the DEFAULT_MAX_FRAME_BYTES (512 KiB) default, cast to i64.
     let max_request_bytes: i64 =
         max_request_bytes.unwrap_or(crate::edn_shim::DEFAULT_MAX_FRAME_BYTES as i64);
@@ -486,6 +490,7 @@ fn parse_method_member_sig(
         ret,
         type_params, // Arc 293.4e-pre.ii — extracted by split_method_name_type_params above
         max_request_bytes, // Arc 278 #16 Stone 16.0 — kwargs option `:max-request-bytes N` (default: 512 KiB)
+        max_request_bytes_explicit, // Arc 278 #16 Stone 16.3 — was the key actually written?
     })
 }
 

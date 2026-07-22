@@ -9,7 +9,7 @@
      [~def-form
       (:wat::core::defrecord :probe::Bare2::Req [c <- :wat::core::i64])]
      :features
-     [(echo [self <- :probe::Bare2 req <- :probe::Bare2::Req] -> :wat::core::i64)]))
+     [(echo [self <- :probe::Bare2 req <- :probe::Bare2::Req] -> :wat::core::i64 :max-request-bytes 524288)]))
 
 (:wat::core::defmacro :probe::wrapped-surface
   [def-form <- :wat::WatAST]
@@ -20,7 +20,7 @@
        [~def-form
         (:wat::core::defrecord :probe::Wrapped::Req [c <- :wat::core::i64])]
        :features
-       [(echo [self <- :probe::Wrapped req <- :probe::Wrapped::Req] -> :wat::core::i64)])
+       [(echo [self <- :probe::Wrapped req <- :probe::Wrapped::Req] -> :wat::core::i64 :max-request-bytes 524288)])
      (:wat::service::defservice :probe::wrappedsvc'
        :satisfies :probe::Wrapped
        :durable []

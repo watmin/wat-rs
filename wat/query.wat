@@ -334,7 +334,7 @@
             :Fatal      [err   <- :wat::query::Fault]
             :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
          :features
-         [(sift-rules [self <- ~surface-kw req <- ~req-kw] -> ~resp-kw)])
+         [(sift-rules [self <- ~surface-kw req <- ~req-kw] -> ~resp-kw :max-request-bytes 524288)])
        (:wat::service::defservice ~svc-kw
          :satisfies ~surface-kw
          :durable   []
@@ -469,18 +469,18 @@
   [;; idempotently establish the store for (pk,sk,data) + the declared GSIs. Called once at
    ;; consumer init.
    (ensure-schema [self <- :wat::query::Store  req <- :wat::query::Store::EnsureSchemaRequest]
-     -> :wat::query::Store::EnsureSchemaResponse)
+     -> :wat::query::Store::EnsureSchemaResponse :max-request-bytes 524288)
 
    ;; write a batch ATOMICALLY (one transaction). Each row carries its opaque data + the
    ;; (ipk,isk) it projects to for each declared GSI (supplied by the consumer's write path —
    ;; the backend cannot read `data`).
    (put [self <- :wat::query::Store  req <- :wat::query::Store::PutRequest]
-     -> :wat::query::Store::PutResponse)
+     -> :wat::query::Store::PutResponse :max-request-bytes 10485760)
 
    ;; a PAGE on the base key: pk fixed, sk in a prefix/range, ordered ASC, after `cursor`.
    (scan [self <- :wat::query::Store  req <- :wat::query::Store::ScanRequest]
-     -> :wat::query::Store::ScanResponse)
+     -> :wat::query::Store::ScanResponse :max-request-bytes 524288)
 
    ;; a PAGE on a named GSI: ipk fixed, isk in a prefix/range, ordered ASC, after `cursor`.
    (scan-index [self <- :wat::query::Store  req <- :wat::query::Store::ScanIndexRequest]
-     -> :wat::query::Store::ScanIndexResponse)])
+     -> :wat::query::Store::ScanIndexResponse :max-request-bytes 524288)])

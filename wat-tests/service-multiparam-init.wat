@@ -21,7 +21,7 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(total [self <- :wat-tests::OffsetCounter  req <- :wat-tests::OffsetCounter::TotalRequest] -> :wat-tests::OffsetCounter::TotalResponse)])
+  [(total [self <- :wat-tests::OffsetCounter  req <- :wat-tests::OffsetCounter::TotalRequest] -> :wat-tests::OffsetCounter::TotalResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :wat-tests::offset-counter
   :satisfies :wat-tests::OffsetCounter

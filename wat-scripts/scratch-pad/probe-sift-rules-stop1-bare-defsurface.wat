@@ -11,7 +11,7 @@
      [~def-form
       (:wat::core::defrecord :probe::Bare::Req [c <- :wat::core::i64])]
      :features
-     [(echo [self <- :probe::Bare req <- :probe::Bare::Req] -> :wat::core::i64)]))
+     [(echo [self <- :probe::Bare req <- :probe::Bare::Req] -> :wat::core::i64 :max-request-bytes 524288)]))
 
 (:probe::just-surface (:wat::core::defrecord :probe::Bare::Marker [x <- :wat::core::i64]))
 

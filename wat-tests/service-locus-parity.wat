@@ -26,8 +26,8 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(get       [self <- :wat-tests::Counter  req <- :wat-tests::Counter::GetRequest]       -> :wat-tests::Counter::GetResponse)
-   (increment [self <- :wat-tests::Counter  req <- :wat-tests::Counter::IncrementRequest] -> :wat-tests::Counter::IncrementResponse)])
+  [(get       [self <- :wat-tests::Counter  req <- :wat-tests::Counter::GetRequest]       -> :wat-tests::Counter::GetResponse :max-request-bytes 524288)
+   (increment [self <- :wat-tests::Counter  req <- :wat-tests::Counter::IncrementRequest] -> :wat-tests::Counter::IncrementResponse :max-request-bytes 524288)])
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 (:wat::service::defservice :wat-tests::counter

@@ -20,7 +20,7 @@
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
   [(create-web-acl [self <- :my::aws::Waf  req <- :my::aws::Waf::CreateWebACLRequest]
-                   -> :my::aws::Waf::CreateWebACLResponse)])
+                   -> :my::aws::Waf::CreateWebACLResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :my::waf
   :satisfies :my::aws::Waf

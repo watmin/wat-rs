@@ -19,7 +19,7 @@
      :Ok              [n <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(do-op [self <- :probe::Op1  req <- :probe::Op1::DoOpRequest] -> :probe::Op1::DoOpResponse)])
+  [(do-op [self <- :probe::Op1  req <- :probe::Op1::DoOpRequest] -> :probe::Op1::DoOpResponse :max-request-bytes 524288)])
 
 ;; The satisfier: the body itself measures + returns the variant (hand-rolled = option a; the
 ;; mechanism the checker-forced serve-loop will codegen = option c).

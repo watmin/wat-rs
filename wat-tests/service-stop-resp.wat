@@ -23,7 +23,7 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(increment [self <- :wat-tests::RespCounter  req <- :wat-tests::RespCounter::IncrementRequest] -> :wat-tests::RespCounter::IncrementResponse)])
+  [(increment [self <- :wat-tests::RespCounter  req <- :wat-tests::RespCounter::IncrementRequest] -> :wat-tests::RespCounter::IncrementResponse :max-request-bytes 524288)])
 
 ;; ── the service: a counter; :stop projects State → i64 (the count) ──
 (:wat::service::defservice :wat-tests::resp-counter

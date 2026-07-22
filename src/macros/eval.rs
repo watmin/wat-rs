@@ -453,8 +453,11 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::string::subs"
         | ":wat::core::string::trim"
         | ":wat::core::string::to-lowercase"
+        | ":wat::core::string::to-uppercase"
         // Arc 209 naming-conversion — pascal->kebab is on is_pure_total (the defservice macro
-        // calls it at expand time to derive fn names). to-uppercase is NOT here (no macro needs it).
+        // calls it at expand time to derive fn names). Arc 278 #16.2 — to-uppercase joins it:
+        // serve-op-arms calls it at expand time to derive the `<OP>-MAX-REQUEST-BYTES` const
+        // keyword from the kebab op name.
         // Arc 265 — pascal->kebab-in (namespace-scoped) is also on is_pure_total: the defservice
         // macro calls it at expand time to derive fn names using the namespace's declared acronyms.
         // Arc 293 S2 — kebab->pascal-in joins it: `defservice … :satisfies` derives the surface's

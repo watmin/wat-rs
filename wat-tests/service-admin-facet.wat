@@ -24,7 +24,7 @@
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(increment [self <- :wat-tests::AdminCounter  req <- :wat-tests::AdminCounter::IncrementRequest] -> :wat-tests::AdminCounter::IncrementResponse)])
+  [(increment [self <- :wat-tests::AdminCounter  req <- :wat-tests::AdminCounter::IncrementRequest] -> :wat-tests::AdminCounter::IncrementResponse :max-request-bytes 524288)])
 
 ;; ── the service: a counter; Increment is a client (data-plane) op; stop is admin (control-plane) ──
 (:wat::service::defservice :wat-tests::admin-counter

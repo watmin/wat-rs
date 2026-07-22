@@ -1,7 +1,7 @@
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer'
   :messages [(:wat::core::defrecord :probe::Kv::GetReq [k <- :wat::core::String])
              (:wat::core::defenum :probe::Kv::GetResp :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(get [self <- :probe::Kv req <- :probe::Kv::GetReq] -> :probe::Kv::GetResp)])
+  :features [(get [self <- :probe::Kv req <- :probe::Kv::GetReq] -> :probe::Kv::GetResp :max-request-bytes 524288)])
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:wat::core::write-forms
     (:wat::core::macroexpand (:wat::core::quote

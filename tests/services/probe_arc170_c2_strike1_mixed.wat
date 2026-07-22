@@ -21,7 +21,7 @@
              (:wat::core::defenum :probe::S1::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(op [self <- :probe::S1  req <- :probe::S1::OpRequest] -> :probe::S1::OpResponse)])
+  :features [(op [self <- :probe::S1  req <- :probe::S1::OpRequest] -> :probe::S1::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s1' :satisfies :probe::S1 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S1::OpResponse::Ok (:wat::core::string::concat "s1:" (:probe::S1::OpRequest/m req)))))])
@@ -31,7 +31,7 @@
              (:wat::core::defenum :probe::S2::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(op [self <- :probe::S2  req <- :probe::S2::OpRequest] -> :probe::S2::OpResponse)])
+  :features [(op [self <- :probe::S2  req <- :probe::S2::OpRequest] -> :probe::S2::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s2' :satisfies :probe::S2 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S2::OpResponse::Ok (:wat::core::string::concat "s2:" (:probe::S2::OpRequest/m req)))))])
@@ -41,7 +41,7 @@
              (:wat::core::defenum :probe::S3::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(op [self <- :probe::S3  req <- :probe::S3::OpRequest] -> :probe::S3::OpResponse)])
+  :features [(op [self <- :probe::S3  req <- :probe::S3::OpRequest] -> :probe::S3::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s3' :satisfies :probe::S3 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S3::OpResponse::Ok (:wat::core::string::concat "s3:" (:probe::S3::OpRequest/m req)))))])
@@ -51,7 +51,7 @@
              (:wat::core::defenum :probe::S4::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(op [self <- :probe::S4  req <- :probe::S4::OpRequest] -> :probe::S4::OpResponse)])
+  :features [(op [self <- :probe::S4  req <- :probe::S4::OpRequest] -> :probe::S4::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s4' :satisfies :probe::S4 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S4::OpResponse::Ok (:wat::core::string::concat "s4:" (:probe::S4::OpRequest/m req)))))])
@@ -61,7 +61,7 @@
              (:wat::core::defenum :probe::S5::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(op [self <- :probe::S5  req <- :probe::S5::OpRequest] -> :probe::S5::OpResponse)])
+  :features [(op [self <- :probe::S5  req <- :probe::S5::OpRequest] -> :probe::S5::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s5' :satisfies :probe::S5 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S5::OpResponse::Ok (:wat::core::string::concat "s5:" (:probe::S5::OpRequest/m req)))))])
@@ -71,7 +71,7 @@
              (:wat::core::defenum :probe::S6::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(op [self <- :probe::S6  req <- :probe::S6::OpRequest] -> :probe::S6::OpResponse)])
+  :features [(op [self <- :probe::S6  req <- :probe::S6::OpRequest] -> :probe::S6::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s6' :satisfies :probe::S6 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S6::OpResponse::Ok (:wat::core::string::concat "s6:" (:probe::S6::OpRequest/m req)))))])
@@ -81,7 +81,7 @@
              (:wat::core::defenum :probe::S7::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
-  :features [(op [self <- :probe::S7  req <- :probe::S7::OpRequest] -> :probe::S7::OpResponse)])
+  :features [(op [self <- :probe::S7  req <- :probe::S7::OpRequest] -> :probe::S7::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s7' :satisfies :probe::S7 :durable [] :ephemeral []
   :impls [(op [s req] (:wat::service::Outcome::Reply s
             (:probe::S7::OpResponse::Ok (:wat::core::string::concat "s7:" (:probe::S7::OpRequest/m req)))))])

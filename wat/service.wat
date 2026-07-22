@@ -770,6 +770,22 @@
                           reply-variant-kw (:wat::core::keyword/from-string
                                              (:wat::core::string::concat proto-str
                                                (:wat::core::string::interpolate "::Reply::{op-pascal}" :op-pascal op-pascal)))
+                          ;; Arc 278 #16.2 — the per-op `:max-request-bytes` ENFORCEMENT codegen.
+                          ;; `cap-const-kw` names the `<S>::<OP>-MAX-REQUEST-BYTES` runtime const
+                          ;; (16.2's `build_op_budget_constants`, src/types.rs); `rtl-ctor-kw` names
+                          ;; the op's `<S>::<OpPascal>Response::RequestTooLarge` ctor (16.1c-locked
+                          ;; on every `:satisfies` op-Response — always resolves).
+                          op-upper      (:wat::core::string::to-uppercase op-str)
+                          cap-const-kw  (:wat::core::keyword/from-string
+                                          (:wat::core::string::concat proto-str
+                                            (:wat::core::string::interpolate "::{op-upper}-MAX-REQUEST-BYTES" :op-upper op-upper)))
+                          rtl-ctor-kw   (:wat::core::keyword/from-string
+                                          (:wat::core::string::concat proto-str
+                                            (:wat::core::string::interpolate "::{op-pascal}Response::RequestTooLarge" :op-pascal op-pascal)))
+                          ;; Hygiene bound gate E (arc 249 stone 249.2b-ii): a quasiquote template
+                          ;; may not introduce a literal name in binder position — `n` must be
+                          ;; spliced from a macro-built symbol-node, same as state-sym/discard-sym below.
+                          n-sym         (:wat::core::symbol-node "n")
                           state-sym     (:wat::core::symbol-node "state")
                           ;; let-bindings [s-binder state] — bind the impl's state param to serve's `state`.
                           binding-items (:wat::core::conj
@@ -792,9 +808,21 @@
                                                 (:wat::kernel::send'
                                                   (:wat::core::nth clients idx)
                                                   (~reply-variant-kw resp))
-                                                nil)))]
+                                                nil)))
+                          ;; Arc 278 #16.2 — measure the encoded request BEFORE the body runs; over
+                          ;; cap → flag `RequestTooLarge` by the codegen (connection KEPT, recur),
+                          ;; else fall through to the impl body's own outcome-match unchanged.
+                          guarded-arm   `(:wat::core::let
+                                             [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
+                                           (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
+                                             (:wat::core::do
+                                               (:wat::kernel::send'
+                                                 (:wat::core::nth clients idx)
+                                                 (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
+                                               (~serve-name self l clients state))
+                                             ~outcome-match))]
                          (:wat::core::conj acc
-                           `((~op-variant-kw ~req-binder) ~outcome-match))))
+                           `((~op-variant-kw ~req-binder) ~guarded-arm))))
                      (:wat::core::Vector :wat::WatAST)
                      impl-clauses)
 

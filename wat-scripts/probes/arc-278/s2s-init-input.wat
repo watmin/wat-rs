@@ -4,7 +4,7 @@
   [(:wat::core::defrecord :probe::Seedy::GetRequest  [])
    (:wat::core::defenum :probe::Seedy::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(get [self <- :probe::Seedy  req <- :probe::Seedy::GetRequest] -> :probe::Seedy::GetResponse)])
+  [(get [self <- :probe::Seedy  req <- :probe::Seedy::GetRequest] -> :probe::Seedy::GetResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::seedy'
   :satisfies :probe::Seedy

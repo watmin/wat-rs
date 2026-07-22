@@ -15,7 +15,7 @@
      :Ok              [x <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(ping [self <- :t::Boom req <- :t::Boom::PingRequest] -> :t::Boom::PingResponse)])
+  [(ping [self <- :t::Boom req <- :t::Boom::PingRequest] -> :t::Boom::PingResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :t::boominit'
   :satisfies :t::Boom

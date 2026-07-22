@@ -8,7 +8,7 @@
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::echo'
   :satisfies :probe::Echo  :durable [] :ephemeral []
@@ -29,7 +29,7 @@
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
                   :features
-                  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+                  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 ;; the user's 2-param work-fn Fn(Peer'<Op,Reply>,String)->String
                 (:wat::core::defn :user::bracket::work-fn
                   [c <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>  s <- :wat::core::String]

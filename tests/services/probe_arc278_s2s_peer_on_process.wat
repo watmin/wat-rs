@@ -21,7 +21,7 @@
      :Ok              [reply <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse)])
+  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::echo'
   :satisfies :probe::Echo
@@ -41,7 +41,7 @@
      :Ok              [out <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(run [self <- :probe::Caller  req <- :probe::Caller::RunRequest] -> :probe::Caller::RunResponse)])
+  [(run [self <- :probe::Caller  req <- :probe::Caller::RunRequest] -> :probe::Caller::RunResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::caller'
   :satisfies :probe::Caller

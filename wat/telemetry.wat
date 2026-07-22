@@ -195,27 +195,27 @@
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteMetricsRequest]
-     -> :wat::telemetry::Journal::WriteMetricsResponse)
+     -> :wat::telemetry::Journal::WriteMetricsResponse :max-request-bytes 10485760)
 
    ;; write a logs batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteLogsRequest]
-     -> :wat::telemetry::Journal::WriteLogsResponse)
+     -> :wat::telemetry::Journal::WriteLogsResponse :max-request-bytes 10485760)
 
    ;; query metrics in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
    (query-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::QueryMetricsRequest]
-     -> :wat::telemetry::Journal::QueryMetricsResponse)
+     -> :wat::telemetry::Journal::QueryMetricsResponse :max-request-bytes 524288)
 
    ;; query logs in a namespace over [time-lo, time-hi] — scan + hydrate, paged by cursor.
    (query-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::QueryLogsRequest]
-     -> :wat::telemetry::Journal::QueryLogsResponse)
+     -> :wat::telemetry::Journal::QueryLogsResponse :max-request-bytes 524288)
 
    ;; sift logs — query-logs + server-side filtering (Sieve compiled once, applied per row).
    (sift-logs [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::SiftLogsRequest]
-     -> :wat::telemetry::Journal::SiftLogsResponse)
+     -> :wat::telemetry::Journal::SiftLogsResponse :max-request-bytes 524288)
 
    ;; sift metrics — the mechanical twin, over the Metric partition.
    (sift-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::SiftMetricsRequest]
-     -> :wat::telemetry::Journal::SiftMetricsResponse)])
+     -> :wat::telemetry::Journal::SiftMetricsResponse :max-request-bytes 524288)])
 
 ;; ─── Span — arc 278 stone Span.1: the PRODUCER surface (a unit of work). ──────────
 ;; A short-lived `:nature :wat::kernel::Peer'` service the caller opens, works through, and closes.
@@ -260,16 +260,16 @@
   :features
   [;; increment a named counter by 1 — a PURE state transition (emitted on close).
    (incr [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::IncrRequest]
-     -> :wat::telemetry::Span::IncrResponse)
+     -> :wat::telemetry::Span::IncrResponse :max-request-bytes 524288)
    ;; record a duration sample (nanos) under a name — PURE (the timing widget already measured).
    (timed [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::TimedRequest]
-     -> :wat::telemetry::Span::TimedResponse)
+     -> :wat::telemetry::Span::TimedResponse :max-request-bytes 524288)
    ;; write a Log NOW through the sink, correlated by this span's scope.
    (log [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::LogRequest]
-     -> :wat::telemetry::Span::LogResponse)
+     -> :wat::telemetry::Span::LogResponse :max-request-bytes 524288)
    ;; close the unit of work: emit accumulated counters + durations as Metrics to the sink.
    (close [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::CloseRequest]
-     -> :wat::telemetry::Span::CloseResponse)])
+     -> :wat::telemetry::Span::CloseResponse :max-request-bytes 524288)])
 
 ;; ─── framing-floor-of — arc 278 capacity stone 1: the RUNTIME adaptive framing-floor derive. ──
 ;; DESIGN-telemetry-caller-and-capacity.md §3. Reflects a record type's fields at RUNTIME
