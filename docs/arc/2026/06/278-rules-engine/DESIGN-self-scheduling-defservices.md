@@ -9,37 +9,76 @@
 > It is the foundation the buffered sink (next stone) transcribes; the mechanism is proven in
 > `wat-scripts/scratch-pad/probe-self-scheduling-loop.wat` (green, both loci by env-grab).
 
-## ⛔ STATUS (2026-07-21) — BLOCKED on a substrate gap; the "homogeneous selectables" premise is FALSE
+## ✅ STATUS (2026-07-21e) — the poll'/timer FORK is RESOLVED → **Option ① done RIGHT: implement the timer in the CORRECT location (a unified `Peer'<nil,O>`)**
 
-The strike STOPped (correctly) and was weighed `AD ORACVLVM`. **The load-bearing premise below — "the
-serve loop threads one homogeneous vec of connections + timers" — does NOT hold on the substrate:**
-- The serve loop multiplexes with **`poll'`** (`wat/service.wat:848`), not `select'`, over
-  `clients : Vector<Peer'<Reply,Op>>` (`:552`) — the **unified `Peer'`** accepted-connection opaque.
-- `after` returns a **`Timer'<O>`** that fuses only into `Thread'`/`Process'` (`is_peer_tier_head`,
-  `check.rs:15533`), **never** the unified `Peer'`; `poll'` rejects any non-`Peer'`. arc-209's
-  `Peer'`-unification and arc-292's `Timer'`-fusion **never met** — that seam is the gap.
-- The feasibility probe (`wat-scripts/scratch-pad/probe-self-scheduling-loop.wat`) proved `select'`
-  over homogeneous `Timer'`s — an **adjacent** mechanism, not the `poll'`/`Peer'` the serve loop uses.
-  (Lesson → memory `feedback_feasibility_probe_must_exercise_the_exact_mechanism`.)
+The fork STOPped correctly last run (weighed `AD ORACVLVM`); this run it was four-questioned, then the
+builder cut the framing to its root: **the timer was implemented in the WRONG location.** `after`
+(arc-292) produces a **tier-specific `Thread'`/`Process'` `Timer'`**, but the serve loop's `poll'` — and
+the whole unified-`Peer'` end-state — runs on the **unified `Peer'`** (`PEER_TYPE_PATH`). The fix is not
+a bridge or a workaround; it is to implement the timer where it belongs: **`after` produces a unified
+`Peer'<nil,O>`**, so it drops into `poll'` (and `select'`) *by construction* (extirpare — fix the
+location, not the case; "we use wat-fix to unfuck the farm — do not fear refactors").
 
-**RESUME: resolve the poll'/timer fork FIRST** (the stone-before-the-stone) — then everything below
-(Outcome grow, `<service>::Op` superset, `selectables`, the leading-dash marker) builds on it. The
-three options (four-question them; each has a load-bearing feasibility question to PROBE on the REAL
-path, not an adjacent one):
-1. **a `Peer'`-tier timer** — `after` (or a sibling) returns a `PEER_TYPE_PATH` opaque wrapping a
-   *sender-less* timer receiver that EOFs on fire → `Closed`; joins `poll'` unchanged (the timer just
-   IS a one-shot `Peer'`). Probe: is a sender-less `Peer'` representable, both tiers (crossbeam +
-   timerfd)?
-2. **heterogeneous `poll'`** — teach `poll'` (both tiers) + its checker signature to multiplex a mixed
-   `{Peer' | Timer'}` vec. Probe: the multiplexer branch-per-element + the fired-index→`Message`/
-   `remove-at` semantics.
-3. **self-peer + timer-driven send** — the timer, on fire, `send'`s the op to the service's OWN
-   address (a self-connection, a real `Peer'`); `poll'` receives it normally. Probe: a self-peer + a
-   per-timer waiter; reuses `poll'`/`after` unchanged.
+### The four-questions (materialized against the grounded substrate, R17):
+- **③ self-peer + timer-driven send — OUT on Honest.** The timer would `send'` its op over a self-wire,
+  so the op must be a **decodable** message — but the settled wire decode-gate targets `<Surface>::Op`
+  and *rejects non-surface tags*. Delivering an internal `-tick` over the wire forces it to be a
+  surface op (or widens the decode-gate to admit internals) → **breaks the "internals un-callable"
+  wall**. Serializing an in-process internal op is a lie about what the wall guarantees. (Also fails
+  Simple: a self-connection + N per-timer waiters.)
+- **② teach `poll'` to swallow the tier-specific `Timer'` — OUT (the builder cut it): the workaround.**
+  It routes around a mis-placed implementation — teaching the multiplexer to accept the wrong-location
+  timer — instead of fixing where the timer is built. It also entrenches the tier-specific `Timer'` the
+  declared end-state (`check.rs:12157-12160` TODO — *"the unified fd-backed `Peer'` end-state makes
+  `select'` take ONLY `Peer'`; the tier heads vanish"*) wants deleted.
+- **① timer *is* a unified `Peer'<nil,O>` — the winner (Obvious·Simple·Honest·Good-UX all YES).** It is
+  the **ratified capability line made literal** (§"The capability": *"a timer is just a `Peer'<_,Op>`
+  that delivers one of the service's own `Op` variants"*) AND it *builds* the arc-109/170 end-state (a
+  timer is a real unified `Peer'`; the tier-open `Timer'` + its fusion machinery become the half-measure
+  it subsumes). `poll'` — the multiplexer that bit us — stays **untouched**; the change is at the
+  timer's own construction.
 
-Everything below is the SETTLED design *above the multiplexer* (types, superset, marker, dispatch,
-UX) — all still valid once a timer can reach the reactor; only the "how the timer joins the set"
-premise is open. Kept as-is below.
+### Grounded this run (`AD ORACVLVM`, file:lines) — the timer is in the wrong location; the correct one is buildable:
+- **`poll'` demands the unified `Peer'` at BOTH layers.** Checker: `infer_poll_prime` (`check.rs:12306`)
+  → peers-element must be `Peer'<I,O>` (no `Timer'` arm, unlike `select'` at `:12166`). Runtime:
+  `eval_poll_prime` (`runtime.rs:27473`) downcasts every peers-element to `PEER_TYPE_PATH`
+  (`:wat::kernel::Peer'`) and **errors on anything else**. A `clients` element is a unified `Peer'` —
+  an accepted connection (`Listener::accept_as_value`, `listener.rs:478` → `make_rust_opaque(
+  PEER_TYPE_PATH, …)`).
+- **`after` builds the WRONG thing.** `eval_kernel_after` (`runtime.rs:27221-27273`) returns a
+  **tier-specific** `THREAD_PEER_TYPE_PATH` (`:27238`, `kernel::peer::Thread`) / `PROCESS_PEER_TYPE_PATH`
+  (`:27271`, `ProcessSelectable::Timer`), typed `Timer'<O>`. It fuses only into `Thread'`/`Process'`
+  (`is_peer_tier_head`, `check.rs:15533`), never the unified `Peer'`. So a timer cannot join `poll'` —
+  by construction it is the wrong peer type. (arc-209's `Peer'`-unification + arc-292's `Timer'`-fusion
+  never met — the timer was built on the wrong side of the seam.)
+- **The correct location is BUILDABLE — the unified `Peer'` takes a receiver.** `kernel::peer::Peer`
+  (`peer.rs:206`) is `{ tx, rx }` with public constructors from a Sender/Receiver pair, both tiers:
+  `Peer::from_thread(tx, rx)` (`:234`) and `Peer::from_socket(tx, rx)` (`:250`). A timer's output
+  receiver (`comms::thread::timer(dur, msg)` → `Receiver<Value>`; `comms::process::timer` → the frame
+  receiver) is exactly that `rx`. So `after` should build `Peer::from_thread(dead_tx, timer_rx)` /
+  `Peer::from_socket(dead_tx, timer_rx)` → wrap `PEER_TYPE_PATH` → typed `Peer'<nil,O>`. The tier is
+  still chosen by `after`'s peer-kind arg (env-grab `own-kind`); `poll'`'s reactor-class homogeneity
+  check (`runtime.rs:27510-27545`) is satisfied because the timer is built at the service's own tier.
+
+### `after` migration + the `Timer'` retirement (the "unfuck the farm" scope):
+Only **7 `.wat` files** call `after` (all tests). Making `after` return `Peer'<nil,O>` (from `Timer'<O>`)
+means those `select'`-over-timer tests get `Peer'`-typed timers — `select'` already accepts unified
+`Peer'`, so they compose; assert-on-behavior tests stay green. The tier-open `Timer'` type + its
+fusion arms (`check.rs:15467-15487`, the `Timer'` element arm `:12166`) become vestigial — retire (or
+alias) them as part of the refactor. Decide the exact cut grounded at the strike; a wat-fix codemod
+handles any corpus form-change.
+
+### The disconfirming probe → the strike's RED-gated STOP (never assert — R20):
+The disconfirming probe walks the REAL `poll'`/`Peer'` path: `after` returns a unified `Peer'<nil,O>`;
+it is `conj`'d into a real `poll'` `clients` set; the op is delivered on fire, **both tiers**. **HARD
+STOP:** if a unified-`Peer'` timer is not constructible (e.g. the process-tier `timer` receiver can't
+be adapted to the socket peer's `Receiver<Value>` decode path) or `poll'` does not deliver its op, STOP
+— surface the gap; do not improvise a Value-erasure or a `poll'` bridge.
+
+**The stone, scoped:** move the timer to the correct location (`after` → unified `Peer'<nil,O>`, both
+tiers; retire the vestigial tier-open `Timer'`) → then the SETTLED design below the multiplexer
+(`Outcome<S,R,O>` grow, leading-dash marker, `clients→selectables`, the `<service>::Op` superset,
+keyword-`:op`). Everything below is unchanged and now sits on a resolved foundation.
 
 ## The capability (builder-ratified)
 
