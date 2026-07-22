@@ -11701,9 +11701,10 @@ fn project_peer_io(
 /// - `args[1]`: duration — must conform to `:wat::time::Duration`.
 /// - `args[2]`: msg — inferred; its type becomes the output type `O`.
 ///
-/// Returns `Timer'<O>` where `O` is the inferred type of `msg`. The tier-open
-/// `Timer'` fuses into the concrete peer tier of whichever `select'` set it joins
-/// (via the `unify` fusion arms in check.rs).
+/// Returns `Peer'<nil, O>` where `O` is the inferred type of `msg`. arc 278 Stone 1:
+/// the timer is built in the CORRECT location — a UNIFIED `Peer'` — so it drops into
+/// `poll'`/`select'` by construction (the vestigial tier-open `Timer'` type + its
+/// fusion machinery are retired). A timer has no input, so `I = :wat::core::nil`.
 fn infer_kernel_after(
     args: &[WatAST],
     head_span: &Span,
@@ -11728,8 +11729,8 @@ fn infer_kernel_after(
         }
         let o = fresh.fresh();
         let ty = TypeExpr::Parametric {
-            head: "wat::kernel::Timer'".into(),
-            args: vec![o],
+            head: "wat::kernel::Peer'".into(),
+            args: vec![TypeExpr::Path(":wat::core::nil".into()), o],
         };
         return CheckResult::partial_with(ty, local_errors);
     }
@@ -11773,16 +11774,17 @@ fn infer_kernel_after(
         .drain_errors_into(&mut local_errors)
         .unwrap_or_else(|| fresh.fresh());
 
-    // Return Timer'<O> — the tier-open timer type that fuses into the concrete
-    // peer tier of the select' set it joins (via unify fusion arms in check.rs).
-    let timer_ty = TypeExpr::Parametric {
-        head: "wat::kernel::Timer'".into(),
-        args: vec![msg_ty],
+    // arc 278 Stone 1 — return the UNIFIED `Peer'<nil, O>` (a timer has no input, so
+    // I = nil; O is the delivered message type). This drops into `poll'`/`select'`'s
+    // `Peer'<I,O>` element arm by construction — no tier-open fusion needed.
+    let peer_ty = TypeExpr::Parametric {
+        head: "wat::kernel::Peer'".into(),
+        args: vec![TypeExpr::Path(":wat::core::nil".into()), msg_ty],
     };
     if local_errors.is_empty() {
-        CheckResult::ok(timer_ty)
+        CheckResult::ok(peer_ty)
     } else {
-        CheckResult::partial_with(timer_ty, local_errors)
+        CheckResult::partial_with(peer_ty, local_errors)
     }
 }
 
@@ -12163,13 +12165,9 @@ fn infer_select_prime(
             // I = args[0] (input to spawned fn from parent); O = args[1] (output back to parent).
             (targs[0].clone(), targs[1].clone())
         }
-        // arc 292 — lone Timer'<O> element (mixed sets are absorbed to the concrete peer
-        // tier via unify fusion; this arm handles the all-timers case). Timer has no input.
-        TypeExpr::Parametric { head, args: targs }
-            if head == "wat::kernel::Timer'" && targs.len() == 1 =>
-        {
-            (TypeExpr::Path(":wat::core::nil".into()), targs[0].clone())  // (I=nil, O)
-        }
+        // arc 278 Stone 1 — the tier-open `Timer'` element arm is RETIRED: `after` now
+        // builds a UNIFIED `Peer'<nil, O>`, so a timer is a `Peer'` element (matched by
+        // the arm above), never a `Timer'`.
         other => {
             local_errors.push(CheckError {
                 span: args[0].span().clone(),
@@ -15464,29 +15462,10 @@ pub(crate) fn unify(
                 Err(UnifyError)
             }
         }
-        // arc 292 — tier-open timer fusion. A `Timer'<O>` is a deadline that fuses into a
-        // peer of ANY tier (Thread'/Process'/future Remote'): unify its O with the peer's
-        // output O, ignore the peer's I (a timer has no input), and KEEP the concrete tier
-        // (the timer is absorbed). Thread'/Process' still don't unify with each other (the
-        // generic arm below), so a mixed REAL-peer set is still a static error.
-        (
-            TypeExpr::Parametric { head: ht, args: at },
-            TypeExpr::Parametric { head: hp, args: ap },
-        ) if ht == "wat::kernel::Timer'" && is_peer_tier_head(hp) && at.len() == 1 && ap.len() == 2 => {
-            unify(&at[0], &ap[1], subst, types)   // timer O  ~  peer output O
-        }
-        (
-            TypeExpr::Parametric { head: hp, args: ap },
-            TypeExpr::Parametric { head: ht, args: at },
-        ) if ht == "wat::kernel::Timer'" && is_peer_tier_head(hp) && at.len() == 1 && ap.len() == 2 => {
-            unify(&ap[1], &at[0], subst, types)
-        }
-        (
-            TypeExpr::Parametric { head: h1, args: a1 },
-            TypeExpr::Parametric { head: h2, args: a2 },
-        ) if h1 == "wat::kernel::Timer'" && h2 == "wat::kernel::Timer'" && a1.len() == 1 && a2.len() == 1 => {
-            unify(&a1[0], &a2[0], subst, types)
-        }
+        // arc 278 Stone 1 — the tier-open `Timer'` fusion arms are RETIRED. `after` now
+        // builds a UNIFIED `Peer'<nil, O>`, so a timer unifies with real peers through the
+        // ordinary structural `Parametric ~ Parametric` arm below — there is no `Timer'`
+        // type to fuse anymore.
         (
             TypeExpr::Parametric { head: h1, args: a1 },
             TypeExpr::Parametric { head: h2, args: a2 },
@@ -15526,13 +15505,6 @@ pub(crate) fn unify(
 /// to intercept union paths before structural equality.
 fn is_union_path(path: &str, types: &TypeEnv) -> bool {
     matches!(types.get(path), Some(crate::types::TypeDef::Union(_)))
-}
-
-/// arc 292 — The peer-tier heads a Timer' may fuse into (general over all loci;
-/// remote included once cut — do NOT hardcode a 2-only check elsewhere).
-fn is_peer_tier_head(h: &str) -> bool {
-    h == "wat::kernel::Thread'" || h == "wat::kernel::Process'"
-    // future: || h == "wat::kernel::Remote'"
 }
 
 /// Stone 237.1 — bounded-existential member check: `other` must be
@@ -23005,45 +22977,11 @@ mod tests {
         );
     }
 
-    // ─── arc 292: tier-open Timer' unify fusion ────────────────────────
-
-    #[test]
-    fn timer_fuses_into_process() {
-        // unify(Timer'<keyword>, Process'<i64, keyword>) == Ok
-        let mut s = Subst::new();
-        let kw = TypeExpr::Path(":wat::core::keyword".into());
-        let timer = TypeExpr::Parametric {
-            head: "wat::kernel::Timer'".into(),
-            args: vec![kw.clone()],
-        };
-        let process = TypeExpr::Parametric {
-            head: "wat::kernel::Process'".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into()), kw.clone()],
-        };
-        assert!(
-            unify(&timer, &process, &mut s, &TypeEnv::with_builtins()).is_ok(),
-            "Timer'<keyword> must fuse into Process'<i64, keyword>"
-        );
-    }
-
-    #[test]
-    fn timer_fuses_into_thread() {
-        // unify(Timer'<keyword>, Thread'<nil, keyword>) == Ok
-        let mut s = Subst::new();
-        let kw = TypeExpr::Path(":wat::core::keyword".into());
-        let timer = TypeExpr::Parametric {
-            head: "wat::kernel::Timer'".into(),
-            args: vec![kw.clone()],
-        };
-        let thread = TypeExpr::Parametric {
-            head: "wat::kernel::Thread'".into(),
-            args: vec![TypeExpr::Path(":wat::core::nil".into()), kw.clone()],
-        };
-        assert!(
-            unify(&timer, &thread, &mut s, &TypeEnv::with_builtins()).is_ok(),
-            "Timer'<keyword> must fuse into Thread'<nil, keyword>"
-        );
-    }
+    // ─── arc 278 Stone 1: `after` builds a UNIFIED `Peer'` (tier-open `Timer'`
+    // fusion RETIRED). A timer is now a `Peer'<nil, O>`; it composes with real
+    // peers through the ordinary structural `Parametric ~ Parametric` unify arm, so
+    // the dedicated `Timer'`-fusion arms + their tests are gone. Tier homogeneity
+    // between real peers (below) is unchanged. ──────────────────────────────────
 
     #[test]
     fn thread_process_still_fail() {
@@ -23065,50 +23003,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn fresh_var_absorbs_timer() {
-        // v=fresh; unify(v, Process'<i64,keyword>) Ok; unify(v, Timer'<keyword>) Ok;
-        // v resolves to Process'<i64,keyword>
-        let mut s = Subst::new();
-        let kw = TypeExpr::Path(":wat::core::keyword".into());
-        let v = TypeExpr::Var(0);
-        let process = TypeExpr::Parametric {
-            head: "wat::kernel::Process'".into(),
-            args: vec![TypeExpr::Path(":wat::core::i64".into()), kw.clone()],
-        };
-        let timer = TypeExpr::Parametric {
-            head: "wat::kernel::Timer'".into(),
-            args: vec![kw.clone()],
-        };
-        unify(&v, &process, &mut s, &TypeEnv::with_builtins()).expect("v ~ Process'");
-        unify(&v, &timer, &mut s, &TypeEnv::with_builtins()).expect("v ~ Timer' after Process'");
-        let resolved = apply_subst(&v, &s);
-        assert_eq!(
-            resolved, process,
-            "v must resolve to Process'<i64,keyword> after fusing a Timer'"
-        );
-    }
-
-    #[test]
-    fn timer_timer_unifies_o() {
-        // unify(Timer'<a-var>, Timer'<keyword>) == Ok, a-var bound to keyword
-        let mut s = Subst::new();
-        let kw = TypeExpr::Path(":wat::core::keyword".into());
-        let a_var = TypeExpr::Var(0);
-        let timer_a = TypeExpr::Parametric {
-            head: "wat::kernel::Timer'".into(),
-            args: vec![a_var.clone()],
-        };
-        let timer_kw = TypeExpr::Parametric {
-            head: "wat::kernel::Timer'".into(),
-            args: vec![kw.clone()],
-        };
-        unify(&timer_a, &timer_kw, &mut s, &TypeEnv::with_builtins())
-            .expect("Timer'<a> ~ Timer'<keyword>");
-        assert_eq!(
-            apply_subst(&a_var, &s),
-            kw,
-            "a-var must be bound to keyword after Timer'~Timer' unification"
-        );
-    }
 }

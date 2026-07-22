@@ -27003,79 +27003,203 @@ fn eval_peer_select_prime(
             guards.push(arc.ref_guard(OP, list_span.clone()).map_err(EvalBreak::from)?);
         }
 
-        // Recover the concrete &thread::Receiver<Value> via as_any (i-a foundation).
-        // On None (socket/remote peer — not reachable in current tests) return a clean
-        // error pointing at C0b.3a-ii; never panic.
-        let mut receivers: Vec<&crate::comms::thread::Receiver<Value>> =
-            Vec::with_capacity(guards.len());
-        for (i, guard) in guards.iter().enumerate() {
-            match &**guard {
-                None => {
-                    return Err(RuntimeError {
+        // Bare Peer' has no crash channel (it is a connection peer, not a spawned worker).
+        // EOF = clean disconnect only → :Closed. :Lost is for spawned workers.
+        const SELECT_EVENT_TYPE_PEER: &str = ":wat::spawn::ServiceEvent";
+
+        // ── Dispatch on the reactor class of the (homogeneous) peer set ───────────
+        // arc 278 Stone 1 — a unified `Peer'` timer (from `after`) is a real `Peer'`, so
+        // `select'` must accept it at BOTH tiers (a process-tier `after` yields a socket-
+        // backed `Peer'`). This closes the C0b.3a-ii deferral for `select'`, mirroring
+        // `poll'`'s already-shipped Fd client arm (`select_raw` + `decode_trusted_wire`).
+        let first_class = match &*guards[0] {
+            Some(peer) => peer.rx.reactor_class(),
+            None => {
+                return Err(RuntimeError {
+                    span: list_span.clone(),
+                    kind: RuntimeErrorKind::MalformedForm {
+                        head: OP.into(),
+                        reason: "peer already closed (index 0)".into(),
+                    },
+                }
+                .into())
+            }
+        };
+
+        match first_class {
+            crate::comms::ReactorClass::InMemory => {
+                // ── Thread tier: crossbeam Select over &thread::Receiver<Value> ──────
+                let mut receivers: Vec<&crate::comms::thread::Receiver<Value>> =
+                    Vec::with_capacity(guards.len());
+                for (i, guard) in guards.iter().enumerate() {
+                    match &**guard {
+                        None => {
+                            return Err(RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: format!("peer already closed (index {})", i),
+                                },
+                            }
+                            .into())
+                        }
+                        Some(peer) => {
+                            match peer.rx.as_any().downcast_ref::<crate::comms::thread::Receiver<Value>>() {
+                                Some(rx) => receivers.push(rx),
+                                None => return Err(RuntimeError {
+                                    span: list_span.clone(),
+                                    kind: RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: format!(
+                                            "peers[{}]: mixed-tier select' set (a non-crossbeam peer \
+                                             among crossbeam peers) is not a representable-good state",
+                                            i
+                                        ),
+                                    },
+                                }.into()),
+                            }
+                        }
+                    }
+                }
+
+                let mut sel = crate::comms::thread::Select::new();
+                for rx in &receivers {
+                    sel.recv(*rx);
+                }
+                match sel.select() {
+                    crate::comms::SelectOutcome::Recv { index, result } => {
+                        let peer_idx = index.0 as i64;
+                        match result {
+                            Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                variant_name: "Message".into(),
+                                fields: vec![Value::i64(peer_idx), msg],
+                            }))),
+                            // EOF — bare connection peer left gracefully (no crash channel).
+                            Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                variant_name: "Closed".into(),
+                                fields: vec![Value::i64(peer_idx)],
+                            }))),
+                        }
+                    }
+                    crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
                             head: OP.into(),
-                            reason: format!("peer already closed (index {})", i),
+                            reason: "select' interrupted by shutdown".into(),
                         },
                     }
-                    .into())
+                    .into()),
+                    crate::comms::SelectOutcome::Listener =>
+                        unreachable!("thread-tier Peer' Select has no listener arm"),
                 }
-                Some(peer) => {
-                    match peer.rx.as_any().downcast_ref::<crate::comms::thread::Receiver<Value>>() {
-                        Some(rx) => receivers.push(rx),
-                        None => return Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: format!(
-                                    "peers[{}]: select' over a non-crossbeam (socket/remote) \
-                                     connection peer is not yet supported — see C0b.3a-ii",
-                                    i
-                                ),
-                            },
-                        }.into()),
+            }
+            crate::comms::ReactorClass::Fd => {
+                // ── Process tier: process::Select over ONE io_uring ring ────────────
+                // Recover &process::Receiver<Value> from each unified Peer' (mirrors the
+                // poll' Fd client arm). No self-peer / listener — select' is peers-only.
+                let mut receivers: Vec<&crate::comms::process::Receiver<Value>> =
+                    Vec::with_capacity(guards.len());
+                for (i, guard) in guards.iter().enumerate() {
+                    match &**guard {
+                        None => {
+                            return Err(RuntimeError {
+                                span: list_span.clone(),
+                                kind: RuntimeErrorKind::MalformedForm {
+                                    head: OP.into(),
+                                    reason: format!("peer already closed (index {})", i),
+                                },
+                            }
+                            .into())
+                        }
+                        Some(peer) => {
+                            match peer.rx.as_any().downcast_ref::<crate::comms::process::Receiver<Value>>() {
+                                Some(rx) => receivers.push(rx),
+                                None => return Err(RuntimeError {
+                                    span: list_span.clone(),
+                                    kind: RuntimeErrorKind::MalformedForm {
+                                        head: OP.into(),
+                                        reason: format!(
+                                            "peers[{}]: mixed-tier select' set (a non-socket peer \
+                                             among socket peers) is not a representable-good state",
+                                            i
+                                        ),
+                                    },
+                                }.into()),
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        let mut sel = crate::comms::thread::Select::new();
-        for rx in &receivers {
-            sel.recv(*rx);
-        }
-
-        // Bare Peer' has no crash channel (it is a connection peer, not a spawned worker).
-        // EOF = clean disconnect only → :Closed. :Lost is for spawned workers (process/thread tier).
-        const SELECT_EVENT_TYPE_PEER: &str = ":wat::spawn::ServiceEvent";
-        match sel.select() {
-            crate::comms::SelectOutcome::Recv { index, result } => {
-                let peer_idx = index.0 as i64;
-                match result {
-                    Ok(msg) => Ok(Value::Enum(Arc::new(EnumValue {
-                        type_path: SELECT_EVENT_TYPE_PEER.into(),
-                        variant_name: "Message".into(),
-                        fields: vec![Value::i64(peer_idx), msg],
-                    }))),
-                    Err(_) => {
-                        // EOF — bare connection peer left gracefully (no crash channel).
-                        Ok(Value::Enum(Arc::new(EnumValue {
-                            type_path: SELECT_EVENT_TYPE_PEER.into(),
-                            variant_name: "Closed".into(),
-                            fields: vec![Value::i64(peer_idx)],
-                        })))
+                let mut sel = crate::comms::process::Select::<Value>::new();
+                for rx in &receivers {
+                    sel.recv(*rx);
+                }
+                // select_raw() → raw wire bytes (select() would call Value::from_wire with
+                // NO type registry and fail on user enum/record payloads); decode with the
+                // full registry via decode_trusted_wire — same as the poll' client arm.
+                match sel.select_raw().map_err(|io_err| {
+                    EvalBreak::from(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: format!("select' (process tier) io_uring error: {}", io_err),
+                        },
+                    })
+                })? {
+                    crate::comms::SelectOutcome::Recv { index, result } => {
+                        let peer_idx = index.0 as i64;
+                        match result {
+                            Ok(raw_bytes) => {
+                                let wire_str = std::str::from_utf8(&raw_bytes).map_err(|_| {
+                                    EvalBreak::from(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: "select' (process tier): peer message is not valid UTF-8".into(),
+                                        },
+                                    })
+                                })?;
+                                let msg = crate::edn_shim::decode_trusted_wire(
+                                    wire_str,
+                                    sym.types().map(|a| a.as_ref()),
+                                )
+                                .map_err(|e| {
+                                    EvalBreak::from(RuntimeError {
+                                        span: list_span.clone(),
+                                        kind: RuntimeErrorKind::MalformedForm {
+                                            head: OP.into(),
+                                            reason: format!("select' (process tier) EDN decode failed: {}", e),
+                                        },
+                                    })
+                                })?;
+                                Ok(Value::Enum(Arc::new(EnumValue {
+                                    type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                    variant_name: "Message".into(),
+                                    fields: vec![Value::i64(peer_idx), msg],
+                                })))
+                            }
+                            // EOF — bare connection peer left gracefully (no crash channel).
+                            Err(_) => Ok(Value::Enum(Arc::new(EnumValue {
+                                type_path: SELECT_EVENT_TYPE_PEER.into(),
+                                variant_name: "Closed".into(),
+                                fields: vec![Value::i64(peer_idx)],
+                            }))),
+                        }
                     }
+                    crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
+                        span: list_span.clone(),
+                        kind: RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "select' interrupted by shutdown".into(),
+                        },
+                    }
+                    .into()),
+                    crate::comms::SelectOutcome::Listener =>
+                        unreachable!("process-tier peers-only select' has no listener arm"),
                 }
             }
-            crate::comms::SelectOutcome::Shutdown => Err(RuntimeError {
-                span: list_span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: "select' interrupted by shutdown".into(),
-                },
-            }
-            .into()),
-            crate::comms::SelectOutcome::Listener =>
-                unreachable!("thread-tier Peer' Select has no listener arm"),
         }
     } else {
         Err(RuntimeError {
@@ -27116,10 +27240,12 @@ fn eval_peer_select_prime(
 /// Implement `(:wat::kernel::after peer-kind duration msg)` — arc 292 L3 timer peer.
 ///
 /// arg0 is a `:wat::program::PeerKind` enum value (`:thread` or `:process`), selecting
-/// the tier for the one-shot timer. Returns a `Timer'<O>` value (opaque RustOpaque):
-///   - `:thread` → crossbeam-based Thread' timer (futex, no background thread).
-///   - `:process` → timerfd-backed Process' timer (io_uring reactor, same Select as
-///     spawned peers).
+/// the tier for the one-shot timer. arc 278 Stone 1: returns a UNIFIED `Peer'<nil, O>`
+/// value (`PEER_TYPE_PATH` opaque RustOpaque) — a real peer whose recv fires the `msg`
+/// once, then EOFs — so it drops into `poll'`/`select'` by construction:
+///   - `:thread` → crossbeam `after`-backed unified peer (futex, no background thread).
+///   - `:process` → timerfd-backed unified peer (io_uring reactor, same Select as
+///     accepted socket connections).
 ///
 /// Three args:
 /// - `args[0]`: peer-kind — must evaluate to `:wat::program::PeerKind` enum value.
@@ -27218,44 +27344,45 @@ fn eval_kernel_after(
     use crate::rust_deps::custodia::ThreadOwnedCell;
     use crate::rust_deps::marshal::make_rust_opaque;
 
+    // arc 278 Stone 1 — the timer is built in the CORRECT location: a UNIFIED
+    // `Peer'<nil, O>` (`PEER_TYPE_PATH`), NOT a tier-specific `Thread'`/`Process'`
+    // `Timer'<O>`. A timer is a real peer whose recv fires the `msg` once, then
+    // EOFs — so it drops into `poll'` (and `select'`) BY CONSTRUCTION, exactly
+    // like an accepted connection (`Listener::accept_as_value`). The tier is still
+    // chosen by `peer-kind`, but both tiers now yield the same `PEER_TYPE_PATH`
+    // value; the vestigial tier-open `Timer'` type + its fusion machinery are
+    // retired in check.rs. A timer has NO input, so the peer's send endpoint is a
+    // dead sender (its receiver is dropped immediately; it is never used).
+    use crate::kernel::spawn::PEER_TYPE_PATH;
+
     if is_thread_tier {
         // ── Thread tier ───────────────────────────────────────────────────────
-        // Build the timer Receiver<Value> using crossbeam::after (futex-based, no
-        // background thread). The timer fires exactly once after std_dur.
+        // The timer Receiver<Value> (crossbeam::after, futex-based, no background
+        // thread; fires exactly once after std_dur) IS the unified peer's `rx`.
         let output_rx = crate::comms::thread::timer(std_dur, msg);
 
-        // Build a never-firing crash Receiver<String>: create a bounded(1) pair
-        // and immediately drop the sender. The receiver returns Disconnected on
-        // any recv — correct for a timer peer that always exits cleanly.
-        let (_crash_tx, crash_rx) = crate::comms::thread::pair::<String>();
-        drop(_crash_tx);
+        // Dead send endpoint: a crossbeam pair whose receiver is dropped.
+        let (dead_tx, dead_rx) = crate::comms::thread::pair::<Value>();
+        drop(dead_rx);
 
-        // Build the Thread<Value, Value> peer.
-        // - input: None (no send side; timer has no input)
-        // - output: the timer receiver (fires once after duration with msg)
-        // - crash: disconnected receiver (never fires — clean exit)
-        // - join: None (no thread to join)
-        let peer = crate::kernel::peer::Thread {
-            input: None,
-            output: output_rx,
-            crash: crash_rx,
-            join: None,
-        };
-
-        use crate::kernel::spawn::{ThreadPeerCell, THREAD_PEER_TYPE_PATH};
-
-        let wrapped: ThreadPeerCell = std::sync::Arc::new(ThreadOwnedCell::new(Some(peer)));
-        Ok(make_rust_opaque(THREAD_PEER_TYPE_PATH, wrapped))
+        let peer = crate::kernel::peer::Peer::from_thread(dead_tx, output_rx);
+        let cell: crate::kernel::spawn::PeerCell =
+            std::sync::Arc::new(ThreadOwnedCell::new(Some(peer)));
+        Ok(make_rust_opaque(PEER_TYPE_PATH, cell))
     } else {
         // ── Process tier ─────────────────────────────────────────────────────
-        // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'.
+        // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'
+        // and as a real socket peer's frames, so `poll'`/`select'` decode it via
+        // `decode_trusted_wire` identically to any accepted connection.
         let edn_node = crate::edn_shim::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()));
         let edn_str = wat_edn::write(&edn_node);
         let mut frame: Vec<u8> = edn_str.into_bytes();
         frame.push(b'\n');
 
-        // Build a timerfd-backed Receiver<String> via comms::process::timer.
-        let rx = crate::comms::process::timer(std_dur, frame).map_err(|io_err| {
+        // A timerfd-backed `process::Receiver<Value>` — the SAME `Source::Timer`
+        // that backed the old `Receiver<String>`; the frame bytes are tier-agnostic
+        // so only the decode type param differs. This IS the unified peer's `rx`.
+        let output_rx = crate::comms::process::timer::<Value>(std_dur, frame).map_err(|io_err| {
             EvalBreak::from(RuntimeError {
                 span: list_span.clone(),
                 kind: RuntimeErrorKind::MalformedForm {
@@ -27265,12 +27392,23 @@ fn eval_kernel_after(
             })
         })?;
 
-        // Wrap as ProcessSelectable::Timer, then as PROCESS_PEER_TYPE_PATH opaque.
-        use crate::kernel::spawn::{ProcessSelectable, ProcessPeerCell, PROCESS_PEER_TYPE_PATH};
+        // Dead send endpoint: a socketpair whose receiver end is dropped.
+        let (dead_tx, dead_rx) = crate::comms::process::pair::<Value>().map_err(|io_err| {
+            EvalBreak::from(RuntimeError {
+                span: list_span.clone(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: OP.into(),
+                    reason: format!("after: dead-sender socket creation failed: {}", io_err),
+                },
+            })
+        })?;
+        drop(dead_rx);
 
-        let selectable = ProcessSelectable::Timer(rx);
-        let cell: ProcessPeerCell = std::sync::Arc::new(ThreadOwnedCell::new(Some(selectable)));
-        Ok(make_rust_opaque(PROCESS_PEER_TYPE_PATH, cell))
+        let peer =
+            crate::kernel::peer::Peer::from_socket(dead_tx.reinterpret::<String>(), output_rx);
+        let cell: crate::kernel::spawn::PeerCell =
+            std::sync::Arc::new(ThreadOwnedCell::new(Some(peer)));
+        Ok(make_rust_opaque(PEER_TYPE_PATH, cell))
     }
 }
 

@@ -1260,7 +1260,7 @@ fn uring_read_n_into_scratch(
 /// here is a heresy (see `docs/ZERO-MUTEX.md`).
 ///
 /// Returns `Err(io::Error)` if `timerfd_create` or `timerfd_settime` fails.
-pub fn timer(duration: std::time::Duration, msg_frame: Frame) -> std::io::Result<Receiver<String>> {
+pub fn timer<T: EdnRepresentable>(duration: std::time::Duration, msg_frame: Frame) -> std::io::Result<Receiver<T>> {
     // timerfd_create: CLOCK_MONOTONIC is steady (unaffected by wall-clock adjustments);
     // TFD_NONBLOCK + TFD_CLOEXEC are atomic at creation.
     // SAFETY: libc::timerfd_create is a raw syscall; its return value is a raw fd
