@@ -194,6 +194,48 @@ route around it).
 ### ⛔ RESUME AT — the Stone 2-A MACRO build (`BRIEF-self-scheduling-stone-2-option-A.md` sub-steps 1-7)
 STEP-0 (the re-tag) is DONE. Build the settled design ON the re-tag: (1) the `<service>::Op` **superset synthesis** — surface `<proto>::Op` variants (from `synthesize_surface_protocol`, `src/types.rs:1731`) + the internal `-`-ops from `:impls`; (2) grow `Outcome<S,R>`→`<S,R,O>` + `Alarm<O>` (`service.wat:48`); (3) `clients`→`selectables` (`service.wat:753`/`:848`, a green checkpoint); (4) the **scoped** leading-dash preservation (`kebab_to_pascal_with_acronyms` drops the empty leading segment, `string_ops.rs:338` — preserve at the internal-op synthesis, NOT the global fn); (5) 1-param `-`-arms skipping the #16.2 budget guard (`serve-op-arms:760-764`); (6) keyword-`:op`; (7) the arm/reply/remove dispatch — threading the re-tag into the Message arm: `(match (retag-op' op :<surface>::Op :<service>::Op) ~@serve-op-arms)`. **GREEN the RED gate** `tests/services/probe_arc278_self_scheduling.{wat,rs}` (un-ignore; both loci). **STOP-5:** the superset match stays EXHAUSTIVE — a wildcard/`unreachable` want = re-examine (the wall is a decode REJECTION of internal-tagged frames, not a dead arm). THEN item (c) home stretch: the buffered log-sink → wire the `span` (`log` enqueues invisibly + `close` flush + `with-span'`) → item (c) DONE → output-side streaming → R0 (the chaos engine, R25).
 
+### ⚠ THE FAR-SIDE TASK (builder-ruled 2026-07-22): the crash-surfacing — annihilate the masked op-handler failure BEFORE finishing the macro
+The Stone 2-A macro build got FAR (see the WIP below) but surfaced a masked failure: an op-handler crash
+(a `RuntimeError` like `UnknownFunction`, or a panic) reached the caller as a bare `recv': peer closed`
+with **no reason** — the exact hidden-failure the arc's LAW forbids. The builder RULED the correct design
+(verbatim intent): **CLIENTS are disconnected from a crashed server and get NO reason — treat it as a
+`500` for them (the crash reason is the server's business, not the client's). The ADMIN/owner MUST get
+the failure reason — they must know WHY the server crashed. Crashing is a bug (not allowed), so a reason
+must ALWAYS be known (to the admin).** Proof bar: *"you prove you solved when the failure we're fixing is
+exactly what the error tells us to fix — nothing less."*
+
+**Grounded so far (AD ORACVLVM):** the mechanism to deliver a crash reason to the OWNER exists —
+`spawn.rs:678` (panic) / `:685` (`Ok(Err(re))` RuntimeError) → `crash_tx.send(reason)` → the owner's
+`Handle.recv()` → `PeerRecvError::Crashed(reason)` (`spawn.rs:339`). And `serve-dispatch-op'`
+(`runtime.rs:27519`) catches only PANICS (broadcasts a **reason-free** `PEER_CRASHED_SENTINEL` to
+`clients`, `peer.rs:230/358`, then resumes); a `RuntimeError` propagates through its `Ok(result)=>result`
+arm unchanged. The self-scheduling FIXTURE (`probe_arc278_self_scheduling.wat` `:drive-ticker`) drives via
+a **client** `c = (connect' (Handle/addr h))` and NEVER reads `h` (the admin/Handle) — so it sees the
+client's (correct, per the ruling) reason-free disconnect, and the reason (if it reached `h`) is unread.
+**OPEN — prove on the far side:** does the ADMIN (`h`) actually get the op-handler crash reason
+(`PeerRecvError::Crashed(reason)`)? If YES → the substrate is right (client=500, admin=reason); the fixture
+must READ `h` to assert the reason (and `rs2`'s "client raises the reason" doc contradicts the ruling —
+reconcile: the client should get a 500, the reason lives on the admin). If NO → the op-handler→admin
+reason path is the substrate gap to close (mirror `:init`/`feea85e1`). Build a probe: owner holds `h`,
+induces an op-handler crash, reads `h` → assert `Crashed(exact-reason)`; a client reads `c` → assert a
+reason-FREE disconnect. THEN fix per the ruling, THEN finish the macro.
+
+### 📦 UNCOMMITTED macro WIP in the tree (KEEP IT — builder: "keep the code"; survives compaction on disk)
+HEAD = `070e002d` (green: Stone1 + Never + retag crux). On top, UNCOMMITTED (do NOT commit — the gate is
+un-ignored + RED/crashing; do NOT revert — the builder said keep it): `wat/service.wat` (+332/−95 — the
+near-complete Stone 2-A macro: `<service>::Op` superset synth, the arm-fn, the internal-`-`-op arm, retag
+threading into the Message arm), `tests/services/probe_arc278_self_scheduling.wat` (fixture on the
+canonical `Outcome::` form) + `.rs` (the two tests UN-ignored), and 2 scratch probes
+(`probe-dash-variant-and-roundtrip.wat`, `probe-kw-to-nullary-variant.wat`). The macro's own correctness
+is unverified (blocked behind the masked crash — fix that first so its real state is visible: R50, the
+ruin forges the way).
+
+### RESUME ORDER (far side): (1) prove the admin-gets-reason / client-gets-500 split on the real path →
+(2) fix the crash-surfacing per the ruling (annihilate the masked op-handler failure; the proof = the
+surfaced error is exactly the crash reason on the admin channel) → (3) reconcile `rs2` → (4) finish the
+Stone 2-A macro (the WIP above), green the RED gate both loci → (5) item (c) home stretch (buffered sink →
+span → done → streaming → R0). **OWED at curare: the `Never` bottom realization (R7's dual — completes the lattice).**
+
 **Then read the 2026-07-21d checkpoint below for the fuller item-(c) UX design (the `span` — do NOT re-derive it).**
 
 ## ═══ CURARE CHECKPOINT (2026-07-21d; item (c) self-scheduling fully DESIGNED — strike STOPPED on the poll'/timer substrate gap; RESUME at the poll'/timer FORK) ═══
