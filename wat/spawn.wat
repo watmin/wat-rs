@@ -104,17 +104,17 @@
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
-    :max-message-bytes 524288  ;; DEFAULT-MAX-MESSAGE-BYTES — mirrors src/edn_shim.rs DEFAULT_MAX_FRAME_BYTES
+    :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/post-spawn [f <- :wat::core::Fn(wat::spawn::ProcessLaunch)->wat::core::nil] -> :wat::spawn::ProcessOpts
-  (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes 524288 :runner-count (:wat::program::cpu-count)))  ;; DEFAULT-MAX-MESSAGE-BYTES
+  (:wat::spawn::ProcessOpts :post-spawn-fn f :env-fn "(:wat::program::EmptyEnv)" :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/env [s <- :wat::core::String] -> :wat::spawn::ProcessOpts
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn s
-    :max-message-bytes 524288  ;; DEFAULT-MAX-MESSAGE-BYTES
+    :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count (:wat::program::cpu-count)))
 
 (:wat::core::defn :wat::spawn::process/max-message-bytes [n <- :wat::core::i64] -> :wat::spawn::ProcessOpts
@@ -128,7 +128,7 @@
   (:wat::spawn::ProcessOpts
     :post-spawn-fn (:wat::core::fn [_l <- :wat::spawn::ProcessLaunch] -> :wat::core::nil nil)
     :env-fn "(:wat::program::EmptyEnv)"
-    :max-message-bytes 524288  ;; DEFAULT-MAX-MESSAGE-BYTES
+    :max-message-bytes :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES
     :runner-count n))
 
 ;; ── The tier-blind reader (runner-count as a defclause) ──────────────────────

@@ -115,6 +115,23 @@ pub struct CheckEnv<'a> {
     /// structurally identical (span-agnostic), the redef is a no-op
     /// rather than `DefRedefForbidden`.
     pub(crate) defined_value_asts: HashMap<String, WatAST>,
+    /// Stone A0 — corpus-wide `def`-bound value types, seeded once from
+    /// the live `runtime_def_values` (typed per scalar) in `from_symbols`. RESOLUTION-ONLY:
+    /// consulted as a fallback by `get_defined_value_type` when a name
+    /// isn't (yet) in the per-file `defined_values` map, so a function
+    /// body re-checked cross-file can reference a stdlib value-const by
+    /// name (e.g. `:wat::spawn::DEFAULT-MAX-MESSAGE-BYTES`) instead of
+    /// requiring the corpus to inline the literal.
+    ///
+    /// Deliberately NOT read by the redef "first binding" check
+    /// (`check.rs`'s `!env.defined_values.contains_key(&name)`, and
+    /// `env.rs`'s `register_defclause` guard) — those stay on the raw
+    /// per-file `defined_values` map so a file's own first `def` of a
+    /// name is still treated as the first binding, never colliding with
+    /// this corpus seed. Resolution and redef-tracking are decomplected
+    /// on purpose (option iii): this map only ever grows via the one
+    /// seed loop in `from_symbols` and is never written to elsewhere.
+    pub(crate) corpus_values: HashMap<String, TypeExpr>,
 }
 
 impl<'a> CheckEnv<'a> {
@@ -161,7 +178,36 @@ impl<'a> CheckEnv<'a> {
                         method_names,
                     );
                 }
-                _ => {}
+                // Stone A0 — seed corpus-wide `def`-bound SCALAR value types
+                // (resolution-only; see `corpus_values` field doc) so a
+                // function body re-checked cross-file can reference a
+                // stdlib value-const by name (e.g.
+                // `:wat::spawn::DEFAULT-MAX-MESSAGE-BYTES`) instead of the
+                // corpus inlining the literal. `sym.defined_values` (the
+                // originally-sketched seed source) has no writer anywhere
+                // in the tree — dead field, deleted (see symbol_table.rs).
+                // `sym.runtime_def_values` IS live (populated by
+                // `register_stdlib_runtime_defs`'s "Arc 255 escape-hatch"
+                // arm for scalar stdlib `def` forms), so derive the
+                // `TypeExpr` straight from the `Value`'s own scalar shape
+                // — exact for scalars, the only consumers here. A value
+                // with no obvious scalar type (Vec, Fn, aggregate, …) is
+                // skipped — no consumer needs it and guessing is worse
+                // than silence.
+                other => {
+                    let scalar_ty = match other {
+                        crate::runtime::Value::i64(_) => Some(":wat::core::i64"),
+                        crate::runtime::Value::u8(_) => Some(":wat::core::u8"),
+                        crate::runtime::Value::f64(_) => Some(":wat::core::f64"),
+                        crate::runtime::Value::bool(_) => Some(":wat::core::bool"),
+                        crate::runtime::Value::String(_) => Some(":wat::core::String"),
+                        crate::runtime::Value::wat__core__keyword(_) => Some(":wat::core::keyword"),
+                        _ => None,
+                    };
+                    if let Some(ty_path) = scalar_ty {
+                        env.corpus_values.insert(name.clone(), TypeExpr::Path(ty_path.into()));
+                    }
+                }
             }
         }
         // Arc 157 slice 1a-ii — mirror the redef-allowed flag from the
@@ -205,6 +251,7 @@ impl<'a> CheckEnv<'a> {
             defclause_registrations: HashMap::new(),
             defined_value_asts: HashMap::new(),
             extend_registrations: HashMap::new(),
+            corpus_values: HashMap::new(),
         }
     }
 
@@ -238,7 +285,10 @@ impl<'a> CheckEnv<'a> {
     /// `:wat::core::def`; `None` otherwise. Consulted in `infer`
     /// before the generic keyword fall-through.
     pub fn get_defined_value_type(&self, name: &str) -> Option<&TypeExpr> {
-        self.defined_values.get(name)
+        // Stone A0 — per-file `defined_values` wins; `corpus_values` (seeded
+        // once in `from_symbols` from the live `runtime_def_values`) is the
+        // fallback for a stdlib value-const this file never `def`s itself.
+        self.defined_values.get(name).or_else(|| self.corpus_values.get(name))
     }
 
     /// Arc 157 — look up the span of a prior `def` binding. Used to

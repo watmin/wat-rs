@@ -9,9 +9,8 @@ use crate::load::SourceLoader;
 use crate::macros::MacroRegistry;
 use crate::value::{EnumValue, Value};
 use crate::sigma::SigmaFn;
-use crate::span::Span;
 use crate::services::RuntimeServices;
-use crate::types::{TypeEnv, TypeExpr};
+use crate::types::TypeEnv;
 use crate::value::{EncodingCtx, Function};
 
 /// Per-binding metadata: FQDN -> metadata-key -> raw AST value.
@@ -78,20 +77,19 @@ pub struct SymbolTable {
     /// driver (`spawn::eval_kernel_spawn_program_ast` and siblings)
     /// after the sub-program's freeze completes.
     pub outer_symbols: Option<Arc<SymbolTable>>,
-    /// Arc 157 — names bound via `:wat::core::def` at top-level
-    /// position. Maps name → source location of the binding. Used at
-    /// check time to reject redef collisions (every collision is an
-    /// error in slice 1a-i — opt-in gating lands in slice 1a-ii).
-    /// The type of each binding lives in `CheckEnv.defined_values`
-    /// (built from this map's presence during `check_program`).
-    /// The runtime value of each binding lives in `runtime_def_values`.
-    ///
-    /// Populated by `register_defs` during the startup pipeline
-    /// (step 6c, after `register_defines`). Persists into the frozen
-    /// SymbolTable so check_program can reject redefs against the
-    /// registered locations. Slice 1a-ii will add `redef_allowed` /
-    /// `eval_redef_allowed` bools + type-stability gating.
-    pub defined_values: HashMap<String, (TypeExpr, Span)>,
+    // Stone A0 — `defined_values: HashMap<String, (TypeExpr, Span)>` field
+    // DELETED. Its doc comment claimed "Populated by `register_defs` during
+    // the startup pipeline (step 6c...)" but no such writer ever existed
+    // anywhere in the tree (grepped exhaustively) — dead field since
+    // introduction, permanently empty. Check-time `def`-bound-name
+    // redef-tracking lives entirely in `CheckEnv.defined_values`
+    // (`check/env.rs`, a DIFFERENT, live, per-file map built incrementally
+    // by `check_program`); the runtime value of a `def` binding lives in
+    // `runtime_def_values` below (live, populated by
+    // `register_stdlib_runtime_defs` / `register_runtime_defs`). A stdlib
+    // scalar value-const's TYPE for cross-file resolution is now derived
+    // straight from its `runtime_def_values` entry — see
+    // `CheckEnv::from_symbols`'s `corpus_values` seed (Stone A0).
     // Stone 241.14 — `defined_value_restrictions` field DELETED.
     // Restriction whitelists now live in `binding_metadata` under the
     // `:restricted-to` key. The `walk_for_restricted_call` walker in
@@ -167,7 +165,6 @@ impl std::fmt::Debug for SymbolTable {
             .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .field("types", &self.types.is_some())
-            .field("defined_values", &self.defined_values.len())
             .field("runtime_def_values", &self.runtime_def_values.len())
             .field("redef_allowed", &self.redef_allowed)
             .field("eval_redef_allowed", &self.eval_redef_allowed)
@@ -312,7 +309,7 @@ mod tests {
         let dbg = format!("{:?}", sym);
         assert_eq!(
             dbg,
-            "SymbolTable { functions: 0, unit_variants: 0, encoding_ctx: false, source_loader: false, macro_registry: false, presence_sigma_fn: false, coincident_sigma_fn: false, types: false, defined_values: 0, runtime_def_values: 0, redef_allowed: false, eval_redef_allowed: false, binding_metadata: 0 }",
+            "SymbolTable { functions: 0, unit_variants: 0, encoding_ctx: false, source_loader: false, macro_registry: false, presence_sigma_fn: false, coincident_sigma_fn: false, types: false, runtime_def_values: 0, redef_allowed: false, eval_redef_allowed: false, binding_metadata: 0 }",
             "Debug output mismatch"
         );
     }
