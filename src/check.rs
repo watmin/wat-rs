@@ -5124,6 +5124,21 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 278 Stone 2 (Option A) — `retag-op'`: the `<service>::Op`
+            // superset RE-TAG. `(retag-op' op :<surface>::Op :<service>::Op)`
+            // embeds a surface-tagged client op into its service-Op counterpart
+            // (runtime concern — see `eval_retag_op`); its RESULT type is the
+            // service Op named by arg[2] (a type-keyword literal, parsed the same
+            // way as `self-peer`'s S/R args). op (arg[0]) is inferred for error
+            // coverage only. See `infer_retag_op`.
+            ":wat::kernel::retag-op'" => {
+                let (val, mut errs) = infer_retag_op(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc 214 Stone 4.6b / Stone 259 Lost-locus — select' intrinsic.
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
             // I,O flow from Vector<peer<I,O>>'s element peer type into the
@@ -12069,6 +12084,43 @@ fn infer_serve_dispatch_op(
         Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
         None => CheckResult::errs(local_errors),
     }
+}
+
+/// Arc 278 Stone 2 (Option A) — `(:wat::kernel::retag-op' op :<surface>::Op
+/// :<service>::Op)` → `<service>::Op`.
+///
+/// The `<service>::Op` superset RE-TAG. Three args: the op value (inferred for
+/// error coverage only — the runtime rewrite does not constrain it here), the
+/// surface Op type-keyword (the runtime discriminator; parsed/validated as a
+/// type keyword), and the service Op type-keyword. The result type is the
+/// service Op (arg[2]) — the same "return the type a keyword literal names"
+/// pattern as `self-peer`. Runtime behavior is in `eval_retag_op`.
+fn infer_retag_op(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::retag-op'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 3 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 3, got: args.len()
+        } });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(fresh.fresh(), local_errors);
+    }
+    // op: inferred for error coverage; its type is not further constrained.
+    let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    // surface Op (arg[1]): validate as a type keyword (the runtime discriminator).
+    let _surface_ty = parse_peer_pair_type_arg(&args[1], OP, &mut local_errors, fresh);
+    // service Op (arg[2]): the result type.
+    let service_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
+    if local_errors.is_empty() { CheckResult::ok(service_ty) } else { CheckResult::partial_with(service_ty, local_errors) }
 }
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_select_prime` is INTRINSIC (projective).

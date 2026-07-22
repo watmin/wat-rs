@@ -4334,6 +4334,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::struct-new" => eval_struct_new(args, list_span, env, sym),
         ":wat::core::struct-field" => eval_struct_field(args, list_span, env, sym),
         ":wat::core::variant" => eval_variant(args, list_span, env, sym),
+        ":wat::kernel::retag-op'" => eval_retag_op(args, list_span, env, sym),
         ":wat::core::first" => {
             eval_positional_accessor(args, list_span, env, sym, ":wat::core::first", 0)
         }
@@ -12984,6 +12985,78 @@ fn eval_variant(
         variant_name,
         fields,
     })))
+}
+
+/// Arc 278 Stone 2 (Option A) — `(:wat::kernel::retag-op' op :<surface>::Op
+/// :<service>::Op)` — the ONE novel mechanism of the `<service>::Op` superset:
+/// the RE-TAG. A `defservice` serve loop dispatches over its synthesized
+/// `<service>::Op` superset (surface variants + internal `-`-ops), but a client
+/// can only ever construct a `<surface>::Op` value (the wire type — that decode
+/// gate IS the "internals are un-callable" wall). So a client op arrives
+/// runtime-tagged `<surface>::Op::X` while its static type (from `poll'`'s
+/// `selectables` element `O`) is already `<service>::Op` — the runtime
+/// `type_path` disagrees with the static type, and the runtime enum matcher
+/// composes `type_path::variant` (see `try_match_pattern`), so a
+/// `<service>::Op::X` pattern would NOT fire on a surface-tagged value.
+///
+/// This primitive EMBEDS the surface value into its `<service>::Op` counterpart:
+/// if `op`'s `type_path` equals the surface path (arg 1), it is rewritten to the
+/// service path (arg 2), keeping the variant name + fields verbatim (the surface
+/// and service supersets share every surface variant name by construction). An
+/// op whose `type_path` is NOT the surface path passes through UNCHANGED — a
+/// timer delivers its internal `<service>::Op::-tick` value already service-
+/// tagged (in-process, thread tier) or re-decoded to the service path (process
+/// tier), so the re-tag is a no-op for it. Generated-only (the `defservice`
+/// macro supplies both path literals it already computes); users never call it.
+fn eval_retag_op(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::retag-op'";
+    if args.len() != 3 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        } }.into());
+    }
+    let surface_path = match &args[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "second argument must be a keyword literal (the surface Op type path); got {}",
+                    other.variant_name()
+                )
+            } }.into());
+        }
+    };
+    let service_path = match &args[2] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "third argument must be a keyword literal (the service Op type path); got {}",
+                    other.variant_name()
+                )
+            } }.into());
+        }
+    };
+    let op_val = eval_inner(&args[0], env, sym)?.value_owned();
+    match op_val {
+        // Surface-tagged client op → embed into the service superset counterpart.
+        Value::Enum(ev) if ev.type_path == surface_path => Ok(Value::Enum(Arc::new(EnumValue {
+            type_path: service_path,
+            variant_name: ev.variant_name.clone(),
+            fields: ev.fields.clone(),
+        }))),
+        // Already service-tagged (a timer's internal op) or any other enum: pass through.
+        other => Ok(other),
+    }
 }
 
 /// `(:wat::core::struct-field <struct-value> <field-index>)` — the
