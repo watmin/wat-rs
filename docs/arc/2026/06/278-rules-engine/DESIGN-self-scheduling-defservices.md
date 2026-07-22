@@ -80,6 +80,26 @@ tiers; retire the vestigial tier-open `Timer'`) → then the SETTLED design belo
 (`Outcome<S,R,O>` grow, leading-dash marker, `clients→selectables`, the `<service>::Op` superset,
 keyword-`:op`). Everything below is unchanged and now sits on a resolved foundation.
 
+## ✅ O-SIDE RULED (2026-07-22) — the `<service>::Op` superset (Option A), not `Value` (B)
+
+The I-side homogeneity is DONE — `:wat::core::Never` (the R7-dual bottom) + STEP-0 proven, committed
+`a392fd40`. The O-side (a client delivers `<surface>::Op`, a timer delivers an internal op; the
+`selectables` vec + the op-dispatch need ONE O) was four-questioned:
+- **Rejected — B (`O = Value` top + open `match`):** `Value` **backfires at exhaustiveness.** It erases
+  the type → the dispatch needs a WILDCARD → the substrate's FREE coverage check is lost (`service.wat:749`
+  — *"COVERAGE IS FREE: a missing `:impl` → non-exhaustive match → compile error"*); a forgotten op
+  silently falls through — a hidden failure, in the arc whose law is *no hidden failures*. And it is a lie
+  of imprecision: the O is NOT "anything," it is exactly `<surface>::Op | <service>::Internal`; `Value`
+  over-widens it. (The `Never`/`Value` symmetry is false — `Never` is the timer input's *precise* type;
+  `Value` for O is an over-approximation.) Fails **Honest**.
+- **Ruled — A (synthesize `<service>::Op` = surface variants + internal `-ops`; dispatch over it):** the
+  PRECISE type, macro-synthesized from the one `:impls` source (not hand-duplication that rots), and it
+  KEEPS the free coverage check. It is the substrate's established pattern (per-service Op/Reply synthesis,
+  `Handle`→`Capability` embed). The one novel bit: the **re-tag** — a client's wire frame decodes
+  self-describingly to `<surface>::Op::X` and must become `<service>::Op::X` for the superset match (the
+  client only ever encodes surface ops, so the wall holds; the re-tag is service-side, keyed on the peer's
+  expected `<service>::Op`). *Prove the re-tag on the real decode path before the macro.*
+
 ## The capability (builder-ratified)
 
 A `defservice` can send **itself** a message on a delay. A timer is just a `Peer'<_,Op>` that delivers
