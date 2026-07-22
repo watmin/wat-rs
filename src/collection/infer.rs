@@ -10,8 +10,8 @@
 
 use crate::ast::WatAST;
 use crate::check::{
-    apply_subst, format_type, infer, reduce, unify, CheckEnv, CheckError, CheckErrorKind,
-    CheckResult, InferCtx, Subst,
+    apply_subst, assignable, format_type, infer, reduce, unify, CheckEnv, CheckError,
+    CheckErrorKind, CheckResult, InferCtx, Subst,
 };
 use crate::span::Span;
 use crate::types::TypeExpr;
@@ -223,9 +223,18 @@ pub(crate) fn infer_conj(
             }
         };
 
-        // If we extracted an element type and inferred arg1, unify them.
+        // Adding an element to an immutable/persistent collection is an UP-CAST: the element
+        // must be assignable-to (a subtype of) the declared element type, not type-EQUAL. `unify`
+        // (invariant equality) runs FIRST — it preserves inference (concretizes a fresh elem_ty
+        // from the element, binds vars) — and only when it fails do we fall to the directional
+        // `assignable` up-cast. This is what lets a `Peer'<Never, O>` timer (arc 278 Stone 2 —
+        // `after`'s honest uninhabited send-type) conj into a service's `selectables` vec
+        // `Vector<Peer'<Reply, O>>` (I-slot: `Never <: Reply`, the R7 bottom). unify-first keeps
+        // the join semantics; the assignable-fallback only ever ADDS acceptance (sound up-cast).
         if let (Some(elem_ty), Some(arg1)) = (elem_ty_opt, arg1_ty) {
-            if unify(&arg1, &elem_ty, subst, env.types()).is_err() {
+            if unify(&arg1, &elem_ty, subst, env.types()).is_err()
+                && !assignable(&arg1, &elem_ty, subst, env)
+            {
                 local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#2".into(),

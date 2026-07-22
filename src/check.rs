@@ -11774,12 +11774,22 @@ fn infer_kernel_after(
         .drain_errors_into(&mut local_errors)
         .unwrap_or_else(|| fresh.fresh());
 
-    // arc 278 Stone 1 — return the UNIFIED `Peer'<nil, O>` (a timer has no input, so
-    // I = nil; O is the delivered message type). This drops into `poll'`/`select'`'s
-    // `Peer'<I,O>` element arm by construction — no tier-open fusion needed.
+    // arc 278 Stone 1 — return the UNIFIED `Peer'<I, O>` where O is the delivered message
+    // type. This drops into `poll'`/`select'`'s `Peer'<I,O>` element arm by construction —
+    // no tier-open fusion needed.
+    //
+    // arc 278 Stone 2 (STEP 0) — the INPUT type `I` is `:wat::core::Never`, the honest named
+    // BOTTOM (the DUAL of `:wat::core::Value`'s top), not `nil`. A timer never sends (runtime
+    // `eval_kernel_after` builds a receive-only peer with a dead tx), so its send-type is
+    // genuinely UNINHABITED — `Never` names that, and makes `send'`-to-a-standalone-timer a
+    // compile error (Never has no inhabitant to send). Because `Never <: T` for every `T`
+    // (is_subtype, types.rs), a `Peer'<Never, O>` timer assigns into a service's `selectables`
+    // vec of reply-ing client peers `Vector<Peer'<Reply, O>>` (I-slot: `Never <: Reply`), and
+    // into Stone 1's `Vector<Peer'<nil, O>>` timer-only sites (`Never <: nil`) — both by the
+    // bottom rule, no Value-erasure / fresh-var papering / coercion.
     let peer_ty = TypeExpr::Parametric {
         head: "wat::kernel::Peer'".into(),
-        args: vec![TypeExpr::Path(":wat::core::nil".into()), msg_ty],
+        args: vec![TypeExpr::Path(":wat::core::Never".into()), msg_ty],
     };
     if local_errors.is_empty() {
         CheckResult::ok(peer_ty)
@@ -15004,10 +15014,15 @@ fn infer_list_constructor(
                 if matches!(env.types().get(ep), Some(crate::types::TypeDef::Surface(_))) {
                     assignable(&arg_ty, &elem_ty, subst, env)
                 } else {
+                    // unify (invariant join) FIRST to preserve element-type inference; fall to the
+                    // directional `assignable` up-cast so a subtype element (the R7 `Never` bottom
+                    // — a `Peer'<Never,O>` timer into a `Vector<Peer'<Reply,O>>`) is accepted.
                     unify(&arg_ty, &elem_ty, subst, env.types()).is_ok()
+                        || assignable(&arg_ty, &elem_ty, subst, env)
                 }
             } else {
                 unify(&arg_ty, &elem_ty, subst, env.types()).is_ok()
+                    || assignable(&arg_ty, &elem_ty, subst, env)
             };
             if !ok {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -15712,6 +15727,32 @@ pub(crate) fn assignable(
                 .iter()
                 .zip(eargs.iter())
                 .all(|(x, y)| unify(x, y, subst, types).is_ok())
+        {
+            return true;
+        }
+        // Arc 278 Stone 2 — SAME-head parametric: args are INVARIANT (unify) EXCEPT that the
+        // subtype LATTICE flows through each arg position, so the two endpoints (`Never` bottom,
+        // `Value` top — the R7 dual pair) assign per-arg. This is what lets a `Peer'<Never, O>`
+        // timer (`after`'s honest uninhabited send-type) assign into a service's `selectables`
+        // element type `Peer'<Reply, O>` (I-slot: `Never <: Reply`; O-slot: `O` unifies exactly).
+        // Only a genuine subtype edge (endpoints, or a user-declared parent) relaxes a slot; two
+        // unrelated concrete payload types still fail (unify fails, is_subtype finds no edge).
+        if ah == eh
+            && aargs.len() == eargs.len()
+            && aargs.iter().zip(eargs.iter()).all(|(x, y)| {
+                if unify(x, y, subst, types).is_ok() {
+                    return true;
+                }
+                let xr = reduce(&walk(x, subst), subst, types);
+                let yr = reduce(&walk(y, subst), subst, types);
+                // Bottom flows in the ACTUAL position (`Never <: every type`, whatever its
+                // shape — incl. the `()` tuple-nil); top flows in the EXPECTED position
+                // (`every type <: Value`). Plus any genuine declared Path<:Path subtype edge.
+                matches!(&xr, TypeExpr::Path(p) if p == ":wat::core::Never")
+                    || matches!(&yr, TypeExpr::Path(p) if p == ":wat::core::Value")
+                    || matches!((&xr, &yr), (TypeExpr::Path(xp), TypeExpr::Path(yp))
+                        if crate::types::is_subtype(xp, yp, types))
+            })
         {
             return true;
         }

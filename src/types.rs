@@ -3877,6 +3877,15 @@ pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
     if sup == ":wat::core::Value" {
         return true;
     }
+    // Arc 278 Stone 2 — :wat::core::Never is the universal subtype-BOTTOM: Never <: every type
+    // (the exact DUAL of Value's top). DOWN is free (this rule); UP stays checked — nothing is
+    // <: Never except Never itself (reflexive, above). Uninhabited: it is the honest send-type of
+    // a timer peer (`after` → `Peer'<Never, O>`), which never sends, so `send'`-to-a-timer is a
+    // compile error (the wrong thing has no form). No registration: like Value, Never is an opaque
+    // Path; a TypeDef::Struct would wrongly synthesize a constructor (Never is un-constructible).
+    if sub == ":wat::core::Never" {
+        return true;
+    }
     let mut visited = std::collections::HashSet::new();
     let mut stack: Vec<String> = if let Some(parents) = env.subtype_parents(sub) {
         parents.to_vec()
