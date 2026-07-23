@@ -56,13 +56,10 @@ fn parametric_surface_return_is_typed_not_any() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            assert_eq!(expected, ":wat::core::String");
-            assert_eq!(got, ":wat::core::i64");
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":wat::core::String"
+            && got == ":wat::core::i64");
 }
 
 #[test]
@@ -77,12 +74,10 @@ fn parametric_surface_rejects_mistyped_satisfier() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. } => {
-            assert_eq!(function, ":probe::BadBox/get");
-            assert_eq!(expected, ":wat::core::i64"); // Holds<i64> wants i64
-            assert_eq!(got, ":wat::core::String"); // BadBox/get returns its String field
-        }
-        other => panic!("expected ReturnTypeMismatch, got {other:?}"),
-    }
+    // Holds<i64> wants i64; BadBox/get returns its String field
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
+            if function == ":probe::BadBox/get"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::String");
 }

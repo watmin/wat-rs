@@ -262,6 +262,37 @@ macro_rules! assert_edn_matches_file {
     }};
 }
 
+/// Assert that **some** [`CheckError`](crate::check::error::CheckError) in a
+/// `check_program` result set matches a given [`CheckErrorKind`](crate::check::error::CheckErrorKind)
+/// pattern (+ optional guard) — **membership**, not `errs[0]` positional indexing.
+///
+/// `CheckErrors(Vec<CheckError>)` is a *set* of findings; its order is
+/// per-process nondeterministic (`HashMap`/`RandomState` reseeds each
+/// process run). Matching `errs[0]` is a coin-flip whenever a form emits
+/// more than one error. This macro is the canonical replacement: it asserts
+/// data equality on set membership (the expected error is *a member of the
+/// set*, order-independent) and, on failure, dumps the **whole set** as EDN
+/// (`CheckErrors`' `Debug` impl emits EDN — Stone B) so the failure is
+/// legible regardless of which slot the match would have landed in.
+///
+/// Fold the site's exact expected field values into the guard as `==`
+/// comparisons — this is the SAME structural assertion the old `errs[0]`
+/// match performed, only the positional index is removed. Do NOT loosen to
+/// a substring/`contains` check (the loose-assert anti-pattern the arc
+/// already cut) — every field named in the guard must be an exact match.
+#[macro_export]
+macro_rules! assert_check_error_present {
+    ($errs:expr, $pat:pat $(if $guard:expr)? $(,)?) => {{
+        let __errs = &$errs;
+        assert!(
+            __errs.iter().any(|__e| matches!(&__e.kind, $pat $(if $guard)?)),
+            "no check error matched `{}`; errors were:\n{:?}",
+            stringify!($pat $(if $guard)?),
+            $crate::check::error::CheckErrors(__errs.iter().cloned().collect::<Vec<_>>()),
+        );
+    }};
+}
+
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
     eval, register_aggregate_methods, register_defines, register_struct_methods,

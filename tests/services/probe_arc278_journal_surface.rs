@@ -59,11 +59,8 @@ fn wrong_response_type_at_reply_site_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            assert_eq!(expected, ":wat::telemetry::Journal::WriteMetricsResponse");
-            assert_eq!(got, ":wat::query::Store::PutResponse");
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":wat::telemetry::Journal::WriteMetricsResponse"
+            && got == ":wat::query::Store::PutResponse");
 }

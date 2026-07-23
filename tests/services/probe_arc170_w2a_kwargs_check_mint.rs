@@ -29,14 +29,11 @@ fn w2a_kwargs_check_mint_swap_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            // kv's RAW handle bound to the :echo kwarg (TypedCapability<Echo...>) — the
-            // auto-minted checker's head-swapped field type rejects it. `got` names the
-            // concrete Handle type (the receiver), not a TypedCapability-wrapped name.
-            assert_eq!(expected, ":wat::capability::TypedCapability<probe::Echo::Op,probe::Echo::Reply>");
-            assert_eq!(got, ":probe::kv'::Handle");
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    // kv's RAW handle bound to the :echo kwarg (TypedCapability<Echo...>) — the
+    // auto-minted checker's head-swapped field type rejects it. `got` names the
+    // concrete Handle type (the receiver), not a TypedCapability-wrapped name.
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":wat::capability::TypedCapability<probe::Echo::Op,probe::Echo::Reply>"
+            && got == ":probe::kv'::Handle");
 }

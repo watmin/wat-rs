@@ -40,11 +40,8 @@ fn bodiless_edge_is_per_service_swap_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            assert_eq!(expected, ":probe::TypedCapability<probe::Echo::Op,probe::Echo::Reply>");
-            assert_eq!(got, ":probe::kv'::Handle");
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":probe::TypedCapability<probe::Echo::Op,probe::Echo::Reply>"
+            && got == ":probe::kv'::Handle");
 }

@@ -41,14 +41,11 @@ fn wrong_service_coord_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            // kv handle's coord ascribed to an Echo address → the ann-form rejects it
-            assert_eq!(expected, ":wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>");
-            assert_eq!(got, ":wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>");
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    // kv handle's coord ascribed to an Echo address → the ann-form rejects it
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>"
+            && got == ":wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>");
 }
 
 #[test]
@@ -58,20 +55,11 @@ fn swapped_colocation_tuple_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            // swapped Tuple vs the field-ordered (Echo, Kv) contract at the downstream consumer
-            assert_eq!(
-                expected,
-                ":(wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>,\
-                  wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>)"
-            );
-            assert_eq!(
-                got,
-                ":(wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>,\
-                  wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)"
-            );
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    // swapped Tuple vs the field-ordered (Echo, Kv) contract at the downstream consumer
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":(wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>,\
+                              wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>)"
+            && got == ":(wat::kernel::Address'<probe::Kv::Op,probe::Kv::Reply>,\
+                         wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)");
 }

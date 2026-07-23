@@ -67,14 +67,11 @@ fn mixed_via_macro_swap_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            // `:s1 h2` — S2's handle bound to the :s1 kwarg (TypedCapability<S1…>). An
-            // s2'::Handle satisfies ONLY TypedCapability<S2…>, so the checker's
-            // TypedCapability param rejects it.
-            assert_eq!(expected, ":wat::capability::TypedCapability<probe::S1::Op,probe::S1::Reply>");
-            assert_eq!(got, ":probe::s2'::Handle");
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    // `:s1 h2` — S2's handle bound to the :s1 kwarg (TypedCapability<S1…>). An
+    // s2'::Handle satisfies ONLY TypedCapability<S2…>, so the checker's
+    // TypedCapability param rejects it.
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":wat::capability::TypedCapability<probe::S1::Op,probe::S1::Reply>"
+            && got == ":probe::s2'::Handle");
 }

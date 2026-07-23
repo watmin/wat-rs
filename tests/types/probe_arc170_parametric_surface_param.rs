@@ -41,13 +41,10 @@ fn wrong_parametric_surface_param_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    match &errs[0].kind {
-        CheckErrorKind::TypeMismatch { expected, got, .. } => {
-            // The Gap-1 edge is an EXACT-args match, so an echo handle does NOT satisfy the Kv
-            // Dialable — the swap-gate holds.
-            assert_eq!(expected, ":wat::capability::Dialable<probe::Kv::Op,probe::Kv::Reply>");
-            assert_eq!(got, ":probe::echo'::Handle");
-        }
-        other => panic!("expected TypeMismatch, got {other:?}"),
-    }
+    // The Gap-1 edge is an EXACT-args match, so an echo handle does NOT satisfy the Kv
+    // Dialable — the swap-gate holds.
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::TypeMismatch { expected, got, .. }
+            if expected == ":wat::capability::Dialable<probe::Kv::Op,probe::Kv::Reply>"
+            && got == ":probe::echo'::Handle");
 }
