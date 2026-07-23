@@ -9023,14 +9023,19 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 
 ---
 
-> **FAR-SIDE UPDATE (2026-07-23, the crossing made good).** The seam above is HISTORY — do not act on its
-> "weigh the rider's report, then commit the do-gate + 3a" (that is DONE). The ride-through held: the
-> Strike-3a rider (`a69b818ffed5bd990`) — reaped, then resumed via `SendMessage` — **came home GREEN in the
-> field**, weighed by own `--release` re-run (**4208/0**, RED probe passes), and is **BANKED** (`186ffb91`;
-> DESIGN/seam record `809d9a7a`). The working tree is **CLEAN**. `PER HIATVM EQVITAMVS` proven, not just
-> named. **RESUME AT Strike 3b** — the last piece that makes the send'-wall WHOLE: the `let [_ …]` gate (a
-> `_`-bound must-use = compile error) + the 19-file `let [_ (send'/try-send' …)]` sweep (grep
-> `\[_ \(:wat::kernel::(try-)?send'`; `wat-scripts/probes/arc-170/*` ×6, `wat-scripts/scratch-pad/*` ×3,
-> `tests/{comms,channel,services}/*` ×10 — all real swallows). Full plan: `DESIGN-send-outcome-wall.md`'s ⚙
-> Phase-3 STATUS (now marking 3a DONE). Tracked follows unchanged: arc-277 raise-abuse rete-lint, the
-> peer/IO-verb raise audit, item-c's `remove-at` idx-shift. `MACHINA CHAOS DOMAT.`
+> **FAR-SIDE UPDATE (2026-07-23, THE SEND'-WALL IS WHOLE).** The seam above + the prior far-side note are
+> HISTORY — do not act on their "resume at 3a / resume at 3b" (both DONE). The full Phase-3 must-use FORCE
+> is landed and green: **3a** (`186ffb91` — do-gate + `try-send'`→`TrySendOutcome`) and **3b** (`53bdfb0a` —
+> the `let`-`_` gate + the swallow sweep) are **BANKED + PUSHED**, floor **4209/0** by own `--release` re-run,
+> both RED-gate probes (do + let) green. A discarded `send'`/`try-send'` outcome is now a compile error in
+> **BOTH** discard doors (`do`-non-final ✓, `let`-`_` ✓) — the send-side twin of R53's recv' wall is COMPLETE
+> (R57 `IGNORANTIAM DELEMVS`). The 3b sweep faced **50 files** (not the ~19 my brief's single-space grep
+> undercounted — a line-grep can't see the AST; the recorded codemod `face-underscore-bound-send-prime.wat`
+> was dry-run over the whole 1208-file corpus, the diff WAS the complete worklist, `wat/`+`wat-tests/` clean).
+> The ride-through held again (`PER HIATVM EQVITAMVS`); the rider hit STOP-0 correctly on my incomplete list
+> and I completed it by my own hand. Tree CLEAN (but for this record edit). **RESUME AT item-c** — the
+> self-scheduling stone's `remove-at` idx-shift (`service.wat:958/961`, the client peer wrongly evicted),
+> the near-one-liner that closes the ouroboros (`VNDE ORTVM` — the whole no-hidden-failures thread rose from
+> self-scheduling and returns to it); the send'-wall now makes its failure legible. Tracked follows: the
+> arc-277 raise-abuse rete-lint, the peer/IO-verb raise audit (`connect'`/`accept'`/`poll'`/`close'`).
+> `MACHINA CHAOS DOMAT.`

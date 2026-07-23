@@ -8,7 +8,7 @@
 > last raise-that-masks. Annihilate it: `send'` returns a matchable `SendOutcome`, never raises, and the
 > checker forces every caller to face it (no swallow).
 
-## ✅ STATUS (2026-07-23) — Phases 1+2 DONE+GREEN (raise annihilated); Phase 3 do-gate + Strike 3a DONE+GREEN (`186ffb91`); Strike 3b remaining (the last piece).
+## ✅ STATUS (2026-07-23) — THE WALL IS WHOLE. Phases 1+2 DONE+GREEN (raise annihilated); Phase 3 do-gate + 3a + 3b ALL DONE+GREEN (`53bdfb0a`, floor 4209/0). A discarded `send'`/`try-send'` outcome is a compile error in BOTH discard doors.
 
 **Phases 1 + 2a + 2b complete — floor GREEN (4207/0, own `--release` re-run). `send'` returns
 `:wat::kernel::SendOutcome` (never raises), and ALL 183 sites now FACE it (no `_`-swallow anywhere; no
@@ -17,7 +17,7 @@ unit.** Phases: 1 = the type + eval (SendOutcome=Pure); 2a = the stdlib roots fa
 `test.wat` harness fix cleared the ~40 deftest tests, `service.wat` serve-replies → keep-serving); 2b = the
 19 peer/wire test fixtures faced (19→0).
 
-### ⚙ Phase 3 — the MUST-USE FORCE — do-gate + Strike 3a DONE + COMMITTED (`186ffb91`); 3b remaining (2026-07-23)
+### ⚙ Phase 3 — the MUST-USE FORCE — do-gate + 3a + 3b ALL DONE + COMMITTED; THE WALL IS WHOLE (2026-07-23)
 
 Makes a *discarded* outcome a **compile error** → swallow unrepresentable (R57 "unrepresentable > flagged").
 There was **no** must-use mechanism in the checker (`recv'` is always expression-position); this built one.
@@ -43,10 +43,16 @@ passes).** Four-questions RULED both:
   weighed by own `--release` re-run = **4208/0**, RED probe passes, committed atomic (`186ffb91`). The
   ride-through doctrine held — the rider was reaped at the compaction, resumed via `SendMessage`, finished
   green in the field, banked ([[feedback_ride_through_compactions_with_shadowdancers_in_the_field]]).
-- **Strike 3b — NEXT (unbuilt):** the `let [_ …]` gate (a `_`-bound must-use = compile error) + the 19-file
-  `let [_ (send'/try-send' …)]` sweep (all real swallows; four-questions all-YES). Files: `wat-scripts/probes/
-  arc-170/*` (6), `wat-scripts/scratch-pad/*` (3), `tests/{comms,channel,services}/*` (10) — grep
-  `\[_ \(:wat::kernel::(try-)?send'`. When 3b lands green, the wall is WHOLE (both discard positions gated).
+- **Strike 3b — DONE + COMMITTED (`53bdfb0a`, floor 4209/0 own re-run; RED probe green).** The `let`-`_` gate
+  (`process_let_binding`: `ident=="_"` && `is_must_use_type` → `push_must_use_error`, head `:wat::core::let`,
+  reusing the do-gate helpers) + the swallow sweep. The sweep is a recorded wat-fix codemod
+  (`face-underscore-bound-send-prime.wat`, idempotent, sha256-verified): walks let binding vectors, wraps every
+  `_`-bound `send'` RHS in the `SendOutcome::{Sent,Closed,Lost}→nil` facing match (type → `nil` → gate passes).
+  Faced **EVERY** `_`-bound `send'` swallow — **50 files** across `tests/`+`wat-scripts/`, NOT the ~19 the first
+  grep undercounted (single-space regex missed alignment-padded bindings; a line-grep can't see the AST — the
+  codemod was dry-run over the whole 1208-file corpus and the diff WAS the complete worklist: `wat/`+`wat-tests/`
+  confirmed clean, 0 non-facing edits). RED probe: `probe_arc278_send_outcome_must_use_wall_let.wat.bad`. **THE
+  WALL IS WHOLE** — a discarded outcome is a compile error in BOTH discard doors (`do`-non-final ✓, `let`-`_` ✓).
 - **Companion (tracked):** the arc-277 raise-abuse rete-lint (discovery) + the raise-abuse audit of the other
   peer/IO verbs (`connect'`/`accept'`/`poll'`/`close'`).
 
