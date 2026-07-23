@@ -76,18 +76,40 @@
     ((:wat::spawn::ServiceEvent::Connection _p) nil)
     ((:wat::spawn::ServiceEvent::Admin _m) nil)))
 
-;; the shared driver: start a ticker at `target`, kick it, nap past `target` ticks, poll → the count.
+;; poll-until — a TCO poll-loop that terminates on the OBSERVED count reaching `target`, not on
+;; elapsed time; polls DURING ticking (exercising "the reactor serves between ticks"), bounded by
+;; a generous `attempts` failsafe with a small non-correctness-bearing `nap 5` backoff between polls.
+(:wat::core::defn :probe::poll-until
+  [c <- :wat::kernel::Peer'<probe::Ticker::Op,probe::Ticker::Reply>  target <- :wat::core::i64  attempts <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::if (:wat::core::i64::<= attempts 0)
+    -2                                              ;; bound exhausted without reaching target
+    (:wat::core::match (:probe::Ticker/poll c (:probe::Ticker::PollRequest))
+      ((:wat::kernel::RecvOutcome::Message __recv)
+        (:wat::core::match __recv
+          ((:probe::Ticker::PollResponse::Count n)
+            (:wat::core::if (:wat::core::i64::>= n target)
+              n                                     ;; observed the target — done, no timing guess
+              (:wat::core::let [_ (:probe::nap 5)]  ;; bounded backoff, NOT a correctness-bearing sleep
+                (:probe::poll-until c target (:wat::core::i64::- attempts 1)))))
+          ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1)))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+
+;; the shared driver: start a ticker at `target`, kick it, FACE the start outcome (a start-time
+;; death now speaks), then poll-until the observed count reaches `target` — wire-synced, not a sleep-guess.
 ;; (a) the self-tick fired + re-armed to `target`; (b) poll still replied → the reactor kept serving.
 (:wat::core::defn :probe::drive-ticker
   [h <- :probe::ticker'::Handle] -> :wat::core::i64
   (:wat::core::let
     [c  (:wat::kernel::connect' (:probe::ticker'::Handle/addr h))
-     _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))
-     _w (:probe::nap 100)                                          ;; 100ms >> target ticks @ 5ms — robust
-     r  (:probe::Ticker/poll c (:probe::Ticker::PollRequest))]
-    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
-      ((:probe::Ticker::PollResponse::Count n) n)
-      ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
+     _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))]
+    (:wat::core::match _s
+      ((:wat::kernel::RecvOutcome::Message __start)
+        (:wat::core::match __start
+          ((:probe::Ticker::StartResponse::Ok) (:probe::poll-until c 3 40))
+          ((:probe::Ticker::StartResponse::RequestTooLarge _b _cp) -3)))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; entrypoint (thread locus): expect the count == target (3).
 (:wat::core::defn :user::self-tick-rearms-thread [] -> :wat::core::i64
