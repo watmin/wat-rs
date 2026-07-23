@@ -66,7 +66,7 @@
                           (:wat::core::let
                             [c (:wat::core::Option/expect held "Work before Setup")
                              r (:probe::work s :echo c)                   ;; ← companion :key val, held peer
-                             _ (:wat::kernel::send' self r)]
+                             _ (:wat::core::match (:wat::kernel::send' self r) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                             (:probe::serve self held)))))
                     ((:wat::kernel::RecvOutcome::Lost cause)
                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
@@ -80,22 +80,22 @@
             ((:wat::core::Some p)
               (:wat::core::let
                 [_  (:probe::echo'/grant eh [p])
-                 _  (:wat::kernel::send' worker (:probe::Msg::Setup ea))
-                 _  (:wat::kernel::send' worker (:probe::Msg::Work "a"))
+                 _  (:wat::core::match (:wat::kernel::send' worker (:probe::Msg::Setup ea)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+                 _  (:wat::core::match (:wat::kernel::send' worker (:probe::Msg::Work "a")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r1 (:wat::core::match (:wat::kernel::recv' worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
                       ((:wat::kernel::RecvOutcome::Lost cause)
                         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
                         (:wat::kernel::assertion-failed! "recv': worker closed before reply a" :wat::core::None :wat::core::None)))
-                 _  (:wat::kernel::send' worker (:probe::Msg::Work "b"))
+                 _  (:wat::core::match (:wat::kernel::send' worker (:probe::Msg::Work "b")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r2 (:wat::core::match (:wat::kernel::recv' worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
                       ((:wat::kernel::RecvOutcome::Lost cause)
                         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
                         (:wat::kernel::assertion-failed! "recv': worker closed before reply b" :wat::core::None :wat::core::None)))
-                 _  (:wat::kernel::send' worker (:probe::Msg::Work "c"))
+                 _  (:wat::core::match (:wat::kernel::send' worker (:probe::Msg::Work "c")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r3 (:wat::core::match (:wat::kernel::recv' worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
                       ((:wat::kernel::RecvOutcome::Lost cause)

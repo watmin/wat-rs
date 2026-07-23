@@ -51,9 +51,9 @@
                      addr (:wat::kernel::recv' self)
                      c    (:wat::kernel::connect' addr)
                      er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _    (:wat::core::match (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))]
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
@@ -63,6 +63,6 @@
              (:wat::kernel::assertion-failed! "peer-pid returned None on a process prober"
                :wat::core::None :wat::core::None)))
      ;; hand A's addr down; the prober dials — served ONLY because we granted its pid.
-     _   (:wat::kernel::send' prober ea)
+     _   (:wat::core::match (:wat::kernel::send' prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      out (:wat::kernel::recv' prober)]
     (:wat::kernel::println out)))

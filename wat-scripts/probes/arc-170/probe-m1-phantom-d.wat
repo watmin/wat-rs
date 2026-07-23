@@ -15,7 +15,7 @@
         ((:probe::PoolMsg::Work pair)
           (:wat::core::let
             [out (:wat::core::Tuple (:wat::core::first pair) (:wat::core::* (:wat::core::second pair) 2))
-             _   (:wat::kernel::send' self out)]
+             _   (:wat::core::match (:wat::kernel::send' self out) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
             (:probe::serve self)))
         ((:probe::PoolMsg::Setup _deps)
           (:probe::serve self))))
@@ -28,7 +28,7 @@
     [w (:wat::kernel::spawn-program' (:wat::spawn::thread)
          (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,wat::core::i64),probe::PoolMsg<wat::core::nil,wat::core::i64>>] -> :wat::core::nil
            (:probe::serve sp)))
-     _  (:wat::kernel::send' w (:probe::PoolMsg::Work (:wat::core::Tuple 0 3)))
+     _  (:wat::core::match (:wat::kernel::send' w (:probe::PoolMsg::Work (:wat::core::Tuple 0 3))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r0 (:wat::kernel::recv' w)
      r  (:wat::core::match r0
           ((:wat::kernel::RecvOutcome::Message m) m)

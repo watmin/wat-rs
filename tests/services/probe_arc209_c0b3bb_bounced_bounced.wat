@@ -22,8 +22,8 @@
                     ((:wat::spawn::ServiceEvent::Connection peer)
                       (:user::serve self l (:wat::core::conj clients peer)))
                     ((:wat::spawn::ServiceEvent::Message idx n)
-                      (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
-                                             (:wat::core::+ n 100))]
+                      (:wat::core::let [_ (:wat::core::match (:wat::kernel::send' (:wat::core::nth clients idx)
+                                             (:wat::core::+ n 100)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                         (:user::serve self l clients)))
                     ((:wat::spawn::ServiceEvent::Closed idx)
                       (:user::serve self l (:wat::std::list::remove-at clients idx)))
@@ -36,7 +36,7 @@
                     [b    (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
                      self (:wat::program::self-peer
                              :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
-                     _    (:wat::kernel::send' self (:wat::spawn::Bound/address b))]
+                     _    (:wat::core::match (:wat::kernel::send' self (:wat::spawn::Bound/address b)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                     (:user::serve self (:wat::spawn::Bound/listener b)
                       (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64>))))))
      ;; recv' the service's minted capability (blocks until service sends it).
@@ -64,7 +64,7 @@
                               (:wat::kernel::RecvOutcome::Closed
                                 (:wat::kernel::assertion-failed! "recv': owner closed (cap handoff)" :wat::core::None :wat::core::None)))
                        c    (:wat::kernel::connect' addr)
-                       _    (:wat::kernel::send' c 7)
+                       _    (:wat::core::match (:wat::kernel::send' c 7) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                        ;; 3b-b: the stranger is bounced → the service drops the stream → this recv'
                        ;; sees Closed (EOF on the bounce) → we RAISE → the stranger process DIES.
                        _got (:wat::core::match (:wat::kernel::recv' c)
@@ -75,7 +75,7 @@
                                 (:wat::kernel::assertion-failed! "stranger bounced: service closed the stream" :wat::core::None :wat::core::None)))]
                       nil))))
      ;; hand the (leaked) service capability DOWN to the stranger.
-     _   (:wat::kernel::send' stranger svc-addr)
+     _   (:wat::core::match (:wat::kernel::send' stranger svc-addr) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      got (:wat::core::match (:wat::kernel::recv' stranger)  ;; owner FACES the outcome as a VALUE, returns the enum
            ((:wat::kernel::RecvOutcome::Lost cause) (:probe::Outcome::Bounced))   ;; child crashed on bounce = correct
            (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Served))          ;; stranger served then exited cleanly = regression

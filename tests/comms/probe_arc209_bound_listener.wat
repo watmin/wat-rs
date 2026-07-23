@@ -19,8 +19,8 @@
     ((:wat::spawn::ServiceEvent::Message idx msg)
       (:wat::core::match msg 
         ((:user::Op::Compute n)
-          (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
-                                 (:wat::core::* n 2))]
+          (:wat::core::let [_ (:wat::core::match (:wat::kernel::send' (:wat::core::nth clients idx)
+                                 (:wat::core::* n 2)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
             (:user::serve self l clients)))))
     ((:wat::spawn::ServiceEvent::Closed idx)
       (:user::serve self l (:wat::std::list::remove-at clients idx)))
@@ -39,7 +39,7 @@
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
               (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))
      c1   (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c1 (:user::Op::Compute 5))
+     _    (:wat::core::match (:wat::kernel::send' c1 (:user::Op::Compute 5)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r1   (:wat::core::match (:wat::kernel::recv' c1)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause)

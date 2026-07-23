@@ -3,7 +3,7 @@
   [w <- :wat::kernel::Process'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
   -> :wat::core::nil
   (:wat::core::let
-    [_ (:wat::kernel::send' w (:wat::core::Tuple 0 3))
+    [_ (:wat::core::match (:wat::kernel::send' w (:wat::core::Tuple 0 3)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      ra (:wat::kernel::recv' w)
      a  (:wat::core::match ra
           ((:wat::kernel::RecvOutcome::Message m) m)
@@ -27,7 +27,7 @@
                  [pair (:wat::kernel::recv' self)
                   out  (:wat::core::Tuple (:wat::core::first pair)
                                           (:bracket::__work (:wat::core::second pair)))
-                  _    (:wat::kernel::send' self out)]
+                  _    (:wat::core::match (:wat::kernel::send' self out) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                  (:bracket::pool-runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::pool-runner

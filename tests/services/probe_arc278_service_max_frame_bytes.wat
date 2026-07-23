@@ -91,7 +91,7 @@
      addr (:probe::smallfoo'::Handle/addr h)
      c1   (:wat::kernel::connect' addr)
      c2   (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c1 (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big)))
+     _    (:wat::core::match (:wat::kernel::send' c1 (:probe::Big::Op::Put (:probe::Big::PutRequest :payload big))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r    (:probe::Big/put c2 (:probe::Big::PutRequest :payload "small"))]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Big::PutResponse::Ok ok) ok)

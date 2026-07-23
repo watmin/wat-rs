@@ -12572,18 +12572,20 @@ fn process_let_binding(
         let name = crate::scope::resolution::env_key(ident).into_owned();
         let rhs = &kv[1];
         let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
-        // Arc 278 Phase 3 — STOP-2 (in spirit): a `let [_ (send' …)]` must-use
-        // gate here is MECHANICALLY clean (bare-symbol binder, `ident.as_str()
-        // == "_"`), but grounding it against the corpus turned up DOZENS of
-        // pre-existing `_`-bound `send'` sites (wat-scripts/probes/arc-170/*,
-        // wat-scripts/scratch-pad/*, tests/{comms,process,channel,services}/*)
-        // that predate the must-use type and were never faced by Phase 2's
-        // codemod (which swept bare statement-position `send'`, not RHS-of-
-        // `_`-let-binding sites). Shipping this gate turns ALL of them RED —
-        // not a false positive, but a swallow surface far beyond this strike's
-        // blast radius. Reported to the orchestrator as STOP-0/STOP-2; NOT
-        // shipped here. `do`-non-final (the primary/required gate, see
-        // `infer_do`) ships alone. Re-add this arm once that sweep lands.
+        // Arc 278 Phase 3b — the `let`-`_` must-use gate (twin of infer_do's
+        // do-non-final gate): a `_`-bound must-use outcome (send'/try-send')
+        // is a swallow → located compile error. Re-added in 3b — the sweep
+        // landed (`face-underscore-bound-send-prime.wat` faced every
+        // pre-existing `_`-bound `send'` site first — 50 files across
+        // tests/ + wat-scripts/ — so this gate now finds nothing un-faced).
+        if ident.as_str() == "_" {
+            if let Some(ty) = &rhs_ty {
+                let resolved = apply_subst(ty, subst);
+                if is_must_use_type(&resolved) {
+                    push_must_use_error(&mut binding_errors, rhs.span(), ":wat::core::let", &format_type(&resolved));
+                }
+            }
+        }
         if let Some(ty) = rhs_ty {
             new_bindings.insert(name, ty);
         }

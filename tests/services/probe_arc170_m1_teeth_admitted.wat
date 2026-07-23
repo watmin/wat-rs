@@ -54,11 +54,11 @@
                               (:wat::kernel::assertion-failed! "recv': self closed before the owner sent A's addr" :wat::core::None :wat::core::None)))
                      c    (:wat::kernel::connect' addr)
                      er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::kernel::send' self (:wat::core::match er ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
+                     _    (:wat::core::match (:wat::kernel::send' self (:wat::core::match er ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
                               ((:probe::Echo::EchoResponse::Ok reply) reply)
                               ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
                                 (:wat::kernel::assertion-failed! "prober dial: unexpected RequestTooLarge"
-                                  :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))]
+                                  :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
      _   (:wat::core::match (:wat::kernel::peer-pid prober) 
@@ -68,7 +68,7 @@
              (:wat::kernel::assertion-failed! "peer-pid returned None on a process prober"
                :wat::core::None :wat::core::None)))
      ;; hand A's addr down; the prober dials — served ONLY because we granted its pid.
-     _   (:wat::kernel::send' prober ea)
+     _   (:wat::core::match (:wat::kernel::send' prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      out (:wat::core::match (:wat::kernel::recv' prober)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)

@@ -13,8 +13,8 @@
   [w <- :wat::kernel::Process'<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
   -> :wat::core::nil
   (:wat::core::let
-    [_ (:wat::kernel::send' w (:wat::core::Tuple 0 3))
-     _ (:wat::kernel::send' w (:wat::core::Tuple 1 5))
+    [_ (:wat::core::match (:wat::kernel::send' w (:wat::core::Tuple 0 3)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+     _ (:wat::core::match (:wat::kernel::send' w (:wat::core::Tuple 1 5)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      ra (:wat::kernel::recv' w)
      a  (:wat::core::match ra
           ((:wat::kernel::RecvOutcome::Message m) m)
@@ -50,7 +50,7 @@
                -> :wat::core::nil
                (:wat::core::let
                  [pair (:wat::kernel::recv' self)
-                  _    (:wat::kernel::send' self (:bracket::__pool-work pair))]  ;; apply the reified wf to the pair
+                  _    (:wat::core::match (:wat::kernel::send' self (:bracket::__pool-work pair)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]  ;; apply the reified wf to the pair
                  (:bracket::__pool-runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::__pool-runner

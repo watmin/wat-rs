@@ -52,9 +52,9 @@
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")
                          er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s))
-                         _  (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
+                         _  (:wat::core::match (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))]
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                         (:probe::serve self held)))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
@@ -65,8 +65,8 @@
               (:wat::core::let
                 [_  (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p))
                  ;; parent sends a BARE-typed Setup; child decodes into concrete slot.
-                 _  (:wat::kernel::send' worker (:probe::PoolMsg::Setup (:wat::core::first erased)))
-                 _  (:wat::kernel::send' worker (:probe::PoolMsg::Work "z"))
+                 _  (:wat::core::match (:wat::kernel::send' worker (:probe::PoolMsg::Setup (:wat::core::first erased))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
+                 _  (:wat::core::match (:wat::kernel::send' worker (:probe::PoolMsg::Work "z")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r1 (:wat::kernel::recv' worker)]
                 r1))
             (:wat::core::None

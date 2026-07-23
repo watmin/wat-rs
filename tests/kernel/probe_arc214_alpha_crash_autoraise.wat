@@ -10,7 +10,7 @@
                   [n (:wat::kernel::readln )
                    _ (:wat::kernel::println (:wat::core::i64::/ 100 n))]
                   nil))))
-     _   (:wat::kernel::send' peer 0)
+     _   (:wat::core::match (:wat::kernel::send' peer 0) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      got (:wat::core::match (:wat::kernel::recv' peer)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)

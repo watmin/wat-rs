@@ -6,7 +6,7 @@
     [pair (:wat::kernel::socket-pair' :wat::core::i64 :wat::core::i64)
      a    (:wat::core::first pair)
      b    (:wat::core::second pair)
-     _    (:wat::kernel::send' a 5)
+     _    (:wat::core::match (:wat::kernel::send' a 5) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      got  (:wat::core::match (:wat::kernel::recv' b)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause)

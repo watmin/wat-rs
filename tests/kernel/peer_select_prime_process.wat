@@ -17,7 +17,7 @@
                 [n (:wat::kernel::readln )
                  _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                 nil))))
-     _ (:wat::kernel::send' b 98)
+     _ (:wat::core::match (:wat::kernel::send' b 98) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      picked (:wat::kernel::select' [a b])]
     picked))
 

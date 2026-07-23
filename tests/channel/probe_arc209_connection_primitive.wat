@@ -11,13 +11,13 @@
     [pair   (:wat::kernel::peer-pair' :wat::core::i64 :wat::core::i64)
      server (:wat::core::first pair)
      client (:wat::core::second pair)
-     _      (:wat::kernel::send' client 42)
+     _      (:wat::core::match (:wat::kernel::send' client 42) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      chosen (:wat::kernel::select'
               (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64> server))]
     (:wat::core::match chosen
       
       ((:wat::spawn::ServiceEvent::Message _idx req)
-        (:wat::core::let [_ (:wat::kernel::send' server (:wat::core::* req 2))
+        (:wat::core::let [_ (:wat::core::match (:wat::kernel::send' server (:wat::core::* req 2)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                           ;; arc 278 recv'-outcome wall — recv' returns a matchable
                           ;; RecvOutcome<i64>. OWNER role (the test is the final caller):
                           ;; on ::Lost surface the cause loudly (eprintln, divergent);

@@ -26,3 +26,20 @@ fn discarded_send_outcome_in_do_non_final_is_compile_error() {
             && reason.contains(":wat::kernel::SendOutcome")
             && reason.contains("must be faced"));
 }
+
+/// Phase 3b — the `let`-`_` discard door: a `send'` outcome bound to `_` in a `let` binding
+/// vector is the same swallow through the other position. `(:wat::core::let [_ (send' p m)] …)`
+/// must be a located compile error too, so the wall covers BOTH discard positions.
+#[test]
+fn discarded_send_outcome_in_let_underscore_is_compile_error() {
+    let err = startup_from_file("tests/services/probe_arc278_send_outcome_must_use_wall_let.wat.bad")
+        .expect_err("a discarded SendOutcome bound to `_` in a `let` must fail check");
+    let StartupError::Check(CheckErrors(errs)) = &err else {
+        panic!("expected a type-check error, got {err:?}");
+    };
+    wat::assert_check_error_present!(errs,
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::let"
+            && reason.contains(":wat::kernel::SendOutcome")
+            && reason.contains("must be faced"));
+}

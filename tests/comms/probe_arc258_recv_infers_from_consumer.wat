@@ -13,7 +13,7 @@
                    addr (:wat::spawn::Bound/address b)
                    self (:wat::program::self-peer
                           :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
-                   _    (:wat::kernel::send' self addr)]
+                   _    (:wat::core::match (:wat::kernel::send' self addr) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                   nil))))
      r    (:wat::kernel::recv' svc)
      ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome<Address'>,

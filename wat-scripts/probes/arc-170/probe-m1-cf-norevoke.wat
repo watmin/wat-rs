@@ -42,9 +42,9 @@
                      addr (:wat::kernel::recv' self)
                      c1   (:wat::kernel::connect' addr)
                      er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::kernel::send' self (:wat::core::match er1 ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _    (:wat::core::match (:wat::kernel::send' self (:wat::core::match er1 ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                      _sig (:wat::kernel::recv' self)
                      c2   (:wat::kernel::connect' addr)
                      er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))]
@@ -53,10 +53,10 @@
            ((:wat::core::Some p)
              (:wat::core::let
                [_  (:probe::echo'/grant  eh (:wat::core::Vector :wat::core::i64 p))
-                _  (:wat::kernel::send' prober ea)
+                _  (:wat::core::match (:wat::kernel::send' prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                 r1 (:wat::kernel::recv' prober)
                 ;; <<< the echo'/revoke line is REMOVED here (the counterfactual) >>>
-                _  (:wat::kernel::send' prober ea)
+                _  (:wat::core::match (:wat::kernel::send' prober ea) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                 rr2 (:wat::kernel::recv' prober)
                 r2 (:wat::core::match rr2
                      ((:wat::kernel::RecvOutcome::Message m) m)

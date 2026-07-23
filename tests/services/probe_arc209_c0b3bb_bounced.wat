@@ -16,8 +16,8 @@
                  ((:wat::spawn::ServiceEvent::Connection peer)
                    (:user::serve self l (:wat::core::conj clients peer)))
                  ((:wat::spawn::ServiceEvent::Message idx n)
-                   (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
-                                          (:wat::core::+ n 100))]
+                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send' (:wat::core::nth clients idx)
+                                          (:wat::core::+ n 100)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                      (:user::serve self l clients)))
                  ((:wat::spawn::ServiceEvent::Closed idx)
                    (:user::serve self l (:wat::std::list::remove-at clients idx)))
@@ -30,7 +30,7 @@
                  [b    (:wat::kernel::listener' (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
                   self (:wat::program::self-peer
                           :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
-                  _    (:wat::kernel::send' self (:wat::spawn::Bound/address b))]
+                  _    (:wat::core::match (:wat::kernel::send' self (:wat::spawn::Bound/address b)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                  (:user::serve self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64>))))))
      ;; recv' the child's minted capability over the lineage channel.
@@ -41,7 +41,7 @@
             (:wat::kernel::RecvOutcome::Closed
               (:wat::kernel::assertion-failed! "recv': svc closed before sending the capability" :wat::core::None :wat::core::None)))
      c    (:wat::kernel::connect' addr)
-     _    (:wat::kernel::send' c 5)
+     _    (:wat::core::match (:wat::kernel::send' c 5) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      got  (:wat::core::match (:wat::kernel::recv' c)
             ((:wat::kernel::RecvOutcome::Message m) m)
             ((:wat::kernel::RecvOutcome::Lost cause)

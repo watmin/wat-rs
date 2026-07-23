@@ -52,7 +52,7 @@
             [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")
              out (:wat::core::Tuple (:wat::core::first pair)
                    (work-fn (:wat::core::first c) (:wat::core::second c) (:wat::core::second pair)))
-             _   (:wat::kernel::send' self out)]
+             _   (:wat::core::match (:wat::kernel::send' self out) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
             (:probe::multi-dial-runner self work-fn ctx)))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
