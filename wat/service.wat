@@ -1214,12 +1214,8 @@
                                                           :wat::core::None)))))
                                                ((:wat::kernel::RecvOutcome::Lost _lost-cause)
                                                  (:wat::kernel::RecvOutcome::Lost
-                                                   (:wat::core::struct-new :wat::kernel::Failure
-                                                     "service peer lost (reason on the owner's crash channel)"
-                                                     :wat::core::None
-                                                     (:wat::core::Vector :wat::kernel::Frame)
-                                                     :wat::core::None
-                                                     :wat::core::None)))
+                                                   (:wat::kernel::message-only-failure
+                                                     "service peer lost (reason on the owner's crash channel)")))
                                                (:wat::kernel::RecvOutcome::Closed
                                                  :wat::kernel::RecvOutcome::Closed)))]
                          (:wat::core::if is-internal

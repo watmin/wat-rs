@@ -331,6 +331,28 @@
                            work-fn <- :W]
      -> :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>)])
 
+;; ── Arc 278 Strike A — the ONE canonical Failure constructor ─────────────────
+;; `:wat::kernel::Failure` is canonically a Record (Nature::Record, pure EDN — arc 293.W.2b:
+;; a crash cause crosses the wire and only a Record round-trips EDN), but construction was
+;; never unified — several sites hand-rolled it via `:wat::core::struct-new`, which mints the
+;; WRONG nature (a Struct), so `Failure/message` (a Record accessor) can't read it back
+;; (TypeMismatch). This is the one message-only constructor (the common reason-free case,
+;; e.g. a client-side peer-lost cause that deliberately scrubs the owner's real reason) for
+;; every call site to route through instead of hand-rolling. Field values mirror Rust's
+;; `message_only_failure` (src/runtime.rs:23699) exactly: message set, location/actual/
+;; expected empty, frames empty. Bare-positional construction of a builtin record is retired
+;; (arc-294 9a's kwargs flip) — this is the kwargs ctor, proven in
+;; wat-scripts/scratch-pad/probe-failure-record-ctor.wat. Homed here (loads well before
+;; wat/service.wat, its first client) because this file already owns the recv'-outcome /
+;; Failure/message crash-parity pattern (see the two `assertion-failed!` sites below).
+(:wat::core::defn :wat::kernel::message-only-failure [msg <- :wat::core::String] -> :wat::kernel::Failure
+  (:wat::kernel::Failure
+    :message msg
+    :location :wat::core::None
+    :frames (:wat::core::Vector :wat::kernel::Frame)
+    :actual :wat::core::None
+    :expected :wat::core::None))
+
 ;; Thread (shared-memory) impl — mints the listener internally via (listener' self :S :R)
 ;; (the method's type-params S,R flow as type-args — arc-232 dep proven GREEN).
 ;; Builds the serve closure capturing the minted listener + empty clients vector + state0;

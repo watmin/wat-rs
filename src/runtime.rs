@@ -5488,8 +5488,14 @@ fn dispatch_keyword_head_value(
                                                     ], span.clone()),
                                                 ], span.clone()),
                                             ], span.clone()),
-                                            // ::Lost arm — scrub the cause; a REASON-FREE Failure
-                                            // (mirrors runtime::message_only_failure's 5-field shape).
+                                            // ::Lost arm — scrub the cause; a REASON-FREE Failure via the
+                                            // ONE canonical constructor (arc 278 Strike A —
+                                            // :wat::kernel::message-only-failure, wat/spawn.wat). Mirrors
+                                            // runtime::message_only_failure's 5-field shape (that Rust fn
+                                            // is what the wat helper itself mirrors). Was emitted as a
+                                            // `:wat::core::struct-new` (wrong nature: Struct, not Record —
+                                            // Failure/message couldn't read it back); the helper mints the
+                                            // canonical Record.
                                             WatAST::List(vec![
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
@@ -5498,16 +5504,8 @@ fn dispatch_keyword_head_value(
                                                 WatAST::List(vec![
                                                     WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
                                                     WatAST::List(vec![
-                                                        WatAST::Keyword(":wat::core::struct-new".into(), span.clone()),
-                                                        WatAST::Keyword(":wat::kernel::Failure".into(), span.clone()),
+                                                        WatAST::Keyword(":wat::kernel::message-only-failure".into(), span.clone()),
                                                         WatAST::StringLit("service peer lost (reason on the owner's crash channel)".into(), span.clone()),
-                                                        WatAST::Keyword(":wat::core::None".into(), span.clone()),
-                                                        WatAST::List(vec![
-                                                            WatAST::Keyword(":wat::core::Vector".into(), span.clone()),
-                                                            WatAST::Keyword(":wat::kernel::Frame".into(), span.clone()),
-                                                        ], span.clone()),
-                                                        WatAST::Keyword(":wat::core::None".into(), span.clone()),
-                                                        WatAST::Keyword(":wat::core::None".into(), span.clone()),
                                                     ], span.clone()),
                                                 ], span.clone()),
                                             ], span.clone()),
