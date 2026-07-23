@@ -11806,10 +11806,16 @@ fn infer_kernel_after(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_send_prime` is INTRINSIC (projective).
 // I flows from the peer's Parametric type param into the payload argument position.
-/// Type-check `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii.
+/// Type-check `(:wat::kernel::send' peer payload)` — Stone 4.6a-ii / Arc 278 the
+/// send'-outcome wall Phase 1 (DESIGN-send-outcome-wall.md).
 ///
 /// Two positional args: `args[0]` peer, `args[1]` payload of type I.
-/// Result: `:wat::core::nil`.
+/// Result: `:wat::kernel::SendOutcome` — a matchable value (`Sent`/`Closed`/`Lost`),
+/// mirroring `recv'`'s `RecvOutcome<O>`. NOT `:wat::core::nil` (pre-278: send'
+/// RAISED on a gone peer instead of returning; the eval no longer raises, so the
+/// checker's declared return type must agree — this is the type-agreement
+/// correction, NOT the Phase-3 exhaustiveness force; a bare `(send' ...)` in
+/// statement position with an unhandled SendOutcome is still legal here).
 fn infer_send_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -11832,7 +11838,7 @@ fn infer_send_prime(
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
-        return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+        return CheckResult::partial_with(TypeExpr::Path(":wat::kernel::SendOutcome".into()), local_errors);
     }
 
     let (i_ty, _o_ty) =
@@ -11841,7 +11847,7 @@ fn infer_send_prime(
             Err(()) => {
                 // Still infer args[1] for nested error coverage.
                 let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                return CheckResult::partial_with(TypeExpr::Path(":wat::core::nil".into()), local_errors);
+                return CheckResult::partial_with(TypeExpr::Path(":wat::kernel::SendOutcome".into()), local_errors);
             }
         };
 
@@ -11856,7 +11862,7 @@ fn infer_send_prime(
             Some(t) => t,
             None => {
                 return CheckResult::partial_with(
-                    TypeExpr::Path(":wat::core::nil".into()),
+                    TypeExpr::Path(":wat::kernel::SendOutcome".into()),
                     local_errors,
                 );
             }
@@ -11873,7 +11879,7 @@ fn infer_send_prime(
         });
     }
 
-    let ret = TypeExpr::Path(":wat::core::nil".into());
+    let ret = TypeExpr::Path(":wat::kernel::SendOutcome".into());
     if local_errors.is_empty() {
         CheckResult::ok(ret)
     } else {

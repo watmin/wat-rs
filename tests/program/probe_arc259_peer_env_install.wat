@@ -5,8 +5,12 @@
 (:wat::core::defn :probe::compute-a [] -> :wat::core::i64
   (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-                             (:wat::kernel::send' self
-                               (:wat::program::Env/wat.os-thread-id (:wat::program::env)))))
+                             (:wat::core::match
+                               (:wat::kernel::send' self
+                                 (:wat::program::Env/wat.os-thread-id (:wat::program::env)))
+                               (:wat::kernel::SendOutcome::Sent nil)
+                               (:wat::kernel::SendOutcome::Closed nil)
+                               ((:wat::kernel::SendOutcome::Lost _c) nil))))
                     ;; arc 278 recv'-outcome wall — recv' returns a matchable RecvOutcome<i64>.
                     ;; OWNER role (the test is the final caller): ::Message m flows out as got;
                     ;; ::Lost/::Closed surface the cause loudly (eprintln, divergent-return).
@@ -23,10 +27,14 @@
 (:wat::core::defn :probe::compute-b [] -> :wat::core::i64
   (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-                             (:wat::kernel::send' self
-                               (:wat::core::if
-                                 (:wat::core::= (:wat::program::Env/wat.peer-kind (:wat::program::env)) :wat::program::PeerKind::thread)
-                                 111 222))))
+                             (:wat::core::match
+                               (:wat::kernel::send' self
+                                 (:wat::core::if
+                                   (:wat::core::= (:wat::program::Env/wat.peer-kind (:wat::program::env)) :wat::program::PeerKind::thread)
+                                   111 222))
+                               (:wat::kernel::SendOutcome::Sent nil)
+                               (:wat::kernel::SendOutcome::Closed nil)
+                               ((:wat::kernel::SendOutcome::Lost _c) nil))))
                     ;; arc 278 recv'-outcome wall — OWNER role (test is the final caller).
                     r   (:wat::kernel::recv' peer)
                     got (:wat::core::match r

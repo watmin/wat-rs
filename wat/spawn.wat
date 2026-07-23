@@ -376,8 +376,14 @@
               (:wat::core::let
                 ;; :init runs BEFORE Started is sent — a crash here dies before the send.
                 [st (:wat::core::apply  init ship [])
-                 _  (:wat::kernel::send' self-peer
-                      (:wat::core::apply  lu-mk-kw (:wat::spawn::Bound/address b) []))]
+                 ;; arc 278 the send'-outcome wall — the crash-aware `recv' sp` right below
+                 ;; (parent side) faces Closed/Lost on this handshake; the child's own send'
+                 ;; here just needs to proceed regardless (never a `_`-swallow).
+                 _  (:wat::core::match (:wat::kernel::send' self-peer
+                        (:wat::core::apply  lu-mk-kw (:wat::spawn::Bound/address b) []))
+                      (:wat::kernel::SendOutcome::Sent   nil)
+                      (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces this
+                      ((:wat::kernel::SendOutcome::Lost _c) nil))]
                 (:wat::core::apply  serve self-peer
                   (:wat::spawn::Bound/listener b)
                   (:wat::core::Vector :wat::kernel::Peer'<R,S>)
@@ -415,7 +421,12 @@
                 (:wat::core::def :wat::spawn::service-locus (:wat::spawn::process)))
               service-forms)
        svc  (:wat::kernel::spawn-program' self prog)
-       _    (:wat::kernel::send' svc ship)
+       ;; arc 278 the send'-outcome wall — the crash-aware `recv' svc` right below faces
+       ;; Closed/Lost on this handshake; the send' here just needs to proceed regardless.
+       _    (:wat::core::match (:wat::kernel::send' svc ship)
+              (:wat::kernel::SendOutcome::Sent   nil)
+              (:wat::kernel::SendOutcome::Closed nil)   ;; the recv' below already faces this
+              ((:wat::kernel::SendOutcome::Lost _c) nil))
        ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome<Lu>. ::Message →
        ;; the child-minted launch status (extract-addr consumes it); ::Lost (the child crashed
        ;; before Started — the ProcessPanics envelope) → eprintln the cause (loud, terminal);

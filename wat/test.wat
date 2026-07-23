@@ -797,7 +797,14 @@
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
           (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-            (:wat::core::do ~body (:wat::kernel::send' self 0))))]
+            ;; arc 278 the send'-outcome wall — the PARENT faces the outcome via its own
+            ;; `recv' p` right below (Message/Lost/Closed all become a RunResult); the
+            ;; child's completion-signal send' just needs to proceed regardless.
+            (:wat::core::do ~body
+              (:wat::core::match (:wat::kernel::send' self 0)
+                (:wat::kernel::SendOutcome::Sent   nil)
+                (:wat::kernel::SendOutcome::Closed nil)   ;; parent's recv' already faces a gone self-peer
+                ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
      (:wat::core::match (:wat::kernel::recv' p)
        ((:wat::kernel::RecvOutcome::Message _m)
          (:wat::core::struct-new :wat::kernel::RunResult

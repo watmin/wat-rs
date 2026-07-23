@@ -38,8 +38,13 @@
   ;; (loud, terminal); ::Closed (parent dropped cleanly) → exit the runner loop.
   (:wat::core::match (:wat::kernel::recv' self)  
     ((:wat::kernel::RecvOutcome::Message item)
-      (:wat::core::let [_ (:wat::kernel::send' self (work-fn item))]
-        (:wat::bracket::runner-loop self work-fn)))
+      ;; arc 278 the send'-outcome wall — face all three arms explicitly. A dead parent
+      ;; here means the NEXT recv' observes Closed/Lost and exits the loop honestly, so
+      ;; every arm proceeds to recurse (never a `_`-swallow).
+      (:wat::core::match (:wat::kernel::send' self (work-fn item))
+        (:wat::kernel::SendOutcome::Sent   (:wat::bracket::runner-loop self work-fn))
+        (:wat::kernel::SendOutcome::Closed (:wat::bracket::runner-loop self work-fn))   ;; parent gone → next recv' faces it
+        ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::runner-loop self work-fn))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed nil)))
@@ -71,9 +76,13 @@
       (:wat::core::match m  
         ((:wat::bracket::PoolMsg::Work pair)
           (:wat::core::let
-            [out (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))
-             _   (:wat::kernel::send' self out)]
-            (:wat::bracket::process-runner self work-fn)))
+            [out (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))]
+            ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
+            ;; via the next recv', so every arm proceeds to recurse.
+            (:wat::core::match (:wat::kernel::send' self out)
+              (:wat::kernel::SendOutcome::Sent   (:wat::bracket::process-runner self work-fn))
+              (:wat::kernel::SendOutcome::Closed (:wat::bracket::process-runner self work-fn))   ;; parent gone → next recv' faces it
+              ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::process-runner self work-fn)))))
         ;; A non-dialing pool never sends :Setup (dials empty); the arm is total by
         ;; construction — ignore + recurse (D stays phantom for this runner).
         ((:wat::bracket::PoolMsg::Setup _deps)
@@ -110,9 +119,13 @@
         ((:wat::bracket::PoolMsg::Work pair)
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "bracket process-dial-runner: Work before Setup")
-             out (:wat::core::Tuple (:wat::core::first pair) (work-fn c (:wat::core::second pair)))
-             _   (:wat::kernel::send' self out)]
-            (:wat::bracket::process-dial-runner self work-fn ctx)))))
+             out (:wat::core::Tuple (:wat::core::first pair) (work-fn c (:wat::core::second pair)))]
+            ;; arc 278 the send'-outcome wall — face all three arms; a dead parent surfaces
+            ;; via the next recv', so every arm proceeds to recurse.
+            (:wat::core::match (:wat::kernel::send' self out)
+              (:wat::kernel::SendOutcome::Sent   (:wat::bracket::process-dial-runner self work-fn ctx))
+              (:wat::kernel::SendOutcome::Closed (:wat::bracket::process-dial-runner self work-fn ctx))   ;; parent gone → next recv' faces it
+              ((:wat::kernel::SendOutcome::Lost _c) (:wat::bracket::process-dial-runner self work-fn ctx)))))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed nil)))
@@ -367,9 +380,13 @@
                   (:wat::core::let
                     [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
                      out (:wat::core::Tuple (:wat::core::first pair)
-                           (:wat::core::apply  :user::bracket::work-fn (:wat::core::second pair) [k]))
-                     _   (:wat::kernel::send' self out)]
-                    (:user::bracket::dial-runner self ctx)))))
+                           (:wat::core::apply  :user::bracket::work-fn (:wat::core::second pair) [k]))]
+                    ;; arc 278 the send'-outcome wall — face all three arms; a dead parent
+                    ;; surfaces via the next recv', so every arm proceeds to recurse.
+                    (:wat::core::match (:wat::kernel::send' self out)
+                      (:wat::kernel::SendOutcome::Sent   (:user::bracket::dial-runner self ctx))
+                      (:wat::kernel::SendOutcome::Closed (:user::bracket::dial-runner self ctx))   ;; parent gone → next recv' faces it
+                      ((:wat::kernel::SendOutcome::Lost _c) (:user::bracket::dial-runner self ctx)))))))
             ;; arc 278 the recv'-outcome wall — ::Lost → eprintln (terminal); ::Closed → exit.
             ((:wat::kernel::RecvOutcome::Lost cause)
               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
@@ -485,11 +502,17 @@
         ((:wat::spawn::ServiceEvent::Message peer-pos pair)
           (:wat::core::let
             [cursor'  (:wat::core::if (:wat::core::< cursor m)
-                        (:wat::core::let [_ (:wat::kernel::send'
+                        ;; arc 278 the send'-outcome wall — face all three arms explicitly.
+                        ;; A dead runner here surfaces via THIS loop's own select' arm
+                        ;; (:Closed/:Lost above, which raise) — this dispatch always advances
+                        ;; the cursor regardless of outcome.
+                        (:wat::core::match (:wat::kernel::send'
                                               (:wat::core::nth peers peer-pos)
                                               (:wat::bracket::PoolMsg::Work
-                                                (:wat::core::Tuple cursor (:wat::core::nth items cursor))))]
-                          (:wat::core::+ cursor 1))
+                                                (:wat::core::Tuple cursor (:wat::core::nth items cursor))))
+                          (:wat::kernel::SendOutcome::Sent   (:wat::core::+ cursor 1))
+                          (:wat::kernel::SendOutcome::Closed (:wat::core::+ cursor 1))   ;; surfaces via this loop's own select' arm
+                          ((:wat::kernel::SendOutcome::Lost _c) (:wat::core::+ cursor 1)))
                         cursor)]
             (:wat::bracket::collect-loop peers items
               (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m)))
@@ -600,10 +623,22 @@
                   ;; peer is held first.
                   _ (:wat::core::foldl
                       (:wat::core::fn [_acc <- :wat::core::nil  c <- :D] -> :wat::core::nil
-                        (:wat::kernel::send' p (:wat::bracket::PoolMsg::Setup c)))
+                        ;; arc 278 send'-outcome wall Phase 2: face all three arms explicitly —
+                        ;; a dead runner at setup time surfaces later via collect-loop's own
+                        ;; select' arm (Closed/Lost raises there); this fold's job is only to
+                        ;; fire every worker's Setup, so every arm continues the fold.
+                        (:wat::core::match (:wat::kernel::send' p (:wat::bracket::PoolMsg::Setup c))
+                          (:wat::kernel::SendOutcome::Sent   nil)
+                          (:wat::kernel::SendOutcome::Closed nil)   ;; surfaces via collect-loop's select' arm
+                          ((:wat::kernel::SendOutcome::Lost _c) nil)))
                       nil
                       setup-carrier)
-                  _ (:wat::kernel::send' p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))]
+                  ;; arc 278 the send'-outcome wall — the initial per-worker item primer. A dead
+                  ;; runner surfaces via collect-loop's own select' arm; face all three explicitly.
+                  _ (:wat::core::match (:wat::kernel::send' p (:wat::bracket::PoolMsg::Work (:wat::core::Tuple i (:wat::core::nth items i))))
+                      (:wat::kernel::SendOutcome::Sent   nil)
+                      (:wat::kernel::SendOutcome::Closed nil)   ;; surfaces via collect-loop's select' arm
+                      ((:wat::kernel::SendOutcome::Lost _c) nil))]
                  p))
              (:wat::core::range 0 n))
      pairs  (:wat::bracket::collect-loop peers items

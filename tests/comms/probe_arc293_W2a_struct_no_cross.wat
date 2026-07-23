@@ -72,7 +72,10 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let [_ (:wat::kernel::readln )] nil))))
-     _ (:wat::kernel::send' p (:w2a::R :val 42))]
+     _ (:wat::core::match (:wat::kernel::send' p (:w2a::R :val 42))
+         (:wat::kernel::SendOutcome::Sent nil)
+         (:wat::kernel::SendOutcome::Closed nil)
+         ((:wat::kernel::SendOutcome::Lost _c) nil))]
     nil))
 
 ;; Thread control — a struct over a THREAD peer round-trips in-locus (no
@@ -82,14 +85,21 @@
   (:wat::core::let
     [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<w2a::S,w2a::S>] -> :wat::core::nil
-              (:wat::kernel::send' self
-                (:wat::core::match (:wat::kernel::recv' self)
-                  ((:wat::kernel::RecvOutcome::Message m) m)
-                  ((:wat::kernel::RecvOutcome::Lost cause)
-                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
-                  (:wat::kernel::RecvOutcome::Closed
-                    (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None))))))
-     _   (:wat::kernel::send' peer (:w2a::S :val 99))
+              (:wat::core::match
+                (:wat::kernel::send' self
+                  (:wat::core::match (:wat::kernel::recv' self)
+                    ((:wat::kernel::RecvOutcome::Message m) m)
+                    ((:wat::kernel::RecvOutcome::Lost cause)
+                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                    (:wat::kernel::RecvOutcome::Closed
+                      (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None))))
+                (:wat::kernel::SendOutcome::Sent nil)
+                (:wat::kernel::SendOutcome::Closed nil)
+                ((:wat::kernel::SendOutcome::Lost _c) nil))))
+     _   (:wat::core::match (:wat::kernel::send' peer (:w2a::S :val 99))
+           (:wat::kernel::SendOutcome::Sent nil)
+           (:wat::kernel::SendOutcome::Closed nil)
+           ((:wat::kernel::SendOutcome::Lost _c) nil))
      got (:wat::core::match (:wat::kernel::recv' peer)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)

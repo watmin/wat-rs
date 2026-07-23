@@ -6,18 +6,25 @@
 (:wat::core::defn :user::mk [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
   (:wat::kernel::spawn-program' (:wat::spawn::thread)
     (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-      (:wat::kernel::send' self
-        (:wat::core::match (:wat::kernel::recv' self)
-          ((:wat::kernel::RecvOutcome::Message m) m)
-          ((:wat::kernel::RecvOutcome::Lost cause)
-            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed
-            (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))))))
+      (:wat::core::match
+        (:wat::kernel::send' self
+          (:wat::core::match (:wat::kernel::recv' self)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None))))
+        (:wat::kernel::SendOutcome::Sent nil)
+        (:wat::kernel::SendOutcome::Closed nil)
+        ((:wat::kernel::SendOutcome::Lost _c) nil)))))
 
 (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64,wat::core::nil>
   (:wat::core::let [a (:user::mk)
                     b (:user::mk)
-                    _ (:wat::kernel::send' b 7)
+                    _ (:wat::core::match (:wat::kernel::send' b 7)
+                        (:wat::kernel::SendOutcome::Sent nil)
+                        (:wat::kernel::SendOutcome::Closed nil)
+                        ((:wat::kernel::SendOutcome::Lost _c) nil))
                     picked (:wat::kernel::select' [a b])]
     picked))
 

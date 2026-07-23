@@ -23752,6 +23752,43 @@ fn recv_outcome_from_decoded(v: Value) -> Value {
     }
 }
 
+/// Arc 278 the send'-outcome wall — the type path of the matchable `send'` outcome
+/// enum (`:wat::kernel::SendOutcome`, registered in `types.rs`). Non-parametric —
+/// send' carries no received payload (unlike RecvOutcome<O>).
+const SEND_OUTCOME_TYPE: &str = ":wat::kernel::SendOutcome";
+
+/// `SendOutcome::Sent []` — delivered (the happy path).
+fn send_outcome_sent() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SEND_OUTCOME_TYPE.into(),
+        variant_name: "Sent".into(),
+        fields: vec![],
+    }))
+}
+
+/// `SendOutcome::Closed []` — peer already cleanly closed (the use-after-close
+/// case; was the "peer already closed" raise).
+fn send_outcome_closed() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SEND_OUTCOME_TYPE.into(),
+        variant_name: "Closed".into(),
+        fields: vec![],
+    }))
+}
+
+/// `SendOutcome::Lost [cause <- Failure]` — disconnected mid-send (was the "channel
+/// disconnected" raise). Built via `message_only_failure` — send' structurally
+/// cannot know WHY the peer died (the crash reason is on the owner peer's crash
+/// channel, faced via the recv' wall); send' says THAT the peer is gone, honest not
+/// fabricated.
+fn send_outcome_lost(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: SEND_OUTCOME_TYPE.into(),
+        variant_name: "Lost".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
 /// Err payload returned by the eval-family forms on any failure
@@ -25849,30 +25886,17 @@ fn eval_peer_send_prime(
                 OP,
                 list_span.clone(),
             )?;
-            cell.with_ref(OP, |opt_peer| -> Result<(), EvalBreak> {
-                match opt_peer {
-                    None => Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "peer already closed".into(),
-                        },
-                    }
-                    .into()),
-                    Some(peer) => peer.send(payload_val).map_err(|_| {
-                        RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "send failed: channel disconnected".into(),
-                            },
-                        }
-                        .into()
-                    }),
-                }
+            let outcome = cell.with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                Ok(match opt_peer {
+                    None => send_outcome_closed(),
+                    Some(peer) => match peer.send(payload_val) {
+                        Ok(()) => send_outcome_sent(),
+                        Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                    },
+                })
             })
             .map_err(Into::<EvalBreak>::into)??;
-            Ok(Value::Unit)
+            Ok(outcome)
         }
         Value::RustOpaque(inner)
             if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
@@ -25892,27 +25916,18 @@ fn eval_peer_send_prime(
             // named-field map round-trips exactly. Before 258.5b, send' called
             // value_to_edn (no registry) and recv' expected a `-> :T` hint.
             let edn_str = wat_edn::write(&crate::edn_shim::value_to_edn_with(&payload_val, sym.types().map(|a| a.as_ref())));
-            cell.with_ref(OP, |opt_bundle| -> Result<(), EvalBreak> {
+            let outcome = cell.with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
                 match opt_bundle {
-                    None => Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "peer already closed".into(),
-                        },
+                    None => Ok(send_outcome_closed()),
+                    Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
+                        Ok(match bundle.peer.send(edn_str.clone()) {
+                            Ok(()) => send_outcome_sent(),
+                            Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                        })
                     }
-                    .into()),
-                    Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => bundle.peer.send(edn_str.clone()).map_err(|_| {
-                        RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "send failed: process channel disconnected".into(),
-                            },
-                        }
-                        .into()
-                    }),
-                    // arc 292 L3 — timers are select'-only; send' is not supported.
+                    // arc 292 L3 — timers are select'-only; send' is not supported. Not a
+                    // "gone peer" case (the SendOutcome wall's remit) — a genuine
+                    // programmer misuse (wrong peer kind), so it still raises.
                     Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => Err(RuntimeError {
                         span: list_span.clone(),
                         kind: RuntimeErrorKind::MalformedForm {
@@ -25924,7 +25939,7 @@ fn eval_peer_send_prime(
                 }
             })
             .map_err(Into::<EvalBreak>::into)??;
-            Ok(Value::Unit)
+            Ok(outcome)
         }
         // Arc 209 C0b.2e-i-b / Arc 258.5b-ii — unified Peer' arm.
         //
@@ -25945,50 +25960,31 @@ fn eval_peer_send_prime(
                     OP,
                     list_span.clone(),
                 )?;
-            cell.with_ref(OP, |opt_peer| -> Result<(), EvalBreak> {
-                match opt_peer {
-                    None => Err(RuntimeError {
-                        span: list_span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "peer already closed".into(),
-                        },
-                    }
-                    .into()),
+            let outcome = cell.with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                Ok(match opt_peer {
+                    None => send_outcome_closed(),
                     Some(peer) if peer.is_socket_tier() => {
                         // Socket-tier: encode with type registry in eval, ship the wire String.
                         let wire = crate::edn_shim::value_to_edn_string_with(
                             &payload_val,
                             sym.types().map(|a| a.as_ref()),
                         );
-                        peer.send_wire(wire).map_err(|_| {
-                            RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::MalformedForm {
-                                    head: OP.into(),
-                                    reason: "send failed: channel disconnected".into(),
-                                },
-                            }
-                            .into()
-                        })
+                        match peer.send_wire(wire) {
+                            Ok(()) => send_outcome_sent(),
+                            Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                        }
                     }
                     Some(peer) => {
                         // Thread-tier: pass Value in-process, no serialisation.
-                        peer.send(payload_val).map_err(|_| {
-                            RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::MalformedForm {
-                                    head: OP.into(),
-                                    reason: "send failed: channel disconnected".into(),
-                                },
-                            }
-                            .into()
-                        })
+                        match peer.send(payload_val) {
+                            Ok(()) => send_outcome_sent(),
+                            Err(_) => send_outcome_lost("send': peer disconnected".into()),
+                        }
                     }
-                }
+                })
             })
             .map_err(Into::<EvalBreak>::into)??;
-            Ok(Value::Unit)
+            Ok(outcome)
         }
         other => Err(RuntimeError {
             span: list_span.clone(),

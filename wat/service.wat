@@ -987,29 +987,38 @@
                               n-sym         (:wat::core::symbol-node "n")
                               outcome-match `(:wat::core::match
                                                   (:wat::core::let ~let-bindings ~body) 
+                                                ;; arc 278 the send'-outcome wall — a reply to a gone
+                                                ;; client is NOT a service error (the client left); every
+                                                ;; arm's continuation is the SAME regardless of outcome.
                                                 ((:wat::service::Outcome::Reply new-state resp)
-                                                  (:wat::core::do
-                                                    (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
-                                                    (~serve-name self l selectables new-state)))
+                                                  (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
+                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables new-state))
+                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables new-state))   ;; client gone → keep serving
+                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables new-state))))
                                                 ((:wat::service::Outcome::Stop final-state resp)
-                                                  (:wat::core::do
-                                                    (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
-                                                    nil))
+                                                  (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
+                                                    (:wat::kernel::SendOutcome::Sent   nil)
+                                                    (:wat::kernel::SendOutcome::Closed nil)   ;; client gone → still stopping
+                                                    ((:wat::kernel::SendOutcome::Lost _c) nil)))
                                                 ((:wat::service::Outcome::NoReply new-state)
                                                   (~serve-name self l selectables new-state))
                                                 ((:wat::service::Outcome::ReplyAndArm new-state resp arms)
-                                                  (:wat::core::do
-                                                    (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
-                                                    (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state)))
+                                                  (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
+                                                    (:wat::kernel::SendOutcome::Sent   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))
+                                                    (:wat::kernel::SendOutcome::Closed (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))   ;; client gone → keep serving
+                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state))))
                                                 ((:wat::service::Outcome::NoReplyAndArm new-state arms)
                                                   (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state)))
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
                                                (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
-                                                 (:wat::core::do
-                                                   (:wat::kernel::send' (:wat::core::nth selectables idx)
+                                                 ;; arc 278 the send'-outcome wall — a gone client here is
+                                                 ;; not fatal either; every arm keeps serving the rest.
+                                                 (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx)
                                                      (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
-                                                   (~serve-name self l selectables state))
+                                                   (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
+                                                   (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                                                   ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))
                                                  ~outcome-match))]
                              (:wat::core::conj acc
                                `((~op-variant-kw ~req-binder) ~guarded-arm))))))
@@ -1041,14 +1050,19 @@
                        (~serve-name self l (:wat::core::conj selectables peer) state))
                      ((:wat::spawn::ServiceEvent::Admin admin-msg)
                        (:wat::core::match admin-msg 
+                         ;; arc 278 the send'-outcome wall — the owner's `recv'` (the `/stop`
+                         ;; method's own recv') faces a gone-owner outcome on its side; this
+                         ;; send' terminates the loop regardless (all arms → nil).
                          (~admin-stop-kw
-                           (:wat::core::do
-                             (:wat::kernel::send' self (~status-stopped-kw (~stop-project-name state)))
-                             nil))
+                           (:wat::core::match (:wat::kernel::send' self (~status-stopped-kw (~stop-project-name state)))
+                             (:wat::kernel::SendOutcome::Sent   nil)
+                             (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv' already faces this
+                             ((:wat::kernel::SendOutcome::Lost _c) nil)))
                          (~admin-hibernate-kw
-                           (:wat::core::do
-                             (:wat::kernel::send' self (~status-hibernated-kw (~hibernate-project-name state)))
-                             nil))
+                           (:wat::core::match (:wat::kernel::send' self (~status-hibernated-kw (~hibernate-project-name state)))
+                             (:wat::kernel::SendOutcome::Sent   nil)
+                             (:wat::kernel::SendOutcome::Closed nil)   ;; owner's recv' already faces this
+                             ((:wat::kernel::SendOutcome::Lost _c) nil)))
                          ;; arc 278: AllowPeer[pids] — fold (allow' l pid) over the vec on the
                          ;; serve loop's OWN listener l (process-tier gate), ack PeersAllowed up
                          ;; the lineage peer (request/reply — owner blocks so grant-before-dial
@@ -1061,8 +1075,13 @@
                                  (:wat::kernel::allow' l ~allow-pid-sym))
                                nil
                                pids)
-                             (:wat::kernel::send' self ~status-peers-allowed-kw)
-                             (~serve-name self l selectables state)))
+                             ;; arc 278 the send'-outcome wall — the owner's `/grant` recv'
+                             ;; faces a gone-owner outcome on its side; the serve loop always
+                             ;; continues serving regardless of this ack's outcome.
+                             (:wat::core::match (:wat::kernel::send' self ~status-peers-allowed-kw)
+                               (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
+                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; owner's recv' already faces this
+                               ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
                          ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
                          ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
                          ;; the lineage peer (request/reply — owner blocks so revoke-before-return
@@ -1075,8 +1094,13 @@
                                  (:wat::kernel::deny' l ~deny-pid-sym))
                                nil
                                pids)
-                             (:wat::kernel::send' self ~status-peers-denied-kw)
-                             (~serve-name self l selectables state)))
+                             ;; arc 278 the send'-outcome wall — the owner's `/revoke` recv'
+                             ;; faces a gone-owner outcome on its side; the serve loop always
+                             ;; continues serving regardless of this ack's outcome.
+                             (:wat::core::match (:wat::kernel::send' self ~status-peers-denied-kw)
+                               (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
+                               (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; owner's recv' already faces this
+                               ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state)))))
                          ((~admin-init-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
                              "defservice serve: Admin::Init after startup (protocol error)"
@@ -1120,9 +1144,12 @@
                      ;; serving (recur; do NOT remove-at — one client's garbage must never kill a
                      ;; shared service, the DoS this arc pulls out by the root).
                      ((:wat::spawn::ServiceEvent::Malformed idx cause)
-                       (:wat::core::do
-                         (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-failed-kw cause))
-                         (~serve-name self l selectables state)))
+                       ;; arc 278 the send'-outcome wall — a gone client here is not fatal
+                       ;; either (same "reply to a gone client" doctrine); keep serving.
+                       (:wat::core::match (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-failed-kw cause))
+                         (:wat::kernel::SendOutcome::Sent   (~serve-name self l selectables state))
+                         (:wat::kernel::SendOutcome::Closed (~serve-name self l selectables state))   ;; client gone → keep serving
+                         ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables state))))
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
                      ;; client (reply `Reply::Failed[cause]` — its generated method raises with the
@@ -1201,7 +1228,14 @@
                           ;; ::Lost too (recv' maps it), so it never reaches the inner reply match.
                           ;; On ::Closed, pass the reason-free terminal through.
                           method-body     `(:wat::core::let
-                                             [~discard-sym (:wat::kernel::send' c (~op-variant-kw req))
+                                             ;; arc 278 the send'-outcome wall — a send-then-recv': the
+                                             ;; recv' right below faces Lost/Closed as a real outcome, so
+                                             ;; this send' just needs to proceed regardless (faced, not
+                                             ;; `_`-swallowed).
+                                             [~discard-sym (:wat::core::match (:wat::kernel::send' c (~op-variant-kw req))
+                                                             (:wat::kernel::SendOutcome::Sent   nil)
+                                                             (:wat::kernel::SendOutcome::Closed nil)
+                                                             ((:wat::kernel::SendOutcome::Lost _c) nil))
                                               ~r-sym (:wat::kernel::recv' c)]
                                              (:wat::core::match ~r-sym
                                                ((:wat::kernel::RecvOutcome::Message recvd)
@@ -1239,7 +1273,12 @@
                          (:wat::core::string::interpolate "{fqdn-str}::Handle/handle" :fqdn-str fqdn-str))
      stop-method-params `[h <- ~handle-name]
      stop-method-body  `(:wat::core::let
-                          [~stop-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-stop-kw)
+                          ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
+                          ;; below faces Lost/Closed; the send' just proceeds regardless.
+                          [~stop-discard-sym (:wat::core::match (:wat::kernel::send' (~handle-handle-acc h) ~admin-stop-kw)
+                                               (:wat::kernel::SendOutcome::Sent   nil)
+                                               (:wat::kernel::SendOutcome::Closed nil)
+                                               ((:wat::kernel::SendOutcome::Lost _c) nil))
                            ~stop-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
                           (:wat::core::match ~stop-r-sym 
                             ((:wat::kernel::RecvOutcome::Message recvd)
@@ -1273,7 +1312,12 @@
                              (:wat::core::string::interpolate "{fqdn-str}/hibernate" :fqdn-str fqdn-str))
      hibernate-method-params `[h <- ~handle-name]
      hibernate-method-body  `(:wat::core::let
-                               [~hib-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-hibernate-kw)
+                               ;; arc 278 the send'-outcome wall — a send-then-recv': the recv'
+                               ;; right below faces Lost/Closed; the send' just proceeds regardless.
+                               [~hib-discard-sym (:wat::core::match (:wat::kernel::send' (~handle-handle-acc h) ~admin-hibernate-kw)
+                                                   (:wat::kernel::SendOutcome::Sent   nil)
+                                                   (:wat::kernel::SendOutcome::Closed nil)
+                                                   ((:wat::kernel::SendOutcome::Lost _c) nil))
                                 ~hib-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
                                (:wat::core::match ~hib-r-sym 
                                  ((:wat::kernel::RecvOutcome::Message recvd)
@@ -1306,7 +1350,12 @@
                          (:wat::core::string::interpolate "{fqdn-str}/grant" :fqdn-str fqdn-str))
      grant-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
      grant-method-body `(:wat::core::let
-                          [~grant-discard-sym (:wat::kernel::send' (~handle-handle-acc h) (~admin-allow-peer-kw pids))
+                          ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
+                          ;; below faces Lost/Closed; the send' just proceeds regardless.
+                          [~grant-discard-sym (:wat::core::match (:wat::kernel::send' (~handle-handle-acc h) (~admin-allow-peer-kw pids))
+                                                (:wat::kernel::SendOutcome::Sent   nil)
+                                                (:wat::kernel::SendOutcome::Closed nil)
+                                                ((:wat::kernel::SendOutcome::Lost _c) nil))
                            ~grant-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
                           (:wat::core::match ~grant-r-sym 
                             ((:wat::kernel::RecvOutcome::Message recvd)
@@ -1339,7 +1388,12 @@
                           (:wat::core::string::interpolate "{fqdn-str}/revoke" :fqdn-str fqdn-str))
      revoke-method-params `[h <- ~handle-name  pids <- (:wat::core::Vector :wat::core::i64)]
      revoke-method-body `(:wat::core::let
-                           [~revoke-discard-sym (:wat::kernel::send' (~handle-handle-acc h) (~admin-deny-peer-kw pids))
+                           ;; arc 278 the send'-outcome wall — a send-then-recv': the recv' right
+                           ;; below faces Lost/Closed; the send' just proceeds regardless.
+                           [~revoke-discard-sym (:wat::core::match (:wat::kernel::send' (~handle-handle-acc h) (~admin-deny-peer-kw pids))
+                                                  (:wat::kernel::SendOutcome::Sent   nil)
+                                                  (:wat::kernel::SendOutcome::Closed nil)
+                                                  ((:wat::kernel::SendOutcome::Lost _c) nil))
                             ~revoke-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
                            (:wat::core::match ~revoke-r-sym 
                              ((:wat::kernel::RecvOutcome::Message recvd)
@@ -1454,11 +1508,17 @@
                                               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~cm-shipcause-sym) :wat::core::None :wat::core::None))
                                             (:wat::kernel::RecvOutcome::Closed
                                               (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")))
-                           ~cm-st-sym   (:wat::core::apply 
+                           ~cm-st-sym   (:wat::core::apply
                                             (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                             ~cm-ship-sym [])
-                           ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
-                                            (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))]
+                           ;; arc 278 the send'-outcome wall — the owner's crash-aware `recv' svc`
+                           ;; (spawn.wat ProcessOpts) faces a gone-owner outcome on its side; this
+                           ;; send' proceeds into serve regardless (faced, not `_`-swallowed).
+                           ~cm-und-sym  (:wat::core::match (:wat::kernel::send' ~cm-self-sym
+                                            (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))
+                                          (:wat::kernel::SendOutcome::Sent   nil)
+                                          (:wat::kernel::SendOutcome::Closed nil)
+                                          ((:wat::kernel::SendOutcome::Lost _c) nil))]
                           (:wat::core::apply 
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)

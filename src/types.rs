@@ -1185,6 +1185,45 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::SendOutcome — Arc 278 the send'-outcome wall (Phase 1,
+    // DESIGN-send-outcome-wall.md): the send-side twin of RecvOutcome<O> above.
+    // send' RAISED reason-free MalformedForms on a gone peer ("peer already
+    // closed" / "channel disconnected") — the last raise-that-masks. This makes
+    // a send failure a matchable value instead, mirroring RecvOutcome exactly
+    // except NON-parametric — send' carries no received payload, so no <O>:
+    //   :Sent   []                — delivered (the happy path).
+    //   :Closed []                — peer already cleanly closed (use-after-close;
+    //                                was the "peer already closed" raise).
+    //   :Lost   [cause <- Failure] — disconnected mid-send; UNCONSTRUCTIBLE without
+    //                                a structured cause (built via message_only_failure
+    //                                — send' structurally cannot know WHY the peer
+    //                                died, only THAT it's gone; the owner's recv'
+    //                                faces the WHY). Was the "channel disconnected" raise.
+    // PURE — unlike RecvOutcome. RecvOutcome<O> is Impure ONLY because of its payload
+    // `O` (the received message may be a live resource — a socket/file handle). SendOutcome
+    // is NON-parametric and holds only pure data: two nullary variants + `Lost[cause <-
+    // Failure]`, and Failure is Nature::Record (pure EDN, arc 293.W.2b). A SendOutcome is
+    // fully EDN-reconstructable / wire-crossable; marking it Impure would LIE (claim its
+    // values are locus-bound when they are not). Registered as a builtin for the same
+    // load-order reason as RecvOutcome — send' is used inside the stdlib before any
+    // wat defenum would load.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::SendOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Unit("Sent".into()),
+            EnumVariant::Unit("Closed".into()),
+            EnumVariant::Tagged {
+                name: "Lost".into(),
+                fields: vec![(
+                    "cause".into(),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                )],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — return type of
     // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
     // everything the sandboxed `:user::main` wrote through its stdio

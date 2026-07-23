@@ -8,10 +8,20 @@
 > last raise-that-masks. Annihilate it: `send'` returns a matchable `SendOutcome`, never raises, and the
 > checker forces every caller to face it (no swallow).
 
-## ✅ STATUS (2026-07-23, curare checkpoint) — Phase 1 BUILT + PROVEN, in the WORKING TREE (uncommitted; 66 RED by design)
+## ✅ STATUS (2026-07-23) — Phases 1+2 DONE + GREEN; the RAISE annihilated. Phase 3 (must-use force) remaining.
 
-**Phase 1 (foundation) is done and proven sound — uncommitted WIP in the tree (the code cannot commit until
-the wall completes; 66 RED is a swallow window):**
+**Phases 1 + 2a + 2b complete — floor GREEN (4207/0, own `--release` re-run). `send'` returns
+`:wat::kernel::SendOutcome` (never raises), and ALL 183 sites now FACE it (no `_`-swallow anywhere; no
+swallow window). The last raise-that-masks is annihilated on the send side — committed as a green atomic
+unit.** Phases: 1 = the type + eval (SendOutcome=Pure); 2a = the stdlib roots faced (66→19, the one-line
+`test.wat` harness fix cleared the ~40 deftest tests, `service.wat` serve-replies → keep-serving); 2b = the
+19 peer/wire test fixtures faced (19→0). **Phase 3 (NEXT, its own strike):** the MUST-USE FORCE — there is
+**no** must-use mechanism in the checker today (`recv'` never needed one; it's always expression-position),
+so forcing `send'`'s facing means BUILDING a must-use / discard-of-outcome-type compile error. That makes a
+FUTURE swallow unrepresentable (R57 "unrepresentable > flagged"); the arc-277 raise-abuse lint is its
+discovery companion. The historical build record:
+
+**Phase 1 (foundation) — done and proven sound (the build record):**
 - `:wat::kernel::SendOutcome` registered **PURE** (`src/types.rs:1205`) — non-parametric, holds only nullary
   variants + a pure `Failure` record. NOT `Impure` (that was a copy-error from `RecvOutcome`, whose `Impure`
   is `O`-driven — its payload may be a live resource; `SendOutcome` has no payload → pure/EDN-crossable).

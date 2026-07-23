@@ -7,7 +7,11 @@
       [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
               (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                 (:wat::core::match (:wat::kernel::recv' self)
-                  ((:wat::kernel::RecvOutcome::Message m) (:wat::kernel::send' self m))
+                  ((:wat::kernel::RecvOutcome::Message m)
+                    (:wat::core::match (:wat::kernel::send' self m)
+                      (:wat::kernel::SendOutcome::Sent nil)
+                      (:wat::kernel::SendOutcome::Closed nil)
+                      ((:wat::kernel::SendOutcome::Lost _c) nil)))
                   ((:wat::kernel::RecvOutcome::Lost cause)
                     (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
