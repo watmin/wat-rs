@@ -183,4 +183,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::process-each
-    (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)))
+    (:wat::kernel::readln )))

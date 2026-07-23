@@ -49,10 +49,10 @@
      (:wat::core::let
        [echo (:probe::caller'::State/echo s)
         er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg "hi"))
-        out  (:wat::core::match er -> :wat::core::String
+        out  (:wat::core::match er ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))]
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
        (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse::Ok out))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -68,10 +68,10 @@
            :record (:probe::caller'::Record) :echo-addr ea)
      cc1 (:wat::kernel::connect' (:probe::caller'::Handle/addr ch1))
      rr1 (:probe::Caller/run cc1 (:probe::Caller::RunRequest))
-     _   (:wat::kernel::println (:wat::core::match rr1 -> :wat::core::String
+     _   (:wat::kernel::println (:wat::core::match rr1 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Caller::RunResponse::Ok out) out)
   ((:probe::Caller::RunResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
      ;; MID-LIFE explicit grant, direct from main, echo already serving — a 2-element vec.
      ;; (dummy pids; the fold + ack must complete and return nil.)
      _   (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 900001 900002))
@@ -84,7 +84,7 @@
            :record (:probe::caller'::Record) :echo-addr ea)
      cc2 (:wat::kernel::connect' (:probe::caller'::Handle/addr ch2))
      rr2 (:probe::Caller/run cc2 (:probe::Caller::RunRequest))]
-    (:wat::kernel::println (:wat::core::match rr2 -> :wat::core::String
+    (:wat::kernel::println (:wat::core::match rr2 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Caller::RunResponse::Ok out) out)
   ((:probe::Caller::RunResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))))
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))

@@ -36,6 +36,6 @@
 (:wat::core::defn :user::probe-op [] -> :wat::core::i64
   (:wat::core::let [req (:my::Counter::IncrementRequest :n 5)
                     op  (:my::Counter::Op::Increment req)]
-    (:wat::core::match op -> :wat::core::i64
+    (:wat::core::match op 
       ((:my::Counter::Op::Get _r) 0)
       ((:my::Counter::Op::Increment req) (:my::Counter::IncrementRequest/n req)))))

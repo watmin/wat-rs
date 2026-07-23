@@ -13,7 +13,7 @@
   (:wat::core::let
     [r    (:wat::test::run-thread (:wat::test::assert-eq 1 2))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::i64
+    (:wat::core::match fail 
       ((:wat::core::Some _) 1)
       (:wat::core::None    0))))
 

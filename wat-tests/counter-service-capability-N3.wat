@@ -218,7 +218,7 @@
                 cur-pos  (:wat::core::second acc)
                 updated-entry
                   (:wat::core::if (:wat::core::= cur-pos target-idx)
-                    -> :counter::RegistryEntry
+                    
                     (:wat::core::let
                       [eid    (:wat::core::first  entry)
                        erx    (:wat::core::second entry)
@@ -262,22 +262,22 @@
         idx          (:wat::core::first chosen)
         result       (:wat::core::second chosen)
         is-admin     (:wat::core::= idx registry-len)]
-       (:wat::core::match result -> :wat::core::nil
+       (:wat::core::match result  
          ((:wat::core::Ok (:wat::core::Some wire))
-           (:wat::core::if is-admin -> :wat::core::nil
+           (:wat::core::if is-admin 
              (:counter::handle-admin3
                admin-wire-rx admin-resp-tx registry-vec next-id self-server-id wire)
              (:counter::handle-user3
                admin-wire-rx admin-resp-tx registry-vec next-id self-server-id idx wire)))
          ((:wat::core::Ok :wat::core::None)
-           (:wat::core::if is-admin -> :wat::core::nil
+           (:wat::core::if is-admin 
              ()
              (:counter::dispatch3
                admin-wire-rx admin-resp-tx
                (:wat::std::list::remove-at registry-vec idx)
                next-id self-server-id)))
          ((:wat::core::Err _died)
-           (:wat::core::if is-admin -> :wat::core::nil
+           (:wat::core::if is-admin 
              ()
              (:counter::dispatch3
                admin-wire-rx admin-resp-tx
@@ -292,15 +292,15 @@
       self-server-id <- :wat::core::Uuid
       wire           <- :counter::Wire]
      -> :wat::core::nil
-     (:wat::core::match wire -> :wat::core::nil
+     (:wat::core::match wire  
        ((:counter::Wire::Admin wire-sid req)
          ;; Server-id validation (defense in depth at thread tier).
          ;; Channel ownership already prevents forge structurally; this
          ;; check is a uniform harmless redundancy mirroring process-tier.
          ;; Arc 207: both wire-sid and self-server-id are typed :wat::core::Uuid.
          (:wat::core::if (:wat::core::= wire-sid self-server-id)
-           -> :wat::core::nil
-           (:wat::core::match req -> :wat::core::nil
+           
+           (:wat::core::match req  
              ((:counter::AdminReq::Provision initial)
                (:wat::core::let
                  [user-id   (:wat::core::Uuid/v4)
@@ -367,19 +367,19 @@
      -> :wat::core::nil
      (:wat::core::let
        [entry-opt (:wat::core::get registry-vec idx)]
-       (:wat::core::match entry-opt -> :wat::core::nil
+       (:wat::core::match entry-opt  
          ((:wat::core::Some entry)
            (:wat::core::let
              [tx-state  (:wat::core::third entry)
               server-tx (:wat::core::first tx-state)
               state     (:wat::core::second tx-state)]
-             (:wat::core::match wire -> :wat::core::nil
+             (:wat::core::match wire  
                ((:counter::Wire::User wire-sid _id req)
                  ;; Server-id validation (defense in depth at thread tier).
                  ;; Arc 207: wire-sid and self-server-id are typed :wat::core::Uuid.
                  (:wat::core::if (:wat::core::= wire-sid self-server-id)
-                   -> :wat::core::nil
-                   (:wat::core::match req -> :wat::core::nil
+                   
+                   (:wat::core::match req  
                      (:counter::UserReq::Get
                        (:wat::core::do
                          (:wat::core::Result/expect  
@@ -483,17 +483,15 @@
        (:wat::core::match
          (:wat::kernel::send adm-tx
            (:counter::Wire::Admin sid (:counter::AdminReq::Provision initial)))
-         -> :wat::core::Result<counter::User,counter::ServiceError>
+          
          ((:wat::core::Ok _)
            (:wat::core::match (:wat::kernel::recv adm-rx)
-             -> :wat::core::Result<counter::User,counter::ServiceError>
+              
              ((:wat::core::Ok opt)
                (:wat::core::match opt
-                 -> :wat::core::Result<counter::User,counter::ServiceError>
+                  
                  ((:wat::core::Some resp)
-                   (:wat::core::match resp
-                     -> :wat::core::Result<counter::User,counter::ServiceError>
-                     ((:counter::AdminResp::Provisioned id user-tx user-rx)
+                   (:wat::core::match resp ((:counter::AdminResp::Provisioned id user-tx user-rx)
                        (:wat::core::Ok (:counter::User sid id user-tx user-rx)))
                      (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
@@ -525,17 +523,15 @@
        (:wat::core::match
          (:wat::kernel::send adm-tx
            (:counter::Wire::Admin sid (:counter::AdminReq::Deprovision cid)))
-         -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+          
          ((:wat::core::Ok _)
            (:wat::core::match (:wat::kernel::recv adm-rx)
-             -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+              
              ((:wat::core::Ok opt)
                (:wat::core::match opt
-                 -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+                  
                  ((:wat::core::Some resp)
-                   (:wat::core::match resp
-                     -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-                     ((:counter::AdminResp::Deprovisioned _id)
+                   (:wat::core::match resp ((:counter::AdminResp::Deprovisioned _id)
                        (:wat::core::Ok ()))
                      (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
@@ -578,13 +574,13 @@
             (:wat::core::match
               (:wat::kernel::send adm-tx
                 (:counter::Wire::Admin sid (:counter::AdminReq::Stop)))
-              -> :wat::core::Result<wat::kernel::Thread<counter::Wire,counter::AdminResp>,counter::ServiceError>
+               
               ((:wat::core::Ok _)
                 (:wat::core::match (:wat::kernel::recv adm-rx)
-                  -> :wat::core::Result<wat::kernel::Thread<counter::Wire,counter::AdminResp>,counter::ServiceError>
+                   
                   ((:wat::core::Ok opt)
                     (:wat::core::match opt
-                      -> :wat::core::Result<wat::kernel::Thread<counter::Wire,counter::AdminResp>,counter::ServiceError>
+                       
                       ((:wat::core::Some _)
                         ;; received Stopped (any AdminResp is fine — server sent Stopped)
                         (:wat::core::Ok thr))
@@ -596,10 +592,10 @@
                 (:wat::core::Err (:counter::ServiceError::PeerDied chain)))))]
        ;; adm-tx clone dropped at inner-let exit; outer matches result
        (:wat::core::match result
-         -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+          
          ((:wat::core::Ok thr)
            (:wat::core::match (:wat::kernel::Thread/drain-and-join thr)
-             -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+              
              ((:wat::core::Ok _)
                (:wat::core::Ok ()))
              ((:wat::core::Err chain)
@@ -631,17 +627,15 @@
         uid (:counter::User/user-id   user!)]
        (:wat::core::match
          (:wat::kernel::send utx (:counter::Wire::User sid uid (:counter::UserReq::Get)))
-         -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+          
          ((:wat::core::Ok _)
            (:wat::core::match (:wat::kernel::recv urx)
-             -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+              
              ((:wat::core::Ok opt)
                (:wat::core::match opt
-                 -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                  
                  ((:wat::core::Some resp)
-                   (:wat::core::match resp
-                     -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-                     ((:counter::UserResp::Value v) (:wat::core::Ok v))
+                   (:wat::core::match resp ((:counter::UserResp::Value v) (:wat::core::Ok v))
                      ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
                      (:counter::UserResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
@@ -663,17 +657,15 @@
         uid (:counter::User/user-id   user!)]
        (:wat::core::match
          (:wat::kernel::send utx (:counter::Wire::User sid uid (:counter::UserReq::Increment n)))
-         -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+          
          ((:wat::core::Ok _)
            (:wat::core::match (:wat::kernel::recv urx)
-             -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+              
              ((:wat::core::Ok opt)
                (:wat::core::match opt
-                 -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                  
                  ((:wat::core::Some resp)
-                   (:wat::core::match resp
-                     -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-                     ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
+                   (:wat::core::match resp ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
                      ((:counter::UserResp::Value v) (:wat::core::Ok v))
                      (:counter::UserResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
@@ -694,17 +686,15 @@
         uid (:counter::User/user-id   user!)]
        (:wat::core::match
          (:wat::kernel::send utx (:counter::Wire::User sid uid (:counter::UserReq::Reset)))
-         -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+          
          ((:wat::core::Ok _)
            (:wat::core::match (:wat::kernel::recv urx)
-             -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+              
              ((:wat::core::Ok opt)
                (:wat::core::match opt
-                 -> :wat::core::Result<wat::core::i64,counter::ServiceError>
+                  
                  ((:wat::core::Some resp)
-                   (:wat::core::match resp
-                     -> :wat::core::Result<wat::core::i64,counter::ServiceError>
-                     ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
+                   (:wat::core::match resp ((:counter::UserResp::Ok    v) (:wat::core::Ok v))
                      ((:counter::UserResp::Value v) (:wat::core::Ok v))
                      (:counter::UserResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))))
@@ -742,17 +732,15 @@
          ;; Arc 207: forge uses Uuid/nil — definitionally distinct from any v4 server-id.
          (:wat::kernel::send adm-tx
            (:counter::Wire::Admin (:wat::core::Uuid/nil) (:counter::AdminReq::Provision 99)))
-         -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+          
          ((:wat::core::Ok _)
            (:wat::core::match (:wat::kernel::recv adm-rx)
-             -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+              
              ((:wat::core::Ok opt)
                (:wat::core::match opt
-                 -> :wat::core::Result<wat::core::nil,counter::ServiceError>
+                  
                  ((:wat::core::Some resp)
-                   (:wat::core::match resp
-                     -> :wat::core::Result<wat::core::nil,counter::ServiceError>
-                     (:counter::AdminResp::AccessDenied
+                   (:wat::core::match resp (:counter::AdminResp::AccessDenied
                        (:wat::core::Err (:counter::ServiceError::AccessDenied)))
                      ((:counter::AdminResp::Provisioned _id _tx _rx)
                        (:wat::kernel::assertion-failed! "forge-test: server should have rejected Uuid/nil server-id, got Provisioned" :wat::core::None :wat::core::None))
@@ -804,21 +792,21 @@
      ;; Step 2: provision — each returns Result<User,ServiceError>; match Ok
      user-a-res (:counter::provision admin! 10)
      user-a!
-       (:wat::core::match user-a-res -> :counter::User
+       (:wat::core::match user-a-res  
          ((:wat::core::Ok c) c)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "provision a: expected Ok" :wat::core::None :wat::core::None)))
 
      user-b-res (:counter::provision admin! 100)
      user-b!
-       (:wat::core::match user-b-res -> :counter::User
+       (:wat::core::match user-b-res  
          ((:wat::core::Ok c) c)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "provision b: expected Ok" :wat::core::None :wat::core::None)))
 
      user-c-res (:counter::provision admin! 0)
      user-c!
-       (:wat::core::match user-c-res -> :counter::User
+       (:wat::core::match user-c-res  
          ((:wat::core::Ok c) c)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "provision c: expected Ok" :wat::core::None :wat::core::None)))
@@ -826,7 +814,7 @@
      ;; Step 3: increment a — returns Result<i64,ServiceError>; match Ok; assert
      a1-res (:counter::increment user-a! 5)
      a1
-       (:wat::core::match a1-res -> :wat::core::i64
+       (:wat::core::match a1-res  
          ((:wat::core::Ok v) v)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "increment a: expected Ok" :wat::core::None :wat::core::None)))
@@ -835,7 +823,7 @@
      ;; Step 4: increment b
      b1-res (:counter::increment user-b! 50)
      b1
-       (:wat::core::match b1-res -> :wat::core::i64
+       (:wat::core::match b1-res  
          ((:wat::core::Ok v) v)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "increment b: expected Ok" :wat::core::None :wat::core::None)))
@@ -844,7 +832,7 @@
      ;; Step 5: get c
      c1-res (:counter::get user-c!)
      c1
-       (:wat::core::match c1-res -> :wat::core::i64
+       (:wat::core::match c1-res  
          ((:wat::core::Ok v) v)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "get c: expected Ok" :wat::core::None :wat::core::None)))
@@ -853,7 +841,7 @@
      ;; Step 6: deprovision b — returns Result<nil,ServiceError>; assert Ok
      dep-res (:counter::deprovision admin! user-b!)
      _dep
-       (:wat::core::match dep-res -> :wat::core::nil
+       (:wat::core::match dep-res  
          ((:wat::core::Ok _) ())
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "deprovision b: expected Ok" :wat::core::None :wat::core::None)))
@@ -861,7 +849,7 @@
      ;; Step 7: get a (still alive after b deprovisioned)
      a2-res (:counter::get user-a!)
      a2
-       (:wat::core::match a2-res -> :wat::core::i64
+       (:wat::core::match a2-res  
          ((:wat::core::Ok v) v)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "get a after deprovision b: expected Ok" :wat::core::None :wat::core::None)))
@@ -870,7 +858,7 @@
      ;; Step 8: reset c (still alive)
      c2-res (:counter::reset user-c!)
      c2
-       (:wat::core::match c2-res -> :wat::core::i64
+       (:wat::core::match c2-res  
          ((:wat::core::Ok v) v)
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "reset c: expected Ok" :wat::core::None :wat::core::None)))
@@ -881,9 +869,9 @@
      ;; This demonstrates the AccessDenied Err path: match the Result and assert variant.
      forge-res (:counter::test-forge-admin-rejection admin!)
      _forge
-       (:wat::core::match forge-res -> :wat::core::nil
+       (:wat::core::match forge-res  
          ((:wat::core::Err err)
-           (:wat::core::match err -> :wat::core::nil
+           (:wat::core::match err  
              (:counter::ServiceError::AccessDenied ())   ;; expected — forge correctly rejected
              ((:counter::ServiceError::PeerDied _chain)
                (:wat::kernel::assertion-failed! "forge: expected AccessDenied, got PeerDied" :wat::core::None :wat::core::None))
@@ -895,7 +883,7 @@
      ;; Step 10: Stop — returns Result<nil,ServiceError>; assert Ok
      stop-res (:counter::stop admin!)
      _stop
-       (:wat::core::match stop-res -> :wat::core::nil
+       (:wat::core::match stop-res  
          ((:wat::core::Ok _) ())
          ((:wat::core::Err _e)
            (:wat::kernel::assertion-failed! "stop: expected Ok" :wat::core::None :wat::core::None)))
@@ -905,12 +893,12 @@
      ;; This demonstrates the PeerDied Err path at the thread tier.
      after-stop-res (:counter::get user-a!)
      _after-stop
-       (:wat::core::match after-stop-res -> :wat::core::nil
+       (:wat::core::match after-stop-res  
          ((:wat::core::Err err)
            ;; After stop, we expect either PeerDied (send to dead server-tx)
            ;; or Disconnected (recv sees None because server-tx dropped).
            ;; Both are legitimate — demonstrates that wrappers surface errors as Result.
-           (:wat::core::match err -> :wat::core::nil
+           (:wat::core::match err  
              ((:counter::ServiceError::PeerDied _chain) ())     ;; send failed — ChannelDisconnected
              (:counter::ServiceError::Disconnected ())        ;; recv saw None — sender dropped
              (:counter::ServiceError::AccessDenied

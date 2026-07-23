@@ -323,29 +323,23 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
             })
         }
 
-        // `match` — clause-aware: (match scrut -> :T (pattern body…) …). The scrutinee and every arm
+        // `match` — clause-aware: (match scrut (pattern body…) …). The scrutinee and every arm
         // BODY must satisfy the axis; the PATTERN is structural (destructures/binds, never calls — wat
-        // match has no guards) and the return-type form is not evaluated. So: skip the pattern (arm
-        // element 0), check the body (arm elements 1..).
+        // match has no guards). Arc 258.5 — bare match: scrutinee = items[1], arms = items[2..]
+        // (the `-> :T` ascription is retired). Skip the pattern (arm element 0), check the body
+        // (arm elements 1..).
         WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::match") => {
             let scrut_ok = items.get(1).is_some_and(|s| classify_expr(s, axis, sym, seen));
-            // Arms follow the `->` <type> ascription. Locate `->` to skip scrutinee + return type.
-            match items.iter().position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->")) {
-                // items[i+1] = return-type form (not evaluated); items[i+2..] = arms.
-                Some(i) => {
-                    scrut_ok
-                        && items.get(i + 2..).is_some_and(|arms| {
-                            arms.iter().all(|arm| match arm {
-                                // skip pattern (element 0); check body forms (1..).
-                                WatAST::List(parts, _) => {
-                                    parts.iter().skip(1).all(|e| classify_expr(e, axis, sym, seen))
-                                }
-                                _ => false, // malformed arm → deny
-                            })
-                        })
-                }
-                None => false, // malformed match (no `->`) → deny
-            }
+            scrut_ok
+                && items.get(2..).is_some_and(|arms| {
+                    arms.iter().all(|arm| match arm {
+                        // skip pattern (element 0); check body forms (1..).
+                        WatAST::List(parts, _) => {
+                            parts.iter().skip(1).all(|e| classify_expr(e, axis, sym, seen))
+                        }
+                        _ => false, // malformed arm → deny
+                    })
+                })
         }
 
         // `:wat::core::fn` lambda literal — NOT a call. Layout: (fn [params…] -> :ret body…).

@@ -23,17 +23,17 @@
               (:wat::core::forms
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
-                    [line (:wat::kernel::readln -> :wat::core::String)
+                    [line (:wat::kernel::readln )
                      _    (:wat::kernel::println line)]
                     nil))))
      rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
      tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
      peer (:wat::kernel::ProcessPeer :rx rx :tx tx)]
     (:wat::core::match (:wat::kernel::Process/println peer "hello")
-      -> :wat::core::String
+      
       ((:wat::core::Ok _)
         (:wat::core::match (:wat::kernel::Process/readln peer)
-          -> :wat::core::String
+          
           ((:wat::core::Ok reply)
             (:wat::core::let [_drained (:wat::kernel::Process/drain-and-join server)]
               reply))

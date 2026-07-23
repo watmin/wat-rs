@@ -35,7 +35,7 @@
        [name (:wat::telemetry::Span::IncrRequest/name req)
         rec  (:wat::telemetry::span::State/durable s)
         cs   (:wat::telemetry::span::Record/counters rec)
-        next (:wat::core::match (:wat::core::HashMap/get cs name) -> :wat::core::i64
+        next (:wat::core::match (:wat::core::HashMap/get cs name) 
                (:wat::core::None 1)
                ((:wat::core::Some v) (:wat::core::+ v 1)))
         rec' (:wat::telemetry::span::Record
@@ -56,7 +56,7 @@
         nanos (:wat::telemetry::Span::TimedRequest/nanos req)
         rec   (:wat::telemetry::span::State/durable s)
         ds    (:wat::telemetry::span::Record/durations rec)
-        samples (:wat::core::match (:wat::core::HashMap/get ds name) -> :wat::telemetry::Samples
+        samples (:wat::core::match (:wat::core::HashMap/get ds name) 
                   (:wat::core::None (:wat::core::Vector :wat::core::i64))
                   ((:wat::core::Some v) v))
         rec'  (:wat::telemetry::span::Record
@@ -137,18 +137,28 @@
           (:wat::core::HashMap/keys ds))
         resp (:wat::telemetry::Journal/write-metrics (:wat::telemetry::span::State/sink s)
                (:wat::telemetry::Journal::WriteMetricsRequest all-metrics))
-        cresp (:wat::core::match resp -> :wat::telemetry::Span::CloseResponse
-                ((:wat::telemetry::Journal::WriteMetricsResponse::Success)
-                  (:wat::telemetry::Span::CloseResponse::Done))
-                ((:wat::telemetry::Journal::WriteMetricsResponse::Constraint err)
-                  (:wat::telemetry::Span::CloseResponse::Constraint err))
-                ((:wat::telemetry::Journal::WriteMetricsResponse::Transient err)
-                  (:wat::telemetry::Span::CloseResponse::Transient err))
-                ((:wat::telemetry::Journal::WriteMetricsResponse::Fatal err)
-                  (:wat::telemetry::Span::CloseResponse::Fatal err))
-                ;; wire-breach at the sink peer propagates outward as our own op's breach.
-                ((:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap)
-                  (:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap)))]
+        cresp (:wat::core::match resp
+                ((:wat::kernel::RecvOutcome::Message sresp)
+                  (:wat::core::match sresp
+                    ((:wat::telemetry::Journal::WriteMetricsResponse::Success)
+                      (:wat::telemetry::Span::CloseResponse::Done))
+                    ((:wat::telemetry::Journal::WriteMetricsResponse::Constraint err)
+                      (:wat::telemetry::Span::CloseResponse::Constraint err))
+                    ((:wat::telemetry::Journal::WriteMetricsResponse::Transient err)
+                      (:wat::telemetry::Span::CloseResponse::Transient err))
+                    ((:wat::telemetry::Journal::WriteMetricsResponse::Fatal err)
+                      (:wat::telemetry::Span::CloseResponse::Fatal err))
+                    ;; wire-breach at the sink peer propagates outward as our own op's breach.
+                    ((:wat::telemetry::Journal::WriteMetricsResponse::RequestTooLarge bytes cap)
+                      (:wat::telemetry::Span::CloseResponse::RequestTooLarge bytes cap))))
+                ;; a lost/closed sink peer must NOT kill this span service — map to our own Fatal
+                ;; response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
+                ((:wat::kernel::RecvOutcome::Lost cause)
+                  (:wat::telemetry::Span::CloseResponse::Fatal
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                (:wat::kernel::RecvOutcome::Closed
+                  (:wat::telemetry::Span::CloseResponse::Fatal
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed")))))]
        (:wat::service::Outcome::Reply s cresp)))])
 
 ;; ── the call-site macros (STONE Span.3) ──────────────────────────────────────────

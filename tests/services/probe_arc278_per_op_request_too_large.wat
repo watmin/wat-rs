@@ -54,9 +54,15 @@
      h   (:probe::op1svc'/start :locus (:wat::spawn::process) :record (:probe::op1svc'::Record))
      c   (:wat::kernel::connect' (:probe::op1svc'::Handle/addr h))
      r   (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))]
-    (:wat::core::match r -> :wat::core::i64
-      ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) bytes)
-      ((:probe::Op1::DoOpResponse::Ok n) -1))))
+    ;; arc 278 the recv'-outcome wall — `do-op` now returns a matchable
+    ;; `RecvOutcome<DoOpResponse>`; the happy-path Response comes through ::Message.
+    (:wat::core::match r
+      ((:wat::kernel::RecvOutcome::Message resp)
+        (:wat::core::match resp
+          ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) bytes)
+          ((:probe::Op1::DoOpResponse::Ok n) -1)))
+      ((:wat::kernel::RecvOutcome::Lost _cause) -2)
+      (:wat::kernel::RecvOutcome::Closed -3))))
 
 ;; (2) the SAME connection recovers IN PLACE: an over-cap request (→ RequestTooLarge, connection
 ;;     KEPT — the request arrived, so it is a normal reply, no eviction) then an in-budget request
@@ -68,6 +74,11 @@
      c     (:wat::kernel::connect' (:probe::op1svc'::Handle/addr h))
      r1    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))    ;; RequestTooLarge; keep
      r2    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload "hi"))]  ;; SAME c → Ok
-    (:wat::core::match r2 -> :wat::core::i64
-      ((:probe::Op1::DoOpResponse::Ok n) n)
-      ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) -1))))
+    ;; arc 278 the recv'-outcome wall — the in-budget Ok Response comes through ::Message.
+    (:wat::core::match r2
+      ((:wat::kernel::RecvOutcome::Message resp)
+        (:wat::core::match resp
+          ((:probe::Op1::DoOpResponse::Ok n) n)
+          ((:probe::Op1::DoOpResponse::RequestTooLarge bytes cap) -1)))
+      ((:wat::kernel::RecvOutcome::Lost _cause) -2)
+      (:wat::kernel::RecvOutcome::Closed -3))))

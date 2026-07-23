@@ -19,11 +19,23 @@ use wat::freeze::call_beside;
 fn far_side_crash_raises_to_the_client_not_hang_or_fake() {
     // arc 291 4b-ii: State is now a defstruct; :durable mints ::Record; start takes ::Record.
     // Wat source lives in the co-located fixture: probe_arc272_rs2_crash_surfaces_to_client.wat
+    //
+    // Arc 278 recv'-wall: the far-side crash surfaces as a matchable RecvOutcome::Lost VALUE (never a
+    // raise — a raise unwinds past the reader). The fixture MATCHES the outcome and RETURNS a marker
+    // ("LOST:<administrative msg>" on the crash, "MESSAGE"/"CLOSED" otherwise). The crash must NOT
+    // hang and must NOT fake a value — it must surface as ::Lost, distinct from ::Message/::Closed.
     let result = call_beside(file!(), ":user::compute");
-    // The crashing handler must make the client's call RAISE (Err) — not return true, not hang.
+    let text = format!("{result:?}");
     assert!(
-        result.is_err(),
-        "expected the far-side crash to RAISE to the client (recv' surfaces the crash reason); \
-         instead the call returned: {result:?}"
+        result.is_ok(),
+        "the far-side crash must surface as a matchable RecvOutcome::Lost VALUE (never a raise, which \
+         would unwind past the reader); got Err: {text}"
+    );
+    assert!(
+        // rune:lint(loose-assert) — distinguishing the value-based RecvOutcome marker ("LOST:<reason>"
+        // vs "MESSAGE"/"CLOSED"); the appended reason text is machine-specific.
+        text.contains("LOST:"),
+        "expected the far-side crash to surface to the client as RecvOutcome::Lost (recv' surfaces \
+         the crash), not ::Message/::Closed; instead the call returned: {text}"
     );
 }

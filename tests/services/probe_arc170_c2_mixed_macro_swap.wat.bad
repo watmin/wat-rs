@@ -81,31 +81,31 @@
       d5 <- :wat::core::String]]
   -> :wat::core::String
   (:wat::core::let
-    [r1  (:wat::core::match (:probe::S1/op s1 (:probe::S1::OpRequest :m item)) -> :wat::core::String
+    [r1  (:wat::core::match (:probe::S1/op s1 (:probe::S1::OpRequest :m item)) 
   ((:probe::S1::OpResponse::Ok r) r)
   ((:probe::S1::OpResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))
-     r2  (:wat::core::match (:probe::S2/op s2 (:probe::S2::OpRequest :m item)) -> :wat::core::String
+     r2  (:wat::core::match (:probe::S2/op s2 (:probe::S2::OpRequest :m item)) 
   ((:probe::S2::OpResponse::Ok r) r)
   ((:probe::S2::OpResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))
-     r3  (:wat::core::match (:probe::S3/op s3 (:probe::S3::OpRequest :m item)) -> :wat::core::String
+     r3  (:wat::core::match (:probe::S3/op s3 (:probe::S3::OpRequest :m item)) 
   ((:probe::S3::OpResponse::Ok r) r)
   ((:probe::S3::OpResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))
-     r4  (:wat::core::match (:probe::S4/op s4 (:probe::S4::OpRequest :m item)) -> :wat::core::String
+     r4  (:wat::core::match (:probe::S4/op s4 (:probe::S4::OpRequest :m item)) 
   ((:probe::S4::OpResponse::Ok r) r)
   ((:probe::S4::OpResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))
-     r5  (:wat::core::match (:probe::S5/op s5 (:probe::S5::OpRequest :m item)) -> :wat::core::String
+     r5  (:wat::core::match (:probe::S5/op s5 (:probe::S5::OpRequest :m item)) 
   ((:probe::S5::OpResponse::Ok r) r)
   ((:probe::S5::OpResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))
-     r6  (:wat::core::match (:probe::S6/op s6 (:probe::S6::OpRequest :m item)) -> :wat::core::String
+     r6  (:wat::core::match (:probe::S6/op s6 (:probe::S6::OpRequest :m item)) 
   ((:probe::S6::OpResponse::Ok r) r)
   ((:probe::S6::OpResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))
-     r7  (:wat::core::match (:probe::S7/op s7 (:probe::S7::OpRequest :m item)) -> :wat::core::String
+     r7  (:wat::core::match (:probe::S7/op s7 (:probe::S7::OpRequest :m item)) 
   ((:probe::S7::OpResponse::Ok r) r)
   ((:probe::S7::OpResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))

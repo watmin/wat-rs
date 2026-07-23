@@ -9,7 +9,7 @@
 (:wat::core::defmacro :my::list-parity [& xs <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
   (:wat::core::if (:wat::core::= (:wat::core::i64::mod (:wat::core::length xs) 2) 0)
-    -> :wat::WatAST
+    
     `"even"
     `"odd"))
 

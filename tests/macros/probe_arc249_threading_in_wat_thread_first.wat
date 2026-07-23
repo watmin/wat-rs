@@ -4,7 +4,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
        -> :wat::holon::HolonAST
-       (:wat::core::if (:wat::core::List? step) -> :wat::WatAST
+       (:wat::core::if (:wat::core::List? step) 
          `(~(:wat::core::first step) ~a ~@(:wat::core::rest step))
          `(~step ~a)))
     acc

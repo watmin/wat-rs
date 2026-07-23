@@ -2,6 +2,6 @@
 (:wat::core::defn :my::shadow-test [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
   (:wat::core::let
               [n 100]
-              (:wat::core::match opt -> :wat::core::i64
+              (:wat::core::match opt 
                 ((:wat::core::Some n) n)
                 (:wat::core::None     n))))

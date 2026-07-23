@@ -1075,7 +1075,7 @@ fn walk_defmacro_form(_args: &[WatAST]) -> Result<(), ExtractionError> {
     Ok(())
 }
 
-/// Walk a `(:wat::core::match scrut -> :Ret arm1 arm2 ...)` form.
+/// Walk a `(:wat::core::match scrut arm1 arm2 ...)` form.
 ///
 /// Each arm is a 2-list `(pattern body)`. Pattern names BIND inside
 /// the arm's body — they are NOT free symbols. The pattern is walked
@@ -1096,12 +1096,11 @@ fn walk_match_form(
     outer_locals: &BTreeSet<String>,
     state: &mut ExtractState<'_>,
 ) -> Result<(), ExtractionError> {
-    // `(:wat::core::match scrut -> :Ret arm1 arm2 ...)` requires:
-    // args[0] = scrut, args[1] = `->` Symbol, args[2] = :Ret keyword,
-    // args[3..] = arms. If shape is malformed, fall through to a
-    // defensive recurse so the runtime's MalformedForm fires when the
-    // form executes.
-    if args.len() < 4 {
+    // Arc 258.5 — `(:wat::core::match scrut arm1 arm2 ...)`: args[0] =
+    // scrut, args[1..] = arms (the `-> :T` ascription is retired). If
+    // shape is malformed, fall through to a defensive recurse so the
+    // runtime's MalformedForm fires when the form executes.
+    if args.len() < 2 {
         for a in args {
             walk_free_symbols(a, outer_locals, state)?;
         }
@@ -1109,12 +1108,9 @@ fn walk_match_form(
     }
     // Walk scrutinee in outer scope.
     walk_free_symbols(&args[0], outer_locals, state)?;
-    // args[1] is `->` (Symbol marker); args[2] is :Ret type keyword
-    // — walk it for type-ref extraction.
-    walk_free_symbols(&args[2], outer_locals, state)?;
     // For each arm: the arm is a 2-list `(pattern body)`. Bindings
     // collected from the pattern enter the arm's body scope.
-    for arm in &args[3..] {
+    for arm in &args[1..] {
         let arm_items = match arm {
             WatAST::List(items, _) if items.len() == 2 => items,
             _ => {

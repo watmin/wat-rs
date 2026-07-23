@@ -96,7 +96,7 @@
         ;; The class guard fires before the nil is reached — that's the point.
         (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) ()))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some f)
         (:wat::test::assert-contains
           (:wat::kernel::Failure/message f)
@@ -148,7 +148,7 @@
           [p (:test::rd::Pt :x 3 :y 4)]
           (:wat::core::do (:wat::holon::to-holon p) ())))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!

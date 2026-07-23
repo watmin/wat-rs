@@ -33,9 +33,16 @@
   [self    <- :wat::kernel::ThreadSelfPeer'<O,I>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil
-  (:wat::core::let [item (:wat::kernel::recv' self)
-                    _    (:wat::kernel::send' self (work-fn item))]
-    (:wat::bracket::runner-loop self work-fn)))
+  ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome<I>.
+  ;; ::Message → work + recurse; ::Lost (parent Thread' crashed) → eprintln the cause
+  ;; (loud, terminal); ::Closed (parent dropped cleanly) → exit the runner loop.
+  (:wat::core::match (:wat::kernel::recv' self)  
+    ((:wat::kernel::RecvOutcome::Message item)
+      (:wat::core::let [_ (:wat::kernel::send' self (work-fn item))]
+        (:wat::bracket::runner-loop self work-fn)))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed nil)))
 
 ;; PoolMsg<D,I> (the universal pool wire message) is defined in wat/spawn.wat — it
 ;; must precede the :wat::spawn::Locus surface's `spawn-runner` return type, which
@@ -56,16 +63,24 @@
   [self    <- :wat::kernel::Peer'<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>
    work-fn <- :wat::core::Fn(I)->O]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
-    ((:wat::bracket::PoolMsg::Work pair)
-      (:wat::core::let
-        [out (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))
-         _   (:wat::kernel::send' self out)]
-        (:wat::bracket::process-runner self work-fn)))
-    ;; A non-dialing pool never sends :Setup (dials empty); the arm is total by
-    ;; construction — ignore + recurse (D stays phantom for this runner).
-    ((:wat::bracket::PoolMsg::Setup _deps)
-      (:wat::bracket::process-runner self work-fn))))
+  ;; arc 278 the recv'-outcome wall — recv' returns RecvOutcome<PoolMsg>. ::Message →
+  ;; dispatch the PoolMsg; ::Lost (parent crashed) → eprintln (loud, terminal); ::Closed
+  ;; (parent dropped) → exit the runner.
+  (:wat::core::match (:wat::kernel::recv' self)  
+    ((:wat::kernel::RecvOutcome::Message m)
+      (:wat::core::match m  
+        ((:wat::bracket::PoolMsg::Work pair)
+          (:wat::core::let
+            [out (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair)))
+             _   (:wat::kernel::send' self out)]
+            (:wat::bracket::process-runner self work-fn)))
+        ;; A non-dialing pool never sends :Setup (dials empty); the arm is total by
+        ;; construction — ignore + recurse (D stays phantom for this runner).
+        ((:wat::bracket::PoolMsg::Setup _deps)
+          (:wat::bracket::process-runner self work-fn))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed nil)))
 
 ;; ── process-dial-runner — the BAKED dialing process-pool runner (arc 170 M1) ──
 ;;
@@ -84,16 +99,23 @@
    work-fn <- :wat::core::Fn(wat::kernel::Peer'<S,R>,I)->O
    ctx     <- (:wat::core::Option :wat::kernel::Peer'<S,R>)]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
-    ((:wat::bracket::PoolMsg::Setup deps)
-      (:wat::bracket::process-dial-runner self work-fn
-        (:wat::core::Some (:wat::kernel::connect' deps))))
-    ((:wat::bracket::PoolMsg::Work pair)
-      (:wat::core::let
-        [c   (:wat::core::Option/expect ctx "bracket process-dial-runner: Work before Setup")
-         out (:wat::core::Tuple (:wat::core::first pair) (work-fn c (:wat::core::second pair)))
-         _   (:wat::kernel::send' self out)]
-        (:wat::bracket::process-dial-runner self work-fn ctx)))))
+  ;; arc 278 the recv'-outcome wall — RecvOutcome<PoolMsg>. ::Message → dispatch;
+  ;; ::Lost → eprintln (terminal); ::Closed → exit the runner.
+  (:wat::core::match (:wat::kernel::recv' self)  
+    ((:wat::kernel::RecvOutcome::Message m)
+      (:wat::core::match m  
+        ((:wat::bracket::PoolMsg::Setup deps)
+          (:wat::bracket::process-dial-runner self work-fn
+            (:wat::core::Some (:wat::kernel::connect' deps))))
+        ((:wat::bracket::PoolMsg::Work pair)
+          (:wat::core::let
+            [c   (:wat::core::Option/expect ctx "bracket process-dial-runner: Work before Setup")
+             out (:wat::core::Tuple (:wat::core::first pair) (work-fn c (:wat::core::second pair)))
+             _   (:wat::kernel::send' self out)]
+            (:wat::bracket::process-dial-runner self work-fn ctx)))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed nil)))
 
 ;; ── spawn-runner — the per-tier runner spawn, lifted onto the :Locus surface ──
 ;;
@@ -133,7 +155,7 @@
       (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,O),wat::bracket::PoolMsg<D,I>>] -> :wat::core::nil
         (:wat::bracket::runner-loop sp
           (:wat::core::fn [m <- :wat::bracket::PoolMsg<D,I>] -> :(wat::core::i64,O)
-            (:wat::core::match m -> :(wat::core::i64,O)
+            (:wat::core::match m  
               ((:wat::bracket::PoolMsg::Work pair)
                 (:wat::core::Tuple (:wat::core::first pair) (work-fn (:wat::core::second pair))))
               ((:wat::bracket::PoolMsg::Setup _deps)
@@ -273,7 +295,7 @@
        ftypes        (:wat::runtime::field-types-of kwargs-ty)
        n             (:wat::core::length ftypes)
        _n-check      (:wat::core::if (:wat::core::= (:wat::core::length fnames) n)
-                       -> :wat::core::nil nil
+                        nil
                        (:wat::kernel::assertion-failed!
                          "bracket process-work-forms: field-names-of/field-types-of length mismatch"
                          :wat::core::None :wat::core::None))
@@ -335,17 +357,23 @@
           [self <- ~runner-self-kw
            ctx  <- ~ctx-ty-kw]
           -> :wat::core::nil
-          (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
-            ((:wat::bracket::PoolMsg::Setup deps)
-              (:user::bracket::dial-runner self
-                (:wat::core::Some (~kwargs-prime-kw ~@kwargs-ctor-args))))
-            ((:wat::bracket::PoolMsg::Work pair)
-              (:wat::core::let
-                [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
-                 out (:wat::core::Tuple (:wat::core::first pair)
-                       (:wat::core::apply -> ~ret-kw :user::bracket::work-fn (:wat::core::second pair) [k]))
-                 _   (:wat::kernel::send' self out)]
-                (:user::bracket::dial-runner self ctx)))))
+          (:wat::core::match (:wat::kernel::recv' self)  
+            ((:wat::kernel::RecvOutcome::Message m)
+              (:wat::core::match m  
+                ((:wat::bracket::PoolMsg::Setup deps)
+                  (:user::bracket::dial-runner self
+                    (:wat::core::Some (~kwargs-prime-kw ~@kwargs-ctor-args))))
+                ((:wat::bracket::PoolMsg::Work pair)
+                  (:wat::core::let
+                    [k   (:wat::core::Option/expect ctx "dial-runner: Work before Setup")
+                     out (:wat::core::Tuple (:wat::core::first pair)
+                           (:wat::core::apply  :user::bracket::work-fn (:wat::core::second pair) [k]))
+                     _   (:wat::kernel::send' self out)]
+                    (:user::bracket::dial-runner self ctx)))))
+            ;; arc 278 the recv'-outcome wall — ::Lost → eprintln (terminal); ::Closed → exit.
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed nil)))
        main-def
        `(:wat::core::defn :user::main [] -> :wat::core::nil
           (:user::bracket::dial-runner
@@ -453,7 +481,7 @@
     (:wat::core::let
       [event    (:wat::kernel::select' peers)]
       (:wat::core::match event
-        -> :wat::core::Vector<(wat::core::i64,O)>
+         
         ((:wat::spawn::ServiceEvent::Message peer-pos pair)
           (:wat::core::let
             [cursor'  (:wat::core::if (:wat::core::< cursor m)
@@ -563,7 +591,7 @@
                   ;; grant-fn ignores both args). BEFORE the first item is sent, so the grant
                   ;; lands before the worker's work-fn dials. A thread peer (peer-pid → None)
                   ;; skips: the in-process handle IS the capability.
-                  _ (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
+                  _ (:wat::core::match (:wat::kernel::peer-pid p)  
                       ((:wat::core::Some pid) (grant-fn grant-handles pid))
                       (:wat::core::None nil))
                   ;; SETUP-DIAL: fold over 0-or-1 carriers — empty (plain) sends NO Setup at
@@ -588,7 +616,7 @@
                (:wat::core::fn [_acc <- :wat::core::nil
                                 p    <- :wat::kernel::Peer'<wat::bracket::PoolMsg<D,I>,(wat::core::i64,O)>]
                  -> :wat::core::nil
-                 (:wat::core::match (:wat::kernel::peer-pid p) -> :wat::core::nil
+                 (:wat::core::match (:wat::kernel::peer-pid p)  
                    ((:wat::core::Some pid) (revoke-fn grant-handles pid))
                    (:wat::core::None nil)))
                nil
@@ -679,7 +707,7 @@
    & kwpairs <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
   (:wat::core::if (:wat::core::= (:wat::core::length kwpairs) 0)
-    -> :wat::WatAST
+    
     ;; Arc 249 stone 249.2b-ii (hygiene bound gate E) — a quasiquote template may not
     ;; introduce a LITERAL name in binder position (it could capture a caller-site name); every
     ;; fn param below is a `fresh-symbol`, spliced via `~`, never a bare `_g`/`_pid`. The
@@ -735,7 +763,7 @@
    & kwpairs <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
   (:wat::core::if (:wat::core::= (:wat::core::length kwpairs) 0)
-    -> :wat::WatAST
+    
     (:wat::core::let
       [g1-sym   (:wat::core::fresh-symbol "g")
        pid1-sym (:wat::core::fresh-symbol "pid")

@@ -1250,10 +1250,7 @@ pub fn register_aggregate_methods(
                                 ], crate::rust_caller_span!()),
                                 WatAST::StringLit(class_no_colon, crate::rust_caller_span!()),
                             ], crate::rust_caller_span!()),
-                            // ->
-                            WatAST::Symbol(Identifier::bare("->"), crate::rust_caller_span!()),
-                            // :wat::core::Option<wat::core::Record>  (type annotation for the checker)
-                            WatAST::Keyword(":wat::core::Option<wat::core::Record>".into(), crate::rust_caller_span!()),
+                            // Arc 258.4 — bare if: (if cond then else); type inferred from the branches.
                             // then: (Some self)
                             WatAST::List(vec![
                                 WatAST::Keyword(":wat::core::Some".into(), crate::rust_caller_span!()),
@@ -3435,47 +3432,20 @@ fn eval_if_tail(
             } }.into()),
         };
     }
-    if args.len() != 5 {
+    // Arc 258.4 — the `-> :T` ascription is retired; a stray `->` (the old 5-arg form)
+    // is the retired shape; refuse it with a migration hint.
+    if args.len() >= 2
+        && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
-            reason: format!(
-                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
-                args.len()
-            )
+            reason: "`:wat::core::if` no longer takes `-> :T`; the result type is inferred by unifying the branches. Write (:wat::core::if cond then else)".into()
         } }.into());
     }
-    match &args[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::if".into(),
-                reason: format!(
-                    "expected `->` at position 2; got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-    match &args[2] {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::if".into(),
-                reason: format!(
-                    "expected type keyword at position 3 (after `->`); got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-    let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
-    match cond_val {
-        Value::bool(true) => eval_tail(&args[3], env, sym),
-        Value::bool(false) => eval_tail(&args[4], env, sym),
-        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
+    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: ":wat::core::if".into(),
+        reason: format!("expected (:wat::core::if cond then else) — 3 args; got {}", args.len())
+    } }.into())
 }
 
 /// Tail-position twin of [`eval_let`]. Bindings accumulate
@@ -3584,47 +3554,28 @@ fn eval_match_tail(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() < 4 {
+    // Arc 258.5 — the `-> :T` ascription is retired (the result type is
+    // inferred from the arm bodies). A stray `->` in ascription position
+    // is the old form; refuse it with a migration hint.
+    if args.len() >= 2
+        && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: if args.len() >= 2
-                && !matches!(
-                    args.get(1),
-                    Some(WatAST::Symbol(s, _)) if s.as_str() == "->"
-                )
-            {
-                "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into()
-            } else {
-                format!(
-                    "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
-                    args.len()
-                )
-            }
+            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut (pat body) ...)".into()
         } }.into());
     }
-    match &args[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into()
-            } }.into());
-        }
-    }
-    match &args[2] {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: format!(
-                    "expected type keyword after `->`; got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
+    if args.len() < 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: format!(
+                "expected (:wat::core::match scrut arm1 arm2 ...) — at least a scrutinee and one arm; got {}",
+                args.len()
+            )
+        } }.into());
     }
     let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
-    for arm in &args[3..] {
+    for arm in &args[1..] {
         let arm_items = match arm {
             WatAST::List(items, _) => items,
             other => {
@@ -5454,7 +5405,7 @@ fn dispatch_keyword_head_value(
                             // `Nature::Peer` — every other nature (aggregate dispatch) falls
                             // through to the unchanged `:<T>/<method>` lookup below.
                             if s.nature == Some(crate::types::Nature::Peer) {
-                                if let crate::types::SurfaceMember::Method { ret, .. } = member {
+                                if let crate::types::SurfaceMember::Method { .. } = member {
                                     use crate::scope::Identifier;
                                     if args.len() < 2 {
                                         return Err(RuntimeError {
@@ -5469,7 +5420,6 @@ fn dispatch_keyword_head_value(
                                     let variant = crate::string_ops::kebab_to_pascal_with_acronyms(method_name, &[]);
                                     let op_ctor = format!("{}::Op::{}", protocol_fqdn, variant);
                                     let reply_ctor = format!("{}::Reply::{}", protocol_fqdn, variant);
-                                    let ret_kw = crate::check::format_type(ret);
                                     let span = list_span.clone();
 
                                     // Eval the peer + request ONCE (avoids double-evaluating the
@@ -5504,26 +5454,70 @@ fn dispatch_keyword_head_value(
                                             ], span.clone()),
                                         ], span.clone()),
                                         WatAST::List(vec![
+                                            // Arc 278 the recv'-outcome wall — `recv'` returns a
+                                            // matchable `RecvOutcome<Reply>`, NEVER a raise. This
+                                            // Path-B intrinsic RE-WRAPS it into a
+                                            // `RecvOutcome<<Op>Response>` the caller faces as a value
+                                            // (we are ADT; no try/catch): ::Message unwraps the reply
+                                            // to its Response and re-wraps as ::Message; ::Lost maps
+                                            // to a REASON-FREE ::Lost (arc-294 client = reason-free
+                                            // 500 — the client never gets the service's internal
+                                            // cause; the owner keeps the full cause on its crash
+                                            // channel); ::Closed passes through.
                                             WatAST::Keyword(":wat::core::match".into(), span.clone()),
                                             WatAST::Symbol(Identifier::bare("__r"), span.clone()),
-                                            WatAST::Symbol(Identifier::bare("->"), span.clone()),
-                                            WatAST::Keyword(ret_kw, span.clone()),
+                                            // ::Message arm — unwrap the reply variant to its
+                                            // Response, re-wrap in RecvOutcome::Message.
                                             WatAST::List(vec![
                                                 WatAST::List(vec![
-                                                    WatAST::Keyword(reply_ctor, span.clone()),
-                                                    WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("__m"), span.clone()),
                                                 ], span.clone()),
-                                                WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Message".into(), span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::core::match".into(), span.clone()),
+                                                        WatAST::Symbol(Identifier::bare("__m"), span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::List(vec![
+                                                                WatAST::Keyword(reply_ctor, span.clone()),
+                                                                WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                                            ], span.clone()),
+                                                            WatAST::Symbol(Identifier::bare("resp"), span.clone()),
+                                                        ], span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
+                                            ], span.clone()),
+                                            // ::Lost arm — scrub the cause; a REASON-FREE Failure
+                                            // (mirrors runtime::message_only_failure's 5-field shape).
+                                            WatAST::List(vec![
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                    WatAST::Symbol(Identifier::bare("_cause"), span.clone()),
+                                                ], span.clone()),
+                                                WatAST::List(vec![
+                                                    WatAST::Keyword(":wat::kernel::RecvOutcome::Lost".into(), span.clone()),
+                                                    WatAST::List(vec![
+                                                        WatAST::Keyword(":wat::core::struct-new".into(), span.clone()),
+                                                        WatAST::Keyword(":wat::kernel::Failure".into(), span.clone()),
+                                                        WatAST::StringLit("service peer lost (reason on the owner's crash channel)".into(), span.clone()),
+                                                        WatAST::Keyword(":wat::core::None".into(), span.clone()),
+                                                        WatAST::List(vec![
+                                                            WatAST::Keyword(":wat::core::Vector".into(), span.clone()),
+                                                            WatAST::Keyword(":wat::kernel::Frame".into(), span.clone()),
+                                                        ], span.clone()),
+                                                        WatAST::Keyword(":wat::core::None".into(), span.clone()),
+                                                        WatAST::Keyword(":wat::core::None".into(), span.clone()),
+                                                    ], span.clone()),
+                                                ], span.clone()),
+                                            ], span.clone()),
+                                            // ::Closed arm — pass the reason-free terminal through.
+                                            WatAST::List(vec![
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
+                                                WatAST::Keyword(":wat::kernel::RecvOutcome::Closed".into(), span.clone()),
                                             ], span.clone()),
                                         ], span.clone()),
                                     ], span.clone());
-                                    // Arc 278 no-hidden-failures — NB: a `Reply::Failed[cause]` reply
-                                    // (the reserved protocol-tier decode-failure) never reaches this
-                                    // synthesized match: `recv'` surfaces it FIRST as a catchable
-                                    // RuntimeError carrying the cause's reason (eval_peer_recv_prime).
-                                    // That is the ONE uniform surfacing point for both this Path-B
-                                    // intrinsic and the defservice client method — and it is catchable
-                                    // (a wat `assertion-failed!` here would be an uncatchable panic).
 
                                     return eval_inner(&forwarding_ast, &call_env, sym)
                                         .map(|tv| tv.value_owned());
@@ -7334,7 +7328,7 @@ fn parse_let_binding<'a>(
     }
 }
 
-/// `(:wat::core::if cond -> :T then else)` — typed conditional per
+/// `(:wat::core::if cond then else)` — typed conditional per
 /// the 2026-04-20 INSCRIPTION. Both branches must produce `:T`; the
 /// annotation is check-time only (runtime ignores it but validates
 /// the form's arity).
@@ -7359,50 +7353,20 @@ fn eval_if(
             } }.into()),
         };
     }
-    if args.len() != 5 {
+    // Arc 258.4 — the `-> :T` ascription is retired; a stray `->` (the old 5-arg form)
+    // is the retired shape; refuse it with a migration hint.
+    if args.len() >= 2
+        && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
-            reason: format!(
-                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
-                args.len()
-            )
+            reason: "`:wat::core::if` no longer takes `-> :T`; the result type is inferred by unifying the branches. Write (:wat::core::if cond then else)".into()
         } }.into());
     }
-    // Validate the `-> :T` shape at runtime too — belt-and-suspenders
-    // for programs that reach the dispatcher without the checker
-    // having run.
-    match &args[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::if".into(),
-                reason: format!(
-                    "expected `->` at position 2; got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-    match &args[2] {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::if".into(),
-                reason: format!(
-                    "expected type keyword at position 3 (after `->`); got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-    let cond_val = eval_inner(&args[0], env, sym)?.value_owned();
-    match cond_val {
-        Value::bool(true) => eval_inner(&args[3], env, sym).map(|tv| tv.value_owned()),
-        Value::bool(false) => eval_inner(&args[4], env, sym).map(|tv| tv.value_owned()),
-        other => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::BadCondition {
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
+    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: ":wat::core::if".into(),
+        reason: format!("expected (:wat::core::if cond then else) — 3 args; got {}", args.len())
+    } }.into())
 }
 
 // ─── Built-ins ──────────────────────────────────────────────────────────
@@ -8362,56 +8326,36 @@ fn eval_apply(
     sym: &SymbolTable,
     list_span: Span,
 ) -> Result<Value, EvalBreak> {
-    // Arity check: at minimum (->, :T, head, args-vec) = 4 args.
-    if args.len() < 4 {
+    // Arc 258 — the `-> :T` ascription is retired; a stray `->` (the old form) is
+    // refused with a migration hint.
+    if !args.is_empty()
+        && matches!(&args[0], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
+        return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::apply".into(),
+            reason: "`:wat::core::apply` no longer takes `-> :T`; the result is the applied fn's return type. Write (:wat::core::apply <fn> <a1>...<an> <args-vec>)".into()
+        } }.into());
+    }
+    // `(apply <head> <a1>...<an> <args-vec>)` — minimum a fn head and the args-vector.
+    if args.len() < 2 {
         return Err(RuntimeError { span: list_span, kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::apply".into(),
             reason: format!(
-                "expected (:wat::core::apply -> :T <head> <a1>...<an> <args-vec>); \
-                 got {} arg(s) — minimum 4 (`->`, `:T`, head, spread-vec)",
+                "expected (:wat::core::apply <fn> <a1>...<an> <args-vec>) — at least a fn and an args-vector; got {} arg(s)",
                 args.len()
             )
         } }.into());
     }
 
-    // Step 1 — validate inline `-> :T` annotation (positions 0 and 1).
-    // The declared type is consumed by the checker; at runtime we verify
-    // shape only.
-    match &args[0] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::apply".into(),
-                reason: format!(
-                    "position 1 must be the `->` symbol (inline return-type annotation); got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-    match &args[1] {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::apply".into(),
-                reason: format!(
-                    "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`); got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
-    }
-
-    // Step 2 — evaluate head (args[2]).
+    // Step 1 — evaluate the head fn (args[0]).
     //
     // Arc 009 "names are values": a literal keyword that names a registered
     // user define evaluates to `Value::wat__core__fn`; runtime-built keywords
     // remain `Value::wat__core__keyword`. Both are valid apply heads.
-    let head_val = eval_inner(&args[2], env, sym)?.value_owned();
+    let head_val = eval_inner(&args[0], env, sym)?.value_owned();
 
-    // Step 3 — evaluate leading positional args (positions 3..last).
-    // Leading = args[3..args.len()-1]. With no leading args this slice is empty.
-    let leading_ast = &args[3..args.len() - 1];
+    // Step 2 — evaluate leading positional args (args[1..last]). Empty if none.
+    let leading_ast = &args[1..args.len() - 1];
     let mut combined: Vec<Value> = leading_ast
         .iter()
         .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
@@ -8441,7 +8385,7 @@ fn eval_apply(
     let head_kw = match &head_val {
         Value::wat__core__keyword(k) => k.clone(),
         other => {
-            return Err(RuntimeError { span: args[2].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::apply".into(),
                 expected: "wat::core::keyword",
                 got: Box::new(ValueSnapshot::of(other))
@@ -13150,7 +13094,7 @@ fn eval_struct_field(
 /// the scrutinee, returns `PatternMatchFailed`. (Exhaustiveness is
 /// enforced statically by the type checker; this runtime error fires
 /// only when the type check hasn't run.)
-/// `(:wat::core::match scrutinee -> :T arm1 arm2 ...)` — typed
+/// `(:wat::core::match scrutinee arm1 arm2 ...)` — typed
 /// pattern match per the 2026-04-20 INSCRIPTION. Every arm body must
 /// produce `:T`; mismatches are reported per-arm. The annotation is
 /// check-time only at runtime (validated for shape, ignored for
@@ -13165,51 +13109,28 @@ fn eval_match(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    if args.len() < 4 {
-        // Two bad-shape possibilities to distinguish:
-        //   - Pre-inscription `(match scrutinee arm1)` — 2 args, no `->`
-        //   - Too few args overall
+    // Arc 258.5 — the `-> :T` ascription is retired (the result type is
+    // inferred from the arm bodies). A stray `->` in ascription position
+    // is the old form; refuse it with a migration hint.
+    if args.len() >= 2
+        && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: if args.len() >= 2
-                && !matches!(
-                    args.get(1),
-                    Some(WatAST::Symbol(s, _)) if s.as_str() == "->"
-                )
-            {
-                "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into()
-            } else {
-                format!(
-                    "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
-                    args.len()
-                )
-            }
+            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut (pat body) ...)".into()
         } }.into());
     }
-    // Validate the `-> :T` shape.
-    match &args[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => {
-            return Err(RuntimeError { span: args[1].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into()
-            } }.into());
-        }
-    }
-    match &args[2] {
-        WatAST::Keyword(_, _) => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: format!(
-                    "expected type keyword after `->`; got {}",
-                    other.variant_name()
-                )
-            } }.into());
-        }
+    if args.len() < 2 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: format!(
+                "expected (:wat::core::match scrut arm1 arm2 ...) — at least a scrutinee and one arm; got {}",
+                args.len()
+            )
+        } }.into());
     }
     let scrutinee = eval_inner(&args[0], env, sym)?.value_owned();
-    for arm in &args[3..] {
+    for arm in &args[1..] {
         let arm_items = match arm {
             WatAST::List(items, _) => items,
             other => {
@@ -23788,6 +23709,51 @@ fn message_only_failure(message: String) -> Value {
     )))
 }
 
+/// Arc 278 the recv'-outcome wall — the type path of the matchable `recv'` outcome
+/// enum (`:wat::kernel::RecvOutcome<O>`, registered in `types.rs`).
+const RECV_OUTCOME_TYPE: &str = ":wat::kernel::RecvOutcome";
+
+/// `RecvOutcome::Message [msg]` — a real message (the happy path).
+fn recv_outcome_message(msg: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: RECV_OUTCOME_TYPE.into(),
+        variant_name: "Message".into(),
+        fields: vec![msg],
+    }))
+}
+
+/// `RecvOutcome::Closed []` — a GENUINE clean EOF; the ONLY reason-free terminal.
+fn recv_outcome_closed() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: RECV_OUTCOME_TYPE.into(),
+        variant_name: "Closed".into(),
+        fields: vec![],
+    }))
+}
+
+/// `RecvOutcome::Lost [cause <- Failure]` — abnormal loss carrying its structured
+/// cause. Built from the crash-channel reason via `message_only_failure` — the SAME
+/// structured carrier `ServiceEvent::Lost` / `Reply::Failed` use (never a flat String).
+fn recv_outcome_lost(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: RECV_OUTCOME_TYPE.into(),
+        variant_name: "Lost".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
+/// Build a `RecvOutcome` from a successfully-decoded peer message. A reserved
+/// protocol-tier `Reply::Failed` (the service could not decode our request) is an
+/// abnormal outcome carrying a real reason — surface it as `Lost(<Failure>)` (a
+/// matchable value the client handles), never a mute `Message` the client's match
+/// would misroute. Every other decoded value is a genuine `Message`.
+fn recv_outcome_from_decoded(v: Value) -> Value {
+    match reply_failed_reason(&v) {
+        Some(reason) => recv_outcome_lost(reason),
+        None => recv_outcome_message(v),
+    }
+}
+
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
 /// Err payload returned by the eval-family forms on any failure
@@ -24811,7 +24777,7 @@ fn is_holon_arg_canonical(form: &WatAST) -> bool {
     }
 }
 
-/// `(:wat::core::if cond -> :T then else)` — five-arg shape per
+/// `(:wat::core::if cond then else)` — five-arg shape per
 /// arc 023. If `cond` is a canonical `BoolLit`, project to the chosen
 /// branch as the next form; otherwise descend the cond. The `-> :T`
 /// annotation is preserved verbatim across rewrites.
@@ -24839,32 +24805,20 @@ fn step_if(
             }
         };
     }
-    if args.len() != 5 {
+    // Arc 258.4 — the `-> :T` ascription is retired; a stray `->` (the old 5-arg form)
+    // is the retired shape; refuse it with a migration hint.
+    if args.len() >= 2
+        && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
-            reason: format!(
-                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
-                args.len()
-            )
+            reason: "`:wat::core::if` no longer takes `-> :T`; the result type is inferred by unifying the branches. Write (:wat::core::if cond then else)".into()
         } }.into());
     }
-    let cond = &args[0];
-    match cond {
-        WatAST::BoolLit(true, _) => Ok(StepValue::Next(args[3].clone())),
-        WatAST::BoolLit(false, _) => Ok(StepValue::Next(args[4].clone())),
-        _ => {
-            let new_cond = step_to_watast(cond, env, sym)?;
-            let new_items = vec![
-                WatAST::Keyword(":wat::core::if".into(), crate::rust_caller_span!()),
-                new_cond,
-                args[1].clone(),
-                args[2].clone(),
-                args[3].clone(),
-                args[4].clone(),
-            ];
-            Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
-        }
-    }
+    Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+        head: ":wat::core::if".into(),
+        reason: format!("expected (:wat::core::if cond then else) — 3 args; got {}", args.len())
+    } }.into())
 }
 
 /// `(:wat::core::let [n1 e1 n2 e2 ...] body1 body2 ... bodyN)` —
@@ -25091,7 +25045,7 @@ fn step_do(
     Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())))
 }
 
-/// `(:wat::core::match scrut -> :T arm1 arm2 ...)` — descend the
+/// `(:wat::core::match scrut arm1 arm2 ...)` — descend the
 /// scrutinee until match-canonical, then pick the first arm whose
 /// pattern matches structurally and substitute pattern bindings into
 /// that arm's body. Single rewrite per step: arm selection + binder
@@ -25102,11 +25056,11 @@ fn step_match(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<StepValue, EvalBreak> {
-    if args.len() < 4 {
+    if args.len() < 2 {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: format!(
-                "expected (:wat::core::match scrut -> :T arm1 ...); got {} args",
+                "expected (:wat::core::match scrut arm1 ...); got {} args",
                 args.len()
             )
         } }.into());
@@ -25121,7 +25075,7 @@ fn step_match(
         new_items.extend(args[1..].iter().cloned());
         return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
     }
-    for arm in &args[3..] {
+    for arm in &args[1..] {
         let arm_items = match arm {
             WatAST::List(p, _) if p.len() == 2 => p,
             _ => {
@@ -26298,36 +26252,24 @@ fn eval_peer_recv_prime(
             )?;
             let result = cell
                 .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
+                    // Arc 278 the recv'-outcome wall — recv' returns a matchable
+                    // `RecvOutcome<O>`, never raises on close/crash (a raise unwinds
+                    // past the reader = mute). Ok → Message; Disconnected (clean EOF,
+                    // incl. use-after-close: the peer is gone) → Closed; Crashed(reason)
+                    // → Lost(<structured Failure carrying the crash reason>).
                     match opt_peer {
-                        None => Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "peer already closed".into(),
-                            },
-                        }
-                        .into()),
-                        Some(peer) => peer.recv().map_err(|e| {
-                            use crate::kernel::spawn::PeerRecvError;
-                            let reason = match e {
-                                PeerRecvError::Crashed(crash_reason) => {
-                                    // Arc 259 S3.5a-0: Err arm fired — surface the crash reason
-                                    // so the substrate raises on the user's behalf. Mirrors the
-                                    // process peer's Crashed arm (runtime.rs:22419-22441).
-                                    crash_reason
+                        None => Ok(recv_outcome_closed()),
+                        Some(peer) => Ok(match peer.recv() {
+                            Ok(v) => recv_outcome_message(v),
+                            Err(e) => {
+                                use crate::kernel::spawn::PeerRecvError;
+                                match e {
+                                    PeerRecvError::Crashed(crash_reason) => {
+                                        recv_outcome_lost(crash_reason)
+                                    }
+                                    PeerRecvError::Disconnected => recv_outcome_closed(),
                                 }
-                                PeerRecvError::Disconnected => {
-                                    "recv failed: peer closed / thread exited".into()
-                                }
-                            };
-                            RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::MalformedForm {
-                                    head: OP.into(),
-                                    reason,
-                                },
                             }
-                            .into()
                         }),
                     }
                 })
@@ -26345,41 +26287,49 @@ fn eval_peer_recv_prime(
                 OP,
                 list_span.clone(),
             )?;
-            let edn_str = cell
-                .with_ref(OP, |opt_bundle| -> Result<String, EvalBreak> {
+            // Arc 278 the recv'-outcome wall — the process arm returns a matchable
+            // `RecvOutcome<O>`. The EDN decode moves INSIDE the closure so a decode
+            // failure surfaces as `Lost(<Failure>)` (abnormal loss carrying its reason),
+            // never a raise. Ok+decode → Message; Crashed(reason) → Lost; Disconnected
+            // (clean EOF / use-after-close) → Closed. Timer stays a static-usage raise.
+            //
+            // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — recv' is the TRUSTED peer wire: decode
+            // through the capability-reconstructing door with the full type registry.
+            // Every Peer is lineage BY CONSTRUCTION — a spawn handle / self-peer is
+            // inherited; an accept'd peer passed OnlyMyPeers (euid + pid∈allow-set);
+            // a connect'd peer passed OnlyThisPeer (euid + kernel-vouched pid == minter
+            // pid stamped in the address capability; the autobind name is an exclusive-bind
+            // rendezvous token, not a secret; the SO_PEERCRED checks are the security).
+            // So "bytes from a lineage peer" holds on every leg. The EDN wire is
+            // self-describing (post-234.7: tagged records/structs/enums + typed scalars)
+            // — sym.types() reconstructs user records; no declared target type is needed.
+            let result = cell
+                .with_ref(OP, |opt_bundle| -> Result<Value, EvalBreak> {
                     match opt_bundle {
-                        None => Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "peer already closed".into(),
-                            },
-                        }
-                        .into()),
-                        Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => bundle.recv().map_err(|e| {
+                        None => Ok(recv_outcome_closed()),
+                        Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                             use crate::kernel::spawn::PeerRecvError;
-                            let reason = match e {
-                                PeerRecvError::Crashed(crash_reason) => {
-                                    // Stone 214 1b-ii-α: Err arm fired — auto-raise the
-                                    // crash reason so the substrate raises on the user's
-                                    // behalf (Q1 closed). The crash reason is the full
-                                    // `#wat.kernel/ProcessPanics [...]` envelope text.
-                                    crash_reason
-                                }
-                                PeerRecvError::Disconnected => {
-                                    "recv failed: process channel disconnected".into()
-                                }
-                            };
-                            RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::MalformedForm {
-                                    head: OP.into(),
-                                    reason,
+                            Ok(match bundle.recv() {
+                                Ok(edn_str) => match crate::edn_shim::decode_trusted_wire(
+                                    &edn_str,
+                                    sym.types().map(|a| a.as_ref()),
+                                ) {
+                                    Ok(v) => recv_outcome_message(v),
+                                    Err(e) => recv_outcome_lost(format!(
+                                        "recv' EDN decode failed: {}",
+                                        e
+                                    )),
                                 },
-                            }
-                            .into()
-                        }),
+                                // The crash reason is the full `#wat.kernel/ProcessPanics [...]`
+                                // envelope text — carried as the Lost cause's Failure/message.
+                                Err(PeerRecvError::Crashed(crash_reason)) => {
+                                    recv_outcome_lost(crash_reason)
+                                }
+                                Err(PeerRecvError::Disconnected) => recv_outcome_closed(),
+                            })
+                        }
                         // arc 292 L3 — timers are select'-only; recv' is not supported.
+                        // A static-usage error (not a peer-read outcome) → still a raise.
                         Some(crate::kernel::spawn::ProcessSelectable::Timer(_)) => Err(RuntimeError {
                             span: list_span.clone(),
                             kind: RuntimeErrorKind::MalformedForm {
@@ -26391,26 +26341,7 @@ fn eval_peer_recv_prime(
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
-            // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — recv' is the TRUSTED peer wire: decode
-            // through the capability-reconstructing door with the full type registry.
-            // Every Peer is lineage BY CONSTRUCTION — a spawn handle / self-peer is
-            // inherited; an accept'd peer passed OnlyMyPeers (euid + pid∈allow-set);
-            // a connect'd peer passed OnlyThisPeer (euid + kernel-vouched pid == minter
-            // pid stamped in the address capability; the autobind name is an exclusive-bind
-            // rendezvous token, not a secret; the SO_PEERCRED checks are the security).
-            // So "bytes from a lineage peer" holds on every leg. The EDN wire is
-            // self-describing (post-234.7: tagged records/structs/enums + typed scalars)
-            // — sym.types() reconstructs user records; no declared target type is needed.
-            crate::edn_shim::decode_trusted_wire(&edn_str, sym.types().map(|a| a.as_ref())).map_err(|e| {
-                RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("recv' EDN decode failed: {}", e),
-                    },
-                }
-                .into()
-            })
+            Ok(result)
         }
         // Arc 209 C0b.2e-i-b — unified Peer' arm: thread-tier and socket-tier peers both
         // box their recv endpoint as `Box<dyn CommReceiver<Value>>`. Decoding is internal
@@ -26425,96 +26356,65 @@ fn eval_peer_recv_prime(
                     OP,
                     list_span.clone(),
                 )?;
+            // Arc 278 the recv'-outcome wall — the unified peer arm returns a matchable
+            // `RecvOutcome<O>`. Ok+decode → Message (or Lost if the decoded value is a
+            // reserved `Reply::Failed`, via recv_outcome_from_decoded); a raw wire
+            // Failed(reason) or an abnormal far-side crash (PeerCrashed, whose to_string
+            // IS the reason-free administrative sentinel a CLIENT gets) → Lost; a clean
+            // Disconnected/Shutdown/FrameTooLarge / use-after-close → Closed.
             let result = cell
                 .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
                     match opt_peer {
-                        None => Err(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: "peer already closed".into(),
-                            },
-                        }
-                        .into()),
+                        None => Ok(recv_outcome_closed()),
                         // Arc 272 6b-ii-α — socket-tier self-peer: recv the raw EDN wire
                         // string and decode via the trusted-wire door with sym.types().
                         // peer.recv() decodes internally via Value::from_wire (no type
                         // registry) and fails on user-defined record tags
                         // (e.g. `#user/Counter {:base 1000}`). Using recv_wire() +
                         // decode_trusted_wire reconstructs the record correctly.
-                        // This matches the PROCESS_PEER_TYPE_PATH recv arm (line ~23779)
-                        // which calls bundle.recv() → raw String → decode_trusted_wire.
                         Some(peer) if peer.is_socket_tier() => {
-                            // Arc 278 no-hidden-failures — transport-tier twin: a raw wire
-                            // failure (io error / invalid UTF-8 / decode failure / malformed
-                            // frame) carries its reason via RecvError::Failed; thread it into
-                            // the raised MalformedForm instead of a hardcoded mute string. A
-                            // genuine clean close (Disconnected/Shutdown/FrameTooLarge) still
-                            // gets the generic message — no regression there.
-                            let wire = peer.recv_wire().map_err(|e| {
-                                let reason = match &e {
-                                    crate::comms::RecvError::Failed(reason) => reason.clone(),
-                                    // Arc 278 RST stone — abnormal far-side crash: distinct from
-                                    // the generic clean-EOF collapse below (no reason carried;
-                                    // the reason is administrative, owner-channel-only).
-                                    crate::comms::RecvError::PeerCrashed => e.to_string(),
-                                    _ => "recv failed: peer closed / channel disconnected".to_string(),
-                                };
-                                EvalBreak::from(RuntimeError {
-                                    span: list_span.clone(),
-                                    kind: RuntimeErrorKind::MalformedForm {
-                                        head: OP.into(),
-                                        reason,
-                                    },
-                                })
-                            })?;
-                            crate::edn_shim::decode_trusted_wire(
-                                &wire,
-                                sym.types().map(|a| a.as_ref()),
-                            )
-                            .map_err(|e| {
-                                EvalBreak::from(RuntimeError {
-                                    span: list_span.clone(),
-                                    kind: RuntimeErrorKind::MalformedForm {
-                                        head: OP.into(),
-                                        reason: format!("recv' EDN decode failed: {}", e),
-                                    },
-                                })
-                            })
-                        }
-                        // Arc 278 no-hidden-failures — transport-tier twin: same reason-threading
-                        // as the socket-tier arm above; a bare RecvError::Failed carries a real
-                        // detail, a clean Disconnected/Shutdown/FrameTooLarge keeps the generic
-                        // message.
-                        Some(peer) => peer.recv().map_err(|e| {
-                            let reason = match &e {
-                                crate::comms::RecvError::Failed(reason) => reason.clone(),
-                                // Arc 278 RST stone — same distinction as the socket-tier arm above.
-                                crate::comms::RecvError::PeerCrashed => e.to_string(),
-                                _ => "recv failed: peer closed / channel disconnected".to_string(),
-                            };
-                            RuntimeError {
-                                span: list_span.clone(),
-                                kind: RuntimeErrorKind::MalformedForm {
-                                    head: OP.into(),
-                                    reason,
-                                },
+                            match peer.recv_wire() {
+                                Ok(wire) => Ok(match crate::edn_shim::decode_trusted_wire(
+                                    &wire,
+                                    sym.types().map(|a| a.as_ref()),
+                                ) {
+                                    Ok(v) => recv_outcome_from_decoded(v),
+                                    Err(e) => recv_outcome_lost(format!(
+                                        "recv' EDN decode failed: {}",
+                                        e
+                                    )),
+                                }),
+                                Err(e) => Ok(match &e {
+                                    // A raw wire failure carries its real reason.
+                                    crate::comms::RecvError::Failed(reason) => {
+                                        recv_outcome_lost(reason.clone())
+                                    }
+                                    // Abnormal far-side crash — the reason-free administrative
+                                    // sentinel (owner's crash channel holds the full reason).
+                                    crate::comms::RecvError::PeerCrashed => {
+                                        recv_outcome_lost(e.to_string())
+                                    }
+                                    // Genuine clean close (Disconnected/Shutdown/FrameTooLarge).
+                                    _ => recv_outcome_closed(),
+                                }),
                             }
-                            .into()
+                        }
+                        // Thread-tier peer: peer.recv() returns a decoded Value directly.
+                        Some(peer) => Ok(match peer.recv() {
+                            Ok(v) => recv_outcome_from_decoded(v),
+                            Err(e) => match &e {
+                                crate::comms::RecvError::Failed(reason) => {
+                                    recv_outcome_lost(reason.clone())
+                                }
+                                crate::comms::RecvError::PeerCrashed => {
+                                    recv_outcome_lost(e.to_string())
+                                }
+                                _ => recv_outcome_closed(),
+                            },
                         }),
                     }
                 })
                 .map_err(Into::<EvalBreak>::into)??;
-            // Arc 278 no-hidden-failures — a reserved protocol-tier `Reply::Failed` (the service
-            // could not decode our request) surfaces as a CATCHABLE raise carrying the real reason,
-            // never a mute value the client's match would misroute. Covers socket + thread tiers.
-            if let Some(reason) = reply_failed_reason(&result) {
-                return Err(RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm { head: OP.into(), reason },
-                }
-                .into());
-            }
             Ok(result)
         }
         other => Err(RuntimeError {
@@ -27491,7 +27391,7 @@ fn eval_kernel_after(
 /// DESIGN-STONE-rst-peer-notify.md`). The ONE hook that can reach a
 /// `defservice` serve loop's live `clients` binding while an op handler
 /// panics: `clients` and `body` (the `Message idx op` arm's codegen used to
-/// emit a bare `(:wat::core::match op -> :T ~@serve-op-arms)` directly as the
+/// emit a bare `(:wat::core::match op ~@serve-op-arms)` directly as the
 /// arm body; it now wraps that same form in this primitive) are both
 /// evaluated in THIS Rust stack frame, so `body`'s evaluation can be wrapped
 /// in `catch_unwind` with `clients` still reachable — unlike the top-level
@@ -27534,7 +27434,20 @@ fn eval_kernel_serve_dispatch_op_tail(
     let body = &args[1];
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_tail(body, env, sym)));
     match outcome {
-        Ok(result) => result,
+        // Arc 278 the recv'-outcome wall (move #2) — a wat RuntimeError bubbling out of
+        // the op handler is a crash too (the `rterr` column of the 4×2 measure). It used
+        // to slip through here with NO broadcast → the client's read was a bare EOF
+        // (indistinguishable from a clean close = the mute we are killing). Broadcast the
+        // reason-free PeerCrashed sentinel to `clients` on a Diagnostic, THEN propagate —
+        // so a client on ANY crash kind gets `Lost`, never a mute `Closed`. An
+        // EvalSignal (TailCall for serve's own self-recursion / try / option) is NORMAL
+        // control flow, not a crash → never broadcast.
+        Ok(result) => {
+            if let Err(EvalBreak::Diagnostic(_)) = &result {
+                crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
+            }
+            result
+        }
         Err(payload) => {
             crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
             std::panic::resume_unwind(payload);
@@ -27566,7 +27479,16 @@ fn eval_kernel_serve_dispatch_op(
     let body = &args[1];
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_inner(body, env, sym)));
     match outcome {
-        Ok(result) => result.map(|tv| tv.value_owned()),
+        // Arc 278 the recv'-outcome wall (move #2) — see the tail companion above: a wat
+        // RuntimeError (Diagnostic) out of the handler is a crash; broadcast the sentinel
+        // before propagating so the client gets `Lost`, never a mute `Closed`. Never on a
+        // control-flow Signal.
+        Ok(result) => {
+            if let Err(EvalBreak::Diagnostic(_)) = &result {
+                crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
+            }
+            result.map(|tv| tv.value_owned())
+        }
         Err(payload) => {
             crate::kernel::peer::broadcast_peer_crashed_best_effort(&clients_val);
             std::panic::resume_unwind(payload);
@@ -29054,7 +28976,7 @@ mod tests {
     #[test]
     fn if_true_branch() {
         assert!(matches!(
-            eval_expr("(:wat::core::if true -> :i64 1 2)").unwrap(),
+            eval_expr("(:wat::core::if true 1 2)").unwrap(),
             Value::i64(1)
         ));
     }
@@ -29062,7 +28984,7 @@ mod tests {
     #[test]
     fn if_false_branch() {
         assert!(matches!(
-            eval_expr("(:wat::core::if false -> :i64 1 2)").unwrap(),
+            eval_expr("(:wat::core::if false 1 2)").unwrap(),
             Value::i64(2)
         ));
     }
@@ -29070,7 +28992,7 @@ mod tests {
     #[test]
     fn if_non_bool_rejected() {
         assert!(matches!(
-            eval_expr("(:wat::core::if 42 -> :i64 1 2)"),
+            eval_expr("(:wat::core::if 42 1 2)"),
             Err(EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::BadCondition { .. }, .. }))
         ));
     }
@@ -29117,7 +29039,7 @@ mod tests {
         let result = run(
             r#"
             (:wat::core::defn :my::app::fact [n <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+              (:wat::core::if (:wat::core::= n 0)
                                 1
                                 (:wat::core::i64::* n (:my::app::fact (:wat::core::i64::- n 1)))))
             (:my::app::fact 5)
@@ -29943,7 +29865,6 @@ mod tests {
         let present = eval_with_ctx(
             &format!(
                 r#"(:wat::core::match {bundle}
-                     -> :bool
                      ((:wat::core::Ok h) (:wat::holon::presence? (:wat::holon::to-holon "a") h))
                      ((:wat::core::Err _) false))"#,
                 bundle = bundle_src
@@ -29958,7 +29879,6 @@ mod tests {
         let coincident = eval_with_ctx(
             &format!(
                 r#"(:wat::core::match {bundle}
-                     -> :bool
                      ((:wat::core::Ok h) (:wat::holon::coincident? (:wat::holon::to-holon "a") h))
                      ((:wat::core::Err _) false))"#,
                 bundle = bundle_src
@@ -31054,7 +30974,7 @@ mod tests {
                _sent (:wat::core::Result/expect
                               (:wat::kernel::send tx 42)
                               "roundtrip: send failed")]
-              (:wat::core::match (:wat::kernel::recv rx) -> :i64
+              (:wat::core::match (:wat::kernel::recv rx)
                 ((:wat::core::Ok (:wat::core::Some v)) v)
                 ((:wat::core::Ok :wat::core::None) 0)
                 ((:wat::core::Err _died) -1)))
@@ -31439,7 +31359,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m (:wat::core::HashMap :String :i64 "a" 10 "b" 20)]
-              (:wat::core::match (:wat::core::get m "a") -> :i64
+              (:wat::core::match (:wat::core::get m "a")
                 ((:wat::core::Some n) n)
                 (:wat::core::None 0)))
         "#;
@@ -31454,7 +31374,7 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [m (:wat::core::HashMap :String :i64 "a" 10)]
-              (:wat::core::match (:wat::core::get m "missing") -> :i64
+              (:wat::core::match (:wat::core::get m "missing")
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
         "#;
@@ -31533,7 +31453,7 @@ mod tests {
                 (:wat::core::HashMap :String :i64)
                m1
                 (:wat::core::assoc m0 "count" 1)]
-              (:wat::core::match (:wat::core::get m1 "count") -> :i64
+              (:wat::core::match (:wat::core::get m1 "count")
                 ((:wat::core::Some n) n)
                 (:wat::core::None 0)))
         "#;
@@ -31551,7 +31471,7 @@ mod tests {
                 (:wat::core::HashMap :String :i64 "count" 1)
                m1
                 (:wat::core::assoc m0 "count" 2)]
-              (:wat::core::match (:wat::core::get m1 "count") -> :i64
+              (:wat::core::match (:wat::core::get m1 "count")
                 ((:wat::core::Some n) n)
                 (:wat::core::None 0)))
         "#;
@@ -31570,7 +31490,7 @@ mod tests {
                 (:wat::core::HashMap :String :i64 "a" 10)
                m1
                 (:wat::core::assoc m0 "b" 20)]
-              (:wat::core::match (:wat::core::get m0 "b") -> :i64
+              (:wat::core::match (:wat::core::get m0 "b")
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
         "#;
@@ -31679,7 +31599,6 @@ mod tests {
                     (:wat::core::Vector :i64 20)
                     (:wat::core::Vector :i64 30)))
                 0)
-              -> :i64
               ((:wat::core::Some n) n)
               (:wat::core::None -1))
         "#;
@@ -31715,7 +31634,7 @@ mod tests {
                 (:wat::core::HashMap :String :i64 "a" 1 "b" 2)
                m1
                 (:wat::core::dissoc m0 "a")]
-              (:wat::core::match (:wat::core::get m1 "a") -> :i64
+              (:wat::core::match (:wat::core::get m1 "a")
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
         "#;
@@ -31733,7 +31652,7 @@ mod tests {
                 (:wat::core::HashMap :String :i64 "a" 1)
                m1
                 (:wat::core::dissoc m0 "missing")]
-              (:wat::core::match (:wat::core::get m1 "a") -> :i64
+              (:wat::core::match (:wat::core::get m1 "a")
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
         "#;
@@ -31752,7 +31671,7 @@ mod tests {
                 (:wat::core::HashMap :String :i64 "a" 1 "b" 2)
                _m1
                 (:wat::core::dissoc m0 "a")]
-              (:wat::core::match (:wat::core::get m0 "a") -> :i64
+              (:wat::core::match (:wat::core::get m0 "a")
                 ((:wat::core::Some n) n)
                 (:wat::core::None -1)))
         "#;
@@ -31973,7 +31892,7 @@ mod tests {
     fn vec_get_hit_returns_some_at_valid_index() {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :i64 10 20 30)]
-            (:wat::core::match (:wat::core::get xs 1) -> :i64
+            (:wat::core::match (:wat::core::get xs 1)
               ((:wat::core::Some v) v)
               (:wat::core::None    -1)))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(20)));
@@ -31983,7 +31902,7 @@ mod tests {
     fn vec_get_out_of_range_returns_none() {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :i64 10 20 30)]
-            (:wat::core::match (:wat::core::get xs 5) -> :bool
+            (:wat::core::match (:wat::core::get xs 5)
               ((:wat::core::Some _) false)
               (:wat::core::None    true)))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
@@ -31993,7 +31912,7 @@ mod tests {
     fn vec_get_negative_index_returns_none() {
         let src = r#"(:wat::core::let
             [xs (:wat::core::Vector :i64 10 20 30)]
-            (:wat::core::match (:wat::core::get xs -1) -> :bool
+            (:wat::core::match (:wat::core::get xs -1)
               ((:wat::core::Some _) false)
               (:wat::core::None    true)))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
@@ -32382,7 +32301,7 @@ mod tests {
                maybe-v
                 (:wat::holon::bytes-vector bs)
                v2
-                (:wat::core::match maybe-v -> :wat::holon::Vector
+                (:wat::core::match maybe-v
                   ((:wat::core::Some v2) v2)
                   (:wat::core::None
                     (:wat::holon::encode (:wat::holon::to-holon "decode-failed-sentinel"))))]
@@ -32431,7 +32350,6 @@ mod tests {
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)))
-              -> :bool
               ((:wat::core::Some _) false)
               (:wat::core::None true))
         "#;
@@ -32454,7 +32372,6 @@ mod tests {
                   (:wat::core::u8 39)
                   (:wat::core::u8 0)
                   (:wat::core::u8 0)))
-              -> :bool
               ((:wat::core::Some _) false)
               (:wat::core::None true))
         "#;
@@ -32546,7 +32463,7 @@ mod tests {
                maybe-bs2
                 (:wat::core::Bytes::from-hex hex)
                bs2
-                (:wat::core::match maybe-bs2 -> :wat::core::Bytes
+                (:wat::core::match maybe-bs2
                   ((:wat::core::Some b) b)
                   (:wat::core::None
                     (:wat::core::Vector :u8 (:wat::core::u8 0))))]
@@ -32579,7 +32496,7 @@ mod tests {
     fn bytes_from_hex_empty_string_round_trips() {
         // "" → :Some(empty Bytes); to-hex of empty Bytes → "".
         let empty_decode = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "") -> :i64
+            (:wat::core::match (:wat::core::Bytes::from-hex "")
               ((:wat::core::Some b) (:wat::core::length b))
               (:wat::core::None -1))
         "#;
@@ -32599,7 +32516,7 @@ mod tests {
     #[test]
     fn bytes_from_hex_rejects_odd_length() {
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "abc") -> :bool
+            (:wat::core::match (:wat::core::Bytes::from-hex "abc")
               ((:wat::core::Some _) false)
               (:wat::core::None true))
         "#;
@@ -32613,7 +32530,7 @@ mod tests {
     fn bytes_from_hex_rejects_non_hex_chars() {
         // "zz" — z is not a hex character.
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "zz") -> :bool
+            (:wat::core::match (:wat::core::Bytes::from-hex "zz")
               ((:wat::core::Some _) false)
               (:wat::core::None true))
         "#;
@@ -32627,7 +32544,7 @@ mod tests {
     fn bytes_from_hex_rejects_0x_prefix() {
         // Per DESIGN Q6: no `0x` tolerance in v1.
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes::from-hex "0xdead") -> :bool
+            (:wat::core::match (:wat::core::Bytes::from-hex "0xdead")
               ((:wat::core::Some _) false)
               (:wat::core::None true))
         "#;
@@ -32915,7 +32832,6 @@ mod tests {
                     (:wat::core::Vector :wat::holon::HolonAST
                       (:wat::holon::leaf "role")
                       (:wat::holon::leaf "filler")))
-                  -> :wat::holon::HolonAST
                   ((:wat::core::Ok h) h)
                   ((:wat::core::Err _) (:wat::holon::leaf "unreachable")))
                ast (:wat::holon::to-wat h1)
@@ -32957,7 +32873,6 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::i64::+ 2 2)))
-              -> :i64
               ((:wat::core::Ok n) n)
               ((:wat::core::Err _) -1))
         "#;
@@ -32974,7 +32889,6 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::i64::> 5 3)))
-              -> :bool
               ((:wat::core::Ok b) b)
               ((:wat::core::Err _) false))
         "#;
@@ -32991,7 +32905,6 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::core::string::concat "hello, " "world")))
-              -> :String
               ((:wat::core::Ok s) s)
               ((:wat::core::Err _) "fail"))
         "#;
@@ -33013,7 +32926,6 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::holon::leaf 42)))
-              -> :i64
               ((:wat::core::Ok h) (:wat::holon::from-holon h))
               ((:wat::core::Err _) -1))
         "#;
@@ -33033,7 +32945,6 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::Vector :i64 1 2 3)))
-              -> :i64
               ((:wat::core::Ok xs) (:wat::core::length xs))
               ((:wat::core::Err _) -1))
         "#;
@@ -33050,7 +32961,7 @@ mod tests {
     /// shape via the rendered `show` of the inner StepResult.
     fn step_to_show(quoted_src: &str) -> String {
         let src = format!(
-            "(:wat::core::match {} -> :String \
+            "(:wat::core::match {} \
                 ((:wat::core::Ok r) (:wat::core::show r)) \
                 ((:wat::core::Err e) (:wat::core::show e)))",
             quoted_src
@@ -33127,7 +33038,6 @@ mod tests {
                 (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
                 0
                 :my::test::count-visit)
-              -> :wat::core::i64
               ((:wat::core::Ok pair)
                 (:wat::core::let
                   [terminal (:wat::core::first pair)
@@ -33173,7 +33083,6 @@ mod tests {
                     (:wat::holon::to-holon "v")))
                 0
                 :my::test::count-visit)
-              -> :wat::core::i64
               ((:wat::core::Ok pair)
                 (:wat::core::second pair))
               ((:wat::core::Err _) -1))
@@ -33204,7 +33113,6 @@ mod tests {
             (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
             0
             :my::test::skip-on-first)
-          -> :wat::core::i64
           ((:wat::core::Ok pair)
             (:wat::core::let
               [terminal (:wat::core::first pair)
@@ -33240,14 +33148,12 @@ mod tests {
                     (:wat::core::quote 42)))
                 0
                 :my::test::count-visit)
-              -> :wat::core::i64
               ((:wat::core::Ok _) -2)
               ((:wat::core::Err e)
                 ;; struct-field 0 is the kind tag.
                 (:wat::core::if
                   (:wat::core::= "no-step-rule"
                                  (:wat::core::struct-field e 0))
-                                 -> :wat::core::i64
                   1
                   -3)))
             "#,
@@ -33364,9 +33270,9 @@ mod tests {
         // so failing tests can show it instead of a silent sentinel.
         r#"
         (:wat::core::defn :my::test::step-to-terminal [form <- :wat::WatAST] -> :wat::holon::HolonAST
-          (:wat::core::match (:wat::eval-step! form) -> :wat::holon::HolonAST
+          (:wat::core::match (:wat::eval-step! form)
                       ((:wat::core::Ok r)
-                        (:wat::core::match r -> :wat::holon::HolonAST
+                        (:wat::core::match r
                           ((:wat::eval::StepResult::StepNext next)
                             (:my::test::step-to-terminal next))
                           ((:wat::eval::StepResult::StepTerminal h) h)
@@ -33487,13 +33393,13 @@ mod tests {
     #[test]
     fn step_if_branch_true() {
         // `(if true -> :wat::core::i64 1 0)` — cond canonical → project to then-branch.
-        let h = step_drive_to_terminal("(:wat::core::if true -> :wat::core::i64 1 0)");
+        let h = step_drive_to_terminal("(:wat::core::if true 1 0)");
         assert_eq!(h.as_i64(), Some(1));
     }
 
     #[test]
     fn step_if_branch_false() {
-        let h = step_drive_to_terminal("(:wat::core::if false -> :wat::core::i64 1 0)");
+        let h = step_drive_to_terminal("(:wat::core::if false 1 0)");
         assert_eq!(h.as_i64(), Some(0));
     }
 
@@ -33502,7 +33408,7 @@ mod tests {
         // `(if (= 1 1) -> :wat::core::i64 1 0)` — cond non-canonical, descend until
         // BoolLit, then project.
         let h = step_drive_to_terminal(
-            "(:wat::core::if (:wat::core::= 1 1) -> :wat::core::i64 1 0)",
+            "(:wat::core::if (:wat::core::= 1 1) 1 0)",
         );
         assert_eq!(h.as_i64(), Some(1));
     }
@@ -33513,7 +33419,7 @@ mod tests {
         // scrutinee match-canonical (Some + canonical inner); arm
         // selection binds n→5; substituted body reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::match (:wat::core::Some 5) -> :wat::core::i64 ((:wat::core::Some n) n) (:wat::core::None 0))",
+            "(:wat::core::match (:wat::core::Some 5) ((:wat::core::Some n) n) (:wat::core::None 0))",
         );
         assert_eq!(h.as_i64(), Some(5));
     }
@@ -33523,7 +33429,7 @@ mod tests {
         // `(match (+ 1 1) -> :wat::core::i64 (n n))` — scrutinee is arithmetic,
         // descend until canonical, then arm selection.
         let h = step_drive_to_terminal(
-            "(:wat::core::match (:wat::core::i64::+ 1 1) -> :wat::core::i64 (n n))",
+            "(:wat::core::match (:wat::core::i64::+ 1 1) (n n))",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
@@ -33570,9 +33476,9 @@ mod tests {
         let forms = [
             ("(:wat::core::i64::+ 2 2)", 4),
             ("(:wat::core::i64::* 3 7)", 21),
-            ("(:wat::core::if true -> :wat::core::i64 10 20)", 10),
+            ("(:wat::core::if true 10 20)", 10),
             ("(:wat::core::let [x 5] (:wat::core::i64::+ x 1))", 6),
-            ("(:wat::core::match (:wat::core::Some 7) -> :wat::core::i64 ((:wat::core::Some n) n) (:wat::core::None 0))", 7),
+            ("(:wat::core::match (:wat::core::Some 7) ((:wat::core::Some n) n) (:wat::core::None 0))", 7),
         ];
         for (form, expected) in forms {
             let h = step_drive_to_terminal(form);
@@ -33588,7 +33494,7 @@ mod tests {
             // directly via the polymorphic Result<:T, :EvalError>
             // scheme; no atom-value extraction needed.
             let eval_src = format!(
-                "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) -> :wat::core::i64 \
+                "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) \
                   ((:wat::core::Ok n) n) ((:wat::core::Err _) -1))",
                 form
             );
@@ -33614,14 +33520,14 @@ mod tests {
         let src = format!(
             r#"
             (:wat::core::defn :my::test::sum-to [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+              (:wat::core::if (:wat::core::= n 0)
                               acc
                               (:my::test::sum-to (:wat::core::i64::- n 1)
                                                  (:wat::core::i64::+ acc n))))
             (:wat::core::defn :my::test::step-count [form <- :wat::WatAST n <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::match (:wat::eval-step! form) -> :wat::core::i64
+              (:wat::core::match (:wat::eval-step! form)
                               ((:wat::core::Ok r)
-                                (:wat::core::match r -> :wat::core::i64
+                                (:wat::core::match r
                                   ((:wat::eval::StepResult::StepNext next)
                                     (:my::test::step-count next (:wat::core::i64::+ n 1)))
                                   ((:wat::eval::StepResult::StepTerminal h) n)
@@ -33794,7 +33700,7 @@ mod tests {
                 (:wat::holon::from-wat
                   (:wat::core::quote (:wat::core::i64::+ 40 2)))
                ast (:wat::holon::to-wat form)]
-              (:wat::core::match (:wat::eval-ast! ast) -> :i64
+              (:wat::core::match (:wat::eval-ast! ast)
                 ((:wat::core::Ok n) n)
                 ((:wat::core::Err _) -1)))
         "#;

@@ -29,10 +29,10 @@
      iq    (:wat::telemetry::Journal/query-metrics jclient
              (:wat::telemetry::Journal::QueryMetricsRequest :namespace "inner-ns"
                :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::None))
-     oc    (:wat::core::match oq -> :wat::core::i64
+     oc    (:wat::core::match oq ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
              ((:wat::telemetry::Journal::QueryMetricsResponse::Success ms _c) (:wat::core::count ms))
-             (_ -1))
-     ic    (:wat::core::match iq -> :wat::core::i64
+             (_ -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+     ic    (:wat::core::match iq ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
              ((:wat::telemetry::Journal::QueryMetricsResponse::Success ms _c) (:wat::core::count ms))
-             (_ -1))]
+             (_ -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
     (:wat::core::+ (:wat::core::* oc 10) ic)))

@@ -27,6 +27,6 @@
      scan-resp  (:wat::query::Store/scan store
                   (:wat::query::Store::ScanRequest
                     :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 10 :cursor :wat::core::None))]
-    (:wat::core::match scan-resp -> :wat::core::i64
+    (:wat::core::match scan-resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::query::Store::ScanResponse::Success rows _cursor) (:wat::core::count rows))
-      (_ -1))))
+      (_ -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

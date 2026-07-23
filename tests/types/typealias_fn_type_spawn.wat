@@ -22,7 +22,7 @@
           (job tx)))
      _
       (:wat::kernel::Thread/drain-and-join h)]
-    (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
+    (:wat::core::match (:wat::kernel::recv rx) 
       ((:wat::core::Ok (:wat::core::Some v)) v)
       ((:wat::core::Ok :wat::core::None) 0)
       ((:wat::core::Err _died) -1))))

@@ -117,13 +117,13 @@
         idx     (:wat::core::first chosen)
         result  (:wat::core::second chosen)]
        ;; Match result — arc 111: Result<Option<Wire>, ThreadDiedError>
-       (:wat::core::match result -> :wat::core::nil
+       (:wat::core::match result  
          ;; Got a message
          ((:wat::core::Ok (:wat::core::Some wire))
-           (:wat::core::match wire -> :wat::core::nil
+           (:wat::core::match wire  
              ;; Admin message — only Stop in 3a
              ((:counter::Wire::Admin req)
-               (:wat::core::match req -> :wat::core::nil
+               (:wat::core::match req  
                  (:counter::AdminReq::Stop
                    ;; Terminal: send Stopped + return nil (thread exits)
                    (:wat::core::Result/expect  
@@ -132,7 +132,7 @@
                      "dispatch: admin-resp-tx disconnected on Stop"))))
              ;; User message — Get / Increment / Reset
              ((:counter::Wire::User req)
-               (:wat::core::match req -> :wat::core::nil
+               (:wat::core::match req  
                  ;; Get — no state change; reply Value(state); recur
                  (:counter::UserReq::Get
                    (:wat::core::do
@@ -249,8 +249,7 @@
              (:wat::kernel::recv user-rx)
              "user-increment: recv peer died")
            "user-increment: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::i64
-         ((:counter::UserResp::Ok    v) v)
+       (:wat::core::match resp ((:counter::UserResp::Ok    v) v)
          ((:counter::UserResp::Value v) v))))
 
    (:wat::core::defn :counter::user-get
@@ -268,8 +267,7 @@
              (:wat::kernel::recv user-rx)
              "user-get: recv peer died")
            "user-get: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::i64
-         ((:counter::UserResp::Ok    v) v)
+       (:wat::core::match resp ((:counter::UserResp::Ok    v) v)
          ((:counter::UserResp::Value v) v))))
 
    (:wat::core::defn :counter::user-reset
@@ -287,8 +285,7 @@
              (:wat::kernel::recv user-rx)
              "user-reset: recv peer died")
            "user-reset: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::i64
-         ((:counter::UserResp::Ok    v) v)
+       (:wat::core::match resp ((:counter::UserResp::Ok    v) v)
          ((:counter::UserResp::Value v) v))))
 
    ;; ─── Admin client wrapper ─────────────────────────────────────────────
@@ -311,8 +308,7 @@
              (:wat::kernel::recv admin-resp-rx)
              "admin-stop: recv peer died")
            "admin-stop: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::i64
-         ((:counter::AdminResp::Stopped final) final)))))
+       (:wat::core::match resp ((:counter::AdminResp::Stopped final) final)))))
 
   ;; ─── Test body ─────────────────────────────────────────────────────────
   ;;

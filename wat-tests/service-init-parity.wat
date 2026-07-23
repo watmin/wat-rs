@@ -44,12 +44,12 @@
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record :count 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
-      (:wat::core::match r -> :wat::core::i64
+      (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::SeededCounter::GetResponse::Ok value) value)
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::SeededCounter::GetResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "seeded-counter-get: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     42))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -61,10 +61,10 @@
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record :count 42))
        c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
-      (:wat::core::match r -> :wat::core::i64
+      (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::SeededCounter::GetResponse::Ok value) value)
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::SeededCounter::GetResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "seeded-counter-get: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     42))

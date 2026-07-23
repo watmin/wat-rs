@@ -59,17 +59,17 @@
           (:wat::holon::to-holon "b")
           (:wat::holon::to-holon "c")))
      bundle
-      (:wat::core::match bundled -> :wat::holon::HolonAST
+      (:wat::core::match bundled 
         ((:wat::core::Ok h)  h)
         ((:wat::core::Err _) (:wat::holon::to-holon "unreachable")))
      atom (:wat::holon::to-holon "a")]
     ;; presence? fires (atom's signal IS in the bundle).
     (:wat::test::assert-eq
       (:wat::core::if (:wat::holon::presence? atom bundle)
-                      -> :wat::core::bool
+                      
         ;; And coincident? does NOT fire (the bundle is not the atom).
         (:wat::core::if (:wat::holon::coincident? atom bundle)
-                        -> :wat::core::bool
+                        
           false    ;; would mean they coincide — wrong
           true)
         false)     ;; presence? false means test setup is wrong

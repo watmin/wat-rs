@@ -23,7 +23,7 @@
 (:wat::core::defn :t::p2a-get-hit [] -> :wat::core::i64
   (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                  :foo 42 :bar 99)]
-    (:wat::core::match (:wat::core::HashMap/get m :foo) -> :wat::core::i64
+    (:wat::core::match (:wat::core::HashMap/get m :foo) 
       ((:wat::core::Some v) v)
       (_ -1))))
 
@@ -45,7 +45,7 @@
   (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                  :foo 1)]
     (:wat::core::let [m2 (:wat::core::HashMap/assoc m :foo 999)]
-      (:wat::core::match (:wat::core::HashMap/get m2 :foo) -> :wat::core::i64
+      (:wat::core::match (:wat::core::HashMap/get m2 :foo) 
         ((:wat::core::Some v) v)
         (_ -1)))))
 
@@ -54,7 +54,7 @@
   (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                  :foo 1)]
     (:wat::core::let [_m2 (:wat::core::HashMap/assoc m :foo 999)]
-      (:wat::core::match (:wat::core::HashMap/get m :foo) -> :wat::core::i64
+      (:wat::core::match (:wat::core::HashMap/get m :foo) 
         ((:wat::core::Some v) v)
         (_ -1)))))
 
@@ -84,7 +84,7 @@
                                  :foo 10)]
     (:wat::core::let [ks (:wat::core::HashMap/keys m)]
       (:wat::core::let [first-key (:wat::core::match
-                                     (:wat::core::Vector/get ks 0) -> :wat::core::keyword
+                                     (:wat::core::Vector/get ks 0) 
                                      ((:wat::core::Some k) k)
                                      (_ :missing))]
         (:wat::core::HashMap/contains-key? m first-key)))))
@@ -141,9 +141,9 @@
   (:wat::core::let
     [inner (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :x 42)
      outer (:wat::core::HashMap :wat::core::keyword :wat::type::Infer :inner inner)]
-    (:wat::core::match (:wat::core::HashMap/get outer :inner) -> :wat::core::i64
+    (:wat::core::match (:wat::core::HashMap/get outer :inner) 
       ((:wat::core::Some inner2)
-        (:wat::core::match (:wat::core::HashMap/get inner2 :x) -> :wat::core::i64
+        (:wat::core::match (:wat::core::HashMap/get inner2 :x) 
           ((:wat::core::Some v) v)
           (_ -2)))
       (_ -1))))

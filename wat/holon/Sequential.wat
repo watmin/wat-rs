@@ -23,12 +23,12 @@
      [positioned
        (:wat::std::list::map-with-index ~items
          (:wat::core::fn [item <- :wat::holon::HolonAST i <- :wat::core::i64] -> :wat::holon::HolonAST
-           (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
+           (:wat::core::if (:wat::core::= i 0) 
              item
              (:wat::holon::Permute item i))))]
      ;; use get for the Option-returning safe path; arc-278 flipped first to bare-raising.
      ;; Sequential expects non-empty input by contract; the :None arm is defensive.
-     (:wat::core::match (:wat::core::get positioned 0) -> :wat::holon::HolonAST
+     (:wat::core::match (:wat::core::get positioned 0) 
        ((:wat::core::Some head)
          (:wat::core::foldl
            (:wat::core::fn [acc <- :wat::holon::HolonAST x <- :wat::holon::HolonAST] -> :wat::holon::HolonAST

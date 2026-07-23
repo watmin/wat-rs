@@ -16,21 +16,21 @@
 (:wat::core::defn :user::do-send-7
   [tx <- :wat::kernel::Sender<wat::core::i64>]
   -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>
-  (:wat::core::match (:wat::kernel::send tx 7) -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>
+  (:wat::core::match (:wat::kernel::send tx 7) 
     ((:wat::core::Ok v) (:wat::core::Ok v))
     ((:wat::core::Err e) (:wat::core::Err e))))
 
 (:wat::core::defn :user::do-send-99
   [tx <- :wat::kernel::Sender<wat::core::i64>]
   -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>
-  (:wat::core::match (:wat::kernel::send tx 99) -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>
+  (:wat::core::match (:wat::kernel::send tx 99) 
     ((:wat::core::Ok v) (:wat::core::Ok v))
     ((:wat::core::Err e) (:wat::core::Err e))))
 
 (:wat::core::defn :user::do-recv
   [rx <- :wat::kernel::Receiver<wat::core::i64>]
   -> :wat::core::Result<wat::core::Option<wat::core::i64>,wat::core::Vector<wat::kernel::ThreadDiedError>>
-  (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::Result<wat::core::Option<wat::core::i64>,wat::core::Vector<wat::kernel::ThreadDiedError>>
+  (:wat::core::match (:wat::kernel::recv rx) 
     ((:wat::core::Ok (:wat::core::Some v)) (:wat::core::Ok (:wat::core::Some v)))
     ((:wat::core::Ok :wat::core::None)    (:wat::core::Ok :wat::core::None))
     ((:wat::core::Err e)                  (:wat::core::Err e))))

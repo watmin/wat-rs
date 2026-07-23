@@ -8,10 +8,10 @@
                body-opt
                 (:wat::runtime::body-of :wat::core::length)]
               (:wat::core::match sig-opt
-                -> :wat::core::bool
+                
                 ((:wat::core::Some _)
                   (:wat::core::match body-opt
-                    -> :wat::core::bool
+                    
                     ((:wat::core::Some _) false)
                     (:wat::core::None    true)))
                 (:wat::core::None false))))

@@ -30,6 +30,6 @@
      bq    (:wat::telemetry::Journal/query-logs journal
              (:wat::telemetry::Journal::QueryLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::None))]
-    (:wat::core::match bq -> :wat::core::i64
+    (:wat::core::match bq ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Journal::QueryLogsResponse::Success ls _c) (:wat::core::count ls))
-      (_ -1))))
+      (_ -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

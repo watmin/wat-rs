@@ -266,4 +266,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)))
+  (:user::apply-each (:wat::kernel::readln )))

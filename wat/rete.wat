@@ -256,7 +256,7 @@
   -> :wat::rete::DerivationNode
   (:wat::core::let [support (:wat::rete::Explained/support ex)
                     sv-opt  (:wat::core::PersistentMap/get support fact)]
-    (:wat::core::match sv-opt -> :wat::rete::DerivationNode
+    (:wat::core::match sv-opt 
       ((:wat::core::Some sv)
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
        ;; matches is PersistentVector<(wat::core::Record, wat::core::i64)>; each tuple is (sfact, alpha-id).
@@ -434,7 +434,7 @@
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::core::HashMap/get dedup dkey)]
-    (:wat::core::match found-opt -> :wat::rete::MintResult
+    (:wat::core::match found-opt 
       ((:wat::core::Some existing-id)
        (:wat::rete::MintResult :id existing-id :state state))
       (:wat::core::None
@@ -464,7 +464,7 @@
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::core::HashMap/get dedup dkey)]
-    (:wat::core::match found-opt -> :wat::rete::MintResult
+    (:wat::core::match found-opt 
       ((:wat::core::Some existing-id)
        (:wat::rete::MintResult :id existing-id :state state))
       (:wat::core::None
@@ -494,7 +494,7 @@
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
                     found-opt (:wat::core::HashMap/get dedup dkey)]
-    (:wat::core::match found-opt -> :wat::rete::MintResult
+    (:wat::core::match found-opt 
       ((:wat::core::Some existing-id)
        (:wat::rete::MintResult :id existing-id :state state))
       (:wat::core::None
@@ -849,12 +849,12 @@
    fact      <- :wat::core::Record]
   -> :wat::core::PersistentMap
   (:wat::core::let [match-result (:wat::rete::alpha-match cond fact)]
-    (:wat::core::match match-result -> :wat::core::PersistentMap
+    (:wat::core::match match-result 
       ((:wat::core::Some bindings)
        ;; WHY staged-fact = Element(record, bindings): stores the original typed record
        ;; (not a map) so downstream queries + TM provenance can use the fact type directly.
        (:wat::core::let [staged-fact (:wat::rete::Element :fact fact :bindings bindings)]
-         (:wat::core::match (:wat::core::PersistentMap/get alpha-mem alpha-id) -> :wat::core::PersistentMap
+         (:wat::core::match (:wat::core::PersistentMap/get alpha-mem alpha-id) 
            ((:wat::core::Some pv)
             (:wat::core::PersistentMap/assoc alpha-mem alpha-id
               (:wat::core::PersistentVector/conj pv staged-fact)))
@@ -914,7 +914,7 @@
    root-join-id <- :wat::core::i64
    tok          <- :wat::rete::Token]
   -> :wat::core::PersistentMap
-  (:wat::core::match (:wat::core::PersistentMap/get beta-mem root-join-id) -> :wat::core::PersistentMap
+  (:wat::core::match (:wat::core::PersistentMap/get beta-mem root-join-id) 
     ((:wat::core::Some pv)
      (:wat::core::PersistentMap/assoc beta-mem root-join-id
        (:wat::core::PersistentVector/conj pv tok)))
@@ -970,7 +970,7 @@
                              "root-join-pass: node not found")]
     (:wat::core::cond
       ((:wat::core::= (:wat::rete::node-kind-label node) "AlphaNode")
-       (:wat::core::match (:wat::core::PersistentMap/get alpha-mem node-id) -> :wat::core::PersistentMap
+       (:wat::core::match (:wat::core::PersistentMap/get alpha-mem node-id) 
          ((:wat::core::Some els)
           (:wat::rete::seed-root-join-children node-id els network beta-mem))
          (:wat::core::None beta-mem)))
@@ -1049,7 +1049,7 @@
                                                     k  <- :wat::core::String]
                                      -> :wat::core::PersistentMap
                                      (:wat::core::match (:wat::core::PersistentMap/get e-binds k)
-                                                        -> :wat::core::PersistentMap
+                                                        
                                        ((:wat::core::Some v)
                                         (:wat::core::PersistentMap/assoc bm k v))
                                        (:wat::core::None bm)))
@@ -1101,7 +1101,7 @@
                     kind (:wat::rete::node-kind-label node)]
     (:wat::core::if (:wat::core::or (:wat::core::= kind "RootJoinNode")
                                     (:wat::core::= kind "HashJoinNode"))
-      (:wat::core::match (:wat::core::PersistentMap/get beta-mem node-id) -> :wat::core::PersistentMap
+      (:wat::core::match (:wat::core::PersistentMap/get beta-mem node-id) 
         ((:wat::core::Some tokens)
          (:wat::core::foldl
            (:wat::core::fn [bm       <- :wat::core::PersistentMap
@@ -1115,7 +1115,7 @@
                  ;; skip the cross to avoid building an empty PV (avoids the untyped-PV hazard).
                  (:wat::core::let [aid (:wat::rete::alpha-feeding child-id network)]
                    (:wat::core::match (:wat::core::PersistentMap/get alpha-mem aid)
-                                      -> :wat::core::PersistentMap
+                                      
                      ((:wat::core::Some els)
                       (:wat::rete::cross-join-node tokens els child-id aid bm))
                      (:wat::core::None bm)))
@@ -1166,7 +1166,7 @@
       (:wat::core::fn [found <- :wat::core::Option<wat::rete::Rule>
                        rule  <- :wat::rete::Rule]
         -> :wat::core::Option<wat::rete::Rule>
-        (:wat::core::match found -> :wat::core::Option<wat::rete::Rule>
+        (:wat::core::match found 
           ((:wat::core::Some _) found)
           (:wat::core::None
            (:wat::core::if (:wat::core::= (:wat::rete::Rule/name rule) rname)
@@ -1195,7 +1195,7 @@
                     parent-id  (:wat::rete::node-parent prod-id network)
                     rule       (:wat::rete::rule-by-name rules rname)
                     rhs        (:wat::rete::Rule/rhs rule)]
-    (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+    (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
       ((:wat::core::Some tokens)
        ;; For each token: for each insert-form in rhs: eval-insert → conj into prod-mem[prod-id].
        (:wat::core::foldl
@@ -1207,7 +1207,7 @@
                               form <- :wat::WatAST]
                -> :wat::core::PersistentMap
                (:wat::core::let [derived (:wat::rete::eval-insert form (:wat::rete::Token/bindings tok))]
-                 (:wat::core::match (:wat::core::PersistentMap/get pm2 prod-id) -> :wat::core::PersistentMap
+                 (:wat::core::match (:wat::core::PersistentMap/get pm2 prod-id) 
                    ((:wat::core::Some pv)
                     (:wat::core::PersistentMap/assoc pm2 prod-id
                       (:wat::core::PersistentVector/conj pv derived)))
@@ -1236,7 +1236,7 @@
     (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "TestNode")
       (:wat::core::let [expr      (:wat::rete::TestNode/expr node)
                         parent-id (:wat::rete::node-parent node-id network)]
-        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
           ((:wat::core::Some tokens)
            (:wat::core::foldl
              (:wat::core::fn [bm  <- :wat::core::PersistentMap
@@ -1274,7 +1274,7 @@
        ;; eval-test filter: keep token iff expr evaluates true under token's bindings.
        (:wat::core::let [expr      (:wat::rete::TestNode/expr node)
                          parent-id (:wat::rete::node-parent node-id network)]
-         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
            ((:wat::core::Some tokens)
             (:wat::core::foldl
               (:wat::core::fn [bm  <- :wat::core::PersistentMap
@@ -1291,7 +1291,7 @@
        ;; Reuse token-element-compatible? (the join's shared-var agreement check) inverted.
        (:wat::core::let [neg-alpha-id (:wat::rete::NegationNode/negated-alpha-id node)
                          parent-id    (:wat::rete::node-parent node-id network)]
-         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
            ((:wat::core::Some tokens)
             (:wat::core::foldl
               (:wat::core::fn [bm  <- :wat::core::PersistentMap
@@ -1300,7 +1300,7 @@
                 ;; pass the token iff no element in alpha-memory[neg-alpha-id] is compatible.
                 (:wat::core::let [els-opt (:wat::core::PersistentMap/get alpha-mem neg-alpha-id)
                                   ;; any-compatible? = foldl over elements, short-circuit on first match
-                                  any-compat (:wat::core::match els-opt -> :wat::core::bool
+                                  any-compat (:wat::core::match els-opt 
                                                ((:wat::core::Some els)
                                                 (:wat::core::foldl
                                                   (:wat::core::fn [found <- :wat::core::bool
@@ -1325,7 +1325,7 @@
        ;; (not any-compat)). Binds nothing; passes the token once (no multiplicity).
        (:wat::core::let [ex-alpha-id (:wat::rete::ExistsNode/exists-alpha-id node)
                          parent-id   (:wat::rete::node-parent node-id network)]
-         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+         (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
            ((:wat::core::Some tokens)
             (:wat::core::foldl
               (:wat::core::fn [bm  <- :wat::core::PersistentMap
@@ -1334,7 +1334,7 @@
                 ;; pass the token iff ≥1 element in alpha-memory[ex-alpha-id] is compatible.
                 (:wat::core::let [els-opt (:wat::core::PersistentMap/get alpha-mem ex-alpha-id)
                                   ;; any-compatible? = foldl over elements, short-circuit on first match
-                                  any-compat (:wat::core::match els-opt -> :wat::core::bool
+                                  any-compat (:wat::core::match els-opt 
                                                ((:wat::core::Some els)
                                                 (:wat::core::foldl
                                                   (:wat::core::fn [found <- :wat::core::bool
@@ -1618,7 +1618,7 @@
                                      -> :wat::core::i64
                                      (:wat::core::let [ns (:wat::core::match
                                                              (:wat::core::HashMap/get ts neg)
-                                                             -> :wat::core::i64
+                                                             
                                                            ((:wat::core::Some v) v)
                                                            (:wat::core::None 0))
                                                        v  (:wat::core::i64::+ ns 1)]
@@ -1634,7 +1634,7 @@
                                                        ich (:wat::rete::StratifyAcc/changed inner)
                                                        cur (:wat::core::match
                                                               (:wat::core::HashMap/get its p)
-                                                              -> :wat::core::i64
+                                                              
                                                             ((:wat::core::Some v) v)
                                                             (:wat::core::None 0))]
                                        (:wat::core::if (:wat::core::i64::> required cur)
@@ -1683,7 +1683,7 @@
                                  -> :wat::core::i64
                                  (:wat::core::let [ps (:wat::core::match
                                                          (:wat::core::HashMap/get type-strata p)
-                                                         -> :wat::core::i64
+                                                         
                                                        ((:wat::core::Some v) v)
                                                        (:wat::core::None 0))]
                                    (:wat::core::if (:wat::core::i64::> ps mx) ps mx)))
@@ -1695,7 +1695,7 @@
                                  -> :wat::core::i64
                                  (:wat::core::let [ns (:wat::core::match
                                                          (:wat::core::HashMap/get type-strata n)
-                                                         -> :wat::core::i64
+                                                         
                                                        ((:wat::core::Some v) v)
                                                        (:wat::core::None 0))
                                                    v  (:wat::core::i64::+ ns 1)]
@@ -2053,7 +2053,7 @@
       (:wat::core::let [v (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
-        (:wat::core::match acc -> :wat::core::Option<wat::core::i64>
+        (:wat::core::match acc 
           ((:wat::core::Some cur)
            (:wat::core::Some (:wat::core::if (:wat::core::< v cur) v cur)))
           (:wat::core::None (:wat::core::Some v)))))
@@ -2072,7 +2072,7 @@
       (:wat::core::let [v (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                              "acc: var unbound")]
-        (:wat::core::match acc -> :wat::core::Option<wat::core::i64>
+        (:wat::core::match acc 
           ((:wat::core::Some cur)
            (:wat::core::Some (:wat::core::if (:wat::core::> v cur) v cur)))
           (:wat::core::None (:wat::core::Some v)))))
@@ -2139,7 +2139,7 @@
                                 "acc: var unbound")
                         fact (:wat::rete::Element/fact e)
                         pv   (:wat::core::match (:wat::core::PersistentMap/get acc k)
-                               -> :wat::core::PersistentVector<wat::core::Record>
+                               
                                ((:wat::core::Some existing) existing)
                                (:wat::core::None (:wat::core::PersistentVector)))]
         (:wat::core::PersistentMap/assoc acc k (:wat::core::PersistentVector/conj pv fact))))
@@ -2222,7 +2222,7 @@
                                (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: min missing ?var"))]
-         (:wat::core::match (:wat::rete::acc::min var gathered) -> :wat::core::PersistentMap
+         (:wat::core::match (:wat::rete::acc::min var gathered) 
            ((:wat::core::Some v)
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
@@ -2234,7 +2234,7 @@
                                (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: max missing ?var"))]
-         (:wat::core::match (:wat::rete::acc::max var gathered) -> :wat::core::PersistentMap
+         (:wat::core::match (:wat::rete::acc::max var gathered) 
            ((:wat::core::Some v)
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
@@ -2246,7 +2246,7 @@
                                (:wat::core::Option/expect  
                                  (:wat::core::get acc-ch 1)
                                  "accumulate-pass-for-token: mean missing ?var"))]
-         (:wat::core::match (:wat::rete::acc::mean var gathered) -> :wat::core::PersistentMap
+         (:wat::core::match (:wat::rete::acc::mean var gathered) 
            ((:wat::core::Some v)
             (:wat::rete::append-token bm node-id
               (:wat::rete::Token :matches tok-matches
@@ -2330,10 +2330,10 @@
                         ;; gather all :from elements from alpha-memory (may be empty PV)
                         from-els      (:wat::core::match
                                          (:wat::core::PersistentMap/get alpha-mem from-alpha-id)
-                                         -> :wat::core::PersistentVector<wat::rete::Element>
+                                         
                                        ((:wat::core::Some pv) pv)
                                        (:wat::core::None (:wat::core::PersistentVector)))]
-        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) -> :wat::core::PersistentMap
+        (:wat::core::match (:wat::core::PersistentMap/get beta-mem parent-id) 
           ((:wat::core::Some tokens)
            ;; For each parent token: filter from-els to compatible ones, then dispatch to
            ;; accumulate-pass-for-token which handles the per-fold type inline.

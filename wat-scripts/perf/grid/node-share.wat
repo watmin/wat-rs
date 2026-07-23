@@ -121,7 +121,7 @@
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+  (:wat::core::let [params  (:wat::kernel::readln )
                     rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
                     items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
                     rules   (:nsh::build-rules rules-n)

@@ -65,11 +65,11 @@
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::i64
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1)
       ((:usr::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── PROCESS locus — the loci-agnostic proof. SAME scenario across a FORK: mem-store' + journal'
 ;; + my-sift' all on process, grant-before-dial at every hop (mirrors the arena's chain). ──
@@ -109,11 +109,11 @@
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::i64
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:usr::my-sift::SiftRulesResponse::Deductions items _cur) (:wat::core::length items))
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) -1)
       ((:usr::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))))
+        (:wat::kernel::assertion-failed! "sift-rules: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── THREAD locus — fail-closed: one Log's message is `:usr::Other`, NOT among :defs. The WHOLE
 ;; page must come back ::Fatal (never a silent skip / partial result). ──
@@ -140,9 +140,9 @@
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::bool
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) true)
-      (_ false))))
+      (_ false))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── PROCESS locus — same fail-closed guard, across a FORK. ──
 (:wat::core::defn :user::sift-rules-fatal-process [] -> :wat::core::bool
@@ -176,6 +176,6 @@
      svc   (:wat::kernel::connect' (:usr::my-sift'::Handle/addr sh))
      resp  (:usr::my-sift/sift-rules svc
              (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::bool
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:usr::my-sift::SiftRulesResponse::Fatal _err) true)
-      (_ false))))
+      (_ false))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

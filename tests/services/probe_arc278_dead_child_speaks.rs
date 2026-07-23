@@ -21,23 +21,24 @@ use wat::freeze::call_beside;
 
 #[test]
 fn a_forked_service_that_cannot_decode_a_message_speaks_its_reason_to_the_caller() {
-    // The undecodable message MUST raise (not hang, not fake a value) — and, crucially, the raise MUST
-    // carry the child's real reason, not a mute mask.
-    let result = call_beside(file!(), ":user::compute");
-    let err = result.expect_err(
-        "write-logs of an undecodable payload across a process fork must RAISE (the child cannot decode it)",
-    );
-    let msg = format!("{err:?}");
-    assert!(
-        // rune:lint(loose-assert) — the raised error embeds a per-run-variable source location
-        // (edn_shim.rs:LINE:COL); we assert the diagnostic SUBSTANCE (that it names the undecodable
-        // tag / decode failure) is present — a property over a variable message, the legitimately-loose
-        // case the lint documents, not a deterministic value that owes an exact assert_eq!.
-        msg.contains("unknown tag")
-            || msg.contains("decode failed")
-            || msg.contains("no matching struct or enum"),
-        "THE LAW (wat never hides a failure): the caller's error must carry the child's real reason \
-         (e.g. 'unknown tag #probe/Note ... no matching struct or enum in the type registry'). \
-         Instead it surfaced a MUTE mask: {msg}"
+    // EXACT DATA-EQUALITY (no `.contains`): the fixture MATCHES the RecvOutcome as a VALUE (a raise
+    // would unwind past the reader — the mask the wall kills) and returns a structured :probe::Outcome
+    // whose in-wat `reason-names-decode-failure?` bool proves THE LAW — the caller's error carries the
+    // child's real reason ("...no matching struct or enum in the type registry"), never a mute mask.
+    // The golden #probe.Outcome/Lost [true] is captured (UPDATE_EDN=1), never hand-authored; the
+    // per-run-variable Failure location stays in wat, only its boolean RESULT crosses. Mirrors the
+    // canonical gate probe_arc278_recv_outcome_wall. "wat stdio is edn — it's always data" (builder).
+    let v = call_beside(file!(), ":user::compute").unwrap_or_else(|e| {
+        panic!(
+            "the undecodable payload across a process fork must surface as a matchable \
+             RecvOutcome::Lost VALUE (never a raise, which would unwind past the reader); got Err: {e:?}"
+        )
+    });
+    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    wat::assert_edn_matches_file!(
+        edn,
+        "dead_child_speaks__forked_service_speaks_its_reason.edn",
+        "THE LAW (wat never hides a failure): the forked child's decode failure must MATCH \
+         RecvOutcome::Lost (never the mute ::Closed/::Message) and CARRY its real reason"
     );
 }

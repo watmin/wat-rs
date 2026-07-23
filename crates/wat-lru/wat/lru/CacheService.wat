@@ -205,7 +205,7 @@
       (:wat::lru::State/cache state)
      stats
       (:wat::lru::State/stats state)]
-    (:wat::core::match req -> :wat::lru::State<K,V>
+    (:wat::core::match req 
       ((:wat::lru::Request::Get probes)
         (:wat::core::let
           [;; Arc 118.2a — results feeds foldl below AND is sent whole as
@@ -219,7 +219,7 @@
             (:wat::core::foldl
               (:wat::core::fn
                 [acc <- :wat::core::i64 slot <- :wat::core::Option<V>] -> :wat::core::i64
-                (:wat::core::match slot -> :wat::core::i64
+                (:wat::core::match slot 
                   ((:wat::core::Some _) (:wat::core::i64::+ acc 1))
                   (:wat::core::None acc)))
               0
@@ -293,7 +293,7 @@
      fired (:wat::core::second tick)
      cadence'
       (:wat::lru::MetricsCadence :gate gate' :tick tick-fn)]
-    (:wat::core::if fired -> :wat::lru::Step<K,V,G>
+    (:wat::core::if fired 
       (:wat::core::let
         [cache
           (:wat::lru::State/cache state)
@@ -326,7 +326,7 @@
    reporter <- :wat::lru::Reporter
    metrics-cadence <- :wat::lru::MetricsCadence<G>]
   -> :wat::core::nil
-  (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::nil
+  (:wat::core::match (:wat::core::get driver-pairs idx) 
     ((:wat::core::Some pair)
       (:wat::core::let
         [reply-tx
@@ -377,7 +377,7 @@
    reporter <- :wat::lru::Reporter
    metrics-cadence <- :wat::lru::MetricsCadence<G>]
   -> :wat::core::nil
-  (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
+  (:wat::core::if (:wat::core::empty? driver-pairs) 
     nil
     (:wat::core::let
       [;; Arc 118.2a — req-rxs feeds :wat::kernel::select, which needs a
@@ -393,7 +393,7 @@
        idx (:wat::core::first chosen)
        maybe
         (:wat::core::second chosen)]
-      (:wat::core::match maybe -> :wat::core::nil
+      (:wat::core::match maybe 
         ((:wat::core::Ok (:wat::core::Some req))
           (:wat::lru::reply-at driver-pairs idx req state reporter metrics-cadence))
         ((:wat::core::Ok :wat::core::None)
@@ -440,7 +440,7 @@
           (:wat::kernel::recv reply-rx)
           "lru::get: reply-rx disconnected — driver died mid-request?")
         "lru::get: reply channel closed — driver dropped reply-tx?")]
-    (:wat::core::match reply -> :wat::core::Vector<wat::core::Option<V>>
+    (:wat::core::match reply 
       ((:wat::lru::Reply::GetResult results) results)
       ((:wat::lru::Reply::PutAck _)
         (:wat::core::panic! "lru::get: driver sent PutAck on Get reply channel")))))
@@ -467,7 +467,7 @@
           (:wat::kernel::recv reply-rx)
           "lru::put: reply-rx disconnected — driver died mid-request?")
         "lru::put: reply channel closed — driver dropped reply-tx?")]
-    (:wat::core::match reply -> :wat::core::nil
+    (:wat::core::match reply 
       ((:wat::lru::Reply::PutAck _) nil)
       ((:wat::lru::Reply::GetResult _)
         (:wat::core::panic! "lru::put: driver sent GetResult on Put reply channel")))))

@@ -3,6 +3,6 @@
   (:wat::core::let
     [u (:wat::core::Uuid/nil)
      s (:wat::core::Uuid/to-string u)]
-    (:wat::core::if (:wat::core::= s "00000000-0000-0000-0000-000000000000") -> :wat::core::nil
+    (:wat::core::if (:wat::core::= s "00000000-0000-0000-0000-000000000000") 
       (:wat::kernel::println "NIL-OK")
       (:wat::kernel::println "NIL-FAIL"))))

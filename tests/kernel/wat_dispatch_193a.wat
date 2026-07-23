@@ -7,12 +7,12 @@
   (:rust::test::MathUtils::add 40 2))
 
 (:wat::core::defn :my::compute-some [] -> :wat::core::i64
-  (:wat::core::match (:rust::test::MathUtils::maybe_double 21) -> :wat::core::i64
+  (:wat::core::match (:rust::test::MathUtils::maybe_double 21) 
     ((:wat::core::Some v) v)
     (:wat::core::None -1)))
 
 (:wat::core::defn :my::compute-none [] -> :wat::core::i64
-  (:wat::core::match (:rust::test::MathUtils::maybe_double 0) -> :wat::core::i64
+  (:wat::core::match (:rust::test::MathUtils::maybe_double 0) 
     ((:wat::core::Some v) v)
     (:wat::core::None -1)))
 

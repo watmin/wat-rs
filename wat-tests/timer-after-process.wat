@@ -24,7 +24,7 @@
       (:wat::kernel::select'
         (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword>
           (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Millisecond 50) :tick)))
-      -> :wat::core::keyword
+       
       ((:wat::spawn::ServiceEvent::Message _idx msg) msg)
       ((:wat::spawn::ServiceEvent::Closed _idx) :no-tick)
       ((:wat::spawn::ServiceEvent::Lost _idx _cause) :no-tick)

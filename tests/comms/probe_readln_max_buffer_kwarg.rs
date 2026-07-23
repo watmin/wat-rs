@@ -7,7 +7,7 @@
 //! THE CONTRACT (kwargs is ALWAYS a macro):
 //!  - `:wat::kernel::readln'` — kernel-restricted positional prime: optional
 //!    leading max-bytes (`(readln' -> :T)` = default; `(readln' N -> :T)` = N).
-//!  - `:wat::kernel::readln` — a defmacro wrapping readln': `(readln -> :T)` →
+//!  - `:wat::kernel::readln` — a defmacro wrapping readln': `(readln)` →
 //!    `(readln' -> :T)`; `(readln :max-buffer-bytes N -> :T)` → `(readln' N -> :T)`.
 //!    Forwards the `-> :T` annotation so the polymorphic return still infers.
 //!
@@ -28,7 +28,7 @@ fn readln_max_buffer_bytes_kwarg_type_checks() {
     // The co-located .wat contains (readln :max-buffer-bytes N -> :T) in readln-with-max-buffer.
     assert!(
         startup_ok(),
-        "(:wat::kernel::readln :max-buffer-bytes N -> :T) must type-check — \
+        "(:wat::kernel::readln :max-buffer-bytes N) must type-check — \
          readln is the macro over the kernel prime readln'"
     );
 }
@@ -39,6 +39,6 @@ fn readln_plain_form_still_type_checks() {
     // The co-located .wat contains (readln -> :T) in readln-plain.
     assert!(
         startup_ok(),
-        "(:wat::kernel::readln -> :T) must still type-check (default cap branch)"
+        "(:wat::kernel::readln) must still type-check (default cap branch)"
     );
 }

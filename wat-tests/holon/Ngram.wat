@@ -25,7 +25,7 @@
      result
        (:wat::core::match
          (:wat::holon::Ngram 5 (:wat::core::Vector :wat::holon::HolonAST a b c))
-         -> :wat::holon::HolonAST
+         
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) a))
      ;; An empty bundle carries no signal — none of the input atoms
@@ -49,13 +49,13 @@
      n2
        (:wat::core::match
          (:wat::holon::Ngram 2 xs)
-         -> :wat::holon::HolonAST
+         
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) a))
      n3
        (:wat::core::match
          (:wat::holon::Ngram 3 xs)
-         -> :wat::holon::HolonAST
+         
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) a))]
     (:wat::test::assert-eq

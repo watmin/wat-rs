@@ -71,7 +71,7 @@
 ;; alongside the source location. Used to be `:None :None` (just "the
 ;; assertion fired"); arc 064 closed the diagnostic gap.
 (:wat::core::defn :wat::test::assert-eq<T> [actual <- :T expected <- :T] -> :wat::core::nil
-  (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
+  (:wat::core::if (:wat::core::= actual expected) 
       nil
       (:wat::kernel::assertion-failed!
         "assert-eq failed"
@@ -86,7 +86,7 @@
 ;; mis-report "assert-eq failed"); the actual slot shows the bool, the expected
 ;; slot the word it should have been.
 (:wat::core::defn :wat::test::assert-true [actual <- :wat::core::bool] -> :wat::core::nil
-  (:wat::core::if actual -> :wat::core::nil
+  (:wat::core::if actual 
       nil
       (:wat::kernel::assertion-failed!
         "assert-true failed"
@@ -94,7 +94,7 @@
         (:wat::core::Some "true"))))
 
 (:wat::core::defn :wat::test::assert-false [actual <- :wat::core::bool] -> :wat::core::nil
-  (:wat::core::if actual -> :wat::core::nil
+  (:wat::core::if actual 
       (:wat::kernel::assertion-failed!
         "assert-false failed"
         (:wat::core::Some (:wat::core::show actual))
@@ -107,7 +107,7 @@
 ;; we can populate actual/expected with the real values — the failure
 ;; in a RunResult shows the user which haystack/needle fired.
 (:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::if (:wat::core::string::contains? haystack needle) -> :wat::core::nil
+  (:wat::core::if (:wat::core::string::contains? haystack needle) 
       nil
       (:wat::kernel::assertion-failed!
         "assert-contains failed"
@@ -142,7 +142,7 @@
         (:wat::holon::coincident-explain a b)
        ok
         (:wat::holon::CoincidentExplanation/coincident expl)]
-      (:wat::core::if ok -> :wat::core::nil
+      (:wat::core::if ok 
         nil
         (:wat::kernel::assertion-failed!
           "assert-coincident failed — holons not at the same point"
@@ -181,7 +181,7 @@
 (:wat::core::defn :wat::test::assert-stdout-is [result <- :wat::kernel::RunResult expected <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
   (:wat::core::let
       [actual (:wat::kernel::RunResult/stdout result)]
-      (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
+      (:wat::core::if (:wat::core::= actual expected) 
         nil
         (:wat::kernel::assertion-failed!
           "assert-stdout-is failed"
@@ -204,7 +204,7 @@
 (:wat::core::defn :wat::test::assert-stderr-matches [result <- :wat::kernel::RunResult pattern <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let
       [stderr-lines (:wat::kernel::RunResult/stderr result)]
-      (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::nil
+      (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) 
         nil
         (:wat::kernel::assertion-failed!
           "assert-stderr-matches failed — no stderr line matched pattern"
@@ -533,13 +533,13 @@
        stderr-chain   (:wat::kernel::extract-panics stderr-lines)
        failure
         (:wat::core::match joined-result
-          -> :wat::core::Option<wat::kernel::Failure>
+           
           ((:wat::core::Ok _)  :wat::core::None)
           ((:wat::core::Err chain)
            (:wat::core::Some
              (:wat::kernel::failure-from-process-died
                (:wat::core::match stderr-chain
-                 -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+                  
                  ((:wat::core::Some sc) sc)
                  ;; Arc 170 slice 1i — substrate contract: every child error
                  ;; MUST emit a structured #wat.kernel/ProcessPanics line.
@@ -704,7 +704,7 @@
 ;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::failure-from-thread-died [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>] -> :wat::kernel::Failure
   (:wat::core::match (:wat::core::get chain 0)
-      -> :wat::kernel::Failure
+       
       ((:wat::core::Some err) (:wat::kernel::ThreadDiedError/to-failure err))
       (:wat::core::None
        ;; Empty chain — should not occur; substrate always emits at
@@ -731,7 +731,7 @@
   (:wat::core::let
       [joined  (:wat::kernel::Thread/join-result thr)
        failure (:wat::core::match joined
-                 -> :wat::core::Option<wat::kernel::Failure>
+                  
                  ((:wat::core::Ok _)      :wat::core::None)
                  ((:wat::core::Err chain) (:wat::core::Some
                                             (:wat::test::failure-from-thread-died chain))))]
@@ -793,15 +793,29 @@
 (:wat::core::defmacro :wat::test::run-thread'
   [body <- :wat::WatAST]
   -> :wat::WatAST
+  ;; arc 278 the recv'-outcome wall reaches the harness: recv' RETURNS RecvOutcome (a VALUE), never
+  ;; raises. The child's failing assertion crashes it → recv' returns `Lost[cause]`. We do NOT re-raise
+  ;; (that would bend the value back into a control-flow raise); we RETURN the outcome — the Lost cause
+  ;; (a Failure) drops straight into RunResult.failure, and test_runner's failure-slot check reports it.
+  ;; A passing child sends its pass-marker → Message → failure=None. Value-based end to end: a failing
+  ;; test is a VALUE, never a swallowed `_ (recv' p)` (the masking this arc annihilates).
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
           (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-            (:wat::core::do ~body (:wat::kernel::send' self 0))))
-      _ (:wat::kernel::recv' p)]
-     (:wat::core::struct-new :wat::kernel::RunResult
-       (:wat::core::Vector :wat::core::String)
-       (:wat::core::Vector :wat::core::String)
-       :wat::core::None)))
+            (:wat::core::do ~body (:wat::kernel::send' self 0))))]
+     (:wat::core::match (:wat::kernel::recv' p)
+       ((:wat::kernel::RecvOutcome::Message _m)
+         (:wat::core::struct-new :wat::kernel::RunResult
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) :wat::core::None))
+       ((:wat::kernel::RecvOutcome::Lost cause)
+         (:wat::core::struct-new :wat::kernel::RunResult
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some cause)))
+       (:wat::kernel::RecvOutcome::Closed
+         (:wat::core::struct-new :wat::kernel::RunResult
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
+           (:wat::core::Some (:wat::core::struct-new :wat::kernel::Failure
+             "run-thread': test child closed before signaling completion"
+             :wat::core::None (:wat::core::Vector :wat::kernel::Frame) :wat::core::None :wat::core::None)))))))
 
 (:wat::core::defmacro :wat::test::deftest'
   [name    <- :wat::WatAST
@@ -839,16 +853,27 @@
 (:wat::core::defmacro :wat::test::run-hermetic'
   [body <- :wat::WatAST]
   -> :wat::WatAST
+  ;; arc 278 the recv'-outcome wall reaches the harness (see run-thread' above): recv' RETURNS the
+  ;; outcome. A failing child crashes → Lost[cause] → RETURNED in RunResult.failure (not re-raised, not
+  ;; swallowed as `_`). A passing child prints its pass-marker → Message → failure=None.
   `(:wat::core::let
      [p (:wat::kernel::spawn-program' (:wat::spawn::process)
           (:wat::core::forms
             (:wat::core::defn :user::main [] -> :wat::core::nil
-              (:wat::core::do ~body (:wat::kernel::println 0)))))
-      _ (:wat::kernel::recv' p)]
-     (:wat::core::struct-new :wat::kernel::RunResult
-       (:wat::core::Vector :wat::core::String)
-       (:wat::core::Vector :wat::core::String)
-       :wat::core::None)))
+              (:wat::core::do ~body (:wat::kernel::println 0)))))]
+     (:wat::core::match (:wat::kernel::recv' p)
+       ((:wat::kernel::RecvOutcome::Message _m)
+         (:wat::core::struct-new :wat::kernel::RunResult
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) :wat::core::None))
+       ((:wat::kernel::RecvOutcome::Lost cause)
+         (:wat::core::struct-new :wat::kernel::RunResult
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some cause)))
+       (:wat::kernel::RecvOutcome::Closed
+         (:wat::core::struct-new :wat::kernel::RunResult
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
+           (:wat::core::Some (:wat::core::struct-new :wat::kernel::Failure
+             "run-hermetic': test child closed before signaling completion"
+             :wat::core::None (:wat::core::Vector :wat::kernel::Frame) :wat::core::None :wat::core::None)))))))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic'
   [name    <- :wat::WatAST
@@ -917,7 +942,7 @@
 ;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::run-hermetic-send-inputs<I> [tx <- :wat::kernel::Sender<I> inputs <- :wat::core::Vector<I>] -> :wat::core::nil
   (:wat::core::if (:wat::core::Vector/empty? inputs)
-      -> :wat::core::nil
+      
       nil
       (:wat::core::let
         [item
@@ -939,7 +964,7 @@
 ;; Internal — not for direct corpus use; called by the macros above.
 (:wat::core::defn :wat::test::run-hermetic-drain-outputs<O> [rx <- :wat::kernel::Receiver<O> acc <- :wat::core::Vector<O>] -> :wat::core::Vector<O>
   (:wat::core::match (:wat::kernel::recv rx)
-      -> :wat::core::Vector<O>
+       
       ((:wat::core::Ok (:wat::core::Some v))
        (:wat::test::run-hermetic-drain-outputs rx (:wat::core::conj acc v)))
       ((:wat::core::Ok :wat::core::None) acc)
@@ -997,13 +1022,13 @@
        stderr-chain   (:wat::kernel::extract-panics stderr-lines)
        failure
         (:wat::core::match joined-result
-          -> :wat::core::Option<wat::kernel::Failure>
+           
           ((:wat::core::Ok _) :wat::core::None)
           ((:wat::core::Err chain)
            (:wat::core::Some
              (:wat::kernel::failure-from-process-died
                (:wat::core::match stderr-chain
-                 -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+                  
                  ((:wat::core::Some sc) sc)
                  ;; Arc 170 slice 1i — substrate contract: every child error
                  ;; MUST emit structured #wat.kernel/ProcessPanics EDN.

@@ -29,9 +29,9 @@
      _    (:wat::io::IOWriter/writeln w "second")
      a    (:wat::io::IOReader/read-line r)
      b    (:wat::io::IOReader/read-line r)]
-    (:wat::core::match a -> :wat::core::String
+    (:wat::core::match a 
       ((:wat::core::Some sa)
-       (:wat::core::match b -> :wat::core::String
+       (:wat::core::match b 
          ((:wat::core::Some sb) (:wat::core::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
          (:wat::core::None     "second-missing")))
       (:wat::core::None "first-missing"))))
@@ -44,7 +44,7 @@
      r    (:wat::core::second pair)
      n    (:wat::io::IOWriter/write-string w "hello")
      got  (:wat::io::IOReader/read r 5)]
-    (:wat::core::match got -> :wat::core::i64
+    (:wat::core::match got 
       ((:wat::core::Some bytes) n)
       (:wat::core::None        -1))))
 

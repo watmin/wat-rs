@@ -2,6 +2,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [result (:wat::core::Uuid/from-string "not-a-uuid")]
-    (:wat::core::match result -> :wat::core::nil
+    (:wat::core::match result 
       ((:wat::core::Some u) (:wat::kernel::println "GARBAGE-SOME"))
       (:wat::core::None     (:wat::kernel::println "GARBAGE-NONE")))))

@@ -1,11 +1,9 @@
-//! End-to-end tests for the typed `:wat::core::if` and
-//! `:wat::core::match` forms. Per the 2026-04-20 INSCRIPTION, both
-//! forms now require an explicit `-> :T` between the scrutinee/cond
-//! and the arms/branches. Each arm/branch is checked against `:T`
-//! independently, so a divergent body produces a per-body
-//! TypeMismatch that names the branch (`then-branch`, `else-branch`,
-//! `arm #1`, ...) instead of a unifier-flavored "branches didn't
-//! unify" message.
+//! End-to-end tests for the `:wat::core::if` and `:wat::core::match`
+//! forms. Arc 258.4/258.5 — the `-> :T` ascription is RETIRED on both:
+//! the result type is inferred by unifying the branches/arm bodies
+//! (a stray `->` is a located migration-hint error). A divergent
+//! body produces a per-body TypeMismatch naming the branch
+//! (`then-branch`, `else-branch`, `arm #2`, ...).
 //!
 //! Coverage:
 //!
@@ -98,32 +96,36 @@ fn untyped_if_gives_migration_hint() {
 }
 
 #[test]
-fn untyped_match_gives_migration_hint() {
-    // Three args, where the second is NOT `->` — detected as the
-    // old untyped shape.
-    let errs = check_errors("tests/types/typed_if_match_untyped_match.wat.bad");
-    assert_malformed_mentioning(&errs, ":wat::core::match", "now requires `-> :T`");
+fn bare_match_is_valid_and_infers() {
+    // Arc 258.5 — bare `(match scrut (pat body) ...)` is now VALID; the
+    // result type is inferred by unifying the arm bodies (both :i64 → :i64).
+    // This was previously a migration-hint rejection; it now runs and returns
+    // the matching arm's value (Some 1 → v = 1).
+    assert!(matches!(run("tests/types/typed_if_match_untyped_match_bare.wat"), Value::i64(1)));
 }
 
 // ─── Structural refusals ──────────────────────────────────────────────
 
 #[test]
-fn if_without_type_keyword_after_arrow_rejected() {
+fn if_with_stray_arrow_rejected() {
+    // Arc 258.4 — a stray `->` in ascription position (the retired 5-arg `-> :T`
+    // form) is refused with the migration hint.
     let errs = check_errors("tests/types/typed_if_match_if_no_type_kw.wat.bad");
-    assert_malformed_mentioning(&errs, ":wat::core::if", "type keyword");
+    assert_malformed_mentioning(&errs, ":wat::core::if", "no longer takes `-> :T`");
 }
 
 #[test]
-fn match_without_type_keyword_after_arrow_rejected() {
+fn match_with_stray_arrow_rejected() {
+    // Arc 258.5 — a stray `->` in ascription position (the retired `-> :T`
+    // shape) is refused with the migration hint, whatever follows the arrow.
     let errs = check_errors("tests/types/typed_if_match_match_no_type_kw.wat.bad");
-    assert_malformed_mentioning(&errs, ":wat::core::match", "type keyword");
+    assert_malformed_mentioning(&errs, ":wat::core::match", "no longer takes `-> :T`");
 }
 
 #[test]
 fn if_wrong_arity_rejected_with_shape_guidance() {
-    // Six args — one too many for both the bare 3-arg and annotated 5-arg forms.
-    // Arc 258.1 updated the error to name both valid shapes; the needle matches
-    // the annotated-shape portion of the message.
+    // Arc 258.4 — bare 4-arg `if` (one too many); the error names the only valid
+    // shape, `(:wat::core::if cond then else) — 3 args`.
     let errs = check_errors("tests/types/typed_if_match_if_wrong_arity.wat.bad");
     assert_malformed_mentioning(
         &errs,
@@ -135,15 +137,18 @@ fn if_wrong_arity_rejected_with_shape_guidance() {
 #[test]
 fn match_too_few_args_rejected_with_shape_guidance() {
     let errs = check_errors("tests/types/typed_if_match_match_too_few.wat.bad");
-    assert_malformed_mentioning(&errs, ":wat::core::match", "at least 4 args");
+    assert_malformed_mentioning(&errs, ":wat::core::match", "at least a scrutinee and one arm");
 }
 
 // ─── Branch-type-mismatch locality ────────────────────────────────────
 
 #[test]
-fn if_then_branch_type_mismatch_named_by_branch() {
+fn if_branch_type_mismatch_named_by_branch() {
+    // Arc 258.4 — bare `if` unifies the branches; a divergence is named on the
+    // `else-branch` (the branch that fails to unify with the first), like bare
+    // `match` names the divergent arm. (Was per-declared-type "then-branch".)
     let errs = check_errors("tests/types/typed_if_match_then_branch_mismatch.wat.bad");
-    assert_type_mismatch_on(&errs, ":wat::core::if", "then-branch");
+    assert_type_mismatch_on(&errs, ":wat::core::if", "else-branch");
 }
 
 #[test]

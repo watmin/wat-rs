@@ -3,6 +3,6 @@
   (:wat::core::let
     [a (:wat::core::Uuid/nil)
      b (:wat::core::Uuid/nil)]
-    (:wat::core::if (:wat::core::= a b) -> :wat::core::nil
+    (:wat::core::if (:wat::core::= a b) 
       (:wat::kernel::println "NIL-EQ-OK")
       (:wat::kernel::println "NIL-EQ-FAIL"))))

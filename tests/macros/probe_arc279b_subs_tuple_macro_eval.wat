@@ -26,7 +26,7 @@
                   nopen  (:wat::core::second acc)]
                  (:wat::core::if
                    (:wat::core::= c "{")
-                   -> :wat::core::Tuple
+                   
                    (:wat::core::Tuple kept (:wat::core::i64::+ nopen 1))
                    (:wat::core::Tuple (:wat::core::string::concat kept c) nopen))))
              (:wat::core::Tuple "" 0)

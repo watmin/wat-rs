@@ -47,40 +47,61 @@
                   [item <- :wat::core::String
                    & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>]]
                   -> :wat::core::String
-                  (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) -> :wat::core::String
+                  (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
                     ((:probe::Echo::EchoResponse::Ok reply) reply)
                     ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
                       (:wat::kernel::assertion-failed! "work: unexpected RequestTooLarge"
-                        :wat::core::None :wat::core::None))))
+                        :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
                 ;; ── serve loop: Work arm invokes via the COMPANION :key val call ──
                 (:wat::core::defn :probe::serve
                   [self <- :wat::kernel::Peer'<wat::core::String,probe::Msg>
                    held <- (:wat::core::Option :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>)]
                   -> :wat::core::nil
-                  (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
-                    ((:probe::Msg::Setup addr)
-                      (:probe::serve self (:wat::core::Some (:wat::kernel::connect' addr))))
-                    ((:probe::Msg::Work s)
-                      (:wat::core::let
-                        [c (:wat::core::Option/expect held "Work before Setup")
-                         r (:probe::work s :echo c)                       ;; ← companion :key val, held peer
-                         _ (:wat::kernel::send' self r)]
-                        (:probe::serve self held)))))
+                  (:wat::core::match (:wat::kernel::recv' self)
+                    ((:wat::kernel::RecvOutcome::Message m)
+                      (:wat::core::match m
+                        ((:probe::Msg::Setup addr)
+                          (:probe::serve self (:wat::core::Some (:wat::kernel::connect' addr))))
+                        ((:probe::Msg::Work s)
+                          (:wat::core::let
+                            [c (:wat::core::Option/expect held "Work before Setup")
+                             r (:probe::work s :echo c)                   ;; ← companion :key val, held peer
+                             _ (:wat::kernel::send' self r)]
+                            (:probe::serve self held)))))
+                    ((:wat::kernel::RecvOutcome::Lost cause)
+                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                    (:wat::kernel::RecvOutcome::Closed
+                      (:wat::kernel::assertion-failed! "recv': self closed — serve loop terminating" :wat::core::None :wat::core::None))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String :probe::Msg)]
                     (:probe::serve self :wat::core::None)))))
-     out  (:wat::core::match (:wat::kernel::peer-pid worker) -> :wat::core::String
+     out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
                 [_  (:probe::echo'/grant eh [p])
                  _  (:wat::kernel::send' worker (:probe::Msg::Setup ea))
                  _  (:wat::kernel::send' worker (:probe::Msg::Work "a"))
-                 r1 (:wat::kernel::recv' worker)
+                 r1 (:wat::core::match (:wat::kernel::recv' worker)
+                      ((:wat::kernel::RecvOutcome::Message m) m)
+                      ((:wat::kernel::RecvOutcome::Lost cause)
+                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                      (:wat::kernel::RecvOutcome::Closed
+                        (:wat::kernel::assertion-failed! "recv': worker closed before reply a" :wat::core::None :wat::core::None)))
                  _  (:wat::kernel::send' worker (:probe::Msg::Work "b"))
-                 r2 (:wat::kernel::recv' worker)
+                 r2 (:wat::core::match (:wat::kernel::recv' worker)
+                      ((:wat::kernel::RecvOutcome::Message m) m)
+                      ((:wat::kernel::RecvOutcome::Lost cause)
+                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                      (:wat::kernel::RecvOutcome::Closed
+                        (:wat::kernel::assertion-failed! "recv': worker closed before reply b" :wat::core::None :wat::core::None)))
                  _  (:wat::kernel::send' worker (:probe::Msg::Work "c"))
-                 r3 (:wat::kernel::recv' worker)]
+                 r3 (:wat::core::match (:wat::kernel::recv' worker)
+                      ((:wat::kernel::RecvOutcome::Message m) m)
+                      ((:wat::kernel::RecvOutcome::Lost cause)
+                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                      (:wat::kernel::RecvOutcome::Closed
+                        (:wat::kernel::assertion-failed! "recv': worker closed before reply c" :wat::core::None :wat::core::None)))]
                 (:wat::core::string::concat r1
                   (:wat::core::string::concat " "
                     (:wat::core::string::concat r2

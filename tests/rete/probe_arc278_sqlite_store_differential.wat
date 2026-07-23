@@ -20,16 +20,16 @@
    ipage <- :wat::query::IndexPage])
 
 (:wat::core::defn :probe::expect-scan
-  [resp <- :wat::query::Store::ScanResponse] -> :wat::query::Page
-  (:wat::core::match resp -> :wat::query::Page
+  [resp <- :wat::kernel::RecvOutcome<wat::query::Store::ScanResponse>] -> :wat::query::Page
+  (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
     ((:wat::query::Store::ScanResponse::Success rows cursor) (:wat::query::Page :rows rows :next-cursor cursor))
-    (_ (:wat::kernel::assertion-failed! "scan failed" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "scan failed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::expect-scan-index
-  [resp <- :wat::query::Store::ScanIndexResponse] -> :wat::query::IndexPage
-  (:wat::core::match resp -> :wat::query::IndexPage
+  [resp <- :wat::kernel::RecvOutcome<wat::query::Store::ScanIndexResponse>] -> :wat::query::IndexPage
+  (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
     ((:wat::query::Store::ScanIndexResponse::Success rows cursor) (:wat::query::IndexPage :rows rows :next-cursor cursor))
-    (_ (:wat::kernel::assertion-failed! "scan-index failed" :wat::core::None :wat::core::None))))
+    (_ (:wat::kernel::assertion-failed! "scan-index failed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::run-ops [store <- :wat::query::Store] -> :probe::RunResult
   (:wat::core::let
@@ -46,14 +46,14 @@
                 (:wat::query::Store/ensure-schema store
                   (:wat::query::Store::EnsureSchemaRequest
                     :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-                    :indexes (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk"))))
-                -> :wat::core::nil
+                    :indexes (:wat::core::Vector :wat::query::IndexSchema (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk")))) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
+                
                 ((:wat::query::Store::EnsureSchemaResponse::Success) nil)
-                (_ (:wat::kernel::assertion-failed! "ensure-schema failed" :wat::core::None :wat::core::None)))
-     _p       (:wat::core::match (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
-                -> :wat::core::nil
+                (_ (:wat::kernel::assertion-failed! "ensure-schema failed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+     _p       (:wat::core::match (:wat::query::Store/put store (:wat::query::Store::PutRequest rows)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv
+                
                 ((:wat::query::Store::PutResponse::Success) nil)
-                (_ (:wat::kernel::assertion-failed! "put failed" :wat::core::None :wat::core::None)))
+                (_ (:wat::kernel::assertion-failed! "put failed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
 
      page1    (:probe::expect-scan
                 (:wat::query::Store/scan store

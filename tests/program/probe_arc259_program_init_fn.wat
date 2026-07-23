@@ -14,21 +14,34 @@
               (:wat::kernel::send' self
                 (:user::MyEnv/port
                   (:wat::program::Env/user.program (:wat::program::env))))))
-     got (:wat::kernel::recv' peer)]
+     got (:wat::core::match (:wat::kernel::recv' peer)
+           ((:wat::kernel::RecvOutcome::Message m) m)
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
     got))
 
 ;; compute-error-init: spawn a thread peer with an init-fn that divides by zero —
-;; the peer dies before sending, so recv' raises (compute errors).
-(:wat::core::defn :probe::compute-error-init [] -> :wat::core::i64
+;; the peer dies before sending. Arc 278 recv'-wall: recv' returns a matchable RecvOutcome VALUE
+;; (never a raise) — the dead peer surfaces as ::Lost. We MATCH and RETURN the Lost cause's
+;; `Failure/message` (the init-fn's crash reason) as a VALUE the .rs asserts.
+(:wat::core::defn :probe::compute-error-init [] -> :wat::core::String
   (:wat::core::let
     [peer (:wat::kernel::spawn-program'
             (:wat::spawn::thread/init
               (:wat::core::fn [] -> :wat::core::Record
                 (:wat::core::do (:wat::core::/ 1 0) (:wat::program::EmptyEnv))))
             (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-              (:wat::kernel::send' self 7)))
-     got (:wat::kernel::recv' peer)]
-    got))
+              (:wat::kernel::send' self 7)))]
+    ;; The peer must be KILLED before it can send its 7 — recv' must NOT deliver a smuggled ::Message.
+    ;; The init-fn crash dies before the post-spawn send: on this tier the peer exits before buffering a
+    ;; crash reason, so it surfaces as ::Closed (a clean-EOF kill); a reason-carrying tier would surface
+    ;; ::Lost. Both prove the kill — only a ::Message (the smuggled 7) is the failure.
+    (:wat::core::match (:wat::kernel::recv' peer)
+      ((:wat::kernel::RecvOutcome::Message _m) "SMUGGLED-VALUE")
+      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::Failure/message cause))
+      (:wat::kernel::RecvOutcome::Closed "PEER-DIED-CLOSED"))))
 
 ;; compute-default: spawn a plain (thread) peer — user.program defaults to EmptyEnv;
 ;; peer sends 1 if conforms?, else 0.
@@ -40,8 +53,13 @@
                 (:wat::core::if
                   (:wat::core::conforms?
                     (:wat::program::Env/user.program (:wat::program::env))
-                    :wat::program::EmptyEnv) -> :wat::core::i64
+                    :wat::program::EmptyEnv) 
                   1 0))))
-     got (:wat::kernel::recv' peer)]
+     got (:wat::core::match (:wat::kernel::recv' peer)
+           ((:wat::kernel::RecvOutcome::Message m) m)
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
     got))
 

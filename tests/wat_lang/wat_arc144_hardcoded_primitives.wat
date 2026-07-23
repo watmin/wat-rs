@@ -7,105 +7,105 @@
 (:wat::core::defn :t::sig-length [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::length)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-empty-q [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::empty?)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-contains-q [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::contains?)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-get [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::get)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-conj [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::conj)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-assoc [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::assoc)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-dissoc [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::dissoc)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-keys [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::keys)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-values [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::values)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-vector [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::Vector)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-tuple [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::Tuple)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-hashmap [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::HashMap)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-hashset [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::HashSet)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-concat [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::concat)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::sig-string-concat [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::string::concat)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -114,7 +114,7 @@
 (:wat::core::defn :t::body-length-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :wat::core::length)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) false)
     (:wat::core::None    true)))
 

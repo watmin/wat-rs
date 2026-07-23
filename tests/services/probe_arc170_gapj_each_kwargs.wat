@@ -48,12 +48,12 @@
    & [counter <- :wat::kernel::Peer'<probe::Counter::Op,probe::Counter::Reply>]]
   -> :wat::core::i64
   (:wat::core::match
-    (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) -> :wat::core::i64
+    (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
     ((:probe::Counter::IncrementResponse::Ok value) value)
     ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
     ((:probe::Counter::IncrementResponse::RequestTooLarge bytes cap)
       (:wat::kernel::assertion-failed! "record-hit: unexpected RequestTooLarge"
-        :wat::core::None :wat::core::None))))
+        :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
 ;; Returns (each's own return value, the counter's final durable count) so the Rust driver can
@@ -65,9 +65,9 @@
      c        (:wat::kernel::connect' (:probe::counter::Handle/addr h))
      r        (:probe::Counter/get c (:probe::Counter::GetRequest))]
     (:wat::core::Tuple each-out
-      (:wat::core::match r -> :wat::core::i64
+      (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
         ((:probe::Counter::GetResponse::Ok value) value)
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:probe::Counter::GetResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "run: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None))))))
+            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))

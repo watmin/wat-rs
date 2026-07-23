@@ -74,7 +74,7 @@
      got
       (:wat::holon::Hologram/get store k)
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))

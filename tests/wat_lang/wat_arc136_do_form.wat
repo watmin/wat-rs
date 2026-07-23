@@ -37,7 +37,7 @@
 ; test 8: tail-call — do in tail position preserves TCO
 (:wat::core::defn :t::countdown8 [n <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::<= n 0)
-    -> :wat::core::i64
+    
     n
     (:wat::core::do
       (:wat::core::i64::+ n 0)

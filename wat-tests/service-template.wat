@@ -135,7 +135,7 @@
    ;; Each arm: read state via accessors, do the verb's work, return
    ;; a new state (or the same state for read-only verbs).
    (:wat::core::defn :svc::Service/handle [req <- :svc::Request state <- :svc::State] -> :svc::State
-     (:wat::core::match req -> :svc::State
+     (:wat::core::match req  
             ;; Push — fire-and-forget. Bump push-count, no reply.
             ;; The _value param ignored here; in your service it'd feed
             ;; into state computation.
@@ -180,7 +180,7 @@
    ;; final-state-delivery channel; the parent recv's it before
    ;; calling Thread/join-result.
    (:wat::core::defn :svc::Service/loop [req-rxs <- :wat::core::Vector<svc::ReqRx> state <- :svc::State out <- :svc::DriverOut] -> :wat::core::nil
-     (:wat::core::if (:wat::core::empty? req-rxs) -> :wat::core::nil
+     (:wat::core::if (:wat::core::empty? req-rxs) 
             ;; Empty — every client gone. Deliver final state via `out`.
             ;; `expect` panics if the parent dropped its Receiver — that's
             ;; a substrate-tree breakage worth surfacing, not silently
@@ -192,7 +192,7 @@
               [chosen (:wat::kernel::select req-rxs)
                idx (:wat::core::first chosen)
                maybe (:wat::core::second chosen)]
-              (:wat::core::match maybe -> :wat::core::nil
+              (:wat::core::match maybe  
                 ((:wat::core::Ok (:wat::core::Some req))
                   (:wat::core::let
                     [next (:svc::Service/handle req state)]
@@ -391,7 +391,7 @@
                 "svc-full-sequence: thread output closed without delivering final state")
              join-result
               (:wat::kernel::Thread/drain-and-join thr)]
-            (:wat::core::match join-result -> :wat::core::nil
+            (:wat::core::match join-result  
               ((:wat::core::Ok _)
                 (:test::svc-assert-state final-state 3 1))
               ((:wat::core::Err _) (:wat::test::assert-eq "driver-died" "")))))

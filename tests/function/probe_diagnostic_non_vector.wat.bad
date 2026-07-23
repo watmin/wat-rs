@@ -2,6 +2,6 @@
 ;; apply with i64 (42) as the trailing spread arg must reject. startup MUST fail.
 
 (:wat::core::defn :user::bad [] -> :wat::core::i64
-  (:wat::core::apply -> :wat::core::i64
+  (:wat::core::apply 
     (:wat::core::keyword/from-string "wat::core::i64::+")
     42))

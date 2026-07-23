@@ -33,13 +33,75 @@ Two changes, both ratified:
 2. **Drop the inline `-> :T`** — it is a `-> :T` in a **non-return position** (a match-arm-type annotation, not a
    fn return), and those are being annihilated (builder, 2026-07-21). The arm type is *inferred* (per-arm bodies
    unified to one type by the checker), not annotated at the form. rete is the stepping stone to the general
-   non-return-`-> :T` removal; this swap lands with / after it.
+   non-return-`-> :T` removal; this swap lands with / after it. **(UPDATE 2026-07-22: the non-return `-> :T`
+   annihilation is COMPLETE — `match`/`if`/`apply`/`readln'` all reject it; `-> :T` is legal only at a fn/defn
+   argspec return. So change #2 has LANDED corpus-wide; only the clause-bracket flip (#1) + the LHS refinement
+   below remain deferred.)**
+
+## The LHS refinement — a match arm is a FLAT variant clause `[Variant [binds] body]` that RHYMES WITH `fn` (builder, 2026-07-22)
+The bracket-clause swap above settles the *clause* delimiter (`[…body]`). This settles the **arm shape inside it**:
+a variant arm is the **flat three-element clause** `[<Variant> [<destructure>] <body>]` — the variant, its body's
+destructure vec, then the body — exactly the `[binds] body` shape `fn`/`let`/`defn` already use. The
+vector-bodied variant encoding (arc 258 R45 `LVCEM TENEBRASQVE FERO` / R46 `IN LVCE PVRGATI` — *every* variant is
+`[]` unit or `[items]` N, one uniform rule) is what makes the destructure vec exact: it destructures the variant's
+vector-encoded body, per-arity uniform.
+
+```clojure
+;; TODAY — HETEROGENEOUS LHS: a bare field-binding for Some, a bare keyword for None (two shapes to learn):
+(:wat::core::match opt
+  [(:wat::core::Option/Some f) f]
+  [:wat::core::Option/None     nil])
+
+;; TARGET (builder, 2026-07-22) — the FLAT variant clause `[Variant [destructure] body]`, rhyming with `fn`:
+(wat.core/match opt
+  [wat.core.Option/Some [n] n]      ;; Some's 1-field body → destructure [n], then body `n`
+  [wat.core.Option/None []  nil])   ;; None's EMPTY body   → destructure [],  then body `nil`
+;; (rust-scheme surface, same shape: [:wat::core::Option/Some [n] n] / [:wat::core::Option/None [] nil])
+```
+
+Why the flat form is right:
+- **It rhymes with `fn`/`let`/`defn`.** `[binds] body` — a destructure vec then a body — is *the* shape across all
+  of wat. A match arm IS destructure-and-bind (like fn params), so a variant clause `[Variant [binds] body]` reads
+  as "for `Variant`, destructure `[binds]`, then evaluate `body`" — a named-arity clause. No new shape to learn.
+- **The wire still reads this way (R45/R46).** A variant value *is* `[tag …body]`; the `Variant [binds]` head+vec
+  destructures that body — the WRITER of a variant and the READER of an arm see the **same body-shape** discriminator.
+- **Flat, no pattern-call wrapper.** The variant and its destructure sit as two flat arm elements, not nested in a
+  `(Variant [binds])` call — fewer parens, the eye reads left-to-right (which variant · what it binds · what it does).
+- **The empty `[]` is visible proof of a unit variant** ("carries nothing"), never an absence you infer.
+
+### The grammar assertion (the invariant the parser/checker holds) — the HEAD disambiguates arm-arity
+A match arm is **exactly one of**:
+1. `[_ body]` — the non-binding **wildcard** clause (2-element).
+2. `[<bare-symbol> body]` — a **binding** clause: binds the whole scrutinee as that bare name (2-element).
+3. `[<Variant> [d0 d1 …] body]` — a **variant** clause (3-element): a namespaced variant head, its destructuring
+   vec (arity **equals** the variant's field count — `[]` for a unit variant; a wrong-arity vec is a located error),
+   then the body.
+
+The **head's form is the discriminator, context-free**: a *namespaced* head (`Type/Variant`, or a `::`-keyword in
+rust-scheme) is a variant clause (3-element, expects a destructure vec then body); a *bare* symbol or `_` is a
+wildcard/binding clause (2-element, second element is the body). So `[x [1 2 3]]` is unambiguously a binding `x`
+with body `[1 2 3]` (bare head → 2-element), while `[Foo/Bar [n] body]` is a variant clause (namespaced head →
+3-element) — no type info needed to parse the shape.
+
+Rejected: the old **bare-field** form `(<Variant> field)`, the old **bare-keyword** unit `:Variant`, AND the
+**nested pattern-call** `[(<Variant> [d]) body]` (the considered 2-element alternative — see below).
+
+### The considered alternative (nested 2-element `[(Variant [binds]) body]`) — and why the flat form wins
+An earlier draft made every arm a uniform 2-element `[pattern body]` where the variant pattern was the call
+`(Variant [binds])`. It had two virtues: a uniform 2-element arm, and a shape *shared* with `cond`'s `[test body]`.
+The flat form trades those for the `fn`-rhyme and flatness — and the trade is net-positive, because the shared
+2-element arm was the *weaker* rhyme (a match is destructure-and-bind, like `fn`, not a flat test/expr pair). The
+four questions on the flat form: **Obvious** YES (fn-clause shape), **Simple** YES (flat; the namespaced-head
+discriminator is context-free), **Honest** YES (the destructure vec shows arity), **Good UX** YES (a shape every
+wat user already knows from `fn`). Losing the cond-shared arm is not a loss — it **sharpens** the match≠cond
+distinction (next section): a 3-element variant clause is visibly a *different form* from a 2-element cond clause.
 
 ## `cond` — appealing but the NAME is suspect; NEEDS A NEW TERM (intueri — OWED, not yet cast)
-`match` and `cond` **already share the clause shape** today: `cond` (a defmacro, `wat/core.wat:1204`) is
-`(cond (test body) … (:else body))` — head = a truthy *test*; `match` head = a *pattern* that binds. Unifying
-them onto the one bracket-clause is appealing (`[test body]` / `[pattern body]`), BUT: **do not name the
-bracket-claused form `cond`.** A Clojure user reads `cond` and expects **flat** `test expr test expr` pairs
+`cond` (a defmacro, `wat/core.wat:1204`) today is `(cond (test body) … (:else body))` — head = a truthy *test*.
+Under the flat variant-clause refinement above, the two forms **no longer share an arm shape**: a `cond` clause is
+2-element `[test body]`, a `match` variant clause is 3-element `[Variant [binds] body]`. That divergence *reinforces*
+keeping them distinct — a unified bracket-clause was the old appeal, and it is gone. Even setting arity aside:
+**do not name the bracket-claused conditional form `cond`.** A Clojure user reads `cond` and expects **flat** `test expr test expr` pairs
 (Clojure `cond`/`case`/`core.match` are all flat, no per-clause delimiter) — a bracket-claused `cond` would
 *induce confusion* (builder). So the unified/bracketed conditional-dispatch form **needs a new term**, distinct
 from Clojure's `cond`.

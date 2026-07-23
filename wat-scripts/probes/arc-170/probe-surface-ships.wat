@@ -21,6 +21,6 @@
      _    (:wat::kernel::println (:wat::edn::write pr))
      expected (:wat::core::Vector :wat::core::i64 2 4 6)
      _    (:wat::core::if (:wat::core::= pr expected)
-            -> :wat::core::nil nil
+             nil
             (:wat::kernel::assertion-failed! "surface-ships result mismatch" :wat::core::None :wat::core::None))]
     (:wat::kernel::println "surface-ships-ok")))

@@ -33,6 +33,6 @@
         (:wat::lru::LocalCache::put cache "answer" 42)
        got
         (:wat::lru::LocalCache::get cache "answer")]
-      (:wat::core::match got -> :wat::core::nil
+      (:wat::core::match got 
         ((:wat::core::Some v) (:wat::kernel::println "hit"))
         (:wat::core::None    (:wat::kernel::println "miss")))))

@@ -42,19 +42,17 @@
                      addr (:wat::kernel::recv' self)
                      c1   (:wat::kernel::connect' addr)
                      er1  (:probe::Echo/echo c1 (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::kernel::send' self (:wat::core::match er1 -> :wat::core::String
-  ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _    (:wat::kernel::send' self (:wat::core::match er1 ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
                      _sig (:wat::kernel::recv' self)
                      c2   (:wat::kernel::connect' addr)
                      er2  (:probe::Echo/echo c2 (:probe::Echo::EchoRequest :msg "hi"))
-                     _2   (:wat::kernel::send' self (:wat::core::match er2 -> :wat::core::String
-  ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _2   (:wat::kernel::send' self (:wat::core::match er2 ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))]
                     nil))))
-     _   (:wat::core::match (:wat::kernel::peer-pid prober) -> :wat::core::nil
+     _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
              (:wat::core::let
                [_  (:probe::echo'/grant  eh (:wat::core::Vector :wat::core::i64 p))
@@ -63,7 +61,13 @@
                 _r (:probe::echo'/revoke eh (:wat::core::Vector :wat::core::i64 p))
                 ;; <<< the echo'/revoke line is REMOVED here (the counterfactual) >>>
                 _  (:wat::kernel::send' prober ea)
-                r2 (:wat::kernel::recv' prober)]
+                rr2 (:wat::kernel::recv' prober)
+                r2 (:wat::core::match rr2
+                     ((:wat::kernel::RecvOutcome::Message m) m)
+                     ((:wat::kernel::RecvOutcome::Lost cause)
+                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                     (:wat::kernel::RecvOutcome::Closed
+                       (:wat::kernel::assertion-failed! "recv': prober closed unexpectedly" :wat::core::None :wat::core::None)))]
                (:wat::kernel::println (:wat::core::string::concat "NOREVOKE-REACHED-END: " r2))))
            (:wat::core::None
              (:wat::kernel::assertion-failed! "peer-pid None on process prober"

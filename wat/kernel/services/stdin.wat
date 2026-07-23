@@ -77,7 +77,7 @@
    in  <- :wat::io::IOReader]
    -> :wat::kernel::services::StdInService::Rep
   (:wat::core::match (:wat::io::IOReader/read-frame in (:wat::kernel::services::StdInService::Req/max-buffer-bytes req))
-      -> :wat::kernel::services::StdInService::Rep
+      
     ((:wat::core::Some line)
       (:wat::kernel::services::StdInService::Rep
         :thread-id (:wat::kernel::services::StdInService::Req/thread-id req)
@@ -136,14 +136,14 @@
       ;; Is there a first arg AND is it a keyword?
       (:wat::core::if
         (:wat::core::= n-args 0)
-        -> :wat::core::bool
+        
         false
         (:wat::core::= (:wat::core::ast-kind
                          (:wat::core::Option/expect  
                            first-opt
                            "readln macro: internal error — first-opt is None but n-args > 0"))
                        "keyword"))
-      -> :wat::WatAST
+      
       ;; First arg is a keyword. Check if it's :max-buffer-bytes.
       (:wat::core::let
         [first-node (:wat::core::Option/expect  
@@ -151,8 +151,9 @@
                        "readln macro: internal error — first-node")]
         (:wat::core::if
           (:wat::core::= (:wat::core::ast-name first-node) ":max-buffer-bytes")
-          -> :wat::WatAST
-          ;; :max-buffer-bytes N -> :T  →  (readln' N -> :T)
+          
+          ;; :max-buffer-bytes N  →  (readln' N)  (arc 258 — no `-> :T`; the
+          ;; self-describing EDN wire types the value, not the caller)
           (:wat::core::let
             [cap-expr (:wat::core::Option/expect  
                           (:wat::core::get args 1)
@@ -162,6 +163,7 @@
           ;; Unknown keyword as first arg — pass through to readln' for a clean error.
           `(:wat::kernel::readln' ~@args)))
       ;; First arg is not a keyword (or args is empty) — plain form:
-      ;; (readln -> :T) → (readln' :wat::kernel::MAX-READLN-BYTES -> :T).
+      ;; (readln) → (readln' :wat::kernel::MAX-READLN-BYTES)  (arc 258 — no `-> :T`;
+      ;; readln reads what the self-describing EDN wire says, the caller does not attest).
       ;; The macro injects the default cap so readln' always gets an explicit max.
       `(:wat::kernel::readln' :wat::kernel::MAX-READLN-BYTES ~@args))))

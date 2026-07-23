@@ -25,32 +25,40 @@
 
 use wat::freeze::call_beside;
 
-/// A `recv'` of an over-budget frame from a spawned child MUST raise with the frame-cap reason.
+/// A `recv'` of an over-budget frame from a spawned child MUST surface the frame-cap reason.
+/// Arc 278 recv'-wall: the over-budget rejection surfaces as a matchable `RecvOutcome::Lost` VALUE
+/// (never a raise); the fixture RETURNS the Lost cause's `Failure/message`. We assert `is_ok` (it
+/// matched Lost as a value) + that the returned reason NAMES the frame-cap reason, not the mute.
 #[test]
 fn process_recv_over_budget_frame_surfaces_cap_reason_not_a_mute() {
-    match call_beside(file!(), ":user::over-budget-recv") {
-        Ok(v) => panic!(
-            "expected :user::over-budget-recv to RAISE — the child's over-budget frame must be \
-             rejected by the parent's budgeted receiver; got Ok({v:?})"
-        ),
-        Err(e) => {
-            let text = format!("{e:?}").to_lowercase();
-            // SPEAK: the raise must NAME the frame-cap reason — one of these cap words.
-            let carries_reason = text.contains("frame")
-                || text.contains("exceed")
-                || text.contains("too large")
-                || text.contains("cap")
-                || text.contains("budget");
-            // MUTE-KILL: it must NOT read as the reasonless peer-closed collapse.
-            let is_bare_mute = text.contains("peer closed / channel disconnected")
-                || text.contains("channel disconnected");
-            assert!(
-                carries_reason && !is_bare_mute,
-                "THE LAW (wat never hides a failure) — the SPEAK floor: an over-budget frame at the \
-                 wat `recv'` client surface must RAISE carrying the frame-cap reason (frame / exceed / \
-                 too large / cap / budget), not collapse to the reasonless mute \
-                 \"recv failed: peer closed / channel disconnected\". got: {e:?}"
-            );
-        }
-    }
+    let result = call_beside(file!(), ":user::over-budget-recv");
+    let raw = format!("{result:?}");
+    assert!(
+        result.is_ok(),
+        "the over-budget frame must surface as a matchable RecvOutcome::Lost VALUE (never a raise); \
+         got Err: {raw}"
+    );
+    assert!(
+        // rune:lint(loose-assert) — distinguishing the value-based RecvOutcome marker (::Lost vs the
+        // "UNEXPECTED-*" sentinels) among alternatives; the full cap reason text is machine-specific.
+        !raw.contains("UNEXPECTED"),
+        "the over-budget rejection must match RecvOutcome::Lost (not ::Message/::Closed); got: {raw}"
+    );
+    let text = raw.to_lowercase();
+    // SPEAK: the returned reason must NAME the frame-cap reason — one of these cap words.
+    let carries_reason = text.contains("frame")
+        || text.contains("exceed")
+        || text.contains("too large")
+        || text.contains("cap")
+        || text.contains("budget");
+    // MUTE-KILL: it must NOT read as the reasonless peer-closed collapse.
+    let is_bare_mute = text.contains("peer closed / channel disconnected")
+        || text.contains("channel disconnected");
+    assert!(
+        carries_reason && !is_bare_mute,
+        "THE LAW (wat never hides a failure) — the SPEAK floor: an over-budget frame at the wat \
+         `recv'` client surface must surface (as a matchable ::Lost VALUE) carrying the frame-cap \
+         reason (frame / exceed / too large / cap / budget), not collapse to the reasonless mute \
+         \"recv failed: peer closed / channel disconnected\". got: {raw}"
+    );
 }

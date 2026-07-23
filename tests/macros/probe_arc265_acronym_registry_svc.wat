@@ -36,5 +36,5 @@
 ;; the pre-fix `&[]` it would be `::Op::CreateWebAcl` and this name would not resolve.
 (:wat::core::defn :user::req-n [] -> :wat::core::i64
   (:wat::core::match (:my::aws::Waf::Op::CreateWebACL (:my::aws::Waf::CreateWebACLRequest :n 7))
-    -> :wat::core::i64
+    
     ((:my::aws::Waf::Op::CreateWebACL req) (:my::aws::Waf::CreateWebACLRequest/n req))))

@@ -56,7 +56,7 @@
 ;; defines it (sandbox.wat is not loaded in the kernel path).
 (:wat::core::defn :wat::kernel::failure-from-process-died [chain <- :wat::core::Vector<wat::kernel::ProcessDiedError>] -> :wat::kernel::Failure
   (:wat::core::match (:wat::core::get chain 0)
-      -> :wat::kernel::Failure
+      
       ((:wat::core::Some err) (:wat::kernel::ProcessDiedError/to-failure err))
       (:wat::core::None
        ;; Empty chain — should not occur; substrate always emits at
@@ -71,7 +71,7 @@
 ;; Tail-recursive drain of an IOReader into a wat::core::Vector<String> — one
 ;; String per line. Reads until read-line returns :None (EOF).
 (:wat::core::defn :wat::kernel::drain-lines-acc [r <- :wat::io::IOReader acc <- :wat::core::Vector<wat::core::String>] -> :wat::core::Vector<wat::core::String>
-  (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::Vector<wat::core::String>
+  (:wat::core::match (:wat::io::IOReader/read-line r) 
       ((:wat::core::Some line)
        (:wat::kernel::drain-lines-acc
          r
@@ -87,7 +87,7 @@
 ;; threading, no exit-code prefix logic; ProcessDiedError/to-failure
 ;; carries the right message.
 (:wat::core::defn :wat::kernel::run-sandboxed-hermetic-ast<I,O> [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String> scope <- :wat::core::Option<wat::core::String>] -> :wat::kernel::RunResult
-  (:wat::core::match scope -> :wat::kernel::RunResult
+  (:wat::core::match scope 
       ((:wat::core::Some _)
        ;; Scope-forwarding through fork is a separate slice when a
        ;; caller demands. Today: :Some returns Failure.
@@ -145,12 +145,12 @@
           stderr-chain
            (:wat::kernel::extract-panics stderr-lines)
           failure
-           (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
+           (:wat::core::match joined-result 
              ((:wat::core::Ok _)       :wat::core::None)
              ((:wat::core::Err chain)
               (:wat::core::Some (:wat::kernel::failure-from-process-died
                       (:wat::core::match stderr-chain
-                        -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+                        
                         ((:wat::core::Some sc) sc)
                         ;; Arc 170 slice 1i — substrate contract: every child error
                         ;; MUST emit structured #wat.kernel/ProcessPanics EDN.

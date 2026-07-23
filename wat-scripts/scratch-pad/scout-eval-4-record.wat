@@ -18,8 +18,8 @@
      pred-fn  (:wat::core::Result/expect (:wat::eval-ast! form) "eval-ast! failed")
      err-log  (:user::Log :level :error   :message "boom")
      info-log (:user::Log :level :info    :message "ok")
-     keeps-err (:wat::core::apply -> :wat::core::bool pred-fn [err-log])
-     drops-info (:wat::core::apply -> :wat::core::bool pred-fn [info-log])
+     keeps-err (:wat::core::apply  pred-fn [err-log])
+     drops-info (:wat::core::apply  pred-fn [info-log])
      ;; an IMPURE predicate — calls println (effectful)
      imp-src  "(:wat::core::fn [log <- :user::Log] -> :wat::core::bool (:wat::kernel::println \"side\"))"
      imp-form (:user::unwrap-form imp-src)

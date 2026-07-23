@@ -3,7 +3,7 @@
   :Open [size <- :wat::core::f64]
   :Hold)
 (:wat::core::defn :my::act [e <- :my::Event] -> :wat::core::String
-  (:wat::core::match e -> :wat::core::String
+  (:wat::core::match e 
     ((:my::Event::Open size) (:wat::core::f64::to-string size))
     (:my::Event::Hold        "hold")))
 (:wat::core::defn :user::main [] -> :wat::core::nil

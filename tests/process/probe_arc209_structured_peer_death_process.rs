@@ -17,23 +17,34 @@
 use wat::freeze::call_beside;
 
 /// A `:process` peer dies via `assertion-failed!` carrying a structured `actual` + `expected`.
-/// `recv'` raises — the raised reason MUST carry BOTH structured fields, not just the message.
+/// Arc 278 recv'-wall: the crash surfaces as a matchable `RecvOutcome::Lost` VALUE; the fixture
+/// RETURNS the Lost cause's `Failure/message`. We assert `is_ok` (it matched Lost as a value) + that
+/// the returned reason carries BOTH structured fields, not just the message.
 #[test]
 fn process_peer_recv_surfaces_structured_actual_and_expected() {
-    let err = match call_beside(file!(), ":user::compute") {
-        Ok(v) => panic!("expected recv' to RAISE (the process peer crashed); got Ok({v:?})"),
-        Err(e) => format!("{e:?}"),
-    };
+    let result = call_beside(file!(), ":user::compute");
+    let text = format!("{result:?}");
     assert!(
-        err.contains("proc-structured-marker"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()) and source frame paths
-        "the crash MESSAGE must travel on the process tier. got: {err}"
+        result.is_ok(),
+        "the process peer crash must surface as a matchable RecvOutcome::Lost VALUE (never a raise); \
+         got Err: {text}"
     );
     assert!(
-        err.contains("PROC-ACTUAL-5521"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()); targeted sentinel check is the portable assertion
-        "process tier: the structured `actual` must survive recv'. got: {err}"
+        // rune:lint(loose-assert) — distinguishing the value-based RecvOutcome marker (::Lost vs the
+        // "UNEXPECTED-*" sentinels) among alternatives; the full reason text is machine-specific.
+        !text.contains("UNEXPECTED"),
+        "the crash must match RecvOutcome::Lost (not ::Message/::Closed); got: {text}"
     );
     assert!(
-        err.contains("PROC-EXPECTED-8841"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()); targeted sentinel check is the portable assertion
-        "process tier: the structured `expected` must survive recv'. got: {err}"
+        text.contains("proc-structured-marker"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()) and source frame paths
+        "the crash MESSAGE must travel on the process tier. got: {text}"
+    );
+    assert!(
+        text.contains("PROC-ACTUAL-5521"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()); targeted sentinel check is the portable assertion
+        "process tier: the structured `actual` must survive recv'. got: {text}"
+    );
+    assert!(
+        text.contains("PROC-EXPECTED-8841"), // rune:lint(loose-assert) — crash error embeds machine-specific absolute path (startup_beside/file!()); targeted sentinel check is the portable assertion
+        "process tier: the structured `expected` must survive recv'. got: {text}"
     );
 }

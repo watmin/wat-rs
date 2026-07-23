@@ -110,10 +110,10 @@
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "alpha\nbeta\n")
      w (:wat::io::IOWriter/new)
-     _ (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::i64
+     _ (:wat::core::match (:wat::io::IOReader/read-line r) 
          ((:wat::core::Some line) (:wat::io::IOWriter/writeln w line))
          (:wat::core::None -1))
-     _ (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::i64
+     _ (:wat::core::match (:wat::io::IOReader/read-line r) 
          ((:wat::core::Some line) (:wat::io::IOWriter/writeln w line))
          (:wat::core::None -1))]
     (:wat::io::IOWriter/to-string w)))

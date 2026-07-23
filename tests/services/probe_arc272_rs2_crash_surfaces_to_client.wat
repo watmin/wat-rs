@@ -21,9 +21,18 @@
        (:wat::core::Some "boom")
        (:wat::core::Some "ok")))])
 
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+;; arc 278 recv'-wall: recv' surfaces the far-side crash as a MATCHABLE RecvOutcome::Lost VALUE
+;; (never a raise — a raise unwinds past the reader, which is the mask the wall kills). The client
+;; gets a reason-free 500 (the crash reason is administrative, on the owner's channel). We MATCH and
+;; RETURN a marker: "LOST:<administrative msg>" on the crash, "MESSAGE"/"CLOSED" otherwise — the .rs
+;; asserts the crash surfaced as ::Lost (not a mute ::Closed, not a fake ::Message, not a hang).
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
-    [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
-     c (:wat::kernel::connect' (:my::svc::Handle/addr h))
-     _ (:my::svc/boom c (:my::Svc::BoomRequest))]
-    true))
+    [h  (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
+     c  (:wat::kernel::connect' (:my::svc::Handle/addr h))
+     _s (:wat::kernel::send' c (:my::Svc::Op::Boom (:my::Svc::BoomRequest)))]
+    (:wat::core::match (:wat::kernel::recv' c)
+      ((:wat::kernel::RecvOutcome::Message _m) "MESSAGE")
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::core::string::concat "LOST:" (:wat::kernel::Failure/message cause)))
+      (:wat::kernel::RecvOutcome::Closed "CLOSED"))))

@@ -54,11 +54,11 @@
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record :count 0))
      c (:wat::kernel::connect' (:probe::echo::Handle/addr h))
      r (:probe::Echo/ping c (:probe::Echo::PingRequest))]
-    (:wat::core::match r -> :wat::core::i64
+    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Echo::PingResponse::Ok value) value)
       ((:probe::Echo::PingResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "compute-ping: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; THE REGRESSION: bump round-trips — the handler's own minted construction must expand.
 (:wat::core::defn :user::compute-bump [] -> :wat::core::i64
@@ -66,8 +66,8 @@
     [h (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record :count 0))
      c (:wat::kernel::connect' (:probe::echo::Handle/addr h))
      r (:probe::Echo/bump c (:probe::Echo::BumpRequest))]
-    (:wat::core::match r -> :wat::core::i64
+    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Echo::BumpResponse::Ok value) value)
       ((:probe::Echo::BumpResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "compute-bump: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

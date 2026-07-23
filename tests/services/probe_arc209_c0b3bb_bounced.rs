@@ -69,17 +69,12 @@ fn stranger_is_bounced() {
         .get(":user::compute")
         .expect("no :user::compute in probe_arc209_c0b3bb_bounced_bounced.wat")
         .clone();
-    let outcome = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
-    // GREEN (3b-b): the stranger (pid ∉ allow-set) is bounced → its recv' EOFs → it dies →
-    // the owner's recv' on the stranger surfaces the death → Err.
-    // RED (HEAD): no gate → the stranger is served → its recv' returns; it doesn't die → Ok.
-    match outcome {
-        Err(_e) => { /* the stranger was refused and died — the gate is live */ }
-        Ok(v) => panic!(
-            "expected the stranger (a process whose pid is NOT in the service's birth-seeded \
-             allow-set) to be BOUNCED — its recv' should EOF on the dropped stream and the \
-             stranger should die, raising on the owner's recv'. Instead the stranger was SERVED \
-             and a reply was observed: got {v:?}. The allow-set gate is not live."
-        ),
-    }
+    // arc 278 VALUE-CONTRACT (R53/R55): the owner FACES the stranger's death as a matchable
+    // RecvOutcome VALUE and RETURNS a :probe::Outcome — never re-raises past apply_function.
+    // The golden #probe.Outcome/Bounced [] is captured (UPDATE_EDN=1), never hand-authored.
+    let v = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
+        .unwrap_or_else(|e| panic!("the stranger's bounce must surface as a VALUE compute FACES (never a raise past apply_function); got Err: {e:?}"));
+    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    wat::assert_edn_matches_file!(edn, "c0b3bb_bounced__stranger_is_bounced.edn",
+      "the stranger (pid ∉ allow-set) must be BOUNCED — its recv' EOFs → it dies → the owner FACES the death as a matchable Outcome::Bounced, never Served");
 }

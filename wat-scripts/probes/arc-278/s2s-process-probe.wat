@@ -54,10 +54,10 @@
      (:wat::core::let
        [echo (:probe::caller'::State/echo s)
         er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg "hi"))
-        out  (:wat::core::match er -> :wat::core::String
+        out  (:wat::core::match er ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))]
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
        (:wat::service::Outcome::Reply s (:probe::Caller::RunResponse::Ok out))))])
 
 ;; ── the crossing: start both on PROCESSES, dial caller', which dials echo' ───────
@@ -76,8 +76,8 @@
            :record (:probe::caller'::Record) :echo-addr ea)
      cc  (:wat::kernel::connect' (:probe::caller'::Handle/addr ch))
      rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))
-     out (:wat::core::match rr -> :wat::core::String
+     out (:wat::core::match rr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Caller::RunResponse::Ok out) out)
   ((:probe::Caller::RunResponse::RequestTooLarge bytes cap)
-    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))]
+    (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println out)))

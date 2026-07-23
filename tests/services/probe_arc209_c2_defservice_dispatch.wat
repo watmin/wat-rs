@@ -34,16 +34,14 @@
 ;; Unwrap a Reply enum → extract the `value` field from the inner Response record.
 ;; Each Reply variant carries `resp <- <Op>Response`; Response carries `value <- :i64`.
 (:wat::core::defn :user::reply-value [r <- :my::Counter::Reply] -> :wat::core::i64
-  (:wat::core::match r -> :wat::core::i64
+  (:wat::core::match r 
     ((:my::Counter::Reply::Get resp)
-     (:wat::core::match resp -> :wat::core::i64
-       ((:my::Counter::GetResponse::Ok value) value)
+     (:wat::core::match resp ((:my::Counter::GetResponse::Ok value) value)
        ((:my::Counter::GetResponse::RequestTooLarge bytes cap)
          (:wat::kernel::assertion-failed! "reply-value: unexpected GetResponse::RequestTooLarge"
            :wat::core::None :wat::core::None))))
     ((:my::Counter::Reply::Increment resp)
-     (:wat::core::match resp -> :wat::core::i64
-       ((:my::Counter::IncrementResponse::Ok value) value)
+     (:wat::core::match resp ((:my::Counter::IncrementResponse::Ok value) value)
        ((:my::Counter::IncrementResponse::RequestTooLarge bytes cap)
          (:wat::kernel::assertion-failed! "reply-value: unexpected IncrementResponse::RequestTooLarge"
            :wat::core::None :wat::core::None))))
@@ -71,9 +69,19 @@
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5)))
-     r1   (:wat::kernel::recv' c)
+     r1   (:wat::core::match (:wat::kernel::recv' c)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': c closed before the Increment reply" :wat::core::None :wat::core::None)))
      _    (:wat::kernel::send' c (:my::Counter::Op::Get (:my::Counter::GetRequest)))
-     r2   (:wat::kernel::recv' c)]
+     r2   (:wat::core::match (:wat::kernel::recv' c)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': c closed before the Get reply" :wat::core::None :wat::core::None)))]
     ;; Increment 5 → state 0→5, reply IncrementResponse{5}; Get → reply GetResponse{5}.
     ;; Assert the Get reply's value is 5.
     ;; Scope-exit drops `svc` → RAII drain → :Shutdown → serve exits → join completes.

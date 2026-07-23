@@ -29,14 +29,14 @@
 (:wat::core::defn :t::test2-sig-macro [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :my::ident)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::test3-body-macro [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :my::ident)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -50,14 +50,14 @@
 (:wat::core::defn :t::test5-sig-struct [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :my::Point)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::test6-body-struct-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :my::Tick)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) false)
     (:wat::core::None    true)))
 
@@ -66,14 +66,14 @@
 (:wat::core::defn :t::test7-lookup-user-fn [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::lookup-define :t::my-add)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
 (:wat::core::defn :t::test8-sig-foldl [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::foldl)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -85,14 +85,14 @@
      s-opt (:wat::runtime::signature-of-defn :no::such::thing)
      b-opt (:wat::runtime::body-of    :no::such::thing)]
     (:wat::core::match d-opt
-      -> :wat::core::bool
+      
       ((:wat::core::Some _) false)
       (:wat::core::None
         (:wat::core::match s-opt
-          -> :wat::core::bool
+          
           ((:wat::core::Some _) false)
           (:wat::core::None
             (:wat::core::match b-opt
-              -> :wat::core::bool
+              
               ((:wat::core::Some _) false)
               (:wat::core::None    true))))))))

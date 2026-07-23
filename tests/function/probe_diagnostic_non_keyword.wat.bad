@@ -1,5 +1,5 @@
 ;; tests/function/probe_diagnostic_non_keyword.wat.bad — NEGATIVE probe 7: non-keyword head.
-;; apply with a String literal as head must reject at check time. startup MUST fail.
+;; apply with a String literal as head type-checks (result inferred) but errors at EVAL (not callable).
 
 (:wat::core::defn :user::bad [] -> :wat::core::String
-  (:wat::core::apply -> :wat::core::String "not-a-keyword" []))
+  (:wat::core::apply  "not-a-keyword" []))

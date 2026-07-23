@@ -54,14 +54,12 @@ fn granted_prober_is_admitted() {
 #[test]
 fn revoked_prober_is_bounced() {
     // The teeth: after revoke (ack'd), the SAME live pid's re-dial is bounced → the prober dies.
-    let outcome = compute("tests/services/probe_arc170_m1_teeth_revoked.wat");
-    match outcome {
-        Err(_e) => { /* the revoked prober's dial #2 was bounced → it died → compute raised */ }
-        Ok(v) => panic!(
-            "expected Err — after echo'/revoke ack'd the pid gone, the prober's dial #2 should be \
-             BOUNCED (its echo recv' EOFs → the prober RAISES → dies → the owner's recv' surfaces \
-             the death). Instead dial #2 was SERVED and a reply was observed: got {v:?}. The \
-             revoke did not gate the new accept (STOP-1)."
-        ),
-    }
+    // arc 278 VALUE-CONTRACT (R53/R55): the owner FACES the prober's death as a matchable
+    // RecvOutcome VALUE and RETURNS a :probe::Outcome — never re-raises past apply_function.
+    // The golden #probe.Outcome/Bounced [] is captured (UPDATE_EDN=1), never hand-authored.
+    let v = compute("tests/services/probe_arc170_m1_teeth_revoked.wat")
+        .unwrap_or_else(|e| panic!("the revoked prober's bounce must surface as a VALUE compute FACES (never a raise past apply_function); got Err: {e:?}"));
+    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    wat::assert_edn_matches_file!(edn, "m1_teeth_revoked__revoked_prober_is_bounced.edn",
+      "after echo'/revoke ack'd the pid gone, the prober's dial #2 must be BOUNCED — its echo recv' EOFs → it dies → the owner FACES the death as a matchable Outcome::Bounced, never Served");
 }

@@ -11,7 +11,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
               [sig-opt (:wat::runtime::signature-of-defn :user::sum-list)
-               sig     (:wat::core::match sig-opt -> :wat::WatAST
+               sig     (:wat::core::match sig-opt 
                          ((:wat::core::Some s) s)
                          (:wat::core::None     (:wat::kernel::abort "signature-of-defn returned None")))
                kids    (:wat::core::ast->children sig)

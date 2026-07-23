@@ -13,12 +13,18 @@
 ;; and does NOT read as the bare peer-closed mute.
 
 ;; Child body helper — a single over-budget payload (400 'X' chars → EDN-framed well past the 256-byte cap).
-(:wat::core::defn :user::over-budget-recv [] -> :wat::core::i64
+;; Arc 278 recv'-wall: recv' returns a matchable RecvOutcome VALUE (never a raise). The parent's
+;; budgeted receiver rejects the over-budget frame (RecvError::FrameTooLarge) → the outcome is ::Lost
+;; carrying the frame-cap reason. We MATCH and RETURN the Lost cause's `Failure/message` as a VALUE the
+;; .rs asserts (it must NAME the cap reason, not collapse to the reasonless peer-closed mute).
+(:wat::core::defn :user::over-budget-recv [] -> :wat::core::String
   (:wat::core::let
     [p (:wat::kernel::spawn-program' (:wat::spawn::process/max-message-bytes 256)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::kernel::println
-               "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))))
-     _ (:wat::kernel::recv' p)]
-    0))
+               "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
+      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::Failure/message cause))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

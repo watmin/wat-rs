@@ -85,7 +85,7 @@
       (:wat::core::Vector :wat::core::i64 5 12 3 18 7)
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
         (:wat::core::i64::> x 10)))
-    -> :wat::core::i64
+    
     ((:wat::core::Some i) i)
     (:wat::core::None -1)))
 
@@ -96,7 +96,7 @@
       (:wat::core::Vector :wat::core::i64 1 2 3)
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
         (:wat::core::i64::> x 99)))
-    -> :wat::core::i64
+    
     ((:wat::core::Some i) i)
     (:wat::core::None -1)))
 
@@ -121,6 +121,6 @@
      v1 (:wat::core::Vector/conj v0 99)]
     (:wat::core::match
       (:wat::core::Vector/get v1 2)
-      -> :wat::core::i64
+      
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))

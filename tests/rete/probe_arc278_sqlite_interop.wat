@@ -37,13 +37,13 @@
     (:wat::test::assert-eq (:wat::core::second row1) (:wat::sqlite::Cell::Str "hello"))
 
     (:wat::test::assert-eq
-      (:wat::core::match dup -> :wat::core::bool
+      (:wat::core::match dup 
         ((:wat::core::Err (:wat::sqlite::Error::Constraint _)) true)
         (_ false))
       true)
 
     (:wat::test::assert-eq
-      (:wat::core::match bad -> :wat::core::bool
+      (:wat::core::match bad 
         ((:wat::core::Err (:wat::sqlite::Error::Fatal _)) true)
         (_ false))
       true)))

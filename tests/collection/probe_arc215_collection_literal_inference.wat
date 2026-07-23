@@ -17,7 +17,7 @@
 (:wat::core::defn :t::p2b-map-get-b [] -> :wat::core::i64
   (:wat::core::let
     [m {:a 1 :b 2 :c 3}]
-    (:wat::core::match (:wat::core::get m :b) -> :wat::core::i64
+    (:wat::core::match (:wat::core::get m :b) 
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))
 
@@ -33,7 +33,7 @@
 (:wat::core::defn :t::p4b-nested-map-inner-len [] -> :wat::core::i64
   (:wat::core::let
     [outer {:outer {:inner 42}}]
-    (:wat::core::match (:wat::core::get outer :outer) -> :wat::core::i64
+    (:wat::core::match (:wat::core::get outer :outer) 
       ((:wat::core::Some inner-map) (:wat::core::length inner-map))
       (:wat::core::None -1))))
 
@@ -73,6 +73,6 @@
 (:wat::core::defn :t::p12b-map-of-sets-inner-len [] -> :wat::core::i64
   (:wat::core::let
     [m {:a #{1 2} :b #{3 4}}]
-    (:wat::core::match (:wat::core::get m :a) -> :wat::core::i64
+    (:wat::core::match (:wat::core::get m :a) 
       ((:wat::core::Some s) (:wat::core::length s))
       (:wat::core::None -1))))

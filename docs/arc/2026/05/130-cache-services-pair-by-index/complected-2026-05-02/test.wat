@@ -87,9 +87,9 @@
                    ((_t3 :wat::core::unit) (:wat::console::err diag "T3: get-returned\n"))
                    ;; Two-level match: outer on first's Option wrapper; inner on the cache hit/miss.
                    ((_report :wat::core::unit)
-                    (:wat::core::match (:wat::core::first results) -> :wat::core::unit
+                    (:wat::core::match (:wat::core::first results) 
                       ((:wat::core::Some inner)
-                        (:wat::core::match inner -> :wat::core::unit
+                        (:wat::core::match inner 
                           ((:wat::core::Some _v) (:wat::console::out diag "hit\n"))
                           (:wat::core::None       (:wat::console::out diag "miss\n"))))
                       (:wat::core::None (:wat::console::out diag "miss\n")))))
@@ -110,7 +110,7 @@
      ;;   - stdout first line is "hit" (put→get round-trip succeeded)
      ;;   - stderr contains each of the T1/T2/T3 checkpoints
      ((hit-line :wat::core::String)
-      (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
+      (:wat::core::match (:wat::core::first stdout) 
         ((:wat::core::Some s) s)
         (:wat::core::None "<missing>")))
      ((_ :wat::core::unit) (:wat::test::assert-eq hit-line "hit"))

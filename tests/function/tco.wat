@@ -3,7 +3,7 @@
 
 ;; T1: self-recursion via if at million depth
 (:wat::core::defn :app::countdown [n <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+  (:wat::core::if (:wat::core::= n 0) 
               acc
               (:app::countdown (:wat::core::i64::- n 1) (:wat::core::i64::+ acc 1))))
 
@@ -12,10 +12,10 @@
 ;; T2: self-recursion via match at high depth
 (:wat::core::defn :app::drain [remaining <- :wat::core::i64 acc <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match
-              (:wat::core::if (:wat::core::> remaining 0) -> :wat::core::Option<wat::core::i64>
+              (:wat::core::if (:wat::core::> remaining 0) 
                 (:wat::core::Some remaining)
                 :wat::core::None)
-              -> :wat::core::i64
+              
               ((:wat::core::Some v)
                 (:app::drain (:wat::core::i64::- v 1) (:wat::core::i64::+ acc 1)))
               (:wat::core::None acc)))
@@ -24,12 +24,12 @@
 
 ;; T3: mutual recursion
 (:wat::core::defn :app::is-even [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
+  (:wat::core::if (:wat::core::= n 0) 
               true
               (:app::is-odd (:wat::core::i64::- n 1))))
 
 (:wat::core::defn :app::is-odd [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
+  (:wat::core::if (:wat::core::= n 0) 
               false
               (:app::is-even (:wat::core::i64::- n 1))))
 
@@ -39,7 +39,7 @@
 (:wat::core::defn :app::loop_t4 [n <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::let
               [next (:wat::core::i64::- n 1)]
-              (:wat::core::if (:wat::core::<= n 0) -> :wat::core::i64
+              (:wat::core::if (:wat::core::<= n 0) 
                 0
                 (:app::loop_t4 next))))
 
@@ -47,7 +47,7 @@
 
 ;; T5: non-tail recursion at modest depth
 (:wat::core::defn :app::pow2 [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+  (:wat::core::if (:wat::core::= n 0) 
               1
               (:wat::core::i64::* 2 (:app::pow2 (:wat::core::i64::- n 1)))))
 
@@ -55,14 +55,14 @@
 
 ;; T6: try + TailCall coexistence (short-circuits with Ok 0)
 (:wat::core::defn :app::check [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
-  (:wat::core::if (:wat::core::< n 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
+  (:wat::core::if (:wat::core::< n 0) 
               (:wat::core::Err "negative")
               (:wat::core::Ok n)))
 
 (:wat::core::defn :app::loop_t6 [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
   (:wat::core::let
               [valid (:wat::core::Result/try (:app::check n))]
-              (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
+              (:wat::core::if (:wat::core::= valid 0) 
                 (:wat::core::Ok 0)
                 (:app::loop_t6 (:wat::core::i64::- valid 1)))))
 
@@ -72,7 +72,7 @@
 (:wat::core::defn :app::loop_t7 [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
   (:wat::core::let
               [valid (:wat::core::Result/try (:app::check n))]
-              (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
+              (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) 
                 (:wat::core::Ok 0)
                 (:app::loop_t7 (:wat::core::i64::- valid 1)))))
 
@@ -84,7 +84,7 @@
   (:wat::core::let
               [f
                 (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))]
+                  (:wat::core::if (:wat::core::= n 0)  0 n))]
               (f 42)))
 
 ;; T9: inline fn literal tail call
@@ -105,7 +105,7 @@
 
 ;; T11: inline fn + named alternation at high depth
 (:wat::core::defn :app::go [state <- :wat::core::i64 n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+  (:wat::core::if (:wat::core::= n 0) 
               state
               ((:wat::core::fn [s <- :wat::core::i64 k <- :wat::core::i64] -> :wat::core::i64
                  (:app::go (:wat::core::i64::+ s 1) (:wat::core::i64::- k 1)))

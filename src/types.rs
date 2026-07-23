@@ -1146,6 +1146,45 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
+    // :wat::kernel::RecvOutcome<O> — the matchable outcome of a point-to-point
+    // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
+    // recv' RETURNED O and RAISED on close/crash — a raise unwinds past the reader
+    // (mute). This makes a reason-free failure UNREPRESENTABLE — a peer read yields a
+    // matchable enum with exactly three shapes, mirroring the reason-bearing
+    // `:wat::spawn::ServiceEvent` that select'/poll' already return:
+    //   :Message [msg <- O]        — a real message (the happy path).
+    //   :Closed  []                — a GENUINE clean EOF; the ONLY reason-free terminal.
+    //   :Lost    [cause <- Failure] — abnormal loss; UNCONSTRUCTIBLE without a structured
+    //                                cause. The cause is the first-class `:wat::kernel::Failure`
+    //                                carrier (never a flat String — builder-ruled: wat is EDN
+    //                                everywhere), the SAME structured carrier ServiceEvent::Lost
+    //                                / Reply::Failed use (built via `message_only_failure`).
+    // Impure like ServiceEvent (an I/O outcome). Registered as a builtin (peer with Failure /
+    // WalkStep<A>) so the checker knows it from type-env init — recv' is used INSIDE the stdlib
+    // (spawn.wat) before any wat defenum would load; a builtin is load-order-robust and, per the
+    // design's own note, Impure is the honest fixed purity (a Pure marking would lie the moment O
+    // is a live resource). O carries the peer's output element type (WalkStep<A> is the parametric
+    // precedent).
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::RecvOutcome".into(),
+        type_params: vec!["O".into()],
+        purity: Purity::Impure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Message".into(),
+                fields: vec![("msg".into(), TypeExpr::Path("O".into()))],
+            },
+            EnumVariant::Unit("Closed".into()),
+            EnumVariant::Tagged {
+                name: "Lost".into(),
+                fields: vec![(
+                    "cause".into(),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                )],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — return type of
     // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
     // everything the sandboxed `:user::main` wrote through its stdio

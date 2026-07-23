@@ -43,7 +43,7 @@
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
      qr    (:wat::telemetry::Journal/query-logs journal
              (:wat::telemetry::Journal::QueryLogsRequest :namespace "sift-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::None))]
-    (:wat::core::match qr -> :wat::core::nil
+    (:wat::core::match qr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Journal::QueryLogsResponse::Success qlogs _cur)
         (:wat::core::let
           [class-ok (:wat::core::foldl
@@ -69,4 +69,4 @@
                   qlogs)
            _p2 (:wat::kernel::println (:wat::core::string::concat "deds=" (:wat::core::str (:wat::core::length deds))))]
           nil))
-      (_ (:wat::kernel::println "query-logs failed")))))
+      (_ (:wat::kernel::println "query-logs failed")))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

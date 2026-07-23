@@ -8,7 +8,12 @@
    (:wat::core::if (:wat::core::= n 0)
      acc
      (:wat::core::let [_   (:wat::kernel::send' peer n)
-                       res (:wat::kernel::recv' peer)]
+                       res (:wat::core::match (:wat::kernel::recv' peer)
+                             ((:wat::kernel::RecvOutcome::Message m) m)
+                             ((:wat::kernel::RecvOutcome::Lost cause)
+                               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                             (:wat::kernel::RecvOutcome::Closed
+                               (:wat::kernel::assertion-failed! "recv': peer closed mid-stream" :wat::core::None :wat::core::None)))]
        (:user::drive peer (:wat::core::- n 1) (:wat::core::+ acc res)))))
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64

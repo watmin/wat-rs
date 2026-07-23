@@ -4,7 +4,13 @@
   -> :wat::core::nil
   (:wat::core::let
     [_ (:wat::kernel::send' w (:wat::core::Tuple 0 3))
-     a (:wat::kernel::recv' w)]
+     ra (:wat::kernel::recv' w)
+     a  (:wat::core::match ra
+          ((:wat::kernel::RecvOutcome::Message m) m)
+          ((:wat::kernel::RecvOutcome::Lost cause)
+            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+          (:wat::kernel::RecvOutcome::Closed
+            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println (:wat::core::i64::to-string (:wat::core::second a)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

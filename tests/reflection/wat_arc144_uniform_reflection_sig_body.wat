@@ -10,10 +10,10 @@
                body-opt
                 (:wat::runtime::body-of :user::add)]
               (:wat::core::match sig-opt
-                -> :wat::core::bool
+                
                 ((:wat::core::Some _)
                   (:wat::core::match body-opt
-                    -> :wat::core::bool
+                    
                     ((:wat::core::Some _) true)
                     (:wat::core::None    false)))
                 (:wat::core::None false))))

@@ -5,7 +5,7 @@
               [row
                 (:wat::core::Some (:wat::core::Tuple 1 2))
                v
-                (:wat::core::match row -> :wat::core::i64
+                (:wat::core::match row 
                   ((:wat::core::Some (1 x)) x)
                   (:wat::core::None 0))]
               (:wat::kernel::println (:wat::core::i64::to-string v))))

@@ -42,7 +42,7 @@
   (:wat::core::let [v (:myapp::Voltage :magnitude 99.0)]
     (:wat::core::if
       (:wat::core::record? v)
-      -> :wat::core::f64
+      
       (:wat::core::Option/expect
         (:wat::core::get (:wat::core::record->map v) :magnitude)
         "probe 6: missing :magnitude")

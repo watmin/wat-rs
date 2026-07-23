@@ -4,7 +4,7 @@
               [mm
                 (:wat::core::Some (:wat::core::Some 42))
                v
-                (:wat::core::match mm -> :wat::core::i64
+                (:wat::core::match mm 
                   ((:wat::core::Some (:wat::core::Some x)) x)
                   ((:wat::core::Some :wat::core::None) -1)
                   (:wat::core::None -2)

@@ -77,13 +77,12 @@
      [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Get))
-       -> :wat::core::i64
+        
        ((:wat::core::Ok _)
          (:wat::core::match (:wat::kernel::Process/readln peer!)
-           -> :wat::core::i64
+            
            ((:wat::core::Ok resp)
-             (:wat::core::match resp -> :wat::core::i64
-               ((:counter::Response::Value v) v)
+             (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
            ((:wat::core::Err _chain)
@@ -96,13 +95,12 @@
       n     <- :wat::core::i64]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Increment n))
-       -> :wat::core::i64
+        
        ((:wat::core::Ok _)
          (:wat::core::match (:wat::kernel::Process/readln peer!)
-           -> :wat::core::i64
+            
            ((:wat::core::Ok resp)
-             (:wat::core::match resp -> :wat::core::i64
-               ((:counter::Response::Value v) v)
+             (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
            ((:wat::core::Err _chain)
@@ -114,13 +112,12 @@
      [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Reset))
-       -> :wat::core::i64
+        
        ((:wat::core::Ok _)
          (:wat::core::match (:wat::kernel::Process/readln peer!)
-           -> :wat::core::i64
+            
            ((:wat::core::Ok resp)
-             (:wat::core::match resp -> :wat::core::i64
-               ((:counter::Response::Value v) v)
+             (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
            ((:wat::core::Err _chain)
@@ -132,13 +129,12 @@
      [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Shutdown))
-       -> :wat::core::i64
+        
        ((:wat::core::Ok _)
          (:wat::core::match (:wat::kernel::Process/readln peer!)
-           -> :wat::core::i64
+            
            ((:wat::core::Ok resp)
-             (:wat::core::match resp -> :wat::core::i64
-               ((:counter::Response::Value v) v)
+             (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
            ((:wat::core::Err _chain)
@@ -185,8 +181,8 @@
            (:wat::core::defn :counter/dispatch
              [state <- :wat::core::i64]
              -> :wat::core::nil
-             (:wat::core::match (:wat::kernel::readln -> :counter::Request)
-               -> :wat::core::nil
+             (:wat::core::match (:wat::kernel::readln )
+                
                ;; Read — no state change; reply current value; recur
                (:counter::Request::Get
                   (:wat::core::do

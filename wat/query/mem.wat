@@ -46,7 +46,7 @@
 ;; ─── small pure helpers — filter/sort predicates shared by scan + scan-index ────────────────
 (:wat::core::defn :wat::query::sk-after-cursor?
   [sk <- :wat::core::String cursor <- (:wat::core::Option :wat::core::String)] -> :wat::core::bool
-  (:wat::core::match cursor -> :wat::core::bool
+  (:wat::core::match cursor 
     (:wat::core::None true)
     ((:wat::core::Some c) (:wat::core::> sk c))))
 
@@ -152,7 +152,7 @@
         matches (:wat::core::foldl
                   (:wat::core::fn [acc <- (:wat::core::Vector :wat::query::IndexRow) r <- :wat::query::StoredRow]
                     -> (:wat::core::Vector :wat::query::IndexRow)
-                    (:wat::core::match (:wat::query::row-index-key r index) -> :wat::core::Vector<wat::query::IndexRow>
+                    (:wat::core::match (:wat::query::row-index-key r index) 
                       (:wat::core::None acc)
                       ((:wat::core::Some ik)
                         (:wat::core::if (:wat::query::index-key-in-range? ik ipk lo hi cur)

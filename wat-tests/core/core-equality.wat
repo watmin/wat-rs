@@ -94,7 +94,7 @@
            (:wat::core::= a b)))
         (:child::eq-i64 3 3.0))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -116,7 +116,7 @@
       (:wat::test::run-hermetic
         (:wat::core::let [b (:wat::core::= 1 1.5)] b))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!

@@ -42,12 +42,12 @@
 
 (:wat::core::defn :list::get-found [] -> :wat::core::bool
   (:wat::core::match (:wat::core::List/get (:wat::core::List/of 10 20 30) 1)
-    -> :wat::core::bool
+    
     ((:wat::core::Some x) (:wat::core::= x 20))
     (:None false)))
 
 (:wat::core::defn :list::get-oob [] -> :wat::core::bool
   (:wat::core::match (:wat::core::List/get (:wat::core::List/of 10 20 30) 99)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) false)
     (:None true)))

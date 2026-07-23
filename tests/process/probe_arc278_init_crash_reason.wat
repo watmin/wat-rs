@@ -34,30 +34,38 @@
 ;; (the :init crash reason reached the owner), not hang and not lose the reason.
 ;; THREAD locus — at HEAD this HUNG (bound-but-never-accepted address → connect' rendezvous
 ;; deadlock). GREEN: /start's crash-aware Started-wait raises the reason before connect' runs.
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+;; Arc 278 recv'-wall: the :init crash surfaces to the OWNER. The launch handshake's crash-aware
+;; recv' inside `/start` (wat/spawn.wat) gets the crash as a matchable RecvOutcome::Lost and — because
+;; /start's contract returns a Handle (there is no value channel for a start-failure) — re-raises it,
+;; so the OWNER's `/start` call raises the reason (the .rs catches that raise). If a tier instead
+;; surfaced the crash at the ping's recv' (a matchable ::Lost VALUE), this body RETURNS the reason as
+;; a String; the .rs handles both (raise-at-/start OR value-at-ping) and asserts the sentinel.
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit'/start :locus (:wat::spawn::thread) :record (:t::boominit'::Record))
      svc (:wat::kernel::connect' (:t::boominit'::Handle/addr h))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
-    (:wat::core::match r -> :wat::core::i64
-      ((:t::Boom::PingResponse::Ok x) x)
-      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-      ((:t::Boom::PingResponse::RequestTooLarge bytes cap)
-        (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+    (:wat::core::match r
+      ((:wat::kernel::RecvOutcome::Message __recv)
+        (:wat::core::match __recv
+          ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
+          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::Failure/message __cause))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
 ;; PROCESS locus — at HEAD /start SUCCEEDED (Started sent before :init ran) and the owner's
 ;; connect' collapsed to a bare ECONNREFUSED with the reason discarded. GREEN: the reordered
 ;; launch handshake (send ship → recv Started) makes an :init crash surface over the crash-aware
 ;; `recv' svc`, so /start raises the ProcessPanics envelope carrying the sentinel.
-(:wat::core::defn :user::compute-process [] -> :wat::core::i64
+(:wat::core::defn :user::compute-process [] -> :wat::core::String
   (:wat::core::let
     [h   (:t::boominit'/start :locus (:wat::spawn::process) :record (:t::boominit'::Record))
      svc (:wat::kernel::connect' (:t::boominit'::Handle/addr h))
      r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
-    (:wat::core::match r -> :wat::core::i64
-      ((:t::Boom::PingResponse::Ok x) x)
-      ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-      ((:t::Boom::PingResponse::RequestTooLarge bytes cap)
-        (:wat::kernel::assertion-failed! "compute-process: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+    (:wat::core::match r
+      ((:wat::kernel::RecvOutcome::Message __recv)
+        (:wat::core::match __recv
+          ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
+          ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::Failure/message __cause))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

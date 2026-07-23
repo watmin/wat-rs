@@ -28,7 +28,7 @@
    l     <- :wat::kernel::Listener'<wat::core::keyword,wat::core::nil>
    peers <- :wat::core::Vector<wat::kernel::Peer'<wat::core::nil,wat::core::keyword>>]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::poll' self l peers) -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::poll' self l peers) 
     (:wat::spawn::ServiceEvent::Shutdown nil)
     ((:wat::spawn::ServiceEvent::Connection peer)
       (:probe::serve-thread self l (:wat::core::conj peers peer)))
@@ -52,7 +52,10 @@
                 [t (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 30) :tick)]
                 (:probe::serve-thread self l
                   (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword> t)))))
-     got  (:wat::kernel::recv' svc)]
+     got  (:wat::core::match (:wat::kernel::recv' svc)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))]
     got))
 
 ;; ── PROCESS tier ──────────────────────────────────────────────────────────────
@@ -66,7 +69,7 @@
                 l     <- :wat::kernel::Listener'<wat::core::keyword,wat::core::nil>
                 peers <- :wat::core::Vector<wat::kernel::Peer'<wat::core::nil,wat::core::keyword>>]
                -> :wat::core::nil
-               (:wat::core::match (:wat::kernel::poll' self l peers) -> :wat::core::nil
+               (:wat::core::match (:wat::kernel::poll' self l peers) 
                  (:wat::spawn::ServiceEvent::Shutdown nil)
                  ((:wat::spawn::ServiceEvent::Connection peer)
                    (:probe::serve-proc self l (:wat::core::conj peers peer)))
@@ -84,7 +87,10 @@
                   t    (:wat::kernel::after :wat::program::PeerKind::process (:wat::time::Millisecond 30) :tick)]
                  (:probe::serve-proc self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword> t))))))
-     got (:wat::kernel::recv' svc)]
+     got (:wat::core::match (:wat::kernel::recv' svc)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))]
     got))
 
 ;; ── the assertion — both tiers deliver the timer's :tick through poll' ─────────

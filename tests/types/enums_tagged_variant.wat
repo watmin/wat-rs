@@ -5,7 +5,7 @@
   :Nothing)
 (:wat::core::defn :my::a-candle [] -> :my::Event (:my::Event::Candle 100.0 105.0))
 (:wat::core::defn :my::summary [e <- :my::Event] -> :wat::core::String
-  (:wat::core::match e -> :wat::core::String
+  (:wat::core::match e 
     ((:my::Event::Candle  o c) (:wat::core::f64::to-string c))
     ((:my::Event::Deposit amt) (:wat::core::f64::to-string amt))
     (:my::Event::Nothing       "nothing")))

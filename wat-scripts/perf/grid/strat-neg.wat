@@ -231,7 +231,7 @@
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+  (:wat::core::let [params  (:wat::kernel::readln )
                     strata  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [strata items]")
                     items   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [strata items]")
                     rules   (:strat::build-rules strata)

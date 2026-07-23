@@ -67,7 +67,7 @@
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+  (:wat::core::let [params  (:wat::kernel::readln )
                     depth   (:wat::core::Option/expect   (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect   (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:perf::build-rules depth)

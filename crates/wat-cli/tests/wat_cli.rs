@@ -34,7 +34,7 @@ fn write_temp(contents: &str) -> std::path::PathBuf {
 /// - clean shutdown
 ///
 /// Arc 170 migration: signature drops IOReader/IOWriter params; argv
-/// is ambient; stdin is read via `(:wat::kernel::readln -> :String)`
+/// is ambient; stdin is read via `(:wat::kernel::readln)`
 /// which expects EDN-encoded input on the wire (quoted string);
 /// stdout is written via `(:wat::kernel::println ...)` which emits
 /// the EDN-encoded form (quoted string) followed by a newline.
@@ -44,7 +44,7 @@ const ECHO_PROGRAM: &str = r#"
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [line (:wat::kernel::readln -> :wat::core::String)]
+    [line (:wat::kernel::readln)]
     (:wat::kernel::println line)))
 "#;
 
@@ -124,7 +124,7 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
-    (:wat::core::match (:wat::eval-ast! program) -> :wat::core::nil
+    (:wat::core::match (:wat::eval-ast! program)
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -206,7 +206,6 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
        (:wat::kernel::println
          (:wat::core::if
            (:wat::holon::presence? program-atom bound)
-           -> :wat::core::String
            "present"
            "absent"))
 
@@ -219,7 +218,6 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
        (:wat::kernel::println
          (:wat::core::if
            (:wat::holon::presence? program-atom recovered)
-           -> :wat::core::String
            "present"
            "absent"))
 
@@ -229,7 +227,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
     ;; is no longer available; run the original quoted WatAST directly.
     ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION.
-    (:wat::core::match (:wat::eval-ast! program) -> :wat::core::nil
+    (:wat::core::match (:wat::eval-ast! program)
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -506,7 +504,7 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
             ;; demo::loop no longer needs a stdout param — println
             ;; routes through the ambient StdOutService.
             (:wat::core::defn :demo::loop [] -> :wat::core::nil
-              (:wat::core::if (:wat::kernel::stopped?) -> :wat::core::nil
+              (:wat::core::if (:wat::kernel::stopped?)
                 ()                                       ; observed stop → return clean
                 (:demo::loop)))                          ; tight poll loop
 

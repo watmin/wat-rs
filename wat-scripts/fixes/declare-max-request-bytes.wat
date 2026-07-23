@@ -84,7 +84,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::Option<wat::WatAST>  i <- :wat::core::i64]
       -> :wat::core::Option<wat::WatAST>
-      (:wat::core::match acc -> :wat::core::Option<wat::WatAST>
+      (:wat::core::match acc 
         ((:wat::core::Some v) (:wat::core::Some v))
         (:wat::core::None
           (:wat::core::if
@@ -156,7 +156,7 @@
   (:wat::core::let
     [nature-opt (:user::find-kw-value ch ":nature")
      is-peer
-       (:wat::core::match nature-opt -> :wat::core::bool
+       (:wat::core::match nature-opt 
          (:wat::core::None false)
          ((:wat::core::Some nv) (:wat::core::= (:user::kw-name nv) ":wat::kernel::Peer'")))]
     (:wat::core::if (:wat::core::not is-peer)
@@ -167,7 +167,7 @@
            (:wat::core::if (:wat::core::= (:wat::core::ast-kind name-node) "keyword")
              (:wat::core::ast-name name-node) "")
          features-opt (:user::find-kw-value ch ":features")]
-        (:wat::core::match features-opt -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+        (:wat::core::match features-opt 
           (:wat::core::None (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
           ((:wat::core::Some fv)
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
@@ -223,4 +223,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)))
+  (:user::apply-each (:wat::kernel::readln )))

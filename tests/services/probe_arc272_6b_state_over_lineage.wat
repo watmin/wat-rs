@@ -14,7 +14,7 @@
                 clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,wat::core::i64>>
                 state   <- :user::Counter]
                -> :wat::core::nil
-               (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
+               (:wat::core::match (:wat::kernel::poll' self l clients) 
                  (:wat::spawn::ServiceEvent::Shutdown nil)
                  ((:wat::spawn::ServiceEvent::Connection peer)
                    (:user::serve self l (:wat::core::conj clients peer) state))
@@ -38,15 +38,30 @@
                   self (:wat::program::self-peer
                           :wat::kernel::Address'<wat::core::i64,wat::core::i64> :user::Counter)
                   _    (:wat::kernel::send' self (:wat::spawn::Bound/address b))
-                  st   (:wat::kernel::recv' self)]
+                  st   (:wat::core::match (:wat::kernel::recv' self)
+                         ((:wat::kernel::RecvOutcome::Message m) m)
+                         ((:wat::kernel::RecvOutcome::Lost cause)
+                           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                         (:wat::kernel::RecvOutcome::Closed
+                           (:wat::kernel::assertion-failed! "recv': self closed before the owner sent state0" :wat::core::None :wat::core::None)))]
                  (:user::serve self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64>) st)))))
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
-     addr (:wat::kernel::recv' svc)
+     addr (:wat::core::match (:wat::kernel::recv' svc)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': svc closed before sending the capability" :wat::core::None :wat::core::None)))
      ;; hand the child its initial state over the lineage channel (parent→child — the NEW direction).
      _    (:wat::kernel::send' svc (:user::Counter :base 1000))
      ;; dial the capability; round-trip 5 -> base + 5 == 1005 (only if state0 crossed).
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c 5)
-     got  (:wat::kernel::recv' c)]
+     got  (:wat::core::match (:wat::kernel::recv' c)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': c closed before replying" :wat::core::None :wat::core::None)))]
     got))

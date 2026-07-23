@@ -3,6 +3,6 @@
   (:wat::kernel::spawn-program' (:wat::spawn::process)
     (:wat::core::forms
       (:wat::core::defn :user::main [] -> :wat::core::nil
-        (:wat::core::let [n (:wat::kernel::readln -> :wat::core::i64)
+        (:wat::core::let [n (:wat::kernel::readln )
                           _ (:wat::kernel::println n)]
           nil)))))

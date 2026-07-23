@@ -21,13 +21,13 @@
      file      (:wat::kernel::Frame/file frame)
      line      (:wat::kernel::Frame/line frame)
      symbol    (:wat::kernel::Frame/symbol frame)
-     file-ok   (:wat::core::match file -> :wat::core::bool
+     file-ok   (:wat::core::match file 
                  ((:wat::core::Some f) (:wat::core::string::contains? f "probe_arc278_call_site"))
                  (:wat::core::None     false))
-     line-ok   (:wat::core::match line -> :wat::core::bool
+     line-ok   (:wat::core::match line 
                  ((:wat::core::Some l) (:wat::core::> l 0))
                  (:wat::core::None     false))
-     symbol-ok (:wat::core::match symbol -> :wat::core::bool
+     symbol-ok (:wat::core::match symbol 
                  ((:wat::core::Some s) (:wat::core::string::contains? s "probe::here"))
                  (:wat::core::None     false))]
     (:wat::core::do

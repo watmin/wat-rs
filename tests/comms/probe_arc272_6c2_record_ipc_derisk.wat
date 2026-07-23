@@ -20,5 +20,10 @@
                    _    (:wat::kernel::send' self (:user::Pt :x 7 :y 35))]
                   nil))))
      ;; the parent recv's the record off the lineage channel; reconstruct via the EDN wire.
-     pt  (:wat::kernel::recv' svc)]
+     pt  (:wat::core::match (:wat::kernel::recv' svc)
+           ((:wat::kernel::RecvOutcome::Message m) m)
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "recv': svc closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::core::+ (:user::Pt/x pt) (:user::Pt/y pt))))

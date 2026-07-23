@@ -15,4 +15,4 @@
     (:wat::eval-ast!
       (:wat::core::first
         (:wat::core::read-string
-          (:wat::kernel::readln -> :wat::core::String))))))
+          (:wat::kernel::readln ))))))

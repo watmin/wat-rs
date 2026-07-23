@@ -6,6 +6,6 @@
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::match
               (:wat::runtime::lookup-define :my::id)
-              -> :wat::core::bool
+              
               ((:wat::core::Some _) true)
               (:wat::core::None    false)))

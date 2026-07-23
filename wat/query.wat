@@ -364,40 +364,48 @@
                     :time-hi   (~req-hi-kw req)
                     :limit     (~req-lim-kw req)
                     :cursor    (~req-cur-kw req)))
-                -> ~resp-kw
-                ((:wat::telemetry::Journal::QueryLogsResponse::Success logs next-cur)
-                  (:wat::core::if
-                    (:wat::core::foldl
-                      (:wat::core::fn [~ok-sym <- :wat::core::bool ~log-sym <- :wat::telemetry::Log]
-                        -> :wat::core::bool
-                        (:wat::core::if ~ok-sym
-                          (:wat::core::Vector/contains?
-                            (:wat::core::Vector :wat::core::String ~@def-type-strs)
-                            (:wat::core::type
-                              (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))))
-                          false))
-                      true
-                      logs)
-                    (~resp-ded-kw
-                      (:wat::core::foldl
-                        (:wat::core::fn [~acc-sym <- :wat::core::PersistentVector<wat::core::Value>
-                                         ~log-sym <- :wat::telemetry::Log]
-                          -> :wat::core::PersistentVector<wat::core::Value>
-                          (:wat::core::concat ~acc-sym
-                            (:wat::core::let
-                              [~fired-sym (:wat::rete::fire-rules
-                                            (:wat::rete::insert (~state-template-kw s)
-                                              (:wat::edn::read (:wat::telemetry::Log/message ~log-sym))))]
-                              ~concat-chain)))
-                        (:wat::core::PersistentVector)
-                        logs)
-                      next-cur)
-                    (~resp-fat-kw
-                      (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs"))))
-                ;; propagate the budget signal EXPLICITLY — never lump RequestTooLarge into Fatal (ruling A).
-                ((:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge bytes cap)
-                  (~resp-rtl-kw bytes cap))
-                (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed"))))))]))))
+                ;; the Journal peer client-method now returns RecvOutcome<QueryLogsResponse> — a lost/closed
+                ;; Journal backend must NOT kill this shared sift service (client-triggerable-DoS forbidden):
+                ;; map to our own ::Fatal response value and KEEP SERVING (mirrors telemetry/journal.wat).
+                ((:wat::kernel::RecvOutcome::Message sresp)
+                  (:wat::core::match sresp
+                    ((:wat::telemetry::Journal::QueryLogsResponse::Success logs next-cur)
+                      (:wat::core::if
+                        (:wat::core::foldl
+                          (:wat::core::fn [~ok-sym <- :wat::core::bool ~log-sym <- :wat::telemetry::Log]
+                            -> :wat::core::bool
+                            (:wat::core::if ~ok-sym
+                              (:wat::core::Vector/contains?
+                                (:wat::core::Vector :wat::core::String ~@def-type-strs)
+                                (:wat::core::type
+                                  (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))))
+                              false))
+                          true
+                          logs)
+                        (~resp-ded-kw
+                          (:wat::core::foldl
+                            (:wat::core::fn [~acc-sym <- :wat::core::PersistentVector<wat::core::Value>
+                                             ~log-sym <- :wat::telemetry::Log]
+                              -> :wat::core::PersistentVector<wat::core::Value>
+                              (:wat::core::concat ~acc-sym
+                                (:wat::core::let
+                                  [~fired-sym (:wat::rete::fire-rules
+                                                (:wat::rete::insert (~state-template-kw s)
+                                                  (:wat::edn::read (:wat::telemetry::Log/message ~log-sym))))]
+                                  ~concat-chain)))
+                            (:wat::core::PersistentVector)
+                            logs)
+                          next-cur)
+                        (~resp-fat-kw
+                          (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs"))))
+                    ;; propagate the budget signal EXPLICITLY — never lump RequestTooLarge into Fatal (ruling A).
+                    ((:wat::telemetry::Journal::QueryLogsResponse::RequestTooLarge bytes cap)
+                      (~resp-rtl-kw bytes cap))
+                    (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed")))))
+                ((:wat::kernel::RecvOutcome::Lost cause)
+                  (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::Failure/message cause))))
+                (:wat::kernel::RecvOutcome::Closed
+                  (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))))))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed

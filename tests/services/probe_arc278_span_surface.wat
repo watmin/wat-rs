@@ -30,6 +30,6 @@
             (:wat::telemetry::Span::LogRequest :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
               :message (:wat::edn::write (:probe::Note :text "hello"))))
      c    (:wat::telemetry::Span/close span (:wat::telemetry::Span::CloseRequest))]
-    (:wat::core::match c -> :wat::core::i64
+    (:wat::core::match c ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Span::CloseResponse::Done) 1)
-      (_ 0))))
+      (_ 0))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

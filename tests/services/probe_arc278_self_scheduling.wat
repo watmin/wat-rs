@@ -39,12 +39,12 @@
   :impls
   [;; client op: arm the FIRST tick (reply Ok + arm) — the tick re-arms itself thereafter.
    (start [s req]
-     (:wat::service::ReplyAndArm s (:probe::Ticker::StartResponse::Ok)
+     (:wat::service::Outcome::ReplyAndArm s (:probe::Ticker::StartResponse::Ok)
        [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)]))
 
    ;; client op: reply the current count (proves the reactor serves clients between ticks).
    (poll [s req]
-     (:wat::service::Reply s
+     (:wat::service::Outcome::Reply s
        (:probe::Ticker::PollResponse::Count
          (:probe::ticker'::Record/count (:probe::ticker'::State/durable s)))))
 
@@ -56,9 +56,9 @@
         rec' (:probe::ticker'::Record :count n :target (:probe::ticker'::Record/target rec))
         s'   (:probe::ticker'::State :durable rec')]
        (:wat::core::if (:wat::core::i64::< n (:probe::ticker'::Record/target rec))
-         (:wat::service::NoReplyAndArm s'
+         (:wat::service::Outcome::NoReplyAndArm s'
            [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
-         (:wat::service::NoReply s'))))])
+         (:wat::service::Outcome::NoReply s'))))])
 
 ;; ── nap — mora-honest wait (select' on a one-shot after; the driver runs on a thread) ─────────────
 (:wat::core::defn :probe::nap [ms <- :wat::core::i64] -> :wat::core::nil
@@ -66,7 +66,7 @@
     (:wat::kernel::select'
       (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword>
         (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
-    -> :wat::core::nil
+    
     ((:wat::spawn::ServiceEvent::Message _i _m) nil)
     ((:wat::spawn::ServiceEvent::Closed _i) nil)
     ((:wat::spawn::ServiceEvent::Lost _i _c) nil)
@@ -85,9 +85,9 @@
      _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))
      _w (:probe::nap 100)                                          ;; 100ms >> target ticks @ 5ms — robust
      r  (:probe::Ticker/poll c (:probe::Ticker::PollRequest))]
-    (:wat::core::match r -> :wat::core::i64
+    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Ticker::PollResponse::Count n) n)
-      ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1))))
+      ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; entrypoint (thread locus): expect the count == target (3).
 (:wat::core::defn :user::self-tick-rearms-thread [] -> :wat::core::i64

@@ -5,7 +5,7 @@
 //! # The model under test (builder, 2026-06-08)
 //!
 //! In a fork the spawned program is just a normal wat program: it reads fd 0 with
-//! `(:wat::kernel::readln -> :T)`, writes fd 1 with `(:wat::kernel::println v)`,
+//! `(:wat::kernel::readln)`, writes fd 1 with `(:wat::kernel::println v)`,
 //! and panics to fd 2 with `(:wat::kernel::eprintln …)`. From its perspective it
 //! is the same as any other wat program — it operates as a "server." Its "client"
 //! is the PARENT, who drives it with `(send' peer v)` / `(recv' peer)` directly on

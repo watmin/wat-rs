@@ -9,7 +9,7 @@
   (:wat::core::let
     [boom (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
             (:wat::core::if (:wat::core::= x 99)
-              -> :wat::core::i64
+              
               (:wat::core::i64::/ x 0)
               x))
      mapped (:wat::core::map boom (:wat::core::Vector :wat::core::i64 1 2 99))]

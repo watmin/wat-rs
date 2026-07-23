@@ -3,13 +3,16 @@
 ;; startup_beside(file!()) world — thread-peer crash-reason IPC (Arc 259 S3.5a-0).
 ;;
 ;; :user::compute spawns a thread peer whose body calls assertion-failed! with a known
-;; sentinel. recv' must raise with the sentinel in the error (crash reason travels over pipe).
+;; sentinel. Arc 278 recv'-wall: recv' returns a matchable RecvOutcome VALUE (never a raise). We
+;; MATCH the outcome and RETURN the Lost cause's `Failure/message` — which carries the crash reason
+;; that travelled over the pipe — as a VALUE the .rs asserts.
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-           (:wat::kernel::assertion-failed! "BOOM-SENTINEL-9173" :wat::core::None :wat::core::None)))
-     _ (:wat::kernel::recv' p)]
-    0))
-
+           (:wat::kernel::assertion-failed! "BOOM-SENTINEL-9173" :wat::core::None :wat::core::None)))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
+      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::Failure/message cause))
+      (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

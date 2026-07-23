@@ -559,22 +559,22 @@
      tlen       (:wat::core::length tail)
      ;; is-map: tail has exactly 1 element and it is a map literal
      is-map     (:wat::core::if (:wat::core::= tlen 1)
-                   -> :wat::core::bool
+                   
                    (:wat::core::= (:wat::core::ast-kind (:wat::core::first tail)) "map")
                    false)
      ;; is-pt: passthrough — tail has 1 element and it is NOT a map (explicit record)
      is-pt      (:wat::core::if (:wat::core::= tlen 1)
-                   -> :wat::core::bool
-                   (:wat::core::if is-map -> :wat::core::bool false true)
+                   
+                   (:wat::core::if is-map  false true)
                    false)
      ;; kvflat: flat [k0 v0 k1 v1 …] — either ast->children of map node or tail itself
      kvflat     (:wat::core::if is-map
-                   -> :wat::core::Vector<wat::WatAST>
+                   
                    (:wat::core::ast->children (:wat::core::first tail))
                    tail)
      nkv        (:wat::core::i64::/ (:wat::core::length kvflat) 2)]
     (:wat::core::if is-pt
-      -> :wat::WatAST
+      
       ;; Passthrough: explicit-record call; splice pos-args + single record arg
       `(~impl-kw ~@pos ~(:wat::core::first tail))
       ;; Normal: reorder by field declaration order using pascal->kebab-in matching
@@ -617,9 +617,9 @@
                          "kwargs-lower: kv-val index OOB")]
                       ;; Only record the first match (iacc empty → still searching)
                       (:wat::core::if (:wat::core::empty? iacc)
-                        -> :wat::core::Vector<wat::WatAST>
+                        
                         (:wat::core::if (:wat::core::= kkb fkebab)
-                          -> :wat::core::Vector<wat::WatAST>
+                          
                           (:wat::core::conj iacc vn)
                           iacc)
                         iacc)))
@@ -628,7 +628,7 @@
                 ;; If no key matched → macro-error; otherwise take found[0]
                 v
                 (:wat::core::if (:wat::core::empty? found)
-                  -> :wat::WatAST
+                  
                   (:wat::core::macro-error
                     (:wat::core::string::concat "kwargs-lower: missing argument :" fkebab))
                   (:wat::core::Option/expect
@@ -641,7 +641,7 @@
         ;; `:wat::core::agg-positional`, emit PURE POSITIONAL to the (prime) ctor `(~impl-kw ~@ovals)`
         ;; — no Kwargs-record wrap. Else defn's shape: positional + a trailing Kwargs record.
         (:wat::core::if (:wat::core::= (:wat::core::ast-name kwargs-ty) ":wat::core::agg-positional")
-          -> :wat::WatAST
+          
           `(~impl-kw ~@pos ~@ovals)
           ;; Arc 294 item 9a — kwargs-lower is the machinery that KNOWS: it holds the reordered
           ;; values positionally, so it constructs the `::Kwargs` bundle through the PRIME
@@ -684,12 +684,12 @@
      ;; Keyword name (the rust-scheme surface) passes straight through.
      name
      (:wat::core::if (:wat::core::= (:wat::core::ast-kind name) "symbol")
-       -> :wat::WatAST
+       
        (:wat::core::let
          [name-raw (:wat::core::ast-name name)
           name-fqdn
           (:wat::core::if (:wat::core::string::contains? name-raw "/")
-            -> :wat::core::String
+            
             (:wat::core::let
               [slash-parts (:wat::core::string::split name-raw "/")
                ;; `first` returns the element directly (raises if empty);
@@ -711,7 +711,7 @@
      ;; AND last element is a Vector node. `& sym <- :T` (variadic rest) is excluded
      ;; because the element right after `&` is a Symbol (not a Vector).
      has-kwargs   (:wat::core::if (:wat::core::i64::>= params-len 2)
-                    -> :wat::core::bool
+                    
                     (:wat::core::let
                       [stl-node  (:wat::core::Option/expect  
                                    (:wat::core::get params-ch (:wat::core::i64::- params-len 2))
@@ -720,15 +720,15 @@
                                    (:wat::core::get params-ch (:wat::core::i64::- params-len 1))
                                    "defn kwargs detect: last index")]
                       (:wat::core::if (:wat::core::= (:wat::core::ast-kind stl-node) "symbol")
-                        -> :wat::core::bool
+                        
                         (:wat::core::if (:wat::core::= (:wat::core::ast-name stl-node) "&")
-                          -> :wat::core::bool
+                          
                           (:wat::core::= (:wat::core::ast-kind last-node) "vector")
                           false)
                         false))
                     false)]
     (:wat::core::if has-kwargs
-      -> :wat::WatAST
+      
       ;; ── KWARGS BRANCH (Arc 260.1a) ───────────────────────────────────────────
       (:wat::core::let
         [name-str        (:wat::core::keyword/to-string name)
@@ -753,7 +753,7 @@
                                               (:wat::core::get kw-ch (:wat::core::i64::* i 3))
                                               "defn kwargs validate: field name index")]
                                (:wat::core::if (:wat::core::= (:wat::core::ast-name fname-node) "&")
-                                 -> :wat::core::nil
+                                 
                                  (:wat::core::macro-error
                                    "defn kwargs section is flat: no nested & — one level")
                                  nil)))
@@ -1157,7 +1157,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
        -> :wat::holon::HolonAST
-       (:wat::core::if (:wat::core::List? step) -> :AST<wat::holon::HolonAST>
+       (:wat::core::if (:wat::core::List? step) 
           `(~(:wat::core::first step) ~a ~@(:wat::core::rest step))
           `(~step ~a)))
     acc
@@ -1174,7 +1174,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
        -> :wat::holon::HolonAST
-       (:wat::core::if (:wat::core::List? step) -> :AST<wat::holon::HolonAST>
+       (:wat::core::if (:wat::core::List? step) 
           `(~@step ~a)
           `(~step ~a)))
     acc
@@ -1363,14 +1363,14 @@
     ;; ── 1. Extract the template string literal ───────────────────────
     [tmpl-str   (:wat::core::if
                   (:wat::core::= (:wat::core::ast-kind tmpl) "string")
-                  -> :wat::core::String
+                  
                   (:wat::core::ast-name tmpl)
                   (:wat::core::macro-error
                     "format: first argument must be a string literal"))
      ;; Guard: template segments must not contain `"` (read-string would produce broken source).
      _no-quotes (:wat::core::if
                   (:wat::core::string::contains? tmpl-str "\"")
-                  -> :wat::core::nil
+                  
                   (:wat::core::macro-error
                     "format: template must not contain quote characters")
                   nil)
@@ -1382,7 +1382,7 @@
      ;; Even-length guard.
      _even-check (:wat::core::if
                    (:wat::core::= (:wat::core::i64::* n-pairs 2) opts-len)
-                   -> :wat::core::nil
+                   
                    nil
                    (:wat::core::macro-error
                      "format: trailing kwargs must be :name value pairs — odd count"))
@@ -1398,7 +1398,7 @@
                                  "format: kwargs pair key missing")
                         key   (:wat::core::if
                                 (:wat::core::= (:wat::core::ast-kind k-ast) "keyword")
-                                -> :wat::core::String
+                                
                                 (:wat::core::keyword/to-string k-ast)
                                 (:wat::core::macro-error
                                   "format: kwargs key must be a keyword (e.g. :name)"))
@@ -1469,21 +1469,21 @@
                         segs    (:wat::core::second bs)]
                        (:wat::core::if
                          (:wat::core::= mode "text")
-                         -> :wat::core::Tuple
+                         
                          (:wat::core::if
                            (:wat::core::= pending "open")
-                           -> :wat::core::Tuple
+                           
                            ;; mode=="text", pending=="open"
                            (:wat::core::if
                              (:wat::core::= c "{")
-                             -> :wat::core::Tuple
+                             
                              ;; {{ → literal {
                              (:wat::core::Tuple
                                (:wat::core::Tuple "text" "none")
                                (:wat::core::Tuple (:wat::core::string::concat buf "{") segs))
                              (:wat::core::if
                                (:wat::core::= c "}")
-                               -> :wat::core::Tuple
+                               
                                ;; {} → error
                                (:wat::core::macro-error
                                  "format: empty placeholder {} in template")
@@ -1492,7 +1492,7 @@
                                (:wat::core::let
                                  [segs-after (:wat::core::if
                                                (:wat::core::String/empty? buf)
-                                               -> :wat::core::Vector<wat::core::Tuple>
+                                               
                                                segs
                                                (:wat::core::conj segs
                                                  (:wat::core::Tuple "text" buf)))]
@@ -1501,11 +1501,11 @@
                                    (:wat::core::Tuple c segs-after)))))
                            (:wat::core::if
                              (:wat::core::= pending "close")
-                             -> :wat::core::Tuple
+                             
                              ;; mode=="text", pending=="close"
                              (:wat::core::if
                                (:wat::core::= c "}")
-                               -> :wat::core::Tuple
+                               
                                ;; }} → literal }
                                (:wat::core::Tuple
                                  (:wat::core::Tuple "text" "none")
@@ -1516,13 +1516,13 @@
                              ;; mode=="text", pending=="none"
                              (:wat::core::if
                                (:wat::core::= c "{")
-                               -> :wat::core::Tuple
+                               
                                (:wat::core::Tuple
                                  (:wat::core::Tuple "text" "open")
                                  (:wat::core::Tuple buf segs))
                                (:wat::core::if
                                  (:wat::core::= c "}")
-                                 -> :wat::core::Tuple
+                                 
                                  (:wat::core::Tuple
                                    (:wat::core::Tuple "text" "close")
                                    (:wat::core::Tuple buf segs))
@@ -1532,7 +1532,7 @@
                          ;; mode=="name" (pending always "none")
                          (:wat::core::if
                            (:wat::core::= c "}")
-                           -> :wat::core::Tuple
+                           
                            ;; close placeholder: emit slot segment
                            (:wat::core::Tuple
                              (:wat::core::Tuple "text" "none")
@@ -1540,7 +1540,7 @@
                                (:wat::core::conj segs (:wat::core::Tuple "slot" buf))))
                            (:wat::core::if
                              (:wat::core::= c "{")
-                             -> :wat::core::Tuple
+                             
                              ;; { inside name → error
                              (:wat::core::macro-error
                                "format: '{' inside placeholder name — unclosed '{'?")
@@ -1565,17 +1565,17 @@
      ;; Check for trailing lone brace or unclosed name.
      _fin-check  (:wat::core::if
                    (:wat::core::= fin-pending "open")
-                   -> :wat::core::nil
+                   
                    (:wat::core::macro-error
                      "format: trailing lone '{' — use '{{' for a literal brace")
                    (:wat::core::if
                      (:wat::core::= fin-pending "close")
-                     -> :wat::core::nil
+                     
                      (:wat::core::macro-error
                        "format: trailing lone '}' — use '}}' for a literal brace")
                      (:wat::core::if
                        (:wat::core::= fin-mode "name")
-                       -> :wat::core::nil
+                       
                        (:wat::core::macro-error
                          (:wat::core::string::concat
                            "format: unclosed placeholder {"
@@ -1585,7 +1585,7 @@
      ;; Flush final text segment if non-empty.
      segments    (:wat::core::if
                    (:wat::core::String/empty? fin-buf)
-                   -> :wat::core::Vector<wat::core::Tuple>
+                   
                    fin-segs
                    (:wat::core::conj fin-segs (:wat::core::Tuple "text" fin-buf)))
 
@@ -1605,7 +1605,7 @@
                          pay   (:wat::core::second seg)]
                         (:wat::core::if
                           (:wat::core::= kind "text")
-                          -> :wat::core::Tuple
+                          
                           ;; text segment → String literal AST node
                           (:wat::core::Tuple
                             (:wat::core::conj ps2
@@ -1620,7 +1620,7 @@
                           (:wat::core::let
                             [_vn     (:wat::core::if
                                        (:wat::core::HashMap/contains-key? kwargs-map pay)
-                                       -> :wat::core::nil
+                                       
                                        nil
                                        (:wat::core::macro-error
                                          (:wat::core::string::concat
@@ -1648,7 +1648,7 @@
                      -> :wat::core::nil
                      (:wat::core::if
                        (:wat::core::HashMap/contains-key? used-set key)
-                       -> :wat::core::nil
+                       
                        nil
                        (:wat::core::macro-error
                          (:wat::core::string::concat "format: kwarg :"
@@ -1662,11 +1662,11 @@
     ;; Empty template → "". Single piece → unwrap. Multiple → concat.
     (:wat::core::if
       (:wat::core::empty? pieces)
-      -> :wat::WatAST
+      
       `""
       (:wat::core::if
         (:wat::core::= (:wat::core::length pieces) 1)
-        -> :wat::WatAST
+        
         (:wat::core::first pieces)
         `(:wat::core::string::concat ~@pieces)))))
 

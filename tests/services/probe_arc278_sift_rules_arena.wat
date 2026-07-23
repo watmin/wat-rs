@@ -216,7 +216,7 @@
                            (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-ns"
                              :time-lo 0 :time-hi 100000000 :limit 100
                              :cursor (:arena::PageAcc/cur state)))]
-                   (:wat::core::match resp -> :arena::PageAcc
+                   (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
                      ((:arena::my-sift::SiftRulesResponse::Deductions items cur)
                        (:wat::core::let
                          [page-clean (:wat::core::foldl
@@ -231,13 +231,13 @@
                                        items)
                           new-acc (:wat::core::+ (:arena::PageAcc/acc state) (:wat::core::length items))
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
-                         (:wat::core::match cur -> :arena::PageAcc
+                         (:wat::core::match cur 
                            (:wat::core::None (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean))
                            ((:wat::core::Some c) (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)))))
                      ((:arena::my-sift::SiftRulesResponse::Fatal _err)
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))
                      ((:arena::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None))))))
+                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))
@@ -292,7 +292,7 @@
                            (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-ns"
                              :time-lo 0 :time-hi 100000000 :limit 100
                              :cursor (:arena::PageAcc/cur state)))]
-                   (:wat::core::match resp -> :arena::PageAcc
+                   (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
                      ((:arena::my-sift::SiftRulesResponse::Deductions items cur)
                        (:wat::core::let
                          [page-clean (:wat::core::foldl
@@ -307,13 +307,13 @@
                                        items)
                           new-acc (:wat::core::+ (:arena::PageAcc/acc state) (:wat::core::length items))
                           new-clean (:wat::core::and (:arena::PageAcc/clean state) page-clean)]
-                         (:wat::core::match cur -> :arena::PageAcc
+                         (:wat::core::match cur 
                            (:wat::core::None (:arena::PageAcc :done true :cur :wat::core::None :acc new-acc :clean new-clean))
                            ((:wat::core::Some c) (:arena::PageAcc :done false :cur (:wat::core::Some c) :acc new-acc :clean new-clean)))))
                      ((:arena::my-sift::SiftRulesResponse::Fatal _err)
                        (:arena::PageAcc :done true :cur :wat::core::None :acc -999999 :clean false))
                      ((:arena::my-sift::SiftRulesResponse::RequestTooLarge _bytes _cap)
-                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None))))))
+                       (:wat::kernel::assertion-failed! "sift-rules-arena: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
              initial
              page-idxs)]
     (:wat::core::if (:arena::PageAcc/clean final) (:arena::PageAcc/acc final) -1)))
@@ -344,9 +344,9 @@
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
                :limit 50 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::bool
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:arena::my-sift::SiftRulesResponse::Fatal _err) true)
-      (_ false))))
+      (_ false))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── PROCESS locus — same fail-closed guard, across a FORK. ──
 (:wat::core::defn :user::sift-rules-arena-fatal-process [] -> :wat::core::bool
@@ -381,6 +381,6 @@
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
                :limit 50 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::bool
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:arena::my-sift::SiftRulesResponse::Fatal _err) true)
-      (_ false))))
+      (_ false))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

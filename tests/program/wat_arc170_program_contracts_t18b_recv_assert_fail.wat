@@ -5,7 +5,7 @@
     :wat::core::i64
     (:wat::core::Vector :wat::core::i64 2)
     (:wat::core::let
-      [n (:wat::kernel::readln -> :wat::core::i64)
+      [n (:wat::kernel::readln )
        ;; assert-eq: n=2 vs expected=3 — this fails, child panics
        _ (:wat::test::assert-eq n 3)
        ;; println never reached:

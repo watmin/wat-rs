@@ -12,7 +12,7 @@
     [sieve (:wat::query::sieve-pred
              (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
                (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
-     pred-src (:wat::core::match sieve -> :wat::core::String
+     pred-src (:wat::core::match sieve 
                 ((:wat::query::Sieve::Predicate pred) pred))]
     (:wat::core::string::contains? pred-src "::")))
 
@@ -26,7 +26,7 @@
      sieve   (:wat::query::sieve-pred
                (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
                  (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
-     pred-src (:wat::core::match sieve -> :wat::core::String
+     pred-src (:wat::core::match sieve 
                 ((:wat::query::Sieve::Predicate pred) pred))
      rebuilt (:wat::core::first (:wat::core::ast->children (:wat::core::read-string pred-src)))]
     (:wat::core::= fn-form rebuilt)))

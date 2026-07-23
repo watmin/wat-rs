@@ -521,7 +521,7 @@ fn row_i_type_check_eprintln_accepts_any_t() {
 #[test]
 fn row_j_type_check_readln_returns_polymorphic_t() {
     // The fixture's `:test::r` function declares its return as :wat::core::String
-    // and its body is `(:wat::kernel::readln -> :wat::core::String)`.
+    // and its body is `(:wat::kernel::readln)`.
     // Freeze success proves the return type unifies correctly.
     startup_beside(file!())
         .expect("readln with -> :T annotation should type-check; fixture freeze failed");

@@ -47,7 +47,7 @@
      _put  (:wat::query::Store/put store (:wat::query::Store::PutRequest rows))
      resp  (:wat::query::Store/scan store
              (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::String
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::query::Store::ScanResponse::Success out _cursor)
         ;; return the scanned sks as an EDN vector (ORDERED) — the .rs golden-compares it.
         (:wat::edn::write
@@ -57,7 +57,7 @@
               (:wat::core::conj acc (:wat::query::Row/sk r)))
             (:wat::core::Vector :wat::core::String)
             out)))
-      (_ "SCAN-FAILED"))))
+      (_ "SCAN-FAILED"))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── TEST B — a #uuid GSI scan-index round-trips ──────────────────────────────────
 ;; Three rows: two share uuid u1, one has u2. scan-index by u1 must return exactly 2.
@@ -86,6 +86,6 @@
      resp  (:wat::query::Store/scan-index store
              (:wat::query::Store::ScanIndexRequest
                :index "by-uuid" :ipk u1 :isk-lo "#" :isk-hi "#z" :limit 10 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::i64
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::query::Store::ScanIndexResponse::Success out _cursor) (:wat::core::count out))
-      (_ -1))))
+      (_ -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

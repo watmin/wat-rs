@@ -41,7 +41,7 @@
   (:wat::test::run-hermetic
     (:wat::core::match
       (:wat::eval-file! "/nonexistent-in-child-loader.wat")
-      -> :wat::core::nil
+      
       ((:wat::core::Ok h) (:wat::kernel::println "ok"))
       ((:wat::core::Err _) (:wat::kernel::eprintln "err")))))
 
@@ -49,7 +49,7 @@
   (:wat::test::run-hermetic
     (:wat::core::match
       (:wat::eval-file! "/also-nonexistent-in-child-loader.wat")
-      -> :wat::core::nil
+      
       ((:wat::core::Ok _) (:wat::kernel::println "leaked"))
       ((:wat::core::Err _) (:wat::kernel::eprintln "blocked")))))
 

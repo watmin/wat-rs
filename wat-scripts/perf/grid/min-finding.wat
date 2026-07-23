@@ -130,7 +130,7 @@
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [params    (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+  (:wat::core::let [params    (:wat::kernel::readln )
                     stations  (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [stations threshold]")
                     threshold (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [stations threshold]")
                     rules     (:wat::core::PersistentVector (:mf::build-rule threshold))

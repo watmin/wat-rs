@@ -51,12 +51,12 @@
            :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
-      (:wat::core::match r -> :wat::core::i64
+      (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::OffsetCounter::TotalResponse::Ok value) value)
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::OffsetCounter::TotalResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "offset-counter-total: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     105))
 
 ;; process tier: identical except the locus — the live offset crosses the wire as EDN in Admin::Init.
@@ -68,10 +68,10 @@
            :record (:wat-tests::offset-counter::Record :count 5) :offset 100)
        c (:wat::kernel::connect' (:wat-tests::offset-counter::Handle/addr h))
        r (:wat-tests::OffsetCounter/total c (:wat-tests::OffsetCounter::TotalRequest))]
-      (:wat::core::match r -> :wat::core::i64
+      (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::OffsetCounter::TotalResponse::Ok value) value)
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::OffsetCounter::TotalResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "offset-counter-total: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     105))

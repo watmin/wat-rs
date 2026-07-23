@@ -45,15 +45,14 @@
                   [self <- :wat::kernel::Peer'<wat::core::String,probe::CMsg>
                    held <- (:wat::core::Option :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>)]
                   -> :wat::core::nil
-                  (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
+                  (:wat::core::match (:wat::kernel::recv' self) 
                     ((:probe::CMsg::Setup addr)
                       (:probe::serve self (:wat::core::Some (:wat::kernel::connect' addr))))
                     ((:probe::CMsg::Work s)
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")
                          er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s))
-                         _  (:wat::kernel::send' self (:wat::core::match er -> :wat::core::String
-  ((:probe::Echo::EchoResponse::Ok reply) reply)
+                         _  (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))]
                         (:probe::serve self held)))))
@@ -61,7 +60,7 @@
                   (:wat::core::let
                     [self (:wat::program::self-peer :wat::core::String :probe::CMsg)]
                     (:probe::serve self :wat::core::None)))))
-     out  (:wat::core::match (:wat::kernel::peer-pid worker) -> :wat::core::String
+     out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
                 [_  (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p))

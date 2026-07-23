@@ -34,8 +34,7 @@
                 (:wat::core::defn :user::bracket::work-fn
                   [c <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>  s <- :wat::core::String]
                   -> :wat::core::String
-                  (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) -> :wat::core::String
-  ((:probe::Echo::EchoResponse::Ok reply) reply)
+                  (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -45,15 +44,29 @@
                       :wat::bracket::PoolMsg<wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>,wat::core::String>)
                     :user::bracket::work-fn
                     :wat::core::None))))
-     out  (:wat::core::match (:wat::kernel::peer-pid worker) -> :wat::core::String
+     out  (:wat::core::match (:wat::kernel::peer-pid worker) 
             ((:wat::core::Some p)
               (:wat::core::let
                 [_  (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p))
                  _  (:wat::kernel::send' worker (:wat::bracket::PoolMsg::Setup eab))
                  _  (:wat::kernel::send' worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 0 "a")))
-                 r1 (:wat::core::ann-form (:wat::kernel::recv' worker) :(wat::core::i64,wat::core::String))
+                 r1 (:wat::core::ann-form
+                      (:wat::core::match (:wat::kernel::recv' worker)
+                        ((:wat::kernel::RecvOutcome::Message m) m)
+                        ((:wat::kernel::RecvOutcome::Lost cause)
+                          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                        (:wat::kernel::RecvOutcome::Closed
+                          (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))
+                      :(wat::core::i64,wat::core::String))
                  _  (:wat::kernel::send' worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 1 "b")))
-                 r2 (:wat::core::ann-form (:wat::kernel::recv' worker) :(wat::core::i64,wat::core::String))]
+                 r2 (:wat::core::ann-form
+                      (:wat::core::match (:wat::kernel::recv' worker)
+                        ((:wat::kernel::RecvOutcome::Message m) m)
+                        ((:wat::kernel::RecvOutcome::Lost cause)
+                          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                        (:wat::kernel::RecvOutcome::Closed
+                          (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))
+                      :(wat::core::i64,wat::core::String))]
                 (:wat::core::string::concat (:wat::core::second r1)
                   (:wat::core::string::concat " | " (:wat::core::second r2)))))
             (:wat::core::None

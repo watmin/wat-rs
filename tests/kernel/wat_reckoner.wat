@@ -13,7 +13,7 @@
      nlabels (:wat::core::length label-list)]
     (:wat::core::if
       (:wat::core::and (:wat::core::= d 10000) (:wat::core::= nlabels 2))
-      -> :wat::core::String "ok" "wrong")))
+       "ok" "wrong")))
 
 (:wat::core::defn :my::compute-observe-predict [] -> :wat::core::String
   (:wat::core::let
@@ -28,11 +28,11 @@
      u2         (:wat::holon::Reckoner/observe r v 1 1.0)
      pred       (:wat::holon::Reckoner/predict r v)
      conviction (:wat::core::third pred)]
-    (:wat::core::if (:wat::core::>= conviction 0.0) -> :wat::core::String "ok" "wrong")))
+    (:wat::core::if (:wat::core::>= conviction 0.0)  "ok" "wrong")))
 
 (:wat::core::defn :my::compute-continuous-construct [] -> :wat::core::String
   (:wat::core::let
     [r (:wat::holon::Reckoner/new-continuous "cont" 10000 100 0.0 16)
      d (:wat::holon::Reckoner/dims r)]
-    (:wat::core::if (:wat::core::= d 10000) -> :wat::core::String "ok" "wrong")))
+    (:wat::core::if (:wat::core::= d 10000)  "ok" "wrong")))
 

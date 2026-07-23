@@ -938,7 +938,10 @@ mod tests {
         // Use startup_from_source to get a real Arc<Function>.
         let world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::echo [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-               (:wat::kernel::send' self (:wat::kernel::recv' self)))",
+               (:wat::core::match (:wat::kernel::recv' self) \
+                 ((:wat::kernel::RecvOutcome::Message m) (:wat::kernel::send' self m)) \
+                 ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)) \
+                 (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None))))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),
         )

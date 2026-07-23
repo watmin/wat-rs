@@ -18,13 +18,28 @@
                    _    (:wat::kernel::send' self addr)
                    ;; accept the parent's dial on our own listener; round-trip n -> n+100.
                    c    (:wat::kernel::accept' (:wat::spawn::Bound/listener b))
-                   n    (:wat::kernel::recv' c)
+                   n    (:wat::core::match (:wat::kernel::recv' c)
+                          ((:wat::kernel::RecvOutcome::Message m) m)
+                          ((:wat::kernel::RecvOutcome::Lost cause)
+                            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                          (:wat::kernel::RecvOutcome::Closed
+                            (:wat::kernel::assertion-failed! "recv': c closed unexpectedly" :wat::core::None :wat::core::None)))
                    _    (:wat::kernel::send' c (:wat::core::+ n 100))]
                   nil))))
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
-     addr (:wat::kernel::recv' svc)
+     addr (:wat::core::match (:wat::kernel::recv' svc)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': svc closed unexpectedly" :wat::core::None :wat::core::None)))
      ;; dial the capability — the child is guaranteed listening (it sent AFTER listen()).
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c 5)
-     got  (:wat::kernel::recv' c)]
+     got  (:wat::core::match (:wat::kernel::recv' c)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': c closed unexpectedly" :wat::core::None :wat::core::None)))]
     got))

@@ -17,7 +17,7 @@
 ;; TIER B — get ((coll, key) -> Option<element>)
 (:wat::core::defn :user::get-vector-precise [] -> :wat::core::i64
   (:wat::core::match (:wat::core::get (:wat::core::Vector :wat::core::i64 10 20 30) 1)
-                     -> :wat::core::i64
+                     
                      ((:wat::core::Some x) (:wat::core::i64::+ x 5))
                      (:wat::core::None -1)))
 

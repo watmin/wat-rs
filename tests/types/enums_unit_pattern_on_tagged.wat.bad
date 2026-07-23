@@ -2,5 +2,5 @@
 (:wat::core::defenum :my::Event :wat::enum::Pure
   :Pair [a <- :wat::core::i64 b <- :wat::core::i64])
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::match (:my::Event::Pair 1 2) -> :wat::core::i64
+  (:wat::core::match (:my::Event::Pair 1 2) 
     (:my::Event::Pair 0)))

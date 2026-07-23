@@ -61,7 +61,7 @@
      _ (:wat::holon::Hologram/put h key val)
      evicted
       (:wat::lru::LocalCache::put lru key nil)]
-    (:wat::core::match evicted -> :wat::core::nil
+    (:wat::core::match evicted 
       ((:wat::core::Some pair)
         (:wat::core::let
           [evicted-key (:wat::core::first pair)
@@ -86,7 +86,7 @@
       (:wat::holon::lru::HologramCache/lru store)]
     (:wat::core::match
       (:wat::holon::Hologram/find h probe)
-      -> :wat::core::Option<wat::holon::HolonAST>
+      
       ((:wat::core::Some pair)
         (:wat::core::let
           [matched-key (:wat::core::first pair)

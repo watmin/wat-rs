@@ -9,14 +9,14 @@
      fail
       (:wat::kernel::RunResult/failure r)
      rendered
-      (:wat::core::match fail -> :wat::core::Vector<wat::core::String>
+      (:wat::core::match fail 
         ((:wat::core::Some f)
          (:wat::core::Vector :wat::core::String
            (:wat::kernel::Failure/message f)
-           (:wat::core::match (:wat::kernel::Failure/actual f) -> :wat::core::String
+           (:wat::core::match (:wat::kernel::Failure/actual f) 
              ((:wat::core::Some a) a)
              (:wat::core::None ":None"))
-           (:wat::core::match (:wat::kernel::Failure/expected f) -> :wat::core::String
+           (:wat::core::match (:wat::kernel::Failure/expected f) 
              ((:wat::core::Some e) e)
              (:wat::core::None ":None"))))
         (:wat::core::None

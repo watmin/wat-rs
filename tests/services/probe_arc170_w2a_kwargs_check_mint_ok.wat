@@ -42,11 +42,11 @@
    & [echo <- :wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>
       kv   <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
   -> :wat::core::String
-  (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) -> :wat::core::String
+  (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
     ((:probe::Echo::EchoResponse::Ok reply) reply)
     ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
       (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge"
-        :wat::core::None :wat::core::None))))
+        :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 
 ;; arc 170 C2 D — the checker RETURNS `(::Coords, ::GrantHandles)` (a Tuple: the pure
 ;; field-ordered Address'+data record, and the impure parent-local typed-handle struct);

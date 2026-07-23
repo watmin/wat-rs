@@ -16,14 +16,13 @@ use wat::runtime::Value;
 /// (thread locus) A self-armed `-tick` fires + re-arms to `target` (3), and `poll` still replies.
 /// Returns the polled count; GREEN iff it equals the target 3 (fired thrice, re-armed each time,
 /// on the service's own select loop, and the reactor served the poll between ticks).
-#[ignore = "arc 278 item (c) RED gate — BLOCKED on Stone 2 (the self-scheduling design ABOVE the \
-            multiplexer), NOT the poll'/timer gap: Stone 1 CLOSED that — `after` now builds a UNIFIED \
-            Peer' that joins `poll'` by construction (proven, both tiers, in \
-            wat-scripts/scratch-pad/probe-timer-as-peer.wat; the tier-open `Timer'` is retired). Still \
-            RED because Stone 2 is unbuilt: no `Alarm`/`ReplyAndArm`/`NoReplyAndArm`, the serve loop \
-            threads `clients` not `selectables`, and the leading-dash `-tick` is not synthesized → the \
-            fixture cannot type-check. Un-ignore when Stone 2 lands (count == target, poll replies)."]
+// TRACKED, item-(c): the arc-278 widening lands the CHECK (superset-O selectables type-check), but the
+// generated serve loop's Stone 2-A runtime — Alarm→timer arm + `-tick` fire + re-arm — crashes mid-tick
+// (`send': channel disconnected`); the timer is still in the wrong location (DESIGN-self-scheduling-
+// defservices.md: `after` → a unified `Peer'<nil,O>`). NOT a masked regression — an UNBUILT stone,
+// being built next; the mechanism is proven hand-rolled in wat-scripts/scratch-pad/probe-self-scheduling-loop.wat.
 #[test]
+#[ignore = "Stone 2-A self-scheduling runtime not yet built (item-c); the generated serve loop's timer arm/fire/re-arm crashes mid-tick — being built next"]
 fn self_tick_fires_rearms_and_reactor_serves_thread() {
     let got = call_beside(file!(), ":user::self-tick-rearms-thread").unwrap_or_else(|e| {
         panic!("the self-scheduling `-tick` must fire + re-arm and poll must reply; got raise: {e:?}")
@@ -41,14 +40,8 @@ fn self_tick_fires_rearms_and_reactor_serves_thread() {
 
 /// (process locus) Identical, but the service is forked to a process — the `-tick` timer must arm at
 /// the PROCESS tier (env-grab: the service's own kind), proving the capability is loci-agnostic.
-#[ignore = "arc 278 item (c) RED gate — BLOCKED on Stone 2 (the self-scheduling design ABOVE the \
-            multiplexer), NOT the poll'/timer gap: Stone 1 CLOSED that — `after` now builds a UNIFIED \
-            Peer' that joins `poll'` by construction (proven, both tiers, in \
-            wat-scripts/scratch-pad/probe-timer-as-peer.wat; the tier-open `Timer'` is retired). Still \
-            RED because Stone 2 is unbuilt: no `Alarm`/`ReplyAndArm`/`NoReplyAndArm`, the serve loop \
-            threads `clients` not `selectables`, and the leading-dash `-tick` is not synthesized → the \
-            fixture cannot type-check. Un-ignore when Stone 2 lands (count == target, poll replies)."]
 #[test]
+#[ignore = "Stone 2-A self-scheduling runtime not yet built (item-c); the process-tier timer arm/fire/re-arm crashes mid-tick — being built next"]
 fn self_tick_fires_rearms_and_reactor_serves_process() {
     let got = call_beside(file!(), ":user::self-tick-rearms-process").unwrap_or_else(|e| {
         panic!("the process-tier self-scheduling `-tick` must fire + re-arm and poll must reply; \

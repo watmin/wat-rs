@@ -83,7 +83,7 @@
       state  <- :wat::core::i64]
      -> :wat::core::nil
      (:wat::core::match (:wat::kernel::Thread/readln peer!)
-       -> :wat::core::nil
+        
 
        ;; Read — no state change; reply current value; recur same state
        (:counter::Request::Get
@@ -147,9 +147,7 @@
      [peer! <- :wat::kernel::ThreadPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
      (:wat::kernel::Thread/println peer! (:counter::Request::Get))
-     (:wat::core::match (:wat::kernel::Thread/readln peer!)
-       -> :wat::core::i64
-       ((:counter::Response::Value v) v)
+     (:wat::core::match (:wat::kernel::Thread/readln peer!) ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
        ((:counter::Response::Final v) v)))
 
@@ -158,9 +156,7 @@
       n     <- :wat::core::i64]
      -> :wat::core::i64
      (:wat::kernel::Thread/println peer! (:counter::Request::Increment n))
-     (:wat::core::match (:wat::kernel::Thread/readln peer!)
-       -> :wat::core::i64
-       ((:counter::Response::Value v) v)
+     (:wat::core::match (:wat::kernel::Thread/readln peer!) ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
        ((:counter::Response::Final v) v)))
 
@@ -168,9 +164,7 @@
      [peer! <- :wat::kernel::ThreadPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
      (:wat::kernel::Thread/println peer! (:counter::Request::Reset))
-     (:wat::core::match (:wat::kernel::Thread/readln peer!)
-       -> :wat::core::i64
-       ((:counter::Response::Value v) v)
+     (:wat::core::match (:wat::kernel::Thread/readln peer!) ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
        ((:counter::Response::Final v) v)))
 
@@ -178,9 +172,7 @@
      [peer! <- :wat::kernel::ThreadPeer<counter::Response,counter::Request>]
      -> :wat::core::i64
      (:wat::kernel::Thread/println peer! (:counter::Request::Shutdown))
-     (:wat::core::match (:wat::kernel::Thread/readln peer!)
-       -> :wat::core::i64
-       ((:counter::Response::Value v) v)
+     (:wat::core::match (:wat::kernel::Thread/readln peer!) ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
        ((:counter::Response::Final v) v))))
 

@@ -22,14 +22,14 @@
               (:wat::core::forms
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
-                    [line (:wat::kernel::readln -> :wat::core::String)]
+                    [line (:wat::kernel::readln )]
                     (:wat::kernel::println line)))))
      pass1 (:wat::core::let
              [rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))
               tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
               peer (:wat::kernel::ProcessPeer :rx rx :tx tx)]
              (:wat::core::match (:wat::kernel::Process/println peer "arc208-ok")
-               -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
+               
                ((:wat::core::Ok _)  (:wat::core::Ok ()))
                ((:wat::core::Err e) (:wat::core::Err e))))
      pass2 (:wat::core::let
@@ -37,7 +37,7 @@
               tx    (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  server))
               peer  (:wat::kernel::ProcessPeer :rx rx :tx tx)
               reply (:wat::core::match (:wat::kernel::Process/readln peer)
-                      -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
+                      
                       ((:wat::core::Ok v)  (:wat::core::Ok v))
                       ((:wat::core::Err e) (:wat::core::Err e)))
               _done (:wat::kernel::Process/drain-and-join server)]
@@ -59,7 +59,7 @@
      peer (:wat::kernel::ProcessPeer :rx rx :tx tx)
      _    (:wat::kernel::Process/drain-and-join server2)]
     (:wat::core::match (:wat::kernel::Process/println peer "should-fail")
-      -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
+      
       ((:wat::core::Ok _)  (:wat::core::Ok ()))
       ((:wat::core::Err e) (:wat::core::Err e)))))
 
@@ -74,6 +74,6 @@
      peer (:wat::kernel::ProcessPeer :rx rx :tx tx)
      _    (:wat::kernel::Process/drain-and-join server)]
     (:wat::core::match (:wat::kernel::Process/readln peer)
-      -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
+      
       ((:wat::core::Ok v)  (:wat::core::Ok v))
       ((:wat::core::Err e) (:wat::core::Err e)))))

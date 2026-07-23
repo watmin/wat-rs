@@ -41,7 +41,7 @@
                   (:wat::program::Env/wat.peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
                   (:wat::time::Millisecond 50)
                   :tick)))
-            -> :wat::core::keyword
+             
             ((:wat::spawn::ServiceEvent::Message _idx mm) mm)
             (_ :no-tick))]
        (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse::Ok m))))])
@@ -54,12 +54,12 @@
       [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
-      (:wat::core::match r -> :wat::core::keyword
+      (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Deadline::WaitTickResponse::Ok fired) fired)
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::Deadline::WaitTickResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "deadline-wait-tick: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     :tick))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
@@ -70,10 +70,10 @@
       [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::deadline::Handle/addr h))
        r (:wat-tests::Deadline/wait-tick c (:wat-tests::Deadline::WaitTickRequest))]
-      (:wat::core::match r -> :wat::core::keyword
+      (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Deadline::WaitTickResponse::Ok fired) fired)
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::Deadline::WaitTickResponse::RequestTooLarge bytes cap)
           (:wat::kernel::assertion-failed! "deadline-wait-tick: unexpected RequestTooLarge"
-            :wat::core::None :wat::core::None))))
+            :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
     :tick))

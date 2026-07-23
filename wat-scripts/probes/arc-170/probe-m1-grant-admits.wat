@@ -51,13 +51,12 @@
                      addr (:wat::kernel::recv' self)
                      c    (:wat::kernel::connect' addr)
                      er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
-                     _    (:wat::kernel::send' self (:wat::core::match er -> :wat::core::String
-  ((:probe::Echo::EchoResponse::Ok reply) reply)
+                     _    (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))))]
                     nil))))
      ;; capture the prober's kernel pid and grant it into A's allow-set (ack'd: PeersAllowed).
-     _   (:wat::core::match (:wat::kernel::peer-pid prober) -> :wat::core::nil
+     _   (:wat::core::match (:wat::kernel::peer-pid prober) 
            ((:wat::core::Some p)
              (:probe::echo'/grant eh (:wat::core::Vector :wat::core::i64 p)))
            (:wat::core::None

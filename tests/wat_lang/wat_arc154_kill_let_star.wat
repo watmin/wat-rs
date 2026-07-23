@@ -9,7 +9,7 @@
 
 ; test 4: let in tail position (tail-call countdown)
 (:wat::core::defn :t::countdown4 [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+  (:wat::core::if (:wat::core::= n 0) 
     n
     (:wat::core::let [m (:wat::core::i64::- n 1)]
       (:t::countdown4 m))))

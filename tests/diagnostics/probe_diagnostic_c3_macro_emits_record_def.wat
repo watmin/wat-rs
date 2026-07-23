@@ -20,7 +20,7 @@
        (:wat::core::defrecord ~req-name [n <- :wat::core::i64])
        (:wat::core::defenum ~op-name :wat::enum::Pure :Go [req <- ~req-ty])
        (:wat::core::defn ~go-name [n <- :wat::core::i64] -> :wat::core::i64
-         (:wat::core::match (~go-var (~req-name :n n)) -> :wat::core::i64
+         (:wat::core::match (~go-var (~req-name :n n)) 
            ((~go-var req) (~acc-name req)))))))
 
 (:t::mk :demo)

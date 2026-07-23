@@ -278,7 +278,7 @@ pub fn eval_kernel_epprintln(
     })
 }
 
-/// `(:wat::kernel::readln' <cap-i64> -> :T)`.
+/// `(:wat::kernel::readln' <cap-i64>)`.
 ///
 /// The kernel-restricted positional prime that the `readln` defmacro expands to.
 /// Arc 255 escape-hatch: the cap is ALWAYS explicit — there is no Rust default.
@@ -310,15 +310,24 @@ pub fn eval_kernel_readln_prime(
     const OP: &str = ":wat::kernel::readln'";
     use crate::runtime::eval;
 
-    // Shape: exactly 3 args `[cap -> :T]`. The cap is always explicit;
-    // the `readln` macro injects MAX-READLN-BYTES when no kwarg is supplied.
-    if args.len() != 3 {
+    // Arc 258 — `-> :T` is illegal on readln'; the arrow is a function-return
+    // annotation only. readln reads what the SELF-DESCRIBING EDN wire says
+    // (records-are-EDN); the caller no longer attests the type. Shape: exactly
+    // one arg `[cap]` — the `readln` macro injects MAX-READLN-BYTES by default.
+    if args.len() >= 2 && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->") {
         return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
             head: OP.into(),
             reason: format!(
-                "expected ({} <cap-i64> -> :T) — exactly 3 args; got {}",
-                OP, args.len()
+                "`-> :T` is a function-return annotation only — it is illegal on {}. \
+                 readln reads what the self-describing EDN wire says; use ({} <cap>) with no ascription.",
+                OP, OP
             ),
+        } });
+    }
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("expected ({} <cap-i64>) — exactly 1 arg; got {}", OP, args.len()),
         } });
     }
 
@@ -339,42 +348,6 @@ pub fn eval_kernel_readln_prime(
             } });
         }
     };
-    let arrow_idx = 1;
-    let ty_idx = 2;
-
-    // Parse `->` symbol.
-    match &args[arrow_idx] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!(
-                    "expected `->` before the return type keyword; ({} -> :T); got {}",
-                    OP, other.variant_name()
-                ),
-            } });
-        }
-    }
-
-    // Parse the return type keyword `:T`.
-    let target_ty = match &args[ty_idx] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(e) => {
-                return Err(RuntimeError { span: args[ty_idx].span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e),
-                } });
-            }
-        },
-        other => {
-            return Err(RuntimeError { span: other.span().clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: "expected type keyword after `->`".into(),
-            } });
-        }
-    };
-
     // Access the service channel via sym.runtime_services().
     let services = sym.runtime_services().ok_or_else(|| RuntimeError {
         span: list_span.clone(),
@@ -411,16 +384,13 @@ pub fn eval_kernel_readln_prime(
                 } });
             }
         };
-        let edn = wat_edn::parse_owned(&line).map_err(|e| RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("EDN parse error reading stdin line {:?}: {}", line, e)
-        } })?;
-        crate::edn_shim::edn_to_typed_value(&target_ty, &edn, sym).map_err(|e| {
-            RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::EdnCoerceMismatch {
-                op: OP.into(),
-                expected: e.expected,
-                got: e.got,
-                path: e.path
+        // Decode via the SELF-DESCRIBING wire — no target type; the EDN's own
+        // tags/notation reconstruct the exact Value (int→i64, float→f64), exactly
+        // as recv'/select' decode a peer message (mirror the runtime.rs recv' rail).
+        crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref())).map_err(|e| {
+            RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("readln EDN decode failed: {}", e),
             } }
         })
     })

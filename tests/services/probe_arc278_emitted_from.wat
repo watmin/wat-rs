@@ -32,7 +32,7 @@
               :message (:wat::edn::write (:probe::Note :text "emitted-from")))
      frame  (:wat::telemetry::Log/emitted-from log)
      file   (:wat::kernel::Frame/file frame)
-     file-ok (:wat::core::match file -> :wat::core::bool
+     file-ok (:wat::core::match file 
                ((:wat::core::Some _) true)
                (:wat::core::None     false))]
     (:wat::test::assert-true file-ok)))

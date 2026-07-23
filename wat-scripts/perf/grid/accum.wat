@@ -159,7 +159,7 @@
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [params  (:wat::kernel::readln -> :wat::core::Vector<wat::core::i64>)
+  (:wat::core::let [params  (:wat::kernel::readln )
                     groups  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [groups readings]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [groups readings]")
                     rules   (:wat::rete::collect-rules :acc)

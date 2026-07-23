@@ -15,10 +15,20 @@
      chosen (:wat::kernel::select'
               (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64> server))]
     (:wat::core::match chosen
-      -> :wat::core::i64
+      
       ((:wat::spawn::ServiceEvent::Message _idx req)
         (:wat::core::let [_ (:wat::kernel::send' server (:wat::core::* req 2))
-                          reply (:wat::kernel::recv' client)]
+                          ;; arc 278 recv'-outcome wall — recv' returns a matchable
+                          ;; RecvOutcome<i64>. OWNER role (the test is the final caller):
+                          ;; on ::Lost surface the cause loudly (eprintln, divergent);
+                          ;; ::Closed likewise. ::Message m flows out exactly as reply did.
+                          r     (:wat::kernel::recv' client)
+                          reply (:wat::core::match r
+                                  ((:wat::kernel::RecvOutcome::Message m) m)
+                                  ((:wat::kernel::RecvOutcome::Lost cause)
+                                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                                  (:wat::kernel::RecvOutcome::Closed
+                                    (:wat::kernel::assertion-failed! "recv': client closed before replying" :wat::core::None :wat::core::None)))]
           reply))
       (_ (:wat::kernel::assertion-failed!
            "connection primitive: unexpected ServiceEvent variant"

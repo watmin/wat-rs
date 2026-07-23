@@ -9,14 +9,19 @@
 (:wat::core::defn :probe::serve
   [self <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,wat::core::i64),probe::PoolMsg<wat::core::nil,wat::core::i64>>]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
-    ((:probe::PoolMsg::Work pair)
-      (:wat::core::let
-        [out (:wat::core::Tuple (:wat::core::first pair) (:wat::core::* (:wat::core::second pair) 2))
-         _   (:wat::kernel::send' self out)]
-        (:probe::serve self)))
-    ((:probe::PoolMsg::Setup _deps)
-      (:probe::serve self))))
+  (:wat::core::match (:wat::kernel::recv' self)
+    ((:wat::kernel::RecvOutcome::Message m)
+      (:wat::core::match m
+        ((:probe::PoolMsg::Work pair)
+          (:wat::core::let
+            [out (:wat::core::Tuple (:wat::core::first pair) (:wat::core::* (:wat::core::second pair) 2))
+             _   (:wat::kernel::send' self out)]
+            (:probe::serve self)))
+        ((:probe::PoolMsg::Setup _deps)
+          (:probe::serve self))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed nil)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -24,5 +29,11 @@
          (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer'<(wat::core::i64,wat::core::i64),probe::PoolMsg<wat::core::nil,wat::core::i64>>] -> :wat::core::nil
            (:probe::serve sp)))
      _  (:wat::kernel::send' w (:probe::PoolMsg::Work (:wat::core::Tuple 0 3)))
-     r  (:wat::kernel::recv' w)]
+     r0 (:wat::kernel::recv' w)
+     r  (:wat::core::match r0
+          ((:wat::kernel::RecvOutcome::Message m) m)
+          ((:wat::kernel::RecvOutcome::Lost cause)
+            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+          (:wat::kernel::RecvOutcome::Closed
+            (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println (:wat::core::second r))))

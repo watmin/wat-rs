@@ -18,7 +18,7 @@
           (:wat::core::Fault/of "arc113-raise-data")))
      fail
       (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::Option<wat::core::String>
+    (:wat::core::match fail 
       ((:wat::core::Some f)
        ;; STRUCTURAL round-trip: edn::read lifts the Failure's EDN back to a
        ;; :wat::core::Fault RECORD (reconstruct_record); Fault/message then reads

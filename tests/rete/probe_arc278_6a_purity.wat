@@ -45,9 +45,9 @@
 (:wat::core::defn :user::cond-with-io-body-pure? [] -> :wat::core::bool
   (:wat::rete::pure? (:wat::core::quote (:wat::core::cond ((:wat::core::> 5 3) (:wat::io::IOReader/open-file "x")) (true 0)))))
 (:wat::core::defn :user::pure-match-with-ctor-pattern-pure? [] -> :wat::core::bool
-  (:wat::rete::pure? (:wat::core::quote (:wat::core::match ?x -> :wat::core::i64 ((:wat::core::Some v) v) (:wat::core::None 0)))))
+  (:wat::rete::pure? (:wat::core::quote (:wat::core::match ?x  ((:wat::core::Some v) v) (:wat::core::None 0)))))
 (:wat::core::defn :user::match-with-io-body-pure? [] -> :wat::core::bool
-  (:wat::rete::pure? (:wat::core::quote (:wat::core::match ?x -> :wat::core::nil ((:wat::core::Some v) (:wat::io::IOReader/open-file "x")) (:wat::core::None nil)))))
+  (:wat::rete::pure? (:wat::core::quote (:wat::core::match ?x  ((:wat::core::Some v) (:wat::io::IOReader/open-file "x")) (:wat::core::None nil)))))
 
 ;; ─── deterministic? axis (referential transparency) ─────────────────────────────
 (:wat::core::defn :user::pure-arithmetic-deterministic? [] -> :wat::core::bool
@@ -57,7 +57,7 @@
 (:wat::core::defn :user::io-op-deterministic? [] -> :wat::core::bool
   (:wat::rete::deterministic? (:wat::core::quote (:wat::io::IOReader/open-file "x"))))
 (:wat::core::defn :user::match-on-nondeterministic-scrutinee-deterministic? [] -> :wat::core::bool
-  (:wat::rete::deterministic? (:wat::core::quote (:wat::core::match (:wat::core::Uuid/v4) -> :wat::core::nil (:wat::core::None nil)))))
+  (:wat::rete::deterministic? (:wat::core::quote (:wat::core::match (:wat::core::Uuid/v4)  (:wat::core::None nil)))))
 (:wat::core::defn :user::self-recursive-fn-deterministic? [] -> :wat::core::bool
   (:wat::rete::deterministic? (:wat::core::quote (:test::countdown 3))))
 

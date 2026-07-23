@@ -11,11 +11,21 @@
               (:wat::core::fn [_admin <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                 (:wat::core::let
                   [conn (:wat::kernel::accept' l)
-                   n    (:wat::kernel::recv' conn)
+                   n    (:wat::core::match (:wat::kernel::recv' conn)
+                          ((:wat::kernel::RecvOutcome::Message m) m)
+                          ((:wat::kernel::RecvOutcome::Lost cause)
+                            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                          (:wat::kernel::RecvOutcome::Closed
+                            (:wat::kernel::assertion-failed! "recv': conn closed unexpectedly" :wat::core::None :wat::core::None)))
                    _    (:wat::kernel::send' conn (:wat::core::* n 2))]
                   nil)))
      conn  (:wat::kernel::connect' addr)
      _     (:wat::kernel::send' conn 5)
-     reply (:wat::kernel::recv' conn)]
+     reply (:wat::core::match (:wat::kernel::recv' conn)
+             ((:wat::kernel::RecvOutcome::Message m) m)
+             ((:wat::kernel::RecvOutcome::Lost cause)
+               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+             (:wat::kernel::RecvOutcome::Closed
+               (:wat::kernel::assertion-failed! "recv': conn closed unexpectedly" :wat::core::None :wat::core::None)))]
     reply))
 

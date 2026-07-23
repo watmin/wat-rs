@@ -655,7 +655,7 @@
                             (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
                                              f   <- :wat::lint::Finding]
                               -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
-                              (:wat::core::match (:wat::lint::Finding/fix f) -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+                              (:wat::core::match (:wat::lint::Finding/fix f)  
                                 (:wat::core::None acc)
                                 ((:wat::core::Some fe)
                                  (:wat::core::let [start-map (:wat::core::HashMap :wat::core::keyword :wat::core::i64

@@ -13,7 +13,7 @@
     (:wat::core::fn [] -> :wat::core::i64 config)))
 
 ;; Test 9: def inside if → startup passes (Gap I-B; runtime-only rejection)
-(:wat::core::if true -> :wat::core::nil
+(:wat::core::if true 
   (:wat::core::def :dead-a 1)
   (:wat::core::def :dead-b 2))
 

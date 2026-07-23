@@ -1708,7 +1708,7 @@ fn coerce_variant_single<'a>(
 /// type matches the caller's declared `target` annotation.
 ///
 /// Arc 170 slice 1f-ι — the load-bearing piece of the EDN-only
-/// `(:wat::kernel::readln -> :T)` contract.
+/// `(:wat::kernel::readln)` contract.
 /// `(:wat::kernel::println v)` emits canonical EDN via
 /// [`value_to_edn_with`]; this function is its asymmetric inverse —
 /// asymmetric because the caller declares `T`, so the coercion can

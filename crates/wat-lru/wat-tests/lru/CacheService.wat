@@ -46,7 +46,7 @@
             _finish
              (:wat::kernel::HandlePool::finish pool)]
            d)]
-       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::nil
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) 
          ((:wat::core::Ok _) nil)
          ((:wat::core::Err _) (:wat::test::assert-eq "lru-spawn-and-drop-died" "")))))
 
@@ -81,7 +81,7 @@
         driver
          (:wat::core::first driver-and-n)
         n (:wat::core::second driver-and-n)]
-       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) 
          ((:wat::core::Ok _) n)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -117,7 +117,7 @@
             _finish
              (:wat::kernel::HandlePool::finish pool)]
            d)]
-       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) 
          ((:wat::core::Ok _) 1)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -179,7 +179,7 @@
         driver
          (:wat::core::first driver-and-v)
         v (:wat::core::second driver-and-v)]
-       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) 
          ((:wat::core::Ok _) v)
          ((:wat::core::Err _)
            (:wat::core::do
@@ -194,7 +194,7 @@
    (:wat::core::defn :test::lru-slot-presence
      [slot <- :wat::core::Option<wat::core::i64>]
      -> :wat::core::i64
-     (:wat::core::match slot -> :wat::core::i64
+     (:wat::core::match slot 
        ((:wat::core::Some _) 1)
        (:wat::core::None 0)))
 
@@ -260,7 +260,7 @@
         driver
          (:wat::core::first driver-and-pat)
         pat (:wat::core::second driver-and-pat)]
-       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) -> :wat::core::i64
+       (:wat::core::match (:wat::kernel::Thread/drain-and-join driver) 
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)
            (:wat::core::do

@@ -247,7 +247,7 @@
                        kwd   <- :wat::core::String]
         -> :wat::core::Vector<wat::deporder::Violation>
         (:wat::core::let [sym-opt (:wat::core::HashMap/get sym-map kwd)]
-          (:wat::core::match sym-opt -> :wat::core::Vector<wat::deporder::Violation>
+          (:wat::core::match sym-opt 
             (:wat::core::None viols)
             ((:wat::core::Some sym-def)
              ;; defined in a different file?
@@ -259,7 +259,7 @@
                  ;; look up definer position
                  (:wat::core::let [def-path    (:wat::deporder::SymDef/file sym-def)
                                    def-pos-opt (:wat::core::HashMap/get pos-map def-path)]
-                   (:wat::core::match def-pos-opt -> :wat::core::Vector<wat::deporder::Violation>
+                   (:wat::core::match def-pos-opt 
                      (:wat::core::None viols)
                      ((:wat::core::Some def-pos)
                       ;; violation: definer loads AFTER referencer

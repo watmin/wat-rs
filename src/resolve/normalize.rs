@@ -113,7 +113,7 @@ fn normalize_form(
                 Boundary::Quasiquote => normalize_quasiquote_form(items, sym, macros, errors),
                 // matches?: only the subject (items[1]) is code; pattern is data.
                 Boundary::MatchesSubject => normalize_matches(items, sym, macros, errors),
-                // match: scrutinee + arm bodies are code; patterns + `-> :T` are data.
+                // match: scrutinee + arm bodies are code; arm patterns are data (arc 258.5, no `-> :T`).
                 Boundary::Match => normalize_match(items, sym, macros, errors),
             };
             WatAST::List(new_items, span)
@@ -197,9 +197,9 @@ fn normalize_matches(
     out
 }
 
-/// Normalize a `:wat::core::match` list. The scrutinee (items[1]) and each arm
-/// body are code; the `-> :T` annotation (items[2..=3]) and each arm's pattern
-/// are data — left untouched, mirroring `walk`.
+/// Normalize a `:wat::core::match` list. Arc 258.5 — bare match: the scrutinee
+/// (items[1]) and each arm body are code; the arms (items[2..]) each pattern is
+/// data — left untouched, mirroring `walk`. The `-> :T` ascription is retired.
 fn normalize_match(
     items: Vec<WatAST>,
     sym: &SymbolTable,
@@ -212,8 +212,6 @@ fn normalize_match(
     if let Some(scrutinee) = iter.next() {
         out.push(normalize_form(scrutinee, sym, macros, errors)); // scrutinee: code
     }
-    out.extend(iter.next()); // `->` arrow: a syntax token, pass through
-    out.extend(iter.next()); // return-type keyword: a type annotation, pass through
     for arm in iter {
         match arm {
             WatAST::List(arm_items, arm_span) => {

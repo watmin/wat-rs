@@ -27,7 +27,7 @@
      fail (:wat::kernel::RunResult/failure outcome)]
     ;; Assert the inner run-thread succeeded (no failure) — the
     ;; struct was built from its lifted form without panicking.
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       (:wat::core::None nil)
       ((:wat::core::Some f)
         (:wat::kernel::assertion-failed!

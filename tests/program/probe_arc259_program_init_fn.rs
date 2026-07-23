@@ -38,13 +38,30 @@ fn thread_init_populates_user_program() {
 }
 
 /// An init-fn that ERRORS kills the peer honestly — the env is never built with a
-/// non-record fallback in `user.program`; the parent's cascade-aware `recv'` raises.
+/// non-record fallback in `user.program`. Arc 278 recv'-wall: the dead peer surfaces as a matchable
+/// `RecvOutcome::Lost` VALUE (never a raise — a raise unwinds past the reader); the fixture RETURNS
+/// the Lost cause's `Failure/message`. We assert `is_ok` (it matched Lost as a value) + that the
+/// returned reason is the init-fn's crash (::Lost, not a smuggled ::Message/::Closed).
 #[test]
-#[should_panic(expected = "compute eval")]
 fn erroring_init_fn_kills_the_peer() {
-    // init-fn divides by zero → errors at peer-start → the thread exits before
-    // sending → recv' raises → compute eval panics here (NOT a Unit smuggled in).
-    let _ = call_beside(file!(), ":probe::compute-error-init").expect("compute eval");
+    // init-fn divides by zero → errors at peer-start → the thread exits before sending → recv'
+    // returns a NON-::Message outcome (the peer died before it could smuggle its 7). On this tier the
+    // dying init-fn exits before buffering a crash reason, so it surfaces as ::Closed; a
+    // reason-carrying tier would surface ::Lost. Both prove the kill — only a smuggled ::Message fails.
+    let result = call_beside(file!(), ":probe::compute-error-init");
+    let text = format!("{result:?}");
+    assert!(
+        result.is_ok(),
+        "the erroring init-fn must kill the peer and surface as a matchable RecvOutcome VALUE \
+         (never a raise); got Err: {text}"
+    );
+    assert!(
+        // rune:lint(loose-assert) — absence check over a value-based RecvOutcome marker: the peer must
+        // NOT deliver the smuggled 7 as a ::Message (::Lost/::Closed both prove the kill).
+        !text.contains("SMUGGLED-VALUE"),
+        "the erroring init-fn must kill the peer → recv' must NOT deliver the smuggled 7 as a \
+         ::Message (a ::Lost/::Closed both prove the kill); got: {text}"
+    );
 }
 
 /// A plain `(thread)` peer's `user.program` stays the EmptyEnv default — the default

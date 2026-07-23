@@ -37,7 +37,7 @@
      resp    (:wat::telemetry::Journal/query-logs jclient
                (:wat::telemetry::Journal::QueryLogsRequest
                  :namespace "probe-ns" :time-lo 0 :time-hi 9223372036854775807 :limit 20 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::i64
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Journal::QueryLogsResponse::Success logs _cursor)
         (:wat::core::if (:wat::core::= (:wat::core::count logs) 2)
           (:wat::core::let
@@ -49,4 +49,4 @@
                    "log2 emitted-from line must be Some")]
             (:wat::core::i64::- ln2 ln1))
           -1))
-      (_ -2))))
+      (_ -2))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

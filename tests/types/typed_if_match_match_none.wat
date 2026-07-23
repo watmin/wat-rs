@@ -2,6 +2,6 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [o :wat::core::None]
-    (:wat::core::match o -> :wat::core::i64
+    (:wat::core::match o 
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))

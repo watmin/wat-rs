@@ -58,7 +58,7 @@
       k     <- :wat::holon::HolonAST]
      -> :wat::core::bool
      (:wat::core::match
-       (:wat::holon::lru::HologramCache/get store k) -> :wat::core::bool
+       (:wat::holon::lru::HologramCache/get store k) 
        ((:wat::core::Some _) true)
        (:wat::core::None    false)))
 
@@ -70,7 +70,7 @@
       k     <- :wat::holon::HolonAST]
      -> :wat::core::bool
      (:wat::core::match
-       (:wat::holon::lru::HologramCache/get store k) -> :wat::core::bool
+       (:wat::holon::lru::HologramCache/get store k) 
        ((:wat::core::Some _) false)
        (:wat::core::None    true)))
   ))
@@ -123,7 +123,7 @@
      n (:wat::holon::lru::HologramCache/len store)
      cap (:wat::holon::lru::HologramCache/capacity store)]
     (:wat::test::assert-eq
-      (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
+      (:wat::core::if (:wat::core::= n 0) 
         (:wat::core::= cap 100)
         false)
       true)))
@@ -139,7 +139,7 @@
      got
       (:wat::holon::lru::HologramCache/get store k)
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))
@@ -177,8 +177,8 @@
      k1-evicted (:test::hc-get-evicted? store k1)
      k2-present (:test::hc-get-found?   store k2)]
     (:wat::test::assert-eq
-      (:wat::core::if (:wat::core::= total 2) -> :wat::core::bool
-        (:wat::core::if k1-evicted -> :wat::core::bool k2-present false)
+      (:wat::core::if (:wat::core::= total 2) 
+        (:wat::core::if k1-evicted  k2-present false)
         false)
       true)))
 
@@ -203,7 +203,7 @@
      k1-present (:test::hc-get-found?   store k1)
      k2-evicted (:test::hc-get-evicted? store k2)]
     (:wat::test::assert-eq
-      (:wat::core::if k1-present -> :wat::core::bool k2-evicted false)
+      (:wat::core::if k1-present  k2-evicted false)
       true)))
 
 ;; ─── Therm-form round-trip via HologramCache ──────────────────────
@@ -222,7 +222,7 @@
      got
       (:wat::holon::lru::HologramCache/get store k)
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))

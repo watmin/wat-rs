@@ -16,7 +16,7 @@
     (:wat::kernel::select'
       (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::nil>
         (:wat::kernel::after :wat::program::PeerKind::thread d nil)))
-    -> :wat::core::nil
+     
     ((:wat::spawn::ServiceEvent::Message _idx _m) nil)
     ((:wat::spawn::ServiceEvent::Closed _idx) nil)
     ((:wat::spawn::ServiceEvent::Lost _idx _cause) nil)
@@ -32,7 +32,7 @@
 (:wat::core::defn :test::timer::retry-until
   [target <- :wat::core::i64  attempt <- :wat::core::i64  millis <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::>= attempt target) -> :wat::core::i64
+  (:wat::core::if (:wat::core::i64::>= attempt target) 
     attempt
     (:wat::core::let [_ (:test::timer::nap (:wat::time::Millisecond millis))]
       (:test::timer::retry-until
@@ -59,7 +59,7 @@
         (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword>
           (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 20) :slow)
           (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 1) :fast)))
-      -> :wat::core::keyword
+       
       ((:wat::spawn::ServiceEvent::Message _idx m) m)
       ((:wat::spawn::ServiceEvent::Closed _idx) :none)
       ((:wat::spawn::ServiceEvent::Lost _idx _cause) :none)

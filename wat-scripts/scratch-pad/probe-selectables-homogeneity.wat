@@ -41,12 +41,12 @@
    saw-tick    <- :wat::core::bool
    client-idx  <- :wat::core::i64]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::poll' self l selectables) -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::poll' self l selectables) 
     (:wat::spawn::ServiceEvent::Shutdown nil)
     ((:wat::spawn::ServiceEvent::Connection peer)
       (:probe-homog::serve-thread self l (:wat::core::conj selectables peer) saw-tick client-idx))
     ((:wat::spawn::ServiceEvent::Message idx op)
-      (:wat::core::match op -> :wat::core::nil
+      (:wat::core::match op 
         ;; the TIMER delivered its :Tick (an internal op) through the SAME poll' as the client:
         ((:probe-homog::Op::Tick)
           (:wat::core::if (:wat::core::i64::>= client-idx 0)
@@ -88,7 +88,10 @@
                   false -1))))
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c (:probe-homog::Op::Ping))
-     r    (:wat::kernel::recv' c)]
+     r    (:wat::core::match (:wat::kernel::recv' c)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': c closed" :wat::core::None :wat::core::None)))]
     r))
 
 ;; ── PROCESS tier — IDENTICAL shape, forked child universe. A process fork is a separate address
@@ -114,12 +117,12 @@
                  saw-tick    <- :wat::core::bool
                  client-idx  <- :wat::core::i64]
                 -> :wat::core::nil
-                (:wat::core::match (:wat::kernel::poll' self l selectables) -> :wat::core::nil
+                (:wat::core::match (:wat::kernel::poll' self l selectables) 
                   (:wat::spawn::ServiceEvent::Shutdown nil)
                   ((:wat::spawn::ServiceEvent::Connection peer)
                     (:probe-homog::serve-proc self l (:wat::core::conj selectables peer) saw-tick client-idx))
                   ((:wat::spawn::ServiceEvent::Message idx op)
-                    (:wat::core::match op -> :wat::core::nil
+                    (:wat::core::match op 
                       ((:probe-homog::Op::Tick)
                         (:wat::core::if (:wat::core::i64::>= client-idx 0)
                           (:wat::core::let
@@ -152,16 +155,22 @@
                   (:probe-homog::serve-proc self (:wat::spawn::Bound/listener b2)
                     (:wat::core::Vector :wat::kernel::Peer'<probe-homog::Reply,probe-homog::Op> t)
                     false -1)))))
-     addr (:wat::kernel::recv' svc)
+     addr (:wat::core::match (:wat::kernel::recv' svc)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c (:probe-homog::Op::Ping))
-     r    (:wat::kernel::recv' c)]
+     r    (:wat::core::match (:wat::kernel::recv' c)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': c closed" :wat::core::None :wat::core::None)))]
     r))
 
 ;; ── the assertion — BOTH tiers: the client's :Ping AND the timer's :Tick both delivered by poll' ──
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::core::match (:probe-homog::thread-mix) -> :wat::core::nil
+    (:wat::core::match (:probe-homog::thread-mix) 
       ((:probe-homog::Reply::Pong) (:wat::kernel::println "thread: Pong — client + timer both delivered")))
-    (:wat::core::match (:probe-homog::process-mix) -> :wat::core::nil
+    (:wat::core::match (:probe-homog::process-mix) 
       ((:probe-homog::Reply::Pong) (:wat::kernel::println "process: Pong — client + timer both delivered")))))

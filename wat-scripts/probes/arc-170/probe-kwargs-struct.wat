@@ -13,7 +13,7 @@
   [& [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
       n <- :wat::core::i64]]
   -> :wat::core::i64
-  (:wat::core::apply -> :wat::core::i64 f n []))
+  (:wat::core::apply  f n []))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

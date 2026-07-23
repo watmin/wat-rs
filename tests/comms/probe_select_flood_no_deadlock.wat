@@ -20,7 +20,7 @@
                (:wat::core::defn :user::double-string
                    [s <- :wat::core::String n <- :wat::core::i64]
                    -> :wat::core::String
-                 (:wat::core::if (:wat::core::= n 0) -> :wat::core::String
+                 (:wat::core::if (:wat::core::= n 0) 
                    s
                    (:user::double-string (:wat::core::String/concat s s) (:wat::core::- n 1))))
                (:wat::core::defn :user::main [] -> :wat::core::nil

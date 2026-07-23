@@ -15,7 +15,7 @@
      pure     (:wat::rete::pure? form)
      det      (:wat::rete::deterministic? form)
      pred-fn  (:wat::core::Result/expect (:wat::eval-ast! form) "eval-ast! failed")
-     keeps5   (:wat::core::apply -> :wat::core::bool pred-fn [5])
-     drops2   (:wat::core::apply -> :wat::core::bool pred-fn [2])]
+     keeps5   (:wat::core::apply  pred-fn [5])
+     drops2   (:wat::core::apply  pred-fn [2])]
     (:wat::kernel::println
       (:wat::core::str "pure=" pure " det=" det " keeps5=" keeps5 " drops2=" drops2))))

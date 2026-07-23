@@ -110,7 +110,7 @@
        stderr-chain
         (:wat::kernel::extract-panics stderr-lines)
        failure
-        (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
+        (:wat::core::match joined-result 
           ((:wat::core::Ok _)    :wat::core::None)
           ((:wat::core::Err err)
            (:wat::core::Some (:wat::kernel::failure-from-process-died
@@ -120,7 +120,7 @@
                    ;; the join-result chain (err) which carries the full
                    ;; ProcessDiedError from the wait path.
                    (:wat::core::match stderr-chain
-                     -> :wat::core::Vector<wat::kernel::ProcessDiedError>
+                     
                      ((:wat::core::Some chain) chain)
                      (:wat::core::None         err))))))]
       (:wat::core::struct-new :wat::kernel::RunResult
@@ -141,7 +141,7 @@
 ;; --- :wat::kernel::run-sandboxed (source-string entry) ---
 (:wat::core::defn :wat::kernel::run-sandboxed [src <- :wat::core::String stdin <- :wat::core::Vector<wat::core::String> scope <- :wat::core::Option<wat::core::String>] -> :wat::kernel::RunResult
   (:wat::core::match (:wat::kernel::spawn-program src scope)
-      -> :wat::kernel::RunResult
+      
       ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
       ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))
 

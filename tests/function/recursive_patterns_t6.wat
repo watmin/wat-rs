@@ -3,7 +3,7 @@
   (:wat::core::let
               [resp (:wat::core::Ok 418)
                label
-                (:wat::core::match resp -> :wat::core::String
+                (:wat::core::match resp 
                   ((:wat::core::Ok 200) "ok")
                   ((:wat::core::Ok 404) "not found")
                   ((:wat::core::Ok n) (:wat::core::string::concat "code:" (:wat::core::i64::to-string n)))

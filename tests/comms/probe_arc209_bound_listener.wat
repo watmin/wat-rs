@@ -12,12 +12,12 @@
    l       <- :wat::kernel::Listener'<user::Op,wat::core::i64>
    clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,user::Op>>]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::poll' self l clients) 
     (:wat::spawn::ServiceEvent::Shutdown nil)
     ((:wat::spawn::ServiceEvent::Connection peer)
       (:user::serve self l (:wat::core::conj clients peer)))
     ((:wat::spawn::ServiceEvent::Message idx msg)
-      (:wat::core::match msg -> :wat::core::nil
+      (:wat::core::match msg 
         ((:user::Op::Compute n)
           (:wat::core::let [_ (:wat::kernel::send' (:wat::core::nth clients idx)
                                  (:wat::core::* n 2))]
@@ -40,5 +40,10 @@
               (:user::serve self l (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,user::Op>))))
      c1   (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c1 (:user::Op::Compute 5))
-     r1   (:wat::kernel::recv' c1)]
+     r1   (:wat::core::match (:wat::kernel::recv' c1)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': c1 closed unexpectedly" :wat::core::None :wat::core::None)))]
     r1))

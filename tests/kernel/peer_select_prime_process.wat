@@ -7,14 +7,14 @@
           (:wat::core::forms
             (:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::core::let
-                [n (:wat::kernel::readln -> :wat::core::i64)
+                [n (:wat::kernel::readln )
                  _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                 nil))))
      b (:wat::kernel::spawn-program' (:wat::spawn::process)
           (:wat::core::forms
             (:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::core::let
-                [n (:wat::kernel::readln -> :wat::core::i64)
+                [n (:wat::kernel::readln )
                  _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
                 nil))))
      _ (:wat::kernel::send' b 98)

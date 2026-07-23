@@ -39,9 +39,9 @@
      c  (:wat::kernel::connect' (:my::counter::Handle/addr h))
      _  (:my::Counter/increment c (:my::Counter::IncrementRequest :n 5))
      r  (:my::Counter/get c (:my::Counter::GetRequest))]
-    (:wat::core::match r -> :wat::core::i64
+    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:my::Counter::GetResponse::Ok value) value)
       ;; terminal test caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:my::Counter::GetResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

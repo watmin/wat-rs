@@ -30,14 +30,14 @@
                                :namespace "probe-ns" :kind :wat::telemetry::Kind::Metric))
      resp  (:wat::query::Store/scan client
              (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::None))]
-    (:wat::core::match resp -> :wat::core::i64
+    (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::query::Store::ScanResponse::Success rows _cursor)
         (:wat::core::if (:wat::core::= (:wat::core::count rows) 1)
           (:wat::core::let
             [m (:wat::edn::read (:wat::query::Row/data (:wat::core::first rows)))
              v (:wat::telemetry::Metric/value m)]
-            (:wat::core::match v -> :wat::core::i64
+            (:wat::core::match v 
               ((:wat::telemetry::Numeric::I64 n) n)
               (_ -1)))
           -2))
-      (_ -3))))
+      (_ -3))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

@@ -37,4 +37,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::sweep-each
-    (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)))
+    (:wat::kernel::readln )))

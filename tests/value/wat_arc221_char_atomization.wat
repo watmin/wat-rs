@@ -31,7 +31,7 @@
     [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
      tally2  (:wat::core::HashMap/assoc tally \a 3)
      tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-    (:wat::core::match (:wat::core::HashMap/get tally3 \a) -> :wat::core::i64
+    (:wat::core::match (:wat::core::HashMap/get tally3 \a) 
       ((:wat::core::Some v) v)
       (_ -1))))
 
@@ -40,7 +40,7 @@
     [tally   (:wat::core::HashMap :wat::core::char :wat::core::i64)
      tally2  (:wat::core::HashMap/assoc tally \a 3)
      tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
-    (:wat::core::match (:wat::core::HashMap/get tally3 \b) -> :wat::core::i64
+    (:wat::core::match (:wat::core::HashMap/get tally3 \b) 
       ((:wat::core::Some v) v)
       (_ -1))))
 

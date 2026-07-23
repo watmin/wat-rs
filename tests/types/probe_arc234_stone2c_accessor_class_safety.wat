@@ -26,6 +26,6 @@
   (:wat::core::let [p (:myapp::Point :x 3 :y 4)]
     (:wat::core::if
       (:myapp::is-Voltage? p)
-      -> :wat::core::f64
+      
       (:myapp::Voltage/magnitude p)
       -1.0)))

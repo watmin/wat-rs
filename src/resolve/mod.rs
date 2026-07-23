@@ -433,7 +433,7 @@ mod tests {
         // If the pattern were wrongly walked, `scrut.ns/Variant` would normalize to
         // an unresolvable `:scrut::ns::Variant` and `normalize_ast` would panic.
         let ast = normalize_ast(
-            r#"(:wat::core::match x -> :wat::core::i64
+            r#"(:wat::core::match x
                   ((scrut.ns/Variant a) (wat.core/i64::+ a 1)))"#,
         );
         assert!(

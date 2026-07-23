@@ -5,8 +5,19 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let [peer (:wat::kernel::spawn-program' (:wat::spawn::thread)
                            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
-                             (:wat::kernel::send' self (:wat::kernel::recv' self))))
+                             (:wat::kernel::send' self
+                               (:wat::core::match (:wat::kernel::recv' self)
+                                 ((:wat::kernel::RecvOutcome::Message m) m)
+                                 ((:wat::kernel::RecvOutcome::Lost cause)
+                                   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                                 (:wat::kernel::RecvOutcome::Closed
+                                   (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None))))))
                    _ (:wat::kernel::send' peer 42)
-                   got (:wat::kernel::recv' peer)]
+                   got (:wat::core::match (:wat::kernel::recv' peer)
+                         ((:wat::kernel::RecvOutcome::Message m) m)
+                         ((:wat::kernel::RecvOutcome::Lost cause)
+                           (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                         (:wat::kernel::RecvOutcome::Closed
+                           (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
     got))
 

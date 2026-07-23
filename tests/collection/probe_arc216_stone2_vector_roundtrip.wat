@@ -22,7 +22,7 @@
      v (:wat::holon::from-holon h)]
     (:wat::core::match
       (:wat::core::Vector/get v 0)
-      -> :wat::core::i64
+      
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))
 
@@ -47,7 +47,7 @@
      v (:wat::holon::from-holon h)]
     (:wat::core::match
       (:wat::core::Vector/get v 0)
-      -> :wat::core::i64
+      
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))
 
@@ -58,7 +58,7 @@
      v (:wat::holon::from-holon h)]
     (:wat::core::match
       (:wat::core::Vector/get v 1)
-      -> :wat::core::i64
+      
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))
 
@@ -83,7 +83,7 @@
      v (:wat::holon::from-holon h)]
     (:wat::core::match
       (:wat::core::Vector/get v 0)
-      -> :wat::core::i64
+      
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))
 
@@ -94,7 +94,7 @@
      v (:wat::holon::from-holon h)]
     (:wat::core::match
       (:wat::core::Vector/get v 2)
-      -> :wat::core::i64
+      
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))
 
@@ -128,11 +128,11 @@
      v      (:wat::holon::from-holon h)]
     (:wat::core::match
       (:wat::core::Vector/get v 1)
-      -> :wat::core::i64
+      
       ((:wat::core::Some inner)
         (:wat::core::match
           (:wat::core::Vector/get inner 0)
-          -> :wat::core::i64
+          
           ((:wat::core::Some x) x)
           (:wat::core::None -1)))
       (:wat::core::None -1))))

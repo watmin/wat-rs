@@ -15,7 +15,17 @@
                           :wat::kernel::Address'<wat::core::i64,wat::core::i64> :wat::core::i64)
                    _    (:wat::kernel::send' self addr)]
                   nil))))
-     addr (:wat::kernel::recv' svc)
+     r    (:wat::kernel::recv' svc)
+     ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome<Address'>,
+     ;; never a raise. The consumer (connect' addr) still pins O through the ::Message
+     ;; binding. OWNER role (the test is the final caller): on ::Lost surface the cause
+     ;; loudly (eprintln — the dying declaration, divergent-return); ::Closed likewise.
+     addr (:wat::core::match r
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': svc closed before sending the address" :wat::core::None :wat::core::None)))
      c    (:wat::kernel::connect' addr)]
     nil))
 

@@ -353,16 +353,21 @@
             (:wat::core::fn [self-peer <- :wat::kernel::ThreadSelfPeer'<Lu,Sh>] -> :wat::core::nil
               (:wat::core::let
                 ;; :init runs BEFORE Started is sent — a crash here dies before the send.
-                [st (:wat::core::apply -> :St init ship [])
+                [st (:wat::core::apply  init ship [])
                  _  (:wat::kernel::send' self-peer
-                      (:wat::core::apply -> :Lu lu-mk-kw (:wat::spawn::Bound/address b) []))]
-                (:wat::core::apply -> :wat::core::nil serve self-peer
+                      (:wat::core::apply  lu-mk-kw (:wat::spawn::Bound/address b) []))]
+                (:wat::core::apply  serve self-peer
                   (:wat::spawn::Bound/listener b)
                   (:wat::core::Vector :wat::kernel::Peer'<R,S>)
                   st []))))
-       ;; Crash-aware readiness barrier: value discarded (the parent already holds the address);
-       ;; the point is that recv' RAISES the :init crash reason instead of the owner deadlocking.
-       _  (:wat::kernel::recv' sp)]
+       ;; Crash-aware readiness barrier: value discarded (the parent already holds the address).
+       ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome. ::Message → the
+       ;; child reached readiness (discard + proceed); ::Lost (an :init crash) → eprintln the
+       ;; cause (loud, terminal); ::Closed (the child exited before Started) → eprintln (terminal).
+       _  (:wat::core::match (:wat::kernel::recv' sp) 
+            ((:wat::kernel::RecvOutcome::Message _m) nil)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (thread): child exited before readiness" :wat::core::None :wat::core::None)))]
       (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
 ;; Process (separate-memory) impl — assembles the child program from service-forms:
@@ -389,6 +394,13 @@
               service-forms)
        svc  (:wat::kernel::spawn-program' self prog)
        _    (:wat::kernel::send' svc ship)
-       lu   (:wat::kernel::recv' svc)
-       addr (:wat::core::apply -> :wat::kernel::Address'<S,R> lu-addr-kw lu [])]
+       ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome<Lu>. ::Message →
+       ;; the child-minted launch status (extract-addr consumes it); ::Lost (the child crashed
+       ;; before Started — the ProcessPanics envelope) → eprintln the cause (loud, terminal);
+       ;; ::Closed (the child exited before Started) → eprintln (terminal).
+       lu   (:wat::core::match (:wat::kernel::recv' svc) 
+              ((:wat::kernel::RecvOutcome::Message m) m)
+              ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)))
+       addr (:wat::core::apply  lu-addr-kw lu [])]
       (:wat::spawn::Launched :handle svc :address addr))))

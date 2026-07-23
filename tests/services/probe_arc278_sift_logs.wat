@@ -36,9 +36,9 @@
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
-    (:wat::core::match sr -> :wat::core::i64
+    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Journal::SiftLogsResponse::Success ls _c) (:wat::core::count ls))
-      (_ -1))))
+      (_ -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; an IMPURE predicate (fn body does IO) must be REJECTED — ::Fatal, never a silent pass
 ;; (no-hidden-failures floor). Returns true iff the response is ::Fatal.
@@ -62,9 +62,9 @@
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
-    (:wat::core::match sr -> :wat::core::bool
+    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Journal::SiftLogsResponse::Fatal _err) true)
-      (_ false))))
+      (_ false))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; ── PROCESS locus — the loci-agnostic proof (R31/R32). SAME scenario as the thread fns above,
 ;; across a FORK: mem-store' + journal' both on processes, journal' dialing mem-store' via
@@ -101,9 +101,9 @@
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
-    (:wat::core::match sr -> :wat::core::i64
+    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Journal::SiftLogsResponse::Success ls _c) (:wat::core::count ls))
-      (_ -1))))
+      (_ -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; the impure-reject, across a FORK — the no-hidden-failures floor holds loci-agnostically: an
 ;; impure predicate is REJECTED (::Fatal) in the child too, never a silent pass.
@@ -131,6 +131,6 @@
      sr    (:wat::telemetry::Journal/sift-logs journal
              (:wat::telemetry::Journal::SiftLogsRequest :namespace "probe-ns"
                :time-lo 0 :time-hi 4000000000 :limit 100 :cursor :wat::core::None :sieve sieve))]
-    (:wat::core::match sr -> :wat::core::bool
+    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:wat::telemetry::Journal::SiftLogsResponse::Fatal _err) true)
-      (_ false))))
+      (_ false))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

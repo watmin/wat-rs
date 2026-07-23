@@ -45,7 +45,7 @@
       (:wat::test::run-thread
         (:wat::test::assert-eq 42 43))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail  
       ((:wat::core::Some f) (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
                   "assert-eq failed"))
@@ -68,17 +68,17 @@
       (:wat::test::run-thread
         (:wat::test::assert-contains "hello" "xyz"))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail  
       ((:wat::core::Some f)
         (:wat::core::let
           [actual (:wat::kernel::Failure/actual f)
            expected (:wat::kernel::Failure/expected f)
            _
-            (:wat::core::match actual -> :wat::core::nil
+            (:wat::core::match actual  
               ((:wat::core::Some a) (:wat::test::assert-eq a "hello"))
               (:wat::core::None (:wat::kernel::assertion-failed!
                        "actual slot empty" :wat::core::None :wat::core::None)))]
-          (:wat::core::match expected -> :wat::core::nil
+          (:wat::core::match expected  
             ((:wat::core::Some e) (:wat::test::assert-eq e "xyz"))
             (:wat::core::None (:wat::kernel::assertion-failed!
                      "expected slot empty" :wat::core::None :wat::core::None)))))
@@ -109,11 +109,11 @@
           (:wat::holon::to-holon "alice")
           (:wat::holon::to-holon "charlie")))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail  
       ((:wat::core::Some f)
         (:wat::core::let
           [actual (:wat::kernel::Failure/actual f)]
-          (:wat::core::match actual -> :wat::core::nil
+          (:wat::core::match actual  
             ((:wat::core::Some a)
               (:wat::core::do
                 (:wat::test::assert-contains a "cosine")
@@ -212,11 +212,11 @@
               (:wat::kernel::eprintln "different content"))]
           (:wat::test::assert-stderr-matches silent "my-pattern")))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail  
       ((:wat::core::Some f)
         (:wat::core::let
           [expected (:wat::kernel::Failure/expected f)]
-          (:wat::core::match expected -> :wat::core::nil
+          (:wat::core::match expected  
             ((:wat::core::Some e) (:wat::test::assert-eq e "my-pattern"))
             (:wat::core::None (:wat::kernel::assertion-failed!
                      "expected slot empty" :wat::core::None :wat::core::None)))))
@@ -313,7 +313,7 @@
     (:wat::eval-ast!
       (:wat::core::macroexpand-1
         (:wat::core::quote (:wat::core::i64::+ 2 2))))
-    -> :wat::core::nil
+     
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
 
@@ -325,7 +325,7 @@
     (:wat::eval-ast!
       (:wat::core::macroexpand
         (:wat::core::quote (:wat::core::i64::* 3 4))))
-    -> :wat::core::nil
+     
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
 
@@ -350,7 +350,7 @@
              (:wat::core::defn :user::main [] -> :wat::core::nil nil))
      r (:wat::test::run-ast forms (:wat::core::Vector :wat::core::String))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail  
       (:wat::core::None (:wat::test::assert-eq true true))
       ((:wat::core::Some f) (:wat::kernel::assertion-failed!
                               (:wat::kernel::Failure/message f)

@@ -211,7 +211,7 @@
                 ;; Update entry if this is the target index
                 updated-entry
                   (:wat::core::if (:wat::core::= cur-pos target-idx)
-                    -> :counter::RegistryEntry
+                    
                     ;; Rebuild entry with new-state
                     (:wat::core::let
                       [eid    (:wat::core::first  entry)
@@ -278,10 +278,10 @@
         result       (:wat::core::second chosen)
         ;; Is this the admin channel?
         is-admin     (:wat::core::= idx registry-len)]
-       (:wat::core::match result -> :wat::core::nil
+       (:wat::core::match result  
          ;; Got a message
          ((:wat::core::Ok (:wat::core::Some wire))
-           (:wat::core::if is-admin -> :wat::core::nil
+           (:wat::core::if is-admin 
              ;; Admin message — handle AdminReq
              (:counter::handle-admin3
                admin-wire-rx admin-resp-tx registry-vec next-id wire)
@@ -290,7 +290,7 @@
                admin-wire-rx admin-resp-tx registry-vec next-id idx wire)))
          ;; Clean disconnect (sender dropped)
          ((:wat::core::Ok :wat::core::None)
-           (:wat::core::if is-admin -> :wat::core::nil
+           (:wat::core::if is-admin 
              ;; Admin disconnected: graceful exit
              ()
              ;; User disconnected: auto-cleanup; drop entry; recur
@@ -300,7 +300,7 @@
                next-id)))
          ;; Thread died
          ((:wat::core::Err _died)
-           (:wat::core::if is-admin -> :wat::core::nil
+           (:wat::core::if is-admin 
              ;; Admin channel panicked: exit
              ()
              ;; User channel panicked: drop entry; recur
@@ -337,10 +337,10 @@
       next-id       <- :wat::core::i64
       wire          <- :counter::Wire]
      -> :wat::core::nil
-     (:wat::core::match wire -> :wat::core::nil
+     (:wat::core::match wire  
        ;; Only Admin variants arrive on admin-rx (protocol discipline)
        ((:counter::Wire::Admin req)
-         (:wat::core::match req -> :wat::core::nil
+         (:wat::core::match req  
            ;; Provision: mint id, create channel pair, register, respond
            ((:counter::AdminReq::Provision initial)
              (:wat::core::let
@@ -412,17 +412,17 @@
      (:wat::core::let
        [;; Extract entry at idx
         entry-opt (:wat::core::get registry-vec idx)]
-       (:wat::core::match entry-opt -> :wat::core::nil
+       (:wat::core::match entry-opt  
          ;; Entry exists — dispatch on user request
          ((:wat::core::Some entry)
            (:wat::core::let
              [tx-state  (:wat::core::third entry)
               server-tx (:wat::core::first tx-state)
               state     (:wat::core::second tx-state)]
-             (:wat::core::match wire -> :wat::core::nil
+             (:wat::core::match wire  
                ;; Only User variants arrive on user-rx (protocol discipline)
                ((:counter::Wire::User req)
-                 (:wat::core::match req -> :wat::core::nil
+                 (:wat::core::match req  
                    ;; Get: reply Value(state); state unchanged; recur
                    (:counter::UserReq::Get
                      (:wat::core::do
@@ -514,8 +514,7 @@
              (:wat::kernel::recv admin-resp-rx)
              "admin-provision3: recv peer died")
            "admin-provision3: clean disconnect")]
-       (:wat::core::match resp -> :(wat::core::String,wat::kernel::Sender<counter::Wire>,wat::kernel::Receiver<counter::UserResp>)
-         ((:counter::AdminResp::Provisioned id tx rx)
+       (:wat::core::match resp ((:counter::AdminResp::Provisioned id tx rx)
            (:wat::core::Tuple id tx rx))
          ((:counter::AdminResp::Deprovisioned _id)
            (:wat::kernel::assertion-failed! "admin-provision3: expected Provisioned, got Deprovisioned" :wat::core::None :wat::core::None))
@@ -540,8 +539,7 @@
              (:wat::kernel::recv admin-resp-rx)
              "admin-deprovision3: recv peer died")
            "admin-deprovision3: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::String
-         ((:counter::AdminResp::Deprovisioned dep-id) dep-id)
+       (:wat::core::match resp ((:counter::AdminResp::Deprovisioned dep-id) dep-id)
          ((:counter::AdminResp::Provisioned _id _tx _rx)
            (:wat::kernel::assertion-failed! "admin-deprovision3: expected Deprovisioned, got Provisioned" :wat::core::None :wat::core::None))
          (:counter::AdminResp::Stopped
@@ -564,8 +562,7 @@
              (:wat::kernel::recv admin-resp-rx)
              "admin-stop3: recv peer died")
            "admin-stop3: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::nil
-         (:counter::AdminResp::Stopped ())
+       (:wat::core::match resp (:counter::AdminResp::Stopped ())
          ((:counter::AdminResp::Provisioned _id _tx _rx)
            (:wat::kernel::assertion-failed! "admin-stop3: expected Stopped, got Provisioned" :wat::core::None :wat::core::None))
          ((:counter::AdminResp::Deprovisioned _id)
@@ -591,8 +588,7 @@
              (:wat::kernel::recv user-rx)
              "user-increment3: recv peer died")
            "user-increment3: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::i64
-         ((:counter::UserResp::Ok    v) v)
+       (:wat::core::match resp ((:counter::UserResp::Ok    v) v)
          ((:counter::UserResp::Value v) v))))
 
    (:wat::core::defn :counter::user-get3
@@ -610,8 +606,7 @@
              (:wat::kernel::recv user-rx)
              "user-get3: recv peer died")
            "user-get3: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::i64
-         ((:counter::UserResp::Ok    v) v)
+       (:wat::core::match resp ((:counter::UserResp::Ok    v) v)
          ((:counter::UserResp::Value v) v))))
 
    (:wat::core::defn :counter::user-reset3
@@ -629,8 +624,7 @@
              (:wat::kernel::recv user-rx)
              "user-reset3: recv peer died")
            "user-reset3: clean disconnect")]
-       (:wat::core::match resp -> :wat::core::i64
-         ((:counter::UserResp::Ok    v) v)
+       (:wat::core::match resp ((:counter::UserResp::Ok    v) v)
          ((:counter::UserResp::Value v) v)))))
 
   ;; ─── Test body ─────────────────────────────────────────────────────────

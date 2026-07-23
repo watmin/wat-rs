@@ -37,18 +37,23 @@
    work-fn <- :wat::core::Fn(wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>,wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>,wat::core::String)->wat::core::String
    ctx     <- :wat::core::Option<(wat::kernel::Peer'<probe::Echo::Op,probe::Echo::Reply>,wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>)>]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::recv' self) -> :wat::core::nil
-    ((:wat::bracket::PoolMsg::Setup deps)
-      ;; deps : Tuple<Address'<Echo>, Address'<Kv>> — connect' EACH component into its typed Peer'
-      (:probe::multi-dial-runner self work-fn
-        (:wat::core::Some
-          (:wat::core::Tuple
-            (:wat::kernel::connect' (:wat::core::first deps))
-            (:wat::kernel::connect' (:wat::core::second deps))))))
-    ((:wat::bracket::PoolMsg::Work pair)
-      (:wat::core::let
-        [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")
-         out (:wat::core::Tuple (:wat::core::first pair)
-               (work-fn (:wat::core::first c) (:wat::core::second c) (:wat::core::second pair)))
-         _   (:wat::kernel::send' self out)]
-        (:probe::multi-dial-runner self work-fn ctx)))))
+  (:wat::core::match (:wat::kernel::recv' self)
+    ((:wat::kernel::RecvOutcome::Message m)
+      (:wat::core::match m
+        ((:wat::bracket::PoolMsg::Setup deps)
+          ;; deps : Tuple<Address'<Echo>, Address'<Kv>> — connect' EACH component into its typed Peer'
+          (:probe::multi-dial-runner self work-fn
+            (:wat::core::Some
+              (:wat::core::Tuple
+                (:wat::kernel::connect' (:wat::core::first deps))
+                (:wat::kernel::connect' (:wat::core::second deps))))))
+        ((:wat::bracket::PoolMsg::Work pair)
+          (:wat::core::let
+            [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")
+             out (:wat::core::Tuple (:wat::core::first pair)
+                   (work-fn (:wat::core::first c) (:wat::core::second c) (:wat::core::second pair)))
+             _   (:wat::kernel::send' self out)]
+            (:probe::multi-dial-runner self work-fn ctx)))))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed nil)))

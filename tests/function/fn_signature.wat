@@ -20,7 +20,7 @@
 (:wat::core::defn :user::fact_t3
   [n <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+  (:wat::core::if (:wat::core::= n 0) 
     1
     (:wat::core::i64::* n (:user::fact_t3 (:wat::core::i64::- n 1)))))
 
@@ -33,6 +33,6 @@
 (:wat::core::defn :my::compute_t9 [] -> :wat::core::i64
   (:wat::core::match
               (:wat::runtime::lookup-define :user::add_t2)
-              -> :wat::core::i64
+              
               ((:wat::core::Some _) 1)
               (:wat::core::None    0)))

@@ -11,14 +11,14 @@
      result
       (:wat::kernel::Thread/drain-and-join handle)
      chain
-      (:wat::core::match result -> :wat::core::Vector<wat::kernel::ThreadDiedError>
+      (:wat::core::match result 
         ((:wat::core::Ok _)  (:wat::core::panic! "test wants Err"))
         ((:wat::core::Err e) e))
      err
-      (:wat::core::match (:wat::core::first chain) -> :wat::kernel::ThreadDiedError
+      (:wat::core::match (:wat::core::first chain) 
         ((:wat::core::Some e) e)
         (:wat::core::None    (:wat::core::panic! "expected non-empty chain")))]
-    (:wat::core::match err -> :wat::core::String
+    (:wat::core::match err 
       ((Panic m)        m)
       ((RuntimeError m) m)
       (:wat::kernel::ThreadDiedError::ChannelDisconnected "disc"))))

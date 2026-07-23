@@ -2,7 +2,7 @@
 //!
 //! Verifies that a parent can write typed values to `Process/stdin` (IOWriter
 //! at fields[0] of the Process struct) and the spawn-process child can read
-//! them with `(:wat::kernel::readln -> :T)` through bootstrap services.
+//! them with `(:wat::kernel::readln)` through bootstrap services.
 //!
 //! Child fn contract: `[] -> :wat::core::nil` (Stone C).
 //! Child reads one i64 via readln, adds 1, prints via println.
@@ -46,7 +46,7 @@ fn process_handle(process: &Value) -> Arc<wat::runtime::ProgramHandleInner> {
 /// Row G — parent writes to `Process/stdin`, child reads via `readln`.
 ///
 /// Parent sends i64(41) via Sender/from-pipe over Process/stdin (IOWriter).
-/// Child reads via `(:wat::kernel::readln -> :wat::core::i64)`, adds 1,
+/// Child reads via `(:wat::kernel::readln)`, adds 1,
 /// prints 42 via `(:wat::kernel::println ...)`.
 /// Parent reads 42 via Receiver/from-pipe over Process/stdout (IOReader).
 #[test]

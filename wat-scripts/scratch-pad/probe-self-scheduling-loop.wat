@@ -25,9 +25,9 @@
    buf   <- :wat::core::Vector<wat::core::i64>
    armed <- :wat::core::bool]
   -> :wat::core::Vector<wat::core::i64>
-  (:wat::core::match (:wat::kernel::select' peers) -> :wat::core::Vector<wat::core::i64>
+  (:wat::core::match (:wat::kernel::select' peers) 
     ((:wat::spawn::ServiceEvent::Message idx sig)
-      (:wat::core::match sig -> :wat::core::Vector<wat::core::i64>
+      (:wat::core::match sig 
         ;; :Item → buffer it; if no flush armed, ARM one (INSERT a fresh Timer' into the set):
         ((:probe::SinkSig::Item v)
           (:wat::core::let

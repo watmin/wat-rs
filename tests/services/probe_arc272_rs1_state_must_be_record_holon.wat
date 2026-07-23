@@ -26,9 +26,9 @@
     [h (:my::hcounter/start :locus (:wat::spawn::thread) :record (:my::hcounter::Record :count 0))
      c (:wat::kernel::connect' (:my::hcounter::Handle/addr h))
      r (:my::hcounter/is-holon-record c (:my::HCounter::IsHolonRecordRequest))]
-    (:wat::core::match r -> :wat::core::bool
+    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:my::HCounter::IsHolonRecordResponse::Ok yes) yes)
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:my::HCounter::IsHolonRecordResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

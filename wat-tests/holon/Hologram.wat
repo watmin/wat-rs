@@ -93,7 +93,7 @@
      got
       (:wat::holon::Hologram/get store k)
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))
@@ -115,7 +115,7 @@
      got
       (:wat::holon::Hologram/get store k)
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))
@@ -132,7 +132,7 @@
      got
       (:wat::holon::Hologram/get store probe)
      is-none
-      (:wat::core::match got -> :wat::core::bool
+      (:wat::core::match got 
         ((:wat::core::Some _) false)
         (:wat::core::None    true))]
     (:wat::test::assert-eq is-none true)))
@@ -156,7 +156,7 @@
      got
       (:wat::holon::Hologram/get store k)
      is-none
-      (:wat::core::match got -> :wat::core::bool
+      (:wat::core::match got 
         ((:wat::core::Some _) false)
         (:wat::core::None    true))]
     (:wat::test::assert-eq is-none true)))
@@ -189,7 +189,7 @@
      ;; Probe k1 (slot 5); store has the matching key at slot 5;
      ;; cosine 1.0; passes coincidence. Returns v1.
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v1)))
@@ -215,7 +215,7 @@
      got
       (:wat::holon::Hologram/get store k1)
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v1)))
@@ -241,7 +241,7 @@
      got
       (:wat::holon::Hologram/get store probe)
      is-some
-      (:wat::core::match got -> :wat::core::bool
+      (:wat::core::match got 
         ((:wat::core::Some _) true)
         (:wat::core::None    false))]
     (:wat::test::assert-eq is-some true)))
@@ -312,7 +312,7 @@
      got
       (:wat::holon::Hologram/get store k)
      found
-      (:wat::core::match got -> :wat::holon::HolonAST
+      (:wat::core::match got 
         ((:wat::core::Some h) h)
         (:wat::core::None    (:wat::holon::leaf :unreachable)))]
     (:wat::test::assert-eq found v)))

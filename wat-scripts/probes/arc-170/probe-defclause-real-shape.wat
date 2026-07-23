@@ -25,7 +25,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [result (:probe::PutResult::Constraint (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))  ; concrete into a Reason field
-     d      (:wat::core::match result -> :wat::core::String
+     d      (:wat::core::match result 
               ((:probe::PutResult::Success _)   "ok")
               ((:probe::PutResult::Constraint r)          ; r : :probe::Reason (the field type)
                 (:probe::describe r)))]                    ; concrete-clause defclause on a Reason-typed value

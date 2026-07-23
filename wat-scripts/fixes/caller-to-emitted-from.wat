@@ -102,7 +102,7 @@
              ke       (:user::end-off k lines)
              key-edit (:wat::core::Tuple ks (:wat::core::- ke ks) ":emitted-from")
              nxt      (:wat::core::get ch (:wat::core::+ i 1))]
-            (:wat::core::match nxt -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+            (:wat::core::match nxt 
               (:wat::core::None
                 (:wat::core::concat acc (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String) key-edit)))
               ((:wat::core::Some v)
@@ -170,4 +170,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)))
+  (:user::apply-each (:wat::kernel::readln )))

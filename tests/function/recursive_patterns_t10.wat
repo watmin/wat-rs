@@ -4,7 +4,7 @@
               [row
                 (:wat::core::Some (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5))
                line
-                (:wat::core::match row -> :wat::core::String
+                (:wat::core::match row 
                   ((:wat::core::Some (ts open high low close volume))
                     (:wat::core::string::concat
                       (:wat::core::i64::to-string ts)

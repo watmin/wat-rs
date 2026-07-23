@@ -494,7 +494,7 @@
   (:wat::stream::lazy
     (:wat::core::if (:wat::core::empty? s)
       (:wat::stream::empty)
-      (:wat::core::match (f (:wat::core::first s)) -> :wat::stream::Stream<U>
+      (:wat::core::match (f (:wat::core::first s))  
         ((:wat::core::Some v) (:wat::stream::cons v (:wat::core::keep-stream f (:wat::core::rest s))))
         (:wat::core::None (:wat::core::keep-stream f (:wat::core::rest s)))))))
 
@@ -523,7 +523,7 @@
   (:wat::stream::lazy
     (:wat::core::if (:wat::core::empty? s)
       (:wat::stream::empty)
-      (:wat::core::match (f idx (:wat::core::first s)) -> :wat::stream::Stream<U>
+      (:wat::core::match (f idx (:wat::core::first s))  
         ((:wat::core::Some v)
          (:wat::stream::cons v (:wat::core::keep-indexed-stream (:wat::core::+ idx 1) f (:wat::core::rest s))))
         (:wat::core::None
@@ -581,7 +581,7 @@
     (:wat::core::if (:wat::core::empty? s)
       (:wat::stream::empty)
       (:wat::core::let [x (:wat::core::first s)]
-        (:wat::core::match prev -> :wat::stream::Stream<T>
+        (:wat::core::match prev  
           (:wat::core::None
            (:wat::stream::cons x (:wat::core::dedupe-stream (:wat::core::Some x) (:wat::core::rest s))))
           ((:wat::core::Some p)

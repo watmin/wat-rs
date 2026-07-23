@@ -4,6 +4,6 @@
     [u        (:wat::core::Uuid/v4)
      edn-form (:wat::edn::write u)
      back     (:wat::edn::read edn-form)]
-    (:wat::core::if (:wat::core::= back u) -> :wat::core::nil
+    (:wat::core::if (:wat::core::= back u) 
       (:wat::kernel::println "EDN-ROUNDTRIP-OK")
       (:wat::kernel::println "EDN-ROUNDTRIP-FAIL"))))

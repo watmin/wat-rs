@@ -32,7 +32,7 @@
      _ (:wat::lru::LocalCache::put cache k 42)
      got (:wat::lru::LocalCache::get cache k)
      result
-      (:wat::core::match got -> :wat::core::i64
+      (:wat::core::match got 
         ((:wat::core::Some v) v)
         (:wat::core::None -1))]
     (:wat::test::assert-eq result 42)))
@@ -52,7 +52,7 @@
      _ (:wat::lru::LocalCache::put cache k1 1)
      got (:wat::lru::LocalCache::get cache k2)
      is-none
-      (:wat::core::match got -> :wat::core::bool
+      (:wat::core::match got 
         ((:wat::core::Some _v) false)
         (:wat::core::None true))]
     (:wat::test::assert-eq is-none true)))
@@ -81,7 +81,7 @@
      _ (:wat::lru::LocalCache::put cache k1 99)
      got (:wat::lru::LocalCache::get cache k2)
      result
-      (:wat::core::match got -> :wat::core::i64
+      (:wat::core::match got 
         ((:wat::core::Some v) v)
         (:wat::core::None -1))]
     (:wat::test::assert-eq result 99)))

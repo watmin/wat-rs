@@ -19,7 +19,7 @@
             (:wat::kernel::raise! (:wat::core::Fault/of "boom")))
      fail (:wat::kernel::RunResult/failure r)
      ;; got-failure: 1 if Some (caught), 0 if None (escaped).
-     got-failure (:wat::core::match fail -> :wat::core::i64
+     got-failure (:wat::core::match fail 
                    ((:wat::core::Some _) 1)
                    (:wat::core::None     0))]
     (:wat::core::do

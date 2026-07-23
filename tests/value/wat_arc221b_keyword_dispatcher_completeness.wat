@@ -25,7 +25,7 @@
     [step-result
       (:wat::eval-step! (:wat::core::quote :outcome))
      rendered
-      (:wat::core::match step-result -> :wat::core::String
+      (:wat::core::match step-result 
         ((:wat::core::Ok r) (:wat::core::show r))
         ((:wat::core::Err e) (:wat::core::show e)))]
     rendered))

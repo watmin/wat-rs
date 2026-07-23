@@ -425,7 +425,7 @@ pub(crate) fn shape_remedies(callee: &str, expected: &str, got: &str) -> Vec<cra
                  or `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))`. \
                  CHILD-SIDE: `:user::process` contract is `[] -> :wat::core::nil`; \
                  use `(:wat::kernel::println v)` to write outputs and \
-                 `(:wat::kernel::readln -> :T)` to read inputs."
+                 `(:wat::kernel::readln)` to read inputs."
                     .into(),
             ),
         });
@@ -982,8 +982,8 @@ fn validate_comm_positions(
         }
 
         // (2) `:wat::core::match` — items[1] is the scrutinee (permitted slot).
-        //     Layout: (match scrut -> :T arm1 arm2 ...)
-        if head_str == ":wat::core::match" && items.len() >= 4 {
+        //     Arc 258.5 — bare match: (match scrut arm1 arm2 ...); arms at items[2..].
+        if head_str == ":wat::core::match" && items.len() >= 2 {
             validate_comm_positions(&items[1], CommCtx::MatchScrutinee, errors);
             for child in &items[2..] {
                 validate_comm_positions(child, CommCtx::Forbidden, errors);
@@ -3282,7 +3282,29 @@ pub(crate) fn infer(
         // `nil` (WatAST::Symbol) is the correct value form. The nil arm is
         // REMOVED; nil now falls through to the Doctrine 1 rejection below.
         WatAST::Keyword(k, _) if env.unit_variant_type(k).is_some() => {
-            CheckResult::ok(env.unit_variant_type(k).expect("guard").clone())
+            let base = env.unit_variant_type(k).expect("guard").clone();
+            // Arc 278 the recv'-outcome wall — a unit variant of a PARAMETRIC enum
+            // (e.g. `:wat::kernel::RecvOutcome::Closed` of `RecvOutcome<O>`) must
+            // instantiate the enum's type params with fresh vars, EXACTLY as the
+            // `:None` arm above does for `Option<T>`. The precomputed unit-variant
+            // map stores only the bare `Path` (arity-0) — without this, constructing
+            // a nullary variant infers as the un-parametrized `RecvOutcome` and fails
+            // to unify with the `RecvOutcome<Response>` a use site expects (a nullary
+            // variant carries no field, so nothing else pins O). Non-parametric enums
+            // (empty type_params) return `base` unchanged — byte-identical behavior.
+            let ty = match &base {
+                TypeExpr::Path(enum_name) => match env.types().get(enum_name) {
+                    Some(crate::types::TypeDef::Enum(e)) if !e.type_params.is_empty() => {
+                        TypeExpr::Parametric {
+                            head: enum_name.trim_start_matches(':').to_string(),
+                            args: e.type_params.iter().map(|_| fresh.fresh()).collect(),
+                        }
+                    }
+                    _ => base,
+                },
+                _ => base,
+            };
+            CheckResult::ok(ty)
         }
         // Arc 157 — `:wat::core::def`-bound names. A keyword that was
         // bound via `def` at top-level resolves to its registered type
@@ -6047,6 +6069,24 @@ fn infer_list(
                     // apply_subst resolves any unification vars unified during the assignable calls.
                     // For monomorphic members: equivalent to returning member_ret_raw (no vars).
                     let ret = apply_subst(&member_ret, subst);
+                    // Arc 278 the recv'-outcome wall — a `:nature :Peer` surface METHOD is a
+                    // generated client call that dials the peer, sends the op, and `recv'`s the
+                    // reply; `recv'` yields a matchable `RecvOutcome<Response>` (never a raise). The
+                    // client-facing return type is therefore `RecvOutcome<<Op>Response>`, matching
+                    // the Path-B intrinsic (runtime.rs) and the defservice op-method codegen
+                    // (wat/service.wat) — both now RETURN the outcome rather than unwrap+raise. Field
+                    // accessors and every non-Peer nature are unaffected (their returns are ordinary
+                    // in-thread values, not wire outcomes).
+                    let ret = if s.nature == Some(crate::types::Nature::Peer)
+                        && matches!(member, crate::types::SurfaceMember::Method { .. })
+                    {
+                        TypeExpr::Parametric {
+                            head: "wat::kernel::RecvOutcome".into(),
+                            args: vec![ret],
+                        }
+                    } else {
+                        ret
+                    };
                     return if local_errors.is_empty() {
                         CheckResult::ok(ret)
                     } else {
@@ -6637,21 +6677,18 @@ fn infer_list(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Type-check `(:wat::core::match scrutinee arm...)`. Scrutinee must
-/// be `:Option<T>` (the only built-in enum in this slice). Each arm's
-/// pattern introduces bindings visible in its body; every arm body's
-/// type unifies to a common result type. Exhaustiveness: at least one
-/// arm matches `:None` (either the `:None` pattern or a wildcard) and
-/// at least one arm matches `(Some _)` (either the `Some` pattern or
-/// a wildcard).
-/// `(:wat::core::match scrutinee -> :T arm1 arm2 ...)` — typed match.
+/// Type-check `(:wat::core::match scrutinee arm1 arm2 ...)`. Each arm's
+/// pattern introduces bindings visible in its body; the result type is
+/// INFERRED by unifying the arm bodies (the first typed arm seeds it,
+/// the rest unify against it — exactly as `if` unifies then/else). A
+/// divergent arm produces a per-arm TypeMismatch naming the running
+/// result type. Exhaustiveness is checked per the detected shape
+/// (`:Option<T>` / `:Result<T,E>` / user enum / open hash-destructure).
 ///
-/// Per the 2026-04-20 INSCRIPTION, match now requires an explicit
-/// `-> :T` declaration between the scrutinee and the arms. Every
-/// arm body is checked against `:T` independently so divergent
-/// arms produce a per-arm TypeMismatch naming the declared type.
-/// The old no-annotation form is refused with a migration-hint
-/// MalformedForm.
+/// Arc 258.5 (`the -> :T annihilation`) retired the mandatory `-> :T`
+/// ascription (a 2026-04-20 diagnostics stopgap); `-> :T` is legal only
+/// at a fn argspec's return-type declaration. A stray `->` in
+/// ascription position is refused with a migration-hint MalformedForm.
 fn infer_match(
     args: &[WatAST],
     head_span: &Span,
@@ -6661,15 +6698,16 @@ fn infer_match(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // Pre-inscription shape detection: if args[1] isn't `->`, this
-    // is the old form. Surface a migration-hint error before the
-    // standard arity check so authors see the right guidance.
+    // Arc 258.5 — the `-> :T` ascription is retired: the result type is
+    // now INFERRED by unifying the arm bodies (the mechanism `if` uses).
+    // A stray `->` in ascription position is the old ascribed shape;
+    // surface a migration hint before the standard arity check.
     if args.len() >= 2
-        && !matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
+        && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
     {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into(),
+            reason: "`:wat::core::match` no longer takes `-> :T`; the result type is inferred by unifying the arm bodies (like `if`). Write (:wat::core::match scrut (pat body) ...)".into(),
             remedies: vec![],
         } });
         for arg in args {
@@ -6678,11 +6716,11 @@ fn infer_match(
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    if args.len() < 4 {
+    if args.len() < 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: format!(
-                "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
+                "expected (:wat::core::match scrut arm1 arm2 ...) — at least a scrutinee and one arm; got {}",
                 args.len()
             ),
             remedies: vec![],
@@ -6693,33 +6731,13 @@ fn infer_match(
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    // Parse the declared `:T`.
-    let declared_ty = match &args[2] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::match".into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    remedies: vec![],
-                } });
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::errs(local_errors);
-            }
-        },
-        _ => {
-            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: "expected type keyword after `->`".into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    };
+    // Arc 258.5 — the result type, inferred by unifying the arm bodies
+    // (seeded by the first typed arm; each subsequent arm unifies into
+    // it, exactly as `if` unifies then/else). None until the first arm.
+    let mut result_ty: Option<TypeExpr> = None;
 
-    // Detect shape from the arms (arms begin at args[3..]).
-    let arm_refs: Vec<&WatAST> = args[3..].iter().collect();
+    // Detect shape from the arms (arms begin at args[1..]).
+    let arm_refs: Vec<&WatAST> = args[1..].iter().collect();
     let shape = detect_match_shape(&arm_refs, env, fresh);
 
     // Scrutinee must unify with the detected shape.
@@ -6769,7 +6787,7 @@ fn infer_match(
     let mut covered_enum_variants: std::collections::HashSet<String> =
         std::collections::HashSet::new();
 
-    for (idx, arm) in args[3..].iter().enumerate() {
+    for (idx, arm) in args[1..].iter().enumerate() {
         let arm_items = match arm {
             WatAST::List(items, _) if items.len() == 2 => items,
             _ => {
@@ -6804,16 +6822,20 @@ fn infer_match(
                     covers_option_some = true;
                     covers_result_ok = true;
                     covers_result_err = true;
-                    // Check the arm body against the declared type.
+                    // Unify the arm body into the running result type.
                     let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
                     if let Some(t) = arm_ty {
-                        if unify(&t, &declared_ty, subst, env.types()).is_err() {
-                            local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                callee: ":wat::core::match".into(),
-                                param: format!("arm #{} (hash-destructure)", idx + 1),
-                                expected: format_type(&apply_subst(&declared_ty, subst)),
-                                got: format_type(&apply_subst(&t, subst))
-                            } });
+                        if let Some(r) = result_ty.clone() {
+                            if unify(&t, &r, subst, env.types()).is_err() {
+                                local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                    callee: ":wat::core::match".into(),
+                                    param: format!("arm #{} (hash-destructure)", idx + 1),
+                                    expected: format_type(&apply_subst(&r, subst)),
+                                    got: format_type(&apply_subst(&t, subst))
+                                } });
+                            }
+                        } else {
+                            result_ty = Some(apply_subst(&t, subst));
                         }
                     }
                     continue;
@@ -6883,16 +6905,21 @@ fn infer_match(
             }
         }
 
-        // Each arm body checked against the declared `:T` independently.
+        // Each arm body unifies into the running result type (mirrors
+        // `if`: the first typed arm seeds it, the rest unify against it).
         let arm_ty = infer(body, env, &arm_locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(t) = arm_ty {
-            if unify(&t, &declared_ty, subst, env.types()).is_err() {
-                local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::match".into(),
-                    param: format!("arm #{}", idx + 1),
-                    expected: format_type(&apply_subst(&declared_ty, subst)),
-                    got: format_type(&apply_subst(&t, subst))
-                } });
+            if let Some(r) = result_ty.clone() {
+                if unify(&t, &r, subst, env.types()).is_err() {
+                    local_errors.push(CheckError { span: body.span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: ":wat::core::match".into(),
+                        param: format!("arm #{}", idx + 1),
+                        expected: format_type(&apply_subst(&r, subst)),
+                        got: format_type(&apply_subst(&t, subst))
+                    } });
+                }
+            } else {
+                result_ty = Some(apply_subst(&t, subst));
             }
         }
     }
@@ -6960,7 +6987,7 @@ fn infer_match(
         } });
     }
 
-    let ty = apply_subst(&declared_ty, subst);
+    let ty = apply_subst(&result_ty.unwrap_or_else(|| fresh.fresh()), subst);
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
@@ -8057,7 +8084,7 @@ fn check_subpattern(
     }
 }
 
-/// `(:wat::core::if cond -> :T then else)` — typed conditional per
+/// `(:wat::core::if cond then else)` — typed conditional per
 /// the 2026-04-20 INSCRIPTION.
 ///
 /// Arity: 5 args exactly. Positions: [cond, `->`, `:T`, then, else].
@@ -8079,8 +8106,8 @@ fn infer_if(
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
     if args.len() == 3 {
-        // Arc 258.1 — the BARE form `(if cond then else)`: no `-> :T`. The form's type is
-        // unify(then, else); cond must be bool. (The annotated 5-arg path is kept below.)
+        // Arc 258.1/258.4 — the BARE form `(if cond then else)` is the ONLY form: no `-> :T`.
+        // The form's type is unify(then, else); cond must be bool. (The 5-arg `-> :T` path is retired.)
         let cond_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         if let Some(c) = cond_ty {
             if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
@@ -8111,95 +8138,34 @@ fn infer_if(
             _ => return CheckResult::errs(local_errors),
         }
     }
-    if args.len() != 5 {
+    // Arc 258.4 — the `-> :T` ascription is retired: the result type is inferred by
+    // unifying the branches (the bare 3-arg path above). A stray `->` in ascription
+    // position (the old 5-arg form) is refused with a migration hint.
+    if args.len() >= 2
+        && matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::if".into(),
-            reason: format!(
-                "expected (:wat::core::if cond then else) — 3 args — or (:wat::core::if cond -> :T then else) — 5 args; got {}",
-                args.len()
-            ),
+            reason: "`:wat::core::if` no longer takes `-> :T`; the result type is inferred by unifying the branches. Write (:wat::core::if cond then else)".into(),
             remedies: vec![],
         } });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
-        // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    // Validate the `->` marker and parse the declared type.
-    match &args[1] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => {
-            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::if".into(),
-                reason: "expected `->` between cond and type".into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
+    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+        head: ":wat::core::if".into(),
+        reason: format!(
+            "expected (:wat::core::if cond then else) — 3 args; got {}",
+            args.len()
+        ),
+        remedies: vec![],
+    } });
+    for arg in args {
+        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     }
-    let declared_ty = match &args[2] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::if".into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    remedies: vec![],
-                } });
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::errs(local_errors);
-            }
-        },
-        _ => {
-            local_errors.push(CheckError { span: args[2].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::if".into(),
-                reason: "expected type keyword after `->`".into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    };
-    // Condition must be :bool.
-    let cond_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(c) = cond_ty {
-        if unify(&c, &TypeExpr::Path(":wat::core::bool".into()), subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: ":wat::core::if".into(),
-                param: "cond".into(),
-                expected: ":wat::core::bool".into(),
-                got: format_type(&apply_subst(&c, subst))
-            } });
-        }
-    }
-    // Each branch body checked against the declared `:T` independently.
-    // Errors name the branch so the author sees where the divergence is.
-    let then_ty = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(t) = then_ty {
-        if unify(&t, &declared_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[3].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: ":wat::core::if".into(),
-                param: "then-branch".into(),
-                expected: format_type(&apply_subst(&declared_ty, subst)),
-                got: format_type(&apply_subst(&t, subst))
-            } });
-        }
-    }
-    let else_ty = infer(&args[4], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(e) = else_ty {
-        if unify(&e, &declared_ty, subst, env.types()).is_err() {
-            local_errors.push(CheckError { span: args[4].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: ":wat::core::if".into(),
-                param: "else-branch".into(),
-                expected: format_type(&apply_subst(&declared_ty, subst)),
-                got: format_type(&apply_subst(&e, subst))
-            } });
-        }
-    }
-    let ty = apply_subst(&declared_ty, subst);
-    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+    CheckResult::errs(local_errors)
 }
 
 /// `(:wat::core::do f1 f2 ... fN)` — Clojure-faithful sequential
@@ -9688,7 +9654,7 @@ fn infer_result_expect(
     if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) }
 }
 
-/// `(:wat::kernel::readln' <cap-i64> -> :T)`.
+/// `(:wat::kernel::readln' <cap-i64>)`.
 ///
 /// The kernel-restricted positional prime that the `readln` defmacro expands to.
 /// Shape: exactly 3 args `[<i64> -> :T]` (cap always explicit — no Rust default).
@@ -9711,56 +9677,60 @@ fn infer_kernel_readln_prime(
 ) -> CheckResult<TypeExpr> {
     const OP: &str = ":wat::kernel::readln'";
     let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 3 {
+
+    // Arc 258 — `-> :T` on readln' is illegal; the arrow is a function-return
+    // annotation only. readln reads what the SELF-DESCRIBING EDN wire says
+    // (records-are-EDN, arc 234.7); the decoded value's type flows from the
+    // consumer, exactly as recv'/select' do (258.5c). The caller no longer
+    // attests the type it is about to read — stdin is a self-describing wire
+    // like any peer, and attestation was the crutch.
+    if args.len() >= 2 {
+        let maybe_arrow = matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->");
+        let reason = if maybe_arrow {
+            "`-> :T` is a function-return annotation only — it is illegal on readln'. \
+             readln reads what the self-describing EDN wire says (records-are-EDN); the \
+             decoded value's type flows from the consumer. Use (readln) or \
+             (readln :max-buffer-bytes N) with no ascription."
+                .into()
+        } else {
+            format!(
+                "readln' takes exactly one argument (cap-i64); got {}. \
+                 Use (readln' <cap>) with no ascription.",
+                args.len()
+            )
+        };
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: OP.into(),
-            reason: format!(
-                "expected ({} <cap-i64> -> :T) — exactly 3 args; got {}",
-                OP, args.len()
-            ),
+            reason,
+            remedies: vec![],
+        } });
+        // Still infer all args for error coverage.
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        let t = fresh.fresh();
+        return CheckResult::partial_with(t, local_errors);
+    }
+
+    if args.len() != 1 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: format!("expected ({} <cap-i64>) — exactly 1 arg; got {}", OP, args.len()),
             remedies: vec![],
         } });
         return CheckResult::errs(local_errors);
     }
-    let (arrow_idx, ty_idx) = (1, 2);
+
     // Type-check the cap arg (i64) for side-effects/errors.
     let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    match &args[arrow_idx] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        _ => {
-            local_errors.push(CheckError { span: args[arrow_idx].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("expected `->` before the return type; ({} -> :T)", OP),
-                remedies: vec![],
-            } });
-            return CheckResult::errs(local_errors);
-        }
-    }
-    let declared_ty = match &args[ty_idx] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: args[ty_idx].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("declared type {:?} failed to parse: {}", k, e),
-                    remedies: vec![],
-                } });
-                return CheckResult::errs(local_errors);
-            }
-        },
-        _ => {
-            local_errors.push(CheckError { span: args[ty_idx].span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: "expected type keyword after `->`".into(),
-                remedies: vec![],
-            } });
-            return CheckResult::errs(local_errors);
-        }
-    };
+
+    // The decoded value's type is a fresh var pinned by the consumer — the
+    // self-describing wire reconstructs the exact value at runtime (mirror recv').
+    let t = fresh.fresh();
     if local_errors.is_empty() {
-        CheckResult::ok(declared_ty)
+        CheckResult::ok(t)
     } else {
-        CheckResult::partial_with(declared_ty, local_errors)
+        CheckResult::partial_with(t, local_errors)
     }
 }
 
@@ -9840,77 +9810,57 @@ fn infer_apply(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // Arity check: need at minimum (->, :T, head, spread-vec).
-    if args.len() < 4 {
+    // Arc 258 — the `-> :T` ascription is retired: apply's result IS the applied
+    // fn's return type. A stray `->` (the old form) is refused with a migration hint.
+    if !args.is_empty()
+        && matches!(&args[0], WatAST::Symbol(s, _) if s.as_str() == "->")
+    {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+            head: ":wat::core::apply".into(),
+            reason: "`:wat::core::apply` no longer takes `-> :T`; the result is the applied fn's return type. Write (:wat::core::apply <fn> <a1>...<an> <args-vec>)".into(),
+            remedies: vec![],
+        } });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::errs(local_errors);
+    }
+    // `(apply <head> <a1>...<an> <args-vec>)` — minimum a fn head and the args-vector.
+    if args.len() < 2 {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::apply".into(),
             reason: format!(
-                "expected (:wat::core::apply -> :T <head> <a1>...<an> <args-vec>); \
-                 got {} arg(s) — minimum 4 (`->`, `:T`, head, spread-vec)",
+                "expected (:wat::core::apply <fn> <a1>...<an> <args-vec>) — at least a fn and an args-vector; got {} arg(s)",
                 args.len()
             ),
             remedies: vec![],
         } });
-        // HARVEST (236.2): existing diagnostic; straight conversion.
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
         return CheckResult::errs(local_errors);
     }
 
-    // Validate args[0] = `->` symbol (inline typed-expect pattern; arc 108).
-    match &args[0] {
-        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
-        other => {
-            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::apply".into(),
-                reason: "position 1 must be the `->` symbol (inline return-type annotation)".into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    }
-
-    // Parse args[1] = declared return type keyword.
-    let declared_ty = match &args[1] {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(e) => {
-                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: ":wat::core::apply".into(),
-                    reason: format!(
-                        "declared type {:?} failed to parse: {}",
-                        k.as_str(),
-                        e
-                    ),
-                    remedies: vec![],
-                } });
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::errs(local_errors);
-            }
-        },
-        other => {
-            local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
-                head: ":wat::core::apply".into(),
-                reason: "position 2 must be a type keyword `:T` (e.g. `:wat::core::i64`)".into(),
-                remedies: vec![],
-            } });
-            // HARVEST (236.2): existing diagnostic; straight conversion.
-            return CheckResult::errs(local_errors);
-        }
-    };
-
-    // Infer head (args[2]) for side-effects (symbol resolution, etc.).
-    let _ = infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-
-    // Infer leading positional args (args[3..n-1]) for side-effects.
-    let leading = &args[3..args.len() - 1];
-    for a in leading {
+    // The head fn's return type IS the apply's result. Infer the head; the leading
+    // positional args (args[1..n-1]) and the spread vector (args[n-1]) are inferred
+    // for side-effects (symbol resolution) as before.
+    let head_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    for a in &args[1..args.len() - 1] {
         let _ = infer(a, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     }
-
-    // Infer spread vector (args[n-1]) for side-effects.
     let _ = infer(&args[args.len() - 1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
-    if local_errors.is_empty() { CheckResult::ok(declared_ty) } else { CheckResult::partial_with(declared_ty, local_errors) }
+    // Result = the head fn's return type. If the head is not statically a fn (a fresh
+    // var / unknown value), the result is a fresh var, resolved by consumer unification.
+    let result_ty = match head_ty {
+        Some(t) => match apply_subst(&t, subst) {
+            TypeExpr::Fn { ret, .. } => *ret,
+            _ => fresh.fresh(),
+        },
+        None => fresh.fresh(),
+    };
+    let ty = apply_subst(&result_ty, subst);
+    if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
 /// Arc 133 — find the source span of the binding that introduces
@@ -11962,7 +11912,15 @@ fn infer_recv_prime(
 
     match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
         Ok((_i_ty, o_ty)) => {
-            let ret = apply_subst(&o_ty, subst);
+            // Arc 278 the recv'-outcome wall — recv' no longer returns the bare O and
+            // raises on close/crash; it returns a matchable `:wat::kernel::RecvOutcome<O>`
+            // (::Message[O] · ::Closed · ::Lost[Failure]) so a masked failure is
+            // structurally unrepresentable. O still flows to the consumer via the
+            // ::Message arm's `msg` binding (258.5b consumer inference is unaffected).
+            let ret = TypeExpr::Parametric {
+                head: "wat::kernel::RecvOutcome".into(),
+                args: vec![apply_subst(&o_ty, subst)],
+            };
             if local_errors.is_empty() {
                 CheckResult::ok(ret)
             } else {
@@ -15800,10 +15758,50 @@ pub(crate) fn assignable(
                 // Bottom flows in the ACTUAL position (`Never <: every type`, whatever its
                 // shape — incl. the `()` tuple-nil); top flows in the EXPECTED position
                 // (`every type <: Value`). Plus any genuine declared Path<:Path subtype edge.
-                matches!(&xr, TypeExpr::Path(p) if p == ":wat::core::Never")
+                if matches!(&xr, TypeExpr::Path(p) if p == ":wat::core::Never")
                     || matches!(&yr, TypeExpr::Path(p) if p == ":wat::core::Value")
                     || matches!((&xr, &yr), (TypeExpr::Path(xp), TypeExpr::Path(yp))
                         if crate::types::is_subtype(xp, yp, types))
+                {
+                    return true;
+                }
+                // Arc 278 reconciliation (b) — a NESTED Peer' arg (e.g. the element of a
+                // `Vector<Peer'<Reply, Op>>` selectables slot) widens COVARIANTLY in its
+                // RECEIVED-Op position ONLY. A client peer speaks the SURFACE protocol —
+                // `Peer'<proto::Reply, proto::Op>` — but the serve loop's selectables are
+                // typed with the SUPERSET `Peer'<proto::Reply, service::Op>` (service::Op is
+                // a genuine superset: every surface variant embedded field-for-field + the
+                // internal `-op`s, registered via the `derive` edge emitted by defservice;
+                // `retag-op'` re-tags a client op into its service-Op counterpart at dispatch).
+                // The two type-args of a Peer' are `[sent-Reply, received-Op]` (see
+                // selectable-peer-ty, wat/service.wat): arg[0] (Reply, what THIS end sends)
+                // stays INVARIANT (`unify`); arg[1] (Op, what THIS end receives) widens via
+                // `is_subtype(surface-Op, service-Op)`. One-directional — a surface-Op peer
+                // satisfies a superset-Op slot, NEVER the reverse (a superset-Op peer carrying
+                // internal ops must not masquerade as a surface-only slot). Scoped to the Peer'
+                // head ALONE — every other Parametric arg stays invariant (unify), so this is
+                // NOT a blanket per-arg covariance.
+                if let (
+                    TypeExpr::Parametric { head: xh, args: xa },
+                    TypeExpr::Parametric { head: yh, args: ya },
+                ) = (&xr, &yr)
+                {
+                    if xh == "wat::kernel::Peer'"
+                        && yh == "wat::kernel::Peer'"
+                        && xa.len() == 2
+                        && ya.len() == 2
+                    {
+                        let reply_ok = unify(&xa[0], &ya[0], subst, types).is_ok();
+                        let op_ok = unify(&xa[1], &ya[1], subst, types).is_ok() || {
+                            let xo = reduce(&walk(&xa[1], subst), subst, types);
+                            let yo = reduce(&walk(&ya[1], subst), subst, types);
+                            matches!((&xo, &yo), (TypeExpr::Path(xop), TypeExpr::Path(yop))
+                                if crate::types::is_subtype(xop, yop, types))
+                        };
+                        return reply_ok && op_ok;
+                    }
+                }
+                false
             })
         {
             return true;
@@ -18769,7 +18767,7 @@ fn register_builtins(env: &mut CheckEnv) {
     //
     // The IPC contract mirrors `wat some-file.wat`: stdin = inputs;
     // stdout = outputs; stderr = panics. Children use
-    // `(:wat::kernel::readln -> :T)` and `(:wat::kernel::println v)`
+    // `(:wat::kernel::readln)` and `(:wat::kernel::println v)`
     // through ambient stdio (fd 0/1/2 wired by `bootstrap_wat_vm_process`,
     // called from within `invoke_user_main`). Real OS stdio is canonical
     // at the process boundary; users wrap with
@@ -19540,21 +19538,35 @@ fn register_builtins(env: &mut CheckEnv) {
     //   :wat::kernel::epprintln : ∀T. T -> :wat::core::nil  ← TERMINATING form, pretty
     //
     // The `println`/`pprintln` pair are benign writes whose `nil` return is
-    // the mini-TCP ack collapsed to unit. The `eprintln`/`epprintln` pair are
-    // the kernel's value-shaped DYING DECLARATION: they emit to stderr then
-    // TERMINATE non-zero at RUNTIME (arc 278 no-hidden-failures sub-strike;
-    // verbs.rs `eprintln_terminate`) — same convention as `assertion-failed!`,
-    // which is likewise typed with a normal unit return but never actually
-    // returns (wat has no `Never` type; the termination is a runtime fact, not
-    // a type). Their `nil` return type is therefore unchanged. `T` mirrors
-    // `:wat::edn::write` (any-T input).
-    for op in [":wat::kernel::println", ":wat::kernel::pprintln", ":wat::kernel::eprintln", ":wat::kernel::epprintln"] {
+    // the mini-TCP ack collapsed to unit — they RETURN, so `-> :wat::core::nil`. `T`
+    // mirrors `:wat::edn::write` (any-T input).
+    for op in [":wat::kernel::println", ":wat::kernel::pprintln"] {
         env.register(
             op.into(),
             TypeScheme {
                 type_params: vec!["T".into()],
                 params: vec![t_var()],
                 ret: unit_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+    // The `eprintln`/`epprintln` pair are the kernel's value-shaped DYING DECLARATION:
+    // they emit to stderr then TERMINATE non-zero at RUNTIME (arc 278 no-hidden-failures;
+    // verbs.rs `eprintln_terminate`). Because they NEVER RETURN, they take the SAME
+    // polymorphic-return scheme as `assertion-failed!` (`∀T,R. T -> :R`): the fresh return
+    // var `R` unifies with whatever the caller's context demands, so `(eprintln cause)` can
+    // stand alone as a divergent match arm producing ANY declared type (e.g. an owner
+    // method's Lost arm returning the response type — arc 278 the recv'-outcome wall). Its
+    // old `-> nil` scheme forced a `(do (eprintln …) <value>)` dance and lied that it
+    // returns; the polymorphic scheme is the honest terminal (wat has no `Never` type).
+    for op in [":wat::kernel::eprintln", ":wat::kernel::epprintln"] {
+        env.register(
+            op.into(),
+            TypeScheme {
+                type_params: vec!["T".into(), "R".into()],
+                params: vec![TypeExpr::Path(":T".into())],
+                ret: TypeExpr::Path(":R".into()),
                 rest_param_type: None,
             },
         );
@@ -21862,7 +21874,7 @@ mod tests {
               :Filled [value <- :T])
 
             (:wat::core::defn :my::is-empty<T> [b <- :my::Box<T>] -> :wat::core::bool
-              (:wat::core::match b -> :wat::core::bool
+              (:wat::core::match b
                               (:my::Box::Empty true)
                               ((:my::Box::Filled _v) false)))
         "#;
@@ -21885,7 +21897,7 @@ mod tests {
               :Right [value <- :R])
 
             (:wat::core::defn :my::is-left<L,R> [e <- :my::Either<L,R>] -> :wat::core::bool
-              (:wat::core::match e -> :wat::core::bool
+              (:wat::core::match e
                               ((:my::Either::Left _v) true)
                               ((:my::Either::Right _v) false)))
         "#;
@@ -21909,7 +21921,7 @@ mod tests {
               :Filled [value <- :T])
 
             (:wat::core::defn :my::default-or<T> [b <- :my::Box<T> d <- :T] -> :T
-              (:wat::core::match b -> :T
+              (:wat::core::match b
                               (:my::Box::Empty d)
                               ((:my::Box::Filled v) v)))
         "#;
@@ -21941,7 +21953,7 @@ mod tests {
                                     [_in <- :wat::kernel::Receiver<wat::core::nil>
                                      _out <- :wat::kernel::Sender<wat::core::i64>]
                                     -> :wat::core::nil
-                                    (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv rx)
                                       ((:wat::core::Ok _) ())
                                       ((:wat::core::Err _) ()))))]
                               (:wat::core::match
@@ -21990,7 +22002,7 @@ mod tests {
                                           [_in <- :wat::kernel::Receiver<wat::core::nil>
                                            _out <- :wat::kernel::Sender<wat::core::i64>]
                                           -> :wat::core::nil
-                                          (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                          (:wat::core::match (:wat::kernel::recv rx)
                                             ((:wat::core::Ok _) ())
                                             ((:wat::core::Err _) ()))))]
                                     (:wat::core::match
@@ -22844,7 +22856,7 @@ mod tests {
                                     [_in <- :wat::kernel::Receiver<wat::core::nil>
                                      _out <- :wat::kernel::Sender<wat::core::i64>]
                                     -> :wat::core::nil
-                                    (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv rx)
                                       ((:wat::core::Ok _) ())
                                       ((:wat::core::Err _) ()))))]
                               (:wat::core::match
@@ -22886,7 +22898,7 @@ mod tests {
                                     [_in <- :wat::kernel::Receiver<wat::core::nil>
                                      _out <- :wat::kernel::Sender<wat::core::i64>]
                                     -> :wat::core::nil
-                                    (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                                    (:wat::core::match (:wat::kernel::recv rx)
                                       ((:wat::core::Ok _) ())
                                       ((:wat::core::Err _) ()))))]
                               (:wat::core::match

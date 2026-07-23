@@ -10,7 +10,7 @@
 (:wat::core::defn :t::p2-single-get [] -> :wat::core::i64
   (:wat::core::let
     [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :foo 42)]
-    (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
+    (:wat::core::match (:wat::core::get m :foo) 
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))
 
@@ -29,7 +29,7 @@
           :a 10
           :b 20
           :c 30)]
-    (:wat::core::match (:wat::core::get m :b) -> :wat::core::i64
+    (:wat::core::match (:wat::core::get m :b) 
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))
 
@@ -39,7 +39,7 @@
     [m (:wat::core::HashMap :wat::core::String :wat::core::i64
           "a" 1
           "b" 2)]
-    (:wat::core::match (:wat::core::get m "b") -> :wat::core::i64
+    (:wat::core::match (:wat::core::get m "b") 
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))
 

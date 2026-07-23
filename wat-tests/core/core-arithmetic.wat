@@ -226,7 +226,7 @@
         ;; Division panics before () is reached, which is the whole point.
         (:wat::core::do (:wat::core::/ 5 0) ()))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -251,7 +251,7 @@
       (:wat::test::run-hermetic
         (:wat::core::let [x (:wat::core::+ 1 2.0)] x))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -271,7 +271,7 @@
       (:wat::test::run-hermetic
         (:wat::core::let [x (:wat::core::+ "a" "b")] x))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -294,7 +294,7 @@
       (:wat::test::run-hermetic
         (:wat::core::let [b (:wat::core::< 1 2.5)] b))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -314,7 +314,7 @@
       (:wat::test::run-hermetic
         (:wat::core::let [x (:wat::core::-)] x))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -329,7 +329,7 @@
       (:wat::test::run-hermetic
         (:wat::core::let [x (:wat::core::/)] x))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!
@@ -357,7 +357,7 @@
            (:wat::core::< a b)))
         (:child::lt-f64 1 2.5))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some _f) nil)
       (:wat::core::None
         (:wat::kernel::assertion-failed!

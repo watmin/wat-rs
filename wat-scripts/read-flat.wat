@@ -10,4 +10,4 @@
 ;;     | cargo wat ./wat-scripts/read-flat.wat
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:wat::kernel::readln -> :wat::core::Value)))
+  (:wat::kernel::println (:wat::kernel::readln )))

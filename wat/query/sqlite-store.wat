@@ -35,10 +35,10 @@
 ;; against this store's own schema/queries, documented per fold-site below). ─────────────────────
 (:wat::core::defn :wat::query::ensure-schema-response
   [r <- :wat::core::Result<wat::core::nil,wat::sqlite::Error>] -> :wat::query::Store::EnsureSchemaResponse
-  (:wat::core::match r -> :wat::query::Store::EnsureSchemaResponse
+  (:wat::core::match r 
     ((:wat::core::Ok _) (:wat::query::Store::EnsureSchemaResponse::Success))
     ((:wat::core::Err e)
-      (:wat::core::match e -> :wat::query::Store::EnsureSchemaResponse
+      (:wat::core::match e 
         ((:wat::sqlite::Error::Constraint f)
           (:wat::query::Store::EnsureSchemaResponse::Constraint (:wat::query::Constraint :reason (:wat::query::lift-fault f))))
         ;; EnsureSchemaResponse has no :Transient variant (schema DDL has no meaningful
@@ -50,10 +50,10 @@
 
 (:wat::core::defn :wat::query::put-response
   [r <- :wat::core::Result<wat::core::nil,wat::sqlite::Error>] -> :wat::query::Store::PutResponse
-  (:wat::core::match r -> :wat::query::Store::PutResponse
+  (:wat::core::match r 
     ((:wat::core::Ok _) (:wat::query::Store::PutResponse::Success))
     ((:wat::core::Err e)
-      (:wat::core::match e -> :wat::query::Store::PutResponse
+      (:wat::core::match e 
         ((:wat::sqlite::Error::Transient f)
           (:wat::query::Store::PutResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite::Error::Constraint f)
@@ -65,9 +65,9 @@
   [r <- :wat::core::Result<wat::core::Vector<wat::query::Row>,wat::sqlite::Error>
    limit <- :wat::core::i64]
   -> :wat::query::Store::ScanResponse
-  (:wat::core::match r -> :wat::query::Store::ScanResponse
+  (:wat::core::match r 
     ((:wat::core::Err e)
-      (:wat::core::match e -> :wat::query::Store::ScanResponse
+      (:wat::core::match e 
         ((:wat::sqlite::Error::Transient f)
           (:wat::query::Store::ScanResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
         ;; ScanResponse has no :Constraint variant (a read cannot violate a write constraint) —
@@ -89,9 +89,9 @@
   [r <- :wat::core::Result<wat::core::Vector<wat::query::IndexRow>,wat::sqlite::Error>
    limit <- :wat::core::i64]
   -> :wat::query::Store::ScanIndexResponse
-  (:wat::core::match r -> :wat::query::Store::ScanIndexResponse
+  (:wat::core::match r 
     ((:wat::core::Err e)
-      (:wat::core::match e -> :wat::query::Store::ScanIndexResponse
+      (:wat::core::match e 
         ((:wat::sqlite::Error::Transient f)
           (:wat::query::Store::ScanIndexResponse::Transient (:wat::query::Transient :reason (:wat::query::lift-fault f))))
         ((:wat::sqlite::Error::Constraint f)
@@ -110,7 +110,7 @@
 ;; ─── Cell -> String unpacking (pk/sk/data/ipk/isk columns are always TEXT NOT NULL, so Str is the
 ;; live path; the other arms are exhaustiveness-only, never hit against this store's own schema) ──
 (:wat::core::defn :wat::query::cell->string [c <- :wat::sqlite::Cell] -> :wat::core::String
-  (:wat::core::match c -> :wat::core::String
+  (:wat::core::match c 
     ((:wat::sqlite::Cell::Str s) s)
     ((:wat::sqlite::Cell::I64 n) (:wat::core::i64::to-string n))
     ((:wat::sqlite::Cell::F64 _) "")
@@ -147,7 +147,7 @@
               "CREATE TABLE IF NOT EXISTS [index_{name}] (ipk TEXT NOT NULL, isk TEXT NOT NULL, pk TEXT NOT NULL, sk TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(ipk, isk, pk, sk))"
               :name name)]
       (:wat::core::match (:wat::sqlite::execute-ddl conn ddl)
-        -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+        
         ((:wat::core::Err e) (:wat::core::Err e))
         ((:wat::core::Ok _) (:wat::query::ensure-index-tables conn tl))))))
 
@@ -165,7 +165,7 @@
       (:wat::core::match
         (:wat::sqlite::execute conn sql
           (:wat::core::Vector :wat::sqlite::Param (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk)))
-        -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+        
         ((:wat::core::Err e) (:wat::core::Err e))
         ((:wat::core::Ok _) (:wat::query::clear-index-projections conn tl pk sk))))))
 
@@ -180,7 +180,7 @@
       [nm (:wat::core::first names)
        tl (:wat::core::rest names)]
       (:wat::core::match (:wat::core::HashMap/get index-keys nm)
-        -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+        
         (:wat::core::None (:wat::query::insert-index-projections conn tl pk sk data index-keys))
         ((:wat::core::Some ik)
           (:wat::core::let
@@ -190,7 +190,7 @@
                       (:wat::sqlite::Param::Str (:wat::query::IndexKey/isk ik))
                       (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk) (:wat::sqlite::Param::Str data))]
             (:wat::core::match (:wat::sqlite::execute conn sql params)
-              -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+              
               ((:wat::core::Err e) (:wat::core::Err e))
               ((:wat::core::Ok _) (:wat::query::insert-index-projections conn tl pk sk data index-keys)))))))))
 
@@ -205,18 +205,18 @@
      index-keys (:wat::query::StoredRow/index-keys row)
      key-params (:wat::core::Vector :wat::sqlite::Param (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk))]
     (:wat::core::match (:wat::sqlite::execute conn "DELETE FROM main WHERE pk=? AND sk=?" key-params)
-      -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+      
       ((:wat::core::Err e) (:wat::core::Err e))
       ((:wat::core::Ok _)
         (:wat::core::match (:wat::query::clear-index-projections conn index-names pk sk)
-          -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+          
           ((:wat::core::Err e) (:wat::core::Err e))
           ((:wat::core::Ok _)
             (:wat::core::match
               (:wat::sqlite::execute conn "INSERT INTO main (pk,sk,data) VALUES (?,?,?)"
                 (:wat::core::Vector :wat::sqlite::Param
                   (:wat::sqlite::Param::Str pk) (:wat::sqlite::Param::Str sk) (:wat::sqlite::Param::Str data)))
-              -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+              
               ((:wat::core::Err e) (:wat::core::Err e))
               ((:wat::core::Ok _)
                 (:wat::query::insert-index-projections conn index-names pk sk data index-keys)))))))))
@@ -228,7 +228,7 @@
   (:wat::core::if (:wat::core::empty? rows)
     (:wat::core::Ok nil)
     (:wat::core::match (:wat::query::put-one-row conn index-names (:wat::core::first rows))
-      -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+      
       ((:wat::core::Err e) (:wat::core::Err e))
       ((:wat::core::Ok _) (:wat::query::put-rows conn index-names (:wat::core::rest rows))))))
 
@@ -268,7 +268,7 @@
           (:wat::core::match
             (:wat::sqlite::execute-ddl conn
               "CREATE TABLE IF NOT EXISTS main (pk TEXT NOT NULL, sk TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(pk,sk))")
-            -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+            
             ((:wat::core::Err e) (:wat::core::Err e))
             ((:wat::core::Ok _) (:wat::query::ensure-index-tables conn indexes)))]
        (:wat::service::Outcome::Reply s (:wat::query::ensure-schema-response chained))))
@@ -280,11 +280,11 @@
         names (:wat::query::sqlite-store::Record/index-names (:wat::query::sqlite-store::State/durable s))
         chained
           (:wat::core::match (:wat::sqlite::begin conn)
-            -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+            
             ((:wat::core::Err e) (:wat::core::Err e))
             ((:wat::core::Ok _)
               (:wat::core::match (:wat::query::put-rows conn names new-rows)
-                -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+                
                 ((:wat::core::Err e) (:wat::core::Err e))
                 ((:wat::core::Ok _) (:wat::sqlite::commit conn)))))]
        (:wat::service::Outcome::Reply s (:wat::query::put-response chained))))
@@ -297,7 +297,7 @@
         hi   (:wat::query::Store::ScanRequest/sk-hi req)
         lim  (:wat::query::Store::ScanRequest/limit req)
         cur  (:wat::query::Store::ScanRequest/cursor req)
-        cur-param (:wat::core::match cur -> :wat::sqlite::Param
+        cur-param (:wat::core::match cur 
                     (:wat::core::None (:wat::sqlite::Param::Nil))
                     ((:wat::core::Some c) (:wat::sqlite::Param::Str c)))
         params (:wat::core::Vector :wat::sqlite::Param
@@ -306,7 +306,7 @@
         res (:wat::sqlite::select conn
               "SELECT pk, sk, data FROM main WHERE pk=?1 AND sk>=?2 AND sk<=?3 AND (?4 IS NULL OR sk>?4) ORDER BY sk ASC LIMIT ?5"
               params)
-        rows-res (:wat::core::match res -> :wat::core::Result<wat::core::Vector<wat::query::Row>,wat::sqlite::Error>
+        rows-res (:wat::core::match res 
                    ((:wat::core::Err e) (:wat::core::Err e))
                    ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::row-from-cells cell-rows))))]
        (:wat::service::Outcome::Reply s (:wat::query::scan-response rows-res lim))))
@@ -320,7 +320,7 @@
         hi   (:wat::query::Store::ScanIndexRequest/isk-hi req)
         lim  (:wat::query::Store::ScanIndexRequest/limit req)
         cur  (:wat::query::Store::ScanIndexRequest/cursor req)
-        cur-param (:wat::core::match cur -> :wat::sqlite::Param
+        cur-param (:wat::core::match cur 
                     (:wat::core::None (:wat::sqlite::Param::Nil))
                     ((:wat::core::Some c) (:wat::sqlite::Param::Str c)))
         sql (:wat::core::format
@@ -330,7 +330,7 @@
                  (:wat::sqlite::Param::Str ipk) (:wat::sqlite::Param::Str lo) (:wat::sqlite::Param::Str hi)
                  cur-param (:wat::sqlite::Param::I64 lim))
         res (:wat::sqlite::select conn sql params)
-        rows-res (:wat::core::match res -> :wat::core::Result<wat::core::Vector<wat::query::IndexRow>,wat::sqlite::Error>
+        rows-res (:wat::core::match res 
                    ((:wat::core::Err e) (:wat::core::Err e))
                    ((:wat::core::Ok cell-rows) (:wat::core::Ok (:wat::core::mapv :wat::query::index-row-from-cells cell-rows))))]
        (:wat::service::Outcome::Reply s (:wat::query::scan-index-response rows-res lim))))])

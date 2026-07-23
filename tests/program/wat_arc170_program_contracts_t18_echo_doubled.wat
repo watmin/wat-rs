@@ -5,6 +5,6 @@
     :wat::core::i64
     (:wat::core::Vector :wat::core::i64 21)
     (:wat::core::let
-      [n (:wat::kernel::readln -> :wat::core::i64)
+      [n (:wat::kernel::readln )
        _ (:wat::kernel::println (:wat::core::i64::* n 2))]
       nil)))

@@ -46,7 +46,7 @@
   (:wat::core::let
     [tag    :my-app::tag::user-event
      same?  (:wat::core::= tag :my-app::tag::user-event)]
-    (:wat::core::if same? -> :wat::core::i64
+    (:wat::core::if same? 
       1
       0)))
 
@@ -66,6 +66,6 @@
      first   (:wat::core::first doubled)
      len     (:wat::core::length doubled)]
     (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
-      -> :wat::core::i64
+      
       1
       0)))

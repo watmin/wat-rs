@@ -32,9 +32,9 @@
      c (:wat::kernel::connect' (:my::svc::Handle/addr h))
      r (:my::svc/get-object c (:my::Svc::GetObjectRequest :n 42))
      _ (:my::svc/stop h)]
-    (:wat::core::match r -> :wat::core::i64
+    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:my::Svc::GetObjectResponse::Ok value) value)
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:my::Svc::GetObjectResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "req-id: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

@@ -72,7 +72,7 @@
               "broker disconnected")]
           ()))
      fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail -> :wat::core::nil
+    (:wat::core::match fail 
       ((:wat::core::Some f)
         (:wat::test::assert-eq
           (:wat::kernel::Failure/message f)

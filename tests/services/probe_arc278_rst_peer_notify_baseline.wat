@@ -21,9 +21,17 @@
        (:wat::core::Some "boom")
        (:wat::core::Some "ok")))])
 
-(:wat::core::defn :user::compute [] -> :wat::core::bool
+;; arc 278 recv'-wall: the generated client method `/boom` returns a matchable RecvOutcome<BoomResponse>
+;; VALUE, never a raise. A genuine far-side handler panic makes the client's recv' surface a DISTINCT
+;; ::Lost (a reason-free 500 — the crash reason is administrative, owner-channel-only), NOT a bare
+;; clean-EOF ::Closed (the old mute disconnect) and NOT a fake ::Message. We MATCH and RETURN a marker:
+;; "LOST:<reason-free msg>" on the crash, "MESSAGE"/"CLOSED" otherwise — the .rs asserts the client saw
+;; the peer crashed (::Lost), distinct from a bare disconnect (::Closed), carrying no crash sentinel.
+(:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let
     [h (:my::rstsvc/start :locus (:wat::spawn::process) :record (:my::rstsvc::Record :count 0))
-     c (:wat::kernel::connect' (:my::rstsvc::Handle/addr h))
-     _ (:my::rstsvc/boom c (:my::RstSvc::BoomRequest))]
-    true))
+     c (:wat::kernel::connect' (:my::rstsvc::Handle/addr h))]
+    (:wat::core::match (:my::rstsvc/boom c (:my::RstSvc::BoomRequest))
+      ((:wat::kernel::RecvOutcome::Message _m) "MESSAGE")
+      ((:wat::kernel::RecvOutcome::Lost _cause) "LOST")
+      (:wat::kernel::RecvOutcome::Closed "CLOSED"))))

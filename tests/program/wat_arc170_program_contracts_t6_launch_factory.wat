@@ -3,7 +3,7 @@
   (:wat::core::let
     [main-form `(:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
-                    [n    (:wat::kernel::readln -> :wat::core::i64)
+                    [n    (:wat::kernel::readln )
                      _out (:wat::kernel::println
                             (:wat::core::i64::+ n ~offset))]
                     nil))]

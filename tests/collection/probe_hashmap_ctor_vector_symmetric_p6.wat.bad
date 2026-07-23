@@ -4,6 +4,6 @@
   (:wat::core::let
     [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
           :foo "not-an-i64")]
-    (:wat::core::match (:wat::core::get m :foo) -> :wat::core::i64
+    (:wat::core::match (:wat::core::get m :foo) 
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))

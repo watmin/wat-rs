@@ -7,7 +7,7 @@
     [classifier    (:wat::holon::extract-classifier self)
      mangled-str   (:wat::core::string::concat classifier "/Formattable-format")
      mangled-kw    (:wat::core::keyword/from-string mangled-str)]
-    (:wat::core::apply -> :wat::core::String mangled-kw [self])))
+    (:wat::core::apply  mangled-kw [self])))
 
 (:wat::core::defn :myapp::Voltage/Formattable-format
   [self <- :wat::core::Record] -> :wat::core::String

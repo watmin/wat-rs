@@ -7,9 +7,9 @@
      c  (:wat::core::Uuid/v5 ns "same-name")
      d  (:wat::core::Uuid/v5 ns "same-name")]
     (:wat::core::do
-      (:wat::core::if (:wat::core::= a b) -> :wat::core::nil
+      (:wat::core::if (:wat::core::= a b) 
         (:wat::kernel::println "V4-SAME")
         (:wat::kernel::println "V4-DIFFER"))
-      (:wat::core::if (:wat::core::= c d) -> :wat::core::nil
+      (:wat::core::if (:wat::core::= c d) 
         (:wat::kernel::println "V5-EQUAL")
         (:wat::kernel::println "V5-DIFFER")))))

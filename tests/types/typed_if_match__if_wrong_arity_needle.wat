@@ -1,1 +1,1 @@
-(:wat::core::if cond -> :T then else)
+3 args

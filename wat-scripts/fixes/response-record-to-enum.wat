@@ -55,7 +55,7 @@
       (:wat::core::let
         [cur  (:wat::core::Option/expect (:wat::core::get ch i) "returns cur")
          nxt  (:wat::core::get ch (:wat::core::+ i 1))]
-        (:wat::core::match nxt -> :wat::core::HashSet<wat::core::String>
+        (:wat::core::match nxt 
           (:wat::core::None s)
           ((:wat::core::Some nn)
             (:wat::core::if
@@ -265,4 +265,4 @@
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:user::apply-each (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)))
+  (:user::apply-each (:wat::kernel::readln )))

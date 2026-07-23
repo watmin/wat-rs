@@ -9,7 +9,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::match
-    (:wat::runtime::metadata-of :wat::intrinsic::examples) -> :wat::core::nil
+    (:wat::runtime::metadata-of :wat::intrinsic::examples)  
     (:wat::core::None
       (:wat::kernel::eprintln
         "intrinsic-metadata: no metadata for :wat::intrinsic::examples"))

@@ -48,9 +48,9 @@
      h   (:probe::cap1svc'/start :locus (:wat::spawn::process) :record (:probe::cap1svc'::Record))
      c   (:wat::kernel::connect' (:probe::cap1svc'::Handle/addr h))
      r   (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload big))]
-    (:wat::core::match r -> :wat::core::i64
+    (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Cap1::DoOpResponse::RequestTooLarge bytes cap) bytes)
-      ((:probe::Cap1::DoOpResponse::Ok n) -1))))
+      ((:probe::Cap1::DoOpResponse::Ok n) -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; (2) the SAME connection recovers IN PLACE: an over-cap request (→ RequestTooLarge from the
 ;;     codegen, connection KEPT) then an in-budget request on the SAME peer `c` (→ Ok). Returns 1
@@ -63,6 +63,6 @@
      c   (:wat::kernel::connect' (:probe::cap1svc'::Handle/addr h))
      r1  (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload big))     ;; RequestTooLarge; keep
      r2  (:probe::Cap1/do-op c (:probe::Cap1::DoOpRequest :payload "hi"))]   ;; SAME c → Ok
-    (:wat::core::match r2 -> :wat::core::i64
+    (:wat::core::match r2 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Cap1::DoOpResponse::Ok n) 1)
-      ((:probe::Cap1::DoOpResponse::RequestTooLarge bytes cap) -1))))
+      ((:probe::Cap1::DoOpResponse::RequestTooLarge bytes cap) -1))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

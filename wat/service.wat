@@ -45,9 +45,22 @@
 ;; (named — NOT a bare `(:Tuple state reply)`; a structured result with distinct roles is a
 ;; record/sum, per the ADT identity, not an order-convention pair). Generic + stdlib: every
 ;; service reuses it (not minted per-service). C.4 GROWS it by ADDING variants — no reshape.
-(:wat::core::defenum :wat::service::Outcome<S,R> :wat::enum::Pure
-  :Reply [state <- :S  reply <- :R]
-  :Stop  [state <- :S  reply <- :R])
+;; Arc 278 Stone 2-A (self-scheduling) — GROW to <S,R,O>: a third type param O (the
+;; service's concrete Op type — the synthesized `<service>::Op` superset). Only the
+;; arm-carrying variants use it (phantom for Reply/Stop/NoReply). A handler schedules a
+;; self-message by emitting `Alarm`s: `after` a Duration, deliver `op` (an `<service>::Op`
+;; value — armed into the service's own `select'` set as a `Peer'<Never,O>` timer).
+;;   :NoReply       — a cast / a fired self-op with no client to reply to (OTP {noreply,S}).
+;;   :ReplyAndArm   — reply to the client AND arm one/more timers.
+;;   :NoReplyAndArm — no reply, arm one/more timers (a re-arming heartbeat).
+(:wat::core::defrecord :wat::service::Alarm<O> [after <- :wat::time::Duration  op <- :O])
+
+(:wat::core::defenum :wat::service::Outcome<S,R,O> :wat::enum::Pure
+  :Reply         [state <- :S  reply <- :R]
+  :Stop          [state <- :S  reply <- :R]
+  :NoReply       [state <- :S]
+  :ReplyAndArm   [state <- :S  reply <- :R  arms <- :wat::core::Vector<wat::service::Alarm<O>>]
+  :NoReplyAndArm [state <- :S  arms <- :wat::core::Vector<wat::service::Alarm<O>>])
 
 ;; ── Capability — the uniform capability surface (arc 170 capability circuit) ──────
 ;;
@@ -117,7 +130,7 @@
      ;; even-length guard
      _clauses-even  (:wat::core::if
                       (:wat::core::= (:wat::core::i64::* n-clause-pairs 2) clauses-len)
-                      -> :wat::core::nil
+                      
                       nil
                       (:wat::core::macro-error
                         "defservice: clauses must be :keyword value pairs"))
@@ -132,7 +145,7 @@
                                  (:wat::core::Option/expect
                                    (:wat::core::get clauses k) "defservice: malformed clause key"))]
                           (:wat::core::if (:wat::core::HashMap/contains-key? known-clauses key)
-                            -> :wat::core::HashMap<wat::core::String,wat::WatAST>
+                            
                             (:wat::core::HashMap/assoc m key
                               (:wat::core::Option/expect
                                 (:wat::core::get clauses (:wat::core::i64::+ k 1))
@@ -153,20 +166,20 @@
      ;; Every service declares a surface and wears it (the AWS service model). :ops
      ;; (mint-your-own-protocol) is annihilated — a heretic screams and migrates.
      _ops-retired   (:wat::core::if has-ops?
-                      -> :wat::core::nil
+                      
                       (:wat::core::macro-error "defservice: :ops is RETIRED — declare a surface (defsurface :nature :wat::kernel::Peer' with method members + per-op Request record and <Op>Response) and :satisfies it with :impls (bodies only). Exemplar: wat/query.wat + wat/query/mem.wat.")
                       nil)
      _needs-surface (:wat::core::if satisfies?
-                      -> :wat::core::nil
+                      
                       nil
                       (:wat::core::macro-error "defservice: :satisfies is required — name the surface this service wears (see wat/query.wat for the exemplar)."))
      _needs-impls   (:wat::core::if has-impls?
-                      -> :wat::core::nil
+                      
                       nil
                       (:wat::core::macro-error "defservice: :satisfies requires :impls (the op bodies, bodies-only)."))
      ;; ops := the op-bearing clause value — :impls when satisfies, else :ops.
      ops            (:wat::core::if satisfies?
-                      -> :wat::WatAST
+                      
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "impls")
                         "defservice: :impls clause missing value")
@@ -176,7 +189,7 @@
      ;; The protocol namespace: the surface's when :satisfies (its S1 ::Op/::Reply +
      ;; user-declared request/response records), else the service's own fqdn.
      surface-node   (:wat::core::if satisfies?
-                      -> :wat::WatAST
+                      
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "satisfies")
                         "defservice: :satisfies needs a surface")
@@ -189,7 +202,7 @@
      ;; We need a Vector WatAST node; use the ops node as a shape carrier with empty children.
      empty-vec      (:wat::core::with-children ops (:wat::core::Vector :wat::WatAST))
      durable-fields (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "durable")
-                      -> :wat::WatAST
+                      
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "durable")
                         "defservice: :durable needs a value")
@@ -197,7 +210,7 @@
 
      ;; :ephemeral [fields] — optional, default empty vector node []
      ephemeral-fields (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "ephemeral")
-                        -> :wat::WatAST
+                        
                         (:wat::core::Option/expect
                           (:wat::core::HashMap/get clause-map "ephemeral")
                           "defservice: :ephemeral needs a value")
@@ -209,12 +222,12 @@
      ;; a scalar. Unwalled, the bad shape flowed into the emitted decl and was tolerated
      ;; downstream instead of screaming here, at the site the author wrote.
      _durable-shape   (:wat::core::if (:wat::core::= (:wat::core::ast-kind durable-fields) "vector")
-                        -> :wat::core::nil
+                        
                         nil
                         (:wat::core::macro-error
                           "defservice: :durable takes a FIELD VECTOR [name <- :Type …] — a bare type keyword / scalar durable is unexpressible; the durable IS the soul: a set of named fields that crosses the wire and survives hibernation"))
      _ephemeral-shape (:wat::core::if (:wat::core::= (:wat::core::ast-kind ephemeral-fields) "vector")
-                        -> :wat::core::nil
+                        
                         nil
                         (:wat::core::macro-error
                           "defservice: :ephemeral takes a FIELD VECTOR [name <- :Type …] — a bare type keyword / scalar ephemeral is unexpressible"))
@@ -225,7 +238,7 @@
 
      ;; :durable-parent — optional, default :wat::core::Record
      state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "durable-parent")
-                      -> :wat::WatAST
+                      
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "durable-parent")
                         "defservice: :durable-parent needs a value")
@@ -238,7 +251,7 @@
      ;; this budget. A frame over it → RecvError::FrameTooLarge → ServiceEvent::Lost (a
      ;; reasoned close), never a mute clean-hangup. Thread tier has no byte frames → no-op.
      max-frame-bytes-node (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "max-frame-bytes")
-                            -> :wat::WatAST
+                            
                             (:wat::core::Option/expect
                               (:wat::core::HashMap/get clause-map "max-frame-bytes")
                               "defservice: :max-frame-bytes needs a value")
@@ -264,12 +277,12 @@
                       (:wat::core::string::interpolate "{fqdn-str}::State'" :fqdn-str fqdn-str))
      ;; init-fn-node: user-provided fn, or default, or macro-error
      init-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "init")
-                      -> :wat::WatAST
+                      
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "init")
                         "defservice: :init needs a value")
                       (:wat::core::if has-ephemeral
-                        -> :wat::WatAST
+                        
                         (:wat::core::macro-error
                           (:wat::core::string::concat fqdn-str
                             ": :ephemeral declares fields but no :init — the macro cannot construct ephemeral fields; provide :init : Record → State"))
@@ -312,7 +325,7 @@
      state-durable-kw (:wat::core::keyword/from-string
                         (:wat::core::string::interpolate "{fqdn-str}::State/durable" :fqdn-str fqdn-str))
      stop-fn-node   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "stop")
-                      -> :wat::WatAST
+                      
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "stop")
                         "defservice: :stop needs a value")
@@ -333,7 +346,7 @@
      ;; Default: (fn [s <- ::State] -> ::Record (::State/durable s))
      ;; User-provided :hibernate: if it declares a different return type → macro-error.
      hibernate-fn-node (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "hibernate")
-                         -> :wat::WatAST
+                         
                          (:wat::core::Option/expect
                            (:wat::core::HashMap/get clause-map "hibernate")
                            "defservice: :hibernate needs a value")
@@ -347,7 +360,7 @@
      hib-ret-str      (:wat::core::keyword/to-string hib-ret-ty)
      record-ty-str    (:wat::core::keyword/to-string record-ty)
      _hib-ty-check    (:wat::core::if (:wat::core::= hib-ret-str record-ty-str)
-                        -> :wat::core::nil
+                        
                         nil
                         (:wat::core::macro-error
                           (:wat::core::string::concat fqdn-str
@@ -362,7 +375,7 @@
      ;;   The 3 tokens `durable <- ~record-ty` are prepended to ephemeral children.
      state-parent-str (:wat::core::keyword/to-string state-parent)
      record-def   (:wat::core::if (:wat::core::= state-parent-str "wat::holon::Record")
-                    -> :wat::WatAST
+                    
                     `(:wat::holon::defrecord ~record-ty ~durable-fields)
                     `(:wat::core::defrecord ~record-ty ~durable-fields))
      ;; Build the State struct field vector: prepend [durable <- ::Record] before ephemeral fields.
@@ -410,7 +423,7 @@
      ;; :peers is OPTIONAL: a service with no dialed peers omits it. But if it has ephemeral peer
      ;; fields, :peers is REQUIRED to match them (an unmatched ephemeral peer → the "extra" error).
      peers-node     (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "peers")
-                      -> :wat::WatAST
+                      
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "peers")
                         "defservice: :peers needs a value")
@@ -439,17 +452,17 @@
                                        (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                      "defservice: ephemeral field type out of bounds")]
                           (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-node) "keyword")
-                            -> :wat::core::Vector<wat::core::String>
+                            
                             (:wat::core::let
                               [ty-str (:wat::core::keyword/to-string ty-node)]
                               (:wat::core::if (:wat::core::string::contains? ty-str "wat::kernel::Peer'<")
-                                -> :wat::core::Vector<wat::core::String>
+                                
                                 (:wat::core::let
                                   ;; tail := everything after the first "Peer'<"; = "S::Op,S::Reply>"
                                   [tail      (:wat::core::second (:wat::core::string::split ty-str "Peer'<"))
                                    first-arg (:wat::core::first (:wat::core::string::split tail ","))]
                                   (:wat::core::if (:wat::core::string::ends-with? first-arg "::Op")
-                                    -> :wat::core::Vector<wat::core::String>
+                                    
                                     (:wat::core::conj acc
                                       (:wat::core::string::subs first-arg 0
                                         (:wat::core::i64::- (:wat::core::string::length first-arg) 4)))
@@ -463,7 +476,7 @@
                       (:wat::core::fn [ok <- :wat::core::bool  ps <- :wat::core::String]
                         -> :wat::core::bool
                         (:wat::core::if (:wat::core::Vector/contains? ephemeral-peer-surfaces ps)
-                          -> :wat::core::bool
+                          
                           ok
                           (:wat::core::macro-error
                             (:wat::core::string::concat fqdn-str
@@ -480,7 +493,7 @@
                       (:wat::core::fn [ok <- :wat::core::bool  es <- :wat::core::String]
                         -> :wat::core::bool
                         (:wat::core::if (:wat::core::Vector/contains? peers-surfaces es)
-                          -> :wat::core::bool
+                          
                           ok
                           (:wat::core::macro-error
                             (:wat::core::string::concat fqdn-str
@@ -695,7 +708,7 @@
      ;;   Stop             → assertion-failed! (not a startup message)
      ;;   Hibernate        → assertion-failed! (not a startup message)
      dispatch-admin-def `(:wat::core::defn ~dispatch-admin-name [ai <- ~admin-ty] -> ~state-ty
-                            (:wat::core::match ai -> ~state-ty
+                            (:wat::core::match ai 
                               ((~admin-init-kw ~@init-arg-names)   (~init-name ~@init-arg-names))
                               ((~admin-resume-kw ~@init-arg-names) (~init-name ~@init-arg-names))
                               (~admin-stop-kw
@@ -727,7 +740,7 @@
      lu-sym     (:wat::core::symbol-node "lu")
      extract-addr-def `(:wat::core::defn ~extract-addr-name
                                   [lu <- ~status-ty] -> ~addr-ty
-                                  (:wat::core::match lu -> ~addr-ty
+                                  (:wat::core::match lu 
                                     ((~status-started-kw addr) addr)
                                     (_ (:wat::kernel::assertion-failed!
                                          "defservice extract-addr: unexpected Status variant (expected Started)"
@@ -736,9 +749,124 @@
 
      clauses       (:wat::core::ast->children ops)            ;; list of op-List nodes
      impl-clauses  (:wat::core::if satisfies?
-                     -> :wat::core::Vector<wat::WatAST>
+                     
                      clauses
                      (:wat::core::Vector :wat::WatAST))
+
+     ;; ── Arc 278 Stone 2-A (self-scheduling): the <service>::Op SUPERSET (Option A) ──────
+     ;; The serve loop dispatches over :<fqdn>::Op = the surface's <proto>::Op variants
+     ;; (field-for-field, so `retag-op'` embeds them) PLUS the service's internal leading-dash
+     ;; ops (nullary). The WIRE stays <proto>::Op — a client can only construct surface ops; a
+     ;; client op is RE-TAGGED into its <service>::Op counterpart at the Message arm. selectables
+     ;; (the poll' set) is typed with the superset O; the O flows into `Outcome<S,R,O>`/`Alarm<O>`.
+     service-op-str  (:wat::core::string::interpolate "{fqdn-str}::Op" :fqdn-str fqdn-str)
+     service-op-kw   (:wat::core::keyword/from-string service-op-str)
+     ;; selectable-peer-ty: Peer'<proto::Reply, service::Op> (the poll' element — superset O).
+     selectable-peer-ty (:wat::core::keyword/from-string
+                          (:wat::core::string::concat "wat::kernel::Peer'<"
+                            (:wat::core::string::concat proto-str
+                              (:wat::core::string::concat "::Reply,"
+                                (:wat::core::string::concat service-op-str ">")))))
+     ;; selectable-vec-ty: Vector<Peer'<proto::Reply, service::Op>> (serve's `selectables` param).
+     selectable-vec-ty (:wat::core::keyword/from-string
+                         (:wat::core::string::concat "wat::core::Vector<wat::kernel::Peer'<"
+                           (:wat::core::string::concat proto-str
+                             (:wat::core::string::concat "::Reply,"
+                               (:wat::core::string::concat service-op-str ">>")))))
+     ;; alarm-o-ty: Alarm<service::Op> — the arm-foldl binder type.
+     alarm-o-ty      (:wat::core::keyword/from-string
+                       (:wat::core::string::concat "wat::service::Alarm<"
+                         (:wat::core::string::concat service-op-str ">")))
+     ;; The superset variant items: a flat [variant-kw field-vec …] Vector<WatAST> spliced into
+     ;; the defenum. A surface op → `:Pascal [req <- :<proto>::<Pascal>Request]` (mirrors the
+     ;; surface Op variant's field, so `retag-op'` embeds field-for-field); an internal `-op` →
+     ;; `:-Pascal []` (nullary). Dash preserved SCOPED here (strip `-`, kebab->pascal, re-prepend
+     ;; `-`) — NOT the global `kebab_to_pascal_with_acronyms`.
+     service-op-variant-items
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>  clause <- :wat::WatAST]
+           -> :wat::core::Vector<wat::WatAST>
+           (:wat::core::let
+             [op-str      (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children clause)))
+              is-internal (:wat::core::string::starts-with? op-str "-")
+              variant-pascal (:wat::core::if is-internal
+                               
+                               (:wat::core::string::concat "-"
+                                 (:wat::core::string::kebab->pascal-in surface-kw
+                                   (:wat::core::string::subs op-str 1 (:wat::core::string::length op-str))))
+                               (:wat::core::string::kebab->pascal-in surface-kw op-str))
+              variant-kw-node (:wat::core::keyword-node
+                                (:wat::core::string::concat ":" variant-pascal))
+              field-vec   (:wat::core::if is-internal
+                            
+                            empty-vec
+                            (:wat::core::let
+                              [req-ty (:wat::core::keyword/from-string
+                                        (:wat::core::string::concat proto-str
+                                          (:wat::core::string::interpolate "::{variant-pascal}Request" :variant-pascal variant-pascal)))]
+                              `[req <- ~req-ty]))]
+             (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
+         (:wat::core::Vector :wat::WatAST)
+         impl-clauses)
+     service-op-def `(:wat::core::defenum ~service-op-kw :wat::enum::Pure ~@service-op-variant-items)
+     ;; ── Arc 278 reconciliation (b): surface-Op <: service-Op subtype edge ──────────────
+     ;; The serve loop's `selectables` param is typed with the SUPERSET `<service>::Op`
+     ;; (`selectable-peer-ty` above), but CLIENT peers speak the SURFACE `<proto>::Op` — a
+     ;; caller-constructed `Peer'<proto::Reply, proto::Op>` must be assignable into the
+     ;; superset-O `Vector<Peer'<proto::Reply, service::Op>>`. `service::Op` is a genuine
+     ;; superset (every surface variant embedded field-for-field + the internal `-op`s), and
+     ;; `retag-op'` (wat/service.wat:1080) re-tags a client's surface op into its service-Op
+     ;; counterpart at dispatch — so a surface-Op peer soundly satisfies a superset-Op slot
+     ;; (covariant widening in Peer''s received-Op position, one-directional). We register
+     ;; the check-time edge via the ordinary `derive` mechanism: `assignable`'s per-arg
+     ;; subtype-lattice flow (Arc 278 Stone 2, src/check.rs) then relaxes ONLY the Op slot
+     ;; (Reply has no edge → stays exact). Guarded on `proto-str /= fqdn-str` so a
+     ;; self-satisfying service (surface Op IS the service Op, one type) never emits a
+     ;; reflexive self-edge (which `register_subtype` rejects as CyclicSubtype).
+     service-op-derive-items
+       (:wat::core::if (:wat::core::= proto-str fqdn-str)
+
+         (:wat::core::Vector :wat::WatAST)
+         (:wat::core::conj (:wat::core::Vector :wat::WatAST)
+           `(:wat::core::derive ~enum-name ~service-op-kw)))
+     ;; keyword-:op resolution data: for each INTERNAL op, the body keyword string (`:-tick`) and
+     ;; the SOURCE TEXT of its <service>::Op variant constructor (`(:<fqdn>::Op::-Tick)`). A
+     ;; handler body's `:op :-tick` is resolved to the variant via an ast->source → split/join →
+     ;; read-string round-trip (in serve-op-arms) — <service>::Op never leaks to the author, and
+     ;; the leading-dash marker makes `:-tick` an unambiguous token (never a substring of an fqdn).
+     internal-op-kw-strs
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>  clause <- :wat::WatAST]
+           -> :wat::core::Vector<wat::core::String>
+           (:wat::core::let
+             [op-str (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children clause)))]
+             (:wat::core::if (:wat::core::string::starts-with? op-str "-")
+               
+               (:wat::core::conj acc (:wat::core::string::concat ":" op-str))
+               acc)))
+         (:wat::core::Vector :wat::core::String)
+         impl-clauses)
+     internal-op-repl-strs
+       (:wat::core::foldl
+         (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>  clause <- :wat::WatAST]
+           -> :wat::core::Vector<wat::core::String>
+           (:wat::core::let
+             [op-str (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children clause)))]
+             (:wat::core::if (:wat::core::string::starts-with? op-str "-")
+               
+               (:wat::core::let
+                 [variant-pascal (:wat::core::string::concat "-"
+                                   (:wat::core::string::kebab->pascal-in surface-kw
+                                     (:wat::core::string::subs op-str 1 (:wat::core::string::length op-str))))]
+                 (:wat::core::conj acc
+                   (:wat::core::string::concat "("
+                     (:wat::core::string::concat service-op-str
+                       (:wat::core::string::concat "::"
+                         (:wat::core::string::concat variant-pascal ")"))))))
+               acc)))
+         (:wat::core::Vector :wat::core::String)
+         impl-clauses)
+     has-internal-ops? (:wat::core::i64::> (:wat::core::length internal-op-kw-strs) 0)
 
      ;; ── Arc 293 S2: serve op-arms for :impls (bodies-only over the surface's protocol) ──
      ;; Each impl is `(<op> [s req] body)` — `s` = the :State (server self), `req` = the WHOLE
@@ -757,82 +885,144 @@
                        (:wat::core::let
                          [ch            (:wat::core::ast->children clause)
                           op-node       (:wat::core::first ch)
+                          op-str        (:wat::core::ast-name op-node)
+                          is-internal   (:wat::core::string::starts-with? op-str "-")
                           param-vec     (:wat::core::first (:wat::core::drop ch 1))
-                          body          (:wat::core::first (:wat::core::drop ch 2))
+                          body0         (:wat::core::first (:wat::core::drop ch 2))
+                          ;; keyword-:op RESOLUTION — rewrite each internal-op keyword (`:-tick`) in
+                          ;; the handler body to its <service>::Op variant ctor via a source
+                          ;; round-trip (ast->source → split/join → read-string). Skipped when the
+                          ;; service declares no internal ops (keeps existing bodies' spans intact).
+                          body          (:wat::core::if has-internal-ops?
+                                          
+                                          (:wat::core::first
+                                            (:wat::core::ast->children
+                                              (:wat::core::read-string
+                                                (:wat::core::foldl
+                                                  (:wat::core::fn [src <- :wat::core::String  i <- :wat::core::i64]
+                                                    -> :wat::core::String
+                                                    (:wat::core::string::join
+                                                      (:wat::core::Option/expect (:wat::core::get internal-op-repl-strs i) "internal-op-repl")
+                                                      (:wat::core::string::split src
+                                                        (:wat::core::Option/expect (:wat::core::get internal-op-kw-strs i) "internal-op-kw"))))
+                                                  (:wat::core::ast->source body0)
+                                                  (:wat::core::range 0 (:wat::core::length internal-op-kw-strs))))))
+                                          body0)
                           param-ch      (:wat::core::ast->children param-vec)
                           s-binder      (:wat::core::first param-ch)
-                          req-binder    (:wat::core::first (:wat::core::rest param-ch))
-                          op-str        (:wat::core::ast-name op-node)
-                          op-pascal     (:wat::core::string::kebab->pascal-in surface-kw op-str)
+                          ;; dash-preserved variant pascal (SCOPED — strip `-`, kebab->pascal,
+                          ;; re-prepend `-`; NOT the global kebab_to_pascal_with_acronyms).
+                          variant-pascal (:wat::core::if is-internal
+                                           
+                                           (:wat::core::string::concat "-"
+                                             (:wat::core::string::kebab->pascal-in surface-kw
+                                               (:wat::core::string::subs op-str 1 (:wat::core::string::length op-str))))
+                                           (:wat::core::string::kebab->pascal-in surface-kw op-str))
+                          ;; op-variant-kw: the SERVICE superset variant — the arm PATTERN dispatches
+                          ;; over <service>::Op (post-retag), NOT the surface <proto>::Op.
                           op-variant-kw (:wat::core::keyword/from-string
-                                          (:wat::core::string::concat proto-str
-                                            (:wat::core::string::interpolate "::Op::{op-pascal}" :op-pascal op-pascal)))
+                                          (:wat::core::string::concat service-op-str
+                                            (:wat::core::string::concat "::" variant-pascal)))
+                          ;; reply-variant-kw: the SURFACE reply variant (surface ops only wrap a reply).
                           reply-variant-kw (:wat::core::keyword/from-string
                                              (:wat::core::string::concat proto-str
-                                               (:wat::core::string::interpolate "::Reply::{op-pascal}" :op-pascal op-pascal)))
-                          ;; Arc 278 #16.2 — the per-op `:max-request-bytes` ENFORCEMENT codegen.
-                          ;; `cap-const-kw` names the `<S>::<OP>-MAX-REQUEST-BYTES` runtime const
-                          ;; (16.2's `build_op_budget_constants`, src/types.rs); `rtl-ctor-kw` names
-                          ;; the op's `<S>::<OpPascal>Response::RequestTooLarge` ctor (16.1c-locked
-                          ;; on every `:satisfies` op-Response — always resolves).
-                          op-upper      (:wat::core::string::to-uppercase op-str)
-                          cap-const-kw  (:wat::core::keyword/from-string
-                                          (:wat::core::string::concat proto-str
-                                            (:wat::core::string::interpolate "::{op-upper}-MAX-REQUEST-BYTES" :op-upper op-upper)))
-                          rtl-ctor-kw   (:wat::core::keyword/from-string
-                                          (:wat::core::string::concat proto-str
-                                            (:wat::core::string::interpolate "::{op-pascal}Response::RequestTooLarge" :op-pascal op-pascal)))
-                          ;; Hygiene bound gate E (arc 249 stone 249.2b-ii): a quasiquote template
-                          ;; may not introduce a literal name in binder position — `n` must be
-                          ;; spliced from a macro-built symbol-node, same as state-sym/discard-sym below.
-                          n-sym         (:wat::core::symbol-node "n")
+                                               (:wat::core::string::concat "::Reply::" variant-pascal)))
                           state-sym     (:wat::core::symbol-node "state")
                           ;; let-bindings [s-binder state] — bind the impl's state param to serve's `state`.
                           binding-items (:wat::core::conj
-                                          (:wat::core::conj
-                                            (:wat::core::Vector :wat::WatAST)
-                                            s-binder)
+                                          (:wat::core::conj (:wat::core::Vector :wat::WatAST) s-binder)
                                           state-sym)
                           let-bindings  (:wat::core::with-children param-vec binding-items)
-                          outcome-match `(:wat::core::match
-                                              (:wat::core::let ~let-bindings ~body)
-                                              -> :wat::core::nil
-                                            ((:wat::service::Outcome::Reply new-state resp)
-                                              (:wat::core::do
-                                                (:wat::kernel::send'
-                                                  (:wat::core::nth clients idx)
-                                                  (~reply-variant-kw resp))
-                                                (~serve-name self l clients new-state)))
-                                            ((:wat::service::Outcome::Stop final-state resp)
-                                              (:wat::core::do
-                                                (:wat::kernel::send'
-                                                  (:wat::core::nth clients idx)
-                                                  (~reply-variant-kw resp))
-                                                nil)))
-                          ;; Arc 278 #16.2 — measure the encoded request BEFORE the body runs; over
-                          ;; cap → flag `RequestTooLarge` by the codegen (connection KEPT, recur),
-                          ;; else fall through to the impl body's own outcome-match unchanged.
-                          guarded-arm   `(:wat::core::let
-                                             [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
-                                           (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
-                                             (:wat::core::do
-                                               (:wat::kernel::send'
-                                                 (:wat::core::nth clients idx)
-                                                 (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
-                                               (~serve-name self l clients state))
-                                             ~outcome-match))]
-                         (:wat::core::conj acc
-                           `((~op-variant-kw ~req-binder) ~guarded-arm))))
+                          ;; the ARM fn — folds each Alarm into `selectables` as an `after` timer at
+                          ;; the service's OWN tier (env-grab own-kind → both loci). alarm.op is a
+                          ;; concrete <service>::Op value → the timer is Peer'<Never,O>, joins poll'.
+                          arm-acc-sym   (:wat::core::symbol-node "acc")
+                          arm-alarm-sym (:wat::core::symbol-node "alarm")
+                          arm-fn        `(:wat::core::fn [~arm-acc-sym <- ~selectable-vec-ty  ~arm-alarm-sym <- ~alarm-o-ty]
+                                             -> ~selectable-vec-ty
+                                           (:wat::core::conj ~arm-acc-sym
+                                             (:wat::kernel::after
+                                               (:wat::program::Env/wat.peer-kind (:wat::program::env))
+                                               (:wat::service::Alarm/after ~arm-alarm-sym)
+                                               (:wat::service::Alarm/op ~arm-alarm-sym))))]
+                         (:wat::core::if is-internal
+                           
+                           ;; ── INTERNAL op arm (1-param [s]) ──────────────────────────────────────
+                           ;; No req-binder, no #16.2 guard, no reply variant. On fire → REMOVE the
+                           ;; one-shot timer's idx, then arm any re-arms. Reply/Stop/ReplyAndArm are
+                           ;; meaningless (no client) → a located assertion (never silently dropped).
+                           (:wat::core::conj acc
+                             `((~op-variant-kw)
+                                (:wat::core::match (:wat::core::let ~let-bindings ~body) 
+                                  ((:wat::service::Outcome::NoReply new-state)
+                                    (~serve-name self l (:wat::std::list::remove-at selectables idx) new-state))
+                                  ((:wat::service::Outcome::NoReplyAndArm new-state arms)
+                                    (~serve-name self l
+                                      (:wat::core::foldl ~arm-fn (:wat::std::list::remove-at selectables idx) arms)
+                                      new-state))
+                                  ((:wat::service::Outcome::Reply new-state resp)
+                                    (:wat::kernel::assertion-failed!
+                                      "defservice: an internal (-) op returned Outcome::Reply, but an internal op has no client to reply to (return NoReply / NoReplyAndArm)"
+                                      :wat::core::None :wat::core::None))
+                                  ((:wat::service::Outcome::Stop final-state resp)
+                                    (:wat::kernel::assertion-failed!
+                                      "defservice: an internal (-) op returned Outcome::Stop, but an internal op has no client to reply to"
+                                      :wat::core::None :wat::core::None))
+                                  ((:wat::service::Outcome::ReplyAndArm new-state resp arms)
+                                    (:wat::kernel::assertion-failed!
+                                      "defservice: an internal (-) op returned Outcome::ReplyAndArm, but an internal op has no client to reply to (return NoReplyAndArm)"
+                                      :wat::core::None :wat::core::None)))))
+                           ;; ── SURFACE op arm (2-param [s req]) ───────────────────────────────────
+                           ;; #16.2 budget guard; wraps the op's reply variant; KEEPS its idx (a
+                           ;; client persists even on a NoReply cast). …AndArm folds new timers in.
+                           (:wat::core::let
+                             [req-binder    (:wat::core::first (:wat::core::rest param-ch))
+                              op-upper      (:wat::core::string::to-uppercase op-str)
+                              cap-const-kw  (:wat::core::keyword/from-string
+                                              (:wat::core::string::concat proto-str
+                                                (:wat::core::string::interpolate "::{op-upper}-MAX-REQUEST-BYTES" :op-upper op-upper)))
+                              rtl-ctor-kw   (:wat::core::keyword/from-string
+                                              (:wat::core::string::concat proto-str
+                                                (:wat::core::string::interpolate "::{variant-pascal}Response::RequestTooLarge" :variant-pascal variant-pascal)))
+                              n-sym         (:wat::core::symbol-node "n")
+                              outcome-match `(:wat::core::match
+                                                  (:wat::core::let ~let-bindings ~body) 
+                                                ((:wat::service::Outcome::Reply new-state resp)
+                                                  (:wat::core::do
+                                                    (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
+                                                    (~serve-name self l selectables new-state)))
+                                                ((:wat::service::Outcome::Stop final-state resp)
+                                                  (:wat::core::do
+                                                    (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
+                                                    nil))
+                                                ((:wat::service::Outcome::NoReply new-state)
+                                                  (~serve-name self l selectables new-state))
+                                                ((:wat::service::Outcome::ReplyAndArm new-state resp arms)
+                                                  (:wat::core::do
+                                                    (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-variant-kw resp))
+                                                    (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state)))
+                                                ((:wat::service::Outcome::NoReplyAndArm new-state arms)
+                                                  (~serve-name self l (:wat::core::foldl ~arm-fn selectables arms) new-state)))
+                              guarded-arm   `(:wat::core::let
+                                                 [~n-sym (:wat::core::string::length (:wat::edn::write ~req-binder))]
+                                               (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
+                                                 (:wat::core::do
+                                                   (:wat::kernel::send' (:wat::core::nth selectables idx)
+                                                     (~reply-variant-kw (~rtl-ctor-kw ~n-sym ~cap-const-kw)))
+                                                   (~serve-name self l selectables state))
+                                                 ~outcome-match))]
+                             (:wat::core::conj acc
+                               `((~op-variant-kw ~req-binder) ~guarded-arm))))))
                      (:wat::core::Vector :wat::WatAST)
                      impl-clauses)
 
      ;; ── serve params argvec ───────────────────────────────────────────────────────
      ;; Template is a Vector node; checker does NOT recurse into Vector children.
      ;; self/l/clients/state in the Vector are fine as literal symbols.
-     serve-params `[self    <- ~lineage-peer-ty
-                    l       <- ~listener-ty
-                    clients <- ~vector-ty
-                    state   <- ~state-ty]
+     serve-params `[self        <- ~lineage-peer-ty
+                    l           <- ~listener-ty
+                    selectables <- ~selectable-vec-ty
+                    state       <- ~state-ty]
 
      ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
@@ -845,12 +1035,12 @@
      ;;   Hibernate → send Hibernated(full-state) up + terminate
      ;;   Init(_)   → assertion-failed! (startup-only message)
      ;;   Resume(_) → assertion-failed! (startup-only message)
-     serve-body   `(:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
+     serve-body   `(:wat::core::match (:wat::kernel::poll' self l selectables) 
                      (:wat::spawn::ServiceEvent::Shutdown nil)
                      ((:wat::spawn::ServiceEvent::Connection peer)
-                       (~serve-name self l (:wat::core::conj clients peer) state))
+                       (~serve-name self l (:wat::core::conj selectables peer) state))
                      ((:wat::spawn::ServiceEvent::Admin admin-msg)
-                       (:wat::core::match admin-msg -> :wat::core::nil
+                       (:wat::core::match admin-msg 
                          (~admin-stop-kw
                            (:wat::core::do
                              (:wat::kernel::send' self (~status-stopped-kw (~stop-project-name state)))
@@ -872,7 +1062,7 @@
                                nil
                                pids)
                              (:wat::kernel::send' self ~status-peers-allowed-kw)
-                             (~serve-name self l clients state)))
+                             (~serve-name self l selectables state)))
                          ;; arc 293: DenyPeer[pids] — mirror, fold (deny' l pid) over the vec on
                          ;; the serve loop's OWN listener l (process-tier gate), ack PeersDenied up
                          ;; the lineage peer (request/reply — owner blocks so revoke-before-return
@@ -886,7 +1076,7 @@
                                nil
                                pids)
                              (:wat::kernel::send' self ~status-peers-denied-kw)
-                             (~serve-name self l clients state)))
+                             (~serve-name self l selectables state)))
                          ((~admin-init-kw ~@init-arg-names)
                            (:wat::kernel::assertion-failed!
                              "defservice serve: Admin::Init after startup (protocol error)"
@@ -906,11 +1096,11 @@
                      ;; resumes the SAME panic unchanged — the service still crashes exactly as
                      ;; before; this arm's own Reply/Stop behavior (the match body) is untouched.
                      ((:wat::spawn::ServiceEvent::Message idx op)
-                       (:wat::kernel::serve-dispatch-op' clients
-                         (:wat::core::match op -> :wat::core::nil
+                       (:wat::kernel::serve-dispatch-op' selectables
+                         (:wat::core::match (:wat::kernel::retag-op' op ~enum-name ~service-op-kw) 
                            ~@serve-op-arms)))
                      ((:wat::spawn::ServiceEvent::Closed idx)
-                       (~serve-name self l (:wat::std::list::remove-at clients idx) state))
+                       (~serve-name self l (:wat::std::list::remove-at selectables idx) state))
                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
                      ;; evict it. But its `cause` must NOT vanish (the old `_cause` silently
                      ;; swallowed the death reason — the exact masking this arc forbids). There
@@ -921,8 +1111,8 @@
                      ;; follow-on strike; this arm's contract here is simply: do not DROP it.
                      ((:wat::spawn::ServiceEvent::Lost idx cause)
                        (:wat::core::do
-                         (:wat::kernel::eprintln (:wat::kernel::Failure/message cause))
-                         (~serve-name self l (:wat::std::list::remove-at clients idx) state)))
+                         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)
+                         (~serve-name self l (:wat::std::list::remove-at selectables idx) state)))
                      ;; arc 278 no-hidden-failures — a peer that sent an UNDECODABLE message is
                      ;; STILL ALIVE (a bad message is not a death). Reply the rich decode reason
                      ;; to THAT client as `Reply::Failed[cause]` (its generated method raises with
@@ -931,8 +1121,8 @@
                      ;; shared service, the DoS this arc pulls out by the root).
                      ((:wat::spawn::ServiceEvent::Malformed idx cause)
                        (:wat::core::do
-                         (:wat::kernel::send' (:wat::core::nth clients idx) (~reply-failed-kw cause))
-                         (~serve-name self l clients state)))
+                         (:wat::kernel::send' (:wat::core::nth selectables idx) (~reply-failed-kw cause))
+                         (~serve-name self l selectables state)))
                      ;; arc 278 Stone 1a — a client sent an OVER-FOO frame (exceeded this
                      ;; service's declared max-frame-bytes). A bad request is a 400: TELL that
                      ;; client (reply `Reply::Failed[cause]` — its generated method raises with the
@@ -947,8 +1137,8 @@
                      ;; panic — a client-triggerable crash / DoS).
                      ((:wat::spawn::ServiceEvent::Rejected idx cause)
                        (:wat::core::do
-                         (:wat::kernel::try-send' (:wat::core::nth clients idx) (~reply-failed-kw cause))
-                         (~serve-name self l (:wat::std::list::remove-at clients idx) state))))
+                         (:wat::kernel::try-send' (:wat::core::nth selectables idx) (~reply-failed-kw cause))
+                         (~serve-name self l (:wat::std::list::remove-at selectables idx) state))))
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- Peer'<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
@@ -968,6 +1158,9 @@
                          [ch              (:wat::core::ast->children clause)
                           op-node         (:wat::core::first ch)
                           op-str          (:wat::core::ast-name op-node)
+                          ;; Arc 278 Stone 2-A — an internal (leading-dash) op is NOT on the
+                          ;; surface: NO client method (a client can only call surface ops).
+                          is-internal     (:wat::core::string::starts-with? op-str "-")
                           op-pascal       (:wat::core::string::kebab->pascal-in surface-kw op-str)
                           method-name     (:wat::core::keyword/from-string
                                             (:wat::core::string::concat fqdn-str
@@ -975,9 +1168,16 @@
                           req-ty          (:wat::core::keyword/from-string
                                             (:wat::core::string::concat proto-str
                                               (:wat::core::string::interpolate "::{op-pascal}Request" :op-pascal op-pascal)))
-                          resp-ty         (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat proto-str
-                                              (:wat::core::string::interpolate "::{op-pascal}Response" :op-pascal op-pascal)))
+                          resp-ty-str     (:wat::core::string::concat proto-str
+                                              (:wat::core::string::interpolate "::{op-pascal}Response" :op-pascal op-pascal))
+                          resp-ty         (:wat::core::keyword/from-string resp-ty-str)
+                          ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
+                          ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise). Built as
+                          ;; the `:head<arg>` keyword-suffix form (arg = resp-ty-str, no leading
+                          ;; colon — mirrors `:wat::core::Vector<wat::WatAST>`).
+                          recv-ret-ty     (:wat::core::keyword/from-string
+                                            (:wat::core::string::concat "wat::kernel::RecvOutcome<"
+                                              (:wat::core::string::concat resp-ty-str ">")))
                           op-variant-kw   (:wat::core::keyword/from-string
                                             (:wat::core::string::concat proto-str
                                               (:wat::core::string::interpolate "::Op::{op-pascal}" :op-pascal op-pascal)))
@@ -987,22 +1187,46 @@
                           method-params   `[c <- ~client-peer-ty req <- ~req-ty]
                           discard-sym     (:wat::core::symbol-node "_")
                           r-sym           (:wat::core::symbol-node "r")
-                          ;; arc 278 no-hidden-failures — the reserved protocol-tier `Reply::Failed`
-                          ;; (a decode failure) NEVER reaches this match: `recv'` surfaces it FIRST
-                          ;; as a catchable RuntimeError carrying the rich reason (the ONE uniform
-                          ;; surfacing point; a wat raise here would be an uncatchable panic). The
-                          ;; `_` arm stays for a GENUINE misroute (an off-protocol reply variant).
+                          ;; arc 278 the recv'-outcome wall — recv' returns a matchable
+                          ;; RecvOutcome<Reply>, never a raise. This client method RE-WRAPS it into a
+                          ;; `RecvOutcome<<Op>Response>` the caller faces as a VALUE (we are ADT; no
+                          ;; try/catch, no raise). CLIENT role: on ::Message, unwrap the reply variant
+                          ;; to its Response and re-wrap as ::Message (the inner `_` arm stays for a
+                          ;; GENUINE misroute — an off-protocol variant — which IS a real protocol
+                          ;; violation, so it still raises). On ::Lost, map to a REASON-FREE ::Lost
+                          ;; (arc-294 client = reason-free 500 — the client never gets the service's
+                          ;; internal reason; the full cause is the owner's, on its crash channel), a
+                          ;; fresh reason-free Failure (mirrors runtime::message_only_failure's shape).
+                          ;; The reserved protocol-tier `Reply::Failed` (a decode failure) arrives as
+                          ;; ::Lost too (recv' maps it), so it never reaches the inner reply match.
+                          ;; On ::Closed, pass the reason-free terminal through.
                           method-body     `(:wat::core::let
                                              [~discard-sym (:wat::kernel::send' c (~op-variant-kw req))
                                               ~r-sym (:wat::kernel::recv' c)]
-                                             (:wat::core::match ~r-sym -> ~resp-ty
-                                               ((~reply-variant-kw resp) resp)
-                                               (_ (:wat::kernel::assertion-failed!
-                                                    "defservice method: misrouted reply variant (protocol violation)"
-                                                    :wat::core::None
-                                                    :wat::core::None))))]
-                         (:wat::core::conj acc
-                           `(:wat::core::defn ~method-name ~method-params -> ~resp-ty ~method-body))))
+                                             (:wat::core::match ~r-sym
+                                               ((:wat::kernel::RecvOutcome::Message recvd)
+                                                 (:wat::kernel::RecvOutcome::Message
+                                                   (:wat::core::match recvd
+                                                     ((~reply-variant-kw resp) resp)
+                                                     (_ (:wat::kernel::assertion-failed!
+                                                          "defservice method: misrouted reply variant (protocol violation)"
+                                                          :wat::core::None
+                                                          :wat::core::None)))))
+                                               ((:wat::kernel::RecvOutcome::Lost _lost-cause)
+                                                 (:wat::kernel::RecvOutcome::Lost
+                                                   (:wat::core::struct-new :wat::kernel::Failure
+                                                     "service peer lost (reason on the owner's crash channel)"
+                                                     :wat::core::None
+                                                     (:wat::core::Vector :wat::kernel::Frame)
+                                                     :wat::core::None
+                                                     :wat::core::None)))
+                                               (:wat::kernel::RecvOutcome::Closed
+                                                 :wat::kernel::RecvOutcome::Closed)))]
+                         (:wat::core::if is-internal
+
+                           acc
+                           (:wat::core::conj acc
+                             `(:wat::core::defn ~method-name ~method-params -> ~recv-ret-ty ~method-body)))))
                      (:wat::core::Vector :wat::WatAST)
                      impl-clauses)
 
@@ -1021,12 +1245,23 @@
      stop-method-body  `(:wat::core::let
                           [~stop-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-stop-kw)
                            ~stop-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
-                          (:wat::core::match ~stop-r-sym -> ~resp-ty
-                            ((~status-stopped-kw resp) resp)
-                            (_ (:wat::kernel::assertion-failed!
-                                 "defservice stop: expected Status::Stopped"
-                                 :wat::core::None
-                                 :wat::core::None))))
+                          (:wat::core::match ~stop-r-sym 
+                            ((:wat::kernel::RecvOutcome::Message recvd)
+                              (:wat::core::match recvd 
+                                ((~status-stopped-kw resp) resp)
+                                (_ (:wat::kernel::assertion-failed!
+                                     "defservice stop: expected Status::Stopped"
+                                     :wat::core::None
+                                     :wat::core::None))))
+                            ;; arc 278 the recv'-outcome wall — OWNER role: eprintln the cause
+                            ;; (loud, terminal; the owner is the real final caller who does not
+                            ;; recover — R51 eprintln IS the dying declaration), then terminate.
+                            ((:wat::kernel::RecvOutcome::Lost cause)
+                              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                            (:wat::kernel::RecvOutcome::Closed
+                              (:wat::kernel::assertion-failed!
+                                "defservice stop: service peer closed during stop"
+                                :wat::core::None :wat::core::None))))
      stop-method       `(:wat::core::defn ~stop-method-name ~stop-method-params -> ~resp-ty ~stop-method-body)
      ;; Extend op-methods with the owner-only stop (stop/hibernate are owner-only, not per-op).
      methods           (:wat::core::conj op-methods stop-method)
@@ -1044,12 +1279,20 @@
      hibernate-method-body  `(:wat::core::let
                                [~hib-discard-sym (:wat::kernel::send' (~handle-handle-acc h) ~admin-hibernate-kw)
                                 ~hib-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
-                               (:wat::core::match ~hib-r-sym -> ~record-ty
-                                 ((~status-hibernated-kw snapshot) snapshot)
-                                 (_ (:wat::kernel::assertion-failed!
-                                      "defservice hibernate: expected Status::Hibernated"
-                                      :wat::core::None
-                                      :wat::core::None))))
+                               (:wat::core::match ~hib-r-sym 
+                                 ((:wat::kernel::RecvOutcome::Message recvd)
+                                   (:wat::core::match recvd 
+                                     ((~status-hibernated-kw snapshot) snapshot)
+                                     (_ (:wat::kernel::assertion-failed!
+                                          "defservice hibernate: expected Status::Hibernated"
+                                          :wat::core::None
+                                          :wat::core::None))))
+                                 ((:wat::kernel::RecvOutcome::Lost cause)
+                                   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                                 (:wat::kernel::RecvOutcome::Closed
+                                   (:wat::kernel::assertion-failed!
+                                     "defservice hibernate: service peer closed during hibernate"
+                                     :wat::core::None :wat::core::None))))
      hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
@@ -1069,12 +1312,20 @@
      grant-method-body `(:wat::core::let
                           [~grant-discard-sym (:wat::kernel::send' (~handle-handle-acc h) (~admin-allow-peer-kw pids))
                            ~grant-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
-                          (:wat::core::match ~grant-r-sym -> :wat::core::nil
-                            (~status-peers-allowed-kw nil)
-                            (_ (:wat::kernel::assertion-failed!
-                                 "defservice grant: expected Status::PeersAllowed"
-                                 :wat::core::None
-                                 :wat::core::None))))
+                          (:wat::core::match ~grant-r-sym 
+                            ((:wat::kernel::RecvOutcome::Message recvd)
+                              (:wat::core::match recvd 
+                                (~status-peers-allowed-kw nil)
+                                (_ (:wat::kernel::assertion-failed!
+                                     "defservice grant: expected Status::PeersAllowed"
+                                     :wat::core::None
+                                     :wat::core::None))))
+                            ((:wat::kernel::RecvOutcome::Lost cause)
+                              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                            (:wat::kernel::RecvOutcome::Closed
+                              (:wat::kernel::assertion-failed!
+                                "defservice grant: service peer closed during grant"
+                                :wat::core::None :wat::core::None))))
      grant-method      `(:wat::core::defn ~grant-method-name ~grant-method-params -> :wat::core::nil ~grant-method-body)
      ;; Extend methods with the owner-only grant (stop + hibernate + grant, not per-op).
      methods           (:wat::core::conj methods grant-method)
@@ -1094,12 +1345,20 @@
      revoke-method-body `(:wat::core::let
                            [~revoke-discard-sym (:wat::kernel::send' (~handle-handle-acc h) (~admin-deny-peer-kw pids))
                             ~revoke-r-sym       (:wat::kernel::recv' (~handle-handle-acc h))]
-                           (:wat::core::match ~revoke-r-sym -> :wat::core::nil
-                             (~status-peers-denied-kw nil)
-                             (_ (:wat::kernel::assertion-failed!
-                                  "defservice revoke: expected Status::PeersDenied"
-                                  :wat::core::None
-                                  :wat::core::None))))
+                           (:wat::core::match ~revoke-r-sym 
+                             ((:wat::kernel::RecvOutcome::Message recvd)
+                               (:wat::core::match recvd 
+                                 (~status-peers-denied-kw nil)
+                                 (_ (:wat::kernel::assertion-failed!
+                                      "defservice revoke: expected Status::PeersDenied"
+                                      :wat::core::None
+                                      :wat::core::None))))
+                             ((:wat::kernel::RecvOutcome::Lost cause)
+                               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                             (:wat::kernel::RecvOutcome::Closed
+                               (:wat::kernel::assertion-failed!
+                                 "defservice revoke: service peer closed during revoke"
+                                 :wat::core::None :wat::core::None))))
      revoke-method      `(:wat::core::defn ~revoke-method-name ~revoke-method-params -> :wat::core::nil ~revoke-method-body)
      ;; Extend methods with the owner-only revoke (stop + hibernate + grant + revoke, not per-op).
      methods           (:wat::core::conj methods revoke-method)
@@ -1168,6 +1427,11 @@
      cm-self-sym (:wat::core::symbol-node "self")
      cm-und-sym  (:wat::core::symbol-node "_")
      cm-ship-sym (:wat::core::symbol-node "ship")
+     ;; arc 278 the recv'-outcome wall — hygienic binders for the child-main startup
+     ;; recv' RecvOutcome match (a :user::main body → the ProgramBodyIntroducesName gate
+     ;; forbids bare-Symbol binders; symbol-node + unquote appear as Unquote nodes).
+     cm-shipmsg-sym   (:wat::core::symbol-node "shipmsg")
+     cm-shipcause-sym (:wat::core::symbol-node "shipcause")
      cm-st-sym   (:wat::core::symbol-node "st")
      ;; arc 291 3a-ii-α: child-main-form uses the lineage protocol.
      ;; self-peer: Peer'<Status, Admin>
@@ -1185,16 +1449,24 @@
                           [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
                                             ~enum-name ~reply-name ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty ~admin-ty)
-                           ~cm-ship-sym (:wat::kernel::recv' ~cm-self-sym)
-                           ~cm-st-sym   (:wat::core::apply -> ~state-ty
+                           ~cm-ship-sym (:wat::core::match (:wat::kernel::recv' ~cm-self-sym) 
+                                            ((:wat::kernel::RecvOutcome::Message ~cm-shipmsg-sym) ~cm-shipmsg-sym)
+                                            ;; arc 278 the recv'-outcome wall — the child lost/closed its
+                                            ;; owner link before the startup ship arrived: eprintln is the
+                                            ;; terminal dying declaration (loud, exits non-zero).
+                                            ((:wat::kernel::RecvOutcome::Lost ~cm-shipcause-sym)
+                                              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~cm-shipcause-sym) :wat::core::None :wat::core::None))
+                                            (:wat::kernel::RecvOutcome::Closed
+                                              (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")))
+                           ~cm-st-sym   (:wat::core::apply 
                                             (:wat::core::keyword/from-string ~dispatch-admin-name-str)
                                             ~cm-ship-sym [])
                            ~cm-und-sym  (:wat::kernel::send' ~cm-self-sym
                                             (~status-started-kw (:wat::spawn::Bound/address ~cm-b-sym)))]
-                          (:wat::core::apply -> :wat::core::nil
+                          (:wat::core::apply 
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)
-                            (:wat::core::Vector ~peer-ty)
+                            (:wat::core::Vector ~selectable-peer-ty)
                             ~cm-st-sym [])))
      ;; The transport-agnostic service-forms defn: Op/Reply/records/serve + agnostic child
      ;; main. Emitted as `(defn :<fqdn>::service-forms [] -> Vector<WatAST> (forms …))`.
@@ -1207,6 +1479,8 @@
      own-forms-call  `(:wat::core::forms
                         ~record-def
                         ~state-def
+                        ~service-op-def
+                        ~@service-op-derive-items
                         (:wat::core::defn ~serve-name ~serve-params
                           -> :wat::core::nil ~serve-body)
                         ~init-def
@@ -1369,6 +1643,8 @@
     `(:wat::core::do
        ~record-def
        ~state-def
+       ~service-op-def
+       ~@service-op-derive-items
        ~admin-enum-def
        ~status-enum-def
        (:wat::core::defn ~serve-name ~serve-params -> :wat::core::nil ~serve-body)

@@ -19,34 +19,45 @@
 
 use wat::freeze::call_beside;
 
-/// Eval `compute` from the co-located fixture; `compute` MUST raise (the peer crashed).
-/// Returns the raised error's text for assertion.
-fn compute_raise_text() -> String {
-    match call_beside(file!(), ":user::compute") {
-        Ok(v) => panic!("expected compute to RAISE (the thread peer crashed); got Ok({v:?})"),
-        Err(e) => format!("{e:?}"),
-    }
+/// Eval `compute` from the co-located fixture. Arc 278 recv'-wall: the crashed peer surfaces as a
+/// matchable `RecvOutcome::Lost` VALUE (never a raise — a raise unwinds past the reader). The fixture
+/// MATCHES ::Lost and RETURNS the Lost cause's `Failure/message` (the crash-channel envelope). We
+/// assert `is_ok` (it matched Lost as a value) + that the returned reason carries all three fields.
+fn compute_reason_text() -> String {
+    let result = call_beside(file!(), ":user::compute");
+    let text = format!("{result:?}");
+    assert!(
+        result.is_ok(),
+        "the thread peer crash must surface as a matchable RecvOutcome::Lost VALUE (never a raise); \
+         got Err: {text}"
+    );
+    assert!(
+        // rune:lint(loose-assert) — distinguishing the value-based RecvOutcome marker (::Lost vs the
+        // "UNEXPECTED-*" sentinels) among alternatives; the full reason text is machine-specific.
+        !text.contains("UNEXPECTED"),
+        "the crash must match RecvOutcome::Lost (not ::Message/::Closed); got: {text}"
+    );
+    text
 }
 
 /// A thread peer dies via `assertion-failed!` carrying a structured `actual` + `expected`.
-/// `recv'` raises — and the raised reason MUST carry BOTH structured fields, not just the
-/// message.
+/// The Lost cause's `Failure/message` (the #wat.kernel/AssertionFailure envelope) MUST carry BOTH
+/// structured fields, not just the message.
 #[test]
 fn thread_peer_recv_surfaces_structured_actual_and_expected() {
-    let err = compute_raise_text();
+    let text = compute_reason_text();
     // Baseline (already shipped by arc 259 S3.5a-0): the message survives.
     assert!(
-        err.contains("structured-death-marker"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
-        "regression: the crash MESSAGE must still travel. got: {err}"
+        text.contains("structured-death-marker"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
+        "regression: the crash MESSAGE must still travel. got: {text}"
     );
     // The new bar: the STRUCTURED actual + expected must survive too.
     assert!(
-        err.contains("ACTUAL-42173"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
-        "the structured `actual` field must survive the crash path (it is discarded at \
-         spawn.rs:472 today). got: {err}"
+        text.contains("ACTUAL-42173"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
+        "the structured `actual` field must survive the crash path. got: {text}"
     );
     assert!(
-        err.contains("EXPECTED-99731"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
-        "the structured `expected` field must survive the crash path. got: {err}"
+        text.contains("EXPECTED-99731"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
+        "the structured `expected` field must survive the crash path. got: {text}"
     );
 }

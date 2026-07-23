@@ -8,7 +8,7 @@
      n (:wat::holon::OnlineSubspace/n s)]
     (:wat::core::if
       (:wat::core::and (:wat::core::= d 10000)
-        (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) -> :wat::core::String
+        (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) 
       "ok" "wrong")))
 
 (:wat::core::defn :my::compute-update [] -> :wat::core::String
@@ -17,12 +17,12 @@
      v       (:wat::holon::encode (:wat::holon::to-holon "x"))
      residual (:wat::holon::OnlineSubspace/update s v)
      n       (:wat::holon::OnlineSubspace/n s)]
-    (:wat::core::if (:wat::core::= n 1) -> :wat::core::String "incremented" "stuck")))
+    (:wat::core::if (:wat::core::= n 1)  "incremented" "stuck")))
 
 (:wat::core::defn :my::compute-eigenvalues [] -> :wat::core::String
   (:wat::core::let
     [s    (:wat::holon::OnlineSubspace/new 10000 8)
      eigs (:wat::holon::OnlineSubspace/eigenvalues s)
      len  (:wat::core::length eigs)]
-    (:wat::core::if (:wat::core::= len 8) -> :wat::core::String "k-eigs" "wrong-len")))
+    (:wat::core::if (:wat::core::= len 8)  "k-eigs" "wrong-len")))
 

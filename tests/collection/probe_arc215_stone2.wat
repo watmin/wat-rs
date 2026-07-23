@@ -9,7 +9,7 @@
 (:wat::core::defn :t::p1b-vec-first [] -> :wat::core::i64
   (:wat::core::match
     (:wat::core::Vector/get [1 2 3] 0)
-    -> :wat::core::i64
+    
     ((:wat::core::Some v) v)
     (:wat::core::None -1)))
 

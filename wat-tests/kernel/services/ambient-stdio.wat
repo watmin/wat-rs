@@ -118,7 +118,7 @@
             :wat::core::String                                  ;; output element type
             (:wat::core::Vector :wat::core::String "echo me")   ;; native String (Sender/from-pipe EDN-encodes)
             (:wat::core::let
-              [echoed (:wat::kernel::readln -> :wat::core::String)]
+              [echoed (:wat::kernel::readln )]
               (:wat::kernel::println echoed))))
    ))
 

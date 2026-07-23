@@ -8,7 +8,7 @@
           (:wat::holon::to-holon "k")
           (:wat::holon::to-holon "v")))
       0
-      :my::test::count-visit) -> :wat::core::i64
+      :my::test::count-visit) 
     ((:wat::core::Ok pair)
       (:wat::core::second pair))
     ((:wat::core::Err _e) -1)))

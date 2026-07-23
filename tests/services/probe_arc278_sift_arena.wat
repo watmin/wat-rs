@@ -145,17 +145,17 @@
                                     (:wat::telemetry::Journal::SiftLogsRequest :namespace ns
                                       :time-lo 0 :time-hi 100000 :limit 50
                                       :cursor (:cons::Consumer::PageState/cur state) :sieve sieve))]
-                           (:wat::core::match sr -> :cons::Consumer::PageState
+                           (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
                              ((:wat::telemetry::Journal::SiftLogsResponse::Success logs next-cur)
                                (:wat::core::let
                                  [new-acc (:wat::core::+ (:cons::Consumer::PageState/acc state)
                                             (:wat::core::count logs))]
-                                 (:wat::core::match next-cur -> :cons::Consumer::PageState
+                                 (:wat::core::match next-cur 
                                    (:wat::core::None
                                      (:cons::Consumer::PageState :done true :cur :wat::core::None :acc new-acc))
                                    ((:wat::core::Some c)
                                      (:cons::Consumer::PageState :done false :cur (:wat::core::Some c) :acc new-acc)))))
-                             (_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1))))))
+                             (_ (:cons::Consumer::PageState :done true :cur :wat::core::None :acc -1)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))))
                      initial
                      page-idxs)]
        (:wat::service::Outcome::Reply s
@@ -192,9 +192,9 @@
      _flood   (:prod::Producer/flood producer
                 (:prod::Producer::FloodRequest :count 240 :namespace "arena-ns"))
      sr       (:cons::Consumer/sift consumer (:cons::Consumer::SiftRequest :namespace "arena-ns"))]
-    (:wat::core::match sr -> :wat::core::i64
+    (:wat::core::match sr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:cons::Consumer::SiftResponse::Count n) n)
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
       ((:cons::Consumer::SiftResponse::RequestTooLarge bytes cap)
         (:wat::kernel::assertion-failed! "compute: unexpected RequestTooLarge"
-          :wat::core::None :wat::core::None)))))
+          :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

@@ -21,7 +21,7 @@
 (:wat::core::defn :t::test1-lookup-user [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::lookup-define :t::my-add)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -29,7 +29,7 @@
 (:wat::core::defn :t::test2-lookup-foldl [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::lookup-define :wat::core::foldl)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -37,7 +37,7 @@
 (:wat::core::defn :t::test3-lookup-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::lookup-define :user::this-does-not-exist)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) false)
     (:wat::core::None    true)))
 
@@ -47,7 +47,7 @@
 (:wat::core::defn :t::test4-sig-user [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :t::my-mul)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -55,7 +55,7 @@
 (:wat::core::defn :t::test5-sig-foldl [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :wat::core::foldl)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -63,7 +63,7 @@
 (:wat::core::defn :t::test6-sig-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::signature-of-defn :no::such::function)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) false)
     (:wat::core::None    true)))
 
@@ -73,7 +73,7 @@
 (:wat::core::defn :t::test7-body-user [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :t::my-neg)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))
 
@@ -81,7 +81,7 @@
 (:wat::core::defn :t::test8-body-prim-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :wat::core::foldl)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) false)
     (:wat::core::None    true)))
 
@@ -89,7 +89,7 @@
 (:wat::core::defn :t::test9-body-unknown-none [] -> :wat::core::bool
   (:wat::core::match
     (:wat::runtime::body-of :totally::unknown)
-    -> :wat::core::bool
+    
     ((:wat::core::Some _) false)
     (:wat::core::None    true)))
 

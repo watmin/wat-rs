@@ -10,7 +10,7 @@
                 l       <- :wat::kernel::Listener'<wat::core::i64,wat::core::i64>
                 clients <- :wat::core::Vector<wat::kernel::Peer'<wat::core::i64,wat::core::i64>>]
                -> :wat::core::nil
-               (:wat::core::match (:wat::kernel::poll' self l clients) -> :wat::core::nil
+               (:wat::core::match (:wat::kernel::poll' self l clients) 
                  ;; SHUTDOWN — owner dropped the handle; RAII drain EOF'd the self-peer.
                  ;; Return nil → the loop exits, clients drop, the child ends, join completes.
                  (:wat::spawn::ServiceEvent::Shutdown nil)
@@ -42,11 +42,21 @@
                  (:user::serve self (:wat::spawn::Bound/listener b)
                    (:wat::core::Vector :wat::kernel::Peer'<wat::core::i64,wat::core::i64>))))))
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
-     addr (:wat::kernel::recv' svc)
+     addr (:wat::core::match (:wat::kernel::recv' svc)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': svc closed before sending the capability" :wat::core::None :wat::core::None)))
      ;; dial the capability — the child is guaranteed listening (it sent AFTER listen()).
      c    (:wat::kernel::connect' addr)
      _    (:wat::kernel::send' c 5)
-     got  (:wat::kernel::recv' c)]
+     got  (:wat::core::match (:wat::kernel::recv' c)
+            ((:wat::kernel::RecvOutcome::Message m) m)
+            ((:wat::kernel::RecvOutcome::Lost cause)
+              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed
+              (:wat::kernel::assertion-failed! "recv': c closed before replying" :wat::core::None :wat::core::None)))]
     ;; No Stop op. Scope-exit drops `svc` → the child's input pipe EOFs → the self-peer's
     ;; Recv{0} fires → serve's poll' returns :Shutdown → the child exits → join completes.
     ;; (If this hangs, poll' isn't watching the self-peer over the socket tier — STOP-1.)

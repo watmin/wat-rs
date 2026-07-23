@@ -38,7 +38,7 @@
 (:wat::core::defn :t::app-describe
   [o <- :wat::core::Option<wat::core::Result<wat::core::i64,wat::core::String>>]
   -> :wat::core::Result<wat::core::i64,wat::core::String>
-  (:wat::core::match o -> :wat::core::Result<wat::core::i64,wat::core::String>
+  (:wat::core::match o 
     ((:wat::core::Some r) (:wat::core::Ok (:wat::core::Result/try r)))
     (:wat::core::None    (:wat::core::Err "missing"))))
 

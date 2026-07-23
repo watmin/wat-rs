@@ -6,7 +6,7 @@
 (:wat::core::defn :my::echo-worker
   [] -> :wat::core::nil
   (:wat::core::let
-    [n (:wat::kernel::readln -> :wat::core::i64)
+    [n (:wat::kernel::readln )
      _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
     nil))
 
@@ -23,7 +23,7 @@
              (:wat::kernel::send tx 41)
              "send failed")
      recv-result (:wat::kernel::recv rx)
-     _val (:wat::core::match recv-result -> :wat::core::i64
+     _val (:wat::core::match recv-result 
             ((:wat::core::Ok (:wat::core::Some v)) v)
             ((:wat::core::Ok :wat::core::None)    0)
             ((:wat::core::Err _)                  0))]

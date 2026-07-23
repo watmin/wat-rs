@@ -9,7 +9,6 @@
         [item <- :wat::core::String
          & [kv <- :wat::kernel::Peer'<probe::Kv::Op,probe::Kv::Reply>]]
         -> :wat::core::String
-        (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetReq item)) -> :wat::core::String
-  ((:probe::Kv::GetResp::Ok v) v)
+        (:wat::core::match (:probe::Kv/get kv (:probe::Kv::GetReq item)) ((:probe::Kv::GetResp::Ok v) v)
   ((:probe::Kv::GetResp::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None)))))))))

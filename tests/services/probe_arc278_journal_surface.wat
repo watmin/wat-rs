@@ -50,4 +50,12 @@
                :value         (:wat::telemetry::Numeric::I64 7) ;; own
                :unit          :wat::telemetry::Unit::Count)    ;; own
      batch   (:wat::core::Vector :wat::telemetry::Metric m)]
-    (:wat::telemetry::Journal/write-metrics journal (:wat::telemetry::Journal::WriteMetricsRequest batch))))
+    ;; arc 278 recv'-wall: the client-method returns a matchable RecvOutcome — unwrap the ::Message
+    ;; to the inner WriteMetricsResponse (the .rs asserts the raw Success response, not a RecvOutcome).
+    (:wat::core::match
+      (:wat::telemetry::Journal/write-metrics journal (:wat::telemetry::Journal::WriteMetricsRequest batch))
+      ((:wat::kernel::RecvOutcome::Message resp) resp)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

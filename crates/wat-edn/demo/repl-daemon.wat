@@ -18,7 +18,7 @@
       (:wat::eval-ast!
         (:wat::core::first
           (:wat::core::read-string
-            (:wat::kernel::readln -> :wat::core::String)))))
+            (:wat::kernel::readln )))))
     (:repl::serve)))                                          ; tail-recur → listen again
 
 (:wat::core::defn :user::main [] -> :wat::core::nil (:repl::serve))

@@ -1,6 +1,6 @@
 ;; enums_missing_variant.wat.bad — missing variant arm (Blue) must fail non-exhaustive. Must FAIL.
 (:wat::core::defenum :my::Color :wat::enum::Pure :Red :Green :Blue)
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::match :my::Color::Red -> :wat::core::i64
+  (:wat::core::match :my::Color::Red 
     (:my::Color::Red   1)
     (:my::Color::Green 2)))

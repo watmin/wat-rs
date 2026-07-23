@@ -61,7 +61,7 @@
                                        (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch 1) "add-form ty"))
                                        "<"))
                               fvopt  (:user::fieldvec-at ch 2)]
-              (:wat::core::match fvopt -> :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
+              (:wat::core::match fvopt 
                 (:wat::core::None m)
                 ((:wat::core::Some fv)
                   (:wat::core::let [names (:user::fieldvec-names fv)]
@@ -110,7 +110,7 @@
            hname (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
                    (:wat::core::ast-name head) "")
            fopt  (:wat::core::HashMap/get m hname)
-           this  (:wat::core::match fopt -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+           this  (:wat::core::match fopt 
                    (:wat::core::None (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
                    ((:wat::core::Some fields)
                      (:wat::core::if (:wat::core::= (:wat::core::length args) (:wat::core::length fields))
@@ -177,7 +177,7 @@
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)) m)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [paths (:wat::kernel::readln -> :wat::core::Vector<wat::core::String>)
+  (:wat::core::let [paths (:wat::kernel::readln )
                     m     (:user::build-map
                             (:wat::core::HashMap :wat::core::String :wat::core::Vector<wat::core::String>)
                             paths)]

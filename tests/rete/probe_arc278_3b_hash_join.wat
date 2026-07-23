@@ -33,7 +33,7 @@
                                    "HashJoinNode"))
                   (:wat::core::PersistentMap/keys network))
                 0) "hjid")
-     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector
+     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) 
               ((:wat::core::Some pv) pv)
               (:wat::core::None (:wat::core::PersistentVector)))]
     (:wat::core::length htoks)))
@@ -58,7 +58,7 @@
                                    "HashJoinNode"))
                   (:wat::core::PersistentMap/keys network))
                 0) "hjid")
-     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector
+     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) 
               ((:wat::core::Some pv) pv)
               (:wat::core::None (:wat::core::PersistentVector)))
      tok (:wat::core::Option/expect -> :wat::rete::Token (:wat::core::get htoks 0) "tok")
@@ -85,7 +85,7 @@
                                    "HashJoinNode"))
                   (:wat::core::PersistentMap/keys network))
                 0) "hjid")
-     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector
+     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) 
               ((:wat::core::Some pv) pv)
               (:wat::core::None (:wat::core::PersistentVector)))
      tok (:wat::core::Option/expect -> :wat::rete::Token (:wat::core::get htoks 0) "tok")
@@ -112,7 +112,7 @@
                                    "HashJoinNode"))
                   (:wat::core::PersistentMap/keys network))
                 0) "hjid")
-     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector
+     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) 
               ((:wat::core::Some pv) pv)
               (:wat::core::None (:wat::core::PersistentVector)))
      tok (:wat::core::Option/expect -> :wat::rete::Token (:wat::core::get htoks 0) "tok")
@@ -139,7 +139,7 @@
                                    "HashJoinNode"))
                   (:wat::core::PersistentMap/keys network))
                 0) "hjid")
-     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector
+     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) 
               ((:wat::core::Some pv) pv)
               (:wat::core::None (:wat::core::PersistentVector)))]
     (:wat::core::length htoks)))
@@ -168,7 +168,7 @@
                                      (:wat::core::Option/expect -> :wat::core::Record (:wat::core::PersistentMap/get network k) "n"))
                                    "HashJoinNode"))
                   (:wat::core::PersistentMap/keys network)) 0) "hjid")
-     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) -> :wat::core::PersistentVector
+     htoks (:wat::core::match (:wat::core::PersistentMap/get bmem hjid) 
               ((:wat::core::Some pv) pv)
               (:wat::core::None (:wat::core::PersistentVector)))]
     (:wat::core::length htoks)))

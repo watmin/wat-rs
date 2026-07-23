@@ -21,24 +21,36 @@
 
 use wat::freeze::call_beside;
 
-/// Call `:user::compute` in the co-located fixture world; return the raised error's text.
-/// `compute` MUST raise — the thread peer crashes; the caller asserts on the reason.
-fn compute_raise_text() -> String {
-    match call_beside(file!(), ":user::compute") {
-        Ok(v) => panic!("expected compute to RAISE (the thread peer crashed); got Ok({v:?})"),
-        Err(e) => format!("{e:?}"),
-    }
+/// Call `:user::compute` in the co-located fixture world; return the returned reason text.
+/// Arc 278 recv'-wall: the thread peer crash surfaces as a matchable `RecvOutcome::Lost` VALUE
+/// (never a raise); the fixture RETURNS the Lost cause's `Failure/message`. We assert `is_ok` (it
+/// matched Lost as a value) + that it is not a ::Message/::Closed sentinel.
+fn compute_reason_text() -> String {
+    let result = call_beside(file!(), ":user::compute");
+    let text = format!("{result:?}");
+    assert!(
+        result.is_ok(),
+        "the thread peer crash must surface as a matchable RecvOutcome::Lost VALUE (never a raise); \
+         got Err: {text}"
+    );
+    assert!(
+        // rune:lint(loose-assert) — distinguishing the value-based RecvOutcome marker (::Lost vs the
+        // "UNEXPECTED-*" sentinels) among alternatives; the full reason text is machine-specific.
+        !text.contains("UNEXPECTED"),
+        "the crash must match RecvOutcome::Lost (not ::Message/::Closed); got: {text}"
+    );
+    text
 }
 
-/// A thread peer whose body crashes with `BOOM-SENTINEL-9173`. `recv'` raises — and the raised
-/// reason MUST carry the sentinel (the crash reason travelled over the pipe), exactly as a
-/// process peer's would. RED at HEAD: the thread tier discards the reason → generic message.
+/// A thread peer whose body crashes with `BOOM-SENTINEL-9173`. The Lost cause's `Failure/message`
+/// MUST carry the sentinel (the crash reason travelled over the pipe), exactly as a process peer's
+/// would.
 #[test]
 fn thread_peer_surfaces_crash_reason_over_recv() {
-    let err = compute_raise_text();
+    let text = compute_reason_text();
     assert!(
-        err.contains("BOOM-SENTINEL-9173"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
+        text.contains("BOOM-SENTINEL-9173"), // rune:lint(loose-assert) — error embeds machine-specific absolute path from startup_beside/file!()
         "thread peer `recv'` must surface the crash reason over the pipe (like the process peer); \
-         the message was discarded. got: {err}"
+         the message was discarded. got: {text}"
     );
 }

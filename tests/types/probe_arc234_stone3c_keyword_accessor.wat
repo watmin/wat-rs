@@ -31,7 +31,7 @@
   (:wat::core::let
     [m {:host "localhost"}
      v (:missing m)]
-    (:wat::core::match v -> :wat::core::bool
+    (:wat::core::match v 
       ((:wat::core::Some _) false)
       (:wat::core::None     true))))
 

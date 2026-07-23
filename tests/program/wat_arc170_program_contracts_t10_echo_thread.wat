@@ -3,9 +3,9 @@
   [rx <- :wat::kernel::Receiver<wat::core::i64>
    tx <- :wat::kernel::Sender<wat::core::i64>]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::recv rx) 
     ((:wat::core::Ok (:wat::core::Some n))
-      (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::* n 2)) -> :wat::core::nil
+      (:wat::core::match (:wat::kernel::send tx (:wat::core::i64::* n 2)) 
         ((:wat::core::Ok _) nil)
         ((:wat::core::Err _) nil)))
     ((:wat::core::Ok :wat::core::None) nil)

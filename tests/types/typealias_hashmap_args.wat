@@ -5,6 +5,6 @@
   (:wat::core::let
     [row (:wat::core::HashMap :my::Key :my::Val "a" 1 "b" 2)
      got (:wat::core::get row "b")]
-    (:wat::core::match got -> :wat::core::i64
+    (:wat::core::match got 
       ((:wat::core::Some v) v)
       (:wat::core::None -1))))

@@ -47,21 +47,25 @@ fn large_foo_accepts_a_600kib_request() {
 /// disconnected". The over-FOO connection is closed; the reason reaches the caller.
 #[test]
 fn small_foo_over_budget_fails_with_the_reason() {
-    let result = call_beside(file!(), ":user::small-foo-rejects");
-    let err = result.expect_err(
-        "a >4 KiB request under a 4096-byte FOO must FAIL (over-FOO reject), not succeed",
-    );
-    let msg = format!("{err:?}");
-    assert!(
-        // rune:lint(loose-assert) — a property over a per-run-variable diagnostic (the reason
-        // rides a recv'-surfaced Reply::Failed carrying a source location); we assert the reason
-        // SUBSTANCE (names the frame cap) is present AND the mute mask is absent — the
-        // legitimately-loose case the lint documents, not a fixed value.
-        (msg.contains("too large") || msg.contains("exceeded") || msg.contains("max-frame-bytes"))
-            && !msg.contains("channel disconnected"),
-        "THE LAW (wat never hides a failure): an over-FOO reject must carry the frame REASON to the \
-         caller (e.g. 'request too large — exceeded this service's max-frame-bytes limit'), a \
-         catchable Reply::Failed — NOT a mute 'peer closed / channel disconnected'. Got: {msg}"
+    // EXACT DATA-EQUALITY (no `.contains`): the fixture MATCHES the RecvOutcome as a VALUE (a raise
+    // would unwind past the reader — the mask the wall kills) and returns a structured :probe::Outcome
+    // whose in-wat `names-frame-cap?` bool proves THE LAW — the over-FOO reject carries the frame
+    // REASON ("...exceeded this service's max-frame-bytes limit"), a matchable ::Lost, never the mute
+    // ::Closed. The golden #probe.Outcome/Lost [true] is captured (UPDATE_EDN=1), never hand-authored;
+    // the per-run-variable reason location stays in wat, only its boolean RESULT crosses. Mirrors the
+    // canonical gate probe_arc278_recv_outcome_wall. "wat stdio is edn — it's always data" (builder).
+    let v = call_beside(file!(), ":user::small-foo-rejects").unwrap_or_else(|e| {
+        panic!(
+            "a >4 KiB request under a 4096-byte FOO must surface as a matchable RecvOutcome::Lost \
+             VALUE (never a raise, which would unwind past the reader); got Err: {e:?}"
+        )
+    });
+    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    wat::assert_edn_matches_file!(
+        edn,
+        "service_max_frame_bytes__small_foo_over_budget_fails_with_the_reason.edn",
+        "THE LAW (wat never hides a failure): an over-FOO reject must MATCH RecvOutcome::Lost (never \
+         the mute ::Closed) and CARRY the frame-cap reason to the caller"
     );
 }
 

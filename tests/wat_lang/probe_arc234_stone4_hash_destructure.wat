@@ -29,7 +29,7 @@
 (:wat::core::defn :t::probe4-hashmap-none [] -> :wat::core::bool
   (:wat::core::let
       [{x :missing} {:host "localhost"}]
-      (:wat::core::match x -> :wat::core::bool
+      (:wat::core::match x 
         ((:wat::core::Some _) false)
         (:wat::core::None     true))))
 

@@ -11,7 +11,7 @@
 ;; T2: recursive defn — fact(5)=120
 (:wat::core::defn :my::fact
   [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
+  (:wat::core::if (:wat::core::= n 0) 
     1
     (:wat::core::i64::* n (:my::fact (:wat::core::i64::- n 1)))))
 
@@ -45,7 +45,7 @@
 ;; T6: defn inside if branch — startup succeeds after Gap I-B
 ;; (the if-branch defns may or may not register; startup just must not fail)
 (:wat::core::if true
-  -> :wat::core::nil
+  
   (:wat::core::defn :user::f_t6
     [x <- :wat::core::i64] -> :wat::core::i64
     x)
@@ -68,6 +68,6 @@
 (:wat::core::defn :my::compute_t10 [] -> :wat::core::i64
   (:wat::core::match
               (:wat::runtime::lookup-define :my::add_t10)
-              -> :wat::core::i64
+              
               ((:wat::core::Some _) 1)
               (:wat::core::None    0)))

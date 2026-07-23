@@ -9,7 +9,7 @@
 (:wat::core::defn :test::p-eprintln [v <- :wat::core::String] -> :wat::core::nil (:wat::kernel::eprintln v))
 
 ;; row J: readln returns polymorphic T (type-checked by freeze; return type unifies with :String annotation).
-(:wat::core::defn :test::r [] -> :wat::core::String (:wat::kernel::readln -> :wat::core::String))
+(:wat::core::defn :test::r [] -> :wat::core::String (:wat::kernel::readln ))
 
 ;; just-eval probes (rubric) — rows A/B/C/D/E/F/G drive these named zero-arg fns via
 ;; world.symbols().get(...) + apply_function, instead of an ad-hoc parse_one! literal.
@@ -22,5 +22,5 @@
 (:wat::core::defn :probe::eprintln-42 [] -> :wat::core::nil (:wat::kernel::eprintln 42))
 (:wat::core::defn :probe::eprintln-hello [] -> :wat::core::nil (:wat::kernel::eprintln "hello"))
 (:wat::core::defn :probe::readln-string [] -> :wat::core::String
-  (:wat::kernel::readln' 524288 -> :wat::core::String))
+  (:wat::kernel::readln' 524288 ))
 

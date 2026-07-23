@@ -20,6 +20,16 @@
 ;; the parent-only payload record — NOT baked into the forked child's registry.
 (:wat::core::defrecord :probe::Note [text <- :wat::core::String])
 
+;; EXACT DATA: :user::compute returns a STRUCTURED :probe::Outcome — the RecvOutcome variant that
+;; matched + a deterministic `reason-names-decode-failure?` bool computed IN-WAT (the per-run-variable
+;; Failure location never leaves wat; only its boolean RESULT crosses to the .rs golden). The .rs
+;; asserts the golden #probe.Outcome/Lost [true] exactly — mirroring probe_arc278_recv_outcome_wall.
+;; "wat stdio is edn — assert the structure exactly" (builder; R55 REVOLVTIONE, NVLLA LARVA).
+(:wat::core::defenum :probe::Outcome :wat::enum::Pure
+  :Message []                                                ;; matched ::Message (.rs asserts NEVER)
+  :Lost    [reason-names-decode-failure? <- :wat::core::bool] ;; matched ::Lost — true iff the cause names the decode failure (the LAW: the reason is carried)
+  :Closed  [])                                               ;; matched ::Closed (the mute we killed — .rs asserts NEVER)
+
 ;; a minimal Peer' service whose op-request carries an OPEN Record-surface field (the general
 ;; capability). `:wat::query::Reason` is a zero-feature Record surface baked into the child (stdlib) —
 ;; any pure record satisfies it ambiently, exactly as the retired `LogMessage` did for `Log.message`.
@@ -40,10 +50,21 @@
   :impls
   [(echo [s req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok)))])
 
-(:wat::core::defn :user::compute [] -> :wat::core::i64
+;; arc 278 recv'-wall: a peer-read yields a MATCHABLE RecvOutcome — NEVER a raise (a raise unwinds
+;; PAST the reader, which is the mask the wall kills). The client-method (:probe::Echo/echo) SCRUBS
+;; the cause into a reason-free 500; the real decode reason travels via raw recv'. We send the op raw
+;; and MATCH the outcome, RETURNING the child's rich Reply::Failed cause as a VALUE ("unknown tag
+;; #probe/Note ... no matching struct or enum ..."). The .rs asserts is_ok + the returned reason —
+;; mirroring the canonical gate probe_arc278_recv_outcome_wall.
+(:wat::core::defn :user::compute [] -> :probe::Outcome
   (:wat::core::let
     [h    (:probe::echo'/start :locus (:wat::spawn::process) :record (:probe::echo'::Record))
      echo (:wat::kernel::connect' (:probe::echo'::Handle/addr h))
-     _e   (:probe::Echo/echo echo
-            (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom")))]
-    2))
+     _s   (:wat::kernel::send' echo
+            (:probe::Echo::Op::Echo
+              (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom"))))]
+    (:wat::core::match (:wat::kernel::recv' echo)
+      ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::Failure/message cause) "no matching struct or enum")))
+      (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
