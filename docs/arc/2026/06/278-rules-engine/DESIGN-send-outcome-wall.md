@@ -8,7 +8,7 @@
 > last raise-that-masks. Annihilate it: `send'` returns a matchable `SendOutcome`, never raises, and the
 > checker forces every caller to face it (no swallow).
 
-## ✅ STATUS (2026-07-23) — Phases 1+2 DONE + GREEN; the RAISE annihilated. Phase 3 (must-use force) remaining.
+## ✅ STATUS (2026-07-23) — Phases 1+2 DONE+GREEN (raise annihilated); Phase 3 do-gate + Strike 3a DONE+GREEN (`186ffb91`); Strike 3b remaining (the last piece).
 
 **Phases 1 + 2a + 2b complete — floor GREEN (4207/0, own `--release` re-run). `send'` returns
 `:wat::kernel::SendOutcome` (never raises), and ALL 183 sites now FACE it (no `_`-swallow anywhere; no
@@ -17,17 +17,18 @@ unit.** Phases: 1 = the type + eval (SendOutcome=Pure); 2a = the stdlib roots fa
 `test.wat` harness fix cleared the ~40 deftest tests, `service.wat` serve-replies → keep-serving); 2b = the
 19 peer/wire test fixtures faced (19→0).
 
-### ⚙ Phase 3 — the MUST-USE FORCE — IN FLIGHT (2026-07-23 compaction; a shadowdancer is in the field)
+### ⚙ Phase 3 — the MUST-USE FORCE — do-gate + Strike 3a DONE + COMMITTED (`186ffb91`); 3b remaining (2026-07-23)
 
 Makes a *discarded* outcome a **compile error** → swallow unrepresentable (R57 "unrepresentable > flagged").
-There is **no** must-use mechanism in the checker today (`recv'` is always expression-position); this builds
-one. **UNCOMMITTED WIP in the tree — compiling, near-green, floor un-weighed.** Four-questions RULED both:
+There was **no** must-use mechanism in the checker (`recv'` is always expression-position); this built one.
+**do-gate + Strike 3a are COMMITTED GREEN (`186ffb91`, floor 4208/0 by own `--release` re-run; RED probe
+passes).** Four-questions RULED both:
 
 - **do-gate — BUILT + working** (`src/check.rs`: `const MUST_USE_TYPES = [":wat::kernel::SendOutcome", …]`
   + a check in `infer_do` — a non-last expr whose type is must-use → located error; RED probe
   `probe_arc278_send_outcome_must_use_wall` PASSES). A *faced* send' types as `nil`, so the gate fires ONLY on
   a raw swallow — the floor staying green IS the proof of no swallows.
-- **Strike 3a — `try-send'` → its own `TrySendOutcome` — IN THE FIELD (a shadowdancer finishing it NOW).**
+- **Strike 3a — `try-send'` → its own `TrySendOutcome` — DONE + COMMITTED (`186ffb91`, green).**
   Four-questions ruled A2 (own type) over adding `WouldBlock` to `SendOutcome` (re-breaks 183 matches; fails
   Obvious/Simple/Honest) and mapping to `Lost` (fails Honest). `try-send'` is NON-blocking → has an outcome
   `send'` cannot: **`WouldBlock`**. GROUNDED — it occurs on BOTH loci: thread = `crossbeam bounded(1)` slot
@@ -38,9 +39,10 @@ one. **UNCOMMITTED WIP in the tree — compiling, near-green, floor un-weighed.*
   {Sent, WouldBlock, Closed, Lost[cause]}` (PURE); `peer.try_send`/`try_send_wire` enriched;
   `eval_peer_try_send_prime` returns it; `infer_try_send_prime` (stop reusing `infer_send_prime` at
   `check.rs:5112`); `TrySendOutcome` added to `MUST_USE_TYPES`; `wat/service.wat:1167` faced (all arms →
-  evict + keep serving). **REMAINING when resumed:** clean the `TrySendResult` `private_interfaces` warnings
-  (`peer.rs:241` — visibility match); WEIGH the floor (target 0 failed — the shadowdancer is running it); then
-  the do-gate is green → **commit the do-gate + 3a** (atomic).
+  evict + keep serving). `TrySendResult` made `pub` (the `private_interfaces` warning). **DONE:** floor
+  weighed by own `--release` re-run = **4208/0**, RED probe passes, committed atomic (`186ffb91`). The
+  ride-through doctrine held — the rider was reaped at the compaction, resumed via `SendMessage`, finished
+  green in the field, banked ([[feedback_ride_through_compactions_with_shadowdancers_in_the_field]]).
 - **Strike 3b — NEXT (unbuilt):** the `let [_ …]` gate (a `_`-bound must-use = compile error) + the 19-file
   `let [_ (send'/try-send' …)]` sweep (all real swallows; four-questions all-YES). Files: `wat-scripts/probes/
   arc-170/*` (6), `wat-scripts/scratch-pad/*` (3), `tests/{comms,channel,services}/*` (10) — grep
