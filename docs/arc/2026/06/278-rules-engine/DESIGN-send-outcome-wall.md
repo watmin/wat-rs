@@ -15,11 +15,40 @@
 swallow window). The last raise-that-masks is annihilated on the send side — committed as a green atomic
 unit.** Phases: 1 = the type + eval (SendOutcome=Pure); 2a = the stdlib roots faced (66→19, the one-line
 `test.wat` harness fix cleared the ~40 deftest tests, `service.wat` serve-replies → keep-serving); 2b = the
-19 peer/wire test fixtures faced (19→0). **Phase 3 (NEXT, its own strike):** the MUST-USE FORCE — there is
-**no** must-use mechanism in the checker today (`recv'` never needed one; it's always expression-position),
-so forcing `send'`'s facing means BUILDING a must-use / discard-of-outcome-type compile error. That makes a
-FUTURE swallow unrepresentable (R57 "unrepresentable > flagged"); the arc-277 raise-abuse lint is its
-discovery companion. The historical build record:
+19 peer/wire test fixtures faced (19→0).
+
+### ⚙ Phase 3 — the MUST-USE FORCE — IN FLIGHT (2026-07-23 compaction; a shadowdancer is in the field)
+
+Makes a *discarded* outcome a **compile error** → swallow unrepresentable (R57 "unrepresentable > flagged").
+There is **no** must-use mechanism in the checker today (`recv'` is always expression-position); this builds
+one. **UNCOMMITTED WIP in the tree — compiling, near-green, floor un-weighed.** Four-questions RULED both:
+
+- **do-gate — BUILT + working** (`src/check.rs`: `const MUST_USE_TYPES = [":wat::kernel::SendOutcome", …]`
+  + a check in `infer_do` — a non-last expr whose type is must-use → located error; RED probe
+  `probe_arc278_send_outcome_must_use_wall` PASSES). A *faced* send' types as `nil`, so the gate fires ONLY on
+  a raw swallow — the floor staying green IS the proof of no swallows.
+- **Strike 3a — `try-send'` → its own `TrySendOutcome` — IN THE FIELD (a shadowdancer finishing it NOW).**
+  Four-questions ruled A2 (own type) over adding `WouldBlock` to `SendOutcome` (re-breaks 183 matches; fails
+  Obvious/Simple/Honest) and mapping to `Lost` (fails Honest). `try-send'` is NON-blocking → has an outcome
+  `send'` cannot: **`WouldBlock`**. GROUNDED — it occurs on BOTH loci: thread = `crossbeam bounded(1)` slot
+  full (`peer.rs`); process = pipe (~64KB) full → `O_NONBLOCK` `EAGAIN`/`EWOULDBLOCK` = live-peer-not-draining
+  (`comms/process.rs:379-401`). The **process tier ALREADY returns `Result<(),TrySendError<T>>`** (Full vs
+  Disconnected, `process.rs:402`); the THREAD tier collapsed it to a `bool` (`peer.rs:303`) — 3a brings the
+  thread tier up to that honesty + unifies both under `TrySendError`. Built in the tree: `TrySendOutcome
+  {Sent, WouldBlock, Closed, Lost[cause]}` (PURE); `peer.try_send`/`try_send_wire` enriched;
+  `eval_peer_try_send_prime` returns it; `infer_try_send_prime` (stop reusing `infer_send_prime` at
+  `check.rs:5112`); `TrySendOutcome` added to `MUST_USE_TYPES`; `wat/service.wat:1167` faced (all arms →
+  evict + keep serving). **REMAINING when resumed:** clean the `TrySendResult` `private_interfaces` warnings
+  (`peer.rs:241` — visibility match); WEIGH the floor (target 0 failed — the shadowdancer is running it); then
+  the do-gate is green → **commit the do-gate + 3a** (atomic).
+- **Strike 3b — NEXT (unbuilt):** the `let [_ …]` gate (a `_`-bound must-use = compile error) + the 19-file
+  `let [_ (send'/try-send' …)]` sweep (all real swallows; four-questions all-YES). Files: `wat-scripts/probes/
+  arc-170/*` (6), `wat-scripts/scratch-pad/*` (3), `tests/{comms,channel,services}/*` (10) — grep
+  `\[_ \(:wat::kernel::(try-)?send'`. When 3b lands green, the wall is WHOLE (both discard positions gated).
+- **Companion (tracked):** the arc-277 raise-abuse rete-lint (discovery) + the raise-abuse audit of the other
+  peer/IO verbs (`connect'`/`accept'`/`poll'`/`close'`).
+
+The historical build record of Phases 1-2:
 
 **Phase 1 (foundation) — done and proven sound (the build record):**
 - `:wat::kernel::SendOutcome` registered **PURE** (`src/types.rs:1205`) — non-parametric, holds only nullary
