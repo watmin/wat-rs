@@ -1224,6 +1224,43 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::TrySendOutcome — Arc 278 the send'-outcome wall Phase 3a
+    // (BRIEF-send-wall-3a-try-send-outcome.md): `try-send'`'s OWN outcome type,
+    // sibling to SendOutcome, NOT a reuse. `try-send'` is NON-BLOCKING, so it has
+    // an outcome `send'` structurally cannot: WouldBlock (a live peer just not
+    // draining — the channel-full / deadlock-guard case, `service.wat:1163`).
+    // Four-questions ruled: adding WouldBlock to SendOutcome FAILS (`send'`
+    // never returns it — Obvious/Simple/Honest all fail); mapping WouldBlock to
+    // Lost FAILS Honest ("alive but not draining" is not "gone"). So try-send'
+    // gets its own type:
+    //   :Sent       []                — delivered (the happy path).
+    //   :WouldBlock []                — channel full / receiver not draining
+    //                                    (crossbeam TrySendError::Full /
+    //                                    process-tier EWOULDBLOCK) — try-send' ONLY.
+    //   :Closed     []                — peer already cleanly closed (cell None).
+    //   :Lost       [cause <- Failure] — receiver dropped mid-send (crossbeam
+    //                                    TrySendError::Disconnected / a genuine
+    //                                    process-tier write failure).
+    // PURE for the same reason SendOutcome is (see above) — non-parametric, only
+    // pure data (three nullary variants + a pure `Failure` record).
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::TrySendOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Unit("Sent".into()),
+            EnumVariant::Unit("WouldBlock".into()),
+            EnumVariant::Unit("Closed".into()),
+            EnumVariant::Tagged {
+                name: "Lost".into(),
+                fields: vec![(
+                    "cause".into(),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                )],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — return type of
     // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
     // everything the sandboxed `:user::main` wrote through its stdio

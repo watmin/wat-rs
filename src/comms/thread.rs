@@ -59,7 +59,7 @@
 //! `:wat::kernel::*` verbs (Slice 4) that internally dispatch here.
 
 use crate::comms::{
-    CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError,
+    CommReceiver, CommSender, ReceiverIndex, RecvError, SelectOutcome, SendError, TrySendError,
 };
 
 // ─── Sender ──────────────────────────────────────────────────────────────────
@@ -82,14 +82,17 @@ impl<T> Sender<T> {
     }
 
     /// Genuinely non-blocking send — crossbeam's native `try_send`. Returns
-    /// `Err(SendError(value))` immediately if the bounded(1) slot is already
-    /// occupied OR all receivers are dropped, instead of blocking for
-    /// capacity like [`Self::send`]. See `CommSender::try_send`'s doc for the
-    /// arc 278 RST best-effort-broadcast rationale.
-    pub fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+    /// `Err(TrySendError::Full(value))` immediately if the bounded(1) slot is
+    /// already occupied, or `Err(TrySendError::Disconnected(value))` if all
+    /// receivers are dropped, instead of blocking for capacity like
+    /// [`Self::send`]. See `CommSender::try_send`'s doc for the arc 278 RST
+    /// best-effort-broadcast rationale, and arc 278 Phase 3a
+    /// (`TrySendOutcome`) for why the Full/Disconnected distinction is
+    /// threaded through rather than collapsed.
+    pub fn try_send(&self, value: T) -> Result<(), TrySendError<T>> {
         self.inner.try_send(value).map_err(|e| match e {
-            crossbeam_channel::TrySendError::Full(v) => SendError(v),
-            crossbeam_channel::TrySendError::Disconnected(v) => SendError(v),
+            crossbeam_channel::TrySendError::Full(v) => TrySendError::Full(v),
+            crossbeam_channel::TrySendError::Disconnected(v) => TrySendError::Disconnected(v),
         })
     }
 
@@ -119,7 +122,7 @@ impl<T: Send + 'static> CommSender<T> for Sender<T> {
         Sender::send(self, value)
     }
 
-    fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+    fn try_send(&self, value: T) -> Result<(), TrySendError<T>> {
         Sender::try_send(self, value)
     }
 

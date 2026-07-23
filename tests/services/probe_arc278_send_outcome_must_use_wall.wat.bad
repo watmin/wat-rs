@@ -1,0 +1,15 @@
+;; Arc 278 send'-outcome wall Phase 3 — the MUST-USE FORCE, negative fixture.
+;; `:wat::kernel::SendOutcome` (Phase 1) is the send-side twin of `RecvOutcome` — a matchable
+;; value (`Sent`/`Closed`/`Lost`), never a raise. Phase 2 faced all 183 pre-existing sites. This
+;; wall (Phase 3) makes a FUTURE unfaced `send'` — its outcome dropped in a `do` non-final
+;; position — a located compile error, so a swallow is unrepresentable (R57). A *faced* send'
+;; (`match`ed over Sent/Closed/Lost) has type `nil`, not `SendOutcome`, and stays legal; this
+;; fixture deliberately does NOT face it.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           nil))]
+    (:wat::core::do
+      (:wat::kernel::send' p 42)
+      nil)))

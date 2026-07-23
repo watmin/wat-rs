@@ -83,7 +83,7 @@ use io_uring::{opcode, types, IoUring};
 
 use crate::comms::{
     CommReceiver, CommSender, EdnRepresentable, ReceiverIndex, RecvError, SelectOutcome,
-    SendError,
+    SendError, TrySendError,
 };
 use crate::edn_shim::{next_complete_frame, FrameScan, DEFAULT_MAX_FRAME_BYTES};
 
@@ -386,7 +386,20 @@ impl<T: EdnRepresentable> Sender<T> {
     /// A short/partial write (rare — a single tiny control frame well under
     /// `PIPE_BUF`) is treated as a failure too: best-effort means "whole
     /// frame landed or nothing did," never a torn frame on the wire.
-    pub fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+    ///
+    /// Arc 278 Phase 3a (`TrySendOutcome`): the pipe tier has no native
+    /// crossbeam-style Full/Disconnected split, but the write's errno
+    /// carries the same distinction — `EAGAIN`/`EWOULDBLOCK` (the kernel
+    /// pipe buffer is full; `std::io::ErrorKind::WouldBlock`) means a LIVE
+    /// peer just isn't draining (`TrySendError::Full`); any other write
+    /// failure (e.g. `EPIPE` — the peer closed its read end) means the peer
+    /// is gone (`TrySendError::Disconnected`). A short/partial `O_NONBLOCK`
+    /// write mid-frame is the same "buffer went tight mid-write" shape as
+    /// `WouldBlock` — also `Full`, never treated as a disconnect. The rare
+    /// `fcntl` setup failure (can't even toggle `O_NONBLOCK`) is not a
+    /// "retry later" case, so it's honestly `Disconnected` rather than
+    /// mislabeled `Full`.
+    pub fn try_send(&self, value: T) -> Result<(), TrySendError<T>> {
         let edn_str = value.to_wire();
         let edn_bytes = edn_str.as_bytes();
         let mut framed: Vec<u8> = Vec::with_capacity(edn_bytes.len() + 1);
@@ -399,15 +412,17 @@ impl<T: EdnRepresentable> Sender<T> {
         // concurrent access) cannot race with anything else touching this fd.
         let orig_flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
         if orig_flags < 0 {
-            return Err(SendError(value));
+            return Err(TrySendError::Disconnected(value));
         }
         let set = unsafe { libc::fcntl(fd, libc::F_SETFL, orig_flags | libc::O_NONBLOCK) };
         if set < 0 {
-            return Err(SendError(value));
+            return Err(TrySendError::Disconnected(value));
         }
 
         let mut written = 0usize;
-        let mut failed = false;
+        // `None` = success so far; `Some(true)` = would-block-class failure
+        // (Full); `Some(false)` = a genuine disconnect-class failure.
+        let mut failed: Option<bool> = None;
         while written < framed.len() {
             // SAFETY: see Self::send's identical write loop — same fd,
             // same live `framed` buffer for the duration of this loop.
@@ -424,17 +439,19 @@ impl<T: EdnRepresentable> Sender<T> {
                     continue;
                 }
                 // WouldBlock (pipe full — the best-effort "peer not
-                // draining" case) or any other write failure (e.g. EPIPE,
-                // peer gone): both are a skip, never a block.
-                failed = true;
+                // draining" case) is Full; any other write failure (e.g.
+                // EPIPE, peer gone) is Disconnected. Both are a skip, never
+                // a block — only the REASON now travels honestly.
+                failed = Some(err.kind() == std::io::ErrorKind::WouldBlock);
                 break;
             }
             written += n as usize;
             if written < framed.len() {
                 // A short, non-blocking write mid-frame: rather than loop
                 // (which could spin against a still-full pipe), treat it as
-                // best-effort failure — never torn frames on the wire.
-                failed = true;
+                // best-effort failure — never torn frames on the wire. Same
+                // "buffer went tight" shape as WouldBlock → Full.
+                failed = Some(true);
                 break;
             }
         }
@@ -443,10 +460,10 @@ impl<T: EdnRepresentable> Sender<T> {
         // Sender's ordinary `send` must keep its blocking mini-TCP contract.
         unsafe { libc::fcntl(fd, libc::F_SETFL, orig_flags) };
 
-        if failed || written < framed.len() {
-            Err(SendError(value))
-        } else {
-            Ok(())
+        match failed {
+            None if written >= framed.len() => Ok(()),
+            Some(true) => Err(TrySendError::Full(value)),
+            _ => Err(TrySendError::Disconnected(value)),
         }
     }
 }
@@ -504,7 +521,7 @@ impl<T: EdnRepresentable> CommSender<T> for Sender<T> {
     fn send(&self, value: T) -> Result<(), SendError<T>> {
         Sender::send(self, value)
     }
-    fn try_send(&self, value: T) -> Result<(), SendError<T>> {
+    fn try_send(&self, value: T) -> Result<(), TrySendError<T>> {
         Sender::try_send(self, value)
     }
     fn close(self) {

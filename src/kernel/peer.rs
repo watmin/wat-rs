@@ -40,7 +40,7 @@
 //! grep token, not line number, so the cross-ref cannot drift.
 //! This stone is Rust structs + methods only.
 
-use crate::comms::{EdnRepresentable, RecvError, SendError};
+use crate::comms::{EdnRepresentable, RecvError, SendError, TrySendError};
 
 // ─── Thread<I, O> ─────────────────────────────────────────────────────────────
 
@@ -229,6 +229,24 @@ pub struct Peer {
 /// legitimate reply payload can collide with it.
 pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
 
+/// Outcome of [`Peer::try_send`] / [`Peer::try_send_wire`] — Arc 278 Phase
+/// 3a (`BRIEF-send-wall-3a-try-send-outcome.md`). Distinguishes "the write
+/// would have blocked" (a live peer just not draining fast enough — the
+/// `try-send'` deadlock-guard case, `service.wat:1163`) from "the peer is
+/// gone", instead of collapsing both into a bare `bool`. Mirrors
+/// `comms::TrySendError`'s two failure arms plus the success arm; the
+/// checker-level twin is `:wat::kernel::TrySendOutcome`
+/// (`eval_peer_try_send_prime` in `runtime.rs` maps this 1:1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrySendResult {
+    /// The value was accepted.
+    Sent,
+    /// Channel full / receiver not draining — a LIVE peer.
+    Full,
+    /// The receiver is gone.
+    Disconnected,
+}
+
 impl Peer {
     /// Construct a crossbeam (thread-tier) peer from a concrete Sender/Receiver pair.
     pub fn from_thread(
@@ -292,7 +310,8 @@ impl Peer {
 
     /// Best-effort NON-BLOCKING send of a `Value` (thread tier) — mirrors
     /// [`send`](Self::send) but NEVER blocks: a full channel or a gone peer is a
-    /// silent skip. Returns `true` iff the value was accepted.
+    /// silent skip. Returns which of the three outcomes occurred (arc 278 Phase
+    /// 3a — was a bare `bool` before; see [`TrySendResult`]).
     ///
     /// Arc 278 Stone 1a — the over-FOO `Rejected` serve-loop reply sends through
     /// `try_send` so a client blocked mid-`send` (an EXTREME oversized frame,
@@ -300,9 +319,13 @@ impl Peer {
     /// reading, the reply is skipped and the connection is evicted (the client
     /// gets an EPIPE on its own `send` — honest). Same non-blocking primitive as
     /// [`notify_peer_crashed_best_effort`](Self::notify_peer_crashed_best_effort).
-    pub fn try_send(&self, value: crate::value::Value) -> bool {
+    pub fn try_send(&self, value: crate::value::Value) -> TrySendResult {
         match &self.tx {
-            PeerTx::Thread(tx) => tx.try_send(value).is_ok(),
+            PeerTx::Thread(tx) => match tx.try_send(value) {
+                Ok(()) => TrySendResult::Sent,
+                Err(TrySendError::Full(_)) => TrySendResult::Full,
+                Err(TrySendError::Disconnected(_)) => TrySendResult::Disconnected,
+            },
             PeerTx::Socket(_) => {
                 panic!("Peer::try_send called on socket-tier peer — use try_send_wire")
             }
@@ -310,11 +333,15 @@ impl Peer {
     }
 
     /// Best-effort NON-BLOCKING send of a pre-encoded wire `String` (socket
-    /// tier). Never blocks (see [`try_send`](Self::try_send)). Returns `true`
-    /// iff the frame was accepted.
-    pub fn try_send_wire(&self, wire: String) -> bool {
+    /// tier). Never blocks (see [`try_send`](Self::try_send)). Returns which of
+    /// the three outcomes occurred — see [`TrySendResult`].
+    pub fn try_send_wire(&self, wire: String) -> TrySendResult {
         match &self.tx {
-            PeerTx::Socket(tx) => tx.try_send(wire).is_ok(),
+            PeerTx::Socket(tx) => match tx.try_send(wire) {
+                Ok(()) => TrySendResult::Sent,
+                Err(TrySendError::Full(_)) => TrySendResult::Full,
+                Err(TrySendError::Disconnected(_)) => TrySendResult::Disconnected,
+            },
             PeerTx::Thread(_) => {
                 panic!("Peer::try_send_wire called on thread-tier peer — use try_send")
             }

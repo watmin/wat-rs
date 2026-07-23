@@ -5106,11 +5106,12 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 278 Stone 1a — try-send' has the SAME type contract as send'
-            // (peer<I,O>, payload<-I -> nil); only the runtime blocking behavior
-            // differs (best-effort non-blocking). Reuse infer_send_prime.
+            // Arc 278 Phase 3a — try-send' has its OWN outcome type
+            // (`:wat::kernel::TrySendOutcome`), NOT a reuse of infer_send_prime:
+            // it is non-blocking and so has a WouldBlock outcome send' cannot
+            // return. See `infer_try_send_prime` / BRIEF-send-wall-3a-try-send-outcome.md.
             ":wat::kernel::try-send'" => {
-                let (val, mut errs) = infer_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
+                let (val, mut errs) = infer_try_send_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -8209,6 +8210,48 @@ fn infer_if(
     CheckResult::errs(local_errors)
 }
 
+/// Arc 278 send'-outcome wall Phase 3 — the MUST-USE FORCE.
+///
+/// Types named here CANNOT be silently dropped in a discard position (a
+/// `do` non-final, or a `let [_ expr]` wildcard bind): the checker raises a
+/// located `MalformedForm` instead of letting the value vanish. Hardcoded
+/// set (not an `EnumDef.must_use` field) per the brief — one type today, no
+/// struct-field cascade across the 11 `EnumDef {…}` construction sites;
+/// generalizes later if a second must-use type shows up.
+///
+/// `:wat::kernel::SendOutcome` was the first member: a *faced* `send'`
+/// (wrapped in a `match` naming `Sent`/`Closed`/`Lost`) has type `nil`, not
+/// `SendOutcome` — so this fires ONLY on a raw unfaced `send'`, never on a
+/// properly-matched one. See DESIGN-send-outcome-wall.md.
+///
+/// Arc 278 Phase 3a (`BRIEF-send-wall-3a-try-send-outcome.md`) adds
+/// `:wat::kernel::TrySendOutcome` — `try-send'`'s own outcome type (see
+/// `infer_try_send_prime`) — same discipline: an unfaced `try-send'` is a
+/// compile error too, same must-use force as `send'`.
+const MUST_USE_TYPES: &[&str] =
+    &[":wat::kernel::SendOutcome", ":wat::kernel::TrySendOutcome"];
+
+/// True when `ty` (already `apply_subst`-resolved) names a must-use type —
+/// see `MUST_USE_TYPES`. Only a bare nominal `Path` can be must-use (no
+/// must-use type is currently parametric/tupled).
+fn is_must_use_type(ty: &TypeExpr) -> bool {
+    matches!(ty, TypeExpr::Path(p) if MUST_USE_TYPES.contains(&p.as_str()))
+}
+
+/// Push the located must-use error for a must-use-typed value found in a
+/// discard position (`head`/`form` names the enclosing form, e.g.
+/// `:wat::core::do` or `:wat::core::let`). Shared by the `do`-non-last gate
+/// and the `let [_ …]` wildcard gate — arc 278 Phase 3.
+fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty_name: &str) {
+    errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
+        head: form.into(),
+        reason: format!(
+            "unhandled {ty_name} in statement/discard position — a send' outcome must be faced (match it: Sent/Closed/Lost), not dropped. This is the send'-outcome wall (Phase 3)."
+        ),
+        remedies: vec![],
+    } });
+}
+
 /// `(:wat::core::do f1 f2 ... fN)` — Clojure-faithful sequential
 /// evaluation form. Arc 136 slice 1a.
 ///
@@ -8218,6 +8261,9 @@ fn infer_if(
 ///   type-check; the resulting type is INTENTIONALLY DISCARDED (no
 ///   unification with anything). This matches Clojure's `do` semantics:
 ///   non-finals are pure side effect; their values are dropped.
+///   Arc 278 Phase 3 exception: if the resolved type is a MUST-USE type
+///   (`is_must_use_type`, e.g. an unfaced `send'`'s `SendOutcome`), the
+///   drop is a located compile error instead — see `push_must_use_error`.
 /// - args[N-1] (final): `infer` and return its inferred type. The do
 ///   form's inferred type IS the final form's inferred type. Recipient
 ///   unification at the consuming site (binding slot, function declared
@@ -8246,10 +8292,17 @@ fn infer_do(
         return CheckResult::errs(local_errors);
     }
     // Non-finals: type-check for internal consistency; discard the
-    // resulting type (no unification with anything).
+    // resulting type (no unification with anything) — UNLESS it's a
+    // must-use type (arc 278 Phase 3: an unfaced `send'` outcome), which
+    // is a located compile error rather than a silent drop.
     let last_idx = args.len() - 1;
     for arg in &args[..last_idx] {
-        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            let resolved = apply_subst(&ty, subst);
+            if is_must_use_type(&resolved) {
+                push_must_use_error(&mut local_errors, arg.span(), ":wat::core::do", &format_type(&resolved));
+            }
+        }
     }
     // Final: its inferred type IS the do form's type.
     let val = infer(&args[last_idx], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
@@ -11814,8 +11867,11 @@ fn infer_kernel_after(
 /// mirroring `recv'`'s `RecvOutcome<O>`. NOT `:wat::core::nil` (pre-278: send'
 /// RAISED on a gone peer instead of returning; the eval no longer raises, so the
 /// checker's declared return type must agree — this is the type-agreement
-/// correction, NOT the Phase-3 exhaustiveness force; a bare `(send' ...)` in
-/// statement position with an unhandled SendOutcome is still legal here).
+/// correction, NOT the Phase-3 exhaustiveness force itself; a bare `(send' ...)`
+/// in statement/discard position with an unhandled SendOutcome IS a compile
+/// error, but that force lives in the discard-position gates (`infer_do`'s
+/// non-final loop, `process_let_binding`'s `_`-wildcard arm; `MUST_USE_TYPES`),
+/// not here — `infer_send_prime` just returns the honest type.
 fn infer_send_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -11880,6 +11936,87 @@ fn infer_send_prime(
     }
 
     let ret = TypeExpr::Path(":wat::kernel::SendOutcome".into());
+    if local_errors.is_empty() {
+        CheckResult::ok(ret)
+    } else {
+        CheckResult::partial_with(ret, local_errors)
+    }
+}
+
+// PARTITION — CLAUSE vs INTRINSIC: `infer_try_send_prime` is INTRINSIC (projective),
+// same shape as `infer_send_prime` — I flows from the peer's Parametric type param
+// into the payload argument position.
+/// Type-check `(:wat::kernel::try-send' peer payload)` — Arc 278 the send'-outcome
+/// wall Phase 3a (`BRIEF-send-wall-3a-try-send-outcome.md`).
+///
+/// `try-send'` is a near-mirror of `send'` (same two positional args, same I
+/// unification), but it is NON-BLOCKING and so has an outcome `send'`
+/// structurally cannot: `WouldBlock` (channel full / peer not draining — a
+/// LIVE peer). The four-questions ruled out folding `WouldBlock` into
+/// `SendOutcome` (it re-breaks all `send'` matches — `send'` never returns
+/// it) and mapping it to `Lost` (dishonest — "not draining" isn't "gone").
+/// So `try-send'` gets its OWN return type here:
+/// `:wat::kernel::TrySendOutcome` — NOT a reuse of `infer_send_prime`.
+fn infer_try_send_prime(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::kernel::try-send'";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    if args.len() != 2 {
+        local_errors.push(CheckError {
+            span: head_span.clone(),
+            kind: CheckErrorKind::ArityMismatch {
+                callee: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+        }
+        return CheckResult::partial_with(TypeExpr::Path(":wat::kernel::TrySendOutcome".into()), local_errors);
+    }
+
+    let (i_ty, _o_ty) =
+        match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
+            Ok(pair) => pair,
+            Err(()) => {
+                // Still infer args[1] for nested error coverage.
+                let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+                return CheckResult::partial_with(TypeExpr::Path(":wat::kernel::TrySendOutcome".into()), local_errors);
+            }
+        };
+
+    // args[1]: payload — must unify with I. Same purity reasoning as send' (Arc
+    // 293.W.2d — structural, not a separate gate here).
+    let payload_ty =
+        match infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
+            Some(t) => t,
+            None => {
+                return CheckResult::partial_with(
+                    TypeExpr::Path(":wat::kernel::TrySendOutcome".into()),
+                    local_errors,
+                );
+            }
+        };
+    if let Err(_) = unify(&payload_ty, &i_ty, subst, env.types()) {
+        local_errors.push(CheckError {
+            span: args[1].span().clone(),
+            kind: CheckErrorKind::TypeMismatch {
+                callee: OP.into(),
+                param: "payload".into(),
+                expected: format_type(&apply_subst(&i_ty, subst)),
+                got: format_type(&apply_subst(&payload_ty, subst)),
+            },
+        });
+    }
+
+    let ret = TypeExpr::Path(":wat::kernel::TrySendOutcome".into());
     if local_errors.is_empty() {
         CheckResult::ok(ret)
     } else {
@@ -12435,6 +12572,18 @@ fn process_let_binding(
         let name = crate::scope::resolution::env_key(ident).into_owned();
         let rhs = &kv[1];
         let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst).drain_errors_into(&mut binding_errors);
+        // Arc 278 Phase 3 — STOP-2 (in spirit): a `let [_ (send' …)]` must-use
+        // gate here is MECHANICALLY clean (bare-symbol binder, `ident.as_str()
+        // == "_"`), but grounding it against the corpus turned up DOZENS of
+        // pre-existing `_`-bound `send'` sites (wat-scripts/probes/arc-170/*,
+        // wat-scripts/scratch-pad/*, tests/{comms,process,channel,services}/*)
+        // that predate the must-use type and were never faced by Phase 2's
+        // codemod (which swept bare statement-position `send'`, not RHS-of-
+        // `_`-let-binding sites). Shipping this gate turns ALL of them RED —
+        // not a false positive, but a swallow surface far beyond this strike's
+        // blast radius. Reported to the orchestrator as STOP-0/STOP-2; NOT
+        // shipped here. `do`-non-final (the primary/required gate, see
+        // `infer_do`) ships alone. Re-add this arm once that sweep lands.
         if let Some(ty) = rhs_ty {
             new_bindings.insert(name, ty);
         }

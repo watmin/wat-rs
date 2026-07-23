@@ -839,7 +839,17 @@ pub trait CommSender<T> {
     /// peer to drain its channel. NOT a general-purpose replacement for
     /// `send`; ordinary reply/request traffic keeps the mini-TCP blocking
     /// discipline documented at this module's top.
-    fn try_send(&self, value: T) -> Result<(), SendError<T>>;
+    ///
+    /// Arc 278 Phase 3a (send'-outcome wall, `try-send'`'s own
+    /// `TrySendOutcome`): returns [`TrySendError`], not the bare `SendError`
+    /// — distinguishes "the channel is full / peer not draining" (a LIVE
+    /// peer, `TrySendError::Full`) from "the peer is gone"
+    /// (`TrySendError::Disconnected`), instead of collapsing both into one
+    /// failure shape. The thread tier mirrors crossbeam's own
+    /// `TrySendError::{Full,Disconnected}` split exactly; the process
+    /// (pipe) tier derives the same split from the write's errno
+    /// (EAGAIN/EWOULDBLOCK ⇒ `Full`, anything else ⇒ `Disconnected`).
+    fn try_send(&self, value: T) -> Result<(), TrySendError<T>>;
     /// Signal end-of-stream from this sender. Consumes self so the endpoint
     /// is gone after close. Other cloned `Sender` handles (if any) remain
     /// valid. Peer receivers will see `RecvError::Disconnected`
@@ -902,6 +912,24 @@ pub trait CommReceiver<T>: std::any::Any {
 /// Shape matches `crossbeam_channel::SendError<T>` for ergonomic familiarity.
 #[derive(Debug)]
 pub struct SendError<T>(pub T);
+
+/// Genuinely non-blocking send failed — Arc 278 Phase 3a. Distinguishes WHY
+/// a `try_send` did not land, unlike `SendError` (which is used only by the
+/// blocking `send`, where the distinction is moot — a blocking send never
+/// returns "full", it just waits). Shape mirrors
+/// `crossbeam_channel::TrySendError<T>` exactly for the thread tier; the
+/// process (pipe) tier derives the same two arms from the write's errno.
+#[derive(Debug)]
+pub enum TrySendError<T> {
+    /// The channel's bounded slot is occupied (thread tier) / the pipe
+    /// buffer is full (process tier, EAGAIN/EWOULDBLOCK) — a LIVE peer just
+    /// not draining fast enough. Retry-able in principle; `try_send`
+    /// callers treat it as a best-effort skip, never a retry loop.
+    Full(T),
+    /// The receiver is gone (thread tier: all `Receiver`s dropped; process
+    /// tier: any write failure other than EAGAIN/EWOULDBLOCK, e.g. EPIPE).
+    Disconnected(T),
+}
 
 /// Recv failed — carrying the cause the comms select already computes
 /// (Stone 214 1b-ii-ε). The select fires on a specific arm and *knows* whether

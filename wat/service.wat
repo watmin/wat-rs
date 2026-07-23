@@ -1164,7 +1164,11 @@
                      ;; panic — a client-triggerable crash / DoS).
                      ((:wat::spawn::ServiceEvent::Rejected idx cause)
                        (:wat::core::do
-                         (:wat::kernel::try-send' (:wat::core::nth selectables idx) (~reply-failed-kw cause))
+                         (:wat::core::match (:wat::kernel::try-send' (:wat::core::nth selectables idx) (~reply-failed-kw cause))
+                           (:wat::kernel::TrySendOutcome::Sent       nil)
+                           (:wat::kernel::TrySendOutcome::WouldBlock nil)   ;; client not draining — evict anyway (it learns via EPIPE)
+                           (:wat::kernel::TrySendOutcome::Closed     nil)
+                           ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
                          (~serve-name self l (:wat::std::list::remove-at selectables idx) state))))
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────

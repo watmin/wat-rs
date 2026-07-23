@@ -23789,6 +23789,55 @@ fn send_outcome_lost(reason: String) -> Value {
     }))
 }
 
+/// Arc 278 the send'-outcome wall Phase 3a — the type path of `try-send'`'s
+/// OWN matchable outcome enum (`:wat::kernel::TrySendOutcome`, registered in
+/// `types.rs`). Sibling to `SendOutcome`, not a reuse — see
+/// `BRIEF-send-wall-3a-try-send-outcome.md`: `try-send'` is non-blocking, so
+/// it has an outcome (`WouldBlock`) `send'` structurally cannot.
+const TRY_SEND_OUTCOME_TYPE: &str = ":wat::kernel::TrySendOutcome";
+
+/// `TrySendOutcome::Sent []` — delivered (the happy path).
+fn try_send_outcome_sent() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: TRY_SEND_OUTCOME_TYPE.into(),
+        variant_name: "Sent".into(),
+        fields: vec![],
+    }))
+}
+
+/// `TrySendOutcome::WouldBlock []` — channel full / receiver not draining
+/// (crossbeam `TrySendError::Full` / process-tier `EWOULDBLOCK`). A LIVE
+/// peer — `try-send'` ONLY (`send'` has no non-blocking notion of "full").
+fn try_send_outcome_would_block() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: TRY_SEND_OUTCOME_TYPE.into(),
+        variant_name: "WouldBlock".into(),
+        fields: vec![],
+    }))
+}
+
+/// `TrySendOutcome::Closed []` — peer already cleanly closed (the
+/// use-after-close case; cell `None`).
+fn try_send_outcome_closed() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: TRY_SEND_OUTCOME_TYPE.into(),
+        variant_name: "Closed".into(),
+        fields: vec![],
+    }))
+}
+
+/// `TrySendOutcome::Lost [cause <- Failure]` — receiver dropped mid-send
+/// (crossbeam `TrySendError::Disconnected` / a genuine process-tier write
+/// failure). Built via `message_only_failure` — same honesty boundary as
+/// `send_outcome_lost`: `try-send'` says THAT the peer is gone, not WHY.
+fn try_send_outcome_lost(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: TRY_SEND_OUTCOME_TYPE.into(),
+        variant_name: "Lost".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
 /// Err payload returned by the eval-family forms on any failure
@@ -25998,16 +26047,20 @@ fn eval_peer_send_prime(
     }
 }
 
-/// `(:wat::kernel::try-send' peer payload)` — Arc 278 Stone 1a.
+/// `(:wat::kernel::try-send' peer payload)` — Arc 278 Stone 1a / Phase 3a
+/// (`BRIEF-send-wall-3a-try-send-outcome.md`).
 ///
 /// Best-effort, NON-BLOCKING twin of `send'` for the unified `Peer'<S,R>`. Same
-/// type contract (payload unifies with the peer's I) but the write NEVER blocks:
-/// a full kernel buffer (peer not draining) or a gone peer is a **silent skip**
-/// — the value is dropped and `nil` is returned. Used by the serve loop's
-/// over-FOO `Rejected` arm to reply `Reply::Failed{cause}` to a client that may
-/// be blocked mid-`send` on an extreme oversized frame: if it isn't reading its
-/// reply side, the reply is skipped and the connection is evicted (the client
-/// learns via EPIPE on its own `send`), so one client can never wedge the loop.
+/// type contract for the payload (unifies with the peer's I) but the write NEVER
+/// blocks: a full kernel buffer (peer not draining) or a gone peer is a
+/// **silent skip** at the transport level — but unlike Phase-1 `send'`, the
+/// caller-visible result is now an honest `TrySendOutcome`
+/// (`Sent`/`WouldBlock`/`Closed`/`Lost`), not a swallowed `nil`. Used by the
+/// serve loop's over-FOO `Rejected` arm to reply `Reply::Failed{cause}` to a
+/// client that may be blocked mid-`send` on an extreme oversized frame: if it
+/// isn't reading its reply side, the reply is skipped (`WouldBlock`) and the
+/// connection is evicted regardless (the client learns via EPIPE on its own
+/// `send`), so one client can never wedge the loop — see `service.wat:1167`.
 fn eval_peer_try_send_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -26027,7 +26080,8 @@ fn eval_peer_try_send_prime(
 
     match &peer_val {
         // Unified Peer' arm (the serve loop's `clients` are PEER_TYPE_PATH — socket
-        // tier on process, thread tier on thread). Best-effort: any failure is a skip.
+        // tier on process, thread tier on thread). Best-effort: any failure is a
+        // faced TrySendOutcome value, never a raise.
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
             let cell: &crate::kernel::spawn::PeerCell =
                 crate::rust_deps::marshal::downcast_ref_opaque(
@@ -26036,24 +26090,35 @@ fn eval_peer_try_send_prime(
                     OP,
                     list_span.clone(),
                 )?;
-            cell.with_ref(OP, |opt_peer| {
-                match opt_peer {
-                    // Already closed → best-effort skip (never an error).
-                    None => {}
-                    Some(peer) if peer.is_socket_tier() => {
-                        let wire = crate::edn_shim::value_to_edn_string_with(
-                            &payload_val,
-                            sym.types().map(|a| a.as_ref()),
-                        );
-                        let _ = peer.try_send_wire(wire); // best-effort, non-blocking
+            let outcome = cell
+                .with_ref(OP, |opt_peer| {
+                    match opt_peer {
+                        // Already closed → Closed (never an error).
+                        None => try_send_outcome_closed(),
+                        Some(peer) if peer.is_socket_tier() => {
+                            let wire = crate::edn_shim::value_to_edn_string_with(
+                                &payload_val,
+                                sym.types().map(|a| a.as_ref()),
+                            );
+                            match peer.try_send_wire(wire) {
+                                crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
+                                crate::kernel::peer::TrySendResult::Full => try_send_outcome_would_block(),
+                                crate::kernel::peer::TrySendResult::Disconnected => {
+                                    try_send_outcome_lost("try-send': peer disconnected".into())
+                                }
+                            }
+                        }
+                        Some(peer) => match peer.try_send(payload_val.clone()) {
+                            crate::kernel::peer::TrySendResult::Sent => try_send_outcome_sent(),
+                            crate::kernel::peer::TrySendResult::Full => try_send_outcome_would_block(),
+                            crate::kernel::peer::TrySendResult::Disconnected => {
+                                try_send_outcome_lost("try-send': peer disconnected".into())
+                            }
+                        },
                     }
-                    Some(peer) => {
-                        let _ = peer.try_send(payload_val.clone()); // thread tier, best-effort
-                    }
-                }
-            })
-            .map_err(Into::<EvalBreak>::into)?;
-            Ok(Value::Unit)
+                })
+                .map_err(Into::<EvalBreak>::into)?;
+            Ok(outcome)
         }
         other => Err(RuntimeError {
             span: list_span.clone(),
