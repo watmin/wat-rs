@@ -8231,11 +8231,26 @@ fn infer_if(
 const MUST_USE_TYPES: &[&str] =
     &[":wat::kernel::SendOutcome", ":wat::kernel::TrySendOutcome"];
 
+/// Parametric must-use heads — a `TypeExpr::Parametric { head, .. }` whose head
+/// is one of these is must-use regardless of its type args. NB the Parametric
+/// `head` convention is a BARE FQDN (no leading `:`), unlike `Path` (colon-
+/// prefixed) — see `infer_recv_prime` (`head: "wat::kernel::RecvOutcome"`).
+/// `:wat::kernel::RecvOutcome<O>` (arc 278 recv'-must-use, R53 wall's twin gate)
+/// — a *faced* `recv'` (matched over `Message`/`Closed`/`Lost`) has type `O`
+/// (the message) or a joined arm type, never `RecvOutcome<O>`, so this fires
+/// ONLY on a raw unfaced/dropped `recv'`, closing the swallow door R55's
+/// harness-fix only patched at one site.
+const MUST_USE_PARAMETRIC_HEADS: &[&str] = &["wat::kernel::RecvOutcome"];
+
 /// True when `ty` (already `apply_subst`-resolved) names a must-use type —
-/// see `MUST_USE_TYPES`. Only a bare nominal `Path` can be must-use (no
-/// must-use type is currently parametric/tupled).
+/// see `MUST_USE_TYPES` (non-parametric, colon-Path) and
+/// `MUST_USE_PARAMETRIC_HEADS` (parametric, bare-FQDN head).
 fn is_must_use_type(ty: &TypeExpr) -> bool {
-    matches!(ty, TypeExpr::Path(p) if MUST_USE_TYPES.contains(&p.as_str()))
+    match ty {
+        TypeExpr::Path(p) => MUST_USE_TYPES.contains(&p.as_str()),
+        TypeExpr::Parametric { head, .. } => MUST_USE_PARAMETRIC_HEADS.contains(&head.as_str()),
+        _ => false,
+    }
 }
 
 /// Push the located must-use error for a must-use-typed value found in a
@@ -8243,10 +8258,16 @@ fn is_must_use_type(ty: &TypeExpr) -> bool {
 /// `:wat::core::do` or `:wat::core::let`). Shared by the `do`-non-last gate
 /// and the `let [_ …]` wildcard gate — arc 278 Phase 3.
 fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty_name: &str) {
+    // Verb-aware remedy: recv' faces Message/Closed/Lost; send'/try-send' face Sent/(WouldBlock/)Closed/Lost.
+    let (verb, arms) = if ty_name.contains("RecvOutcome") {
+        ("recv'", "Message/Closed/Lost")
+    } else {
+        ("send'", "Sent/Closed/Lost")
+    };
     errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
         head: form.into(),
         reason: format!(
-            "unhandled {ty_name} in statement/discard position — a send' outcome must be faced (match it: Sent/Closed/Lost), not dropped. This is the send'-outcome wall (Phase 3)."
+            "unhandled {ty_name} in statement/discard position — a {verb} outcome must be faced (match it: {arms}), not dropped. This is the recv'/send' OUTCOME WALL (Phase 3)."
         ),
         remedies: vec![],
     } });

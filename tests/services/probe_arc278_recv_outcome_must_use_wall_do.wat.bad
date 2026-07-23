@@ -1,0 +1,13 @@
+;; Arc 278 recv'-must-use wall — the `do`-non-final discard door, negative fixture.
+;; A recv' outcome dropped in a `do` non-final position (`(:wat::core::do (:wat::kernel::recv' p) …)`)
+;; is the same swallow through the other door. Must be a located compile error too, so the
+;; recv' wall covers BOTH discard positions (symmetric with the send'-wall). A *faced* recv'
+;; (matched over Message/Closed/Lost) stays legal; this fixture deliberately does NOT face it.
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           nil))]
+    (:wat::core::do
+      (:wat::kernel::recv' p)
+      nil)))

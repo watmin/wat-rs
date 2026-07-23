@@ -1055,8 +1055,17 @@ mod tests {
     #[test]
     fn s2b_drop_reaps_blocked_worker() {
         let world = crate::freeze::startup_from_source(
+            // arc 278 recv'-must-use: this blocker exits when the parent drops the peer (the channel
+            // disconnects → recv' returns → the do falls through to nil → the worker exits, then join).
+            // So EVERY recv' outcome means "reap me, exit cleanly" → all arms nil (NOT the client-call
+            // surface-on-failure facing — an assertion-failed! here would crash the worker the test joins).
             "(:wat::core::defn :my::blocker [self <- :wat::kernel::Peer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
-               (:wat::core::do (:wat::kernel::recv' self) nil))",
+               (:wat::core::do \
+                 (:wat::core::match (:wat::kernel::recv' self) \
+                   ((:wat::kernel::RecvOutcome::Message _m) nil) \
+                   (:wat::kernel::RecvOutcome::Closed nil) \
+                   ((:wat::kernel::RecvOutcome::Lost _c) nil)) \
+                 nil))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),
         )

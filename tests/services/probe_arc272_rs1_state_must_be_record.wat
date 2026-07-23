@@ -24,7 +24,10 @@
   (:wat::core::let
     [h     (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record :count 0))
      c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
-     _     (:my::counter/increment c (:my::Counter::IncrementRequest :n 5))
+     _     (:wat::core::match (:my::counter/increment c (:my::Counter::IncrementRequest :n 5))
+             ((:wat::kernel::RecvOutcome::Message _resp) nil)
+             ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      ;; arc 291 3a-ii-β: stop is owner-only — takes the Handle (h), not the client peer (c).
      ;; arc 291 4b-ii: stop returns ::Record (durable soul); read count via Record/count.
      final (:my::counter/stop h)]

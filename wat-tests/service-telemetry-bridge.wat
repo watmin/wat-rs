@@ -92,7 +92,10 @@
             :record (:wat-tests::worker::Record :job-count 0)
             :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
-       _  (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
+       _  (:wat::core::match (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
+            ((:wat::kernel::RecvOutcome::Message _resp) nil)
+            ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+            (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
        _2 (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 3))
        rc (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
        r  (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
@@ -115,7 +118,10 @@
               :record (:wat-tests::worker::Record :job-count 0)
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
        wc   (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
-       _    (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
+       _    (:wat::core::match (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
+              ((:wat::kernel::RecvOutcome::Message _resp) nil)
+              ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+              (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
        snap (:wat-tests::worker/hibernate wh)
        wh2  (:wat-tests::worker/resume :locus (:wat::spawn::thread) :record snap
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))

@@ -18,8 +18,14 @@
      ;; the whole caller surface: a sink addr + a fresh span; no open/close by hand.
      _ws   (:wat::telemetry::with-span span jaddr "probe-ns" tags
              (:wat::core::do
-               (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
-               (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
+               (:wat::core::match (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
+                 ((:wat::kernel::RecvOutcome::Message _resp) nil)
+                 ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+                 (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+               (:wat::core::match (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
+                 ((:wat::kernel::RecvOutcome::Message _resp) nil)
+                 ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+                 (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
                (:wat::telemetry::timed span :fetch 42)))
      client (:wat::kernel::connect' maddr)
      pk    (:wat::edn::write (:wat::telemetry::PartitionKey

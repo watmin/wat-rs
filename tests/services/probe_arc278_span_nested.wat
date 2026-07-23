@@ -19,7 +19,10 @@
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      _ws   (:wat::telemetry::with-span outer jaddr "outer-ns" tags
              (:wat::core::do
-               (:wat::telemetry::Span/incr outer (:wat::telemetry::Span::IncrRequest :name :o))
+               (:wat::core::match (:wat::telemetry::Span/incr outer (:wat::telemetry::Span::IncrRequest :name :o))
+                 ((:wat::kernel::RecvOutcome::Message _resp) nil)
+                 ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+                 (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
                (:wat::telemetry::with-span inner jaddr "inner-ns" tags
                  (:wat::telemetry::Span/incr inner (:wat::telemetry::Span::IncrRequest :name :i)))))
      jclient (:wat::kernel::connect' jaddr)

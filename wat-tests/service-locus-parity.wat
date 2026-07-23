@@ -54,7 +54,10 @@
     (:wat::core::let
       [h (:wat-tests::counter/start :locus (:wat::spawn::thread) :record (:wat-tests::counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
-       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
+       _ (:wat::core::match (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
+           ((:wat::kernel::RecvOutcome::Message _resp) nil)
+           ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
        r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Counter::GetResponse::Ok value) value)
@@ -71,7 +74,10 @@
     (:wat::core::let
       [h (:wat-tests::counter/start :locus (:wat::spawn::process) :record (:wat-tests::counter::Record :count 0))
        c (:wat::kernel::connect' (:wat-tests::counter::Handle/addr h))
-       _ (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
+       _ (:wat::core::match (:wat-tests::Counter/increment c (:wat-tests::Counter::IncrementRequest :n 5))
+           ((:wat::kernel::RecvOutcome::Message _resp) nil)
+           ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
        r (:wat-tests::Counter/get c (:wat-tests::Counter::GetRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Counter::GetResponse::Ok value) value)
