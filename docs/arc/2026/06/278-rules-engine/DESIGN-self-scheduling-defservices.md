@@ -9,6 +9,12 @@
 > It is the foundation the buffered sink (next stone) transcribes; the mechanism is proven in
 > `wat-scripts/scratch-pad/probe-self-scheduling-loop.wat` (green, both loci by env-grab).
 
+## ⛔ SCOUT UPDATE (2026-07-22, post-no-hidden-failures-commit `1212c9ae`) — the `after`-migration is DONE; the death root below is STALE. RE-GROUND before striking.
+The bucket-C widening (`1212c9ae`) landed the CHECK (superset-O selectables type-check). Grounding the RUNTIME death (`self_scheduling` ×2, currently `#[ignore]`'d):
+- **`after` IS migrated (both tiers)** — `eval_kernel_after` (`runtime.rs:27320-27356`) now builds a UNIFIED `Peer'<nil,O>` (`Peer::from_thread(dead_tx, timer_rx)` thread; a timerfd-backed process peer + wire frame process), NOT a tier-specific `Timer'`. **So the "STATUS (2026-07-21e)" diagnosis below — "`after` builds the WRONG thing" — is STALE / already fixed.** Do NOT re-do it.
+- **The serve-loop arms are CORRECT** — `service.wat:948-974` the internal `-tick` arm handles `Outcome::NoReply`/`NoReplyAndArm` (remove-at the fired timer's idx, re-arm via `arm-fn`, NEVER `send'` to the timer); `Reply`/`Stop`/`ReplyAndArm` on an internal op → located `assertion-failed!`. The arm-fold inserts `(after own-kind dur op)`.
+- **The death is a SUBTLE post-migration RUNTIME bug** — the service dies mid-tick; the test only sees the CLIENT's downstream manifestation (`self_scheduling.wat:87` client `poll` → `send': channel disconnected` = the service is already dead). The service's OWN death reason is NOT surfaced (it dies in its spawned thread/process). **NEXT (the honest first move): SURFACE the service's death** — a disconfirming probe running the `poll'`-over-{a real client peer + an armed `after` timer} mechanism INLINE (so its death raises directly), adapting the PROVEN hand-rolled `wat-scripts/scratch-pad/probe-self-scheduling-loop.wat` from `select'` → `poll'` (the one delta between GREEN and the crash). Prime suspect: `poll'`'s reactor-class/homogeneity handling of a `{client + timer}` mix (`eval_poll_prime`, `runtime.rs:27500+`), OR an idx-shift when a fired timer is removed + a new one armed. GROUND it by a RUN; do NOT assert. The stone is CLOSE — most is built; this is a focused runtime-debug, not a rebuild.
+
 ## ✅ STATUS (2026-07-21e) — the poll'/timer FORK is RESOLVED → **Option ① done RIGHT: implement the timer in the CORRECT location (a unified `Peer'<nil,O>`)**
 
 The fork STOPped correctly last run (weighed `AD ORACVLVM`); this run it was four-questioned, then the
