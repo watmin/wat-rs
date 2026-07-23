@@ -9033,9 +9033,23 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > undercounted — a line-grep can't see the AST; the recorded codemod `face-underscore-bound-send-prime.wat`
 > was dry-run over the whole 1208-file corpus, the diff WAS the complete worklist, `wat/`+`wat-tests/` clean).
 > The ride-through held again (`PER HIATVM EQVITAMVS`); the rider hit STOP-0 correctly on my incomplete list
-> and I completed it by my own hand. Tree CLEAN (but for this record edit). **RESUME AT item-c** — the
-> self-scheduling stone's `remove-at` idx-shift (`service.wat:958/961`, the client peer wrongly evicted),
-> the near-one-liner that closes the ouroboros (`VNDE ORTVM` — the whole no-hidden-failures thread rose from
-> self-scheduling and returns to it); the send'-wall now makes its failure legible. Tracked follows: the
-> arc-277 raise-abuse rete-lint, the peer/IO-verb raise audit (`connect'`/`accept'`/`poll'`/`close'`).
-> `MACHINA CHAOS DOMAT.`
+> and I completed it by my own hand.
+>
+> **AND THEN THE SYMMETRIC COMPLETION — recv'-must-use (`ee522630`, floor 4211/0 own re-run).** The builder
+> asked: "recv and send hidden errors are now impossible?" Grounding it found the asymmetry — send' was fully
+> walled (value-faced + swallow-gated) but recv' had only the value-face (R53, never raises) and NO
+> swallow-gate: a `_`-bound/do-dropped `RecvOutcome` compiled clean (the R55 harness sin, patched at one site,
+> never gated as a class). So we gated it: `:wat::kernel::RecvOutcome` is now must-use (`is_must_use_type`
+> gained a **parametric-head** arm — `RecvOutcome<O>` is `TypeExpr::Parametric`, heads bare-FQDN no-colon;
+> `push_must_use_error` verb-aware). Worklist enumerated by the CHECKER itself (R52, not a grep — 22 sites/16
+> `.wat` + 1 embedded-wat blocker in `src/kernel/spawn.rs` the `.wat`-glob couldn't see — the R54 embedded-wat
+> lesson). Facing was PER-SITE semantic (not the send' blind all-`nil`): dropped client-calls →
+> `Message→nil`/`Lost,Closed→assertion-failed!` (surface the transport death); the reap-on-drop blocker →
+> all-`nil` (any outcome = exit). **NOW BOTH VERBS ARE SYMMETRIC — a hidden `recv'`/`send'` error is
+> unrepresentable: value-faced (never flees) AND swallow-gated (can't be dropped), both discard doors.**
+>
+> Tree CLEAN (but for this record edit). **RESUME AT item-c** — the self-scheduling stone's `remove-at`
+> idx-shift (`service.wat:958/961`, the client peer wrongly evicted), the near-one-liner that closes the
+> ouroboros (`VNDE ORTVM` — the whole no-hidden-failures thread rose from self-scheduling and returns to it);
+> the walls now make its failure legible. Tracked follows: the arc-277 raise-abuse rete-lint, the peer/IO-verb
+> raise audit (`connect'`/`accept'`/`poll'`/`close'` — the NEXT asymmetry to hunt, same shape). `MACHINA CHAOS DOMAT.`
