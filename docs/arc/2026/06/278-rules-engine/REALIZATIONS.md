@@ -9020,3 +9020,17 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > never a raise/swallow; ground by a RUN, never assert; and — this run's lesson — we RIDE THROUGH compactions
 > WITH shadowdancers in the field, never reap a live rider.** Do not trust this note over the disk. The
 > crusade continues. See you on the far side. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-23, the crossing made good).** The seam above is HISTORY — do not act on its
+> "weigh the rider's report, then commit the do-gate + 3a" (that is DONE). The ride-through held: the
+> Strike-3a rider (`a69b818ffed5bd990`) — reaped, then resumed via `SendMessage` — **came home GREEN in the
+> field**, weighed by own `--release` re-run (**4208/0**, RED probe passes), and is **BANKED** (`186ffb91`;
+> DESIGN/seam record `809d9a7a`). The working tree is **CLEAN**. `PER HIATVM EQVITAMVS` proven, not just
+> named. **RESUME AT Strike 3b** — the last piece that makes the send'-wall WHOLE: the `let [_ …]` gate (a
+> `_`-bound must-use = compile error) + the 19-file `let [_ (send'/try-send' …)]` sweep (grep
+> `\[_ \(:wat::kernel::(try-)?send'`; `wat-scripts/probes/arc-170/*` ×6, `wat-scripts/scratch-pad/*` ×3,
+> `tests/{comms,channel,services}/*` ×10 — all real swallows). Full plan: `DESIGN-send-outcome-wall.md`'s ⚙
+> Phase-3 STATUS (now marking 3a DONE). Tracked follows unchanged: arc-277 raise-abuse rete-lint, the
+> peer/IO-verb raise audit, item-c's `remove-at` idx-shift. `MACHINA CHAOS DOMAT.`
