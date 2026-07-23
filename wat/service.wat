@@ -859,7 +859,7 @@
                                    (:wat::core::string::kebab->pascal-in surface-kw
                                      (:wat::core::string::subs op-str 1 (:wat::core::string::length op-str))))]
                  (:wat::core::conj acc
-                   (:wat::core::string::concat "("
+                   (:wat::core::string::concat "(:"
                      (:wat::core::string::concat service-op-str
                        (:wat::core::string::concat "::"
                          (:wat::core::string::concat variant-pascal ")"))))))

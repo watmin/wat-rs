@@ -22,7 +22,8 @@ use wat::runtime::Value;
 // defservices.md: `after` → a unified `Peer'<nil,O>`). NOT a masked regression — an UNBUILT stone,
 // being built next; the mechanism is proven hand-rolled in wat-scripts/scratch-pad/probe-self-scheduling-loop.wat.
 #[test]
-#[ignore = "Stone 2-A self-scheduling runtime not yet built (item-c); the generated serve loop's timer arm/fire/re-arm crashes mid-tick — being built next"]
+#[ignore = "item-c: the -tick op-ref colon fix (UnboundSymbol) landed; remaining = the remove-at idx-shift \
+            (service.wat:958/961) evicting the client peer, + the send'-wall makes the failure legible (DESIGN-send-outcome-wall.md)"]
 fn self_tick_fires_rearms_and_reactor_serves_thread() {
     let got = call_beside(file!(), ":user::self-tick-rearms-thread").unwrap_or_else(|e| {
         panic!("the self-scheduling `-tick` must fire + re-arm and poll must reply; got raise: {e:?}")
@@ -41,7 +42,8 @@ fn self_tick_fires_rearms_and_reactor_serves_thread() {
 /// (process locus) Identical, but the service is forked to a process — the `-tick` timer must arm at
 /// the PROCESS tier (env-grab: the service's own kind), proving the capability is loci-agnostic.
 #[test]
-#[ignore = "Stone 2-A self-scheduling runtime not yet built (item-c); the process-tier timer arm/fire/re-arm crashes mid-tick — being built next"]
+#[ignore = "item-c: the -tick op-ref colon fix (UnboundSymbol) landed; remaining = the remove-at idx-shift \
+            (service.wat:958/961) evicting the client peer, + the send'-wall makes the failure legible (DESIGN-send-outcome-wall.md)"]
 fn self_tick_fires_rearms_and_reactor_serves_process() {
     let got = call_beside(file!(), ":user::self-tick-rearms-process").unwrap_or_else(|e| {
         panic!("the process-tier self-scheduling `-tick` must fire + re-arm and poll must reply; \
