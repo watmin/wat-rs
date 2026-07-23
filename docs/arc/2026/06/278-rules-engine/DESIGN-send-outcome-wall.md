@@ -8,12 +8,41 @@
 > last raise-that-masks. Annihilate it: `send'` returns a matchable `SendOutcome`, never raises, and the
 > checker forces every caller to face it (no swallow).
 
+## ✅ STATUS (2026-07-23, curare checkpoint) — Phase 1 BUILT + PROVEN, in the WORKING TREE (uncommitted; 66 RED by design)
+
+**Phase 1 (foundation) is done and proven sound — uncommitted WIP in the tree (the code cannot commit until
+the wall completes; 66 RED is a swallow window):**
+- `:wat::kernel::SendOutcome` registered **PURE** (`src/types.rs:1205`) — non-parametric, holds only nullary
+  variants + a pure `Failure` record. NOT `Impure` (that was a copy-error from `RecvOutcome`, whose `Impure`
+  is `O`-driven — its payload may be a live resource; `SendOutcome` has no payload → pure/EDN-crossable).
+- `eval_peer_send_prime` (`src/runtime.rs:25823`), all four tier arms, RETURN `SendOutcome::{Sent, Closed,
+  Lost[cause=message-only-failure]}` — **no raise.** Probe `wat-scripts/scratch-pad/probe-send-outcome-wall.wat`
+  `--check`s clean.
+- **Weighed by own `--release` re-run: 4141 passed / 66 failed / 0 RIPPLE** — every RED is a *transitive*
+  send' user (confirmed: `int_modrem`/`call_site` fail on the harness path, not the arithmetic). RED-flip
+  list captured at `/tmp/claude-scout/sendwall_p1_weigh.txt`.
+
+**The 66 RED reduce to a FEW ROOT SITES — the sweep worklist (do the roots first, they clear most):**
+1. **The deftest harness** — `run-thread'`/`run-hermetic'` (`wat/test.wat` / `wat/kernel/hermetic.wat`)
+   `send'` their child → ~40 `deftest_wat_tests_*` + the `call_beside`-driven probes (incl. `int_modrem`,
+   `call_site`) fail together. **Fix this root first — it clears the bulk.**
+2. **The peer round-trip helpers** — arc-259 / arc-214 / arc-293 wire tests + their fixtures.
+3. The remaining scattered `send'` sites (the codemod sweep covers all 183).
+
+**Phase 2 (NEXT — resume here):** the wat-fix codemod faces `SendOutcome` at every `(send' …)`; start with the
+two roots (they clear ~55 of the 66). Then Phase 3 (checker force → unfaced `SendOutcome` = compile error),
+Phase 4 (per-site refinement), atomic green. Do NOT commit the code until the wall is green.
+
+---
+
 ## The type
 
 ```clojure
-;; runtime builtin, mirrors :wat::kernel::RecvOutcome (types.rs:1168). Impure (an I/O outcome).
-;; NON-parametric — send' carries no received payload, so no type-param (unlike RecvOutcome<O>).
-(:wat::core::defenum :wat::kernel::SendOutcome :wat::enum::Impure
+;; runtime builtin, mirrors :wat::kernel::RecvOutcome (types.rs:1168) in SHAPE — but PURE, not Impure.
+;; RecvOutcome<O> is Impure ONLY because of its payload O (a received message may be a live resource);
+;; SendOutcome is NON-parametric and holds only pure data (two nullary variants + a pure Failure record,
+;; Nature::Record) — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
+(:wat::core::defenum :wat::kernel::SendOutcome :wat::enum::Pure
   :Sent   []                                   ;; delivered
   :Closed []                                   ;; peer already cleanly closed (the None / "peer already closed" case)
   :Lost   [cause <- :wat::kernel::Failure])    ;; disconnected mid-send (the send-Err / "channel disconnected" case)
