@@ -51,13 +51,8 @@
 ;; (message :wat::core::String); the auto-generated accessor
 ;; StartupError/message extracts it.
 (:wat::core::defn :wat::kernel::failure-from-startup [err <- :wat::kernel::StartupError] -> :wat::kernel::Failure
-  (:wat::core::struct-new :wat::kernel::Failure
-      (:wat::core::string::concat
-        "startup: " (:wat::kernel::StartupError/message err))
-      :wat::core::None
-      (:wat::core::Vector :wat::kernel::Frame)
-      :wat::core::None
-      :wat::core::None))
+  (:wat::kernel::message-only-failure (:wat::core::string::concat
+        "startup: " (:wat::kernel::StartupError/message err))))
 
 ;; Common driver — runs a Process (already spawned successfully),
 ;; pre-seeds stdin, closes the writer to signal EOF, drains

@@ -5831,11 +5831,52 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 278 item-c Strike B — the `struct-new` NATURE WALL. `struct-new`
+            // builds a `Nature::Struct` aggregate (runtime.rs `eval_struct_new`,
+            // ~:4285, reads `args[0]` as the type-name keyword — here that's
+            // `items[1]`, the arg right after the head). Targeting a
+            // record-natured (`Nature::Record`/`Nature::HolonRecord`) or Enum
+            // type-name would silently mint a wrong-nature value whose own
+            // accessors can't read it (arc 293.W.2b — e.g. `Failure` crosses the
+            // wire as a pure Record; `struct-new :Failure` bypassed that wall).
+            // Validation-ONLY arm: it does NOT `return` — like `_ => {}` below,
+            // control falls through to the existing defclause/scheme-lookup /
+            // unregistered-scheme fallback, which recurses/passes struct-new
+            // exactly as it did before this arm existed. This arm only appends
+            // a located error to `local_errors` when the resolved type's nature
+            // disqualifies it. Unresolved (unknown) type names are left alone —
+            // that's a separate concern, not this wall's job.
+            ":wat::core::struct-new" => {
+                if let Some(WatAST::Keyword(type_name, type_span)) = items.get(1) {
+                    match env.types().get(type_name.as_str()) {
+                        Some(crate::types::TypeDef::Aggregate(a)) if a.nature != crate::types::Nature::Struct => {
+                            local_errors.push(CheckError { span: type_span.clone(), kind: CheckErrorKind::MalformedForm {
+                                head: k.to_string(),
+                                reason: format!(
+                                    "struct-new on record-natured `{}` — construct it as a record (its kwargs ctor, or `:wat::kernel::message-only-failure` for a Failure)",
+                                    type_name
+                                ),
+                                remedies: vec![],
+                            } });
+                        }
+                        Some(crate::types::TypeDef::Enum(_)) => {
+                            local_errors.push(CheckError { span: type_span.clone(), kind: CheckErrorKind::MalformedForm {
+                                head: k.to_string(),
+                                reason: format!(
+                                    "struct-new on enum `{}` — construct it via its variant constructor, not struct-new",
+                                    type_name
+                                ),
+                                remedies: vec![],
+                            } });
+                        }
+                        _ => {}
+                    }
+                }
+            }
             // Any keyword head not handled by an explicit arm above falls through to
             // the defclause dispatch → env.get scheme lookup → unregistered-scheme
             // fallback below. Reaches here legitimately: :wat::core::defn and other
             // declaration forms (checked by separate pre-pass walkers, not infer_list),
-            // :wat::core::struct-new (intentional runtime-only dispatch, no scheme),
             // and user functions called before scheme registration.
             // Do NOT convert to MalformedForm — see arc 160 (constructors hoisted out)
             // and arc 234 Stone 234.3c (the one real silent-pass was narrowed to

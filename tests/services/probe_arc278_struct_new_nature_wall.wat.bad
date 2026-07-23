@@ -1,0 +1,11 @@
+;; Arc 278 item-c Strike B — the struct-new NATURE WALL, negative fixture.
+;; `:wat::kernel::Failure` is Nature::Record (arc 293.W.2b — a crash cause crosses the wire, pure
+;; EDN). `struct-new` mints a Nature::Struct value. `struct-new :wat::kernel::Failure` mints the
+;; WRONG nature — a value `Failure/message` (a Record accessor) can't read back. src/check.rs's
+;; struct-new nature wall must reject this as a located compile error, never a runtime surprise.
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::do
+    (:wat::core::struct-new :wat::kernel::Failure "x" :wat::core::None
+      (:wat::core::Vector :wat::kernel::Frame) :wat::core::None :wat::core::None)
+    nil))

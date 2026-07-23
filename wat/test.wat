@@ -710,12 +710,7 @@
        ;; Empty chain — should not occur; substrate always emits at
        ;; least the immediate-peer death. Defensive default mirrors
        ;; failure-from-process-died's None arm.
-       (:wat::core::struct-new :wat::kernel::Failure
-         "empty died-chain (substrate bug)"
-         :wat::core::None
-         (:wat::core::Vector :wat::kernel::Frame)
-         :wat::core::None
-         :wat::core::None))))
+       (:wat::kernel::message-only-failure "empty died-chain (substrate bug)"))))
 
 ;; ── run-thread-driver — Thread<nil,nil> → RunResult ──────────────────
 ;;
@@ -813,9 +808,7 @@
        (:wat::kernel::RecvOutcome::Closed
          (:wat::core::struct-new :wat::kernel::RunResult
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
-           (:wat::core::Some (:wat::core::struct-new :wat::kernel::Failure
-             "run-thread': test child closed before signaling completion"
-             :wat::core::None (:wat::core::Vector :wat::kernel::Frame) :wat::core::None :wat::core::None)))))))
+           (:wat::core::Some (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion")))))))
 
 (:wat::core::defmacro :wat::test::deftest'
   [name    <- :wat::WatAST
@@ -871,9 +864,7 @@
        (:wat::kernel::RecvOutcome::Closed
          (:wat::core::struct-new :wat::kernel::RunResult
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
-           (:wat::core::Some (:wat::core::struct-new :wat::kernel::Failure
-             "run-hermetic': test child closed before signaling completion"
-             :wat::core::None (:wat::core::Vector :wat::kernel::Frame) :wat::core::None :wat::core::None)))))))
+           (:wat::core::Some (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")))))))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic'
   [name    <- :wat::WatAST

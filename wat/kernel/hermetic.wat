@@ -61,12 +61,7 @@
       (:wat::core::None
        ;; Empty chain — should not occur; substrate always emits at
        ;; least the immediate-peer death. Defensive default.
-       (:wat::core::struct-new :wat::kernel::Failure
-         "empty died-chain (substrate bug)"
-         :wat::core::None
-         (:wat::core::Vector :wat::kernel::Frame)
-         :wat::core::None
-         :wat::core::None))))
+       (:wat::kernel::message-only-failure "empty died-chain (substrate bug)"))))
 
 ;; Tail-recursive drain of an IOReader into a wat::core::Vector<String> — one
 ;; String per line. Reads until read-line returns :None (EOF).
@@ -94,12 +89,7 @@
        (:wat::core::struct-new :wat::kernel::RunResult
          (:wat::core::Vector :wat::core::String)
          (:wat::core::Vector :wat::core::String)
-         (:wat::core::Some (:wat::core::struct-new :wat::kernel::Failure
-                 "scope not yet supported in hermetic mode (:None only for now)"
-                 :wat::core::None
-                 (:wat::core::Vector :wat::kernel::Frame)
-                 :wat::core::None
-                 :wat::core::None))))
+         (:wat::core::Some (:wat::kernel::message-only-failure "scope not yet supported in hermetic mode (:None only for now)"))))
       (:wat::core::None
        (:wat::core::let
          [proc
