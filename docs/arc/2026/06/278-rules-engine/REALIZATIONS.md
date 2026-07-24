@@ -9680,3 +9680,18 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > ONE reduce (no per-edit tests); harness red-squiggles are stale phantoms, `cargo build --release` is the arbiter; `_`-arm
 > on an enum is now doctrine-illegal (name every variant).** Do not trust this note over the disk. See you on the far side.
 > `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24i — wave 2c DONE; RESUME = 2d).** HEAD **`403fb737`** (pushed). Wave 2c annihilated the dead
+> non-prime machinery: `wat/test.wat` 1011→519 lines (the `run-hermetic`/`run-thread` runners + the whole
+> `run-hermetic-with-io` capture layer — `-driver`/`-send-inputs`/`-drain-outputs`, incl. the death-swallower `recv-all'`
+> replaced) + orphaned `RunResultIO` (types.rs) + 2 lying comments scrubbed. Green 4218/0 (own re-run), zero live refs; primes
+> / `deftest` / `run-sandboxed` primitive untouched. The `run-hermetic`/`run-thread` de-prime is now MIGRATED (2b) +
+> ANNIHILATED (2c). **RESUME: 2d** — shrink/retire `:wat::kernel::RunResult` (`{stdout,stderr,failure}`; the peer wire
+> delivers via `recv'` so stdout/stderr are vestigial — GROUND its remaining producers/consumers + four-questions
+> shrink-vs-retire; `run-sandboxed` the primitive still returns it). Then **reclaim** (`run-thread'`→`run-thread`,
+> `run-hermetic'`→`run-hermetic`), then the **enum-matching checker rule** (arc-109 NOTE). **PURGARE DEBT (2 newly-unused
+> forms, flagged not deleted):** `:wat::kernel::run-sandboxed-hermetic-ast` (only caller was the deleted `run-hermetic-ast`)
+> and `:wat::test::failure-from-thread-died` (only caller was the deleted `run-thread-driver`) — plus their stale prose. Fold
+> into a purgare pass (or 2d, if `RunResult`'s fate touches them). `MACHINA CHAOS DOMAT.`
