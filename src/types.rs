@@ -1822,56 +1822,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
-    // :wat::test::RunResultIO<O> — return type of
-    // `:wat::test::run-hermetic-with-io` (arc 170 slice 3 phase D).
-    // Layer 2 testing API: typed-channel I/O round-trip result.
-    //
-    // Three fields:
-    //   outputs  :Vector<O>              — values received from the child's tx
-    //   stderr   :Vector<String>         — raw stderr lines (for diagnostic)
-    //   failure  :Option<Failure>        — :None on success; :Some on child panic
-    //
-    // Parallel to :wat::kernel::RunResult (Layer 1) but replaces
-    // `stdout :Vector<String>` with `outputs :Vector<O>` (typed channel
-    // values, not byte-stream lines). D2 decision: registered in
-    // src/types.rs (Rust-side StructDef) so the accessor methods
-    // RunResultIO/outputs, /stderr, /failure are auto-generated via
-    // register_struct_methods at freeze time. A wat-side `:struct` form
-    // was the alternative; the substrate registration is preferred
-    // because it gives the struct the same first-class status as RunResult
-    // without relying on a user-space `:struct` parse path.
-    //
-    // Auto-generated `RunResultIO/new` + per-field accessors land in
-    // the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
-        name: ":wat::test::RunResultIO".into(),
-        type_params: vec!["O".into()],
-        fields: vec![
-            (
-                "outputs".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":O".into())],
-                },
-            ),
-            (
-                "stderr".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-            (
-                "failure".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
-                },
-            ),
-        ],
-        restrictions: None,
-    }));
-
     // :wat::core::Record — Arc 234 Stone 234.1.5. Opaque umbrella type for the
     // wat-record hologram (Value::wat__holon__Record). Pascal-Case namespace per
     // the `::`/`/` semantic-split doctrine: the namespace IS the umbrella

@@ -10,18 +10,20 @@
 //! `eval_kernel_process_join_result` — `DefRestrictedCallerNotAllowed` also
 //! fires for user-namespace callers. The negative tests assert BOTH errors
 //! are present (arc 198 restriction AND arc 202 stdin rule). The positive
-//! tests use a legal structural shape that satisfies both constraints by
-//! indirection through `(:wat::test::run-hermetic ...)` (a macro that
-//! internally calls the substrate driver which IS in `:wat::` namespace).
+//! tests use a legal structural shape that satisfies both constraints:
+//! the stdlib's `:wat::kernel::run-sandboxed-hermetic-ast` driver
+//! (`wat/kernel/hermetic.wat`) extracts `Process/stdin` before its
+//! `Process/join-result`, and it IS in the `:wat::` namespace.
 //!
 //! ## Tests
 //!
 //! 1. `process_join_without_stdin_extraction_fails_check` — user-namespace
 //!    function with `Process/join-result proc` and NO `Process/stdin proc`
 //!    → `ProcessJoinHoldsStdinSender` fires (plus arc 198 restriction).
-//! 2. `process_join_with_stdin_extraction_passes_check` — the stdlib
-//!    `run-hermetic-driver` is loaded on every `startup_from_source`; after
-//!    the arc 202 wat-side fix, the stdlib compiles cleanly → startup_ok.
+//! 2. `process_join_with_stdin_extraction_passes_check` — the stdlib's
+//!    `run-sandboxed-hermetic-ast` driver is loaded on every
+//!    `startup_from_source`; after the arc 202 wat-side fix, the stdlib
+//!    compiles cleanly → startup_ok.
 //! 3. `process_join_with_stdin_present_does_not_fire_stdin_rule` — a
 //!    user-namespace function calling both `Process/stdin` and
 //!    `Process/join-result` → `ProcessJoinHoldsStdinSender` does NOT appear
@@ -66,14 +68,14 @@ fn process_join_without_stdin_extraction_fails_check() {
 #[test]
 fn process_join_with_stdin_extraction_passes_check() {
     // Every startup loads the full substrate stdlib including
-    // `wat/test.wat::run-hermetic-driver`. After the arc 202 wat-side fix
-    // (adding `stdin-w` to the inner let of `run-hermetic-driver`), that
-    // function satisfies the new rule: `Process/stdin proc` appears in the
-    // inner let's scope, so the rule does not fire.
+    // `wat/kernel/hermetic.wat::run-sandboxed-hermetic-ast`, which calls
+    // `Process/join-result` preceded by a `Process/stdin` extraction in the
+    // same let scope. That driver satisfies the arc 202 rule: `Process/stdin
+    // proc` appears in the inner let's scope, so the rule does not fire.
     //
-    // A bare startup (stdlib only) proves this: if the stdlib's `run-hermetic-driver`
-    // still had the old shape (no `Process/stdin` extraction), startup would
-    // fail with `ProcessJoinHoldsStdinSender` on that substrate function.
+    // A bare startup (stdlib only) proves this: if a stdlib driver calling
+    // `Process/join-result` had the old shape (no `Process/stdin` extraction),
+    // startup would fail with `ProcessJoinHoldsStdinSender` on that function.
     // Startup succeeding = the canonical legal shape passes cleanly.
     startup_bare().expect("expected startup success; stdlib must satisfy arc202 rule");
 }

@@ -21782,20 +21782,19 @@ mod tests {
     /// pattern; the failure is the user's nudge.
     ///
     /// Arc 170 slice 3 — RETIRED. Deftest now expands to
-    /// `(:wat::test::run-hermetic body)` per
-    /// `docs/arc/2026/05/170-program-entry-points/TIERS.md` Layer 1;
-    /// run-hermetic routes through `(:wat::kernel::spawn-process fn)`
-    /// which closure-extracts the parent's symbol table into the
-    /// child's prologue. Outer-scope helper references are now valid
+    /// `(:wat::test::run-thread' body)` (arc 278 IPC de-prime); the
+    /// harness routes through `(:wat::kernel::spawn-program' ...)` +
+    /// `recv'`. The spawned child self-peer captures the parent's
+    /// symbol table, so outer-scope helper references are now valid
     /// CAPTURES, not leaks — `:my::helper` is pulled into the spawned
-    /// process automatically. The `validate_sandbox_scope_leak`
+    /// peer automatically. The `validate_sandbox_scope_leak`
     /// walker (which fires on `run-sandboxed-ast` heads only) no
     /// longer sees deftest expansions; the diagnostic the test
     /// asserts is no longer emitted because the failure mode the test
     /// described doesn't exist under the new substrate. Slice 4
     /// retires the walker body entirely with the legacy verb arms.
     #[test]
-    #[ignore = "arc 170 slice 3 — sandbox-scope-leak walker no longer fires on deftest (run-hermetic captures outer-scope helpers via closure extraction); test retired with the walker in slice 4"]
+    #[ignore = "arc 170 slice 3 — sandbox-scope-leak walker no longer fires on deftest (the spawned peer captures outer-scope helpers); test retired with the walker in slice 4"]
     fn sandbox_scope_leak_fires_with_diagnostic() {
         unimplemented!("arc 170 slice 3: sandbox-scope-leak walker RETIRED (slice 4) — behavior no longer exists; test kept as a monument, no live assertion");
     }
