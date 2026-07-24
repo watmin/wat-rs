@@ -12,7 +12,7 @@
 
 ;; ─── 1. expansion equivalence ──────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Amplify::test-amplify-is-blend-sugar
+(:wat::test::deftest' :wat-tests::holon::Amplify::test-amplify-is-blend-sugar
   ()
   (:wat::core::let
     [x (:wat::holon::to-holon "anchor")
@@ -26,7 +26,7 @@
 
 ;; ─── 2. scale distinguishability ───────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Amplify::test-amplify-scale-differs
+(:wat::test::deftest' :wat-tests::holon::Amplify::test-amplify-scale-differs
   ()
   (:wat::core::let
     [x    (:wat::holon::to-holon "anchor")

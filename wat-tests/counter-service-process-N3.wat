@@ -79,7 +79,7 @@
 ;;   - No spaces inside type parameter <> brackets
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :counter-service::process-N3
+(:wat::test::deftest' :counter-service::process-N3
   (;; ─── Wire enum (parent → subprocess) ───────────────────────────────────────
    ;; Wire::Admin and Wire::User now carry server-id as the first field.
    ;; The subprocess validates this server-id against its own before processing.

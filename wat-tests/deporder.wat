@@ -12,7 +12,7 @@
 
 ;; ─── Case 1: defmacro ref is order-free ─────────────────────────────
 
-(:wat::test::deftest :wat-tests::deporder::defmacro-ref-is-order-free
+(:wat::test::deftest' :wat-tests::deporder::defmacro-ref-is-order-free
   ()
   ;; File "a" calls (:t::m), which is defined in file "b" as a defmacro.
   ;; a loads before b. This must NOT be a violation because defmacros
@@ -26,7 +26,7 @@
 
 ;; ─── Case 2: eval-dep wrong order is a violation ─────────────────────
 
-(:wat::test::deftest :wat-tests::deporder::eval-dep-wrong-order-is-violation
+(:wat::test::deftest' :wat-tests::deporder::eval-dep-wrong-order-is-violation
   ()
   ;; File "a" calls (:t::f), which is defined in file "b" as a defn.
   ;; a loads before b (position 0 before position 1). This IS a violation.
@@ -43,7 +43,7 @@
 
 ;; ─── Case 3: intrinsic ref ignored ───────────────────────────────────
 
-(:wat::test::deftest :wat-tests::deporder::intrinsic-ref-ignored
+(:wat::test::deftest' :wat-tests::deporder::intrinsic-ref-ignored
   ()
   ;; A file referencing :wat::io::read-file (defined in no fixture)
   ;; must produce no violation (it resolves to an intrinsic / built-in).
@@ -62,7 +62,7 @@
 ;; A long-standing problematic-but-good-intentioned test; arc 300 C1 (bigint, +85 stdlib
 ;; lines) consumed the last of its margin.
 (:wat::test::time-limit "30s")
-(:wat::test::deftest :wat-tests::deporder::verify-stdlib-runs
+(:wat::test::deftest' :wat-tests::deporder::verify-stdlib-runs
   ()
   ;; (:wat::deporder::verify-stdlib) must evaluate without error and return
   ;; a Vector (its length may be zero or more — the enforcement test is 275.2).

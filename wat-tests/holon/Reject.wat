@@ -25,7 +25,7 @@
 ;; callers building on the primitives.
 
 
-(:wat::test::deftest :wat-tests::holon::Reject::test-reject-strips-y-direction
+(:wat::test::deftest' :wat-tests::holon::Reject::test-reject-strips-y-direction
   ;; Helper visible to the test body — bundle-or-fail wraps the
   ;; BundleResult match into a single-shot HolonAST producer for
   ;; small-arity bundles where capacity is never exceeded.
@@ -45,7 +45,7 @@
     (:wat::test::assert-eq (:wat::holon::presence? y residual) false)))
 
 
-(:wat::test::deftest :wat-tests::holon::Reject::test-project-preserves-y-direction
+(:wat::test::deftest' :wat-tests::holon::Reject::test-project-preserves-y-direction
   ((:wat::core::defn :wat-tests::holon::Reject::project-bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
     (:wat::core::match
            (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))

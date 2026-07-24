@@ -15,7 +15,7 @@
 
 ;; ─── put-then-get round-trip ────────────────────────────────────────
 
-(:wat::test::deftest :wat-lru::test-local-cache-put-then-get
+(:wat::test::deftest' :wat-lru::test-local-cache-put-then-get
   ()
   (:wat::core::let
     [cache
@@ -31,7 +31,7 @@
 
 ;; ─── miss returns :None ─────────────────────────────────────────────
 
-(:wat::test::deftest :wat-lru::test-local-cache-miss-returns-none
+(:wat::test::deftest' :wat-lru::test-local-cache-miss-returns-none
   ()
   (:wat::core::let
     [cache
@@ -46,7 +46,7 @@
 
 ;; ─── put overwrites existing key ────────────────────────────────────
 
-(:wat::test::deftest :wat-lru::test-local-cache-put-overwrites
+(:wat::test::deftest' :wat-lru::test-local-cache-put-overwrites
   ()
   (:wat::core::let
     [cache
@@ -64,7 +64,7 @@
 ;; ─── evict at capacity ──────────────────────────────────────────────
 ;; Capacity 2: after putting 3 keys, the oldest (1) is evicted.
 
-(:wat::test::deftest :wat-lru::test-local-cache-evict-at-capacity
+(:wat::test::deftest' :wat-lru::test-local-cache-evict-at-capacity
   ()
   (:wat::core::let
     [cache

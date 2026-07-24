@@ -49,7 +49,7 @@
 ;; in their registry entry's state field (design choice 1).
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :counter-service::thread-N3
+(:wat::test::deftest' :counter-service::thread-N3
   (;; ─── Admin protocol ──────────────────────────────────────────────────
    ;;
    ;; AdminReq grows from 3a's (Stop) to add Provision/Deprovision.

@@ -17,7 +17,7 @@
 
 ;; ─── 3-arity reduce (explicit init) over a Vector: sum [1 2 3 4] = 10 ───────
 
-(:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-sum-i64
+(:wat::test::deftest' :wat-tests::core::core-reduce::reduce-3-arity-sum-i64
   ()
   (:wat::core::let
     [xs (:wat::core::Vector :wat::core::i64 1 2 3 4)
@@ -34,7 +34,7 @@
 ;; ─── 2-arity reduce (no init — first element seeds the fold) over a Vector:
 ;; sum [1 2 3 4] = 10 ──────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-reduce::reduce-2-arity-sum-i64
+(:wat::test::deftest' :wat-tests::core::core-reduce::reduce-2-arity-sum-i64
   ()
   (:wat::core::let
     [xs (:wat::core::Vector :wat::core::i64 1 2 3 4)
@@ -50,7 +50,7 @@
 ;; ─── 3-arity reduce over a lazy Stream (map's output) — the new capability
 ;; :wat::seq::reduce never had: sum of [1 2 3 4] doubled = 20 ────────────────
 
-(:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-over-stream
+(:wat::test::deftest' :wat-tests::core::core-reduce::reduce-3-arity-over-stream
   ()
   (:wat::core::let
     [xs      (:wat::core::Vector :wat::core::i64 1 2 3 4)

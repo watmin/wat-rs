@@ -14,7 +14,7 @@
 
 ;; ─── Case 1: detects the ladder ──────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::lint::detects-nested-if-eq-ladder
+(:wat::test::deftest' :wat-tests::lint::detects-nested-if-eq-ladder
   ()
   ;; A SourceFile whose top-level form is a 3-deep nested-if-=-ladder over
   ;; one var `x` — each branch compares (= x "a"), (= x "b"), (= x "c"),
@@ -36,7 +36,7 @@
 
 ;; ─── Case 2: no false positive ───────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::lint::no-false-positive-on-clean-forms
+(:wat::test::deftest' :wat-tests::lint::no-false-positive-on-clean-forms
   ()
   ;; Three clean files that must NOT trip the ladder rule:
   ;;   a) a single `if` (not a chain at all)
@@ -70,7 +70,7 @@
 ;; ─── Case 4: lint-stdlib runs + rule-zero present ────────────────────
 
 (:wat::test::ignore "296-recapture-pending: lint-stdlib times out (>5s) after stone B; unlock: 296 recapture or perf fix")
-(:wat::test::deftest :wat-tests::lint::lint-stdlib-runs
+(:wat::test::deftest' :wat-tests::lint::lint-stdlib-runs
   ()
   ;; (:wat::lint::lint-stdlib) must evaluate without error and return a Vector.
   ;; Currently 0 rule-zero violations (arc 275 fixed them all); length >= 0.
@@ -79,7 +79,7 @@
     (:wat::test::assert-true
       (:wat::core::i64::>= (:wat::core::length findings) 0))))
 
-(:wat::test::deftest :wat-tests::lint::rule-zero-finding-on-out-of-order-input
+(:wat::test::deftest' :wat-tests::lint::rule-zero-finding-on-out-of-order-input
   ()
   ;; A fabricated out-of-order file pair: file "a" eval-depends on :t::f which
   ;; is defined in file "b" (a defn, not a defmacro), but "a" loads before "b".
@@ -105,7 +105,7 @@
 
 ;; ─── Case 5: detects concat-abuse ────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::lint::detects-concat-abuse
+(:wat::test::deftest' :wat-tests::lint::detects-concat-abuse
   ()
   ;; A SourceFile whose body contains a defn with a concat call that mixes
   ;; string literals ("x: ", " of ") with non-literal args (a, b) — the
@@ -132,7 +132,7 @@
 
 ;; ─── Case 6: no false positive for concat ────────────────────────────
 
-(:wat::test::deftest :wat-tests::lint::no-false-positive-concat
+(:wat::test::deftest' :wat-tests::lint::no-false-positive-concat
   ()
   ;; Two clean concat calls that must NOT trip the concat-abuse rule:
   ;;   a) all-literal  (concat "a" "b") — nothing to interpolate
@@ -150,7 +150,7 @@
 
 ;; ─── Case 8: rename-keyword-prefix — type-arg reach + boundary guard (arc 283.1) ───
 
-(:wat::test::deftest :wat-tests::lint::rename-keyword-prefix-type-arg-and-boundary
+(:wat::test::deftest' :wat-tests::lint::rename-keyword-prefix-type-arg-and-boundary
   ()
   ;; Renaming :t::Old → :t::New over a source with:
   ;;   - a TYPE-ARG  (Vector<t::Old>)    — must rename → Vector<t::New>
@@ -179,7 +179,7 @@
 
 ;; ─── Case 8: concat-format-fix — bare-symbol rewrites to format; compound stays; dedup ────
 
-(:wat::test::deftest :wat-tests::lint::concat-format-fix-bare-symbol-rewrites
+(:wat::test::deftest' :wat-tests::lint::concat-format-fix-bare-symbol-rewrites
   ()
   ;; Part A: (string::concat "x: " a " y: " b) — a,b bare symbols.
   ;; lint-fix-file must rewrite to a format call with {a}/{b} slots and :a a :b b kwargs.
@@ -235,7 +235,7 @@
 
 ;; ─── Case 9: concat-fix position gate — defmacro→interpolate, defn→format ─────
 
-(:wat::test::deftest :wat-tests::lint::concat-fix-position-gate
+(:wat::test::deftest' :wat-tests::lint::concat-fix-position-gate
   ()
   ;; A source with BOTH positions:
   ;;   - a defmacro whose body builds a name via bare-symbol concat (expand-time → interpolate)
@@ -259,7 +259,7 @@
 
 ;; ─── Case 7: ladder-autofix rewrites to contains? + clean file round-trips ────
 
-(:wat::test::deftest :wat-tests::lint::ladder-autofix-rewrites-and-round-trips
+(:wat::test::deftest' :wat-tests::lint::ladder-autofix-rewrites-and-round-trips
   ()
   ;; Part A: a 3-deep nested-if-=-ladder over `x` — lint-fix-file must rewrite it
   ;; to a (contains? (HashSet …) x) call. The fixed source must contain "contains?"

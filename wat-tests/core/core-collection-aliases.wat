@@ -25,7 +25,7 @@
 ;; Build a 2-key map {a→1, b→2}, dissoc "a", assert keys length = 1.
 ;; Uses the SHORT name :wat::core::dissoc (alias for HashMap/dissoc).
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::dissoc-removes-key
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::dissoc-removes-key
   ()
   (:wat::core::let
     [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
@@ -40,7 +40,7 @@
 ;;
 ;; dissoc the only key from a 1-key map → empty map (length 0).
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::dissoc-to-empty
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::dissoc-to-empty
   ()
   (:wat::core::let
     [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
@@ -55,7 +55,7 @@
 ;; Does NOT assert the key value (HashMap order is non-deterministic for
 ;; multi-key maps; a 1-key map is unambiguous).
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::keys-single-entry
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::keys-single-entry
   ()
   (:wat::core::let
     [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
@@ -66,7 +66,7 @@
 
 ;; ─── keys: two-key map has two keys ──────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::keys-two-entries
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::keys-two-entries
   ()
   (:wat::core::let
     [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
@@ -81,7 +81,7 @@
 ;; the result has length 1 (value content would need sort for >1-key maps
 ;; due to non-determinism; 1-key is deterministic).
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::values-single-entry
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::values-single-entry
   ()
   (:wat::core::let
     [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
@@ -96,7 +96,7 @@
 ;; Uses the = intrinsic on Vec<i64> (arc 237.8d equality grid — Vecs
 ;; compare element-wise).
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::values-content-one-key
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::values-content-one-key
   ()
   (:wat::core::let
     [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
@@ -110,7 +110,7 @@
 ;; [1 2] ++ [3 4] = [1 2 3 4] via short-name :wat::core::concat.
 ;; Alias for Vector/concat; 2-arg, same-type (i64) vectors.
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::concat-two-vectors
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::concat-two-vectors
   ()
   (:wat::core::let
     [left     (:wat::core::Vector :wat::core::i64 1 2)
@@ -122,7 +122,7 @@
 
 ;; ─── concat: empty ++ non-empty = non-empty ───────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::concat-empty-left
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::concat-empty-left
   ()
   (:wat::core::let
     [empty    (:wat::core::Vector :wat::core::i64)
@@ -133,7 +133,7 @@
 
 ;; ─── concat: length of concatenated result ────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-collection-aliases::concat-length
+(:wat::test::deftest' :wat-tests::core::core-collection-aliases::concat-length
   ()
   (:wat::core::let
     [left     (:wat::core::Vector :wat::core::i64 1 2 3)

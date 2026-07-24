@@ -22,7 +22,7 @@
 
 ;; ─── round-trip ─────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-lru::test-local-cache-holon-key-roundtrip
+(:wat::test::deftest' :wat-lru::test-local-cache-holon-key-roundtrip
   ()
   (:wat::core::let
     [cache
@@ -42,7 +42,7 @@
 ;; Two structurally distinct holons must produce distinct cache slots:
 ;; storing under one and querying the other returns :None.
 
-(:wat::test::deftest :wat-lru::test-local-cache-holon-key-distinguishes
+(:wat::test::deftest' :wat-lru::test-local-cache-holon-key-distinguishes
   ()
   (:wat::core::let
     [cache
@@ -65,7 +65,7 @@
 ;; of structure, this would miss; the put under k1 would never be
 ;; visible under k2. The arc 057 derived Hash gives the right shape.
 
-(:wat::test::deftest :wat-lru::test-local-cache-holon-key-structural-equal
+(:wat::test::deftest' :wat-lru::test-local-cache-holon-key-structural-equal
   ()
   (:wat::core::let
     [cache

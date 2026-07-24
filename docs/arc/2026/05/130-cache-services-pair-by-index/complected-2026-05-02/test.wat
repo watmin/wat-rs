@@ -25,7 +25,7 @@
 ;; driver Thread and joins it.
 
 
-(:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip
+(:wat::test::deftest' :wat-lru::test-cache-service-put-then-get-round-trip
   ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)

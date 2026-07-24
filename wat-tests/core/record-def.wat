@@ -40,7 +40,7 @@
 
 ;; ─── BASE: construct + slash-accessor (x) ───────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::base-construct-x
+(:wat::test::deftest' :wat-tests::core::record-def::base-construct-x
   ()
   (:wat::core::let
     [p (:test::rd::Pt :x 3 :y 4)]
@@ -48,7 +48,7 @@
 
 ;; ─── BASE: slash-accessor (y) ────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::base-construct-y
+(:wat::test::deftest' :wat-tests::core::record-def::base-construct-y
   ()
   (:wat::core::let
     [p (:test::rd::Pt :x 3 :y 4)]
@@ -56,7 +56,7 @@
 
 ;; ─── Predicate: true on matching class ──────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::predicate-true
+(:wat::test::deftest' :wat-tests::core::record-def::predicate-true
   ()
   (:wat::core::let
     [p (:test::rd::Pt :x 3 :y 4)]
@@ -67,7 +67,7 @@
 ;; Constructs a :test::rd::Box; calls :test::rd::is-Pt? on it; asserts false.
 ;; Validates that predicate discriminates via class_fqdn, not struct shape.
 
-(:wat::test::deftest :wat-tests::core::record-def::predicate-false-cross-class
+(:wat::test::deftest' :wat-tests::core::record-def::predicate-false-cross-class
   ()
   (:wat::core::let
     [b (:test::rd::Box :w 99)]
@@ -87,7 +87,7 @@
 ;; runtime class guard fires because Box is not Pt.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::record-def::class-guard-panics-got-class
+(:wat::test::deftest' :wat-tests::core::record-def::class-guard-panics-got-class
   ()
   (:wat::core::let
     [r
@@ -108,7 +108,7 @@
 
 ;; ─── HOLONIC: construct + slash-accessor ─────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::holonic-construct-accessor
+(:wat::test::deftest' :wat-tests::core::record-def::holonic-construct-accessor
   ()
   (:wat::core::let
     [h (:test::rd::HPt :x 7 :y 8)]
@@ -120,7 +120,7 @@
 ;; We discard the result (_h) and do a sentinel assert-eq true true.
 ;; If to-holon panics the deftest's outer run-thread surfaces the failure.
 
-(:wat::test::deftest :wat-tests::core::record-def::holonic-to-holon-ok
+(:wat::test::deftest' :wat-tests::core::record-def::holonic-to-holon-ok
   ()
   ;; to-holon returns HolonAST. Bind the result and assert-coincident
   ;; it is coincident with itself — proves the call succeeded AND that
@@ -137,7 +137,7 @@
 ;; run-thread catches the panic; match on failure; assert Some.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::record-def::base-to-holon-errors
+(:wat::test::deftest' :wat-tests::core::record-def::base-to-holon-errors
   ()
   (:wat::core::let
     [r
@@ -161,7 +161,7 @@
 ;; Passes a :test::rd::HPt (holonic) instance.
 ;; If the call passes type-check (holonic <: base) and evaluates, returns true.
 
-(:wat::test::deftest :wat-tests::core::record-def::liskov-holonic-into-base
+(:wat::test::deftest' :wat-tests::core::record-def::liskov-holonic-into-base
   ()
   (:wat::core::let
     [h (:test::rd::HPt :x 5 :y 6)]

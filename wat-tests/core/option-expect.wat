@@ -15,7 +15,7 @@
 
 ;; ─── Some happy path — i64 ────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::option-expect::some-i64
+(:wat::test::deftest' :wat-tests::core::option-expect::some-i64
   ()
   (:wat::core::let
     [opt (:wat::core::Some 42)
@@ -28,7 +28,7 @@
 
 ;; ─── Some happy path — String ─────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::option-expect::some-string
+(:wat::test::deftest' :wat-tests::core::option-expect::some-string
   ()
   (:wat::core::let
     [opt (:wat::core::Some "hello")
@@ -41,7 +41,7 @@
 
 ;; ─── Some happy path — nested :wat::core::Option<wat::core::Option<wat::core::i64>> ────────────────────
 
-(:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
+(:wat::test::deftest' :wat-tests::core::option-expect::some-nested-option
   ()
   (:wat::core::let
     [opt (:wat::core::Some (:wat::core::Some 7))
@@ -59,7 +59,7 @@
 ;; ─── :None panics with the supplied message ──────────────────────────
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::option-expect::none-panics-with-message
+(:wat::test::deftest' :wat-tests::core::option-expect::none-panics-with-message
   ()
   (:wat::core::let
     [r

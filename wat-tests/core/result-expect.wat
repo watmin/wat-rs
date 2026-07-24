@@ -9,7 +9,7 @@
 
 ;; ─── Ok happy path — i64 ──────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::result-expect::ok-i64
+(:wat::test::deftest' :wat-tests::core::result-expect::ok-i64
   ()
   (:wat::core::let
     [res (:wat::core::Ok 99)
@@ -22,7 +22,7 @@
 
 ;; ─── Ok happy path — String ───────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::result-expect::ok-string
+(:wat::test::deftest' :wat-tests::core::result-expect::ok-string
   ()
   (:wat::core::let
     [res (:wat::core::Ok "yes")
@@ -36,7 +36,7 @@
 ;; ─── Err panics with the supplied message ────────────────────────────
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::result-expect::err-panics-with-message
+(:wat::test::deftest' :wat-tests::core::result-expect::err-panics-with-message
   ()
   (:wat::core::let
     [r

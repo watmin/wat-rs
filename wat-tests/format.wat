@@ -11,7 +11,7 @@
 ;;
 ;; "{a} {b}" with :b 5 :a "x" — kwargs out of template order.
 ;; String fills as itself (no EDN quotes); i64 fills as its decimal digits.
-(:wat::test::deftest :wat-tests::format::named-out-of-order-heterogeneous
+(:wat::test::deftest' :wat-tests::format::named-out-of-order-heterogeneous
   ()
   (:wat::test::assert-eq
     (:wat::core::format "{a} {b}" :b 5 :a "x")
@@ -21,7 +21,7 @@
 ;;
 ;; A String value fills without EDN surrounding quotes; an i64 fills as digits.
 ;; Contrast with `show` which would render "ada" as `"ada"` and 42 as `42`.
-(:wat::test::deftest :wat-tests::format::unquoted-string-and-i64
+(:wat::test::deftest' :wat-tests::format::unquoted-string-and-i64
   ()
   (:wat::core::let [s (:wat::core::format "{name} is {age}" :name "ada" :age 42)]
     (:wat::core::do
@@ -33,7 +33,7 @@
 ;;
 ;; The same call as probe_arc279_format.rs: three placeholders, out-of-order,
 ;; with static comma/space/! text between.
-(:wat::test::deftest :wat-tests::format::full-probe-case
+(:wat::test::deftest' :wat-tests::format::full-probe-case
   ()
   (:wat::test::assert-eq
     (:wat::core::format "{greeting}, {name}! you have {count} messages"
@@ -41,14 +41,14 @@
     "hello, ada! you have 3 messages"))
 
 ;; ── 4. Single placeholder — minimal case ────────────────────────────────────
-(:wat::test::deftest :wat-tests::format::single-placeholder
+(:wat::test::deftest' :wat-tests::format::single-placeholder
   ()
   (:wat::test::assert-eq
     (:wat::core::format "{msg}" :msg "hello world")
     "hello world"))
 
 ;; ── 5. Bool placeholder — bool fills as true/false ──────────────────────────
-(:wat::test::deftest :wat-tests::format::bool-placeholder
+(:wat::test::deftest' :wat-tests::format::bool-placeholder
   ()
   (:wat::test::assert-eq
     (:wat::core::format "enabled: {flag}" :flag true)

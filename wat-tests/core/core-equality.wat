@@ -21,21 +21,21 @@
 
 ;; ─── i64 equality ───────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-i64-equal
+(:wat::test::deftest' :wat-tests::core::core-equality::eq-i64-equal
   ()
   (:wat::test::assert-eq (:wat::core::= 1 1) true))
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-i64-not-equal
+(:wat::test::deftest' :wat-tests::core::core-equality::eq-i64-not-equal
   ()
   (:wat::test::assert-eq (:wat::core::= 1 2) false))
 
 ;; ─── f64 equality ───────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-f64-equal
+(:wat::test::deftest' :wat-tests::core::core-equality::eq-f64-equal
   ()
   (:wat::test::assert-eq (:wat::core::= 1.5 1.5) true))
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-f64-not-equal
+(:wat::test::deftest' :wat-tests::core::core-equality::eq-f64-not-equal
   ()
   (:wat::test::assert-eq (:wat::core::= 1.5 2.5) false))
 
@@ -44,11 +44,11 @@
 ;; Mirrors poly_eq_strings_still_works from the retired Rust file.
 ;; Same-type string equality works via the = intrinsic.
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-string-equal
+(:wat::test::deftest' :wat-tests::core::core-equality::eq-string-equal
   ()
   (:wat::test::assert-eq (:wat::core::= "a" "a") true))
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-string-not-equal
+(:wat::test::deftest' :wat-tests::core::core-equality::eq-string-not-equal
   ()
   (:wat::test::assert-eq (:wat::core::= "a" "b") false))
 
@@ -57,7 +57,7 @@
 ;; Mirrors typed_strict_i64_eq_homogeneous_works. A typed wrapper with
 ;; i64-param bindings enforces same-type equality at the call site.
 
-(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-works
+(:wat::test::deftest' :wat-tests::core::core-equality::typed-i64-eq-homogeneous-works
   ((:wat::core::defn :wat-tests::core::core-equality::eq-i64
      [a <- :wat::core::i64
       b <- :wat::core::i64]
@@ -65,7 +65,7 @@
      (:wat::core::= a b)))
   (:wat::test::assert-eq (:wat-tests::core::core-equality::eq-i64 3 3) true))
 
-(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-false
+(:wat::test::deftest' :wat-tests::core::core-equality::typed-i64-eq-homogeneous-false
   ((:wat::core::defn :wat-tests::core::core-equality::eq-i64-b
      [a <- :wat::core::i64
       b <- :wat::core::i64]
@@ -82,7 +82,7 @@
 ;; in the child prelude; the call with mismatched types errors at freeze.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-rejects-f64-arg
+(:wat::test::deftest' :wat-tests::core::core-equality::typed-i64-eq-rejects-f64-arg
   ()
   (:wat::core::let
     [r
@@ -109,7 +109,7 @@
 ;; 13-failing list — the correct new behaviour is rejection.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest :wat-tests::core::core-equality::cross-type-eq-rejected
+(:wat::test::deftest' :wat-tests::core::core-equality::cross-type-eq-rejected
   ()
   (:wat::core::let
     [r

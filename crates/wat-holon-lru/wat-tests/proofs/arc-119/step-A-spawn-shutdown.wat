@@ -23,7 +23,7 @@
 ;; so the arc-121 proc-macro scanner discovers it for per-deftest
 ;; cargo test filtering.
 
-(:wat::test::deftest :wat-tests::holon::lru::proofs::arc_119::step_A_spawn_shutdown
+(:wat::test::deftest' :wat-tests::holon::lru::proofs::arc_119::step_A_spawn_shutdown
   ()
   (:wat::core::let
     ;; Outer holds the driver Thread; inner owns everything else.

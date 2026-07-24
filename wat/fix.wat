@@ -752,3 +752,57 @@
                     all-edits (:wat::fix::rename-prefix-edits-walk forms old-prefix new-prefix lines)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
+
+;; ── rename-keyword-exact — WHOLE-TOKEN keyword rename (the idempotent sibling of
+;; rename-keyword-prefix). Renames a keyword leaf ONLY when its FULL name EQUALS `old`
+;; (not a prefix/substring, no boundary walk). This is the correct tool for an APPEND rename
+;; (e.g. `:t::deftest` -> `:t::deftest'`): after the rewrite the whole token is `:t::deftest'`,
+;; which is != `:t::deftest`, so a re-run matches nothing — IDEMPOTENT BY CONSTRUCTION.
+;; (rename-keyword-prefix treats `'` as a valid right-boundary, so it would re-match the
+;; `deftest` prefix inside `deftest'` and produce `deftest''` — non-idempotent for appends.)
+;; Comments/formatting survive (rides fix-text-apply's span-splice); non-matching keywords and
+;; prefix-siblings (`:t::deftest-hermetic`) are untouched (exact whole-name equality). Use
+;; rename-keyword-prefix for a boundary-aware prefix swap; use this for an exact whole-name rename.
+(:wat::core::defn :wat::fix::rename-exact-edits-walk
+  [items <- :wat::core::Vector<wat::WatAST>
+   old   <- :wat::core::String
+   new   <- :wat::core::String
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::core::empty? items)
+    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::let [h  (:wat::core::first items)
+                      tl (:wat::core::rest items)]
+      (:wat::core::concat
+        (:wat::fix::rename-exact-edits h old new lines)
+        (:wat::fix::rename-exact-edits-walk tl old new lines)))))
+
+;; rename-exact-edits — for a keyword leaf whose full name EQUALS old, emit one whole-token
+;; replace edit (off, length(old), new). Structural nodes recurse; every other leaf: no edit.
+(:wat::core::defn :wat::fix::rename-exact-edits
+  [node  <- :wat::WatAST
+   old   <- :wat::core::String
+   new   <- :wat::core::String
+   lines <- :wat::core::Vector<wat::core::String>]
+  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  (:wat::core::if (:wat::fix::structural? node)
+    (:wat::fix::rename-exact-edits-walk (:wat::core::ast->children node) old new lines)
+    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+      (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
+        (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
+          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Tuple off (:wat::core::string::length old) new)))
+        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
+      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+
+(:wat::core::defn :wat::fix::rename-keyword-exact
+  [old <- :wat::core::String
+   new <- :wat::core::String
+   src <- :wat::core::String]
+  -> :wat::core::String
+  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+                    tree      (:wat::core::read-string src)
+                    forms     (:wat::core::ast->children tree)
+                    all-edits (:wat::fix::rename-exact-edits-walk forms old new lines)
+                    rev-edits (:wat::core::reverse all-edits)]
+    (:wat::fix::fix-text-apply src rev-edits)))

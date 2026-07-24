@@ -8,7 +8,7 @@
 ;; for role-filler binding and residual encoding.
 
 
-(:wat::test::deftest :wat-tests::holon::Subtract::test-self-presence-above-floor
+(:wat::test::deftest' :wat-tests::holon::Subtract::test-self-presence-above-floor
   ()
   (:wat::core::let
     [a (:wat::holon::to-holon "alice")
@@ -16,7 +16,7 @@
      diff (:wat::holon::Subtract a b)]
     (:wat::test::assert-eq (:wat::holon::presence? a diff) true)))
 
-(:wat::test::deftest :wat-tests::holon::Subtract::test-unrelated-presence-below-floor
+(:wat::test::deftest' :wat-tests::holon::Subtract::test-unrelated-presence-below-floor
   ()
   (:wat::core::let
     [a (:wat::holon::to-holon "alice")
