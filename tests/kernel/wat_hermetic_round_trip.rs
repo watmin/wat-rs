@@ -1,20 +1,19 @@
-//! Integration: `:wat::test::run-hermetic` round trip (arc 170 slice
-//! 4c-α-ii — was `:wat::kernel::run-sandboxed-hermetic-ast` before the
-//! canonical-macro sweep).
+//! Integration: hermetic round trip over the PRIMED peer wire (arc 278
+//! IPC de-prime — was `:wat::test::run-hermetic` + `RunResult/stdout`, an
+//! OS-pipe stdout scrape; migrated onto `spawn-program'` + `recv'`, the
+//! outcome-walled peer primitive that `run-hermetic'` already rides).
 //!
-//! Demonstrates program-generates-program: the OUTER wat program
-//! forks an INNER body via the canonical hermetic macro. The body
-//! prints a value to stdout. The outer program reads that captured
-//! string and evaluates it via `:wat::eval-edn!`. End result: a value
-//! generated inside a fork'd child gets evaluated in the outer process.
+//! Demonstrates program-generates-program: the OUTER wat program forks an
+//! INNER `:user::main` via `(:wat::spawn::process)`. The child body
+//! `(:wat::kernel::println <value>)`s a value; on the primed wire that
+//! value crosses to the parent as a decoded MESSAGE. The parent
+//! `(:wat::kernel::recv' p)` and matches `RecvOutcome::Message[m]` — `m`
+//! IS the child's emitted value, which is exactly what the old stdout
+//! scrape captured. `Lost`/`Closed` raise via `assertion-failed!`.
 //!
-//! Both sites stay hermetic because the outer reads `RunResult/stdout`
-//! and the body calls `:wat::kernel::println` — rules 1+2 of FM 7-ter
-//! demand process boundary + pipe-captured stdio.
-//!
-//! Arc 170 slice 1f-ζ: outer main migrated to (:my::compute -> :T)
-//! + eval_in_frozen. Inner programs use canonical nil main +
-//! :wat::kernel::println (EDN-serializes values).
+//! End result: a value generated inside a fork'd child is captured + used
+//! in the outer process — now as a first-class value over the peer channel,
+//! not a scraped stdout string.
 
 use wat::freeze::call_beside;
 use wat::runtime::Value;
@@ -27,10 +26,10 @@ fn run_fn(fn_name: &str) -> Value {
 
 #[test]
 fn hermetic_inner_program_stdout_captured() {
-    // Arc 170 slice 1f-ζ: inner uses canonical nil main + :wat::kernel::println.
-    // :wat::kernel::println EDN-serializes strings with quotes.
+    // Inner program prints one value; the parent recv's exactly one
+    // RecvOutcome::Message → the fn returns 1 (the captured-value count).
     match run_fn(":my::compute-stdout-count") {
-        Value::i64(n) => assert_eq!(n, 1, "expected 1 stdout line; got {}", n),
+        Value::i64(n) => assert_eq!(n, 1, "expected 1 captured message; got {}", n),
         other => panic!("expected i64; got {:?}", other),
     }
 }
@@ -39,31 +38,14 @@ fn hermetic_inner_program_stdout_captured() {
 
 #[test]
 fn hermetic_output_evaluated_in_outer_scope() {
-    // Inner program prints i64 42. Outer program captures stdout[0]
-    // (the EDN representation "42"), then eval-edn! parses it back to
-    // an i64 value.
+    // Inner program prints i64 42. The peer wire delivers it to the parent
+    // as a decoded RecvOutcome::Message[m], so `m` is the native i64 42 —
+    // the parent uses the value the child computed.
     //
-    // The round-trip: a value computed by a fork'd child gets
-    // evaluated back in the parent's wat runtime.
-    let result = run_fn(":my::compute-eval-in-outer");
-    let inner = unwrap_ok_result(result);
-    // eval-edn! on "42" returns an i64 wrapped in a HolonAST (atom) or i64 directly.
-    // The round-trip is verified: the child computed 42, parent evaluated it back.
-    assert!(
-        matches!(inner, Value::i64(42)) || matches!(inner, Value::holon__HolonAST(_)),
-        "round trip should have computed 42; got {:?}",
-        inner
-    );
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────
-
-fn unwrap_ok_result(v: Value) -> Value {
-    match v {
-        Value::Result(r) => match &*r {
-            Ok(inner) => inner.clone(),
-            Err(e) => panic!("expected Ok; got Err({:?})", e),
-        },
-        other => panic!("expected Result; got {:?}", other),
+    // The round-trip: a value computed by a fork'd child is captured back
+    // in the parent's wat runtime as a first-class value.
+    match run_fn(":my::compute-eval-in-outer") {
+        Value::i64(n) => assert_eq!(n, 42, "round trip should have captured 42; got {}", n),
+        other => panic!("expected i64; got {:?}", other),
     }
 }
