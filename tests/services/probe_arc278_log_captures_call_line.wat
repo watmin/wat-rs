@@ -41,12 +41,9 @@
       ((:wat::telemetry::Journal::QueryLogsResponse::Success logs _cursor)
         (:wat::core::if (:wat::core::= (:wat::core::count logs) 2)
           (:wat::core::let
-            [ln1 (:wat::core::Option/expect
-                   (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::first logs)))
-                   "log1 emitted-from line must be Some")
-             ln2 (:wat::core::Option/expect
-                   (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::second logs)))
-                   "log2 emitted-from line must be Some")]
+            ;; Arc 109 — Frame/line is a concrete (non-Option) i64, read directly.
+            [ln1 (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::first logs)))
+             ln2 (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::second logs)))]
             (:wat::core::i64::- ln2 ln1))
           -1))
       (_ -2))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

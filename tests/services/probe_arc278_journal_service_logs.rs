@@ -34,17 +34,6 @@ fn map_get<'a>(pairs: &'a [(OwnedValue, OwnedValue)], key: &str) -> &'a OwnedVal
         .unwrap_or_else(|| panic!("key :{key} not found in map: {pairs:?}"))
 }
 
-/// Unwrap a `#wat.core.Option/Some [payload]` tagged value; panics (with the value shown) on
-/// `None` or a differently-tagged value.
-fn expect_some<'a>(v: &'a OwnedValue) -> &'a OwnedValue {
-    let (tag, body) = v.as_tagged().unwrap_or_else(|| panic!("expected a tagged Option, got {v:?}"));
-    assert_eq!(tag.namespace(), "wat.core.Option", "Option tag namespace: {tag:?}");
-    assert_eq!(tag.name(), "Some", "expected Some, got: {tag:?} / {v:?}");
-    body.as_vector()
-        .and_then(|elems| elems.first())
-        .unwrap_or_else(|| panic!("Some payload missing/not a 1-vector: {v:?}"))
-}
-
 #[test]
 fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
     let world = startup_beside(file!())
@@ -91,9 +80,11 @@ fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
     assert_eq!(frame_tag.name(), "Frame", "Frame tag name: {frame_tag:?}");
     let frame_fields = frame_body.as_map().expect("Frame body is a map");
 
-    let file_str = expect_some(map_get(frame_fields, "file"))
+    // Arc 109 — Frame's fields are concrete (non-`Option`): bare String / i64 /
+    // String, read directly (no `Some` unwrap).
+    let file_str = map_get(frame_fields, "file")
         .as_str()
-        .expect("Frame :file Some payload is a String");
+        .expect("Frame :file is a String");
     // rune:lint(loose-assert) — Frame :file is an ABSOLUTE Rust source path (checkout-directory
     // dependent, like the lint's own sanctioned path/pid/hash exemption); only the filename SUFFIX
     // is checkout-independent, so a full assert_eq! would hardcode this developer's absolute path.
@@ -102,13 +93,13 @@ fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
         "Frame :file should name this test file (suffix-checked, checkout-path independent): {file_str}"
     );
 
-    let line_val = expect_some(map_get(frame_fields, "line"))
+    let line_val = map_get(frame_fields, "line")
         .as_i64()
-        .expect("Frame :line Some payload is an i64");
+        .expect("Frame :line is an i64");
     assert!(line_val > 0, "Frame :line should be positive: {line_val}");
 
-    let symbol_val = expect_some(map_get(frame_fields, "symbol"))
+    let symbol_val = map_get(frame_fields, "symbol")
         .as_str()
-        .expect("Frame :symbol Some payload is a String");
+        .expect("Frame :symbol is a String");
     assert_eq!(symbol_val, ":user::compute", "Frame :symbol should name the callee");
 }

@@ -17,19 +17,15 @@
 
 (:wat::test::deftest :user::call-site-returns-caller-frame 
   (:wat::core::let
+    ;; Arc 109 — Frame's fields are concrete (non-Option): bare String / i64 /
+    ;; String, read directly.
     [frame     (:probe::here)
      file      (:wat::kernel::Frame/file frame)
      line      (:wat::kernel::Frame/line frame)
      symbol    (:wat::kernel::Frame/symbol frame)
-     file-ok   (:wat::core::match file 
-                 ((:wat::core::Some f) (:wat::core::string::contains? f "probe_arc278_call_site"))
-                 (:wat::core::None     false))
-     line-ok   (:wat::core::match line 
-                 ((:wat::core::Some l) (:wat::core::> l 0))
-                 (:wat::core::None     false))
-     symbol-ok (:wat::core::match symbol 
-                 ((:wat::core::Some s) (:wat::core::string::contains? s "probe::here"))
-                 (:wat::core::None     false))]
+     file-ok   (:wat::core::string::contains? file "probe_arc278_call_site")
+     line-ok   (:wat::core::> line 0)
+     symbol-ok (:wat::core::string::contains? symbol "probe::here")]
     (:wat::core::do
       (:wat::test::assert-true file-ok)
       (:wat::test::assert-true line-ok)

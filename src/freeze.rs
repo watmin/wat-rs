@@ -419,7 +419,9 @@ impl FrozenWorld {
             let path = match func.name.clone() {
                 Some(name) => name,
                 None => match &func.body {
-                    FunctionBody::Wat(ast) => format!("<fn@{}>", ast.span()),
+                    // Arc 109 — an anonymous fn's identity is the structured
+                    // ANON_FN_SYMBOL marker, NOT a `<fn@span>` stringy costume.
+                    FunctionBody::Wat(_) => crate::value::ANON_FN_SYMBOL.to_string(),
                     FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
                 },
             };
@@ -452,7 +454,9 @@ impl FrozenWorld {
             let path = match func.name.clone() {
                 Some(name) => name,
                 None => match &func.body {
-                    FunctionBody::Wat(ast) => format!("<fn@{}>", ast.span()),
+                    // Arc 109 — an anonymous fn's identity is the structured
+                    // ANON_FN_SYMBOL marker, NOT a `<fn@span>` stringy costume.
+                    FunctionBody::Wat(_) => crate::value::ANON_FN_SYMBOL.to_string(),
                     FunctionBody::Native => unreachable!("native builtin fn-applied — dispatched via the runtime match, not fn-apply"),
                 },
             };

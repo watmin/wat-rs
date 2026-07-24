@@ -10,13 +10,11 @@
 ;; GREEN after: startup succeeds; the deftest' body RETURNS (not raises) — the Log's
 ;; `emitted-from` Frame has a `Some` :file.
 ;;
-;; Asserts `file`, NOT `symbol`: inside an anonymous fn body (e.g. a service `:impls` closure, or
-;; — as here — `deftest'`'s own anonymous test-body wrapper, invoked via wat/spawn.wat machinery),
-;; `Frame/symbol` is `None` (a known arc-109 wart — anon fns lack a structured symbol) while
-;; `Frame/file` is ALWAYS populated, anon or named. `file` is therefore the robust, meaningful
-;; gate — it proves `emitted-from` carries the caller's real WHERE, the whole point of caller.2.
-;; (Not content-checked against this fixture's own filename: the immediate caller here is
-;; `deftest'`'s dispatch machinery, not this file — `Some` presence is the portable assertion.)
+;; Asserts `file`: `Frame/file` is ALWAYS a real wat source location, anon or named, so it is the
+;; robust, portable gate — it proves `emitted-from` carries the caller's real WHERE, the whole point
+;; of caller.2. (Arc 109 — Frame's fields are now concrete/non-Option; an anon fn's `symbol` is the
+;; Fn TYPE `:wat::core::Fn`, no longer `None`. Still not symbol-content-checked here: the immediate
+;; caller is `deftest'`'s dispatch machinery, not this file — the file-names-a-.wat check is portable.)
 ;;
 ;; Log construction mirrors tests/services/probe_arc278_journal_logs_on_process.wat's l1/l2
 ;; (full Scope fields + own fields, kwargs ctor).
@@ -31,8 +29,8 @@
               :level :wat::telemetry::Level::Info
               :message (:wat::edn::write (:probe::Note :text "emitted-from")))
      frame  (:wat::telemetry::Log/emitted-from log)
+     ;; Arc 109 — Frame/file is a concrete (non-Option) String, always present;
+     ;; assert it names a wat source location (the caller's real WHERE).
      file   (:wat::kernel::Frame/file frame)
-     file-ok (:wat::core::match file 
-               ((:wat::core::Some _) true)
-               (:wat::core::None     false))]
+     file-ok (:wat::core::string::contains? file ".wat")]
     (:wat::test::assert-true file-ok)))

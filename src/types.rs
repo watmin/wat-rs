@@ -1065,37 +1065,22 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
-    // :wat::kernel::Frame — one entry from a Rust backtrace. The wat-
-    // rs runtime populates these by iterating `std::backtrace::Backtrace`
-    // frames when a sandboxed program panics; only populated if
-    // `RUST_BACKTRACE` is enabled (otherwise the frames vec is empty).
-    // Each field is Option because Rust's backtrace symbol resolution
-    // can fail per-frame (stripped symbols, jit frames).
+    // :wat::kernel::Frame — one entry on the wat call stack, captured by
+    // `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline
+    // stack) or by `(:wat::kernel::macro-call-site)` (from the expand-time
+    // macro-invocation stack). Every field is ALWAYS KNOWN — the older
+    // all-`Option` shape (justified by a never-built Rust-backtrace→Frame
+    // path where symbol resolution could fail per-frame) was a lie: every
+    // LIVE construction has a real file/line span and a real symbol (a named
+    // fn's path, the `<anonymous>` marker for an anon fn, or the macro name
+    // for a macro-call-site). Arc 109 — concrete, non-`Option` fields.
     env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
         name: ":wat::kernel::Frame".into(),
         type_params: vec![],
         fields: vec![
-            (
-                "file".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-            (
-                "line".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::i64".into())],
-                },
-            ),
-            (
-                "symbol".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
+            ("file".into(), TypeExpr::Path(":wat::core::String".into())),
+            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
+            ("symbol".into(), TypeExpr::Path(":wat::core::String".into())),
         ],
         restrictions: None,
     }));

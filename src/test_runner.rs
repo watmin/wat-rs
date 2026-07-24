@@ -921,23 +921,20 @@ fn failure_frames_vec(v: &Value) -> Option<Vec<String>> {
             Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Frame" => a,
             _ => continue,
         };
-        let file = f
-            .fields
-            .first()
-            .and_then(option_string_field)
-            .unwrap_or_else(|| "<unknown>".to_string());
+        // Arc 109 — Frame's fields are concrete (non-`Option`): bare
+        // String / i64 / String, always present.
+        let file = match f.fields.first() {
+            Some(Value::String(s)) => (**s).clone(),
+            _ => "<unknown>".to_string(),
+        };
         let line = match f.fields.get(1) {
-            Some(Value::Option(opt)) => match opt.as_ref() {
-                Some(Value::i64(n)) => n.to_string(),
-                _ => "?".to_string(),
-            },
+            Some(Value::i64(n)) => n.to_string(),
             _ => "?".to_string(),
         };
-        let symbol = f
-            .fields
-            .get(2)
-            .and_then(option_string_field)
-            .unwrap_or_else(|| "<symbol>".to_string());
+        let symbol = match f.fields.get(2) {
+            Some(Value::String(s)) => (**s).clone(),
+            _ => "<symbol>".to_string(),
+        };
         out.push(format!("{} ({}:{})", symbol, file, line));
     }
     if out.is_empty() {

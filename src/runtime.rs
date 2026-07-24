@@ -20079,7 +20079,11 @@ pub fn apply_function(
     // without a name (they are always named keywords in sym.functions).
     let fn_display_name = |f: &Function| -> String {
         match &f.body {
-            FunctionBody::Wat(ast) => format!("<fn@{}>", ast.span()),
+            // Arc 109 — an anonymous fn's identity is the structured
+            // ANON_FN_SYMBOL marker (becomes the Frame's `symbol`), NOT a
+            // `<fn@span>` stringy costume; the location travels structurally via
+            // the Frame's file/line (the call_span) / `:at`, not the name.
+            FunctionBody::Wat(_) => crate::value::ANON_FN_SYMBOL.to_string(),
             FunctionBody::Native => "<native>".to_string(),
         }
     };
@@ -20272,18 +20276,21 @@ fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
     }
     match snapshot_call_stack().first().cloned() {
         Some(frame) => Ok(value_from_frame_info(frame)),
-        // Defensive: an empty stack should not happen from wat (every
-        // wat fn-call pushes a FrameGuard before evaluating its body),
-        // but don't panic — mirror assertion-failed!'s defensive stance
-        // with an all-None Frame rather than inventing an error variant.
-        None => Ok(Value::Aggregate(Arc::new(AggregateValue::record(
-            "wat::kernel::Frame".into(),
-            Arc::new(vec![
-                Value::Option(Arc::new(None)),
-                Value::Option(Arc::new(None)),
-                Value::Option(Arc::new(None)),
-            ]),
-        )))),
+        // Arc 109 — an empty call stack cannot happen from wat: every wat
+        // fn-call pushes a FrameGuard before evaluating its body, and all
+        // wat runs inside a fn (there is no top-level `call-site` use in the
+        // corpus). The old all-`None` Frame here MASKED that invariant with a
+        // fabricated value; now Frame's fields are non-`Option` and a value is
+        // always known, so refuse honestly instead — mirroring the sibling
+        // `macro-call-site`, which likewise refuses on an empty stack rather
+        // than fabricating a frame.
+        None => Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "`:wat::kernel::call-site` was reached with an empty wat call \
+                     stack (no enclosing fn frame). Every wat fn-call pushes a frame \
+                     before evaluating its body; `call-site` is only meaningful inside \
+                     a fn body, never at the top level.".into(),
+        } }.into()),
     }
 }
 
@@ -20307,9 +20314,11 @@ fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
 /// generated POSITIONAL PRIME constructor `:wat::kernel::Frame'` (arc 294
 /// item 9a: machinery/generated code uses the prime ctor, never hand-rolled
 /// kwargs) — mirrors `eval_struct_to_form`'s ctor-form-building convention.
-/// `symbol` is always `:wat::core::None`: at expand time there is no
-/// enclosing fn (honest — the runtime `call-site` fills `symbol` from the
-/// wat call stack, which doesn't exist yet at macro-expansion).
+/// Arc 109 — Frame's fields are non-`Option`, so the ctor form supplies bare
+/// `file`/`line`/`symbol` values. `symbol` is the NAME of the macro being
+/// expanded (threaded through `MacroCallSiteGuard`): at expand time there is no
+/// enclosing runtime fn, but the macro itself is known, so its name is the
+/// honest symbol — never absent.
 fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::macro-call-site";
     if !args.is_empty() {
@@ -20319,8 +20328,8 @@ fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Valu
             got: args.len()
         } }.into());
     }
-    let call_site = match crate::value::current_macro_call_site() {
-        Some(span) => span,
+    let (call_site, macro_name) = match crate::value::current_macro_call_site() {
+        Some(pair) => pair,
         None => {
             return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
@@ -20334,24 +20343,16 @@ fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Valu
     let form = WatAST::List(
         vec![
             WatAST::Keyword(":wat::kernel::Frame'".into(), span.clone()),
-            // file: (:wat::core::Some "<file>")
-            WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::Some".into(), span.clone()),
-                    WatAST::StringLit((*call_site.file).clone(), span.clone()),
-                ],
-                span.clone(),
-            ),
-            // line: (:wat::core::Some <line>)
-            WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::Some".into(), span.clone()),
-                    WatAST::IntLit(call_site.line, span.clone()),
-                ],
-                span.clone(),
-            ),
-            // symbol: :wat::core::None — no enclosing fn at expand time.
-            WatAST::Keyword(":wat::core::None".into(), span.clone()),
+            // Arc 109 — Frame's fields are concrete (non-`Option`); the ctor
+            // form supplies bare values, never `(Some …)`/`None` wrappers.
+            // file: "<file>"
+            WatAST::StringLit((*call_site.file).clone(), span.clone()),
+            // line: <line>
+            WatAST::IntLit(call_site.line, span.clone()),
+            // symbol: "<macro name>" — at expand time there is no enclosing
+            // runtime fn, but the macro BEING expanded IS known; its name is
+            // the honest symbol (never absent).
+            WatAST::StringLit(macro_name, span.clone()),
         ],
         span,
     );
@@ -23191,16 +23192,16 @@ fn value_from_span(span: crate::span::Span) -> Value {
 /// the arc 016 type registration: `(file, line, symbol)`. The
 /// callee path becomes the `symbol` field.
 /// Arc 293.W.2b — Frame is now Nature::Record (pure EDN data).
+/// Arc 109 — Frame's fields are concrete (non-`Option`): a `FrameInfo` always
+/// carries a real span (file/line) and a real callee path (symbol).
 fn value_from_frame_info(frame: FrameInfo) -> Value {
     let FrameInfo { callee_path, call_span } = frame;
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Frame".into(),
         Arc::new(vec![
-            Value::Option(Arc::new(Some(Value::String(Arc::new(
-                (*call_span.file).clone(),
-            ))))),
-            Value::Option(Arc::new(Some(Value::i64(call_span.line)))),
-            Value::Option(Arc::new(Some(Value::String(Arc::new(callee_path))))),
+            Value::String(Arc::new((*call_span.file).clone())),
+            Value::i64(call_span.line),
+            Value::String(Arc::new(callee_path)),
         ]),
     )))
 }

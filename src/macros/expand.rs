@@ -661,7 +661,7 @@ pub(super) fn expand_macro_call(
     // `macro_eval_pre_validated`). Both are reached only through
     // `expand_template` below, so pushing once here (RAII pop on return)
     // covers both uniformly and matches "one push per macro invocation."
-    let _mcs = crate::value::MacroCallSiteGuard::push(call_site_span.clone());
+    let _mcs = crate::value::MacroCallSiteGuard::push(call_site_span.clone(), def.name.clone());
     let expanded = expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, def.rest_param.as_deref(), env, sym)?;
     // Diagnostic fidelity (arc 209, C.1): bridge constructors (`keyword-node`/`symbol-node`/
     // `read-string`, edn_shim) build `WatAST` nodes stamped with rust_caller_span!() (arc 298.2).
