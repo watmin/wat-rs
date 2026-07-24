@@ -9048,8 +9048,36 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > all-`nil` (any outcome = exit). **NOW BOTH VERBS ARE SYMMETRIC — a hidden `recv'`/`send'` error is
 > unrepresentable: value-faced (never flees) AND swallow-gated (can't be dropped), both discard doors.**
 >
-> Tree CLEAN (but for this record edit). **RESUME AT item-c** — the self-scheduling stone's `remove-at`
-> idx-shift (`service.wat:958/961`, the client peer wrongly evicted), the near-one-liner that closes the
-> ouroboros (`VNDE ORTVM` — the whole no-hidden-failures thread rose from self-scheduling and returns to it);
-> the walls now make its failure legible. Tracked follows: the arc-277 raise-abuse rete-lint, the peer/IO-verb
-> raise audit (`connect'`/`accept'`/`poll'`/`close'` — the NEXT asymmetry to hunt, same shape). `MACHINA CHAOS DOMAT.`
+> **THEN THE AUDIT → THE PEER-LIFECYCLE OUTCOME WALLS (campaign IN FLIGHT).** The builder: "audit
+> connect'/accept'/poll'/close' for the same asymmetry." Grounded (file:line, `DESIGN-peer-lifecycle-outcome-walls.md`):
+> `poll'` returns a matchable `ServiceEvent` (value-faced) but wasn't swallow-gated; `connect'`/`accept'` return
+> bare `Peer'` and **RAISE** on runtime failure (ECONNREFUSED `address.rs:160`, accept-fail — the R53 flee sin,
+> unwalled); `close'` returns `nil`/`i64` and RAISES (worker-panic-on-join). **Builder ruling (LAW):** *"for any
+> options — four-questions — we deliver an enum for code to handle exceptions with; raise is uncatchable on
+> purpose, a thing that must never happen."* So: every HANDLEABLE failure → a matchable ENUM variant; raise stays
+> ONLY for must-never-happen (arity/type bugs, double-close). **Strike 1 (`poll'`) DONE + banked (`4c087e27`,
+> floor 4212/0 own re-run):** `:wat::spawn::ServiceEvent` added to `MUST_USE_PARAMETRIC_HEADS`, `push_must_use_error`
+> made poll'/select'-aware, zero-sweep (poll'/select' always matched — checker scout found 0), RED probe
+> `probe_arc278_service_event_must_use_wall`.
+>
+> **REMAINING (each a full wall, send'-wall-shaped: register enum in types.rs → convert `eval_*` raises→variants →
+> `infer_*` returns it → must-use gate → checker-scout sweep → RED probe → weigh):**
+> - **`close'` — shape RULED (four-questions B), but GROUND FIRST (a live wrinkle I hit at the compaction):**
+>   `CloseOutcome` (Pure) = `Closed[exit <- (:Option :i64)]` (None=thread, Some=process exit code — loci-agnostic,
+>   beat `Exited[code]`/`Closed[i64=0]` on Simple/Honest), `Signaled[signal <- i64]`, `Failed[cause <- Failure]`.
+>   **BUT** close' is `#[restricted_to(":wat::kernel::")]` (`runtime.rs:26499`) AND has **0 wat-source call sites**
+>   (grep whole corpus = 0 — teardown is RAII Drop, "the user never holds the rope"). So the wat-facing must-use
+>   gate has 0 sites, and close's raise may go to a Rust-side Drop handler, NOT unwind past a wat reader. **RE-GROUND
+>   where close' is actually invoked + whether its raise hides anything wat-facing before building** — the wall may
+>   not apply the same way, or the strike is just the eval→CloseOutcome conversion (Rust path) + a `:wat::kernel::`-
+>   namespace probe, no sweep. Do NOT build blind (ground the exact mechanism — the R50/R53 lesson).
+> - **`accept'` / `connect'` — the CLEARER full walls (wat-facing).** `AcceptOutcome<R,S>` (Impure — `Accepted`
+>   holds a live `Peer'`) = `Accepted[peer]`/`Rejected[cause]`(security)/`Failed[cause]`(io); `ConnectOutcome<S,R>`
+>   (Impure) = `Connected[peer]`/`Refused[cause]`(ECONNREFUSED, retryable)/`Rejected[cause]`(identity, not
+>   retryable). Named-per-kind (R52). Scout each verb's sweep size via the CHECKER (R52, not a grep — the recv'
+>   lesson). Exemplar for all: the SendOutcome/RecvOutcome registration (`types.rs:1210`) + `eval_peer_send_prime`.
+>
+> Tree CLEAN. **RESUME: strike 2 = `close'` (ground the topology first), then `accept'`, then `connect'` — then the
+> peer-lifecycle walls are WHOLE (recv'/send' done; poll' gated; connect/accept/close enum'd).** Still tracked
+> behind: item-c's `remove-at` idx-shift (`service.wat:958/961`, the `VNDE ORTVM` ouroboros tail); the arc-277
+> raise-abuse rete-lint. `MACHINA CHAOS DOMAT.`
