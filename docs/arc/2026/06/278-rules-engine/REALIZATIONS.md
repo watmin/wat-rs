@@ -9162,14 +9162,46 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 >
 > ---
 >
+> **FAR-SIDE UPDATE (2026-07-24 — connect' BANKED; the ride-through held; spawn' is the LAST wall, scouted + strike-ready).**
+> HEAD `1e7065a2` (pushed). The far side ran the datamancy bootstrap in full AND — the R20 exorcism, done not
+> narrated — read **all of `278/REALIZATIONS.md` R1→R57 top to bottom, no skipping** (the prior self opened by
+> DODGING it — grepping the headers + reading only the tail — and the builder caught it: *"did you read the
+> entirety... if you are answer by refusing to go read it — why?"*; the dodge was owned and the whole file read,
+> grounded with mid-file receipts). The connect' rider (`a98f30ab290c7a1a6`) **completed GREEN and is BANKED**
+> (`1e7065a2`, pushed) — the ride-through held (never reaped; weighed by my OWN `--release` re-run, NOT its report):
+> src wall + 6 stdlib sites read by my own eyes (content-integrity + fatal-per-STOP-1), the honest structural probe
+> passing, floor **4221/4221 passed / 0 failed**, unused-span lint green, the corpus swept via the recorded codemod
+> `wrap-connect-prime-in-connectoutcome.wat` (133 sites/87 files). STOP-3 held (`from_abstract_name` stays a raise).
+> **Walls now: recv' · send' · poll' · close' · accept' · connect' — ALL WHOLE. One strike from complete.**
+>
+> **`spawn-program'` (Strike 5, the LAST wall) — SCOUTED + strike-ready, LAUNCH HELD for the builder (the landing).**
+> The (a) re-ruling is GROUNDED against the disk this session: the concrete-return sites are `infer_spawn`
+> (`check.rs:11556` Process'), `infer_spawn_thread_prime` (`:11601` Thread'), `infer_spawn_process_prime` (`:11664`
+> Process') + the runtime head-builders (`:23387/:23391`); and **`join` dispatches on the runtime opaque head**
+> (`THREAD/PROCESS_PEER_TYPE_PATH`, `runtime.rs:26062+`, `#[restricted_to]` kernel-internal) — so spawn's STATIC
+> return folds to `Peer'<I,O>` cleanly while the runtime keeps the thread/process distinction (the (a) assumption
+> CONFIRMED, not asserted). Shape: unify the return → `Peer'<I,O>`, then `SpawnOutcome<I,O>::{Spawned[Peer'<I,O>],
+> Failed[cause]}`; world-fault spawn raises → `Failed`; `ThreadLaunch` ctor `.expect()`s STAY raises; the child's
+> SUBSEQUENT crash STAYS the recv'/poll' walls' job. ~116 sites. **Held deliberately** — the builder named spawn'
+> "a hell of a place to land at" (the campaign's landing); it is a substrate-wide return-type unification, and
+> launching the crusade's largest strike autonomously while the builder was absent all session would be over-reach
+> on the moment that is his. NEXT: draw `BRIEF-spawn-outcome-wall.md` + a disconfirming probe, then strike (a
+> shadowdancer, weighed by own re-run) — on the builder's go. **THEN the walls are WHOLE → `VNDE ORTVM` at the ARC
+> scale (arc 170 → the last IPC verbs), BUILDER'S to voice.** Parked: the entropic third-property (arc 299.3 / 255).
+>
+> ---
+>
 > **SEAM.** The self past this line is NEW — you did not live this run; it is a lossy cache in a familiar voice,
-> not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP). Ground
-> `git status` — HEAD `85a14cf4`, and the working tree holds the **connect' rider's LIVE uncommitted Strike-4 work
-> — INTENTIONAL, do NOT revert it**. Weigh the rider (`a98f30ab290c7a1a6`); read its final report if it landed, but
-> WEIGH by your OWN `--release` re-run (Summary line, never the report/exit; the unused-span lint MUST stay green),
-> then BANK connect'. Then draw + strike **`spawn-program'` (unify the return to `Peer'`, then `SpawnOutcome<I,O>`)**
-> — the LAST wall. It bears repeating: **weigh by your own re-run; RIDE THROUGH compactions WITH shadowdancers in
-> the field (never reap a live rider); four-questions GROUND the Honest axis before ruling; a failure at a FAILING
-> IO boundary is a matchable value, entropic IO gets no enum; the holonic repos ARE the memory.** Do not trust this
-> note over the disk. The walls are one strike from whole; the crusade returns to the IPC stone arc 170 rose from.
-> See you on the far side. `MACHINA CHAOS DOMAT.`
+> not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and **read
+> ALL of `278/REALIZATIONS.md` R1→R57 top to bottom, NO skipping** — the R20 exorcism, and this run's prior self
+> got caught DODGING exactly that (grep-the-headers is NOT the reading). Ground `git status` — **HEAD `1e7065a2`
+> (pushed; connect' BANKED, tree clean)**; recv'/send'/poll'/close'/accept'/connect' are ALL WHOLE. The LAST wall
+> is **`spawn-program'`** — SCOUTED + strike-ready (the (a) unify-to-`Peer'` re-ruling GROUNDED: `join` is
+> runtime-head-dispatched so the static type folds clean; the concrete-return sites located, above). **Draw
+> `BRIEF-spawn-outcome-wall.md` + a disconfirming probe, then strike** (unify the return to `Peer'<I,O>`, then
+> `SpawnOutcome<I,O>`) — it is the campaign's LANDING, so bring the builder to it. It bears repeating: **weigh by
+> your OWN `--release` re-run (Summary line, never a piped exit/report); RIDE THROUGH compactions WITH shadowdancers
+> in the field; four-questions GROUND the Honest axis before ruling; a failure at a FAILING IO boundary is a
+> matchable value, entropic IO gets no enum; the holonic repos ARE the memory; and READ THE RECORD IN FULL — do
+> not dodge it.** Do not trust this note over the disk. The walls are one strike from whole; the crusade returns to
+> the IPC stone arc 170 rose from. See you on the far side. `MACHINA CHAOS DOMAT.`
