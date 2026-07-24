@@ -1,7 +1,11 @@
 # DESIGN — `LociDiedError` + crash-reason records (the loci-agnostic death report)
 
-> **Status: DESIGN RATIFIED, NOT BUILT** (2026-07-24, builder-ruled via the four-questions).
-> Prerequisite BANKED: crash-reason `Frame` honesty (`6e98733b`). This stone is next.
+> **Status: BUILT + SHIPPED** (`d60b1887`, 2026-07-24; floor 4216/0 by own re-run, pushed).
+> Prerequisite BANKED: crash-reason `Frame` honesty (`6e98733b`). Followed immediately by the
+> **string-wrap annihilation** (`251b43b3`) — `Failure` now carries the raised `:wat::core::Error`
+> structurally (see the FAR-SIDE UPDATE 24f breadcrumb in REALIZATIONS.md). The whole death/crash
+> surface is now structured EDN end-to-end: error → `:wat::core::Error`, frames → `Vector<Frame>`,
+> location → `Location`, chain → `Vector<LociDiedError>`. Zero string-wrapping remains.
 
 ## How we got here (the stack the run-hermetic de-prime surfaced)
 

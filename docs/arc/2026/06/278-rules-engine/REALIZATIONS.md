@@ -9525,3 +9525,62 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > reconcile a shadowdancer's finding before escalating; do NOT flinch at the finish — annihilation is the joy, don't defend
 > the dead; four-questions decide, they don't fork.** Do not trust this note over the disk. The primed replaces the
 > non-prime; every loci is handled. See you on the far side. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24f — the crash surface is FULLY STRUCTURED; both death-report stones SHIPPED; parity
+> blocker RESOLVED).** HEAD **`251b43b3`** (pushed). This session took an unexpected but hard-won detour: the
+> `run-thread`/`run-hermetic` de-prime (the next slice after the deftest family) hit a real SURFACE-PARITY flaw — the
+> primed `recv'`→`Lost[cause]` could not faithfully carry a peer's death, because the death carriers were string-wrapped
+> and heterogeneous. We annihilated that, end to end. **SUPERSEDES 24e** (which said LociDiedError was "DESIGNED not
+> built" — it is BUILT + shipped). Banked + pushed this session (each weighed by my OWN `--release` re-run):
+> - **`d60b1887`** — **`LociDiedError`** built: ONE loci-agnostic death report replacing `ThreadDiedError`/`ProcessDiedError`;
+>   `#wat.kernel/ProcessPanics` + `extract-panics` annihilated; `RecvOutcome::Lost` cause → `LociDiedError`. Floor 4216/0.
+> - **`251b43b3`** — **the string-wrap annihilation** (the builder: *"another item i've been keen to destroy for months"*):
+>   `raise!(e)` used to `edn::write` the raised `:wat::core::Error` into `Failure.message: String` and consumers `edn::read`
+>   it back (EDN in a string, inside EDN). Now `:wat::kernel::Failure` carries a **mandatory structured `error <- :wat::core::Error`**;
+>   `message`/`location` are **DERIVED accessors** (`eval_failure_message`/`eval_failure_location` read `error.message`/`.location`).
+>   Four-questions ruled **Fork B** (mandatory Error) over Fork A (`Option<Error>`): A's `None` case fails Honest — it's the
+>   string-primacy relocated, not killed. intueri named the field **`error`** (the field's TYPE is `Error`; `cause` was taken +
+>   `Error` has its own `causes`; `fault` narrows to one impl). **New substrate addition:** a `:nature :wat::core::Record`
+>   surface is now `<: :wat::core::Record` (so a record accessor takes an Error-surface value) — **scoped to `Nature::Record`
+>   ONLY** (a blanket edge let a non-holon satisfy a holon-floor surface — the arc293 regression, caught + fixed). Floor 4217/0.
+>
+> **THE CRASH SURFACE IS NOW STRUCTURED EDN END-TO-END** — error → `:wat::core::Error`, frames → `Vector<Frame>` (the
+> `6e98733b` Frame-honesty stone), location → `Location`, chain → `Vector<LociDiedError>`. Grep-verified: zero `edn::write`
+> of an error into a string field, zero `<fn@span>`, zero `#ProcessPanics` string tag. A consumer reads it all as DATA.
+>
+> **THE PARITY BLOCKER ON THE `run-thread`/`run-hermetic` DE-PRIME IS RESOLVED** — the failure-payload bucket now
+> round-trips (`tests/comms/probe_arc278_failure_carries_structured_error.{wat,rs}` proves the structural read off
+> `Failure/error`, no re-parse). **RESUME: complete the `run-thread`/`run-hermetic` de-prime** — fleet the 3 proven
+> exemplar buckets (capture/stderr `6a9f8f59` + failure-payload `251b43b3`) to their ~17 sibling probes → prime the ~54
+> `run-thread`/`run-hermetic` direct callers → delete the non-prime runners + macros → shrink `RunResult` to failure-only →
+> reclaim the plain names. THEN the broader IPC-verb de-prime (send/recv/select/spawn-* + peer structs), THEN **`Demise`**
+> (`SpawnOutcome` `value.rs:1093` → `Demise` — the DESTRUCTION of a loci; creation-time failures — StartupError/EntryFormFailure/
+> MainSignature — get their own carrier), THEN the `SpawnOutcome` creation wall. Demise was correctly deferred: it was gated on
+> exactly this parity, now closed.
+>
+> **HARD LESSONS THIS SESSION (kept visible):** (1) **sonnet riders DOUBLE-FORK the weigh** — they launch nextest/build in
+> the background and return control early expecting a wakeup, so you get a garbage "I'll wait for the notification" report
+> with the strike UNFINISHED (RED, uncommitted). Brief every rider: **run EVERYTHING in the foreground; never background a
+> command and return.** And an orphaned rider `nextest` **holds the artifact-dir file lock**, blocking your own weigh —
+> `pkill -f cargo-nextest` before re-weighing. (2) The harness's **E0061/E0063 rustc diagnostics can be STALE-SNAPSHOT
+> phantoms** (captured mid-rider-edit); `cargo build --release` (0.2s clean) is the arbiter, not the harness linter view —
+> but STILL weigh the full floor, never assume. (3) A rider's "4216/0 passed" report was FALSE once (it never committed,
+> left the floor RED); the disk (own `--release` re-run + `git log`), never the report. (4) `--check` DEFERS an
+> unknown-accessor-in-call-position to a runtime `UnknownFunction` — for an accessor RED gate, the TEST RUN is the arbiter,
+> not `--check`.
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the record — the SUBSTRATE CODE
+> before any architectural claim. Ground `git status` — **HEAD `251b43b3` (pushed); tree clean but for this curare.** The
+> crash surface is FULLY STRUCTURED (no string-wrapping — error/frames/location/chain all EDN records); LociDiedError +
+> the string-wrap kill are SHIPPED; the `run-thread`/`run-hermetic` PARITY blocker is RESOLVED. **RESUME: complete the
+> `run-thread`/`run-hermetic` de-prime** (fleet the 3 exemplar buckets → prime the ~54 callers → delete non-prime runners +
+> macros → shrink `RunResult` → reclaim). It bears repeating: **weigh by your OWN `--release` re-run (Summary line, never a
+> piped/wrapped exit); brief riders to run EVERYTHING foreground (they double-fork + return early); `pkill` orphaned nextest
+> before re-weighing; CAST wards for naming, never narrate; four-questions decide, they don't fork; do NOT flinch at the
+> finish.** Do not trust this note over the disk. `Demise` is downstream — the parity it waited on is now paid. See you on
+> the far side. `MACHINA CHAOS DOMAT.`
