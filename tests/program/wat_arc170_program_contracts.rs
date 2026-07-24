@@ -870,36 +870,25 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     );
 }
 
-// ─── T18. run-hermetic-with-io — Layer 2 testing-lib API (arc 170 slice 3 Gap A)
+// ─── T18. BIDIRECTIONAL PRIME EXEMPLAR — spawn-program' + send' + recv' drain
 //
-// Canonical Layer 2 test: typed-channel I/O round-trip via run-hermetic-with-io.
-// Arc 170 slice 3 Gap A: macro now takes INNER element types (:wat::core::i64)
-// instead of full channel-type keywords (:wat::kernel::Receiver<wat::core::i64>).
-// keyword/of constructs the channel types at macro-expand time.
-// The child recvs 21, sends 21*2=42, returns nil. The parent sends [21] and
-// drains [42]. RunResultIO.outputs = [42]; RunResultIO.failure = None.
+// Arc 278 IPC de-prime. This consumer retired off `run-hermetic-with-io` (the
+// non-prime Sender/from-pipe + Receiver/from-pipe over a 4-field Process) onto
+// the composed primes: `spawn-program' (process)` spawns the peer, `send' 21`
+// feeds the child's `readln`, and each child `println` crosses back to the
+// parent as a `recv'` `RecvOutcome::Message` — drained until `RecvOutcome::Closed`
+// (a genuine clean EOF) into the collected outputs.
 //
-// Surface form exercised (Gap A: inner element types):
-//   (:wat::test::run-hermetic-with-io
-//     :wat::core::i64
-//     :wat::core::i64
-//     (:wat::core::Vector :wat::core::i64 21)
-//     <body that recvs n and sends n*2>)
+// The child body (readln n → println n*2 → nil) is UNCHANGED from the old form;
+// only the DRIVER flipped to the peer wire. `:my::test::echo-doubled` now returns
+// the drained outputs directly as a `Vector<i64>` — this test asserts it is [42],
+// i.e. the doubled value genuinely crossed the wire as a recv' Message (NOT
+// stdout-scraped).
 //
-// D3 ordering: send all inputs → drain all outputs → join → drain stderr.
-// Works for bounded single-send/single-recv scenario. Child exits after
-// processing, dropping its tx, which signals EOF to the parent's drain.
+// Fixture: t18_echo_doubled.wat (drain is an inline file-local tail-recursive defn).
 
 #[test]
 fn t18_run_hermetic_with_io_layer2_echo_doubled() {
-    // Define a function that uses run-hermetic-with-io to send 21 to the
-    // child, have it double the value, and return the result.
-    // The child: recv n, send n*2, return nil.
-    // Parent assertion: outputs == [42], failure == None.
-    // Stone C: child fn is [] -> nil; uses readln/println through bootstrap services.
-    // run-hermetic-with-io macro expands to [] fn; driver sends via Sender/from-pipe
-    // over Process/stdin; child reads via readln and writes via println.
-    // Fixture: t18_echo_doubled.wat.
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t18_echo_doubled.wat");
     let func = world
         .symbols()
@@ -911,45 +900,28 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
         world.symbols(),
         wat::rust_caller_span!(),
     )
-    .expect("run-hermetic-with-io should succeed");
+    .expect("spawn-program' + send' + recv'-drain should succeed");
 
-    // result is a :wat::test::RunResultIO<i64> { outputs stderr failure }
-    let sv = match &result {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::test::RunResultIO" => s,
-        other => panic!("expected RunResultIO Struct; got {:?}", other),
-    };
-
-    // field 0 = outputs :Vector<i64> — must contain exactly [42].
-    let outputs = match &sv.fields[0] {
+    // echo-doubled returns the drained outputs directly: Vector<i64> == [42].
+    // Each element was received over the peer wire as a recv' RecvOutcome::Message.
+    let outputs = match &result {
         wat::runtime::Value::Vec(v) => v.as_ref(),
-        other => panic!("expected Vec outputs field; got {:?}", other),
+        other => panic!("expected Vec outputs; got {:?}", other),
     };
     assert_eq!(
         outputs.len(),
         1,
-        "expected exactly one output value; got {}",
+        "expected exactly one output value drained off the peer; got {}",
         outputs.len()
     );
     match &outputs[0] {
         wat::runtime::Value::i64(n) => assert_eq!(
             *n, 42,
-            "expected output 42 (21 * 2); got {}",
+            "expected output 42 (21 * 2) received as a recv' Message; got {}",
             n
         ),
         other => panic!("expected i64 output; got {:?}", other),
     }
-
-    // field 2 = failure :Option<Failure> — must be None (child exited cleanly).
-    let failure_field = &sv.fields[2];
-    let is_none = match failure_field {
-        wat::runtime::Value::Option(opt) => opt.as_ref().is_none(),
-        other => panic!("expected Option failure field; got {:?}", other),
-    };
-    assert!(
-        is_none,
-        "expected passing round-trip to produce RunResultIO with failure=None; got {:?}",
-        result
-    );
 }
 
 #[test]
