@@ -9096,3 +9096,19 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > (`AcceptOutcome<R,S>`, Impure) — the clearer wat-facing wall (real callers, the ECONNREFUSED/accept-fail flee sin;
 > scout the sweep via the CHECKER), then `connect'` (`ConnectOutcome<S,R>`, ~161 sites) → the walls are WHOLE.**
 > `MACHINA CHAOS DOMAT.`
+>
+> **FAR-SIDE UPDATE (2026-07-23d) — STRIKE 3 (`accept'`) BANKED (`2976d887`, pushed, floor 4215/0 own re-run).**
+> `AcceptOutcome<R,S>` (Impure, parametric, mirrors `RecvOutcome<O>`) = `Accepted[peer]`/`Closed`/`Failed[cause]`;
+> `CommListener::accept` → `Result<Result<Peer, AcceptFail>, EvalBreak>` (outer Err = must-never-happen raise, inner
+> = handleable). **`Rejected` CUT** (four-Q + grounding: the security gate bounces a stranger INTERNALLY — never
+> returns a reject → the variant would never fire). Walls: recv'/send' whole · poll' gated · close' ✓ · accept' ✓.
+> **RESUME: the UNUSED-SPAN LINT (its own stone, next).** Born this run from the builder's steer — an ignored
+> `_span` param (a dropped source location, the "burned us" class) must carry a justification. Build a `tests/lint/`
+> scanner (modeled on `no_inlined_wat`) requiring an inline `// rune:lint(unused-span) — <reason>` per ignored
+> `_[a-z_]*span: &Span`; four-Q-RULED: inline-on-param placement · span-only scope (`_sym`/`_env` are benign, no
+> location) · **FIX-don't-launder** the genuinely-unlocated ones (thread the span into the error) vs earn a rune where
+> the error is located elsewhere (`arg.span()`, `rust_caller_span!`, or infallible). ~23 sites. **The hand-audit
+> proved UNRELIABLE (3 mis-calls this run: "604" was a bad grep, then "infallible generators" that had error paths)
+> — the rider does the PER-SITE located-vs-not assessment; that unreliability IS the argument for the structural
+> lint (R52 QVOD LEX ACCENDIT — the corrected law lights every one ablaze).** THEN `connect'` (Strike 4, the last
+> wall, `ConnectOutcome<S,R>`, ~161 sites). `MACHINA CHAOS DOMAT.`
