@@ -132,7 +132,7 @@
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stdout-is-matches
+(:wat::test::deftest-hermetic' :wat-tests::std::test::test-assert-stdout-is-matches
   
   (:wat::core::let
     [inner
@@ -167,7 +167,7 @@
 ;; identically whether or not the trailing crash envelope is present.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-pass
+(:wat::test::deftest-hermetic' :wat-tests::std::test::test-assert-stderr-matches-pass
   
   (:wat::core::let
     [inner
@@ -176,7 +176,7 @@
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
+(:wat::test::deftest-hermetic' :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
   
   ;; Verifies assert-stderr-matches's failure-reporting shape on REAL non-matching stderr.
   ;; Inner produces actual stderr content that doesn't match the pattern; the matcher
@@ -224,7 +224,7 @@
 ;; ("test the legacy STRING-entry path") retired during arc 170 slice 4a-β
 ;; when the legacy :wat::test::run path was swept to canonical macros.
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-string-entry-path
+(:wat::test::deftest-hermetic' :wat-tests::std::test::test-run-string-entry-path
   
   ;; Arc 170 slice 4a-β: this test originally exercised the legacy
   ;; :wat::test::run STRING-parsing path; the inner source carried a
@@ -248,7 +248,7 @@
 ;; ("test the legacy AST-via-program path") retired during arc 170 slice 4a-β
 ;; when the legacy :wat::test::run-ast path was swept to canonical macros.
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-ast-via-program
+(:wat::test::deftest-hermetic' :wat-tests::std::test::test-run-ast-via-program
   
   (:wat::core::let
     [r

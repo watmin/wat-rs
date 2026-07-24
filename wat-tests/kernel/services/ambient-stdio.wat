@@ -29,7 +29,7 @@
 ;; on \n and drops the trailing empty element; the captured vec is one wide.
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-string
+(:wat::test::deftest-hermetic' :wat-rs::test::test-ambient-stdio-println-string
   
   (:wat::test::assert-stdout-is
     (:wat::test::run-hermetic (:wat::kernel::println "hello"))
@@ -40,7 +40,7 @@
 ;; value_to_edn_with covers non-string Ts through the same fd pipeline.
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-i64
+(:wat::test::deftest-hermetic' :wat-rs::test::test-ambient-stdio-println-i64
   
   (:wat::test::assert-stdout-is
     (:wat::test::run-hermetic (:wat::kernel::println 42))
@@ -54,7 +54,7 @@
 ;; matches the emitted line regardless of the trailing crash envelope).
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-eprintln-string
+(:wat::test::deftest-hermetic' :wat-rs::test::test-ambient-stdio-eprintln-string
   
   (:wat::test::assert-stderr-matches
     (:wat::test::run-hermetic (:wat::kernel::eprintln "err"))
@@ -65,7 +65,7 @@
 ;; order preservation across multiple round trips through the same pipeline.
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-twice
+(:wat::test::deftest-hermetic' :wat-rs::test::test-ambient-stdio-println-twice
   
   (:wat::test::assert-stdout-is
     (:wat::test::run-hermetic
@@ -85,7 +85,7 @@
 ;; child exits.
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-readln-echo
+(:wat::test::deftest-hermetic' :wat-rs::test::test-ambient-stdio-readln-echo
   
   (:wat::test::assert-eq
     (:wat::test::RunResultIO/outputs
