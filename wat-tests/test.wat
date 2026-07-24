@@ -274,13 +274,13 @@
 ;; expands to a deftest call, the deftest expands to the full
 ;; run-sandboxed-ast scaffolding, and the test runs.
 
-(:wat::test::make-deftest :wat-tests::std::test::cfg-deftest)
 
-(:wat-tests::std::test::cfg-deftest
+
+(:wat::test::deftest'
   :wat-tests::std::test::test-make-deftest-runs
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 
-(:wat-tests::std::test::cfg-deftest
+(:wat::test::deftest'
   :wat-tests::std::test::test-make-deftest-second-test
   (:wat::test::assert-eq 10 (:wat::core::i64::* 5 2)))
 

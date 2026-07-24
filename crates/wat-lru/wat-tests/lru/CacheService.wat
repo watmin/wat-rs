@@ -265,7 +265,7 @@
              (:wat::test::assert-eq "lru-helper-get-many-keys-died" "")
              0)))))
 
-(:wat::test::make-deftest :deftest-lru)
+
 
 ;; ─── Layer 0 — :test::lru-spawn-and-drop ────────────────────────────
 ;;
@@ -275,7 +275,7 @@
 ;; scope exit → driver sees disconnect → outer Thread/join-result
 ;; unblocks.
 
-(:deftest-lru :wat-lru::test-lru-spawn-and-drop
+(:wat::test::deftest' :wat-lru::test-lru-spawn-and-drop
   (:test::lru-spawn-and-drop))
 
 ;; ─── Layer 1 — :test::lru-helper-get-empty ──────────────────────────
@@ -285,7 +285,7 @@
 ;; and recvs Reply::GetResult — driver gets a clean shutdown after pool
 ;; finish + handle drop.
 
-(:deftest-lru :wat-lru::test-lru-helper-get-empty
+(:wat::test::deftest' :wat-lru::test-lru-helper-get-empty
   (:wat::test::assert-eq (:test::lru-helper-get-empty) 0))
 
 ;; ─── Layer 2 — :test::lru-helper-put-one ────────────────────────────
@@ -294,7 +294,7 @@
 ;; trips Request::Put → Reply::PutAck. Helper returns 1 on Ok join,
 ;; 0 on Err join (after surfacing the death).
 
-(:deftest-lru :wat-lru::test-lru-helper-put-one
+(:wat::test::deftest' :wat-lru::test-lru-helper-put-one
   (:wat::test::assert-eq (:test::lru-helper-put-one) 1))
 
 ;; ─── Layer 3 — :test::lru-helper-put-then-get ────────────────────────
@@ -304,7 +304,7 @@
 ;; results[0] = Some(42). Proves Reply<V> enum routing for both
 ;; variants on the same channel.
 
-(:deftest-lru :wat-lru::test-lru-helper-put-then-get
+(:wat::test::deftest' :wat-lru::test-lru-helper-put-then-get
   (:wat::test::assert-eq (:test::lru-helper-put-then-get) 42))
 
 ;; ─── Layer 4 — :test::lru-helper-get-many-keys ────────────────────────
@@ -314,5 +314,5 @@
 ;; result-vec aligns with probe-vec by index — the contract Reply<V>'s
 ;; GetResult variant carries.
 
-(:deftest-lru :wat-lru::test-lru-helper-get-many-keys
+(:wat::test::deftest' :wat-lru::test-lru-helper-get-many-keys
   (:wat::test::assert-eq (:test::lru-helper-get-many-keys) 110))

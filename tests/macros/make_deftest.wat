@@ -1,18 +1,12 @@
 ;; tests/macros/make_deftest.wat — co-located fixture for make_deftest.rs,
-;; slurped via startup_beside(file!()). Contains both programs from the original
-;; inlined test sources, merged under one :user::main.
+;; slurped via startup_beside(file!()).
 ;;
-;; Program 1 (diag_make_deftest_with_prelude_expansion):
-;; Registers :my-deftest via make-deftest; exposes :probe::get-expansion.
-;;
-;; Program 2 (macroexpand_self_recursive_macro_fails_with_macro_expansion_failed):
+;; macroexpand_self_recursive_macro_fails_with_macro_expansion_failed:
 ;; Registers :my::ping and :my::pong (mutual recursion); exposes :probe::run-macroexpand.
-
-(:wat::test::make-deftest :my-deftest)
-
-(:wat::core::defn :probe::get-expansion [] -> :wat::WatAST
-  (:wat::core::macroexpand-1
-      (:wat::core::quote (:my-deftest :my-test (:wat::test::assert-eq 1 1)))))
+;;
+;; (arc 278: the make-deftest factory was annihilated; its former
+;; diag_make_deftest_with_prelude_expansion probe + :probe::get-expansion fn
+;; were retired with it. The self-recursive macroexpand probe is independent.)
 
 (:wat::core::defmacro :my::ping
   []

@@ -334,63 +334,6 @@
   ;; needs is declared inside the child's own forms; this macro ships only the body.
   `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic ~body)))
 
-;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────
-;;
-;; Register a new deftest variant whose default-prelude is baked in.
-;; Each test using the variant drops to just name + body. Dims and
-;; capacity-mode come from the test file's top-level preamble via
-;; arc 031's sandbox-inherits-config path.
-;;
-;; Preamble at the top of a test source file:
-;;
-;;   (:wat::test::make-deftest :deftest
-;;     ((:wat::load-file! "wat/vocab/shared/time.wat")))
-;;
-;; Every test below:
-;;
-;;   (:deftest :my-test-name
-;;     (:wat::test::assert-eq 2 (+ 1 1)))
-;;
-;; Bare `:deftest` is user territory — only `:wat::*` and `:rust::*`
-;; are reserved. An ambient `:deftest` at the root of a test source
-;; file is idiomatic, and dedup makes the macro registration
-;; file-local in practice (the test file's frozen world has it;
-;; other files get their own configured shape).
-;;
-;; Expansion (outer → inner):
-;;   outer generates (:wat::core::defmacro (,name ...) ...)
-;;   inner expands to (:wat::test::deftest <name> ((load!)) <body>)
-;;
-;; Nested quasiquote mechanics (arc 029 slice 1): ,,default-prelude
-;; substitutes AT OUTER expansion (the configured forms land as
-;; literals in the generated defmacro's body). ,test-name and ,body
-;; preserve across the outer pass — they're the inner macro's own
-;; parameters and fire when the user calls the configured variant.
-(:wat::core::defmacro :wat::test::make-deftest
-  [name <- :wat::WatAST]
-  -> :wat::WatAST
-  `(:wat::core::defmacro
-     ~name
-     [test-name <- :wat::WatAST
-      body      <- :wat::WatAST]
-     -> :wat::WatAST
-     `(:wat::test::deftest ~test-name ~body)))
-
-;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
-;;
-;; Same shape as make-deftest; generated macro expands to
-;; :wat::test::deftest-hermetic. Use when the configured tests
-;; spawn driver threads and need subprocess isolation.
-(:wat::core::defmacro :wat::test::make-deftest-hermetic
-  [name <- :wat::WatAST]
-  -> :wat::WatAST
-  `(:wat::core::defmacro
-     ~name
-     [test-name <- :wat::WatAST
-      body      <- :wat::WatAST]
-     -> :wat::WatAST
-     `(:wat::test::deftest-hermetic ~test-name ~body)))
-
 ;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
 ;;
 ;; Sibling-form annotations preceding a deftest. The wat::test! proc
