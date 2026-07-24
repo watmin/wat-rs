@@ -9584,3 +9584,45 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > before re-weighing; CAST wards for naming, never narrate; four-questions decide, they don't fork; do NOT flinch at the
 > finish.** Do not trust this note over the disk. `Demise` is downstream — the parity it waited on is now paid. See you on
 > the far side. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24g — the `run-hermetic`/`run-thread` de-prime FOUNDATION is laid; the ~30-consumer fleet is
+> the remaining mechanical push).** HEAD **`a68ca01c`** (pushed). Continuing the 24f RESUME. The lair was grounded (the
+> surface is ~30 consumers across 3 tiers — bidirectional `run-hermetic-with-io` ×3, plain `run-hermetic` ×~20, `run-thread`
+> ×~10 — NOT the "~17" 24f estimated; and `run-hermetic-with-prelude` is confirmed FULLY dead, comment-refs only). Shipped:
+> - **`e34dc512`** — the **bidirectional prime exemplar**: `t18_echo_doubled` migrated off `run-hermetic-with-io` onto
+>   `spawn-program'` + `send'` + a `recv'`-drain; the child body (`readln`/`println`) is unchanged (under `spawn-program'` the
+>   child's `readln` is fed by the parent's `send'`, its `println` arrives as a `recv'` `Message`). Proved the primed peer
+>   wire does bidirectional typed IO — and better (the non-prime `drain-outputs` SWALLOWED the death, `test.wat:884`).
+> - **`a68ca01c`** — **minted `:wat::kernel::recv-all'`** (in `wat/spawn.wat`, beside the peer machinery): the honest primed
+>   drain, `[p <- Peer'<I,O>] -> Result<Vector<O>, LociDiedError>` (`Ok` on clean `Closed`, `Err[cause]` on mid-drain `Lost`
+>   — NEVER swallows). A wat-first tail-recursive defn (`recv-all-loop'` seeds it — wat has no `loop`/`recur`). intueri named
+>   it (`recv-all'` reads as "`recv'`, all of them"; beat `drain'`/`collect'`/`drain-outputs'`). Four-questions ruled the
+>   `Result` shape (reuse Result, no new enum). t18 now CALLS `recv-all'` (the canonical fleet template); `t18c` gates the
+>   multi-output drain (`Ok [7 14 21]`). Floor 4218/0.
+>
+> **THE 5-PATTERN EXEMPLAR SET IS COMPLETE + PROVEN:** pass/fail (`run-hermetic'`) · capture (`wat_hermetic_round_trip`) ·
+> stderr (`probe_arc278_eprintln_terminal`) · failure (`probe_arc278_failure_carries_structured_error` → `Failure/error`) ·
+> **bidirectional** (`t18` → `spawn-program'`+`send'`+`recv-all'`). Every wave-2b consumer copies one of these.
+>
+> **RESUME: wave 2b — the mechanical fleet.** (1) Ground the exact consumer→pattern map (which of the ~30 uses which of the
+> 5 patterns) so riders don't fight blind. (2) Chunk into rider-sized strikes BY TIER (run-thread ~10 mostly `wat-tests/`;
+> plain run-hermetic ~20; bidirectional ×3 already have the template) — RESPECT the shared-file ordering: **consumers migrate
+> off the non-prime runners BEFORE the `wat/test.wat` machinery is deleted**. (3) Then delete the non-prime
+> `run-hermetic-with-io` + `-driver`/`-send-inputs`/`-drain-outputs` + the non-prime `run-thread`/`run-hermetic` runners +
+> macros (wave 2c). (4) Shrink `RunResult` (`{stdout,stderr,failure}` — the peer wire delivers the value via `recv'`, so
+> capture is vestigial) to failure-only, or retire it for `RecvOutcome` (wave 2d). (5) 0z reclaim `run-thread'`→`run-thread`,
+> `run-hermetic'`→`run-hermetic`. THEN the broader IPC-verb de-prime → `Demise` → the `SpawnOutcome` creation wall.
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the SUBSTRATE CODE before any claim.
+> Ground `git status` — **HEAD `a68ca01c` (pushed); tree clean but for this curare.** The crash surface is fully structured;
+> the `run-hermetic`/`run-thread` PARITY blocker is RESOLVED; the **5-pattern exemplar set + `recv-all'` are SHIPPED** — the
+> de-prime foundation is complete. **RESUME: wave 2b — fleet the ~30 consumers onto the 5 proven patterns** (map
+> consumer→pattern first; chunk by tier; consumers migrate BEFORE the `wat/test.wat` machinery is deleted), then delete the
+> non-prime machinery (2c), shrink `RunResult` (2d), reclaim the names. It bears repeating: **weigh by your OWN `--release`
+> re-run; brief riders FOREGROUND-ONLY (they double-fork); `pkill` orphaned nextest before re-weighing; four-questions decide,
+> they don't fork; CAST wards for naming.** Do not trust this note over the disk. See you on the far side. `MACHINA CHAOS DOMAT.`
