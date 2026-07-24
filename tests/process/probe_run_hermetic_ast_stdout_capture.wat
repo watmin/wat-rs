@@ -1,7 +1,25 @@
 ;; tests/process/probe_run_hermetic_ast_stdout_capture.wat — co-located fixture for probe_run_hermetic_ast_stdout_capture.rs
-;; startup_beside(file!()) world — run-hermetic-ast captures child stdout written via println.
+;;
+;; Arc 278 IPC de-prime (MAP unit). Historically drove the non-prime
+;; `:wat::test::run-hermetic` capture model (fork + OS-pipe stdout scrape →
+;; :wat::kernel::RunResult), reading the child's `println` back out of
+;; RunResult/stdout as the EDN-quoted line "\"hello-from-probe\"". Migrated onto
+;; the PRIMED peer wire — a direct `(:wat::kernel::spawn-program'
+;; (:wat::spawn::process) (:wat::core::forms …))` child + `(:wat::kernel::recv' p)`.
+;; On the wire the child's printed value crosses DECODED: `(println "hello-from-probe")`
+;; arrives as RecvOutcome::Message["hello-from-probe"] (native String), NOT the
+;; EDN-quoted stdout scrape. Lost[LociDiedError] / Closed are never swallowed.
+;; (shape: tests/kernel/wat_run_sandboxed_ast.wat compute-prints-hello.)
 
-(:wat::core::defn :probe::ast::capture-stdout [] -> :wat::kernel::RunResult
-  (:wat::test::run-hermetic
-    (:wat::kernel::println "hello-from-probe")))
-
+(:wat::core::defn :probe::ast::capture-stdout [] -> :wat::core::String
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println "hello-from-probe"))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message m) m)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "capture-stdout: child closed before sending its value" :wat::core::None :wat::core::None)))))

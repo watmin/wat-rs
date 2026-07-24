@@ -8,8 +8,15 @@
 //! `Err(...)`.
 //!
 //! **Right path runs (good path):** `(:wat::core::Fault/of "boom")` type-checks,
-//! satisfies `:wat::core::Error`, and when run inside a sandboxed thread the
-//! Failure is caught correctly. Startup succeeds and main passes all assertions.
+//! satisfies `:wat::core::Error`, and when raised in a spawned child the crash is
+//! caught over the wire correctly. Startup succeeds and main passes all assertions.
+//!
+//! IPC de-prime (arc 278): the sandboxed-raise leg was migrated off the non-prime
+//! `:wat::test::run-thread` (spawn-thread + Thread/join-result → RunResult) onto the
+//! PRIMED peer wire — `spawn-program' :process` + `recv'`. "The raise is caught" now
+//! means the child crash surfaces as `recv'` → `Lost[LociDiedError::Panic]` whose
+//! message is the raised Fault's message ("boom"). The `:user::main` assertions
+//! (below, run via `call_beside`) fire a panic if that mapping doesn't hold.
 
 use wat::freeze::{call_beside, startup_from_file};
 

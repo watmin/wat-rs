@@ -1,157 +1,83 @@
-//! Arc 170 slice 3 Gap K — spawn-process lockstep verification.
+//! Arc 170 slice 3 Gap K — spawn-process lockstep (no-deadlock) verification.
 //!
-//! Verifies that `run-hermetic` (the spawn-process Layer 1 path) does NOT
-//! deadlock after the `run-hermetic-driver` drain-then-join restructure.
+//! Arc 278 IPC de-prime (MAP unit): migrated off the non-prime
+//! `:wat::test::run-hermetic` + `run-hermetic-driver` drain-then-join
+//! restructure onto the PRIMED peer wire (`spawn-program'`
+//! (`:wat::spawn::process`) + `recv'`). The no-deadlock point is preserved: the
+//! primed wire ALSO does not deadlock — the parent's `recv'` COMPLETES for both
+//! a clean child and a dying one.
 //!
 //! ## Path exercised
 //!
-//! Both probes use `:wat::test::run-hermetic` exclusively — the Layer 1
-//! spawn-process surface. The macro expands the body into a
-//! `(:wat::core::fn [_rx <- Receiver<nil> _tx <- Sender<nil>] -> nil <body>)`
-//! form, calls `(:wat::kernel::spawn-process fn)`, then passes the resulting
-//! `Process<nil,nil>` to `(:wat::test::run-hermetic-driver proc)`. That
-//! driver is the site restructured in Gap K: inner let owns
-//! `Process/stdout` and `Process/stderr` Receivers and drains them; outer
-//! let calls `Process/join-result` only after the inner scope has exited.
+//! Both probes fork an inner `:user::main` via `(:wat::spawn::process)` and
+//! `recv'` its outcome:
 //!
-//! ## What is NOT tested here
+//! - Probe 1: a clean child returns nil / prints nothing / sends nothing →
+//!   `recv'` → `RecvOutcome::Closed`. The fixture returns "closed".
+//!   (Mirrors the old `RunResult.failure = None` clean-exit read.)
 //!
-//! Stdout-capture on the spawn-process path is OUT OF SCOPE. The
-//! spawn-process child does not install ThreadIO or the ambient stdio
-//! services; `(:wat::kernel::println ...)` would error with
-//! `ServiceNotRunning` in a spawn-process body. stdout-capture verification
-//! lives in `tests/probe_run_hermetic_ast_stdout_capture.rs` which
-//! exercises the spawn-process path where ambient stdio IS installed.
+//! - Probe 2: a child calls `assertion-failed!` → the peer CRASHES before any
+//!   send → `recv'` → `RecvOutcome::Lost[cause]`. The fixture returns the
+//!   death message (`LociDiedError/message`). (Mirrors the old
+//!   `RunResult.failure = Some(...)` read with a non-empty diagnostic.)
 //!
-//! ## Row C1 verification
-//!
-//! These two probes prove the lockstep rule holds for the spawn-process path:
-//!
-//! - Probe 1: empty body returning nil → child exits 0 → `RunResult.failure = None`
-//!   and the test completes without hanging (drain-before-join allows clean shutdown).
-//!
-//! - Probe 2: body calling `assertion-failed!` → child panics → `RunResult.failure = Some(...)`
-//!   and the test completes without hanging (drain-before-join drains panic stderr
-//!   before join even on the failure path).
-//!
-//! If the deadlock category were present (join-before-drain), both tests would hang.
-//! Completing without hang IS the positive verification of the lockstep fix.
+//! If a deadlock category were present, `recv'` would hang and neither test
+//! would complete. Completing without hang IS the positive verification.
 
-use wat::freeze::startup_beside;
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-// ─── Probe 1 — empty body: drain-before-join allows clean child shutdown ───
+fn run_fn(fn_name: &str) -> Value {
+    call_beside(file!(), fn_name).expect("probe should run without panicking")
+}
 
-/// `run-hermetic` with an empty body (just `:wat::core::nil`).
+fn as_string(v: Value) -> String {
+    match v {
+        Value::String(s) => (*s).clone(),
+        other => panic!("expected String; got {:?}", other),
+    }
+}
+
+// ─── Probe 1 — clean child → recv' → Closed; completing = no hang ──────────
+
+/// `spawn-program' (:wat::spawn::process)` with a clean child returning nil.
 ///
-/// The child exits 0. Under the old join-before-drain shape this would
-/// hang if the child's OS pipes had any content to buffer. Under the
-/// corrected drain-before-join shape, the Receivers drop before join is
-/// called; the child can exit cleanly; join returns immediately.
-///
-/// Verifies: `RunResult.failure = None` (clean exit) and test completes
-/// (no hang). Path: `:wat::test::run-hermetic` (spawn-process Layer 1).
+/// The child prints nothing and sends nothing; the parent's `recv'` sees a
+/// clean terminal → `RecvOutcome::Closed`. Under a deadlock this `recv'` would
+/// hang; completing (and returning "closed") is the positive no-deadlock
+/// verification. Path: `spawn-program' (:wat::spawn::process)` + `recv'`.
 #[test]
 fn probe_run_hermetic_clean_exit_no_deadlock() {
-    // World loaded from co-located probe_run_hermetic_no_deadlock.wat via startup_beside.
-    let world = startup_beside(file!()).expect("freeze should succeed");
-    let func = world
-        .symbols()
-        .get(":probe::test::clean-exit")
-        .expect(":probe::test::clean-exit defined");
-    let result = wat::runtime::apply_function(
-        func.clone(),
-        Vec::new(),
-        world.symbols(),
-        wat::rust_caller_span!(),
-    )
-    .expect("run-hermetic driver should not itself panic");
-
-    // result is :wat::kernel::RunResult { stdout stderr failure }
-    let sv = match &result {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
-        other => panic!("expected RunResult Struct; got {:?}", other),
-    };
-
-    // RunResult field 2 is failure :Option<Failure>; must be None (clean exit).
-    let failure_field = &sv.fields[2];
-    let is_none = match failure_field {
-        wat::runtime::Value::Option(opt) => opt.as_ref().is_none(),
-        other => panic!("expected Option failure field; got {:?}", other),
-    };
-    assert!(
-        is_none,
-        "expected clean-exit body to produce RunResult with failure=None; got {:?}",
-        result
+    assert_eq!(
+        as_string(run_fn(":probe::test::clean-exit")),
+        "closed",
+        "expected the clean child to close the wire (RecvOutcome::Closed) without hanging"
     );
 }
 
-// ─── Probe 2 — panicking body: drain-before-join drains stderr before join ─
+// ─── Probe 2 — dying child → recv' → Lost[cause]; completing = no hang ─────
 
-/// `run-hermetic` with a body that calls `assertion-failed!` (intentional panic).
+/// `spawn-program' (:wat::spawn::process)` with a child that calls
+/// `assertion-failed!` (intentional crash).
 ///
-/// The child panics before returning. Under the old join-before-drain shape,
-/// the drain threads could block if the panic chain on stderr exceeds pipe
-/// buffer capacity; join would block waiting for the child to exit while
-/// the drain threads are blocked on send. Under the corrected drain-before-join
-/// shape, the Receivers drop before join; the drain threads see EOF and
-/// complete; the child can finish writing and exit; join returns.
-///
-/// Verifies: `RunResult.failure = Some(...)` (structured failure captured)
-/// and the test completes without hanging. Path: `:wat::test::run-hermetic`
-/// (spawn-process Layer 1).
+/// The child crashes before any send → the parent's `recv'` returns
+/// `Lost[cause]` (a `LociDiedError` carrying the diagnostic). Under a deadlock
+/// this `recv'` would hang even on the failure path; completing (and returning
+/// a non-empty death message) is the positive verification. Path:
+/// `spawn-program' (:wat::spawn::process)` + `recv'`.
 #[test]
 fn probe_run_hermetic_panic_body_no_deadlock() {
-    // World loaded from co-located probe_run_hermetic_no_deadlock.wat via startup_beside.
-    let world = startup_beside(file!()).expect("freeze should succeed");
-    let func = world
-        .symbols()
-        .get(":probe::test::intentional-panic")
-        .expect(":probe::test::intentional-panic defined");
-    let result = wat::runtime::apply_function(
-        func.clone(),
-        Vec::new(),
-        world.symbols(),
-        wat::rust_caller_span!(),
-    )
-    .expect("run-hermetic driver should not itself panic (failure captured as RunResult)");
-
-    // result is :wat::kernel::RunResult { stdout stderr failure }
-    let sv = match &result {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
-        other => panic!("expected RunResult Struct; got {:?}", other),
-    };
-
-    // RunResult field 2 is failure :Option<Failure>; must be Some (child panicked).
-    let failure_field = &sv.fields[2];
-    let failure_val = match failure_field {
-        wat::runtime::Value::Option(opt) => match opt.as_ref() {
-            Some(v) => v,
-            None => panic!(
-                "expected panicking body to produce Some(Failure); got None — \
-                 child panic may not have been captured (drain-before-join may be broken)"
-            ),
-        },
-        other => panic!("expected Option failure field; got {:?}", other),
-    };
-
-    // Failure struct must have the correct type_name.
-    let failure_struct = match failure_val {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Record && s.class == "wat::kernel::Failure" => s,
-        other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
-    };
-
-    // Arc 278 the string-wrap annihilation — Failure.fields[0] is the mandatory
-    // `error` (:wat::core::Error, canonically a Fault); its fields[0] is the
-    // `message` String. Must carry a non-empty diagnostic.
-    let message = match &failure_struct.fields[0] {
-        wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
-            wat::runtime::Value::String(s) => s.to_string(),
-            other => panic!("expected Failure.error.message :String; got {:?}", other),
-        },
-        other => panic!("expected Failure.error :Aggregate; got {:?}", other),
-    };
+    let msg = as_string(run_fn(":probe::test::intentional-panic"));
     assert!(
-        !message.is_empty(),
-        "expected non-empty Failure message from intentional panic; got empty string"
+        !msg.is_empty(),
+        "expected a non-empty death message from the crashed child (Lost[cause]); got empty"
+    );
+    assert_ne!(
+        msg, "UNEXPECTED-MESSAGE",
+        "expected Lost (crashed child), not a Message"
+    );
+    assert_ne!(
+        msg, "UNEXPECTED-CLOSED",
+        "expected Lost (crashed child), not a clean Closed"
     );
 }

@@ -1,114 +1,66 @@
-//! Probe — custom panic hook suppresses Rust's default panic output (arc 170 slice 1i).
+//! Probe — a child panic crosses the primed wire as a structured cause, never as
+//! Rust's default panic noise (arc 170 slice 1i; arc 278 IPC de-prime).
 //!
-//! Path exercised: any panic path in `spawn_process_child_branch` where the
-//! custom panic hook (installed by `install_silent_panic_hook`) prevents
-//! Rust's default handler from writing "thread '...' panicked at ..." and
-//! "note: run with RUST_BACKTRACE=1" lines to fd 2.
+//! ORIGINAL CONTRACT (partially obsolete): under the retired non-prime
+//! `:wat::test::run-hermetic` (fork + OS-pipe scrape → `:wat::kernel::RunResult`),
+//! this probe inspected the child's OS-stderr lines to prove the silent panic hook
+//! suppressed Rust's default handler output — "thread '…' panicked at …",
+//! "Box<dyn Any>", "note: run with `RUST_BACKTRACE=1`" — leaving ONLY a structured
+//! `#wat.kernel.LociDiedError/*` line on fd 2.
 //!
-//! This probe uses the AssertionPayload path (assert-eq with mismatched values)
-//! because:
-//! 1. It reliably triggers the panic hook.
-//! 2. The structured emit (`emit_panics_to_stderr`) is already correct for
-//!    AssertionPayload — we are only asserting the ABSENCE of Rust's default
-//!    handler output, not the content of the structured EDN.
+//! IPC de-prime (arc 278): migrated onto the PRIMED peer wire — `spawn-program'
+//! :process` + `recv'`. The wire captures NO child OS-stderr, so the literal
+//! ABSENCE-of-raw-noise assertion (scan `RunResult.stderr` for "thread '…") is NOT
+//! expressible. It is SUBSUMED by the stronger structural fact the wire guarantees:
+//! a crashed child's reason arrives as a matchable `LociDiedError` (here
+//! `::Panic` carrying the assertion message), never as raw stderr text. If Rust's
+//! default handler had leaked instead of a structured cause, the fixture's
+//! `recv'`/`LociDiedError::Panic` match would not yield the assertion message.
 //!
-//! Before arc 170 slice 1i: `probe_runtime_err_stderr_visibility` showed
-//! stderr lines [0]-[3] were Rust default handler output:
-//!   [1] thread 'probe...' panicked at src/assertion.rs:...
-//!   [2] Box<dyn Any>
-//!   [3] note: run with `RUST_BACKTRACE=1` to get a backtrace
-//!
-//! After installing the silent panic hook: fd 2 contains ONLY the structured
-//! `#wat.kernel/ProcessPanics` line. The three Rust-default lines are gone.
-//!
-//! Row G (path-honesty): the body exercises the panic path (not runtime-error
-//! or startup-error paths); the assertion verifies ABSENCE of the hook's
-//! suppressed output on the SAME panic path.
+//! Body: assert-eq with mismatched values → AssertionPayload panic → recv' →
+//! Lost[Panic]; the fixture returns Panic.message as a plain `:wat::core::String`.
 
-use wat::freeze::startup_beside;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Extract the `RunResult.stderr` lines (field index 1).
-fn stderr_lines(result: &Value) -> Vec<String> {
-    let sv = match result {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
-        other => panic!("expected RunResult; got {:?}", other),
-    };
-    match &sv.fields[1] {
-        Value::Vec(v) => v
-            .iter()
-            .filter_map(|item| match item {
-                Value::String(s) => Some((**s).clone()),
-                _ => None,
-            })
-            .collect(),
-        other => panic!("expected Vec for stderr field; got {:?}", other),
+/// Call a zero-arg compute fn in the co-located fixture and return its
+/// `:wat::core::String` result (the crash cause's message).
+fn run_fn(fn_name: &str) -> String {
+    match call_beside(file!(), fn_name).expect("compute should run") {
+        Value::String(s) => (*s).clone(),
+        other => panic!("expected String; got {:?}", other),
     }
 }
 
 #[test]
 fn probe_no_default_rust_panic_noise_on_stderr() {
-    // Body triggers an AssertionPayload panic via assert-eq mismatch.
-    // The child's panic hook is installed BEFORE catch_unwind — Rust's
-    // default handler (which would write "thread '...' panicked" etc.)
-    // is suppressed. Only the structured #wat.kernel/ProcessPanics line
-    // should appear on stderr.
-    // Wat source lives in the co-located fixture: probe_no_default_rust_panic_noise_on_stderr.wat
-    let world = startup_beside(file!()).expect("startup");
-    let func = world.symbols().get(":probe::hook-test").expect("defined");
-    let result = apply_function(
-        func.clone(),
-        Vec::new(),
-        world.symbols(),
-        wat::rust_caller_span!(),
-    )
-    .expect("driver should not panic — RunResult carries the failure");
-
-    let lines = stderr_lines(&result);
+    // The child asserts "expected-value" == "actual-value" → AssertionPayload
+    // panic; the parent's recv' sees Lost[Panic]; the fixture returns Panic.message.
+    let msg = run_fn(":probe::hook-test");
 
     eprintln!("===== probe_no_default_rust_panic_noise_on_stderr =====");
-    eprintln!("stderr_lines ({}):", lines.len());
-    for (i, line) in lines.iter().enumerate() {
-        eprintln!("  [{}] {:?}", i, line);
-    }
+    eprintln!("Panic.message: {:?}", msg);
     eprintln!("=======================================================");
 
-    // Row F — assert NONE of the stderr lines contain Rust default handler text.
-    for line in &lines {
-        // rune:lint(loose-assert) — `line` is subprocess stderr; may contain absolute host path to .wat fixture in the #wat.kernel/ProcessPanics EDN. Content varies by host. Targeted absence of Rust default panic handler strings is the real contract.
-        assert!(
-            !line.contains("thread '"),
-            "Rust default panic handler output found in stderr: {:?}\n\
-             Expected: ONLY the structured #wat.kernel/ProcessPanics line.\n\
-             Found: {:?}",
-            line,
-            lines
-        );
-        // rune:lint(loose-assert) — same as above: `line` is subprocess stderr varying by host. Targeted absence of RUST_BACKTRACE hint is the real contract.
-        assert!(
-            !line.contains("note: run with RUST_BACKTRACE"),
-            "Rust default panic handler 'RUST_BACKTRACE' hint found in stderr: {:?}\n\
-             Expected: ONLY the structured #wat.kernel/ProcessPanics line.\n\
-             Found: {:?}",
-            line,
-            lines
-        );
-        // rune:lint(loose-assert) — same as above: `line` is subprocess stderr varying by host. Targeted absence of backtick RUST_BACKTRACE hint is the real contract.
-        assert!(
-            !line.contains("note: run with `RUST_BACKTRACE"),
-            "Rust default panic handler backtrace hint found in stderr: {:?}",
-            line
-        );
-    }
+    // The panic crossed the wire as a STRUCTURED Lost[Panic] — not a Message,
+    // Closed, or a non-Panic Lost cause (distinct sentinels). Getting the Panic
+    // message back IS the proof the death is structured, not raw Rust noise: had
+    // the default handler leaked in place of a structured cause, this match would
+    // not have produced the assertion message.
+    assert_ne!(msg, "UNEXPECTED-MESSAGE", "child should have panicked, not sent a message");
+    assert_ne!(msg, "UNEXPECTED-CLOSED", "child should have panicked, not closed cleanly");
+    assert_ne!(
+        msg, "LOST-NON-PANIC",
+        "a child panic must surface as a structured LociDiedError::Panic over the wire"
+    );
 
-    // Positive assertion: the structured ProcessPanics line IS present.
-    let has_structured = lines
-        .iter()
-        .any(|l| l.trim_start().starts_with("[#wat.kernel.LociDiedError/"));
+    // And it is the structured assertion text, never Rust's default handler blob.
+    assert!(!msg.is_empty(), "expected non-empty panic message; got empty string");
+    // rune:lint(loose-assert) — `msg` is the child's structured Panic message; the ABSENCE of
+    // Rust's default "thread '…" handler line is the surviving essence of the original contract.
     assert!(
-        has_structured,
-        "expected a #wat.kernel/ProcessPanics structured line in stderr; \
-         got: {:?}",
-        lines
+        !msg.contains("thread '"),
+        "the wire must deliver a structured cause, never Rust's default panic handler text; got: {:?}",
+        msg
     );
 }

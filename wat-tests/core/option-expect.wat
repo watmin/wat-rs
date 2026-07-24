@@ -62,22 +62,32 @@
 (:wat::test::deftest :wat-tests::core::option-expect::none-panics-with-message
   
   (:wat::core::let
-    [r
-      (:wat::test::run-thread
-        (:wat::core::let
-          [opt :wat::core::None
-           _v
-            (:wat::core::Option/expect  
-              opt
-              "broker disconnected")]
-          ()))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some f)
-        (:wat::test::assert-eq
-          (:wat::kernel::Failure/message f)
-          "broker disconnected"))
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           ;; Option/expect on :None panics; the crash reaches the parent's recv'
+           ;; as Lost (carrying the LociDiedError) BEFORE the completion send'.
+           (:wat::core::do
+             (:wat::core::let
+               [opt :wat::core::None
+                _v
+                 (:wat::core::Option/expect
+                   opt
+                   "broker disconnected")]
+               ())
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
-          "expected Failure on :None panic, got :None"
+          "expected panic on :None expect, got clean completion"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::test::assert-eq
+          (:wat::kernel::LociDiedError/message cause)
+          "broker disconnected"))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed!
+          "expected panic on :None expect, got clean close"
           :wat::core::None :wat::core::None)))))

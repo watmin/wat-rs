@@ -18,23 +18,31 @@
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   
   (:wat::core::let
-    [outcome
-      (:wat::test::run-thread
-        (:wat::core::do
-          (:wat::core::let
-            [p (:my::Pair :a 7 :b 9)
-             form (:wat::core::struct->form p)
-             _roundtrip (:wat::eval-ast! form)]
-            ())))
-     fail (:wat::kernel::RunResult/failure outcome)]
-    ;; Assert the inner run-thread succeeded (no failure) — the
-    ;; struct was built from its lifted form without panicking.
-    (:wat::core::match fail 
-      (:wat::core::None nil)
-      ((:wat::core::Some f)
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           (:wat::core::do
+             (:wat::core::do
+               (:wat::core::let
+                 [p (:my::Pair :a 7 :b 9)
+                  form (:wat::core::struct->form p)
+                  _roundtrip (:wat::eval-ast! form)]
+                 ()))
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
+    ;; Assert the inner child succeeded — a clean completion crosses the wire
+    ;; as Message; a crash reaches recv' as Lost carrying the death message.
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m) nil)
+      ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed!
           (:wat::core::string::concat "roundtrip-via-eval failed: "
-            (:wat::kernel::Failure/message f))
+            (:wat::kernel::LociDiedError/message cause))
+          :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed!
+          "roundtrip-via-eval: child closed before signaling completion"
           :wat::core::None :wat::core::None)))))
 
 

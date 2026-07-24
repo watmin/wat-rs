@@ -12,6 +12,13 @@
 //!
 //! Arc 170 slice 1f-ζ: migrate from invoke_user_main to eval_in_frozen.
 //! Computation moved to :my::compute; canonical nil main appended.
+//!
+//! Arc 278 IPC de-prime (MAP unit): the driver migrated off the retired
+//! non-prime `:wat::test::run-thread` onto the PRIMED peer wire. A thread peer
+//! (`spawn-program' (thread)`) runs the raise!; the child crashes before it can
+//! send, so `recv'` returns `RecvOutcome::Lost[LociDiedError::Panic{failure}]`,
+//! whose `failure` is `Some(Failure)` carrying the raised Fault STRUCTURALLY.
+//! Child body unchanged; the assertion below is unchanged.
 
 use wat::freeze::call_beside;
 use wat::runtime::Value;
@@ -19,9 +26,10 @@ use wat::runtime::Value;
 #[test]
 fn raise_data_round_trips_through_failure_message() {
     // Inner program raises a Fault/of "arc113-raise-data".
-    // The outer program runs it via run-thread, pulls the
-    // Failure off the RunResult, and returns the message read
-    // structurally off Failure/error — the raised Fault RECORD.
+    // The outer program runs it on the primed wire (spawn-program' (thread) +
+    // recv'), matches the peer's death (Lost → LociDiedError::Panic → its
+    // Some(Failure) payload), and returns the message read structurally off
+    // Failure/error — the raised Fault RECORD.
     // This proves the error flows through the panic boundary as
     // structured content (a record), not a stringified blob.
     //
@@ -35,11 +43,12 @@ fn raise_data_round_trips_through_failure_message() {
         },
         other => panic!("expected Option, got {:?}", other),
     };
-    // The recovered value is the message field read off the RECONSTRUCTED Fault
-    // record: edn::read lifted `#wat.core/Fault {…}` back to a record via
-    // reconstruct_record, and Fault/message read the field off it. So it must
-    // equal the raised message EXACTLY — proving the error survived the panic
-    // boundary as structured data (a record), not a stringified blob.
+    // The recovered value is the message field read off the Fault record that
+    // rode the Lost cause's Panic.failure across the panic boundary as data:
+    // Failure/error yielded the Fault record directly, and Fault/message read the
+    // field off it. So it must equal the raised message EXACTLY — proving the
+    // error survived the panic boundary as structured data (a record), not a
+    // stringified blob.
     let msg = match &inner {
         Value::String(s) => s.clone(),
         other => panic!("reconstructed Fault/message should be a String; got {:?}", other),

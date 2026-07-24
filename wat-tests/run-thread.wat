@@ -26,11 +26,24 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::std::test::run-thread-ok-path
   
+  ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
+  ;; The PASSING assertion lets the self-peer reach its send' → recv' Message → clean run
+  ;; (the old RunResult/failure :None). Lost/Closed would mean the pass was misclassified.
   (:wat::core::let
-    [result (:wat::test::run-thread
-              (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2)))]
-    (:wat::core::match (:wat::kernel::RunResult/failure result)
-       
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           (:wat::core::do
+             (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2))
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))
+     fail (:wat::core::match (:wat::kernel::recv' p)
+            ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
+    (:wat::core::match fail
+
       (:wat::core::None nil)
       ((:wat::core::Some _f)
        (:wat::kernel::assertion-failed!
@@ -42,11 +55,25 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::std::test::run-thread-err-path
   
+  ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
+  ;; The FAILING assertion crashes the self-peer BEFORE its send' → recv' Lost[cause];
+  ;; LociDiedError/to-failure rebuilds the Option<Failure> the old RunResult/failure gave
+  ;; (:Some), so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [result (:wat::test::run-thread
-              (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2)))]
-    (:wat::core::match (:wat::kernel::RunResult/failure result)
-       
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           (:wat::core::do
+             (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2))
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))
+     fail (:wat::core::match (:wat::kernel::recv' p)
+            ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
+    (:wat::core::match fail
+
       ((:wat::core::Some _f) nil)
       (:wat::core::None
        (:wat::kernel::assertion-failed!

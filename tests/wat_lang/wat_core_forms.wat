@@ -22,14 +22,23 @@
      n        (:wat::core::length captured)]
     (:wat::core::= n 1)))
 
-;; test4: run-hermetic roundtrip via println
+;; test4: primed-peer roundtrip via println (arc 278 IPC de-prime — migrated off
+;; run-hermetic onto spawn-program' (process) + recv'). The child println's a String;
+;; the parent drains that single value off the peer as a RecvOutcome::Message. The
+;; value crosses the wire DECODED (a String, not the EDN-quoted stdout line the old
+;; RunResult/stdout captured), so it is "hello-from-inside" without the outer quotes.
 (:wat::core::defn :t::test4-run-sandboxed [] -> :wat::core::String
   (:wat::core::let
-    [r        (:wat::test::run-hermetic
-                (:wat::kernel::println "hello-from-inside"))
-     captured (:wat::kernel::RunResult/stdout r)
-     line     (:wat::core::first captured)]
-    line))
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println "hello-from-inside"))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message m) m)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "test4: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
 ;; test5: :wat::test::program macro expands to forms (length 3)
 (:wat::core::defn :t::test5-program-macro [] -> :wat::core::bool
@@ -38,11 +47,18 @@
      n        (:wat::core::length captured)]
     (:wat::core::= n 3)))
 
-;; test6: run-hermetic roundtrip via test::program
+;; test6: primed-peer roundtrip (arc 278 IPC de-prime — migrated off run-hermetic onto
+;; spawn-program' (process) + recv'). Same wire as test4; the child println's "hi" and
+;; the parent recv's it as a decoded String Message ("hi", no EDN quotes).
 (:wat::core::defn :t::test6-run-ast-hello [] -> :wat::core::String
   (:wat::core::let
-    [r        (:wat::test::run-hermetic
-                (:wat::kernel::println "hi"))
-     captured (:wat::kernel::RunResult/stdout r)
-     line     (:wat::core::first captured)]
-    line))
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println "hi"))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message m) m)
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "test6: child closed before sending its value" :wat::core::None :wat::core::None)))))

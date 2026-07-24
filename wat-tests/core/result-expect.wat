@@ -39,22 +39,32 @@
 (:wat::test::deftest :wat-tests::core::result-expect::err-panics-with-message
   
   (:wat::core::let
-    [r
-      (:wat::test::run-thread
-        (:wat::core::let
-          [res (:wat::core::Err "rundb crashed")
-           _v
-            (:wat::core::Result/expect  
-              res
-              "expected Ok value")]
-          ()))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some f)
-        (:wat::test::assert-eq
-          (:wat::kernel::Failure/message f)
-          "expected Ok value"))
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           ;; Result/expect on Err panics; the crash reaches the parent's recv'
+           ;; as Lost (carrying the LociDiedError) BEFORE the completion send'.
+           (:wat::core::do
+             (:wat::core::let
+               [res (:wat::core::Err "rundb crashed")
+                _v
+                 (:wat::core::Result/expect
+                   res
+                   "expected Ok value")]
+               ())
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed!
-          "expected Failure on Err panic, got :None"
+          "expected panic on Err expect, got clean completion"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::test::assert-eq
+          (:wat::kernel::LociDiedError/message cause)
+          "expected Ok value"))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed!
+          "expected panic on Err expect, got clean close"
           :wat::core::None :wat::core::None)))))

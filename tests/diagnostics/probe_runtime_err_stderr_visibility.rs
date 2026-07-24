@@ -1,86 +1,55 @@
-//! Probe — does the test harness drop stderr-lines when the child runtime-errors?
+//! Probe — a crashed child's reason crosses the primed wire STRUCTURALLY, not as
+//! dropped stderr text (arc 278 IPC de-prime).
 //!
-//! Read confirmed (wat/test.wat:530-540): when extract-panics returns None,
-//! the harness's match fallback uses ONLY join-result's exit-code chain,
-//! discarding the drained stderr-lines field. This probe verifies
-//! empirically by:
+//! ORIGINAL PURPOSE (now obsolete): under the retired non-prime
+//! `:wat::test::run-hermetic` (fork + OS-pipe scrape → `:wat::kernel::RunResult`),
+//! this probe surfaced `RunResult.stderr` to expose a harness lossiness bug — the
+//! match fallback used ONLY join-result's exit-code chain and DISCARDED the drained
+//! stderr-lines Vec, reporting a bare "forked program exited N". It asserted
+//! nothing; it just surfaced data for gap analysis.
 //!
-//! 1. Building a run-hermetic with a body that should trigger a runtime
-//!    error (not a panic). Calling an undefined function is the cleanest
-//!    way: the child boots fine, but the body's resolved-but-unbound call
-//!    hits a RuntimeError, which substrate writes as "runtime: {:?}" to
-//!    fd 2 before exiting EXIT_RUNTIME_ERROR (3).
-//! 2. Reading RunResult.stderr (the drained stderr-lines Vec).
-//! 3. Reading RunResult.failure (which should be Some Failure with
-//!    "exited 3" message — confirming the lossiness).
+//! IPC de-prime (arc 278): migrated onto the PRIMED peer wire — `spawn-program'
+//! :process` + `recv'`. There is NO OS-stderr side-channel to drop: a crashed
+//! child's reason crosses the wire STRUCTURALLY as the `recv'` Lost cause (a
+//! `LociDiedError`). The "drop the stderr Vec" lossiness the probe hunted cannot
+//! exist over the wire, so the probe's surveying purpose is retired. What it now
+//! pins is the surviving contract: an assertion death arrives as a structured
+//! `LociDiedError::Panic` carrying its message — not as raw, droppable text.
 //!
-//! The probe DOESN'T assert behavior change — it surfaces the current
-//! state for the substrate-as-teacher gap analysis. If RunResult.stderr
-//! contains useful diagnostic text but RunResult.failure.message is just
-//! "exited 3", the test infra is throwing diagnostics away. That's the
-//! foundational flaw to fix.
+//! Body: assert-eq with mismatched values → AssertionPayload panic → recv' →
+//! Lost[Panic]; the fixture returns Panic.message as a plain `:wat::core::String`.
 
-use wat::freeze::startup_beside;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::call_beside;
+use wat::runtime::Value;
 
-/// Run a body that triggers a runtime error in the spawn-process child.
-/// Surface the full RunResult — both `stderr` field and `failure` field —
-/// so we can see what gets dropped.
+/// Call a zero-arg compute fn in the co-located fixture and return its
+/// `:wat::core::String` result (the crash cause's message).
+fn run_fn(fn_name: &str) -> String {
+    match call_beside(file!(), fn_name).expect("compute should run") {
+        Value::String(s) => (*s).clone(),
+        other => panic!("expected String; got {:?}", other),
+    }
+}
+
 #[test]
 fn probe_runtime_err_stderr_visibility() {
-    // Body that runtime-errors: calls assert-eq with mismatched values.
-    // This goes through the assertion-failed! path which IS structured
-    // (we should see the cascade). Use this as the CONTROL: structured
-    // path should populate stderr-chain properly.
-    // Wat source lives in the co-located fixture: probe_runtime_err_stderr_visibility.wat
-    let world = startup_beside(file!()).expect("startup");
-    let func = world.symbols().get(":probe::structured").expect("defined");
-    let result = apply_function(
-        func.clone(),
-        Vec::new(),
-        world.symbols(),
-        wat::rust_caller_span!(),
-    )
-    .expect("driver should not panic");
-
-    let sv = match &result {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
-        other => panic!("expected RunResult; got {:?}", other),
-    };
-
-    // stderr field (Vec<String>)
-    let stderr_lines = match &sv.fields[1] {
-        Value::Vec(v) => v.as_ref().clone(),
-        other => panic!("expected stderr Vec; got {:?}", other),
-    };
-
-    // failure field (Option<Failure>)
-    let failure_message = match &sv.fields[2] {
-        Value::Option(opt) => match opt.as_ref() {
-            Some(Value::Aggregate(f)) if f.nature == wat::Nature::Record && f.class == "wat::kernel::Failure" => {
-                // Arc 278 — fields[0] is the `error` (Fault); its fields[0] is the message String.
-                match &f.fields[0] {
-                    Value::Aggregate(err) => match &err.fields[0] {
-                        Value::String(s) => (**s).clone(),
-                        _ => "<missing>".to_string(),
-                    },
-                    _ => "<missing>".to_string(),
-                }
-            }
-            _ => "<no failure>".to_string(),
-        },
-        _ => "<malformed>".to_string(),
-    };
+    // The child asserts "intentional" == "different" → AssertionPayload panic; the
+    // parent's recv' sees Lost[Panic]; the fixture returns Panic.message.
+    let msg = run_fn(":probe::structured");
 
     eprintln!("===== probe_runtime_err_stderr_visibility =====");
-    eprintln!("stderr_lines ({}):", stderr_lines.len());
-    for (i, line) in stderr_lines.iter().enumerate() {
-        if let Value::String(s) = line {
-            eprintln!("  [{}] {}", i, s);
-        }
-    }
-    eprintln!("failure.message: {:?}", failure_message);
+    eprintln!("Panic.message: {:?}", msg);
     eprintln!("================================================");
 
-    // Probe PASSES (just surfaces data). Don't gate on assertions.
+    // The assertion death crossed the wire as a structured Lost[Panic] — not a
+    // Message, Closed, or a non-Panic Lost cause (distinct sentinels). This is the
+    // surviving contract: the reason is delivered structurally, never a dropped
+    // stderr blob or an exit-code-only fallback.
+    assert_ne!(msg, "UNEXPECTED-MESSAGE", "child should have crashed, not sent a message");
+    assert_ne!(msg, "UNEXPECTED-CLOSED", "child should have crashed, not closed cleanly");
+    assert_ne!(
+        msg, "LOST-NON-PANIC",
+        "an assertion failure must surface as LociDiedError::Panic over the wire"
+    );
+    assert!(!msg.is_empty(), "expected non-empty assertion message; got empty string");
 }

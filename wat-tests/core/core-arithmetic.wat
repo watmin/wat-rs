@@ -212,7 +212,8 @@
 ;; ─── Division by zero: i64 (runtime error) ──────────────────────────────
 ;;
 ;; Mirrors poly_div_i64_zero_errors. i64 division by zero is a RuntimeError.
-;; run-thread catches the panic and surfaces it in RunResult/failure.
+;; The primed thread peer crashes on the panic; the parent's recv' faces Lost
+;; (the detected failure) instead of a clean completion Message.
 ;;
 ;; NOTE: f64 / 0.0 returns infinity in this substrate (IEEE 754) and does NOT
 ;; error; poly_div_f64_zero_errors was in the 13-failing list in the retired
@@ -222,15 +223,24 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-zero-runtime-error
   
   (:wat::core::let
-    [r
-      (:wat::test::run-thread
-        ;; Body must return nil; do discards the i64 result, then returns ().
-        ;; Division panics before () is reached, which is the whole point.
-        (:wat::core::do (:wat::core::/ 5 0) ()))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some _f) nil)
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           ;; Body must return nil; do discards the i64 result, then returns ().
+           ;; Division panics before () is reached, which is the whole point — the
+           ;; crash reaches the parent's recv' as Lost BEFORE the completion send'.
+           (:wat::core::do
+             (:wat::core::do (:wat::core::/ 5 0) ())
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        (:wat::kernel::assertion-failed!
+          "expected RuntimeError for i64 / 0"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected RuntimeError for i64 / 0"
           :wat::core::None :wat::core::None)))))
@@ -238,9 +248,9 @@
 ;; ─── REJECTION: cross-type arithmetic → NoMatchingClause ────────────────
 ;;
 ;; Cross-type arithmetic was retired in arc 237.8b. NoMatchingClause fires at
-;; CHECK time (no clause matches i64×f64). These use run-hermetic (forked
-;; subprocess) so the check error surfaces in RunResult/failure without
-;; breaking the outer file's type-check.
+;; CHECK time (no clause matches i64×f64). These spawn a primed PROCESS peer
+;; (:user::main over the forms wire) so the check error crashes the child and
+;; surfaces as recv' Lost, without breaking the outer file's type-check.
 ;;
 ;; Mirrors the behaviour asserted (negatively) by the retired Rust tests
 ;; poly_add_i64_f64_promotes_to_f64, poly_add_f64_i64_promotes_to_f64, etc.
@@ -249,13 +259,17 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-add-rejected
   
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::core::let [x (:wat::core::+ 1 2.0)] x))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some _f) nil)
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let [x (:wat::core::+ 1 2.0)] x))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        (:wat::kernel::assertion-failed!
+          "expected NoMatchingClause for (+ 1 2.0)"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ 1 2.0)"
           :wat::core::None :wat::core::None)))))
@@ -269,13 +283,17 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::string-add-rejected
   
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::core::let [x (:wat::core::+ "a" "b")] x))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some _f) nil)
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let [x (:wat::core::+ "a" "b")] x))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        (:wat::kernel::assertion-failed!
+          "expected NoMatchingClause for (+ \"a\" \"b\")"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for (+ \"a\" \"b\")"
           :wat::core::None :wat::core::None)))))
@@ -292,13 +310,17 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-lt-rejected
   
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::core::let [b (:wat::core::< 1 2.5)] b))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some _f) nil)
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let [b (:wat::core::< 1 2.5)] b))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        (:wat::kernel::assertion-failed!
+          "expected TypeMismatch (check-time) for (< 1 2.5)"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected TypeMismatch (check-time) for (< 1 2.5)"
           :wat::core::None :wat::core::None)))))
@@ -312,13 +334,17 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::sub-zero-ary-rejected
   
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::core::let [x (:wat::core::-)] x))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some _f) nil)
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let [x (:wat::core::-)] x))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        (:wat::kernel::assertion-failed!
+          "expected NoMatchingClause for 0-ary (-)"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (-)"
           :wat::core::None :wat::core::None)))))
@@ -327,13 +353,17 @@
 (:wat::test::deftest :wat-tests::core::core-arithmetic::div-zero-ary-rejected
   
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::core::let [x (:wat::core::/)] x))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail 
-      ((:wat::core::Some _f) nil)
-      (:wat::core::None
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let [x (:wat::core::/)] x))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        (:wat::kernel::assertion-failed!
+          "expected NoMatchingClause for 0-ary (/)"
+          :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+      (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected NoMatchingClause for 0-ary (/)"
           :wat::core::None :wat::core::None)))))

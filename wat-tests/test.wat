@@ -39,12 +39,24 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-fail-populates-message
   
-  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (p, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
+  ;; A failing assertion crashes the self-peer BEFORE its send' → recv' Lost[cause];
+  ;; LociDiedError/to-failure rebuilds the Option<Failure> the old RunResult/failure gave,
+  ;; so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [r
-      (:wat::test::run-thread
-        (:wat::test::assert-eq 42 43))
-     fail (:wat::kernel::RunResult/failure r)]
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           (:wat::core::do
+             (:wat::test::assert-eq 42 43)
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))
+     fail (:wat::core::match (:wat::kernel::recv' p)
+            ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
     (:wat::core::match fail  
       ((:wat::core::Some f) (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
@@ -62,12 +74,24 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::std::test::test-assert-contains-fail-populates-actual
   
-  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (p, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
+  ;; The failing assert-contains crashes the self-peer → recv' Lost[cause];
+  ;; LociDiedError/to-failure rebuilds the Option<Failure> (preserving actual/expected),
+  ;; so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [r
-      (:wat::test::run-thread
-        (:wat::test::assert-contains "hello" "xyz"))
-     fail (:wat::kernel::RunResult/failure r)]
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           (:wat::core::do
+             (:wat::test::assert-contains "hello" "xyz")
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))
+     fail (:wat::core::match (:wat::kernel::recv' p)
+            ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
     (:wat::core::match fail  
       ((:wat::core::Some f)
         (:wat::core::let
@@ -101,14 +125,26 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :wat-tests::std::test::test-assert-coincident-fail-renders-explanation
   
-  ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; rune:complectens(embedded-program) — outer let has 2 bindings (p, fail); bulk is embedded-program AST literal (test fixture, not composition)
+  ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
+  ;; The failing assert-coincident crashes the self-peer → recv' Lost[cause];
+  ;; LociDiedError/to-failure rebuilds the Option<Failure> (preserving the rendered
+  ;; explanation in `actual`), so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [r
-      (:wat::test::run-thread
-        (:wat::test::assert-coincident
-          (:wat::holon::to-holon "alice")
-          (:wat::holon::to-holon "charlie")))
-     fail (:wat::kernel::RunResult/failure r)]
+    [p (:wat::kernel::spawn-program' (:wat::spawn::thread)
+         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+           (:wat::core::do
+             (:wat::test::assert-coincident
+               (:wat::holon::to-holon "alice")
+               (:wat::holon::to-holon "charlie"))
+             (:wat::core::match (:wat::kernel::send' self 0)
+               (:wat::kernel::SendOutcome::Sent   nil)
+               (:wat::kernel::SendOutcome::Closed nil)
+               ((:wat::kernel::SendOutcome::Lost _c) nil)))))
+     fail (:wat::core::match (:wat::kernel::recv' p)
+            ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
     (:wat::core::match fail  
       ((:wat::core::Some f)
         (:wat::core::let
@@ -134,15 +170,33 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stdout-is-matches
   
+  ;; arc 278 IPC de-prime: run-hermetic → primed peer wire (spawn-program' :process + recv').
+  ;; On the wire each printed value crosses DECODED (native String "alpha"/"beta"), not a
+  ;; scraped EDN stdout line ("\"alpha\""); the old assert-stdout-is over captured lines
+  ;; becomes assert-eq over the two received Messages. The trailing () returns nil → Closed.
   (:wat::core::let
-    [inner
-      (:wat::test::run-hermetic
-        (:wat::core::do
-          (:wat::kernel::println "alpha")
-          (:wat::kernel::println "beta")
-          ()))
-     expected (:wat::core::Vector :wat::core::String "\"alpha\"" "\"beta\"")]
-    (:wat::test::assert-stdout-is inner expected)))
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::do
+               (:wat::kernel::println "alpha")
+               (:wat::kernel::println "beta")
+               ()))))
+     m1 (:wat::core::match (:wat::kernel::recv' p)
+          ((:wat::kernel::RecvOutcome::Message m) m)
+          ((:wat::kernel::RecvOutcome::Lost cause)
+            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+          (:wat::kernel::RecvOutcome::Closed
+            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before first line" :wat::core::None :wat::core::None)))
+     m2 (:wat::core::match (:wat::kernel::recv' p)
+          ((:wat::kernel::RecvOutcome::Message m) m)
+          ((:wat::kernel::RecvOutcome::Lost cause)
+            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+          (:wat::kernel::RecvOutcome::Closed
+            (:wat::kernel::assertion-failed! "assert-stdout-is-matches: child closed before second line" :wat::core::None :wat::core::None)))]
+    (:wat::core::do
+      (:wat::test::assert-eq m1 "alpha")
+      (:wat::test::assert-eq m2 "beta"))))
 
 ;; ─── run-hermetic-with-prelude — proof of capability (arc 170 slice 6) ──
 ;;
@@ -169,11 +223,25 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-pass
   
+  ;; arc 278 IPC de-prime: run-hermetic → primed peer wire (spawn-program' :process + recv').
+  ;; eprintln is a TERMINAL (dying) form — the child crashes; recv' → Lost[Panic] whose
+  ;; message carries the emitted value's EDN. assert-stderr-matches (a regex OR-fold over
+  ;; captured lines) becomes a single regex match against that one crossed line.
   (:wat::core::let
-    [inner
-      (:wat::test::run-hermetic
-        (:wat::kernel::eprintln "error: code 42"))]
-    (:wat::test::assert-stderr-matches inner "code [0-9]+")))
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::eprintln "error: code 42"))))
+     msg (:wat::core::match (:wat::kernel::recv' p)
+           ((:wat::kernel::RecvOutcome::Message _m)
+             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Message" :wat::core::None :wat::core::None))
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::core::match cause
+               ((:wat::kernel::LociDiedError::Panic message _failure) message)
+               (_ (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got other Lost" :wat::core::None :wat::core::None))))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
+    (:wat::test::assert-true (:wat::core::regex::matches? "code [0-9]+" msg))))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
@@ -188,20 +256,44 @@
   ;; without exercising the pattern-matching machinery. The rearchitecture uses
   ;; :wat::test::run-hermetic with a non-matching stderr line so the matcher loop
   ;; actually runs.
+  ;; arc 278 IPC de-prime: BOTH run-hermetic calls → primed peer wire. The OUTER child
+  ;; must reconstruct the assert-stderr-matches input: the INNER eprintln child DIES
+  ;; (terminal eprintln) → recv' Lost[Panic] whose message carries the emitted line's EDN.
+  ;; The outer captures that line into a stderr Vec, rebuilds a RunResult, and runs
+  ;; assert-stderr-matches against REAL non-matching content (the rearchitecture intent) —
+  ;; it fails with expected="my-pattern", crashing the OUTER child. The outer recv' →
+  ;; Lost[Panic]; LociDiedError/to-failure rebuilds the Option<Failure> whose `expected`
+  ;; slot carries the pattern, so the downstream match on `fail` is unchanged.
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::core::let
-          [silent
-            (:wat::test::run-hermetic
-              (:wat::kernel::eprintln "different content"))]
-          (:wat::test::assert-stderr-matches silent "my-pattern")))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail  
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let
+               [ip (:wat::kernel::spawn-program' (:wat::spawn::process)
+                     (:wat::core::forms
+                       (:wat::core::defn :user::main [] -> :wat::core::nil
+                         (:wat::kernel::eprintln "different content"))))
+                stderr-line (:wat::core::match (:wat::kernel::recv' ip)
+                              ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
+                              ((:wat::kernel::RecvOutcome::Lost cause)
+                                (:wat::core::match cause
+                                  ((:wat::kernel::LociDiedError::Panic message _failure) message)
+                                  (_ "LOST-NON-PANIC")))
+                              (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))
+                silent (:wat::core::struct-new :wat::kernel::RunResult
+                         (:wat::core::Vector :wat::core::String)
+                         (:wat::core::Vector :wat::core::String stderr-line)
+                         :wat::core::None)]
+               (:wat::test::assert-stderr-matches silent "my-pattern")))))
+     fail (:wat::core::match (:wat::kernel::recv' p)
+            ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
+            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
+    (:wat::core::match fail
       ((:wat::core::Some f)
         (:wat::core::let
           [expected (:wat::kernel::Failure/expected f)]
-          (:wat::core::match expected  
+          (:wat::core::match expected
             ((:wat::core::Some e) (:wat::test::assert-eq e "my-pattern"))
             (:wat::core::None (:wat::kernel::assertion-failed!
                      "expected slot empty" :wat::core::None :wat::core::None)))))
@@ -234,12 +326,21 @@
   ;; The test now verifies the simpler post-migration shape: hermetic
   ;; child prints, parent captures stdout. The original "STRING-path
   ;; tested" intent retires with the legacy :wat::test::run define.
+  ;; arc 278 IPC de-prime: run-hermetic → primed peer wire. The printed value crosses
+  ;; DECODED (native String "from-string"), so the old assert-stdout-is over a captured
+  ;; EDN line becomes assert-eq over the received Message.
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::kernel::println "from-string"))
-     expected (:wat::core::Vector :wat::core::String "\"from-string\"")]
-    (:wat::test::assert-stdout-is r expected)))
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println "from-string"))))
+     msg (:wat::core::match (:wat::kernel::recv' p)
+           ((:wat::kernel::RecvOutcome::Message m) m)
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "run-string-entry-path: child closed before sending its value" :wat::core::None :wat::core::None)))]
+    (:wat::test::assert-eq msg "from-string")))
 
 ;; Duplicate of :wat-tests::std::test::test-assert-stdout-is-matches at line 132 —
 ;; same hermetic-print-and-capture pattern with different fixture string. Preserved
@@ -250,12 +351,21 @@
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-run-ast-via-program
   
+  ;; arc 278 IPC de-prime: run-hermetic → primed peer wire. The printed value crosses
+  ;; DECODED (native String "from-ast"), so the old assert-stdout-is over a captured EDN
+  ;; line becomes assert-eq over the received Message.
   (:wat::core::let
-    [r
-      (:wat::test::run-hermetic
-        (:wat::kernel::println "from-ast"))
-     expected (:wat::core::Vector :wat::core::String "\"from-ast\"")]
-    (:wat::test::assert-stdout-is r expected)))
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println "from-ast"))))
+     msg (:wat::core::match (:wat::kernel::recv' p)
+           ((:wat::kernel::RecvOutcome::Message m) m)
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "run-ast-via-program: child closed before sending its value" :wat::core::None :wat::core::None)))]
+    (:wat::test::assert-eq msg "from-ast")))
 
 ;; deftest's self-test is redundant here — every other passing deftest
 ;; in this file IS proof that deftest registered a callable zero-arg

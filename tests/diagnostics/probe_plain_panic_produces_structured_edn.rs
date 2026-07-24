@@ -1,96 +1,61 @@
-//! Probe — plain Rust panic path emits structured EDN (arc 170 slice 1i).
+//! Probe — plain Rust panic path crosses the primed wire as a structured cause
+//! (arc 170 slice 1i; arc 278 IPC de-prime).
 //!
-//! Path exercised: `child_branch_from_source` `Err(panic_payload)` arm
-//! where `panic_payload` is NOT an `AssertionPayload`.
+//! Path exercised: a forked child hits a bare Rust `panic!()` (NOT an
+//! AssertionPayload). The only way to trigger that from a wat body is the
+//! `:wat::holon::Bundle` capacity-exceeded path with `capacity_mode = :panic`:
+//! with `dim_count = 1` the budget is `floor(sqrt(1)) = 1`, so a Bundle with 2
+//! atoms exceeds capacity and calls `panic!("...: capacity exceeded ...")` — a
+//! bare String payload.
 //!
-//! The only way to trigger a raw Rust `panic!()` from a wat body is via
-//! the `:wat::holon::Bundle` capacity-exceeded path with
-//! `capacity_mode = :panic`. With `dim_count = 1` the budget is
-//! `floor(sqrt(1)) = 1`, so a Bundle with 2 atoms exceeds capacity and
-//! calls Rust's `panic!("...: capacity exceeded ...")` — a bare String
-//! payload, NOT an AssertionPayload.
+//! IPC de-prime (arc 278): migrated off the non-prime `:wat::test::run-hermetic`
+//! (fork + OS-pipe scrape → `:wat::kernel::RunResult { stdout, stderr, failure }`)
+//! onto the PRIMED peer wire — the fixture now `spawn-program' :process` + `recv'`
+//! and returns the crash cause's message as a plain `:wat::core::String`.
 //!
-//! The probe uses `:wat::test::run-hermetic` (arc 170 slice 4c-α-ii — was
-//! `:wat::kernel::run-sandboxed` before the canonical-macro sweep). The
-//! body sets its OWN dim-count + capacity-mode under a fresh runtime —
-//! rule 3 of the three-rule classification (FM 7-ter) demands hermetic.
+//! Mapping: a bare Rust panic in the child surfaces over the wire as
+//! `recv'` → `Lost[cause]` with `cause = LociDiedError::Panic`; the panic's String
+//! rides `Panic.message`. The retired capture model's contract ("Failure.message
+//! carries the actual panic text, NOT the exit-code-only fallback 'forked program
+//! exited N'") is preserved: the returned String is that panic text.
 //!
-//! Before arc 170 slice 1i: the `else` branch of `Err(panic_payload)`
-//! did NOT exist — only AssertionPayload was handled; plain panics fell
-//! through to `write_direct_to_stderr("panic: …")` which the harness
-//! discarded, yielding "forked program exited 1".
-//!
-//! After the fix: the `else` branch extracts the String payload and calls
-//! `emit_structured_exit` with `ProcessDiedError::Panic(msg, None)`.
-//!
-//! Row G (path-honesty): the inner program exercises ONLY the
-//! non-AssertionPayload panic exit path. No assert-eq, no raise!, no
-//! RuntimeError.
+//! Row G (path-honesty): the child exercises ONLY the non-AssertionPayload panic
+//! exit path. No assert-eq, no raise!, no RuntimeError.
 
 use wat::freeze::call_beside;
 use wat::runtime::Value;
 
-/// Extract `RunResult.failure.message` from a `Value::Struct` RunResult.
-fn failure_message(v: &Value) -> String {
-    let sv = match v {
-        Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
-        other => panic!("expected RunResult; got {:?}", other),
-    };
-    match &sv.fields[2] {
-        Value::Option(opt) => match opt.as_ref() {
-            Some(Value::Aggregate(f)) if f.nature == wat::Nature::Record && f.class == "wat::kernel::Failure" => {
-                // Arc 278 — fields[0] is the `error` (Fault); its fields[0] is the message String.
-                match &f.fields[0] {
-                    Value::Aggregate(err) => match &err.fields[0] {
-                        Value::String(s) => (**s).clone(),
-                        _ => "<missing message>".to_string(),
-                    },
-                    _ => "<missing message>".to_string(),
-                }
-            }
-            _ => "<no failure>".to_string(),
-        },
-        _ => "<malformed failure field>".to_string(),
+/// Call a zero-arg compute fn in the co-located fixture and return its
+/// `:wat::core::String` result (the crash cause's message).
+fn run_fn(fn_name: &str) -> String {
+    match call_beside(file!(), fn_name).expect("compute should run") {
+        Value::String(s) => (*s).clone(),
+        other => panic!("expected String; got {:?}", other),
     }
 }
 
 #[test]
 fn probe_plain_panic_produces_structured_edn() {
-    // Body: dim_count=1 → budget=floor(sqrt(1))=1; a Bundle with 2
-    // atoms exceeds capacity and triggers panic!("...: capacity exceeded
-    // ...") — a bare Rust String panic, NOT an AssertionPayload. This
-    // is the only reliably reachable non-AssertionPayload panic path
-    // from a wat body.
-    //
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. The body sets `set-dim-count!` +
-    // `set-capacity-mode!` (rule 3 of FM 7-ter) so hermetic is the
-    // required destination — the body needs a private, mutable runtime.
-    // Wat source lives in the co-located fixture: probe_plain_panic_produces_structured_edn.wat
-    let result = call_beside(file!(), ":probe::plain-panic").expect("outer should not panic");
-
-    let msg = failure_message(&result);
+    // The child sets dim_count=1 / capacity-mode :panic (private to its own
+    // process runtime) and builds a 2-atom Bundle that exceeds the budget →
+    // panic!("capacity exceeded under :panic"). The parent's recv' sees
+    // Lost[Panic]; the fixture returns Panic.message.
+    let msg = run_fn(":probe::plain-panic");
 
     eprintln!("===== probe_plain_panic_produces_structured_edn =====");
-    eprintln!("Failure.message: {:?}", msg);
+    eprintln!("Panic.message: {:?}", msg);
     eprintln!("=====================================================");
 
-    // Row E — failure MUST be Some (child panicked).
-    assert_ne!(msg, "<no failure>", "expected Some failure; child should have panicked");
-
-    // failure.message MUST NOT be "forked program exited N" (old plain-text fallback).
-    // rune:lint(loose-assert) — `msg` is Failure.message from subprocess EDN output; the EDN may embed the absolute host filesystem path to the .wat fixture via the `:location` field. Full string varies by host. Targeted absence of the exit-code-only fallback ("forked program exited") is the real contract.
-    assert!(
-        !msg.contains("forked program exited"),
-        "expected actual panic text in Failure.message; \
-         got the old exit-code-only fallback: {:?}",
-        msg
-    );
-
-    // The structured EDN round-trip should give us the capacity message or a
-    // non-empty string.
-    assert!(
-        !msg.is_empty(),
-        "expected non-empty error message; got empty string"
+    // The capacity-exceeded panic message is a FULLY DETERMINISTIC scalar — it
+    // embeds NO host-specific path/pid/span (unlike a RuntimeError diagnostic).
+    // So the whole `Panic.message` is byte-identical assertable, which subsumes
+    // every weaker check at once: it proves the crash crossed the wire as a
+    // structured `Lost[LociDiedError::Panic]` carrying the ACTUAL panic text —
+    // not a `Message`/`Closed`/`WRONG:<variant>` sentinel, and not the retired
+    // exit-code-only fallback "forked program exited N".
+    assert_eq!(
+        msg, ":wat::holon::Bundle: capacity exceeded under :panic — cost 2 > budget 1 (d=1)",
+        "a bare Rust panic must surface over the primed wire as LociDiedError::Panic \
+         carrying the exact capacity-exceeded panic text"
     );
 }

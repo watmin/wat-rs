@@ -753,28 +753,28 @@ fn t15_spawn_process_child_panic_disconnects_recv_and_exits_nonzero() {
     assert_ne!(code, 0, "expected non-zero exit on child panic; got 0");
 }
 
-// ─── T17. run-hermetic macro — Layer 1 testing-lib API (arc 170 slice 3 phase C)
+// ─── T17. hermetic run — happy path over the primed peer wire (arc 278 IPC de-prime)
 //
-// Canonical Layer 1 test: a simple assertion body wrapped by the
-// run-hermetic macro. The macro generates the fn-form, calls
-// spawn-process, drains via run-hermetic-driver, and returns RunResult.
-// A passing assertion produces RunResult { failure: None }; the test
-// verifies the failure slot is empty.
+// Migrated off the `:wat::test::run-hermetic` macro onto the composed primes:
+// `spawn-program' (process)` spawns the peer, its `:user::main` computes 2+2 and
+// `println`s it, and the parent drains that single value off the peer via `recv'` —
+// the value arrives as a `RecvOutcome::Message`.
 //
-// Surface form exercised:
-//   (:wat::test::run-hermetic
-//     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+// Surface form exercised (fixture t17_run_hermetic.wat):
+//   (:wat::kernel::spawn-program' (:wat::spawn::process)
+//     (:wat::core::forms (:user::main ... (:wat::kernel::println (:wat::core::i64::+ 2 2)))))
+//   → (:wat::kernel::recv' p) → RecvOutcome::Message m → m
 //
 // The function is defined at :my::test::two-plus-two; invoked with
-// apply_function (zero args); RunResult.failure must be None.
+// apply_function (zero args); the recv'd value must be i64 4.
 
 #[test]
 fn t17_run_hermetic_layer1_passing_assertion() {
-    // Define a function that calls run-hermetic with a simple assertion.
-    // run-hermetic is a macro; it expands the body into a fn, spawns
-    // an OS process, drains stdout/stderr, joins, and returns RunResult.
-    // A passing assertion (2+2=4) means the child exits 0 and failure
-    // is :None. Fixture: t17_run_hermetic.wat.
+    // Arc 278 IPC de-prime — migrated off :wat::test::run-hermetic onto the primed
+    // peer wire. The child's :user::main computes 2+2 and println's it; the parent
+    // spawn-program' (process) + recv' receives that single value off the peer as a
+    // RecvOutcome::Message. A "passing" run now means the value genuinely crossed the
+    // wire as 4 (NOT stdout-scraped). Fixture: t17_run_hermetic.wat.
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t17_run_hermetic.wat");
     let func = world
         .symbols()
@@ -786,41 +786,30 @@ fn t17_run_hermetic_layer1_passing_assertion() {
         world.symbols(),
         wat::rust_caller_span!(),
     )
-    .expect("run-hermetic should succeed");
-    // result is a :wat::kernel::RunResult { stdout stderr failure }
-    // failure must be :None (the assertion passed).
-    let sv = match &result {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
-        other => panic!("expected RunResult Struct; got {:?}", other),
-    };
-    // RunResult field 2 is failure :Option<Failure>
-    let failure_field = &sv.fields[2];
-    let is_none = match failure_field {
-        wat::runtime::Value::Option(opt) => opt.as_ref().is_none(),
-        other => panic!("expected Option failure field; got {:?}", other),
-    };
-    assert!(
-        is_none,
-        "expected passing assertion to produce RunResult with failure=None; got {:?}",
-        result
-    );
+    .expect("spawn-program' + recv' should succeed");
+    // two-plus-two returns the recv'd i64 directly — the value that crossed the peer wire.
+    match &result {
+        wat::runtime::Value::i64(n) => assert_eq!(
+            *n, 4,
+            "expected 2+2=4 received as a recv' Message; got {}",
+            n
+        ),
+        other => panic!("expected i64 result; got {:?}", other),
+    }
 }
 
 #[test]
 fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
-    // Complementary to T17: a failing assertion (1 != 2) should produce
-    // RunResult { failure: Some(Failure) } — the child exits non-zero,
-    // spawn-process emits the structured `#wat.kernel/ProcessPanics`
-    // EDN line on stderr, extract-panics rebuilds the cascade, and
-    // run-hermetic-driver surfaces the structured Failure with the
-    // assert-eq diagnostic in Failure.message.
-    //
-    // Arc 170 slice 3 phase C′ closed the substrate gap that previously
-    // forced this test to skip message-text assertion. spawn_process.rs
-    // now mirrors fork.rs::emit_panics_to_stderr — AssertionPayload
-    // panics emit the structured chain; plain panics fall through to
-    // the singleton "exited N" path.
-    // Fixture: t17b_run_hermetic_fail.wat.
+    // Complementary to T17 — the FAILURE path of the SAME primed wire.
+    // Arc 278 IPC de-prime: migrated off :wat::test::run-hermetic onto the composed
+    // primes (`spawn-program' (process)` + `recv'`). The child's assert-eq (1+0 != 2)
+    // FAILS, so the child PANICS before it can send anything; the parent's recv' returns
+    // RecvOutcome::Lost carrying a :wat::kernel::LociDiedError. An assert-eq failure is an
+    // AssertionPayload panic, so the cause is LociDiedError::Panic whose failure field is
+    // Some(Failure) carrying the structured assert-eq diagnostic. The death is SURFACED
+    // (the fixture returns the raw LociDiedError), NEVER swallowed. Mirrors t18b's Lost/
+    // Panic assertion shape (minus t18b's recv-all' Result unwrap — recv' hands back the
+    // Lost cause directly). Fixture: t17b_run_hermetic_fail.wat.
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t17b_run_hermetic_fail.wat");
     let func = world
         .symbols()
@@ -832,30 +821,45 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
         world.symbols(),
         wat::rust_caller_span!(),
     )
-    .expect("run-hermetic driver should not itself panic");
-    let sv = match &result {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::kernel::RunResult" => s,
-        other => panic!("expected RunResult Struct; got {:?}", other),
+    .expect("spawn-program' + recv' driver should not itself panic");
+
+    // The child died on assert-eq before sending, so recv' surfaced a Lost cause;
+    // the fixture returns that :wat::kernel::LociDiedError enum directly.
+    let ev = match &result {
+        wat::runtime::Value::Enum(ev) => ev.as_ref(),
+        other => panic!("expected :wat::kernel::LociDiedError enum cause; got {:?}", other),
     };
-    // RunResult field 2 is failure :Option<Failure>; must be Some (child panicked).
-    let failure_field = &sv.fields[2];
-    let failure_val = match failure_field {
+    assert_eq!(
+        ev.type_path, ":wat::kernel::LociDiedError",
+        "expected the recv' Lost cause to be a LociDiedError; got type_path {}",
+        ev.type_path
+    );
+    assert_eq!(
+        ev.variant_name, "Panic",
+        "child assert-eq failure must surface as LociDiedError::Panic; got variant {}",
+        ev.variant_name
+    );
+
+    // Panic.fields = [message :String, failure :Option<Failure>]. An AssertionPayload panic
+    // carries the structured Failure, so failure is Some(Failure).
+    let failure_val = match &ev.fields[1] {
         wat::runtime::Value::Option(opt) => match opt.as_ref() {
             Some(v) => v,
-            None => panic!("expected failing assertion to produce Some(Failure); got None"),
+            None => panic!(
+                "expected LociDiedError::Panic.failure = Some(Failure) (assert-eq carries an AssertionPayload); got None"
+            ),
         },
-        other => panic!("expected Option failure field; got {:?}", other),
+        other => panic!("expected Panic.failure :Option<Failure>; got {:?}", other),
     };
+
     // Failure struct must have the correct type_name.
     let failure_struct = match failure_val {
         wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Record && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
-    // Arc 278 the string-wrap annihilation — Failure.fields[0] is the mandatory
-    // `error` (Fault); its fields[0] is the message String. Must carry the structured
-    // assert-eq diagnostic, NOT the singleton exit-code fallback ("forked program
-    // exited N"). This proves the spawn_process.rs panic-chain emit (phase C′) is
-    // wired up and extract-panics rebuilt the cascade.
+    // Arc 278 the string-wrap annihilation — Failure.fields[0] is the mandatory `error`
+    // (Fault); its fields[0] is the message String. Must carry the structured assert-eq
+    // diagnostic, read STRUCTURALLY off the surfaced Panic — no string re-parse.
     let message = match &failure_struct.fields[0] {
         wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
             wat::runtime::Value::String(s) => s.to_string(),
@@ -866,7 +870,7 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
     assert_eq!(
         message,
         "assert-eq failed",
-        "t15_msg: Failure.message assert-eq diagnostic golden"
+        "t17b_msg: LociDiedError::Panic carries the assert-eq diagnostic golden"
     );
 }
 

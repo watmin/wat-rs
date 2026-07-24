@@ -54,10 +54,12 @@ fn forms_args_are_not_evaluated() {
 
 #[test]
 fn forms_composes_with_run_sandboxed_ast() {
-    // (:wat::kernel::println "hello-from-inside") EDN-serializes strings with quotes.
+    // Arc 278 IPC de-prime — the value now crosses the peer wire as a recv' Message
+    // carrying the DECODED String (not the EDN-quoted stdout line the old RunResult/stdout
+    // captured), so it is "hello-from-inside" without the outer quotes.
     assert_eq!(
         unwrap_string(run_expr(":t::test4-run-sandboxed")),
-        "\"hello-from-inside\""
+        "hello-from-inside"
     );
 }
 
@@ -75,6 +77,7 @@ fn test_program_macro_expands_correctly() {
 
 #[test]
 fn test_run_ast_via_test_program_roundtrips_hello() {
-    // (:wat::kernel::println "hi") EDN-serializes strings with quotes.
-    assert_eq!(unwrap_string(run_expr(":t::test6-run-ast-hello")), "\"hi\"");
+    // Arc 278 IPC de-prime — the value crosses the peer wire as a recv' Message carrying
+    // the DECODED String ("hi", no EDN quotes), not the EDN-quoted stdout line.
+    assert_eq!(unwrap_string(run_expr(":t::test6-run-ast-hello")), "hi");
 }
