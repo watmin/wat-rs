@@ -8,7 +8,7 @@
 ;; `infer_if`); a stray `-> :T` in ascription position is now a located compile error.
 
 ;; Both arm bodies are :i64 → unify → :i64. No `-> :T`.
-(:wat::test::deftest' :wat-tests::core::match-no-ascription-option
+(:wat::test::deftest :wat-tests::core::match-no-ascription-option
   
   (:wat::test::assert-eq
     (:wat::core::match (:wat::core::Some 5)

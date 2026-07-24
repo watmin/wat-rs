@@ -11,7 +11,7 @@
 
 ;; ─── 1. sugar equivalence ──────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::Bigram::test-bigram-is-ngram-2
+(:wat::test::deftest :wat-tests::holon::Bigram::test-bigram-is-ngram-2
   
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
@@ -36,7 +36,7 @@
 
 ;; ─── 2. window participant ──────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::Bigram::test-bigram-window-participant-above-floor
+(:wat::test::deftest :wat-tests::holon::Bigram::test-bigram-window-participant-above-floor
   
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
@@ -53,7 +53,7 @@
          ((:wat::core::Err _) a))]
     (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
 
-(:wat::test::deftest' :wat-tests::holon::Bigram::test-bigram-outsider-below-floor
+(:wat::test::deftest :wat-tests::holon::Bigram::test-bigram-outsider-below-floor
   
   (:wat::core::let
     [a (:wat::holon::to-holon "a")

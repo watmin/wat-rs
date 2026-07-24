@@ -47,7 +47,7 @@
        (:wat::service::Outcome::Reply s (:wat-tests::Deadline::WaitTickResponse::Ok m))))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
-(:wat::test::deftest' :wat-tests::timer::env-grab-on-thread
+(:wat::test::deftest :wat-tests::timer::env-grab-on-thread
   
   (:wat::test::assert-eq
     (:wat::core::let
@@ -63,7 +63,7 @@
     :tick))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
-(:wat::test::deftest' :wat-tests::timer::env-grab-on-process
+(:wat::test::deftest :wat-tests::timer::env-grab-on-process
   
   (:wat::test::assert-eq
     (:wat::core::let

@@ -44,7 +44,7 @@
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.
 ;; stop takes the HANDLE (h), not the client peer (c) — owner-only by construction.
 ;; stop defaults to returning the ::Record — extract count via Record/count.
-(:wat::test::deftest' :wat-tests::service::admin-stop-on-thread
+(:wat::test::deftest :wat-tests::service::admin-stop-on-thread
   
   (:wat::test::assert-eq
     (:wat::core::let
@@ -59,7 +59,7 @@
     7))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
-(:wat::test::deftest' :wat-tests::service::admin-stop-on-process
+(:wat::test::deftest :wat-tests::service::admin-stop-on-process
   
   (:wat::test::assert-eq
     (:wat::core::let

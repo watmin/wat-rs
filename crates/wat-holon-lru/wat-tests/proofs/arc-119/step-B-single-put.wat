@@ -20,7 +20,7 @@
 ;; verb does send-AND-recv internally on a single Handle. No
 ;; :should-panic annotation needed — the test passes naturally.
 
-(:wat::test::deftest' :wat-tests::holon::lru::proofs::arc_119::step_B_single_put
+(:wat::test::deftest :wat-tests::holon::lru::proofs::arc_119::step_B_single_put
   
   (:wat::core::let
     ;; Outer holds the driver Thread; inner owns everything else.

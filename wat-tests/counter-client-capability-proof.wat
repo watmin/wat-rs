@@ -215,7 +215,7 @@
          ((:counter::Response::Final v) v))))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-client::capability-proof
+(:wat::test::deftest :counter-client::capability-proof
   
   ;; ─── Test body ───────────────────────────────────────────────────────
   ;;

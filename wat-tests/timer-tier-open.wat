@@ -14,7 +14,7 @@
 ;; spawn-locus, not a PeerKind; and there is no tier-open `Timer'` type. Everything else
 ;; (select', Vector, ServiceEvent, PeerKind, :wat::time::Millisecond) already exists.
 ;;
-(:wat::test::deftest' :wat-tests::timer::tier-open-after-peerkind
+(:wat::test::deftest :wat-tests::timer::tier-open-after-peerkind
   
   (:wat::test::assert-eq
     (:wat::core::match

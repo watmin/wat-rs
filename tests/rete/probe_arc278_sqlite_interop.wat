@@ -9,7 +9,7 @@
 
 (:wat::core::use! :rust::sqlite::Connection)
 
-(:wat::test::deftest' :user::sqlite_interop 
+(:wat::test::deftest :user::sqlite_interop 
   (:wat::core::let
     [conn (:wat::core::Result/expect (:wat::sqlite::open ":memory:") "open :memory: failed")
      _ddl (:wat::core::Result/expect

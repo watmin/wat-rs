@@ -749,7 +749,7 @@
            (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-service::process-N3
+(:wat::test::deftest :counter-service::process-N3
   
   ;; ─── Test body ───────────────────────────────────────────────────────────────
   ;;

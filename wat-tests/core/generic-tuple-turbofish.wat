@@ -14,7 +14,7 @@
 
 (:wat::core::defn :test::make-3tuple<T> [mid <- :T] -> :(wat::core::i64,T,wat::core::String) (:wat::core::Tuple 42 mid "hello"))
 
-(:wat::test::deftest' :wat-tests::core::generic-tuple-turbofish
+(:wat::test::deftest :wat-tests::core::generic-tuple-turbofish
   
   (:wat::core::let
     [triple

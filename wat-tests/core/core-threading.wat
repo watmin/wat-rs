@@ -25,7 +25,7 @@
 ;; Hand-written equivalent: (:wat::core::i64::- 10 3).
 ;; Asserts: threaded result == hand-written result.
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-first-list-step
+(:wat::test::deftest :wat-tests::core::core-threading::thread-first-list-step
   
   (:wat::core::let
     [threaded (:wat::core::-> 10 (:wat::core::i64::- 3))
@@ -39,7 +39,7 @@
 ;;   step 2: (i64::* 7 2)  = 14
 ;; Hand-written: (:wat::core::i64::* (:wat::core::i64::- 10 3) 2) = 14.
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-first-two-list-steps
+(:wat::test::deftest :wat-tests::core::core-threading::thread-first-two-list-steps
   
   (:wat::core::let
     [threaded (:wat::core::-> 10
@@ -54,7 +54,7 @@
 ;; Contrast with thread-first (10 - 3 = 7 vs 3 - 5 = -2).
 ;; Hand-written equivalent: (:wat::core::i64::- 3 5).
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-last-list-step
+(:wat::test::deftest :wat-tests::core::core-threading::thread-last-list-step
   
   (:wat::core::let
     [threaded (:wat::core::->> 5 (:wat::core::i64::- 3))
@@ -68,7 +68,7 @@
 ;;   step 2: (i64::* 4 3) = 12
 ;; Hand-written: (:wat::core::i64::* 4 (:wat::core::i64::+ 2 1)) = 12.
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-last-two-list-steps
+(:wat::test::deftest :wat-tests::core::core-threading::thread-last-two-list-steps
   
   (:wat::core::let
     [threaded (:wat::core::->> 1
@@ -84,7 +84,7 @@
 ;; (->> 5 (i64::- 3)) = (i64::- 3 5) = -2
 ;; assert 2 ≠ -2 (i.e. results differ).
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-first-vs-last-asymmetry
+(:wat::test::deftest :wat-tests::core::core-threading::thread-first-vs-last-asymmetry
   
   (:wat::core::let
     [tf  (:wat::core::-> 5 (:wat::core::i64::- 3))
@@ -101,7 +101,7 @@
   [x <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::+ x 1))
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-first-bare-step
+(:wat::test::deftest :wat-tests::core::core-threading::thread-first-bare-step
   
   (:wat::core::let
     [result (:wat::core::-> 3 :wat-tests::core::core-threading::inc1)]
@@ -117,7 +117,7 @@
   [x <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::* x 2))
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-last-bare-step
+(:wat::test::deftest :wat-tests::core::core-threading::thread-last-bare-step
   
   (:wat::core::let
     [result (:wat::core::->> 7 :wat-tests::core::core-threading::double)]
@@ -145,7 +145,7 @@
    b <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::+ a b))
 
-(:wat::test::deftest' :wat-tests::core::core-threading::pipeline-sum-of-squares
+(:wat::test::deftest :wat-tests::core::core-threading::pipeline-sum-of-squares
   
   ;; Arc 118.2a — `map` flipped LAZY (returns Stream); `foldl` stays eager/Vector-only, so the
   ;; fold step here becomes `:wat::core::reduce` (same 3-arg shape, Stream-aware) instead —
@@ -171,7 +171,7 @@
 ;; The steps rest-binder is empty; foldl over empty returns acc unchanged.
 ;; Witnesses the identity law for ->.
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-first-zero-steps-identity
+(:wat::test::deftest :wat-tests::core::core-threading::thread-first-zero-steps-identity
   
   (:wat::test::assert-eq (:wat::core::-> 42) 42))
 
@@ -180,6 +180,6 @@
 ;; (->> x) with no steps: foldl over empty returns the accumulator.
 ;; Symmetric identity law for ->>.
 
-(:wat::test::deftest' :wat-tests::core::core-threading::thread-last-zero-steps-identity
+(:wat::test::deftest :wat-tests::core::core-threading::thread-last-zero-steps-identity
   
   (:wat::test::assert-eq (:wat::core::->> 42) 42))

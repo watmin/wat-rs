@@ -6,7 +6,7 @@
 
 ;; ─── 1: Char/of constructor and equality ──────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::char-round-trip::char-of-constructor
+(:wat::test::deftest :wat-tests::holon::char-round-trip::char-of-constructor
   
   (:wat::core::let
     [a (:wat::core::char/of "a")
@@ -15,7 +15,7 @@
 
 ;; ─── 2: `\c` literal equals Char/of ──────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::char-round-trip::char-literal
+(:wat::test::deftest :wat-tests::holon::char-round-trip::char-literal
   
   (:wat::core::let
     [lit \a
@@ -24,7 +24,7 @@
 
 ;; ─── 3: Named char `\newline` ─────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::char-round-trip::char-literal-newline
+(:wat::test::deftest :wat-tests::holon::char-round-trip::char-literal-newline
   
   (:wat::core::let
     [nl      \newline
@@ -33,7 +33,7 @@
 
 ;; ─── 4: Named char `\space` ───────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::char-round-trip::char-literal-space
+(:wat::test::deftest :wat-tests::holon::char-round-trip::char-literal-space
   
   (:wat::core::let
     [sp     \space
@@ -42,7 +42,7 @@
 
 ;; ─── 5: Different chars are not equal ────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::char-round-trip::char-neq
+(:wat::test::deftest :wat-tests::holon::char-round-trip::char-neq
   
   (:wat::core::let
     [a \a

@@ -45,7 +45,7 @@
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; Increment to 7; the Handle-holder stops; stop returns the PROJECTED i64 (7), not a Record.
-(:wat::test::deftest' :wat-tests::service::stop-resp-on-thread
+(:wat::test::deftest :wat-tests::service::stop-resp-on-thread
   
   (:wat::test::assert-eq
     (:wat::core::let
@@ -60,7 +60,7 @@
     7))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
-(:wat::test::deftest' :wat-tests::service::stop-resp-on-process
+(:wat::test::deftest :wat-tests::service::stop-resp-on-process
   
   (:wat::test::assert-eq
     (:wat::core::let

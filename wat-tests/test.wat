@@ -15,19 +15,19 @@
 
 ;; ─── assert-eq — pass cases ───────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-i64
+(:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-i64
   
   (:wat::test::assert-eq 42 42))
 
-(:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-strings
+(:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-strings
   
   (:wat::test::assert-eq "hello" "hello"))
 
-(:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-bools
+(:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-bools
   
   (:wat::test::assert-eq true true))
 
-(:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-vec
+(:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-vec
   
   (:wat::core::let
     [a (:wat::core::Vector :wat::core::String "x" "y")
@@ -37,7 +37,7 @@
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::std::test::test-assert-eq-fail-populates-message
+(:wat::test::deftest :wat-tests::std::test::test-assert-eq-fail-populates-message
   
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
@@ -55,12 +55,12 @@
 
 ;; ─── assert-contains — pass + fail ────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::std::test::test-assert-contains-hit
+(:wat::test::deftest :wat-tests::std::test::test-assert-contains-hit
   
   (:wat::test::assert-contains "the quick brown fox" "quick"))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::std::test::test-assert-contains-fail-populates-actual
+(:wat::test::deftest :wat-tests::std::test::test-assert-contains-fail-populates-actual
   
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
@@ -87,7 +87,7 @@
 
 ;; ─── assert-coincident — pass + fail-renders-explanation ─────────────
 
-(:wat::test::deftest' :wat-tests::std::test::test-assert-coincident-pass
+(:wat::test::deftest :wat-tests::std::test::test-assert-coincident-pass
   
   (:wat::test::assert-coincident
     (:wat::holon::to-holon "alice")
@@ -99,7 +99,7 @@
 ;; presence is what matters, not exact numeric values (those depend
 ;; on the encoder's d at run time).
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::std::test::test-assert-coincident-fail-renders-explanation
+(:wat::test::deftest :wat-tests::std::test::test-assert-coincident-fail-renders-explanation
   
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
@@ -132,7 +132,7 @@
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic' :wat-tests::std::test::test-assert-stdout-is-matches
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stdout-is-matches
   
   (:wat::core::let
     [inner
@@ -167,7 +167,7 @@
 ;; identically whether or not the trailing crash envelope is present.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic' :wat-tests::std::test::test-assert-stderr-matches-pass
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-pass
   
   (:wat::core::let
     [inner
@@ -176,7 +176,7 @@
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic' :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
   
   ;; Verifies assert-stderr-matches's failure-reporting shape on REAL non-matching stderr.
   ;; Inner produces actual stderr content that doesn't match the pattern; the matcher
@@ -224,7 +224,7 @@
 ;; ("test the legacy STRING-entry path") retired during arc 170 slice 4a-β
 ;; when the legacy :wat::test::run path was swept to canonical macros.
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic' :wat-tests::std::test::test-run-string-entry-path
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-string-entry-path
   
   ;; Arc 170 slice 4a-β: this test originally exercised the legacy
   ;; :wat::test::run STRING-parsing path; the inner source carried a
@@ -248,7 +248,7 @@
 ;; ("test the legacy AST-via-program path") retired during arc 170 slice 4a-β
 ;; when the legacy :wat::test::run-ast path was swept to canonical macros.
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic' :wat-tests::std::test::test-run-ast-via-program
+(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-ast-via-program
   
   (:wat::core::let
     [r
@@ -276,11 +276,11 @@
 
 
 
-(:wat::test::deftest'
+(:wat::test::deftest
   :wat-tests::std::test::test-make-deftest-runs
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 
-(:wat::test::deftest'
+(:wat::test::deftest
   :wat-tests::std::test::test-make-deftest-second-test
   (:wat::test::assert-eq 10 (:wat::core::i64::* 5 2)))
 
@@ -290,7 +290,7 @@
 ;; macroexpand(-1), inspect the returned AST. Lets users see what a
 ;; macro call produces without evaluating it.
 
-(:wat::test::deftest' :wat-tests::std::test::test-macroexpand-1-non-macro
+(:wat::test::deftest :wat-tests::std::test::test-macroexpand-1-non-macro
   
   ;; A plain expression (no macro head) expands to itself. Verify by
   ;; evaluating the expanded AST and checking it produces Ok.
@@ -302,7 +302,7 @@
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
 
-(:wat::test::deftest' :wat-tests::std::test::test-macroexpand-fixpoint-evaluates
+(:wat::test::deftest :wat-tests::std::test::test-macroexpand-fixpoint-evaluates
   
   ;; macroexpand returns a :wat::WatAST; hand it to eval-ast!
   ;; to prove the expansion is evaluable.
@@ -327,7 +327,7 @@
 ;; dead source-string sandbox entry (run-sandboxed → spawn-program, annihilated arc-170
 ;; slice 2 / arc-259 spawn-program' keystone); the AST/forms entry below is the live path.
 ;; The dead run-sandboxed string stdlib function itself rides the later dead-code cleanup.)
-(:wat::test::deftest' :wat-tests::std::test::test-run-ast-direct
+(:wat::test::deftest :wat-tests::std::test::test-run-ast-direct
   
   ;; rune:complectens(embedded-program) — outer let has 3 bindings (forms, r, fail); the bulk is the program AST built via :wat::test::program
   (:wat::core::let

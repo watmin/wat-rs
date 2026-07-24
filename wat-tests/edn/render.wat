@@ -7,25 +7,25 @@
 
 ;; ─── Primitives ──────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::test-write-bool
+(:wat::test::deftest :wat-tests::edn::test-write-bool
   
   (:wat::core::let
     [s (:wat::edn::write true)]
     (:wat::test::assert-eq s "true")))
 
-(:wat::test::deftest' :wat-tests::edn::test-write-i64
+(:wat::test::deftest :wat-tests::edn::test-write-i64
   
   (:wat::core::let
     [s (:wat::edn::write 42)]
     (:wat::test::assert-eq s "42")))
 
-(:wat::test::deftest' :wat-tests::edn::test-write-string
+(:wat::test::deftest :wat-tests::edn::test-write-string
   
   (:wat::core::let
     [s (:wat::edn::write "hello")]
     (:wat::test::assert-eq s "\"hello\"")))
 
-(:wat::test::deftest' :wat-tests::edn::test-write-unit
+(:wat::test::deftest :wat-tests::edn::test-write-unit
   
   (:wat::core::let
     [s (:wat::edn::write ())]
@@ -33,14 +33,14 @@
 
 ;; ─── Vec ─────────────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::test-write-vec-i64
+(:wat::test::deftest :wat-tests::edn::test-write-vec-i64
   
   (:wat::core::let
     [v (:wat::core::Vector :wat::core::i64 1 2 3)
      s (:wat::edn::write v)]
     (:wat::test::assert-eq s "[1 2 3]")))
 
-(:wat::test::deftest' :wat-tests::edn::test-write-vec-string
+(:wat::test::deftest :wat-tests::edn::test-write-vec-string
   
   (:wat::core::let
     [v (:wat::core::Vector :wat::core::String "a" "b")
@@ -49,7 +49,7 @@
 
 ;; ─── Tuple ───────────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::test-write-tuple
+(:wat::test::deftest :wat-tests::edn::test-write-tuple
   
   (:wat::core::let
     [t (:wat::core::Tuple 7 "x")
@@ -58,14 +58,14 @@
 
 ;; ─── JSON path ───────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::test-write-json-vec
+(:wat::test::deftest :wat-tests::edn::test-write-json-vec
   
   (:wat::core::let
     [v (:wat::core::Vector :wat::core::i64 1 2 3)
      s (:wat::edn::write-json v)]
     (:wat::test::assert-eq s "[1,2,3]")))
 
-(:wat::test::deftest' :wat-tests::edn::test-write-json-string
+(:wat::test::deftest :wat-tests::edn::test-write-json-string
   
   (:wat::core::let
     [s (:wat::edn::write-json "hi")]
@@ -77,7 +77,7 @@
 ;; "all-scalar and len <= 8" rule). A nested vec breaks across
 ;; lines. The pretty renderer is deterministic; assert exact text.
 
-(:wat::test::deftest' :wat-tests::edn::test-write-pretty-flat
+(:wat::test::deftest :wat-tests::edn::test-write-pretty-flat
   
   (:wat::core::let
     [v (:wat::core::Vector :wat::core::i64 1 2 3)

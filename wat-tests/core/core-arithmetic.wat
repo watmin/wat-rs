@@ -15,68 +15,68 @@
 
 ;; ─── 2-ary add ──────────────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::add-i64-i64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::add-i64-i64
   
   (:wat::core::let [sum (:wat::core::+ 2 3)]
     (:wat::test::assert-eq sum 5)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::add-f64-f64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::add-f64-f64
   
   (:wat::core::let [sum (:wat::core::+ 2.5 3.0)]
     (:wat::test::assert-eq sum 5.5)))
 
 ;; ─── 2-ary subtract ─────────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::sub-i64-i64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::sub-i64-i64
   
   (:wat::core::let [d (:wat::core::- 5 2)]
     (:wat::test::assert-eq d 3)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::sub-f64-f64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::sub-f64-f64
   
   (:wat::core::let [d (:wat::core::- 5.5 2.5)]
     (:wat::test::assert-eq d 3.0)))
 
 ;; ─── 2-ary multiply ─────────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::mul-i64-i64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::mul-i64-i64
   
   (:wat::core::let [p (:wat::core::* 4 3)]
     (:wat::test::assert-eq p 12)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::mul-f64-f64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::mul-f64-f64
   
   (:wat::core::let [p (:wat::core::* 2.0 3.0)]
     (:wat::test::assert-eq p 6.0)))
 
 ;; ─── 2-ary divide ───────────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::div-i64-i64-truncates
+(:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-i64-truncates
   
   ;; i64 division truncates toward zero; 10/3 = 3.
   (:wat::core::let [q (:wat::core::/ 10 3)]
     (:wat::test::assert-eq q 3)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::div-i64-i64-seven-two
+(:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-i64-seven-two
   
   ;; Mirrors poly_div_i64_i64_returns_i64 from the retired Rust file.
   (:wat::core::let [q (:wat::core::/ 7 2)]
     (:wat::test::assert-eq q 3)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::div-f64-f64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::div-f64-f64
   
   (:wat::core::let [q (:wat::core::/ 9.0 2.0)]
     (:wat::test::assert-eq q 4.5)))
 
 ;; ─── 0-ary identity: + and * ────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::add-zero-ary-returns-zero
+(:wat::test::deftest :wat-tests::core::core-arithmetic::add-zero-ary-returns-zero
   
   ;; (:wat::core::+) → 0:i64  (additive identity per Lisp/Clojure tradition)
   (:wat::core::let [zero (:wat::core::+)]
     (:wat::test::assert-eq zero 0)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::mul-zero-ary-returns-one
+(:wat::test::deftest :wat-tests::core::core-arithmetic::mul-zero-ary-returns-one
   
   ;; (:wat::core::*) → 1:i64  (multiplicative identity)
   (:wat::core::let [one (:wat::core::*)]
@@ -84,20 +84,20 @@
 
 ;; ─── 1-ary negate (subtract) ────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::sub-one-ary-negates-i64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::sub-one-ary-negates-i64
   
   ;; (- x) = (- 0 x): negate
   (:wat::core::let [neg (:wat::core::- 5)]
     (:wat::test::assert-eq neg -5)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::sub-one-ary-negates-f64
+(:wat::test::deftest :wat-tests::core::core-arithmetic::sub-one-ary-negates-f64
   
   (:wat::core::let [neg (:wat::core::- 5.5)]
     (:wat::test::assert-eq neg -5.5)))
 
 ;; ─── 1-ary reciprocal (divide) ──────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::div-one-ary-reciprocal-i64-truncates
+(:wat::test::deftest :wat-tests::core::core-arithmetic::div-one-ary-reciprocal-i64-truncates
   
   ;; (/ x) = (/ 1 x): reciprocal; 1/5 = 0 in i64 (truncation).
   (:wat::core::let [r (:wat::core::/ 5)]
@@ -105,20 +105,20 @@
 
 ;; ─── 3+-ary variadic fold ───────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::add-variadic-i64-folds
+(:wat::test::deftest :wat-tests::core::core-arithmetic::add-variadic-i64-folds
   
   ;; (+ 1 2 3 4 5) = 15 via left fold
   (:wat::core::let [sum (:wat::core::+ 1 2 3 4 5)]
     (:wat::test::assert-eq sum 15)))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::add-variadic-f64-folds
+(:wat::test::deftest :wat-tests::core::core-arithmetic::add-variadic-f64-folds
   
   (:wat::core::let [sum (:wat::core::+ 1.0 2.0 3.0)]
     (:wat::test::assert-eq sum 6.0)))
 
 ;; ─── Typed leaves coexist with polymorphic surface ──────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::typed-leaves-coexist
+(:wat::test::deftest :wat-tests::core::core-arithmetic::typed-leaves-coexist
   
   ;; Mirrors typed_strict_arithmetic_coexists: :wat::core::i64::+ (2-ary),
   ;; :wat::core::f64::+ (2-ary), and :wat::core::+ (polymorphic 2-ary) all
@@ -145,67 +145,67 @@
   -> :wat::core::bool
   (:wat::core::< a b))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::typed-f64-lt-homogeneous-works
+(:wat::test::deftest :wat-tests::core::core-arithmetic::typed-f64-lt-homogeneous-works
   
   (:wat::test::assert-eq (:wat-tests::core::core-arithmetic::lt-f64 1.5 2.5) true))
 
 ;; ─── Ordering: 2-ary i64 ────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::lt-i64-true
+(:wat::test::deftest :wat-tests::core::core-arithmetic::lt-i64-true
   
   (:wat::test::assert-eq (:wat::core::< 1 2) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::lt-i64-false
+(:wat::test::deftest :wat-tests::core::core-arithmetic::lt-i64-false
   
   (:wat::test::assert-eq (:wat::core::< 2 1) false))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::gt-i64-true
+(:wat::test::deftest :wat-tests::core::core-arithmetic::gt-i64-true
   
   (:wat::test::assert-eq (:wat::core::> 2 1) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::gt-i64-false
+(:wat::test::deftest :wat-tests::core::core-arithmetic::gt-i64-false
   
   (:wat::test::assert-eq (:wat::core::> 1 2) false))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::lte-i64-equal
+(:wat::test::deftest :wat-tests::core::core-arithmetic::lte-i64-equal
   
   (:wat::test::assert-eq (:wat::core::<= 1 1) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::lte-i64-less
+(:wat::test::deftest :wat-tests::core::core-arithmetic::lte-i64-less
   
   (:wat::test::assert-eq (:wat::core::<= 1 2) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::lte-i64-greater
+(:wat::test::deftest :wat-tests::core::core-arithmetic::lte-i64-greater
   
   (:wat::test::assert-eq (:wat::core::<= 2 1) false))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::gte-i64-equal
+(:wat::test::deftest :wat-tests::core::core-arithmetic::gte-i64-equal
   
   (:wat::test::assert-eq (:wat::core::>= 2 2) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::gte-i64-greater
+(:wat::test::deftest :wat-tests::core::core-arithmetic::gte-i64-greater
   
   (:wat::test::assert-eq (:wat::core::>= 2 1) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::gte-i64-less
+(:wat::test::deftest :wat-tests::core::core-arithmetic::gte-i64-less
   
   (:wat::test::assert-eq (:wat::core::>= 1 2) false))
 
 ;; ─── Ordering: 2-ary f64 ────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::lt-f64-true
+(:wat::test::deftest :wat-tests::core::core-arithmetic::lt-f64-true
   
   (:wat::test::assert-eq (:wat::core::< 1.5 2.5) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::gt-f64-true
+(:wat::test::deftest :wat-tests::core::core-arithmetic::gt-f64-true
   
   (:wat::test::assert-eq (:wat::core::> 2.5 1.5) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::lte-f64-equal
+(:wat::test::deftest :wat-tests::core::core-arithmetic::lte-f64-equal
   
   (:wat::test::assert-eq (:wat::core::<= 1.5 1.5) true))
 
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::gte-f64-true
+(:wat::test::deftest :wat-tests::core::core-arithmetic::gte-f64-true
   
   (:wat::test::assert-eq (:wat::core::>= 2.5 1.5) true))
 
@@ -219,7 +219,7 @@
 ;; Rust file — that behaviour is intentionally NOT mirrored here.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::div-i64-zero-runtime-error
+(:wat::test::deftest :wat-tests::core::core-arithmetic::div-i64-zero-runtime-error
   
   (:wat::core::let
     [r
@@ -246,7 +246,7 @@
 ;; poly_add_i64_f64_promotes_to_f64, poly_add_f64_i64_promotes_to_f64, etc.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::cross-type-add-rejected
+(:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-add-rejected
   
   (:wat::core::let
     [r
@@ -266,7 +266,7 @@
 ;; no defclause clause matches (String, String) for arithmetic.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::string-add-rejected
+(:wat::test::deftest :wat-tests::core::core-arithmetic::string-add-rejected
   
   (:wat::core::let
     [r
@@ -289,7 +289,7 @@
 ;; is unchanged; error kind changed to TypeMismatch.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::cross-type-lt-rejected
+(:wat::test::deftest :wat-tests::core::core-arithmetic::cross-type-lt-rejected
   
   (:wat::core::let
     [r
@@ -309,7 +309,7 @@
 ;; slice4_variadic_div_zero_ary_errors. Neither - nor / has a 0-ary clause.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::sub-zero-ary-rejected
+(:wat::test::deftest :wat-tests::core::core-arithmetic::sub-zero-ary-rejected
   
   (:wat::core::let
     [r
@@ -324,7 +324,7 @@
           :wat::core::None :wat::core::None)))))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::div-zero-ary-rejected
+(:wat::test::deftest :wat-tests::core::core-arithmetic::div-zero-ary-rejected
   
   (:wat::core::let
     [r
@@ -347,7 +347,7 @@
 ;; it is visible to user::main in the forked subprocess.
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :wat-tests::core::core-arithmetic::typed-f64-lt-rejects-i64-arg
+(:wat::test::deftest :wat-tests::core::core-arithmetic::typed-f64-lt-rejects-i64-arg
   
   ;; prelude-free (arc 278 — prelude annihilated): the check-time type error rides INLINE
   ;; in the hermetic child's body. `<` unifies its args to the SAME type; f64 2.5 vs i64 1

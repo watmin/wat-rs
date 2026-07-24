@@ -35,7 +35,7 @@
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) (:wat::holon::leaf 0))))
 
-(:wat::test::deftest' :wat-tests::holon::Reject::test-reject-strips-y-direction
+(:wat::test::deftest :wat-tests::holon::Reject::test-reject-strips-y-direction
   
   (:wat::core::let
     [y (:wat::holon::to-holon "y")
@@ -54,7 +54,7 @@
          ((:wat::core::Ok h) h)
          ((:wat::core::Err _) (:wat::holon::leaf 0))))
 
-(:wat::test::deftest' :wat-tests::holon::Reject::test-project-preserves-y-direction
+(:wat::test::deftest :wat-tests::holon::Reject::test-project-preserves-y-direction
   
   (:wat::core::let
     [y (:wat::holon::to-holon "y")

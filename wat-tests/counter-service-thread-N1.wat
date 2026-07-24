@@ -309,7 +309,7 @@
        (:wat::core::match resp ((:counter::AdminResp::Stopped final) final))))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-service::thread-N1
+(:wat::test::deftest :counter-service::thread-N1
   
   ;; ─── Test body ─────────────────────────────────────────────────────────
   ;;

@@ -428,7 +428,7 @@
 ;; handle drop at inner scope exit → driver sees disconnect → outer
 ;; Thread/join-result unblocks.
 
-(:wat::test::deftest' :wat-tests::holon::lru::HologramCacheService::test-hcs-spawn-and-drop
+(:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-hcs-spawn-and-drop
   (:test::hcs-spawn-and-drop))
 
 ;; ─── Layer 1 — :test::hcs-helper-get-empty ──────────────────────────
@@ -438,7 +438,7 @@
 ;; helper-verb internally sends Request::Get and recvs Reply::GetResult
 ;; — driver gets a clean shutdown after pool finish + handle drop.
 
-(:wat::test::deftest' :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-get-empty
+(:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-get-empty
   (:wat::test::assert-eq (:test::hcs-helper-get-empty) 0))
 
 ;; ─── Layer 2 — :test::hcs-helper-put-one ────────────────────────────
@@ -447,7 +447,7 @@
 ;; Single-entry batch round trips Request::Put → Reply::PutAck. Helper
 ;; returns 1 on Ok join, 0 on Err join (after surfacing the death).
 
-(:wat::test::deftest' :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-put-one
+(:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-put-one
   (:wat::test::assert-eq (:test::hcs-helper-put-one) 1))
 
 ;; ─── Layer 3 — :test::hcs-helper-put-then-get ────────────────────────
@@ -457,7 +457,7 @@
 ;; results[0] = Some(_) (presence = 1). Proves Reply enum routing for
 ;; both variants on the same channel.
 
-(:wat::test::deftest' :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-put-then-get
+(:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-put-then-get
   (:wat::test::assert-eq (:test::hcs-helper-put-then-get) 1))
 
 ;; ─── Layer 4 — :test::hcs-helper-get-many-keys ────────────────────────
@@ -467,7 +467,7 @@
 ;; result-vec aligns with probe-vec by index — the contract Reply's
 ;; GetResult variant carries.
 
-(:wat::test::deftest' :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-get-many-keys
+(:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-hcs-helper-get-many-keys
   (:wat::test::assert-eq (:test::hcs-helper-get-many-keys) 110))
 
 ;; ─── Layer 5 — :test::hcs-eviction ──────────────────────────────────
@@ -478,7 +478,7 @@
 ;; eviction coverage from the prior file's test-step6 / test-hcs-spawn-put-3-eviction
 ;; without the channel-pair-deadlock plumbing.
 
-(:wat::test::deftest' :wat-tests::holon::lru::HologramCacheService::test-hcs-eviction
+(:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-hcs-eviction
   (:wat::test::assert-eq (:test::hcs-eviction) 11))
 
 ;; ─── Layer 6 — :test::hcs-multi-client ──────────────────────────────
@@ -488,5 +488,5 @@
 ;; hit → packed 11. Preserves the multi-client coverage from the prior
 ;; file's test-step5 / test-hcs-spawn-2clients-put-get-verify.
 
-(:wat::test::deftest' :wat-tests::holon::lru::HologramCacheService::test-hcs-multi-client
+(:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-hcs-multi-client
   (:wat::test::assert-eq (:test::hcs-multi-client) 11))

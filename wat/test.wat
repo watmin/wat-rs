@@ -300,11 +300,8 @@
 ;;     <prelude spliced here — top-level forms registered at freeze time>
 ;;     (:wat::core::defn :my::test::two-plus-two [] -> :wat::test::TestResult
 ;;       (:wat::test::run-thread <body>)))
-(:wat::core::defmacro :wat::test::deftest
-  [name <- :wat::WatAST
-   body <- :wat::WatAST]
-  -> :wat::WatAST
-  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body)))
+;; arc 278 — non-prime :wat::test::deftest DELETED (IPC de-prime). The prime
+;; :wat::test::deftest' below is reclaimed to this name (0z: prime -> plain).
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
 ;;
@@ -325,14 +322,8 @@
 ;; declaration heads (def / defmacro / defstruct / defenum / newtype /
 ;; typealias / defalias) and `extract_closure`'s `split_body_prelude`
 ;; lifts them to the closure prologue before child eval sees them.
-(:wat::core::defmacro :wat::test::deftest-hermetic
-  [name <- :wat::WatAST
-   body <- :wat::WatAST]
-  -> :wat::WatAST
-  ;; arc 278 — the prelude slot is annihilated. The body runs in a forked child via
-  ;; run-hermetic (spawn-process → OS fork; real thread-safe stdio). A type the child
-  ;; needs is declared inside the child's own forms; this macro ships only the body.
-  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic ~body)))
+;; arc 278 — non-prime :wat::test::deftest-hermetic DELETED (IPC de-prime). The prime
+;; :wat::test::deftest-hermetic' below is reclaimed to this name (0z: prime -> plain).
 
 ;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
 ;;
@@ -741,7 +732,7 @@
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
            (:wat::core::Some (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion")))))))
 
-(:wat::core::defmacro :wat::test::deftest'
+(:wat::core::defmacro :wat::test::deftest
   [name <- :wat::WatAST
    body <- :wat::WatAST]
   -> :wat::WatAST
@@ -794,7 +785,7 @@
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
            (:wat::core::Some (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")))))))
 
-(:wat::core::defmacro :wat::test::deftest-hermetic'
+(:wat::core::defmacro :wat::test::deftest-hermetic
   [name <- :wat::WatAST
    body <- :wat::WatAST]
   -> :wat::WatAST

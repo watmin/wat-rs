@@ -8,14 +8,14 @@
 ;; property for encoding time-of-day, hour-of-week, etc.
 
 
-(:wat::test::deftest' :wat-tests::holon::Circular::test-adjacent-hours-are-near
+(:wat::test::deftest :wat-tests::holon::Circular::test-adjacent-hours-are-near
   
   (:wat::core::let
     [h0 (:wat::holon::Circular  0.0 24.0)
      h23 (:wat::holon::Circular 23.0 24.0)]
     (:wat::test::assert-eq (:wat::holon::presence? h0 h23) true)))
 
-(:wat::test::deftest' :wat-tests::holon::Circular::test-antipodal-hours-are-far
+(:wat::test::deftest :wat-tests::holon::Circular::test-antipodal-hours-are-far
   
   (:wat::core::let
     [h0 (:wat::holon::Circular  0.0 24.0)

@@ -8,14 +8,14 @@
 
 ;; ─── filter-coincident gates on coincident floor ──────────────────
 
-(:wat::test::deftest' :wat-tests::holon::Filter::test-filter-coincident-rejects-far
+(:wat::test::deftest :wat-tests::holon::Filter::test-filter-coincident-rejects-far
   
   (:wat::core::let
     [f (:wat::holon::filter-coincident)]
     ;; cosine 0.0 means orthogonal — far from coincident.
     (:wat::test::assert-eq (f 0.0) false)))
 
-(:wat::test::deftest' :wat-tests::holon::Filter::test-filter-coincident-accepts-near-one
+(:wat::test::deftest :wat-tests::holon::Filter::test-filter-coincident-accepts-near-one
   
   (:wat::core::let
     [f (:wat::holon::filter-coincident)]
@@ -26,14 +26,14 @@
 
 ;; ─── filter-present gates on presence floor ───────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::Filter::test-filter-present-rejects-zero
+(:wat::test::deftest :wat-tests::holon::Filter::test-filter-present-rejects-zero
   
   (:wat::core::let
     [f (:wat::holon::filter-present)]
     ;; cosine 0.0 — no signal at all; below the noise floor.
     (:wat::test::assert-eq (f 0.0) false)))
 
-(:wat::test::deftest' :wat-tests::holon::Filter::test-filter-present-accepts-strong
+(:wat::test::deftest :wat-tests::holon::Filter::test-filter-present-accepts-strong
   
   (:wat::core::let
     [f (:wat::holon::filter-present)]
@@ -42,13 +42,13 @@
 
 ;; ─── filter-accept-any always returns true ───────────────────────
 
-(:wat::test::deftest' :wat-tests::holon::Filter::test-filter-accept-any-on-zero
+(:wat::test::deftest :wat-tests::holon::Filter::test-filter-accept-any-on-zero
   
   (:wat::core::let
     [f (:wat::holon::filter-accept-any)]
     (:wat::test::assert-eq (f 0.0) true)))
 
-(:wat::test::deftest' :wat-tests::holon::Filter::test-filter-accept-any-on-negative
+(:wat::test::deftest :wat-tests::holon::Filter::test-filter-accept-any-on-negative
   
   (:wat::core::let
     [f (:wat::holon::filter-accept-any)]
@@ -62,7 +62,7 @@
 ;; put a (k, v) pair, get with no filter arg. Self-cosine is 1.0 →
 ;; filter accepts → Some.
 
-(:wat::test::deftest' :wat-tests::holon::Filter::test-filter-coincident-composes-with-get
+(:wat::test::deftest :wat-tests::holon::Filter::test-filter-coincident-composes-with-get
   
   (:wat::core::let
     [store

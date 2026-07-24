@@ -37,7 +37,7 @@
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; start takes the Record (seeded-counter::Record 42); init defaults to State/new(d).
-(:wat::test::deftest' :wat-tests::service::seeded-counter-on-thread
+(:wat::test::deftest :wat-tests::service::seeded-counter-on-thread
   
   (:wat::test::assert-eq
     (:wat::core::let
@@ -54,7 +54,7 @@
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
 ;; the Record crosses the wire; init builds State child-side; State never crosses.
-(:wat::test::deftest' :wat-tests::service::seeded-counter-on-process
+(:wat::test::deftest :wat-tests::service::seeded-counter-on-process
   
   (:wat::test::assert-eq
     (:wat::core::let

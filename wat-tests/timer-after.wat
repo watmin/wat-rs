@@ -17,7 +17,7 @@
 ;; tier (and thus the reactor), so it satisfies select's Thread'|Process' constraint
 ;; with zero select' change. (after (thread) d msg) -> Thread'<nil,O>; mirrors start.
 
-(:wat::test::deftest' :wat-tests::timer::after-delivers-its-message
+(:wat::test::deftest :wat-tests::timer::after-delivers-its-message
   
   (:wat::test::assert-eq
     (:wat::core::match

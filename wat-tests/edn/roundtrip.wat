@@ -26,19 +26,19 @@
 
 ;; ─── Primitives ──────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::roundtrip-i64
+(:wat::test::deftest :wat-tests::edn::roundtrip-i64
   (:wat::core::let
     [s (:wat::edn::write 42)
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back 42)))
 
-(:wat::test::deftest' :wat-tests::edn::roundtrip-string
+(:wat::test::deftest :wat-tests::edn::roundtrip-string
   (:wat::core::let
     [s (:wat::edn::write "hello")
      back (:wat::edn::read s)]
     (:wat::test::assert-eq back "hello")))
 
-(:wat::test::deftest' :wat-tests::edn::roundtrip-bool
+(:wat::test::deftest :wat-tests::edn::roundtrip-bool
   (:wat::core::let
     [s (:wat::edn::write true)
      back (:wat::edn::read s)]
@@ -47,7 +47,7 @@
 
 ;; ─── Vec ─────────────────────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::roundtrip-vec
+(:wat::test::deftest :wat-tests::edn::roundtrip-vec
   (:wat::core::let
     [v (:wat::core::Vector :wat::core::i64 1 2 3)
      s (:wat::edn::write v)
@@ -57,7 +57,7 @@
 
 ;; ─── Enum tagged variant ─────────────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::roundtrip-enum-variant
+(:wat::test::deftest :wat-tests::edn::roundtrip-enum-variant
   (:wat::core::let
     [e (:test::Event::Buy 100.5 7)
      s (:wat::edn::write e)
@@ -67,7 +67,7 @@
 
 ;; ─── Struct (with named fields) ──────────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::roundtrip-struct
+(:wat::test::deftest :wat-tests::edn::roundtrip-struct
   (:wat::core::let
     [w (:test::Wrapper :label "score" :value 42)
      s (:wat::edn::write w)
@@ -77,7 +77,7 @@
 
 ;; ─── Nested: struct holding an enum ──────────────────────────────
 
-(:wat::test::deftest' :wat-tests::edn::roundtrip-nested
+(:wat::test::deftest :wat-tests::edn::roundtrip-nested
   (:wat::core::let
     [w
       (:test::Wrapper :label "trade" :value (:test::Event::Sell 102.25 3 "stop"))
