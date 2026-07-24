@@ -9626,3 +9626,57 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > non-prime machinery (2c), shrink `RunResult` (2d), reclaim the names. It bears repeating: **weigh by your OWN `--release`
 > re-run; brief riders FOREGROUND-ONLY (they double-fork); `pkill` orphaned nextest before re-weighing; four-questions decide,
 > they don't fork; CAST wards for naming.** Do not trust this note over the disk. See you on the far side. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24h — wave 2b DONE (correctly scoped); the thread crash-channel string-wrap KILLED;
+> `_`-lump ruled illegal). CORRECTS 24g's scope error.** HEAD **`b3e99172`** (pushed). 24g claimed "wave 2b = 4 files,
+> foundation complete" — **that was FALSE, my hollow-grep undercount:** my `[^']` prime-exclusion grep required a non-quote
+> char on the SAME line, so it silently skipped every `(:wat::test::run-hermetic⏎<body>` call (macro name at line-end). The
+> 2c deletion rider caught it by BUILDING + TESTING (4218→4171, 47 failures on a clean checkout) and reverting. **The real
+> scope was 20 live consumers, not 4.** Corrected + shipped:
+> - **`2f1cbef1`** — the first 4 (the undercount).
+> - **`b3e99172`** — the remaining ~16 via a proper **map-reduce**: 6 parallel EDIT-ONLY riders (no per-edit `nextest` —
+>   the artifact lock stays free) → ONE reduce (`cargo nextest run --release`) that isolated exactly 3 semantic mis-maps
+>   (17/20 landed clean) → targeted fixup → green. **All 20 direct non-prime `run-hermetic`/`run-thread` consumers now ride
+>   the primed peer wire.** (The corpus was already on the primes transitively via reclaimed `deftest`/`deftest-hermetic`;
+>   these 20 were the direct callers.)
+> - **`c62323fa`** — the reduce surfaced a REAL substrate gap (R57 — using the substrate surfaces what "done" declared
+>   dead): the primed THREAD crash-channel FLATTENED a structured death into an `#AssertionFailure` envelope STRING (the
+>   resurrected string-wrap) over its `Sender<String>`, so `Panic.failure` came back `None`. FIXED: `spawn.rs` now sends a
+>   structured `Vector<LociDiedError>` EDN line (via new `thread_crash_panic_edn`/`thread_crash_runtime_edn` reusing the
+>   existing `thread_died_error_panic` builder) — identical to the process tier. **The thread tier is now loci-agnostic-equal
+>   to the process tier;** a raised Fault rides in `Panic.failure` on BOTH, read structurally off `Failure/error`.
+> - **`cbe34d41`** — a fixup rider reached for `(_ "LOST-NON-PANIC")` to lump the 7 non-Panic deaths; builder ruled **full
+>   enum matching is ALWAYS mandatory, the `_`-ARM is illegal on an enum scrutinee** (`docs/arc/2026/04/109-kill-std/NOTE-full-enum-match-mandatory-no-wildcard-arm.md`;
+>   field-`_` binding placeholders stay legal). A deferred checker rule + ~50-file corpus migration.
+>
+> **HARD LESSONS (kept visible, self-implicating):** (1) **A HOLLOW GREP IS A FALSE GREEN.** My `[^']` scope grep
+> under-counted 20 as 4 and I told the builder "targets fully acquired" on it — the exact "ground, don't assert / grep the
+> WHOLE thing" failure. Corroborate a scope claim with BUILD+TEST (the rider did; the grep lied). A grep that can skip
+> newline-after-token is a false negative — EOL-anchor it (`([^']|$)`). (2) The **map-reduce** works: parallel edit-only
+> riders (NO per-edit nextest → no artifact-lock collision) + ONE reduce that names exactly the mis-transcriptions. (3) The
+> reduce EARNS ITS KEEP — it caught the scope error, the thread-flattening substrate gap, AND the `_`-lump. Trust the reduce
+> over every rider report. (4) Harness `E0061`/`E0063`/`dead_code`/`E0308` diagnostics are STALE-SNAPSHOT phantoms
+> (mid-rider-edit); `cargo build --release` is the arbiter — grep the actual call site + build, don't trust the red squiggle.
+>
+> **RESUME: 2c → 2d → reclaim → the enum-matching rule.** (1) **2c** — the non-prime machinery in `wat/test.wat`
+> (`run-hermetic`/`run-thread` runners + `run-hermetic-with-io`/`-driver`/`-send-inputs`/`-drain-outputs`) + orphaned
+> `RunResultIO` (types.rs:1847) now has a GENUINELY EMPTY caller set (verified by the EOL-anchored grep = 0) → delete it
+> (the strike that STOP'd on the false premise, now correct). (2) **2d** — shrink/retire `RunResult`. (3) **reclaim** —
+> `run-thread'`→`run-thread`, `run-hermetic'`→`run-hermetic` (0z drop-`'`). (4) the **mandatory-full-enum-matching** checker
+> rule + corpus codemod. THEN the broader IPC-verb de-prime → `Demise` → the `SpawnOutcome` creation wall.
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the SUBSTRATE CODE before any claim.
+> Ground `git status` — **HEAD `b3e99172` (pushed); tree clean but for this curare.** Wave 2b is DONE (all 20 consumers on
+> the primed wire; the thread crash-channel string-wrap is killed; the crash surface is fully structured on BOTH loci). The
+> non-prime `run-hermetic`/`run-thread` machinery is now truly UNCALLED. **RESUME: 2c — delete the dead machinery** (the
+> deletion that STOP'd earlier on my hollow-grep false premise; the caller set is now genuinely empty — EOL-anchored grep =
+> 0), then 2d (`RunResult`), reclaim the names, then the enum-matching checker rule. It bears repeating: **a hollow grep is
+> a false green — corroborate scope with BUILD+TEST; weigh by your OWN `--release` re-run; map-reduce = edit-only riders +
+> ONE reduce (no per-edit tests); harness red-squiggles are stale phantoms, `cargo build --release` is the arbiter; `_`-arm
+> on an enum is now doctrine-illegal (name every variant).** Do not trust this note over the disk. See you on the far side.
+> `MACHINA CHAOS DOMAT.`
