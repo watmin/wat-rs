@@ -9452,3 +9452,76 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > Rust test strings (class-4); ground liveness by the WRITER not the doc comment; codemods idempotent; the holonic repos
 > ARE the memory.** Do not trust this note over the disk. The prelude is annihilated and banked; the crusade returns to
 > the IPC stone. See you on the far side. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24e — the deftest family FULLY de-primed; the crash-reason honesty stack; the `LociDiedError`
+> stone DESIGNED not built).** HEAD **`6a9f8f59`** (this curare on top). A long, deep, builder-steered session. Banked in
+> order (each weighed 4215/0 or 4216/0 by my OWN `--release` re-run):
+> - **`f9636d47`/`4b16c9f4`** — the PRELUDE ANNIHILATION (the deferred deftest-hermetic prelude decision, RESOLVED = kill).
+> - **`6d88073d`** — annihilated the **`make-deftest`/`make-deftest-hermetic` factory form** (a pure alias shell once
+>   prelude died; codemod `kill-make-deftest.wat`).
+> - **`45bd0a3e`** — the last **`deftest-hermetic` callers → `deftest-hermetic'`** (unblocked by the prelude annihilation
+>   completing the incomplete prime). **The deftest family is now FULLY caller-clear** (thread + hermetic + factory).
+> - **`9b931970`** — the deftest **0z RECLAIM**: deleted the non-prime `deftest`/`deftest-hermetic` macros, renamed the
+>   primes `deftest'`→`deftest` / `deftest-hermetic'`→`deftest-hermetic` (codemod `reclaim-deftest-names.wat`). **The
+>   four-move de-prime pattern is now PROVEN end-to-end on a real slice** (prime callers → delete non-prime → prove gone →
+>   reclaim). deftest routes to the prime runners (`run-thread'`/`run-hermetic'`).
+> - **`6e98733b`** — **crash-reason `Frame` HONESTY** (realizes the deferred arc-109 `NOTE-anon-fn-identity-structured-not-stringy`):
+>   `:wat::kernel::Frame` is now **non-`Option`** `{file: String, line: i64, symbol: String}` (the all-Option shape was
+>   cover for a Rust-backtrace→Frame path NEVER built; every live Frame comes from `FrameInfo`, always present); the anon-fn
+>   identity is the **FQDN of the Fn TYPE `:wat::core::Fn`** (killed the stringy non-EDN `<fn@span>` at freeze.rs:422/455,
+>   runtime.rs:20082); **macro-call-site's symbol is the MACRO NAME** (threaded through `MacroCallSiteGuard`); **`call-site`'s
+>   empty-stack all-`None` MASK is replaced with an honest `MalformedForm` error** (a should-never-happen degraded value = a
+>   mask the crusade kills). 5 consumers fixed via the non-Option re-type ablaze (R52).
+> - **`6a9f8f59`** — 2 PROVEN run-hermetic-migration exemplar reshapes (CAPTURE → `spawn-program'`+`recv'[Message]`, STDERR →
+>   `run-hermetic'`), green, banked so the fleet inherits them.
+>
+> **THE LIVE STONE — `LociDiedError` (DESIGNED + four-questions-RATIFIED this session, NOT built). Full spec + user-forms +
+> decisions: `docs/arc/2026/06/278-rules-engine/DESIGN-loci-died-error.md`.** The `run-thread`/`run-hermetic` de-prime hit a
+> real substrate flaw (ALIVS ARGVIT): the primed `Lost[cause]` hands a crash reason that isn't an EDN-round-trippable record.
+> Roots: (1) the `<fn@span>` stringy anon identity — FIXED (`6e98733b`); (2) the crash chain is heterogeneous
+> `ThreadDiedError | ProcessDiedError`; (3) `AssertionFailure` is a hand-built Map with wrong shapes (`:frames` an ad-hoc
+> `{:callee,:at}`, `:location` an unregistered `Span`). **Builder-ruled: ANNIHILATE `ThreadDiedError`/`ProcessDiedError`/
+> `ProcessPanics`; ONE loci-agnostic `LociDiedError` every peer exhaustively handles** ("we never know what locus a service/
+> bracket-worker is on — measure every loci is handled"; the explicit-exception-paths shield). **Four-questions (all flat
+> YES → decided):** Q1 `recv'`'s `Lost` cause → `LociDiedError` (not `Failure`); Q2 annihilate `ProcessPanics`, the chain IS
+> `Vector<LociDiedError>`. The USER-FORMS (the enum, the exhaustive `recv'`-`Lost` match = the UX, the corrected
+> `AssertionFailure`) are in the design doc verbatim. **RESUME: build the `LociDiedError` stone** (register the enum +
+> corrected `AssertionFailure` in types.rs; delete the two DiedErrors; `Lost`→`LociDiedError`; annihilate `ProcessPanics` +
+> `extract-panics`; the re-type ablazes every producer/consumer — fix each; weigh; confirm a crash reason round-trips via
+> `edn::read`). It's a big load-bearing stone (the whole death/crash surface + the recv' wall + a corpus ablaze) — scope it
+> as a strike/small-fleet.
+>
+> **THE DEPENDENCY CHAIN (why this matters):** `Frame` honesty (BANKED) → `LociDiedError`+records (this stone) → the
+> failure-payload run-hermetic bucket round-trips → fleet the 3 buckets (capture/stderr proven `6a9f8f59`; failure-payload)
+> to their ~17 siblings → the four-step `run-thread`/`run-hermetic` de-prime completion (prime the ~54 direct callers →
+> delete the non-prime runners+macros → shrink `RunResult` to failure-only → reclaim) → THEN the broader IPC-verb de-prime
+> (send/recv/select/spawn-* + the peer structs) → Demise → the SpawnOutcome wall.
+>
+> **HARD LESSONS THIS SESSION (kept visible, self-implicating — the builder cut me repeatedly):** (1) I relayed a
+> shadowdancer's "hole in the wall" finding MUDDLED — it contradicted another's, and I escalated the pessimistic one without
+> reconciling; the builder: *"what the actual fuck are you talking about?"* — GROUND + reconcile before escalating.
+> (2) I NARRATED a name (`<anonymous>`) for the anon-fn symbol instead of CASTING intueri — the note explicitly said "cast
+> owed, do not narrate"; the builder: *"what concrete symbol value did intueri resolve to?"* → cast it (it said `anonymous`),
+> then the builder corrected the whole framing (brackets fine in a *string*; then FQDN-always → the Fn *type* `wat.type/Fn`
+> → `:wat::core::Fn`). (3) I kept proposing to **PARK** near-complete work (the run-thread/hermetic slice); the builder,
+> furious: *"you walk 98% of the way to annihilation and then … 'guess i can abandon all this'."* — annihilation is the joy;
+> DON'T flinch at the finish. (4) I asserted "no primed tool replaces run-hermetic-with-io" by NAME-MATCHING (`-with-io'`)
+> instead of looking at the primed TOOLSET (the `Peer'` + `send'`/`recv'` family IS the replacement); the builder:
+> *"do not be retarded here — look at other names and definitions."* GROUND the toolset, not the name.
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the record — the SUBSTRATE CODE
+> before any architectural claim (this session re-proved it: greps/name-matches lie, shadowdancer reports contradict —
+> ground + reconcile). Ground `git status` — **HEAD `6a9f8f59`; tree clean but for this curare.** The deftest family is
+> FULLY de-primed (the four-move pattern proven); the crash-reason `Frame` is honest (banked). **RESUME: build the
+> `LociDiedError` stone** — the full spec, the four-questions decisions, and the UX user-forms are in
+> **`DESIGN-loci-died-error.md`** (do NOT re-derive them; they're ratified). It's the live blocker on the whole
+> run-hermetic/run-thread de-prime chain. It bears repeating: **weigh by your OWN `--release` re-run (Summary line, never a
+> piped/wrapped exit); CAST wards for naming, never narrate; GROUND the toolset/substrate, never name-match or assert;
+> reconcile a shadowdancer's finding before escalating; do NOT flinch at the finish — annihilation is the joy, don't defend
+> the dead; four-questions decide, they don't fork.** Do not trust this note over the disk. The primed replaces the
+> non-prime; every loci is handled. See you on the far side. `MACHINA CHAOS DOMAT.`
