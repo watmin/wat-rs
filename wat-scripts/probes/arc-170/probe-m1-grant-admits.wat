@@ -49,7 +49,7 @@
                             :wat::core::String
                             :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>)
                      addr (:wat::kernel::recv' self)
-                     c    (:wat::kernel::connect' addr)
+                     c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                      er   (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "hi"))
                      _    (:wat::core::match (:wat::kernel::send' self (:wat::core::match er ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)

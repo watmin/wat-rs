@@ -23920,6 +23920,58 @@ pub(crate) fn accept_outcome_failed(reason: String) -> Value {
     }))
 }
 
+/// Arc 278 peer-lifecycle Strike 4 (the LAST peer wall) — the type path of `connect'`'s
+/// matchable outcome enum (`:wat::kernel::ConnectOutcome<S,R>`, registered in `types.rs`).
+/// PARAMETRIC + Impure, the exact TWIN of `AcceptOutcome<R,S>` — `Connected` holds a live
+/// `Peer'` (note the mirrored arg order `<S,R>`: connect returns the client end).
+const CONNECT_OUTCOME_TYPE: &str = ":wat::kernel::ConnectOutcome";
+
+/// `ConnectOutcome::Connected [peer <- Peer'<S,R>]` — dialed + admitted (the happy path).
+/// `peer_val` is the already-wrapped `PEER_TYPE_PATH` opaque.
+pub(crate) fn connect_outcome_connected(peer_val: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CONNECT_OUTCOME_TYPE.into(),
+        variant_name: "Connected".into(),
+        fields: vec![peer_val],
+    }))
+}
+
+/// `ConnectOutcome::Refused [cause <- Failure]` — ECONNREFUSED / no listener / rendezvous
+/// gone (was the "connect abstract UDS" / "rendezvous send failed — listener was dropped"
+/// raise). RETRYABLE transport. Built via `message_only_failure` — the SAME structured
+/// carrier the accept'/send'/recv'/close' walls use; never a hand-rolled `struct-new`
+/// Failure (R57's Struct-Failure mask).
+pub(crate) fn connect_outcome_refused(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CONNECT_OUTCOME_TYPE.into(),
+        variant_name: "Refused".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
+/// `ConnectOutcome::Rejected [cause <- Failure]` — the `OnlyThisPeer` identity check
+/// failed (the answerer's pid/euid != the address minter's; was the "comms policy
+/// (only-this-peer) refused the connection" raise). NOT retryable — the wrong process
+/// answered, not a transport blip. Built via `message_only_failure`.
+pub(crate) fn connect_outcome_rejected(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CONNECT_OUTCOME_TYPE.into(),
+        variant_name: "Rejected".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
+/// `ConnectOutcome::Failed [cause <- Failure]` — a `peer_cred` read / socket-wrap io error
+/// carrying its structured cause (was the "mutual UDS peer-cred" / "wrap socket stream
+/// failed" raise). Built via `message_only_failure`.
+pub(crate) fn connect_outcome_failed(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CONNECT_OUTCOME_TYPE.into(),
+        variant_name: "Failed".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
 /// Err payload returned by the eval-family forms on any failure

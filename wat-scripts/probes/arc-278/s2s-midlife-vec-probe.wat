@@ -43,7 +43,7 @@
           [record    <- :probe::caller'::Record
            echo-addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
           -> :probe::caller'::State
-          (:probe::caller'::State :durable record :echo (:wat::kernel::connect' echo-addr)))
+          (:probe::caller'::State :durable record :echo (:wat::core::match (:wat::kernel::connect' echo-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [(run [s req]
      (:wat::core::let
@@ -66,7 +66,7 @@
                       (:probe::echo'/grant eh
                         (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
            :record (:probe::caller'::Record) :echo-addr ea)
-     cc1 (:wat::kernel::connect' (:probe::caller'::Handle/addr ch1))
+     cc1 (:wat::core::match (:wat::kernel::connect' (:probe::caller'::Handle/addr ch1)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      rr1 (:probe::Caller/run cc1 (:probe::Caller::RunRequest))
      _   (:wat::kernel::println (:wat::core::match rr1 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Caller::RunResponse::Ok out) out)
@@ -82,7 +82,7 @@
                       (:probe::echo'/grant eh
                         (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
            :record (:probe::caller'::Record) :echo-addr ea)
-     cc2 (:wat::kernel::connect' (:probe::caller'::Handle/addr ch2))
+     cc2 (:wat::core::match (:wat::kernel::connect' (:probe::caller'::Handle/addr ch2)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      rr2 (:probe::Caller/run cc2 (:probe::Caller::RunRequest))]
     (:wat::kernel::println (:wat::core::match rr2 ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Caller::RunResponse::Ok out) out)

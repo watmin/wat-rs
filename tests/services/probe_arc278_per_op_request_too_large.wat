@@ -52,7 +52,7 @@
   (:wat::core::let
     [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap
      h   (:probe::op1svc'/start :locus (:wat::spawn::process) :record (:probe::op1svc'::Record))
-     c   (:wat::kernel::connect' (:probe::op1svc'::Handle/addr h))
+     c   (:wat::core::match (:wat::kernel::connect' (:probe::op1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))]
     ;; arc 278 the recv'-outcome wall — `do-op` now returns a matchable
     ;; `RecvOutcome<DoOpResponse>`; the happy-path Response comes through ::Message.
@@ -71,7 +71,7 @@
   (:wat::core::let
     [big   (:probe::pl 20)     ;; > cap
      h     (:probe::op1svc'/start :locus (:wat::spawn::process) :record (:probe::op1svc'::Record))
-     c     (:wat::kernel::connect' (:probe::op1svc'::Handle/addr h))
+     c     (:wat::core::match (:wat::kernel::connect' (:probe::op1svc'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r1    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))    ;; RequestTooLarge; keep
      r2    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload "hi"))]  ;; SAME c → Ok
     ;; arc 278 the recv'-outcome wall — the in-budget Ok Response comes through ::Message.

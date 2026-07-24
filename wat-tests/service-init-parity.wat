@@ -42,7 +42,7 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record :count 42))
-       c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
+       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::SeededCounter::GetResponse::Ok value) value)
@@ -59,7 +59,7 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record :count 42))
-       c (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h))
+       c (:wat::core::match (:wat::kernel::connect' (:wat-tests::seeded-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::SeededCounter::GetResponse::Ok value) value)

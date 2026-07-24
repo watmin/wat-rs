@@ -51,7 +51,7 @@
           [record    <- :probe::caller'::Record
            echo-addr <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>]
           -> :probe::caller'::State
-          (:probe::caller'::State :durable record :echo (:wat::kernel::connect' echo-addr)))
+          (:probe::caller'::State :durable record :echo (:wat::core::match (:wat::kernel::connect' echo-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [(run [s req]
      (:wat::core::let
@@ -71,7 +71,7 @@
     [eh  (:probe::echo'/start   :locus (:wat::spawn::thread) :record (:probe::echo'::Record))
      ea  (:probe::echo'::Handle/addr eh)
      ch  (:probe::caller'/start  :locus (:wat::spawn::thread) :record (:probe::caller'::Record) :echo-addr ea)
-     cc  (:wat::kernel::connect' (:probe::caller'::Handle/addr ch))
+     cc  (:wat::core::match (:wat::kernel::connect' (:probe::caller'::Handle/addr ch)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))]
     (:wat::core::match rr ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:probe::Caller::RunResponse::Ok out) out)

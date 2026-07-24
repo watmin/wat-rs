@@ -33,7 +33,7 @@
                (:wat::core::do
                  (:wat::core::match (:wat::telemetry::log span :wat::telemetry::Level::Info (:probe::Note :text "a")) ((:wat::kernel::RecvOutcome::Message _resp) nil) ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
                  (:wat::telemetry::log span :wat::telemetry::Level::Info (:probe::Note :text "b"))))
-     jclient (:wat::kernel::connect' jaddr)
+     jclient (:wat::core::match (:wat::kernel::connect' jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      resp    (:wat::telemetry::Journal/query-logs jclient
                (:wat::telemetry::Journal::QueryLogsRequest
                  :namespace "probe-ns" :time-lo 0 :time-hi 9223372036854775807 :limit 20 :cursor :wat::core::None))]

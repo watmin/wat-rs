@@ -1356,6 +1356,74 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::ConnectOutcome<S,R> — Arc 278 peer-lifecycle Strike 4 (the connect'
+    // OUTCOME WALL, BRIEF-connect-outcome-wall.md — the LAST peer-lifecycle wall). The
+    // exact TWIN of `AcceptOutcome<R,S>` above. `connect'` used to RETURN a bare
+    // `Peer'<S,R>` and RAISE on its *handleable* failures (ECONNREFUSED / no listener /
+    // rendezvous gone, the `OnlyThisPeer` identity reject, `peer_cred` read fail,
+    // socket-wrap io error). Per the peer-lifecycle LAW (2026-07-23) — "we deliver an enum
+    // for code to handle exceptions with; raise is uncatchable on purpose, a thing that
+    // must never happen" — those become a matchable outcome; only the must-never-happen
+    // raises (arity, address-type-mismatch, and the in-process malformed-address substrate
+    // bug — see below) stay raises. Shape (RULED):
+    //   :Connected [peer <- Peer'<S,R>]  — dialed + admitted (the happy path).
+    //   :Refused   [cause <- Failure]    — ECONNREFUSED / no listener / rendezvous gone;
+    //                                      RETRYABLE transport (the server may come up).
+    //   :Rejected  [cause <- Failure]    — the `OnlyThisPeer` identity check failed (the
+    //                                      answerer's pid/euid != the address minter's);
+    //                                      NOT retryable (wrong process, not a transport
+    //                                      blip). FIRES here (unlike accept', where the
+    //                                      gate bounces internally) — the client dials once
+    //                                      and a server-identity mismatch is caller-visible.
+    //   :Failed    [cause <- Failure]    — a `peer_cred` read / socket-wrap io error; the
+    //                                      structured-cause carrier (never a flat String —
+    //                                      built via `message_only_failure`).
+    // Note the arg order `<S,R>` — connect's return is `Peer'<S,R>` (send-type first), the
+    // MIRROR of accept's `Peer'<R,S>`. The must-never-happen raises stay raises: arity,
+    // address-type-mismatch, and the in-process malformed-abstract-name (`from_abstract_name`
+    // on `SocketAddress::name`) — the name is either kernel-minted (autobind, 5 random
+    // bytes) or a wire-received `SocketAddressWire` already fully validated at decode
+    // (non-empty, <=107-byte abstract-UDS limit, bytes 0..=255 — `capability::registry`),
+    // so a malformed name at connect time is an in-process substrate bug, not adversarial
+    // wire data (STOP-3, grounded).
+    // Impure + PARAMETRIC, mirroring AcceptOutcome<R,S>/RecvOutcome<O>: `Connected` holds a
+    // live `Peer'` (a socket/channel handle), so a Pure marking would lie the moment the
+    // peer is a live resource. S,R carry the peer's wire element types. Registered as a
+    // builtin for the same load-order reason as AcceptOutcome — connect' is a kernel verb
+    // usable inside the stdlib before any wat defenum would load.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::ConnectOutcome".into(),
+        type_params: vec!["S".into(), "R".into()],
+        purity: Purity::Impure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Connected".into(),
+                fields: vec![(
+                    "peer".into(),
+                    TypeExpr::Parametric {
+                        head: "wat::kernel::Peer'".into(),
+                        args: vec![
+                            TypeExpr::Path("S".into()),
+                            TypeExpr::Path("R".into()),
+                        ],
+                    },
+                )],
+            },
+            EnumVariant::Tagged {
+                name: "Refused".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Rejected".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Failed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — return type of
     // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
     // everything the sandboxed `:user::main` wrote through its stdio

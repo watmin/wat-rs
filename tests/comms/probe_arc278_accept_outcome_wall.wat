@@ -19,7 +19,7 @@
     [pair    (:wat::kernel::listener' (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      l       (:wat::spawn::Bound/listener pair)
      addr    (:wat::spawn::Bound/address pair)
-     _client (:wat::kernel::connect' addr)]
+     _client (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))]
     (:wat::kernel::accept' l)))
 
 ;; Extract ONLY the listener (rx); the enclosing `Bound` (holding the address's

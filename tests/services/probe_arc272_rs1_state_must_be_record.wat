@@ -23,7 +23,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
     [h     (:my::counter/start :locus (:wat::spawn::thread) :record (:my::counter::Record :count 0))
-     c     (:wat::kernel::connect' (:my::counter::Handle/addr h))
+     c     (:wat::core::match (:wat::kernel::connect' (:my::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _     (:wat::core::match (:my::counter/increment c (:my::Counter::IncrementRequest :n 5))
              ((:wat::kernel::RecvOutcome::Message _resp) nil)
              ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))

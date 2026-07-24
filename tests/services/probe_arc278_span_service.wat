@@ -21,11 +21,11 @@
                 :durations (:wat::core::HashMap :wat::core::keyword :wat::telemetry::Samples))
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
              :record span-rec :sink-addr jaddr)
-     span  (:wat::kernel::connect' (:wat::telemetry::span::Handle/addr sph))
+     span  (:wat::core::match (:wat::kernel::connect' (:wat::telemetry::span::Handle/addr sph)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _i1   (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
      _i2   (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
      _c    (:wat::telemetry::Span/close span (:wat::telemetry::Span::CloseRequest))
-     client (:wat::kernel::connect' maddr)
+     client (:wat::core::match (:wat::kernel::connect' maddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      pk    (:wat::edn::write (:wat::telemetry::PartitionKey
                                :namespace "probe-ns" :kind :wat::telemetry::Kind::Metric))
      resp  (:wat::query::Store/scan client

@@ -194,7 +194,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::kernel::connect' jaddr)
+     journal (:wat::core::match (:wat::kernel::connect' jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      idxs  (:wat::core::range 0 800)
      logs  (:wat::core::into (:wat::core::Vector :wat::telemetry::Log)
@@ -204,7 +204,7 @@
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
      sh    (:arena::my-sift'/start :locus (:wat::spawn::thread)
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh))
+     svc   (:wat::core::match (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      page-idxs (:wat::core::range 0 12)
      initial (:arena::PageAcc :done false :cur :wat::core::None :acc 0 :clean true)
      final (:wat::core::foldl
@@ -260,7 +260,7 @@
                           (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::kernel::connect' jaddr)
+     journal (:wat::core::match (:wat::kernel::connect' jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      idxs1 (:wat::core::range 0 400)
      idxs2 (:wat::core::range 400 800)
@@ -280,7 +280,7 @@
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh))
+     svc   (:wat::core::match (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      page-idxs (:wat::core::range 0 12)
      initial (:arena::PageAcc :done false :cur :wat::core::None :acc 0 :clean true)
      final (:wat::core::foldl
@@ -328,7 +328,7 @@
      jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::kernel::connect' jaddr)
+     journal (:wat::core::match (:wat::kernel::connect' jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
              :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
@@ -340,7 +340,7 @@
              (:wat::telemetry::Journal::WriteLogsRequest (:wat::core::Vector :wat::telemetry::Log l1 l2)))
      sh    (:arena::my-sift'/start :locus (:wat::spawn::thread)
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh))
+     svc   (:wat::core::match (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
                :limit 50 :cursor :wat::core::None))]
@@ -361,7 +361,7 @@
                           (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::kernel::connect' jaddr)
+     journal (:wat::core::match (:wat::kernel::connect' jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
              :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
@@ -377,7 +377,7 @@
                         (:wat::telemetry::journal/grant jh
                           (:wat::core::Vector :wat::core::i64 (:wat::spawn::ProcessLaunch/pid pl)))))
              :record (:arena::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh))
+     svc   (:wat::core::match (:wat::kernel::connect' (:arena::my-sift'::Handle/addr sh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      resp  (:arena::my-sift/sift-rules svc
              (:arena::my-sift::SiftRulesRequest :namespace "arena-rules-fatal-ns" :time-lo 0 :time-hi 100000000
                :limit 50 :cursor :wat::core::None))]

@@ -24,7 +24,7 @@
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::let
     [h (:my::hcounter/start :locus (:wat::spawn::thread) :record (:my::hcounter::Record :count 0))
-     c (:wat::kernel::connect' (:my::hcounter::Handle/addr h))
+     c (:wat::core::match (:wat::kernel::connect' (:my::hcounter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r (:my::hcounter/is-holon-record c (:my::HCounter::IsHolonRecordRequest))]
     (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
       ((:my::HCounter::IsHolonRecordResponse::Ok yes) yes)

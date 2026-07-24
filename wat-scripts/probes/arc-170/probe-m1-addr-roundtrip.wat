@@ -25,7 +25,7 @@
 (:wat::core::defn :probe::dial-and-echo
   [a <- :wat::kernel::Address'<probe::Echo::Op,probe::Echo::Reply>] -> :wat::core::String
   (:wat::core::let
-    [c  (:wat::kernel::connect' a)
+    [c  (:wat::core::match (:wat::kernel::connect' a) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      er (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg "roundtrip"))]
     (:wat::core::match er ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Echo::EchoResponse::Ok reply) reply)

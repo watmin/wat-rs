@@ -62,7 +62,7 @@
   (:wat::core::let
     [h        (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      each-out (:wat::bracket::each (:wat::spawn::process) ["a" "b" "c" "d" "e"] :probe::record-hit :counter h)
-     c        (:wat::kernel::connect' (:probe::counter::Handle/addr h))
+     c        (:wat::core::match (:wat::kernel::connect' (:probe::counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r        (:probe::Counter/get c (:probe::Counter::GetRequest))]
     (:wat::core::Tuple each-out
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 

@@ -8263,8 +8263,20 @@ const MUST_USE_TYPES: &[&str] = &[
 /// arm-joined type, never `AcceptOutcome<R,S>`, so this fires only on a raw dropped
 /// `accept'`, closing the swallow door on the rendezvous-drop/decode/select/peer_cred
 /// failures the wall converted from raises.
-const MUST_USE_PARAMETRIC_HEADS: &[&str] =
-    &["wat::kernel::RecvOutcome", "wat::spawn::ServiceEvent", "wat::kernel::AcceptOutcome"];
+///
+/// `:wat::kernel::ConnectOutcome<S,R>` (arc 278 peer-lifecycle Strike 4 — the connect'
+/// OUTCOME WALL, the LAST peer wall) — the twin of `AcceptOutcome`, parametric (`Connected`
+/// holds a live `Peer'<S,R>`). A *faced* `connect'` (matched over
+/// `Connected`/`Refused`/`Rejected`/`Failed`) has the Peer' / an arm-joined type, never
+/// `ConnectOutcome<S,R>`, so this fires only on a raw dropped `connect'`, closing the
+/// swallow door on the ECONNREFUSED/no-listener, identity-reject, and peer_cred/socket-wrap
+/// failures the wall converted from raises.
+const MUST_USE_PARAMETRIC_HEADS: &[&str] = &[
+    "wat::kernel::RecvOutcome",
+    "wat::spawn::ServiceEvent",
+    "wat::kernel::AcceptOutcome",
+    "wat::kernel::ConnectOutcome",
+];
 
 /// True when `ty` (already `apply_subst`-resolved) names a must-use type —
 /// see `MUST_USE_TYPES` (non-parametric, colon-Path) and
@@ -8290,6 +8302,8 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
         ("poll'/select'", "Message/Closed/Lost/Malformed/Rejected")
     } else if ty_name.contains("AcceptOutcome") {
         ("accept'", "Accepted/Closed/Failed")
+    } else if ty_name.contains("ConnectOutcome") {
+        ("connect'", "Connected/Refused/Rejected/Failed")
     } else {
         ("send'", "Sent/Closed/Lost")
     };
@@ -11137,7 +11151,7 @@ fn infer_connect_prime(
         } });
         let s = fresh.fresh();
         let r = fresh.fresh();
-        let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
+        let ty = TypeExpr::Parametric { head: "wat::kernel::ConnectOutcome".into(), args: vec![s, r] };
         return CheckResult::partial_with(ty, local_errors);
     }
     let addr_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -11145,7 +11159,7 @@ fn infer_connect_prime(
         None => {
             let s = fresh.fresh();
             let r = fresh.fresh();
-            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
+            let ty = TypeExpr::Parametric { head: "wat::kernel::ConnectOutcome".into(), args: vec![s, r] };
             return CheckResult::partial_with(ty, local_errors);
         }
     };
@@ -11166,7 +11180,13 @@ fn infer_connect_prime(
             let r_resolved = apply_subst(&r, subst);
             check_wire_peer_purity_span(&s_resolved, args[0].span(), OP, env.types(), &mut local_errors);
             check_wire_peer_purity_span(&r_resolved, args[0].span(), OP, env.types(), &mut local_errors);
-            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s, r] };
+            // Arc 278 the connect' OUTCOME WALL (the LAST peer wall) — connect' no longer
+            // returns the bare Peer'<S,R> and raises on ECONNREFUSED/no-listener,
+            // identity-reject, or peer_cred/socket-wrap io; it returns a matchable
+            // `:wat::kernel::ConnectOutcome<S,R>` (::Connected[Peer'<S,R>] · ::Refused ·
+            // ::Rejected · ::Failed, each [Failure]) so a masked connect failure is
+            // structurally unrepresentable. The peer still flows via the ::Connected arm.
+            let ty = TypeExpr::Parametric { head: "wat::kernel::ConnectOutcome".into(), args: vec![s, r] };
             if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
         }
         Err(_) => {
@@ -11178,7 +11198,7 @@ fn infer_connect_prime(
             } });
             let s2 = fresh.fresh();
             let r2 = fresh.fresh();
-            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![s2, r2] };
+            let ty = TypeExpr::Parametric { head: "wat::kernel::ConnectOutcome".into(), args: vec![s2, r2] };
             CheckResult::partial_with(ty, local_errors)
         }
     }

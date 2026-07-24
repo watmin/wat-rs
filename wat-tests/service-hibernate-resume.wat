@@ -51,14 +51,14 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::hib-counter::Record :count 0))
-       c     (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h))
+       c     (:wat::core::match (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        _     (:wat::core::match (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest :n 7))
                ((:wat::kernel::RecvOutcome::Message _resp) nil)
                ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
                (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
        snap  (:wat-tests::hib-counter/hibernate h)
        h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::thread) :record snap)
-       c2    (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2))
+       c2    (:wat::core::match (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest :n 3))
        final (:wat-tests::hib-counter/stop h2)]
       final)
@@ -70,14 +70,14 @@
   (:wat::test::assert-eq
     (:wat::core::let
       [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::process) :record (:wat-tests::hib-counter::Record :count 0))
-       c     (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h))
+       c     (:wat::core::match (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        _     (:wat::core::match (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest :n 7))
                ((:wat::kernel::RecvOutcome::Message _resp) nil)
                ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
                (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
        snap  (:wat-tests::hib-counter/hibernate h)
        h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::process) :record snap)
-       c2    (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2))
+       c2    (:wat::core::match (:wat::kernel::connect' (:wat-tests::hib-counter::Handle/addr h2)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest :n 3))
        final (:wat-tests::hib-counter/stop h2)]
       final)

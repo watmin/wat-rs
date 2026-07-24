@@ -36,6 +36,26 @@ use crate::span::Span;
 
 // ─── CommAddress trait ────────────────────────────────────────────────────────
 
+/// Arc 278 peer-lifecycle Strike 4 — the connect' OUTCOME WALL (the LAST peer wall). A
+/// `CommAddress::connect` distinguishes its *handleable* failures (the ones `connect'`
+/// converts to a matchable `:wat::kernel::ConnectOutcome<S,R>` variant, never a raise)
+/// from the must-never-happen raises (which stay `EvalBreak`). `connect` returns
+/// `Result<Result<Peer, ConnectFail>, EvalBreak>`: the outer `Err` is an uncatchable raise
+/// (an in-process substrate bug — a malformed abstract-name, an arity/type mismatch), the
+/// inner `Err(ConnectFail)` is a handleable outcome the eval layer maps to
+/// `Refused`/`Rejected`/`Failed`. The exact TWIN of `AcceptFail` (`kernel/listener.rs`).
+pub enum ConnectFail {
+    /// ECONNREFUSED / no listener / rendezvous gone — maps to `ConnectOutcome::Refused`
+    /// (RETRYABLE transport; the server may come up).
+    Refused(String),
+    /// The `OnlyThisPeer` identity check failed (the answerer's pid/euid != the address
+    /// minter's) — maps to `ConnectOutcome::Rejected` (NOT retryable; wrong process).
+    Rejected(String),
+    /// A `peer_cred` read / socket-wrap io error carrying its reason — maps to
+    /// `ConnectOutcome::Failed[cause <- Failure]` (via `message_only_failure`).
+    Failed(String),
+}
+
 /// Transport-blind kernel trait: dial this address and return the
 /// connected client-side `Peer`.
 ///
@@ -50,7 +70,13 @@ use crate::span::Span;
 /// [[feedback_vended_primitives_never_deadlock]]
 pub trait CommAddress: Send + Sync {
     /// Dial this address; return the connected client-side Peer.
-    fn connect(&self, sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak>;
+    ///
+    /// Arc 278 the connect' OUTCOME WALL: `Ok(Ok(peer))` = dialed + admitted;
+    /// `Ok(Err(ConnectFail))` = a handleable failure (→ `Refused`/`Rejected`/`Failed`);
+    /// `Err(EvalBreak)` = a must-never-happen raise (a malformed abstract-name substrate
+    /// bug — the address's own name failed `from_abstract_name`).
+    fn connect(&self, sym: &SymbolTable, span: &Span)
+        -> Result<Result<Peer, ConnectFail>, EvalBreak>;
 
     /// Return a `&dyn Any` reference for downcasting to the concrete impl.
     ///
@@ -77,8 +103,8 @@ impl CommAddress for ThreadAddress {
         self
     }
 
-    fn connect(&self, sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak> {
-        const OP: &str = ":wat::kernel::connect'";
+    fn connect(&self, sym: &SymbolTable, span: &Span)
+        -> Result<Result<Peer, ConnectFail>, EvalBreak> {
         // Mint the two connection pairs.
         // req: client sends (S) → server receives
         // resp: server sends (R) → client receives
@@ -105,18 +131,17 @@ impl CommAddress for ThreadAddress {
             span.clone(),
         ) {
             crate::channel::SendOutcome::Ok => {}
+            // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: the rendezvous is gone
+            // (the listener was dropped / never accepted). No listener → a RETRYABLE
+            // transport refusal → ConnectOutcome::Refused, not a raise the dialer unwinds
+            // past. The thread-tier twin of the process tier's ECONNREFUSED.
             crate::channel::SendOutcome::Disconnected => {
-                return Err(RuntimeError {
-                    span: span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: "connect': rendezvous send failed — listener was dropped".into(),
-                    },
-                }
-                .into());
+                return Ok(Err(ConnectFail::Refused(
+                    "connect': rendezvous send failed — listener was dropped (no listener)".into(),
+                )));
             }
         }
-        Ok(client_peer)
+        Ok(Ok(client_peer))
     }
 }
 
@@ -145,11 +170,19 @@ impl CommAddress for SocketAddress {
         self
     }
 
-    fn connect(&self, _sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak> {
+    fn connect(&self, _sym: &SymbolTable, span: &Span)
+        -> Result<Result<Peer, ConnectFail>, EvalBreak> {
         const OP: &str = ":wat::kernel::connect'";
         use std::os::fd::OwnedFd;
         use std::os::linux::net::SocketAddrExt;
         use std::os::unix::net::{SocketAddr, UnixStream};
+        // Arc 278 the connect' OUTCOME WALL — MUST-NEVER-HAPPEN raise (STAYS a raise, the
+        // outer `Err(EvalBreak)`). `self.name` is either kernel-minted (autobind, 5 random
+        // bytes) or a wire-received `SocketAddressWire` already fully validated at decode to
+        // the abstract-UDS constraint (non-empty, <=107 bytes, bytes 0..=255 —
+        // `capability::registry::socket_address_wire_from_record`), so a `from_abstract_name`
+        // failure here is an in-process substrate bug, NOT adversarial wire data (STOP-3,
+        // grounded — the accept' malformed-connect-request precedent).
         let sa = SocketAddr::from_abstract_name(&self.name).map_err(|e| RuntimeError {
             span: span.clone(),
             kind: RuntimeErrorKind::MalformedForm {
@@ -157,13 +190,14 @@ impl CommAddress for SocketAddress {
                 reason: format!("abstract addr for connect: {}", e),
             },
         })?;
-        let stream = UnixStream::connect_addr(&sa).map_err(|e| RuntimeError {
-            span: span.clone(),
-            kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("connect abstract UDS: {}", e),
-            },
-        })?;
+        // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: ECONNREFUSED / no listener →
+        // ConnectOutcome::Refused (RETRYABLE transport), not a raise the dialer unwinds past.
+        let stream = match UnixStream::connect_addr(&sa) {
+            Ok(s) => s,
+            Err(e) => {
+                return Ok(Err(ConnectFail::Refused(format!("connect abstract UDS: {}", e))));
+            }
+        };
         // Arc 272 6c.2 — MUTUAL UDS peer-cred via the powerbox: the CLIENT verifies the SERVER's
         // kernel-vouched identity through `CommsPolicy::OnlyThisPeer`, symmetric with the accept
         // gate's `OnlyMyPeers` check in `kernel/listener.rs`. The SO_PEERCRED uid+pid checks ARE
@@ -173,42 +207,48 @@ impl CommAddress for SocketAddress {
         // peer_cred BEFORE `OwnedFd::from(stream)` consumes the stream.
         {
             use std::os::fd::AsRawFd;
-            let server = crate::comms::process::peer_cred(stream.as_raw_fd()).map_err(|e| RuntimeError {
-                span: span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("mutual UDS peer-cred: peer_cred on the server socket: {}", e),
-                },
-            })?;
+            // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: reading the server's
+            // peer-cred failed (io error) → ConnectOutcome::Failed[cause].
+            let server = match crate::comms::process::peer_cred(stream.as_raw_fd()) {
+                Ok(c) => c,
+                Err(e) => {
+                    return Ok(Err(ConnectFail::Failed(format!(
+                        "mutual UDS peer-cred: peer_cred on the server socket: {}",
+                        e
+                    ))));
+                }
+            };
             // SAFETY: geteuid() is always-succeeds, no args, no memory effects.
             let me = unsafe { libc::geteuid() };
+            // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: the `OnlyThisPeer` identity
+            // check failed (the answerer is not the exact process that minted this address)
+            // → ConnectOutcome::Rejected[cause] (NOT retryable; wrong process, not a
+            // transport blip). This FIRES here (unlike accept', where the gate bounces the
+            // stranger internally) — the client dials once and a server-identity mismatch
+            // is a caller-visible outcome.
             if !connect_admits(&server, me, self.minter_pid) {
-                return Err(RuntimeError {
-                    span: span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!(
-                            "comms policy (only-this-peer) refused the connection — \
-                             server pid {} != minter pid {}, or server euid {} != our euid {} \
-                             (the answerer must be the exact process that minted this address)",
-                            server.pid, self.minter_pid, server.uid, me
-                        ),
-                    },
-                }
-                .into());
+                return Ok(Err(ConnectFail::Rejected(format!(
+                    "comms policy (only-this-peer) refused the connection — \
+                     server pid {} != minter pid {}, or server euid {} != our euid {} \
+                     (the answerer must be the exact process that minted this address)",
+                    server.pid, self.minter_pid, server.uid, me
+                ))));
             }
         }
         // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String> — eval pre-encodes.
+        // Arc 278 the connect' OUTCOME WALL — HANDLEABLE: wrapping the connected stream
+        // failed (io error) → ConnectOutcome::Failed[cause].
         let (tx, rx) =
-            crate::comms::process::sender_receiver_from_fd::<Value>(OwnedFd::from(stream))
-                .map_err(|e| RuntimeError {
-                    span: span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("wrap socket stream failed: {}", e),
-                    },
-                })?;
-        Ok(Peer::from_socket(tx.reinterpret::<String>(), rx))
+            match crate::comms::process::sender_receiver_from_fd::<Value>(OwnedFd::from(stream)) {
+                Ok(pair) => pair,
+                Err(e) => {
+                    return Ok(Err(ConnectFail::Failed(format!(
+                        "wrap socket stream failed: {}",
+                        e
+                    ))));
+                }
+            };
+        Ok(Ok(Peer::from_socket(tx.reinterpret::<String>(), rx)))
     }
 }
 
@@ -279,21 +319,33 @@ impl Address {
             .map(|s| (s.minter_pid, s.name.clone()))
     }
 
-    /// Dispatch connect to the concrete impl; wrap the returned `Peer` as a
-    /// `PEER_TYPE_PATH` opaque `Value` for the eval layer.
+    /// Dispatch connect to the concrete impl and build the matchable
+    /// `:wat::kernel::ConnectOutcome<S,R>` `Value` for the eval layer (Arc 278 the connect'
+    /// OUTCOME WALL — the LAST peer wall). `Ok(peer)` → `Connected[peer]` (the `Peer`
+    /// wrapped as a `PEER_TYPE_PATH` opaque); `Err(ConnectFail::Refused(reason))` →
+    /// `Refused[cause]`; `Err(ConnectFail::Rejected(reason))` → `Rejected[cause]`;
+    /// `Err(ConnectFail::Failed(reason))` → `Failed[cause <- Failure]` (all via
+    /// `message_only_failure`). A must-never-happen raise stays an `EvalBreak` (the `?`).
     pub fn connect_as_value(
         &self,
         sym: &SymbolTable,
         span: &Span,
     ) -> Result<Value, EvalBreak> {
-        let peer = self.inner.connect(sym, span)?;
         use crate::kernel::spawn::PEER_TYPE_PATH;
         use crate::rust_deps::custodia::ThreadOwnedCell;
         use crate::rust_deps::marshal::make_rust_opaque;
-        Ok(make_rust_opaque(
-            PEER_TYPE_PATH,
-            Arc::new(ThreadOwnedCell::new(Some(peer))),
-        ))
+        match self.inner.connect(sym, span)? {
+            Ok(peer) => {
+                let peer_val = make_rust_opaque(
+                    PEER_TYPE_PATH,
+                    Arc::new(ThreadOwnedCell::new(Some(peer))),
+                );
+                Ok(crate::runtime::connect_outcome_connected(peer_val))
+            }
+            Err(ConnectFail::Refused(reason)) => Ok(crate::runtime::connect_outcome_refused(reason)),
+            Err(ConnectFail::Rejected(reason)) => Ok(crate::runtime::connect_outcome_rejected(reason)),
+            Err(ConnectFail::Failed(reason)) => Ok(crate::runtime::connect_outcome_failed(reason)),
+        }
     }
 }
 

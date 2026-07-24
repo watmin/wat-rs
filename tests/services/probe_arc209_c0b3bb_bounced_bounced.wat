@@ -63,7 +63,7 @@
                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
                               (:wat::kernel::RecvOutcome::Closed
                                 (:wat::kernel::assertion-failed! "recv': owner closed (cap handoff)" :wat::core::None :wat::core::None)))
-                       c    (:wat::kernel::connect' addr)
+                       c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                        _    (:wat::core::match (:wat::kernel::send' c 7) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                        ;; 3b-b: the stranger is bounced → the service drops the stream → this recv'
                        ;; sees Closed (EOF on the bounce) → we RAISE → the stranger process DIES.

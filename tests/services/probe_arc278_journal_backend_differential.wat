@@ -14,7 +14,7 @@
   (:wat::core::let
     [jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
                :record (:wat::telemetry::journal::Record) :store-addr store-addr)
-     journal (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh))
+     journal (:wat::core::match (:wat::kernel::connect' (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      m       (:wat::telemetry::Metric
                :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags :time-ns 123
@@ -23,7 +23,7 @@
      batch   (:wat::core::Vector :wat::telemetry::Metric m)
      _wr     (:wat::telemetry::Journal/write-metrics journal
                (:wat::telemetry::Journal::WriteMetricsRequest batch))
-     client  (:wat::kernel::connect' store-addr)
+     client  (:wat::core::match (:wat::kernel::connect' store-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      pk      (:wat::edn::write (:wat::telemetry::PartitionKey
                                  :namespace "probe-ns" :kind :wat::telemetry::Kind::Metric))
      resp    (:wat::query::Store/scan client

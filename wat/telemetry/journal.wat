@@ -79,7 +79,18 @@
            store-addr <- :wat::kernel::Address'<wat::query::Store::Op,wat::query::Store::Reply>]
           -> :wat::telemetry::journal::State
           (:wat::core::let
-            [store (:wat::kernel::connect' store-addr)
+            ;; arc 278 the connect'-outcome wall — face all four arms. ::Connected → bind
+            ;; the store Peer'; ::Refused/::Rejected/::Failed → assertion-failed! (fatal,
+            ;; preserving the pre-wall raise-unwind: a service whose store dial fails at
+            ;; :init cannot start). Sibling pattern: spawn.wat's recv'/send' fatal arms.
+            [store (:wat::core::match (:wat::kernel::connect' store-addr)
+                     ((:wat::kernel::ConnectOutcome::Connected p) p)
+                     ((:wat::kernel::ConnectOutcome::Refused c)
+                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                     ((:wat::kernel::ConnectOutcome::Rejected c)
+                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                     ((:wat::kernel::ConnectOutcome::Failed c)
+                       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
              _es   (:wat::query::Store/ensure-schema store
                      (:wat::query::Store::EnsureSchemaRequest
                        :table   (:wat::query::TableSchema :pk "pk" :sk "sk")

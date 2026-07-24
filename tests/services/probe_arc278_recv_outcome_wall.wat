@@ -58,7 +58,7 @@
 ;; asserts this NEVER happens). ::Message → Outcome::Message.
 (:wat::core::defn :probe::client-boom-msg [h <- :probe::crash'::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::kernel::connect' (:probe::crash'::Handle/addr h))
+    [c  (:wat::core::match (:wat::kernel::connect' (:probe::crash'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s (:wat::kernel::send' c (:probe::Crash::Op::Boom (:probe::Crash::BoomRequest)))]
     (:wat::core::match (:wat::kernel::recv' c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
@@ -68,7 +68,7 @@
 
 (:wat::core::defn :probe::client-boomrt-msg [h <- :probe::crash'::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::kernel::connect' (:probe::crash'::Handle/addr h))
+    [c  (:wat::core::match (:wat::kernel::connect' (:probe::crash'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s (:wat::kernel::send' c (:probe::Crash::Op::Boomrt (:probe::Crash::BoomrtRequest)))]
     (:wat::core::match (:wat::kernel::recv' c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
@@ -81,7 +81,7 @@
 ;; the exact reason). ::Closed → Outcome::Closed; ::Message → Outcome::Message (both asserted NEVER).
 (:wat::core::defn :probe::admin-boom-msg [h <- :probe::crash'::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::kernel::connect' (:probe::crash'::Handle/addr h))
+    [c  (:wat::core::match (:wat::kernel::connect' (:probe::crash'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s (:wat::kernel::send' c (:probe::Crash::Op::Boom (:probe::Crash::BoomRequest)))]
     (:wat::core::match (:wat::kernel::recv' (:probe::crash'::Handle/handle h))
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
@@ -91,7 +91,7 @@
 
 (:wat::core::defn :probe::admin-boomrt-msg [h <- :probe::crash'::Handle] -> :probe::Outcome
   (:wat::core::let
-    [c  (:wat::kernel::connect' (:probe::crash'::Handle/addr h))
+    [c  (:wat::core::match (:wat::kernel::connect' (:probe::crash'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s (:wat::kernel::send' c (:probe::Crash::Op::Boomrt (:probe::Crash::BoomrtRequest)))]
     (:wat::core::match (:wat::kernel::recv' (:probe::crash'::Handle/handle h))
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))

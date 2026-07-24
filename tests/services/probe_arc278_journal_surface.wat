@@ -37,7 +37,7 @@
 (:wat::core::defn :probe::run [] -> :wat::telemetry::Journal::WriteMetricsResponse
   (:wat::core::let
     [h       (:probe::toy-journal'/start :locus (:wat::spawn::thread) :record (:probe::toy-journal'::Record))
-     journal (:wat::kernel::connect' (:probe::toy-journal'::Handle/addr h))
+     journal (:wat::core::match (:wat::kernel::connect' (:probe::toy-journal'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
      m       (:wat::telemetry::Metric

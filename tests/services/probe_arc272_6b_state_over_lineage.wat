@@ -56,7 +56,7 @@
      ;; hand the child its initial state over the lineage channel (parent→child — the NEW direction).
      _    (:wat::core::match (:wat::kernel::send' svc (:user::Counter :base 1000)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      ;; dial the capability; round-trip 5 -> base + 5 == 1005 (only if state0 crossed).
-     c    (:wat::kernel::connect' addr)
+     c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _    (:wat::core::match (:wat::kernel::send' c 5) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      got  (:wat::core::match (:wat::kernel::recv' c)
             ((:wat::kernel::RecvOutcome::Message m) m)

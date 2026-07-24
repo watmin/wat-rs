@@ -67,7 +67,7 @@
               (:my::counter::serve self l
                 (:wat::core::Vector :wat::kernel::Peer'<my::Counter::Reply,my::Counter::Op>)
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
-     c    (:wat::kernel::connect' addr)
+     c    (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _    (:wat::core::match (:wat::kernel::send' c (:my::Counter::Op::Increment (:my::Counter::IncrementRequest :n 5))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r1   (:wat::core::match (:wat::kernel::recv' c)
             ((:wat::kernel::RecvOutcome::Message m) m)

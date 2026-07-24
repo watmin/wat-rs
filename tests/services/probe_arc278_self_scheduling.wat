@@ -101,7 +101,7 @@
 (:wat::core::defn :probe::drive-ticker
   [h <- :probe::ticker'::Handle] -> :wat::core::i64
   (:wat::core::let
-    [c  (:wat::kernel::connect' (:probe::ticker'::Handle/addr h))
+    [c  (:wat::core::match (:wat::kernel::connect' (:probe::ticker'::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _s (:probe::Ticker/start c (:probe::Ticker::StartRequest))]
     (:wat::core::match _s
       ((:wat::kernel::RecvOutcome::Message __start)

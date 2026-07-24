@@ -114,8 +114,19 @@
     ((:wat::kernel::RecvOutcome::Message m)
       (:wat::core::match m  
         ((:wat::bracket::PoolMsg::Setup deps)
+          ;; arc 278 the connect'-outcome wall — face all four arms. ::Connected → hold the
+          ;; dialed Peer' as (Some p); failure arms → assertion-failed! (fatal, preserving
+          ;; the pre-wall raise-unwind — the pool does NOT degrade/retry; that is a
+          ;; deliberate follow-up if ever wanted, not this wall).
           (:wat::bracket::process-dial-runner self work-fn
-            (:wat::core::Some (:wat::kernel::connect' deps))))
+            (:wat::core::match (:wat::kernel::connect' deps)
+              ((:wat::kernel::ConnectOutcome::Connected p) (:wat::core::Some p))
+              ((:wat::kernel::ConnectOutcome::Refused c)
+                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+              ((:wat::kernel::ConnectOutcome::Rejected c)
+                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+              ((:wat::kernel::ConnectOutcome::Failed c)
+                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
         ((:wat::bracket::PoolMsg::Work pair)
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "bracket process-dial-runner: Work before Setup")
@@ -353,8 +364,19 @@
                             (:wat::core::string::contains?
                               (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ft))) "Peer'")
                             false)
+              ;; arc 278 the connect'-outcome wall — a Peer'-typed field's generated dial
+              ;; FACES the outcome: ::Connected → the Peer'; failure arms → assertion-failed!
+              ;; (fatal, preserving the pre-wall raise-unwind). Arm-local p/c are literal in
+              ;; the generated code (arm-scoped; they don't escape the match).
               form        (:wat::core::if is-peer
-                            `(:wat::kernel::connect' (~accessor-kw deps))
+                            `(:wat::core::match (:wat::kernel::connect' (~accessor-kw deps))
+                               ((:wat::kernel::ConnectOutcome::Connected p) p)
+                               ((:wat::kernel::ConnectOutcome::Refused c)
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                               ((:wat::kernel::ConnectOutcome::Rejected c)
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                               ((:wat::kernel::ConnectOutcome::Failed c)
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                             `(~accessor-kw deps))]
              (:wat::core::conj acc form)))
          (:wat::core::Vector :wat::WatAST)

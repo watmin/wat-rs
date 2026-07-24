@@ -66,7 +66,7 @@
   :init (:wat::core::fn [record        <- :wat-tests::worker::Record
                          recorder-addr <- :wat::kernel::Address'<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
           -> :wat-tests::worker::State
-          (:wat-tests::worker::State :durable record :recorder (:wat::kernel::connect' recorder-addr)))
+          (:wat-tests::worker::State :durable record :recorder (:wat::core::match (:wat::kernel::connect' recorder-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
   [(work [s req]
      (:wat::core::let
@@ -91,13 +91,13 @@
        wh (:wat-tests::worker/start :locus (:wat::spawn::thread)
             :record (:wat-tests::worker::Record :job-count 0)
             :recorder-addr (:wat-tests::recorder::Handle/addr rh))
-       wc (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
+       wc (:wat::core::match (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        _  (:wat::core::match (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
             ((:wat::kernel::RecvOutcome::Message _resp) nil)
             ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
        _2 (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 3))
-       rc (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
+       rc (:wat::core::match (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r  (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Recorder::TotalResponse::Ok value) value)
@@ -117,7 +117,7 @@
        wh   (:wat-tests::worker/start :locus (:wat::spawn::thread)
               :record (:wat-tests::worker::Record :job-count 0)
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
-       wc   (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh))
+       wc   (:wat::core::match (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        _    (:wat::core::match (:wat-tests::Worker/work wc (:wat-tests::Worker::WorkRequest :n 5))
               ((:wat::kernel::RecvOutcome::Message _resp) nil)
               ((:wat::kernel::RecvOutcome::Lost _c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message _c) :wat::core::None :wat::core::None))
@@ -125,9 +125,9 @@
        snap (:wat-tests::worker/hibernate wh)
        wh2  (:wat-tests::worker/resume :locus (:wat::spawn::thread) :record snap
               :recorder-addr (:wat-tests::recorder::Handle/addr rh))
-       wc2  (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh2))
+       wc2  (:wat::core::match (:wat::kernel::connect' (:wat-tests::worker::Handle/addr wh2)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        _2   (:wat-tests::Worker/work wc2 (:wat-tests::Worker::WorkRequest :n 3))
-       rc   (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh))
+       rc   (:wat::core::match (:wat::kernel::connect' (:wat-tests::recorder::Handle/addr rh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
        r    (:wat-tests::Recorder/total rc (:wat-tests::Recorder::TotalRequest))]
       (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv  
         ((:wat-tests::Recorder::TotalResponse::Ok value) value)

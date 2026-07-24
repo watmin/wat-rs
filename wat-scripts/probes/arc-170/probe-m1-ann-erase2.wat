@@ -47,7 +47,7 @@
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv' self) 
                     ((:probe::PoolMsg::Setup addr)
-                      (:probe::serve self (:wat::core::Some (:wat::kernel::connect' addr))))
+                      (:probe::serve self (:wat::core::Some (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))))
                     ((:probe::PoolMsg::Work s)
                       (:wat::core::let
                         [c  (:wat::core::Option/expect held "Work before Setup")

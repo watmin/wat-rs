@@ -45,8 +45,8 @@
           (:probe::multi-dial-runner self work-fn
             (:wat::core::Some
               (:wat::core::Tuple
-                (:wat::kernel::connect' (:wat::core::first deps))
-                (:wat::kernel::connect' (:wat::core::second deps))))))
+                (:wat::core::match (:wat::kernel::connect' (:wat::core::first deps)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+                (:wat::core::match (:wat::kernel::connect' (:wat::core::second deps)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))))
         ((:wat::bracket::PoolMsg::Work pair)
           (:wat::core::let
             [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")

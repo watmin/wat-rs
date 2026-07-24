@@ -349,9 +349,20 @@
                  [~record-sym <- ~record-ty-kw
                   ~jaddr-sym  <- :wat::kernel::Address'<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
                  -> ~state-ty-kw
+                 ;; arc 278 the connect'-outcome wall — the generated :init dial faces all
+                 ;; four arms; ::Connected → the journal Peer'; failure arms →
+                 ;; assertion-failed! (fatal, preserving the pre-wall raise-unwind: a sift
+                 ;; service whose journal dial fails at :init cannot start).
                  (~state-ty-kw
                    :durable  ~record-sym
-                   :journal  (:wat::kernel::connect' ~jaddr-sym)
+                   :journal  (:wat::core::match (:wat::kernel::connect' ~jaddr-sym)
+                               ((:wat::kernel::ConnectOutcome::Connected p) p)
+                               ((:wat::kernel::ConnectOutcome::Refused c)
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                               ((:wat::kernel::ConnectOutcome::Rejected c)
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+                               ((:wat::kernel::ConnectOutcome::Failed c)
+                                 (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
                    :template (:wat::rete::compile (:wat::core::PersistentVector ~@rule-lits))))
          :impls
          [(sift-rules [s req]

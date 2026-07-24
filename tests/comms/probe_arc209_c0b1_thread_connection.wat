@@ -24,7 +24,7 @@
                             (:wat::kernel::assertion-failed! "recv': conn closed unexpectedly" :wat::core::None :wat::core::None)))
                    _    (:wat::core::match (:wat::kernel::send' conn (:wat::core::* n 2)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                   nil)))
-     conn  (:wat::kernel::connect' addr)
+     conn  (:wat::core::match (:wat::kernel::connect' addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      _     (:wat::core::match (:wat::kernel::send' conn 5) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      reply (:wat::core::match (:wat::kernel::recv' conn)
              ((:wat::kernel::RecvOutcome::Message m) m)
