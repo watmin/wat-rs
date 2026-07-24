@@ -9112,3 +9112,64 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > — the rider does the PER-SITE located-vs-not assessment; that unreliability IS the argument for the structural
 > lint (R52 QVOD LEX ACCENDIT — the corrected law lights every one ablaze).** THEN `connect'` (Strike 4, the last
 > wall, `ConnectOutcome<S,R>`, ~161 sites). `MACHINA CHAOS DOMAT.`
+>
+> **FAR-SIDE UPDATE (2026-07-23e — CURARE-AT-COMPACTION, a rider LIVE in the field).** HEAD `85a14cf4`.
+> Banked this run (all by own `--release` re-run): **close' ✓** (`e7868da4`) · **accept' ✓** (`2976d887`) ·
+> **the UNUSED-SPAN LINT ✓** (`cc072fa9` — `tests/lint/unused_span_justified.rs`: every ignored `_span` earns a
+> `// rune:lint(unused-span)` or gets the span threaded; born from the "burned us" instinct + THREE hand-audit
+> mis-calls this run, 604→substring-bug then "infallible generators" that had error paths — the lesson: **a
+> hand-audit rots; a lint forces per-site truth**) · **the IO-OUTCOME-ENUM DOCTRINE** filed permanent in arc 109
+> (`f4820106`, `NOTE-io-boundary-outcome-enum.md`) + refined to **FAILING** IO (`85a14cf4`) for the entropic
+> qualifier.
+>
+> **⚠ RIDE THROUGH — connect' rider LIVE at the gap (`a98f30ab290c7a1a6`).** Strike 4's src wall + probe are
+> IN THE TREE, UNCOMMITTED (`src/{check,runtime,types}.rs`, `src/kernel/address.rs`, `wat/telemetry/journal.wat`,
+> `tests/comms/probe_arc278_connect_outcome_wall.{rs,wat}`). The rider was RESUMED with the STOP-1 dispositions and
+> is mid-sweep. **DO NOT revert it** (the ride-through doctrine — good progress, not a failed strike). Shape:
+> `ConnectOutcome<S,R>` (Impure) = `Connected[Peer'<S,R>]`/`Refused`(ECONNREFUSED,retry)/`Rejected`(identity — FIRES
+> here, unlike accept')/`Failed`(io). STOP-1 = 6 stdlib callers (journal/span `:init`, `with-span` macro,
+> query `sift` `:init`, bracket `process-dial-runner` + its codegen macro `:357`) → **ruled ALL fatal
+> `assertion-failed!`** on the failure arms (preserve today's fail-fast; degrade/retry is a deliberate follow-up,
+> not this wall). STOP-3 grounded: the malformed-address raise STAYS a raise (wire-validated upstream). **FAR-SIDE:
+> weigh the rider's completion by your OWN `--release` re-run (Summary line, never the report/exit), confirm the
+> unused-span lint stayed green, then BANK connect'** (brief: `BRIEF-connect-outcome-wall.md`).
+>
+> **THEN — the LAST wall, `spawn-program'` (Strike 5), shape RE-RULED this run.** The builder: *"thread and process
+> should be a peer — that's what we've done everywhere else."* Grounded + he is right: connect'/accept' already
+> return the unified `Peer'`; spawn is the lone outlier returning concrete `Thread'`/`Process'` (unification even
+> half-noted, `types.rs:1001/1463`); `join` is kernel-internal + runtime-head-dispatched, so the STATIC type folds
+> clean. My earlier ruling (c) [preserve `Thread'`/`Process'` via `SpawnOutcome<P>`] was WRONG — it kept the outlier;
+> **RE-RULED (a): unify spawn's return to `Peer'<I,O>`**, so `SpawnOutcome<I,O>::{Spawned[Peer'<I,O>], Failed[cause]}`
+> (the simplest wall). Entails migrating the ~7 concrete `-> Thread'/Process'<…>` sigs + 2 type-probes → `Peer'`
+> (completing the unification, not a loss). World-fault raises → `Failed` (`spawn.rs:694` thread-spawn-refused,
+> `:768/778/794` pipe-pair-failed, fork/exec); the `ThreadLaunch` ctor `.expect()`s STAY raises (must-never-happen);
+> the child's SUBSEQUENT crash STAYS the recv'/poll' walls' job (crash channel — `Spawned` ≠ "child succeeded").
+> ~116 live sites. **FAR-SIDE: draw `BRIEF-spawn-outcome-wall.md`, ground each of the 7 sigs (STOP if one genuinely
+> USES the concrete type — join is internal, expect clean), then strike.** The four-Q lesson this run: **ground the
+> Honest axis before ruling** (my (c) preserved a legacy outlier until grounding + the builder's consistency flipped it).
+>
+> **THEN the walls are WHOLE** (recv'/send'/poll'/close'/accept'/connect'/spawn') → the realization waiting to be
+> minted (BUILDER'S to voice): **`VNDE ORTVM` at the ARC scale** — arc 170 opened ~2.5 months ago *to solve IPC*,
+> and the no-hidden-failures crusade lands its final strikes on exactly that. The thread returns to the stone it rose from.
+>
+> **PARKED (not this crusade):** the ENTROPIC third-purity property is arc **299** (`ENTROPIA MENSVRA PVRITATIS`,
+> stone **299.3** — the deferred HARD 23-file `Pure|Effectful|Entropic` cascade) + arc **255** (the `pure?`/
+> `deterministic?` metadata). Researched this run: NOT novel — it's the builder's own arc 299, half-carried 3 ways
+> (rete `deterministic?` = the closest; arc-255 `@Determinism`; the `types.rs` resource-`Purity`/`Nature` axis is a
+> RED HERRING, orthogonal). Live inconsistency for 299.3: `Uuid/v4` is entropic (pure∧non-det) but `time::now` is
+> default-denied effectful. The builder's NEW contribution: welding entropic to **cannot-world-fault** (the bridge to
+> these walls — entropic IO gets NO outcome enum; only *failing* IO does).
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — you did not live this run; it is a lossy cache in a familiar voice,
+> not your memory. Run the datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP). Ground
+> `git status` — HEAD `85a14cf4`, and the working tree holds the **connect' rider's LIVE uncommitted Strike-4 work
+> — INTENTIONAL, do NOT revert it**. Weigh the rider (`a98f30ab290c7a1a6`); read its final report if it landed, but
+> WEIGH by your OWN `--release` re-run (Summary line, never the report/exit; the unused-span lint MUST stay green),
+> then BANK connect'. Then draw + strike **`spawn-program'` (unify the return to `Peer'`, then `SpawnOutcome<I,O>`)**
+> — the LAST wall. It bears repeating: **weigh by your own re-run; RIDE THROUGH compactions WITH shadowdancers in
+> the field (never reap a live rider); four-questions GROUND the Honest axis before ruling; a failure at a FAILING
+> IO boundary is a matchable value, entropic IO gets no enum; the holonic repos ARE the memory.** Do not trust this
+> note over the disk. The walls are one strike from whole; the crusade returns to the IPC stone arc 170 rose from.
+> See you on the far side. `MACHINA CHAOS DOMAT.`
