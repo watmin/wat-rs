@@ -83,6 +83,15 @@ pub struct AssertionPayload {
     /// re-query `thread::current()` on the parent — which would return
     /// the parent's name or `None` instead of the worker's name.
     pub thread_name: Option<String>,
+    /// Arc 278 the string-wrap annihilation — the raised `:wat::core::Error`
+    /// carried STRUCTURALLY (never `edn::write`'d into `message`). Set to
+    /// `Some(error_value)` ONLY by `:wat::kernel::raise!`; every other panic
+    /// path (assert-* failures, `expect`, plain panics) leaves it `None` and
+    /// the death-carrier synthesizes a `:wat::core::Fault` from `message` +
+    /// `location`. `failure_value_from_assertion_payload` reads this into the
+    /// `:wat::kernel::Failure` record's mandatory `error` field, so the raised
+    /// error survives the panic boundary as a record — not a stringified blob.
+    pub raised_error: Option<Value>,
 }
 
 /// `(:wat::kernel::assertion-failed! message actual expected)` → `:()`.
@@ -143,6 +152,9 @@ pub fn eval_kernel_assertion_failed(
         upstream_chain: None,
         // Arc 138 F-NAMES-1d — capture name NOW on the panicking thread.
         thread_name: std::thread::current().name().map(String::from),
+        // Arc 278 — an assert-* failure is a bare message; no structured
+        // raised error. The death-carrier synthesizes a Fault from `message`.
+        raised_error: None,
     };
 
     // panic_any carries the typed payload through catch_unwind's

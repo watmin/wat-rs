@@ -58,8 +58,12 @@ fn probe_runtime_err_stderr_visibility() {
     let failure_message = match &sv.fields[2] {
         Value::Option(opt) => match opt.as_ref() {
             Some(Value::Aggregate(f)) if f.nature == wat::Nature::Record && f.class == "wat::kernel::Failure" => {
+                // Arc 278 — fields[0] is the `error` (Fault); its fields[0] is the message String.
                 match &f.fields[0] {
-                    Value::String(s) => (**s).clone(),
+                    Value::Aggregate(err) => match &err.fields[0] {
+                        Value::String(s) => (**s).clone(),
+                        _ => "<missing>".to_string(),
+                    },
                     _ => "<missing>".to_string(),
                 }
             }

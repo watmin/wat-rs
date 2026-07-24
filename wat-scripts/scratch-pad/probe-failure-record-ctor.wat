@@ -14,13 +14,14 @@
 ;; categorically superior to positional for hand-written source). The PROVEN form is the KWARGS
 ;; ctor below — same bare head `:wat::kernel::Failure`, not struct-new, not a Value-erasure, not
 ;; the generated-code-only `Failure'` prime. Field names grounded exact from the builtin's
-;; registration (src/types.rs:1112-1147): message/location/frames/actual/expected. Order/types
-;; cross-checked against `message_only_failure` (src/runtime.rs:23699).
+;; registration (src/types.rs): error/frames/actual/expected (arc 278 the string-wrap
+;; annihilation — the stored message/location fields were REMOVED; Failure carries the raised
+;; `:wat::core::Error` STRUCTURALLY in a mandatory `error` field, and `Failure/message` is now a
+;; DERIVED accessor reading `error.message`). Order/types cross-checked against `message_only_failure`.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [f (:wat::kernel::Failure
-         :message "hello"
-         :location :wat::core::None
+         :error (:wat::core::Fault/of "hello")
          :frames (:wat::core::Vector :wat::kernel::Frame)
          :actual :wat::core::None
          :expected :wat::core::None)]

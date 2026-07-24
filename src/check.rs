@@ -19325,6 +19325,38 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 278 the string-wrap annihilation — `Failure/message` / `Failure/location`
+    // are DERIVED accessors (the stored fields were removed from the `:wat::kernel::Failure`
+    // registration; Failure now carries the raised `:wat::core::Error` structurally in a
+    // mandatory `error` field). No accessor func is auto-minted for them (they are not
+    // fields), so their schemes are hand-registered here — same shape as the sibling
+    // `LociDiedError/message` above. The runtime dispatch reads `error.message` /
+    // `error.location`. Every existing `Failure/message` reader type-checks unchanged.
+    // Param type is `:wat::core::Record` (NOT the specific `:wat::kernel::Failure`) to
+    // preserve the prior auto-generated non-generic-record accessor's contract exactly
+    // (register_aggregate_methods, arc 293.R2.2): existing callers pass Record-typed
+    // values. The runtime dispatch reads the `error` field by name and errors if absent.
+    env.register(
+        ":wat::kernel::Failure/message".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Record".into())],
+            ret: TypeExpr::Path(":wat::core::String".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::kernel::Failure/location".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Record".into())],
+            ret: TypeExpr::Parametric {
+                head: "wat::core::Option".into(),
+                args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
+            },
+            rest_param_type: None,
+        },
+    );
     // (:wat::kernel::LociDiedError/to-failure err) -> :wat::kernel::Failure
     // — arc 278. Always returns a structured Failure, preserving arc 064's
     // actual/expected/location/frames when the death carried an

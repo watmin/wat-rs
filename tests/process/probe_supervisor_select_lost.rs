@@ -120,16 +120,24 @@ fn select_prime_yields_lost_when_process_child_crashes() {
                                 "cause must be Failure struct; got {:?}",
                                 s.class
                             );
+                            // Arc 278 the string-wrap annihilation — Failure.fields[0] is
+                            // the mandatory `error` (Fault); its fields[0] is the message String.
                             match s.fields.first() {
-                                Some(Value::String(msg)) => {
-                                    wat::assert_edn_eq!(
-                                        msg.as_str().to_string(),
-                                        include_str!("probe_supervisor_select_lost__process_panics.edn"),
-                                        "Failure.message must match the process crash sentinel golden"
-                                    );
-                                }
+                                Some(Value::Aggregate(err)) => match err.fields.first() {
+                                    Some(Value::String(msg)) => {
+                                        wat::assert_edn_eq!(
+                                            msg.as_str().to_string(),
+                                            include_str!("probe_supervisor_select_lost__process_panics.edn"),
+                                            "Failure.error.message must match the process crash sentinel golden"
+                                        );
+                                    }
+                                    other => panic!(
+                                        "Failure.error.message must be String; got {:?}",
+                                        other
+                                    ),
+                                },
                                 other => panic!(
-                                    "Failure.message (field 0) must be String; got {:?}",
+                                    "Failure.error (field 0) must be an Aggregate; got {:?}",
                                     other
                                 ),
                             }

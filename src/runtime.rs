@@ -4977,6 +4977,18 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::LociDiedError/message" => {
             eval_died_error_message(args, env, sym, ":wat::kernel::LociDiedError", list_span)
         }
+        // Arc 278 the string-wrap annihilation — `Failure/message` /
+        // `Failure/location` are DERIVED accessors (the stored fields were
+        // REMOVED; Failure carries the raised `:wat::core::Error` structurally).
+        // They read `error.message` / `error.location` off the mandatory `error`
+        // field. Same hand-written-derived-accessor shape as `LociDiedError/message`
+        // above; the type schemes are registered in check.rs beside it.
+        ":wat::kernel::Failure/message" => {
+            eval_failure_message(args, env, sym, list_span)
+        }
+        ":wat::kernel::Failure/location" => {
+            eval_failure_location(args, env, sym, list_span)
+        }
         ":wat::kernel::LociDiedError/to-failure" => {
             eval_died_error_to_failure(args, env, sym, ":wat::kernel::LociDiedError", list_span)
         }
@@ -12731,6 +12743,9 @@ fn expect_panic(
         upstream_chain,
         // Arc 138 F-NAMES-1d — capture name on the panicking thread.
         thread_name: std::thread::current().name().map(String::from),
+        // Arc 278 — `expect` panics carry a bare message; the death-carrier
+        // synthesizes a Fault. Any upstream cause rides `upstream_chain`.
+        raised_error: None,
     };
     std::panic::panic_any(payload);
 }
@@ -12738,17 +12753,18 @@ fn expect_panic(
 /// `(:wat::kernel::raise! data) -> :T` — arc 296 re-gate.
 /// The structured-error sibling of `assertion-failed!`.
 ///
-/// **The `message` field IS the data field.** Failure's
-/// `message: String` is the EDN-rendered form of the caller's
-/// `:wat::core::Error` value. The checker enforces the
-/// `:wat::core::Error` constraint at compile time (re-gate in
-/// check.rs); this function accepts any `Value` and serializes
-/// it — the structural guarantee is the wall, not a runtime gate.
+/// **Arc 278 the string-wrap annihilation.** The raised `:wat::core::Error`
+/// is carried STRUCTURALLY on the panic payload's `raised_error` field —
+/// it is NEVER `edn::write`'d into a String. `failure_value_from_assertion_payload`
+/// reads it into `:wat::kernel::Failure`'s mandatory `error` field, so the
+/// receiver recovers the original error RECORD directly:
+/// `(:wat::kernel::Failure/error f)` yields the `:wat::core::Fault` (or any
+/// Error) value — no `edn::read`, no string re-parse. The derived
+/// `(:wat::kernel::Failure/message f)` reads `error.message` (the human string).
 ///
-/// Receiving side: `(:wat::edn::read (:wat::kernel::Failure/message f))`
-/// reconstructs the original error record (e.g. a `:wat::core::Fault`,
-/// a `Value::Aggregate`) — a registered `#wat.core/…` tag round-trips
-/// via `reconstruct_record`, not a `HolonAST`.
+/// The checker enforces the `:wat::core::Error` constraint at compile time
+/// (re-gate in check.rs); this function accepts any `Value` and the structural
+/// guarantee is the wall, not a runtime gate.
 ///
 /// Argument: `:wat::core::Error`. Return type: polymorphic `:T`
 /// (never returns; same convention as assertion-failed!).
@@ -12769,11 +12785,22 @@ fn eval_kernel_raise(
         } }.into());
     }
     let data = eval_inner(&args[0], env, sym)?.value_owned();
-    // Render data → EDN string. The value (a :wat::core::Error record)
-    // is serialized via value_to_edn_with; receivers recover it via
-    // `(:wat::edn::read (:wat::kernel::Failure/message f))`.
-    let edn = crate::edn_shim::value_to_edn_with(&data, sym.types().map(|a| a.as_ref()));
-    let message = wat_edn::write(&edn);
+    // Arc 278 the string-wrap annihilation — carry the raised `:wat::core::Error`
+    // STRUCTURALLY on the payload (never `edn::write` it into `message`). The
+    // human `message` field is the error's OWN `message` field (a String), so
+    // the `#wat.kernel/AssertionFailure` envelope + `LociDiedError::Panic.message`
+    // stay honest human strings; the structured error rides on `raised_error` and
+    // lands in `Failure.error` (recovered via `(:wat::kernel::Failure/error f)`).
+    let types = sym.types().map(|a| a.as_ref());
+    let message = record_field_by_name(&data, "message", types)
+        .and_then(|v| match v {
+            Value::String(s) => Some((*s).clone()),
+            _ => None,
+        })
+        // Defensive: the checker gates `data` to `:wat::core::Error` (a String
+        // `message` field), so this only fires for an out-of-band caller — fall
+        // back to the EDN rendering rather than an empty message.
+        .unwrap_or_else(|| wat_edn::write(&crate::edn_shim::value_to_edn_with(&data, types)));
     let frames = snapshot_call_stack();
     let location = frames.first().map(|f| f.call_span.clone());
     let payload = crate::assertion::AssertionPayload {
@@ -12785,6 +12812,8 @@ fn eval_kernel_raise(
         upstream_chain: None,
         // Arc 138 F-NAMES-1d — capture name on the panicking thread.
         thread_name: std::thread::current().name().map(String::from),
+        // Arc 278 — the raised Error, carried as a structured record.
+        raised_error: Some(data),
     };
     std::panic::panic_any(payload);
 }
@@ -23121,8 +23150,15 @@ fn thread_died_error_panic(
 
 /// Convert an [`AssertionPayload`] into a `:wat::kernel::Failure`
 /// `Value::Aggregate(Record)`. Field order mirrors the type registration:
-/// `(message, location, frames, actual, expected)`.
+/// `(error, frames, actual, expected)`.
 /// Arc 293.W.2b — Failure is now Nature::Record (pure EDN data; all fields pure).
+///
+/// Arc 278 the string-wrap annihilation — the mandatory `error` field carries
+/// the raised `:wat::core::Error` STRUCTURALLY. When the payload came from
+/// `raise!` (`raised_error = Some(e)`), that error value rides directly. Every
+/// other panic (assert-* failures, `expect`, plain panics) has no structured
+/// error, so a `:wat::core::Fault` is SYNTHESIZED from the payload's `message`
+/// + `location` — honest (a panic IS an error with that message), not fabrication.
 fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
     let crate::assertion::AssertionPayload {
         message,
@@ -23138,10 +23174,13 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
         // Arc 138 F-NAMES-1d — thread_name is for the panic hook render
         // only; it doesn't map to a Failure record field.
         thread_name: _,
+        raised_error,
     } = p;
-    let location_field = match location {
-        Some(span) => Value::Option(Arc::new(Some(value_from_span(span)))),
-        None => Value::Option(Arc::new(None)),
+    // The mandatory structured cause: the raised Error verbatim, or a Fault
+    // synthesized from the bare message + location.
+    let error_field = match raised_error {
+        Some(e) => e,
+        None => fault_value(message, location),
     };
     let frames_field = Value::Vec(Arc::new(
         frames
@@ -23160,13 +23199,63 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Failure".into(),
         Arc::new(vec![
-            Value::String(Arc::new(message)),
-            location_field,
+            error_field,
             frames_field,
             actual_field,
             expected_field,
         ]),
     )))
+}
+
+/// Arc 278 — build a `:wat::core::Fault` `Value::Aggregate(Record)` from a
+/// human message + an optional source location. Field order matches the
+/// `:wat::core::Fault` registration (core.wat): `(message, location, causes)`.
+/// `location` is a MANDATORY `:wat::kernel::Location` (not `Option`); when the
+/// panic carried no span (transport/synthetic failures — disconnected, shutdown,
+/// service crash), a synthetic `<runtime>` location marks it honestly. `causes`
+/// is an empty `Vector<Error>`. This is the canonical synthesizer for every
+/// death that is a bare message rather than a structured `raise!`.
+fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
+    let location_value = match location {
+        Some(span) => value_from_span(span),
+        None => value_from_span(crate::span::Span::new(
+            Arc::new("<runtime>".to_string()),
+            0,
+            0,
+        )),
+    };
+    Value::Aggregate(Arc::new(AggregateValue::record(
+        "wat::core::Fault".into(),
+        Arc::new(vec![
+            Value::String(Arc::new(message)),
+            location_value,
+            Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
+        ]),
+    )))
+}
+
+/// Arc 278 — read a named field off a record `Value` using the `TypeEnv` to
+/// resolve the field's positional index (records store fields positionally;
+/// names live only in the registered `AggregateDef`). Returns `None` when the
+/// value is not an aggregate, its type is unregistered, or the field is absent.
+/// Backs the DERIVED `:wat::kernel::Failure/message` / `Failure/location`
+/// accessors (read `error.message` / `error.location`) and `raise!`'s human-message
+/// extraction — the same field-by-name lookup `keyword_accessor_record` performs.
+fn record_field_by_name(
+    v: &Value,
+    field: &str,
+    types: Option<&crate::types::TypeEnv>,
+) -> Option<Value> {
+    let Value::Aggregate(agg) = v else { return None };
+    let types = types?;
+    let type_key = format!(":{}", agg.class);
+    match types.get(&type_key) {
+        Some(crate::types::TypeDef::Aggregate(a)) => {
+            let idx = a.field_names().position(|n| n == field)?;
+            agg.fields.get(idx).cloned()
+        }
+        _ => None,
+    }
 }
 
 /// Convert a `Span` into a `:wat::kernel::Location` `Value::Aggregate(Record)`.
@@ -23234,6 +23323,82 @@ fn thread_died_error_shutdown() -> Value {
         variant_name: "Shutdown".into(),
         fields: vec![],
     }))
+}
+
+/// `(:wat::kernel::Failure/message f) -> :String` — arc 278 the string-wrap
+/// annihilation. DERIVED accessor: reads `error.message` off the Failure's
+/// mandatory `:wat::core::Error` field. (`message` is no longer a stored field;
+/// storing it alongside `error` would duplicate and could drift — four-questions
+/// Fork B.) Every existing `Failure/message` reader keeps working unchanged.
+fn eval_failure_message(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::Failure/message";
+    let error = failure_error_field(OP, args, env, sym, list_span)?;
+    let types = sym.types().map(|a| a.as_ref());
+    match record_field_by_name(&error, "message", types) {
+        Some(v @ Value::String(_)) => Ok(v),
+        _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "String at :wat::core::Error/message",
+            got: Box::new(ValueSnapshot::unavailable("error has no String message field")),
+        } }.into()),
+    }
+}
+
+/// `(:wat::kernel::Failure/location f) -> :Option<:wat::kernel::Location>` — arc 278
+/// the string-wrap annihilation. DERIVED accessor: reads `error.location` (a
+/// mandatory `:wat::kernel::Location` on the error) and wraps it in `Some` to keep
+/// the accessor's historic `Option<Location>` return shape.
+fn eval_failure_location(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::Failure/location";
+    let error = failure_error_field(OP, args, env, sym, list_span)?;
+    let types = sym.types().map(|a| a.as_ref());
+    match record_field_by_name(&error, "location", types) {
+        Some(loc @ Value::Aggregate(_)) => Ok(Value::Option(Arc::new(Some(loc)))),
+        _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: "Location at :wat::core::Error/location",
+            got: Box::new(ValueSnapshot::unavailable("error has no Location field")),
+        } }.into()),
+    }
+}
+
+/// Shared arity-1 eval + `error`-field extraction for the derived `Failure/*`
+/// accessors. Evaluates the single Failure arg and returns its `error` field
+/// (the raised `:wat::core::Error`).
+fn failure_error_field(
+    op: &str,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    list_span: &Span,
+) -> Result<Value, EvalBreak> {
+    if args.len() != 1 {
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len()
+        } }.into());
+    }
+    let val = eval_inner(&args[0], env, sym)?.value_owned();
+    let types = sym.types().map(|a| a.as_ref());
+    match record_field_by_name(&val, "error", types) {
+        Some(e) => Ok(e),
+        None => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
+            expected: ":wat::kernel::Failure (with an `error` field)",
+            got: Box::new(ValueSnapshot::of(&val))
+        } }.into()),
+    }
 }
 
 /// Arc 113 slice 1 — wrap a single DiedError Value in a
@@ -23640,16 +23805,19 @@ fn eval_died_error_to_failure(
     }
 }
 
-/// Build a `:wat::kernel::Failure` `Value::Aggregate(Record)` with just the
-/// message populated; actual / expected / location are `:wat::core::None`,
+/// Build a `:wat::kernel::Failure` `Value::Aggregate(Record)` carrying a
+/// SYNTHESIZED `:wat::core::Fault` (from `message`, `<runtime>` location, empty
+/// causes) as its mandatory `error` field; actual / expected are `:wat::core::None`,
 /// frames is empty `Vec<Frame>`.
 /// Arc 293.W.2b — Failure is now Nature::Record (pure EDN data).
+/// Arc 278 the string-wrap annihilation — the death carries its cause STRUCTURALLY
+/// (a Fault), not a bare String; `(:wat::kernel::Failure/message f)` derives back
+/// to `fault.message`. Mirrors the wat-side `:wat::kernel::message-only-failure`.
 fn message_only_failure(message: String) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Failure".into(),
         Arc::new(vec![
-            Value::String(Arc::new(message)),
-            Value::Option(Arc::new(None)),       // location
+            fault_value(message, None),          // error (synthesized Fault)
             Value::Vec(Arc::new(Vec::new())),    // frames
             Value::Option(Arc::new(None)),       // actual
             Value::Option(Arc::new(None)),       // expected
@@ -26370,11 +26538,21 @@ fn reply_failed_reason(v: &Value) -> Option<String> {
     if !(e.type_path.ends_with("::Reply") && e.variant_name == "Failed") {
         return None;
     }
-    // field[0] is the `:wat::kernel::Failure` record; ITS field[0] is the message String
-    // (message_only_failure: [message, location, frames, actual, expected]).
+    // field[0] is the `:wat::kernel::Failure` record; ITS field[0] is the mandatory
+    // `error` (a `:wat::core::Error`, canonically a Fault) whose OWN field[0] is the
+    // `message` String (arc 278 — Failure carries the error structurally; the Fault's
+    // fields are [message, location, causes]).
     match e.fields.first() {
         Some(Value::Aggregate(a)) if a.class == "wat::kernel::Failure" => match a.fields.first() {
-            Some(Value::String(s)) => Some((**s).clone()),
+            // The `error` field: read its `message` (Fault field[0]).
+            Some(Value::Aggregate(err)) => match err.fields.first() {
+                Some(Value::String(s)) => Some((**s).clone()),
+                _ => Some(
+                    "service replied Reply::Failed (protocol-tier decode failure) with an \
+                     unreadable cause"
+                        .to_string(),
+                ),
+            },
             _ => Some(
                 "service replied Reply::Failed (protocol-tier decode failure) with an \
                  unreadable cause"

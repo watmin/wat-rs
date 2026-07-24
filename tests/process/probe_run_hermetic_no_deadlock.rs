@@ -140,10 +140,15 @@ fn probe_run_hermetic_panic_body_no_deadlock() {
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 
-    // Failure.message (field 0) must carry a non-empty diagnostic.
+    // Arc 278 the string-wrap annihilation — Failure.fields[0] is the mandatory
+    // `error` (:wat::core::Error, canonically a Fault); its fields[0] is the
+    // `message` String. Must carry a non-empty diagnostic.
     let message = match &failure_struct.fields[0] {
-        wat::runtime::Value::String(s) => s.to_string(),
-        other => panic!("expected Failure.message :String; got {:?}", other),
+        wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
+            wat::runtime::Value::String(s) => s.to_string(),
+            other => panic!("expected Failure.error.message :String; got {:?}", other),
+        },
+        other => panic!("expected Failure.error :Aggregate; got {:?}", other),
     };
     assert!(
         !message.is_empty(),

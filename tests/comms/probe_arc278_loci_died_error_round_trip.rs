@@ -30,36 +30,14 @@ fn recv_lost_cause_is_a_matchable_loci_died_error() {
         Value::String(s) => s.clone(),
         other => panic!("LociDiedError::Panic message should be a String; got {:?}", other),
     };
-    // The Panic message IS the raised Fault rendered to EDN. Parse it (structure-exact,
-    // never a loose `contains`) and assert the Fault's `:message` field carries the raised
-    // data verbatim — the Fault's `:location` field embeds a host-absolute path (via
-    // `:wat::kernel::here`) we deliberately ignore by keying on the `:message` field only.
-    let fault = wat_edn::parse_owned(&msg).expect("Panic message is the raised Fault's EDN");
-    let body = match &fault {
-        wat_edn::OwnedValue::Tagged(tag, body) => {
-            assert_eq!(tag.namespace(), "wat.core", "raised value tag namespace; got {:?}", tag);
-            assert_eq!(tag.name(), "Fault", "raised value is a Fault; got tag {:?}", tag);
-            body
-        }
-        other => panic!("expected a #wat.core/Fault tagged value; got {:?}", other),
-    };
-    let pairs = match &**body {
-        wat_edn::OwnedValue::Map(pairs) => pairs,
-        other => panic!("the Fault body is a map; got {:?}", other),
-    };
-    let fault_message = pairs
-        .iter()
-        .find_map(|(k, v)| match (k, v) {
-            (wat_edn::OwnedValue::Keyword(kw), wat_edn::OwnedValue::String(s))
-                if kw.name() == "message" =>
-            {
-                Some(s.to_string())
-            }
-            _ => None,
-        })
-        .expect("the Fault carries a :message field");
+    // Arc 278 the string-wrap annihilation — `LociDiedError::Panic.message` is now the
+    // HUMAN message (the raised error's own `:message` field), NOT the Fault's EDN. The
+    // structured Fault rides on the Panic's `failure` (→ `Failure/error`), proven by the
+    // sibling gate `probe_arc278_failure_carries_structured_error`. Here the message is the
+    // plain string, read verbatim — no EDN re-parse (the string-wrap is dead).
     assert_eq!(
-        fault_message, "loci-died-panic-data",
-        "the LociDiedError::Panic message must carry the raised Fault's data verbatim"
+        msg.as_str(),
+        "loci-died-panic-data",
+        "the LociDiedError::Panic message must carry the raised error's human message verbatim"
     );
 }

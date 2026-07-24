@@ -677,13 +677,20 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
             ));
         }
     };
-    let message = match fv.fields.first() {
+    // Arc 278 the string-wrap annihilation — Failure fields are now
+    // [error, frames, actual, expected]. `error` (:wat::core::Error, canonically
+    // a Fault [message, location, causes]) carries the message + location.
+    let error = match fv.fields.first() {
+        Some(Value::Aggregate(a)) => Some(a),
+        _ => None,
+    };
+    let message = match error.and_then(|e| e.fields.first()) {
         Some(Value::String(s)) => (**s).clone(),
         _ => "<missing message>".to_string(),
     };
-    let location = fv.fields.get(1).and_then(failure_location);
-    let actual = fv.fields.get(3).and_then(option_string_field);
-    let expected = fv.fields.get(4).and_then(option_string_field);
+    let location = error.and_then(|e| e.fields.get(1)).and_then(failure_location);
+    let actual = fv.fields.get(2).and_then(option_string_field);
+    let expected = fv.fields.get(3).and_then(option_string_field);
 
     // Discriminate AssertionFailed from generic Panic by whether
     // actual/expected are populated — arc 064's `assert-eq` pathway
@@ -710,7 +717,7 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
     // Frames render as repeated `frame-N` fields — preserves order;
     // each tooling consumer (LSP, GitHub Actions, agent) decides
     // how to lay them out.
-    if let Some(frames) = fv.fields.get(2).and_then(failure_frames_vec) {
+    if let Some(frames) = fv.fields.get(1).and_then(failure_frames_vec) {
         for (i, frame) in frames.iter().enumerate() {
             fields.push((kw(&format!("frame-{}", i)), str_val(frame.clone())));
         }
@@ -880,12 +887,15 @@ fn make_simple_edn(variant: &str, key: &str, value: &str) -> wat_edn::OwnedValue
 /// (Option<Location { file, line, col }>). Returns `None` when the
 /// location is `:None` or the inner shape is malformed.
 fn failure_location(v: &Value) -> Option<String> {
-    let opt = match v {
-        Value::Option(opt) => opt,
-        _ => return None,
-    };
-    let inner = opt.as_ref().as_ref()?;
-    let loc = match inner {
+    // Arc 278 the string-wrap annihilation — the location now lives on the
+    // Failure's `error` (:wat::core::Error) as a MANDATORY bare `:wat::kernel::Location`
+    // (Fault's `location` is not `Option`). Accept a bare Location directly; still
+    // unwrap an `Option<Location>` if handed one (defensive / legacy callers).
+    let loc = match v {
+        Value::Option(opt) => match opt.as_ref().as_ref()? {
+            Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Location" => a,
+            _ => return None,
+        },
         Value::Aggregate(a) if a.nature == Nature::Record && a.class == "wat::kernel::Location" => a,
         _ => return None,
     };
@@ -893,6 +903,13 @@ fn failure_location(v: &Value) -> Option<String> {
         Value::String(s) => (**s).clone(),
         _ => return None,
     };
+    // Arc 278 the string-wrap annihilation — a synthesized Fault for a location-less
+    // death (plain panic / transport failure) carries the `<runtime>` sentinel Location
+    // (Fault's `location` is mandatory). It is NOT a real source coordinate, so the
+    // human-facing diagnostic omits it — same rendering the old absent-`location` path gave.
+    if file == "<runtime>" {
+        return None;
+    }
     let line = match loc.fields.get(1)? {
         Value::i64(n) => *n,
         _ => return None,
@@ -1007,17 +1024,25 @@ mod arc116_diagnostic_tests {
         actual: Option<&str>,
         expected: Option<&str>,
     ) -> Value {
-        let location_field = match location {
-            Some((file, line, col)) => Value::Option(Arc::new(Some(Value::Aggregate(Arc::new(
-                // Arc 293.W.2b — Location is now Nature::Record (pure EDN data)
-                AggregateValue::record("wat::kernel::Location".into(), Arc::new(vec![
-                    Value::String(Arc::new(file.to_string())),
-                    Value::i64(line),
-                    Value::i64(col),
-                ])),
-            ))))),
-            None => Value::Option(Arc::new(None)),
-        };
+        // Arc 278 the string-wrap annihilation — the location + message live on the
+        // Failure's mandatory `error` (:wat::core::Fault [message, location, causes]).
+        // Fault's location is a bare (non-Option) Location; synthesize a `<runtime>`
+        // Location when the caller supplies none.
+        let (loc_file, loc_line, loc_col) = location.unwrap_or(("<runtime>", 0, 0));
+        let location_value = Value::Aggregate(Arc::new(
+            AggregateValue::record("wat::kernel::Location".into(), Arc::new(vec![
+                Value::String(Arc::new(loc_file.to_string())),
+                Value::i64(loc_line),
+                Value::i64(loc_col),
+            ])),
+        ));
+        let error_field = Value::Aggregate(Arc::new(
+            AggregateValue::record("wat::core::Fault".into(), Arc::new(vec![
+                Value::String(Arc::new(message.to_string())),
+                location_value,
+                Value::Vec(Arc::new(Vec::new())), // causes: empty Vector<Error>
+            ])),
+        ));
         let actual_field = match actual {
             Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s.to_string()))))),
             None => Value::Option(Arc::new(None)),
@@ -1027,9 +1052,9 @@ mod arc116_diagnostic_tests {
             None => Value::Option(Arc::new(None)),
         };
         // Arc 293.W.2b — Failure is now Nature::Record (pure EDN data)
+        // Arc 278 — fields [error, frames, actual, expected].
         Value::Aggregate(Arc::new(AggregateValue::record("wat::kernel::Failure".into(), Arc::new(vec![
-            Value::String(Arc::new(message.to_string())),
-            location_field,
+            error_field,
             Value::Vec(Arc::new(Vec::new())), // no frames
             actual_field,
             expected_field,

@@ -851,13 +851,17 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
         wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Record && s.class == "wat::kernel::Failure" => s,
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
-    // Failure.message (field 0) must carry the structured assert-eq diagnostic,
-    // NOT the singleton exit-code fallback ("forked program exited N"). This
-    // proves the spawn_process.rs panic-chain emit (phase C′) is wired up
-    // and extract-panics rebuilt the cascade.
+    // Arc 278 the string-wrap annihilation — Failure.fields[0] is the mandatory
+    // `error` (Fault); its fields[0] is the message String. Must carry the structured
+    // assert-eq diagnostic, NOT the singleton exit-code fallback ("forked program
+    // exited N"). This proves the spawn_process.rs panic-chain emit (phase C′) is
+    // wired up and extract-panics rebuilt the cascade.
     let message = match &failure_struct.fields[0] {
-        wat::runtime::Value::String(s) => s.to_string(),
-        other => panic!("expected Failure.message :String; got {:?}", other),
+        wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
+            wat::runtime::Value::String(s) => s.to_string(),
+            other => panic!("expected Failure.error.message :String; got {:?}", other),
+        },
+        other => panic!("expected Failure.error :Aggregate; got {:?}", other),
     };
     assert_eq!(
         message,
@@ -1009,12 +1013,16 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 
-    // Failure.message (field 0) must carry the structured assert-eq diagnostic.
-    // Phase C′ emit_panics_to_stderr is active for spawn_process; Layer 2
-    // bodies surface the full assertion diagnostic (same as Layer 1 post-C′).
+    // Failure.message (arc 278 — fields[0] is `error` (Fault); its fields[0] is the
+    // message String) must carry the structured assert-eq diagnostic. Phase C′
+    // emit_panics_to_stderr is active for spawn_process; Layer 2 bodies surface the
+    // full assertion diagnostic (same as Layer 1 post-C′).
     let message = match &failure_struct.fields[0] {
-        wat::runtime::Value::String(s) => s.to_string(),
-        other => panic!("expected Failure.message :String; got {:?}", other),
+        wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
+            wat::runtime::Value::String(s) => s.to_string(),
+            other => panic!("expected Failure.error.message :String; got {:?}", other),
+        },
+        other => panic!("expected Failure.error :Aggregate; got {:?}", other),
     };
     assert_eq!(
         message,

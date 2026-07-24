@@ -134,10 +134,16 @@ fn unwrap_run_result_with_failure(v: Value) -> (Vec<String>, Vec<String>, Option
                 Value::Option(opt) => match &**opt {
                     Some(Value::Aggregate(fs)) => {
                         assert_eq!(fs.class, "wat::kernel::Failure");
-                        // fields[0] is message :wat::core::String
+                        // Arc 278 the string-wrap annihilation — fields[0] is the
+                        // mandatory `error` (:wat::core::Error, canonically a Fault);
+                        // its own fields[0] is the `message` String. (`Failure/message`
+                        // is now a DERIVED accessor reading this nested field.)
                         match &fs.fields[0] {
-                            Value::String(s) => Some((**s).clone()),
-                            _ => panic!("Failure.message not a String"),
+                            Value::Aggregate(err) => match &err.fields[0] {
+                                Value::String(s) => Some((**s).clone()),
+                                _ => panic!("Failure.error.message not a String"),
+                            },
+                            _ => panic!("Failure.error not an aggregate (:wat::core::Error)"),
                         }
                     }
                     Some(other) => panic!("Failure field not Struct: {:?}", other),

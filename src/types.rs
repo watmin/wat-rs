@@ -578,6 +578,25 @@ impl TypeEnv {
             self.types.insert(name.clone(), def);
             return self.register_subtype(&name, root, span);
         }
+        // Arc 278 the string-wrap annihilation — a `:nature :wat::core::Record` surface
+        // IS a subtype of `:wat::core::Record`, exactly like a concrete Record aggregate:
+        // every value satisfying the surface is a record, so `:wat::core::Error <:
+        // :wat::core::Record`. Without this edge a record accessor (param `:wat::core::Record`)
+        // rejects a surface-typed value — e.g. `(:wat::core::Fault/message
+        // (:wat::kernel::Failure/error f))`, where `Failure/error` yields `:wat::core::Error`.
+        // Restricted to Nature::Record ONLY: a `:nature :HolonRecord` surface must NOT gain a
+        // `<: :wat::holon::Record` edge — that would let `is_subtype` short-circuit the holon
+        // NATURE LADDER (a non-holon foreign type could then satisfy a holon-floor surface;
+        // see probe_arc293_holder_ladder_foreign). Struct/Peer surfaces are unaffected.
+        if let TypeDef::Surface(surf) = &def {
+            if surf.nature == Some(Nature::Record) {
+                let root = Nature::Record.root_keyword();
+                if name != root {
+                    self.types.insert(name.clone(), def);
+                    return self.register_subtype(&name, root, span);
+                }
+            }
+        }
         self.types.insert(name, def);
         Ok(())
     }
@@ -1045,25 +1064,27 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // :wat::kernel::Failure — structured panic / assertion payload
     // populated when a sandboxed `:user::main` fails. Slice 2b fills
-    // message / location / frames from `catch_unwind`; slice 3's
+    // the carried error / frames from `catch_unwind`; slice 3's
     // `:wat::test::assert-*` primitives additionally populate actual /
     // expected when the panic payload carries an AssertionPayload.
     // Arc 293.W.2b — Failure is pure EDN data (all fields are pure scalars/records); flipped
     // Struct → Record. Location and Frame also flipped to Record (pure data, no live resources).
     // This is the 2616-cascade root: ThreadDiedError/ProcessDiedError (Pure enums) carry
     // `failure: Option<Failure>` — containment passes once Failure is a Record.
+    //
+    // Arc 278 the string-wrap annihilation — Failure carries the raised
+    // `:wat::core::Error` STRUCTURALLY in a MANDATORY `error` field (four-questions Fork B).
+    // The old stored `message` / `location` fields are REMOVED: `Failure/message` and
+    // `Failure/location` are now DERIVED accessors reading `error.message` / `error.location`
+    // (storing them alongside `error` fails Simple+Honest — duplication that can drift). The
+    // `error` field is pure: `:wat::core::Error` is a `:nature :wat::core::Record` surface
+    // (core.wat), and `is_pure_type` reads a surface's declared nature — post-load containment
+    // (`validate_aggregate_containment`, freeze/env.rs) sees Error registered and passes.
     env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
         name: ":wat::kernel::Failure".into(),
         type_params: vec![],
         fields: vec![
-            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
-            (
-                "location".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
-                },
-            ),
+            ("error".into(), TypeExpr::Path(":wat::core::Error".into())),
             (
                 "frames".into(),
                 TypeExpr::Parametric {

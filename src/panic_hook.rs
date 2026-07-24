@@ -301,6 +301,7 @@ mod tests {
             }],
             upstream_chain: None,
             thread_name: Some("wat-test::my-deftest".into()),
+            raised_error: None,
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
@@ -342,6 +343,7 @@ mod tests {
             frames: Vec::new(),
             upstream_chain: None,
             thread_name: None,
+            raised_error: None,
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
@@ -380,6 +382,7 @@ mod tests {
             upstream_chain: None,
             // Explicit name that does NOT match this test's thread name.
             thread_name: Some("wat-test:::my::deftest".into()),
+            raised_error: None,
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
@@ -405,6 +408,7 @@ mod tests {
             frames: Vec::new(),
             upstream_chain: None,
             thread_name: None,
+            raised_error: None,
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);

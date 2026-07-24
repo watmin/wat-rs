@@ -64,9 +64,13 @@ fn run_result_failure_message(v: Value) -> Option<String> {
                 "RunResult.failure must carry a :wat::kernel::Failure; got class {:?}",
                 f.class
             );
+            // Arc 278 — fields[0] is the `error` (Fault); its fields[0] is the message String.
             match &f.fields[0] {
-                Value::String(s) => (**s).clone(),
-                other => panic!("Failure.message (field[0]) is not a String; got {:?}", other),
+                Value::Aggregate(err) => match &err.fields[0] {
+                    Value::String(s) => (**s).clone(),
+                    other => panic!("Failure.error.message is not a String; got {:?}", other),
+                },
+                other => panic!("Failure.error (field[0]) is not an Aggregate; got {:?}", other),
             }
         }
         other => panic!("RunResult.failure = Some(_) must be a Failure record; got {:?}", other),

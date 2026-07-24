@@ -57,6 +57,8 @@ fn eprintln_terminate(reason: String) -> ! {
         upstream_chain: None,
         // Arc 138 F-NAMES-1d — capture name on the panicking thread.
         thread_name: std::thread::current().name().map(String::from),
+        // Arc 278 — a bare terminate reason; the death-carrier synthesizes a Fault.
+        raised_error: None,
     };
     std::panic::panic_any(payload);
 }

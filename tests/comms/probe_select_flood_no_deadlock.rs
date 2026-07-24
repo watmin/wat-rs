@@ -100,16 +100,24 @@ fn select_prime_flood_no_deadlock() {
                                     "cause must be Failure struct; got {:?}",
                                     s.class
                                 );
+                                // Arc 278 the string-wrap annihilation — Failure.fields[0] is
+                                // the mandatory `error` (Fault); its fields[0] is the message String.
                                 match s.fields.first() {
-                                    Some(Value::String(msg)) => {
+                                    Some(Value::Aggregate(err)) => match err.fields.first() {
+                                        Some(Value::String(msg)) => {
                                             assert_eq!(
-                                            msg.as_str(),
-                                            "frame exceeded cap (message larger than the receiver's max-message-bytes budget)",
-                                            "Failure.message must match FrameTooLarge golden"
-                                        );
-                                    }
+                                                msg.as_str(),
+                                                "frame exceeded cap (message larger than the receiver's max-message-bytes budget)",
+                                                "Failure.error.message must match FrameTooLarge golden"
+                                            );
+                                        }
+                                        other => panic!(
+                                            "Failure.error.message must be String; got {:?}",
+                                            other
+                                        ),
+                                    },
                                     other => panic!(
-                                        "Failure.message (field 0) must be String; got {:?}",
+                                        "Failure.error (field 0) must be an Aggregate; got {:?}",
                                         other
                                     ),
                                 }
