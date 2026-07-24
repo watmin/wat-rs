@@ -139,7 +139,7 @@
    ;;      (retained to cover the drain-and-join Err path independently)
    (:wat::core::defenum :counter::ServiceError :wat::enum::Pure
      :AccessDenied
-     :ServerDied  [chain <- :wat::core::Vector<wat::kernel::ProcessDiedError>]
+     :ServerDied  [chain <- :wat::core::Vector<wat::kernel::LociDiedError>]
      :Disconnected)
 
    ;; ─── Capability structs ───────────────────────────────────────────────────────

@@ -930,41 +930,39 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::ThreadDiedError — populated in the Err slot of the
-    // :Result returned by :wat::kernel::join-result (arc 060) when a
-    // spawned thread does NOT yield a value normally. Three variants
-    // discriminate cause; supervisors / restart policies / debugging
-    // traces want to tell them apart:
+    // :wat::kernel::LociDiedError — the ONE loci-agnostic death report
+    // (arc 278 the IPC de-prime, DESIGN-loci-died-error.md). Annihilates the
+    // two near-twin `ThreadDiedError` / `ProcessDiedError` enums: a service /
+    // bracket-worker never knows its own locus (thread · process · uds ·
+    // localhost tcp · remote mTLS · whatever comes), so its death is measured
+    // as ONE enum every peer exhaustively handles (explicit-exception-paths,
+    // verbosity-is-the-shield). The variant set is the UNION of the two dead
+    // enums, generalized loci-agnostic — the variant names *how* a peer died;
+    // the locus rides as data:
     //
-    //   Panic(message)         — the thread's eval panicked; catch_unwind
-    //                            captured the payload as a String.
-    //   RuntimeError(message)  — the thread's eval returned :Err normally
-    //                            (the spawned function was Result-typed
-    //                            and produced an Err).
-    //   ChannelDisconnected    — substrate bug; the channel dropped
-    //                            without sending. In practice should
-    //                            never fire under arc-060's catch_unwind
-    //                            wrap; emitted as a distinct variant so
-    //                            consumers can tell "my function ran and
-    //                            died" from "the substrate ate my child."
+    //   Panic(message, failure)  — peer raised/panicked; catch_unwind captured
+    //                              the payload as `message`, `failure` is
+    //                              `:Some(...)` when the panic carried an
+    //                              arc-016/064 AssertionPayload, `:None`
+    //                              for a plain `panic!()`.
+    //   RuntimeError(message)    — a type/arity/etc. error surfaced at run.
+    //   Disconnected             — the wire dropped (was ChannelDisconnected).
+    //   Shutdown                 — shutdown signal mid-recv, any locus.
+    //   StartupError(message)    — the locus didn't come up (fork/exec fail,
+    //                              or a remote ECONNREFUSED).
+    //   EntryFormFailure(message)— the peer program's entry form was malformed.
+    //   MainSignature(message)   — the peer's :user::main had a bad signature.
+    //   BadReturn(message)       — the peer returned a value that won't cross
+    //                              the wire.
     //
-    // The String fields aren't typed-error-objects on purpose — wat-rs's
-    // RuntimeError enum carries its own Display impl; we extract the
-    // formatted message at the substrate boundary. Future arc may widen
-    // to a typed payload if a caller surfaces real need.
+    // Purity::Pure — a death report crosses back to the owner as EDN data; its
+    // payload is String / Option<Failure> (no live resource), unlike
+    // RecvOutcome<O> which is Impure only because O may be live.
     env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::ThreadDiedError".into(),
+        name: ":wat::kernel::LociDiedError".into(),
         type_params: vec![],
         purity: Purity::Pure, // a death report — Pure (crosses back to the owner as EDN data)
         variants: vec![
-            // Arc 105c: Panic variant carries TWO fields. `message`
-            // is always populated. `failure` is `:Some(...)` when
-            // the panic was an arc-016/064 AssertionPayload (assert-eq
-            // failure), `:None` for plain `panic!()`. Wat callers
-            // route through `:wat::kernel::ThreadDiedError/to-failure`
-            // (also arc 105c) which builds a Failure regardless of
-            // variant — sandbox.wat doesn't pattern-match the variant
-            // at all.
             EnumVariant::Tagged {
                 name: "Panic".into(),
                 fields: vec![
@@ -982,55 +980,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
                 name: "RuntimeError".into(),
                 fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
             },
-            EnumVariant::Unit("ChannelDisconnected".into()),
-            // arc 170 Slice A — process-wide shutdown signal fired during recv.
-            // The channel partner did NOT drop — the process is terminating.
-            // Distinguishable from ChannelDisconnected for shutdown-specific cleanup.
-            // Slice B wires recv to surface this; Slice A only registers the variant.
+            // Reconciled: the two dead enums' ChannelDisconnected → Disconnected
+            // (the wire dropped — loci-agnostic; "channel" was thread-tier vocab).
+            EnumVariant::Unit("Disconnected".into()),
+            // arc 170 Slice A — shutdown signal fired during recv, any locus.
             EnumVariant::Unit("Shutdown".into()),
-        ],
-    }));
-
-    // :wat::kernel::ProcessDiedError — populated in the Err slot of
-    // the :Result returned by verbs that operate on
-    // :wat::kernel::Process<I,O> (arc 112): join-result on a
-    // Process/join handle, process-recv, process-send. Three
-    // variants identical in shape to ThreadDiedError; the name
-    // tracks the SUBJECT (Process — a running Program — vs
-    // ThreadDiedError's thread peer on a channel). After arc 112
-    // unifies the in-thread (spawn-program') and OS-fork (spawn-process)
-    // paths under a single Process<I,O> return type, the
-    // Forked variant of ProgramHandle synthesizes ProcessDiedError
-    // from waitpid + exit code; the InThread variant of
-    // ProgramHandle (returned by :wat::kernel::spawn) keeps
-    // ThreadDiedError because its peer is genuinely a thread.
-    env.register_builtin(TypeDef::Enum(EnumDef {
-        name: ":wat::kernel::ProcessDiedError".into(),
-        type_params: vec![],
-        purity: Purity::Pure, // a death report — Pure (crosses the process boundary as EDN data)
-        variants: vec![
-            EnumVariant::Tagged {
-                name: "Panic".into(),
-                fields: vec![
-                    ("message".into(), TypeExpr::Path(":wat::core::String".into())),
-                    (
-                        "failure".into(),
-                        TypeExpr::Parametric {
-                            head: "wat::core::Option".into(),
-                            args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
-                        },
-                    ),
-                ],
-            },
-            EnumVariant::Tagged {
-                name: "RuntimeError".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
-            },
-            EnumVariant::Unit("ChannelDisconnected".into()),
-            // Arc 170 slice 1i — new structured exit variants for all child
-            // exit paths (spawn-process + fork). extract-panics uses the
-            // TypeEnv to reconstruct these variants from EDN on round-trip;
-            // they must be registered here so edn_to_value can find them.
+            // arc 170 slice 1i — structured exit variants for all peer death
+            // paths. extract-panics / the recv' Lost decoder use the TypeEnv to
+            // reconstruct these from EDN on round-trip; they must be registered
+            // here so edn_to_value can find them.
             EnumVariant::Tagged {
                 name: "StartupError".into(),
                 fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
@@ -1131,6 +1089,60 @@ fn register_builtin_types(env: &mut TypeEnv) {
         restrictions: None,
     }));
 
+    // :wat::kernel::AssertionFailure — arc 278 (DESIGN-loci-died-error.md): the
+    // registered record that the panic-hook `#wat.kernel/AssertionFailure {…}`
+    // envelope writer now routes through (via the derived `ToEdn`), replacing
+    // the hand-built Map with the wrong field shapes. `:frames` is a
+    // `Vector<Frame>` (was the ad-hoc `{:callee,:at}` map); `:location` is an
+    // `Option<Location>` (was a bare `Span`); `:upstream-chain` is a
+    // `Vector<LociDiedError>` (was heterogeneous Thread|Process). Every field
+    // type (Frame, Location, Failure, LociDiedError) is registered above/below
+    // — the record is EDN all the way down.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
+        name: ":wat::kernel::AssertionFailure".into(),
+        type_params: vec![],
+        fields: vec![
+            ("thread".into(), TypeExpr::Path(":wat::core::String".into())),
+            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
+            (
+                "location".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
+                },
+            ),
+            (
+                "actual".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
+                },
+            ),
+            (
+                "expected".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::core::String".into())],
+                },
+            ),
+            (
+                "frames".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::Frame".into())],
+                },
+            ),
+            (
+                "upstream-chain".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
+                },
+            ),
+        ],
+        restrictions: None,
+    }));
+
     // :wat::kernel::RecvOutcome<O> — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
     // recv' RETURNED O and RAISED on close/crash — a raise unwinds past the reader
@@ -1162,9 +1174,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
             EnumVariant::Unit("Closed".into()),
             EnumVariant::Tagged {
                 name: "Lost".into(),
+                // Arc 278 the LociDiedError stone — the Lost cause is now the
+                // loci-agnostic `:wat::kernel::LociDiedError` (was the flat
+                // `Failure`). Every peer exhaustively handles every death
+                // regardless of its locus. The death CHAIN is a container-level
+                // Vector; Lost holds the single head (the immediate peer death).
                 fields: vec![(
                     "cause".into(),
-                    TypeExpr::Path(":wat::kernel::Failure".into()),
+                    TypeExpr::Path(":wat::kernel::LociDiedError".into()),
                 )],
             },
         ],

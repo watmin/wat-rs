@@ -21,4 +21,4 @@
     (:wat::core::match err 
       ((Panic m)        m)
       ((RuntimeError m) m)
-      (:wat::kernel::ThreadDiedError::ChannelDisconnected "disc"))))
+      (:wat::kernel::LociDiedError::Disconnected "disc"))))

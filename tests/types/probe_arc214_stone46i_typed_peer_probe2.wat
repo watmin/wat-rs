@@ -10,7 +10,7 @@
             (:wat::core::match r
               ((:wat::kernel::RecvOutcome::Message m) m)
               ((:wat::kernel::RecvOutcome::Lost cause)
-                (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
               (:wat::kernel::RecvOutcome::Closed
                 (:wat::kernel::assertion-failed! "recv': self closed before echo" :wat::core::None :wat::core::None))))
           (:wat::kernel::SendOutcome::Sent nil)

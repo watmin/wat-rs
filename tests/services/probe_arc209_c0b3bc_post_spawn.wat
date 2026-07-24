@@ -14,7 +14,7 @@
      pid   (:wat::core::match (:wat::kernel::recv' rx)
              ((:wat::kernel::RecvOutcome::Message m) m)
              ((:wat::kernel::RecvOutcome::Lost cause)
-               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
              (:wat::kernel::RecvOutcome::Closed
                (:wat::kernel::assertion-failed! "recv': rx closed before the post-spawn hook sent the pid" :wat::core::None :wat::core::None)))]
     pid))

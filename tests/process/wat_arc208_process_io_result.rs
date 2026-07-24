@@ -86,7 +86,7 @@ fn arc208_t1_process_readln_println_registered_as_result_returning() {
     let readln_ret_str = format!("{:?}", readln_scheme.ret);
     assert_eq!(
         readln_ret_str,
-        "Parametric { head: \"wat::core::Result\", args: [Path(\":I\"), Parametric { head: \"wat::core::Vector\", args: [Path(\":wat::kernel::ProcessDiedError\")] }] }",
+        "Parametric { head: \"wat::core::Result\", args: [Path(\":I\"), Parametric { head: \"wat::core::Vector\", args: [Path(\":wat::kernel::LociDiedError\")] }] }",
         "Process/readln return type must match golden"
     );
 
@@ -97,7 +97,7 @@ fn arc208_t1_process_readln_println_registered_as_result_returning() {
     let println_ret_str = format!("{:?}", println_scheme.ret);
     assert_eq!(
         println_ret_str,
-        "Parametric { head: \"wat::core::Result\", args: [Tuple([]), Parametric { head: \"wat::core::Vector\", args: [Path(\":wat::kernel::ProcessDiedError\")] }] }",
+        "Parametric { head: \"wat::core::Result\", args: [Tuple([]), Parametric { head: \"wat::core::Vector\", args: [Path(\":wat::kernel::LociDiedError\")] }] }",
         "Process/println return type must match golden"
     );
 }
@@ -208,11 +208,11 @@ fn arc208_t5_err_chain_head_is_channel_disconnected() {
     match head {
         Value::Enum(e) => {
             assert_eq!(
-                e.type_path, ":wat::kernel::ProcessDiedError",
-                "chain head type_path should be :wat::kernel::ProcessDiedError"
+                e.type_path, ":wat::kernel::LociDiedError",
+                "chain head type_path should be :wat::kernel::LociDiedError"
             );
             assert_eq!(
-                e.variant_name, "ChannelDisconnected",
+                e.variant_name, "Disconnected",
                 "chain head variant should be ChannelDisconnected; got {}",
                 e.variant_name
             );

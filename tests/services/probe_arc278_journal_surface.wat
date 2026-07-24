@@ -56,6 +56,6 @@
       (:wat::telemetry::Journal/write-metrics journal (:wat::telemetry::Journal::WriteMetricsRequest batch))
       ((:wat::kernel::RecvOutcome::Message resp) resp)
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

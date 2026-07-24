@@ -14,5 +14,5 @@
            (:wat::kernel::assertion-failed! "BOOM-SENTINEL-9173" :wat::core::None :wat::core::None)))]
     (:wat::core::match (:wat::kernel::recv' p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::Failure/message cause))
+      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::LociDiedError/message cause))
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

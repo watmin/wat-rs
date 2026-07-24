@@ -11,7 +11,7 @@
                        res (:wat::core::match (:wat::kernel::recv' peer)
                              ((:wat::kernel::RecvOutcome::Message m) m)
                              ((:wat::kernel::RecvOutcome::Lost cause)
-                               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed! "recv': peer closed mid-stream" :wat::core::None :wat::core::None)))]
        (:user::drive peer (:wat::core::- n 1) (:wat::core::+ acc res)))))

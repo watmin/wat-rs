@@ -17,5 +17,5 @@
               (:wat::core::Some "EXPECTED-99731"))))]
     (:wat::core::match (:wat::kernel::recv' p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::Failure/message cause))
+      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::LociDiedError/message cause))
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

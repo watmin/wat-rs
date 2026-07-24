@@ -52,7 +52,7 @@ use crate::value::FrameInfo;
 use std::borrow::Cow;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
-use wat_edn::{Keyword, OwnedValue};
+use wat_edn::{Keyword, OwnedValue, Tag};
 
 /// Tracks whether the hook has been installed. First install wins;
 /// subsequent `install()` calls become idempotent no-ops (Arc 211a).
@@ -153,13 +153,12 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     let message_val = OwnedValue::String(Cow::Owned(payload.message.clone()));
 
     // ── :location ────────────────────────────────────────────────────
-    // Arc 298.2: every span is a real location; always emit.
-    // Stone B: use span.to_edn() — the derive-generated #wat.core/Span tagged record.
+    // Arc 278 the LociDiedError stone — the registered `AssertionFailure`
+    // record declares `:location` as `Option<:wat::kernel::Location>` (NOT a
+    // bare `#wat.core/Span`). Emit the `#wat.kernel/Location {:file :line :col}`
+    // record when present, nil when absent (the human-facing nil-convention).
     let location_val = match &payload.location {
-        Some(span) => {
-            use crate::to_edn::ToEdn;
-            span.to_edn()
-        }
+        Some(span) => location_to_edn(span),
         None => OwnedValue::Nil,
     };
 
@@ -207,49 +206,36 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
     ])
 }
 
-// Stone B (arc 296): `span_to_map` / `span_to_edn` retired — the derive on
-// `Span` (in `wat-reader`) subsumes the hand-built map. Callers now use
-// `span.to_edn()` directly.
-
-/// Convert a [`FrameInfo`] to `{:callee <keyword> :at <location-map>}`.
-///
-/// `frame.callee_path` is a string like `":my::app::foo"` (with leading `:`).
-/// Strip the `:` prefix, then use `keyword_from_callee_path` to build a
-/// proper EDN keyword using the same convention as `edn_shim::keyword_from_wat_path`.
-fn frame_to_map(frame: &FrameInfo) -> OwnedValue {
-    use crate::to_edn::ToEdn;
-    OwnedValue::Map(vec![
-        (
-            OwnedValue::Keyword(Keyword::new("callee")),
-            keyword_from_callee_path(&frame.callee_path),
-        ),
-        (
-            OwnedValue::Keyword(Keyword::new("at")),
-            frame.call_span.to_edn(),
-        ),
-    ])
+/// Convert a [`Span`](crate::span::Span) to a `#wat.kernel/Location {:file :line
+/// :col}` tagged record — the registered `:wat::kernel::Location` shape (arc 278
+/// the LociDiedError stone). Was `span.to_edn()` (a `#wat.core/Span`); the
+/// `AssertionFailure` record declares its `:location` as `Option<Location>`.
+fn location_to_edn(span: &crate::span::Span) -> OwnedValue {
+    OwnedValue::Tagged(
+        Tag::ns("wat.kernel", "Location"),
+        Box::new(OwnedValue::Map(vec![
+            (OwnedValue::Keyword(Keyword::new("file")), OwnedValue::String(Cow::Owned((*span.file).clone()))),
+            (OwnedValue::Keyword(Keyword::new("line")), OwnedValue::Integer(span.line)),
+            (OwnedValue::Keyword(Keyword::new("col")), OwnedValue::Integer(span.col)),
+        ])),
+    )
 }
 
-/// Convert a callee path string (like `":my::app::foo"`) to an EDN keyword.
-///
-/// Mirrors `edn_shim::keyword_from_wat_path`: strip the leading `:`, then
-/// split on the last `::` to extract namespace + name. Falls back to a
-/// string if the keyword construction fails validation.
-fn keyword_from_callee_path(path: &str) -> OwnedValue {
-    let stripped = path.strip_prefix(':').unwrap_or(path);
-    if let Some(idx) = stripped.rfind("::") {
-        let ns = stripped[..idx].replace("::", ".");
-        let name = &stripped[idx + 2..];
-        match Keyword::try_ns(&ns, name) {
-            Ok(kw) => OwnedValue::Keyword(kw),
-            Err(_) => OwnedValue::String(Cow::Owned(path.to_string())),
-        }
-    } else {
-        match Keyword::try_new(stripped) {
-            Ok(kw) => OwnedValue::Keyword(kw),
-            Err(_) => OwnedValue::String(Cow::Owned(path.to_string())),
-        }
-    }
+/// Convert a [`FrameInfo`] to a `#wat.kernel/Frame {:file :line :symbol}` tagged
+/// record — the registered `:wat::kernel::Frame` shape (arc 278 the LociDiedError
+/// stone). Was the ad-hoc `{:callee <keyword> :at <map>}`; the `AssertionFailure`
+/// record declares its `:frames` as `Vector<Frame>` (`{file, line, symbol}`, every
+/// field known — arc 109). `frame.callee_path` (a `":my::app::foo"` string) IS the
+/// `:symbol`; `frame.call_span` supplies `:file` / `:line`.
+fn frame_to_map(frame: &FrameInfo) -> OwnedValue {
+    OwnedValue::Tagged(
+        Tag::ns("wat.kernel", "Frame"),
+        Box::new(OwnedValue::Map(vec![
+            (OwnedValue::Keyword(Keyword::new("file")), OwnedValue::String(Cow::Owned((*frame.call_span.file).clone()))),
+            (OwnedValue::Keyword(Keyword::new("line")), OwnedValue::Integer(frame.call_span.line)),
+            (OwnedValue::Keyword(Keyword::new("symbol")), OwnedValue::String(Cow::Owned(frame.callee_path.clone()))),
+        ])),
+    )
 }
 
 // ─── ToEdn impls ─────────────────────────────────────────────────────────────
@@ -326,11 +312,12 @@ mod tests {
         let msg = get_field(&pairs, "message");
         assert_eq!(msg.as_str(), Some("assert-eq failed"), "message: {:?}", msg);
 
-        // :location is now a #wat.core/Span tagged record (Stone B)
+        // :location is a #wat.kernel/Location tagged record (arc 278 — the
+        // registered AssertionFailure record's Option<Location> field shape).
         let loc = get_field(&pairs, "location");
-        let (loc_tag, loc_body) = loc.as_tagged().expect("location is a tagged Span");
-        assert_eq!(loc_tag.to_string(), "#wat.core/Span", "location tag: {:?}", loc_tag);
-        let loc_pairs = loc_body.as_map().expect("Span body is a map");
+        let (loc_tag, loc_body) = loc.as_tagged().expect("location is a tagged Location");
+        assert_eq!(loc_tag.to_string(), "#wat.kernel/Location", "location tag: {:?}", loc_tag);
+        let loc_pairs = loc_body.as_map().expect("Location body is a map");
         let file_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("file")).map(|(_, v)| v).expect(":file");
         assert_eq!(file_val.as_str(), Some("wat-tests/foo.wat"), "file: {:?}", file_val);
         let line_val = loc_pairs.iter().find(|(k, _)| k.as_keyword().map(|kw| kw.name()) == Some("line")).map(|(_, v)| v).expect(":line");

@@ -9,7 +9,7 @@
     (:wat::core::match (:wat::kernel::recv' p)
       ((:wat::kernel::RecvOutcome::Message _m) 1)
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "compute-stdout-count: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
@@ -22,6 +22,6 @@
     (:wat::core::match (:wat::kernel::recv' p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed! "compute-eval-in-outer: child closed before sending its value" :wat::core::None :wat::core::None)))))

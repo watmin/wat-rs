@@ -104,7 +104,7 @@ fn probe_no_default_rust_panic_noise_on_stderr() {
     // Positive assertion: the structured ProcessPanics line IS present.
     let has_structured = lines
         .iter()
-        .any(|l| l.trim_start().starts_with("#wat.kernel/ProcessPanics"));
+        .any(|l| l.trim_start().starts_with("[#wat.kernel.LociDiedError/"));
     assert!(
         has_structured,
         "expected a #wat.kernel/ProcessPanics structured line in stderr; \

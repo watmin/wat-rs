@@ -54,10 +54,10 @@
 ;; hermetic.wat needs this helper and sandbox.wat is the canonical
 ;; source. Duplicate definition intentionally avoided: only hermetic.wat
 ;; defines it (sandbox.wat is not loaded in the kernel path).
-(:wat::core::defn :wat::kernel::failure-from-process-died [chain <- :wat::core::Vector<wat::kernel::ProcessDiedError>] -> :wat::kernel::Failure
+(:wat::core::defn :wat::kernel::failure-from-process-died [chain <- :wat::core::Vector<wat::kernel::LociDiedError>] -> :wat::kernel::Failure
   (:wat::core::match (:wat::core::get chain 0)
       
-      ((:wat::core::Some err) (:wat::kernel::ProcessDiedError/to-failure err))
+      ((:wat::core::Some err) (:wat::kernel::LociDiedError/to-failure err))
       (:wat::core::None
        ;; Empty chain — should not occur; substrate always emits at
        ;; least the immediate-peer death. Defensive default.

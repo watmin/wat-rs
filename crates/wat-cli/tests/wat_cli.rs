@@ -381,7 +381,7 @@ fn startup_error_bubbles_up_as_exit_3() {
     // EDN envelope (slice 1i) wrapping a StartupError variant. The substrate's
     // panic-as-EDN doctrine (arc 211b) supersedes the pre-211 "startup:" text prefix.
     assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
-        stderr.contains("#wat.kernel/ProcessPanics") && stderr.contains("StartupError"),
+        stderr.contains("#wat.kernel.LociDiedError/StartupError"),
         "stderr should contain structured ProcessPanics envelope with StartupError variant; got: {}",
         stderr
     );
@@ -425,7 +425,7 @@ fn freeze_time_panic_surfaces_structured_not_silent() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!( // rune:lint(loose-assert) — subprocess stderr embeds temp file path (pid + nanosecond timestamp via write_temp); full stderr is non-deterministic
-        stderr.contains("#wat.kernel/ProcessPanics") && stderr.contains("freeze-time boom"),
+        stderr.contains("#wat.kernel.LociDiedError/Panic") && stderr.contains("freeze-time boom"),
         "freeze-time panic must surface the structured ProcessPanics envelope carrying its reason, not silence; got: {}",
         stderr
     );

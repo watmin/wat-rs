@@ -46,7 +46,7 @@
           "tiny budget ignored: the oversized frame was DELIVERED, not rejected"
           :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::test::assert-contains (:wat::kernel::Failure/message cause) "frame exceeded cap"))
+        (:wat::test::assert-contains (:wat::kernel::LociDiedError/message cause) "frame exceeded cap"))
       (:wat::kernel::RecvOutcome::Closed
         (:wat::kernel::assertion-failed!
           "expected the over-budget frame to surface as ::Lost with the cap reason, got a bare ::Closed"

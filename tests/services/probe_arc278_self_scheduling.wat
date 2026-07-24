@@ -92,7 +92,7 @@
               (:wat::core::let [_ (:probe::nap 5)]  ;; bounded backoff, NOT a correctness-bearing sleep
                 (:probe::poll-until c target (:wat::core::i64::- attempts 1)))))
           ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1)))
-      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; the shared driver: start a ticker at `target`, kick it, FACE the start outcome (a start-time
@@ -108,7 +108,7 @@
         (:wat::core::match __start
           ((:probe::Ticker::StartResponse::Ok) (:probe::poll-until c 3 40))
           ((:probe::Ticker::StartResponse::RequestTooLarge _b _cp) -3)))
-      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 ;; entrypoint (thread locus): expect the count == target (3).

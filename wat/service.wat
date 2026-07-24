@@ -1250,10 +1250,13 @@
                                                           "defservice method: misrouted reply variant (protocol violation)"
                                                           :wat::core::None
                                                           :wat::core::None)))))
-                                               ((:wat::kernel::RecvOutcome::Lost _lost-cause)
-                                                 (:wat::kernel::RecvOutcome::Lost
-                                                   (:wat::kernel::message-only-failure
-                                                     "service peer lost (reason on the owner's crash channel)")))
+                                               ;; arc 278 the LociDiedError stone — forward the real
+                                               ;; loci-agnostic death cause to the client's caller
+                                               ;; (no-hidden-failures: never mask it with a generic
+                                               ;; message-only Failure). RecvOutcome::Lost now carries
+                                               ;; a :wat::kernel::LociDiedError, which `cause` already is.
+                                               ((:wat::kernel::RecvOutcome::Lost cause)
+                                                 (:wat::kernel::RecvOutcome::Lost cause))
                                                (:wat::kernel::RecvOutcome::Closed
                                                  :wat::kernel::RecvOutcome::Closed)))]
                          (:wat::core::if is-internal
@@ -1296,7 +1299,7 @@
                             ;; (loud, terminal; the owner is the real final caller who does not
                             ;; recover — R51 eprintln IS the dying declaration), then terminate.
                             ((:wat::kernel::RecvOutcome::Lost cause)
-                              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice stop: service peer closed during stop"
@@ -1332,7 +1335,7 @@
                                           :wat::core::None
                                           :wat::core::None))))
                                  ((:wat::kernel::RecvOutcome::Lost cause)
-                                   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                                  (:wat::kernel::RecvOutcome::Closed
                                    (:wat::kernel::assertion-failed!
                                      "defservice hibernate: service peer closed during hibernate"
@@ -1370,7 +1373,7 @@
                                      :wat::core::None
                                      :wat::core::None))))
                             ((:wat::kernel::RecvOutcome::Lost cause)
-                              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                             (:wat::kernel::RecvOutcome::Closed
                               (:wat::kernel::assertion-failed!
                                 "defservice grant: service peer closed during grant"
@@ -1408,7 +1411,7 @@
                                       :wat::core::None
                                       :wat::core::None))))
                              ((:wat::kernel::RecvOutcome::Lost cause)
-                               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                              (:wat::kernel::RecvOutcome::Closed
                                (:wat::kernel::assertion-failed!
                                  "defservice revoke: service peer closed during revoke"
@@ -1509,7 +1512,7 @@
                                             ;; owner link before the startup ship arrived: eprintln is the
                                             ;; terminal dying declaration (loud, exits non-zero).
                                             ((:wat::kernel::RecvOutcome::Lost ~cm-shipcause-sym)
-                                              (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message ~cm-shipcause-sym) :wat::core::None :wat::core::None))
+                                              (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message ~cm-shipcause-sym) :wat::core::None :wat::core::None))
                                             (:wat::kernel::RecvOutcome::Closed
                                               (:wat::kernel::eprintln "defservice child-main: owner link closed before startup ship")))
                            ~cm-st-sym   (:wat::core::apply

@@ -14,7 +14,7 @@
     nil))
 
 (:wat::core::defn :my::test::drain-thread
-  [] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>
+  [] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::LociDiedError>>
   (:wat::core::let
     [thr (:wat::kernel::spawn-thread :my::three-vals-thread)]
     (:wat::kernel::Thread/drain-and-join thr)))
@@ -27,7 +27,7 @@
   (:wat::core::Option/expect :wat::core::None "intentional panic from stone-a thread test"))
 
 (:wat::core::defn :my::test::drain-panicking-thread
-  [] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>
+  [] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::LociDiedError>>
   (:wat::core::let
     [thr (:wat::kernel::spawn-thread :my::panic-thread)]
     (:wat::kernel::Thread/drain-and-join thr)))
@@ -39,5 +39,5 @@
 ;; panicking (T4) child fixtures.
 (:wat::core::defn :my::test::drain-process
   [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>]
-  -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
+  -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::LociDiedError>>
   (:wat::kernel::Process/drain-and-join proc))

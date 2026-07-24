@@ -66,5 +66,5 @@
     (:wat::core::match (:wat::kernel::recv' echo)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::Failure/message cause) "no matching struct or enum")))
+        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum")))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))

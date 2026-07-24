@@ -944,7 +944,7 @@ mod tests {
                      (:wat::kernel::SendOutcome::Sent nil) \
                      (:wat::kernel::SendOutcome::Closed nil) \
                      ((:wat::kernel::SendOutcome::Lost _c) nil))) \
-                 ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)) \
+                 ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)) \
                  (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None))))",
             None,
             Arc::new(crate::load::InMemoryLoader::new()),

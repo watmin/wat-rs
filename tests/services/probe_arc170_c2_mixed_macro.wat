@@ -102,31 +102,31 @@
     [r1  (:wat::core::match (:probe::S1/op s1 (:probe::S1::OpRequest :m item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
            ((:probe::S1::OpResponse::Ok r) r)
            ((:probe::S1::OpResponse::RequestTooLarge bytes cap)
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      r2  (:wat::core::match (:probe::S2/op s2 (:probe::S2::OpRequest :m item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
            ((:probe::S2::OpResponse::Ok r) r)
            ((:probe::S2::OpResponse::RequestTooLarge bytes cap)
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      r3  (:wat::core::match (:probe::S3/op s3 (:probe::S3::OpRequest :m item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
            ((:probe::S3::OpResponse::Ok r) r)
            ((:probe::S3::OpResponse::RequestTooLarge bytes cap)
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      r4  (:wat::core::match (:probe::S4/op s4 (:probe::S4::OpRequest :m item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
            ((:probe::S4::OpResponse::Ok r) r)
            ((:probe::S4::OpResponse::RequestTooLarge bytes cap)
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      r5  (:wat::core::match (:probe::S5/op s5 (:probe::S5::OpRequest :m item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
            ((:probe::S5::OpResponse::Ok r) r)
            ((:probe::S5::OpResponse::RequestTooLarge bytes cap)
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      r6  (:wat::core::match (:probe::S6/op s6 (:probe::S6::OpRequest :m item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
            ((:probe::S6::OpResponse::Ok r) r)
            ((:probe::S6::OpResponse::RequestTooLarge bytes cap)
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      r7  (:wat::core::match (:probe::S7/op s7 (:probe::S7::OpRequest :m item)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
            ((:probe::S7::OpResponse::Ok r) r)
            ((:probe::S7::OpResponse::RequestTooLarge bytes cap)
-             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
+             (:wat::kernel::assertion-failed! "enrich: unexpected RequestTooLarge" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))
      svc (:wat::core::string::concat r1
            (:wat::core::string::concat r2
              (:wat::core::string::concat r3

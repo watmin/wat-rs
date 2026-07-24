@@ -16,7 +16,7 @@
 ;; then drains+joins. Both raw Results travel back to Rust in a Tuple so the
 ;; existing unwrap_ok helper stays unchanged.
 (:wat::core::defn :user::t2-println-then-readln [] ->
-  :(wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>,wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>)
+  :(wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::LociDiedError>>,wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::LociDiedError>>)
   (:wat::core::let
     [server (:wat::kernel::spawn-process
               (:wat::core::forms
@@ -49,7 +49,7 @@
 ;; a vestigial artifact of the original Rust-built version, preserved exactly —
 ;; then spawns a SECOND immediate-exit server, drains it too, and attempts
 ;; println on the now-dead peer.
-(:wat::core::defn :user::t3-println-dead-peer [] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>
+(:wat::core::defn :user::t3-println-dead-peer [] -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::LociDiedError>>
   (:wat::core::let
     [server1 (:wat::kernel::spawn-process (:wat::core::forms (:wat::core::defn :user::main [] -> :wat::core::nil nil)))
      _djoin1 (:wat::kernel::Process/drain-and-join server1)
@@ -66,7 +66,7 @@
 ;; ─── T4 (and T5, same body) — Process/readln on a peer whose subprocess ─────
 ;; already exited. T5 reuses this fn: T4's and T5's original Rust-built ASTs
 ;; were byte-identical, so one fixture entry serves both probes.
-(:wat::core::defn :user::t4-readln-dead-peer [] -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::ProcessDiedError>>
+(:wat::core::defn :user::t4-readln-dead-peer [] -> :wat::core::Result<wat::core::String,wat::core::Vector<wat::kernel::LociDiedError>>
   (:wat::core::let
     [server (:wat::kernel::spawn-process (:wat::core::forms (:wat::core::defn :user::main [] -> :wat::core::nil nil)))
      rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout server))

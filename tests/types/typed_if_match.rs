@@ -209,7 +209,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
     assert_malformed_mentioning(
         &errs,
         ":wat::core::match",
-        ":wat::kernel::ThreadDiedError::Panic",
+        ":wat::kernel::LociDiedError::Panic",
     );
     assert_malformed_mentioning(
         &errs,

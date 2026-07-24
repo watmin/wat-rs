@@ -69,7 +69,7 @@
                  r1  (:wat::core::match rr1
                        ((:wat::kernel::RecvOutcome::Message m) m)
                        ((:wat::kernel::RecvOutcome::Lost cause)
-                         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))
                  _  (:wat::core::match (:wat::kernel::send' worker (:probe::Msg::Work "b")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
@@ -77,7 +77,7 @@
                  r2  (:wat::core::match rr2
                        ((:wat::kernel::RecvOutcome::Message m) m)
                        ((:wat::kernel::RecvOutcome::Lost cause)
-                         (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))]
                 (:wat::core::string::concat r1 (:wat::core::string::concat " " r2))))

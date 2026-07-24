@@ -63,10 +63,10 @@
 ;; the caller's vantage; the per-program-kind concrete name is
 ;; what surfaces today.
 (:wat::core::typealias :wat::kernel::ProcessPanics
-  :wat::core::Vector<wat::kernel::ProcessDiedError>)
+  :wat::core::Vector<wat::kernel::LociDiedError>)
 
 (:wat::core::typealias :wat::kernel::ThreadPanics
-  :wat::core::Vector<wat::kernel::ThreadDiedError>)
+  :wat::core::Vector<wat::kernel::LociDiedError>)
 
 (:wat::core::typealias :wat::kernel::CommResult<T>
   :wat::core::Result<wat::core::Option<T>,wat::kernel::ThreadPanics>)

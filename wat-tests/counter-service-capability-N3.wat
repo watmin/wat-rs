@@ -115,7 +115,7 @@
    ;;   - drain-and-join Err → PeerDied (chain)
    (:wat::core::defenum :counter::ServiceError :wat::enum::Pure
      :AccessDenied
-     :PeerDied   [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>]
+     :PeerDied   [chain <- :wat::core::Vector<wat::kernel::LociDiedError>]
      :Disconnected)
 
    ;; ─── Registry types ───────────────────────────────────────────────────────

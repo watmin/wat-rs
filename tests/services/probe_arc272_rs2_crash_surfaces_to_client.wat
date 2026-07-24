@@ -34,5 +34,5 @@
     (:wat::core::match (:wat::kernel::recv' c)
       ((:wat::kernel::RecvOutcome::Message _m) "MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::core::string::concat "LOST:" (:wat::kernel::Failure/message cause)))
+        (:wat::core::string::concat "LOST:" (:wat::kernel::LociDiedError/message cause)))
       (:wat::kernel::RecvOutcome::Closed "CLOSED"))))

@@ -54,7 +54,7 @@
                   (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword> t)))))
      got  (:wat::core::match (:wat::kernel::recv' svc)
             ((:wat::kernel::RecvOutcome::Message m) m)
-            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))]
     got))
 
@@ -89,7 +89,7 @@
                    (:wat::core::Vector :wat::kernel::Peer'<wat::core::nil,wat::core::keyword> t))))))
      got (:wat::core::match (:wat::kernel::recv' svc)
             ((:wat::kernel::RecvOutcome::Message m) m)
-            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))]
     got))
 

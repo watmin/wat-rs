@@ -1105,13 +1105,16 @@ mod beta0_wire_tests {
         assert_eq!(edn_line.to_wire(), "42", "the wire must carry no holon-AST envelope");
         assert_eq!(String::from_wire("42").unwrap(), "42");
 
-        // A tagged literal (#wat.kernel/...) is itself valid EDN and rides the
-        // wire as-is — proving holon tags are content, not envelope.
-        let tagged = "#wat.kernel/ProcessPanics []".to_string();
-        assert_eq!(tagged.to_wire(), "#wat.kernel/ProcessPanics []");
+        // A tagged literal (#wat.kernel.LociDiedError/...) is itself valid EDN and
+        // rides the wire as-is — proving holon tags are content, not envelope.
+        // (arc 278: the bare `Vector<LociDiedError>` death chain is exactly such a
+        // self-describing tagged line; the old `#wat.kernel/ProcessPanics` wrapper
+        // was annihilated.)
+        let tagged = "#wat.kernel.LociDiedError/Shutdown []".to_string();
+        assert_eq!(tagged.to_wire(), "#wat.kernel.LociDiedError/Shutdown []");
         assert_eq!(
-            String::from_wire("#wat.kernel/ProcessPanics []").unwrap(),
-            "#wat.kernel/ProcessPanics []"
+            String::from_wire("#wat.kernel.LociDiedError/Shutdown []").unwrap(),
+            "#wat.kernel.LociDiedError/Shutdown []"
         );
     }
 }

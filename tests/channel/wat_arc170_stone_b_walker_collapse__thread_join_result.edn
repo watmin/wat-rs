@@ -8,8 +8,8 @@
       :location #wat.core/Span {
         :file "tests/channel/wat_arc170_stone_b_walker_collapse_thread_violation.wat"
         :line 4
-        :col 195
-        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 227}]
+        :col 193
+        :end #wat.core.Option/Some [#wat.core/Pos {:line 4 :col 225}]
       }
       :causes []
       :callee ":wat::kernel::Thread/join-result"

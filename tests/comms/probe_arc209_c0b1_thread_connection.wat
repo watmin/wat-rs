@@ -19,7 +19,7 @@
                    n    (:wat::core::match (:wat::kernel::recv' conn)
                           ((:wat::kernel::RecvOutcome::Message m) m)
                           ((:wat::kernel::RecvOutcome::Lost cause)
-                            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                           (:wat::kernel::RecvOutcome::Closed
                             (:wat::kernel::assertion-failed! "recv': conn closed unexpectedly" :wat::core::None :wat::core::None)))
                    _    (:wat::core::match (:wat::kernel::send' conn (:wat::core::* n 2)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
@@ -29,7 +29,7 @@
      reply (:wat::core::match (:wat::kernel::recv' conn)
              ((:wat::kernel::RecvOutcome::Message m) m)
              ((:wat::kernel::RecvOutcome::Lost cause)
-               (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+               (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
              (:wat::kernel::RecvOutcome::Closed
                (:wat::kernel::assertion-failed! "recv': conn closed unexpectedly" :wat::core::None :wat::core::None)))]
     reply))

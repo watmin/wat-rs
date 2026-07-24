@@ -50,7 +50,7 @@
         (:wat::core::match __recv
           ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
           ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")))
-      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::Failure/message __cause))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))
 
 ;; PROCESS locus — at HEAD /start SUCCEEDED (Started sent before :init ran) and the owner's
@@ -67,5 +67,5 @@
         (:wat::core::match __recv
           ((:t::Boom::PingResponse::Ok x) "UNEXPECTED-OK")
           ((:t::Boom::PingResponse::RequestTooLarge bytes cap) "UNEXPECTED-TOO-LARGE")))
-      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::Failure/message __cause))
+      ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::LociDiedError/message __cause))
       (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))))

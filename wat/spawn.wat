@@ -394,7 +394,7 @@
        ;; cause (loud, terminal); ::Closed (the child exited before Started) → eprintln (terminal).
        _  (:wat::core::match (:wat::kernel::recv' sp) 
             ((:wat::kernel::RecvOutcome::Message _m) nil)
-            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
             (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (thread): child exited before readiness" :wat::core::None :wat::core::None)))]
       (:wat::spawn::Launched :handle sp :address (:wat::spawn::Bound/address b)))))
 
@@ -433,7 +433,7 @@
        ;; ::Closed (the child exited before Started) → eprintln (terminal).
        lu   (:wat::core::match (:wat::kernel::recv' svc) 
               ((:wat::kernel::RecvOutcome::Message m) m)
-              ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+              ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
               (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)))
        addr (:wat::core::apply  lu-addr-kw lu [])]
       (:wat::spawn::Launched :handle svc :address addr))))

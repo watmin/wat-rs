@@ -69,17 +69,18 @@ fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
                 e.to_edn()
             };
 
-            // Build #wat.kernel.ProcessDiedError/StartupError [<cause>]
+            // Arc 278 the LociDiedError stone — build
+            // #wat.kernel.LociDiedError/StartupError [<cause>] (was ProcessDiedError).
             let startup_err_edn = wat_edn::OwnedValue::Tagged(
-                wat_edn::Tag::ns("wat.kernel.ProcessDiedError", "StartupError"),
+                wat_edn::Tag::ns("wat.kernel.LociDiedError", "StartupError"),
                 Box::new(wat_edn::OwnedValue::Vector(vec![cause_edn])),
             );
 
-            // Build the chain vec: [#wat.kernel.ProcessDiedError/StartupError [...]]
+            // The chain vec: [#wat.kernel.LociDiedError/StartupError [...]] — a bare,
+            // self-describing Vector<LociDiedError> (the ProcessPanics wrapper is gone).
             let chain_vec = wat_edn::OwnedValue::Vector(vec![startup_err_edn]);
 
-            // Format as the canonical ProcessPanics wire line and emit.
-            let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&chain_vec));
+            let line = format!("{}\n", wat_edn::write(&chain_vec));
             crate::process::stdio::emit_panic_envelope(&line);
         }
         _ => {
@@ -101,12 +102,17 @@ fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
 // Stone 6.w merge: fork.rs + spawn_process.rs copies unified here.
 // One declaration; all child branches call this.
 
-/// Encode `chain` as a `#wat.kernel/ProcessPanics` EDN line and write it
-/// to stderr via `emit_panic_envelope`. Shared tail of `emit_structured_exit`
-/// and `emit_panics_to_stderr` (Stone 6.w L3 dedup).
+/// Encode `chain` (a `Vector<LociDiedError>`) as a BARE self-describing EDN line
+/// and write it to stderr via `emit_panic_envelope`. Shared tail of
+/// `emit_structured_exit` and `emit_panics_to_stderr` (Stone 6.w L3 dedup).
+///
+/// Arc 278 the LociDiedError stone — the `#wat.kernel/ProcessPanics` wrapper tag
+/// is ANNIHILATED: the chain crosses as a bare `[#wat.kernel.LociDiedError/… …]`
+/// vector, read by generic `edn::read` (the head element's own tag is the
+/// self-describing marker the stderr scanner / `recv'` Lost decoder key on).
 fn emit_chain_envelope(chain: crate::runtime::Value, types: Option<&crate::types::TypeEnv>) {
     let edn = crate::edn_shim::value_to_edn_with(&chain, types);
-    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
+    let line = format!("{}\n", wat_edn::write(&edn));
     crate::process::stdio::emit_panic_envelope(&line);
 }
 

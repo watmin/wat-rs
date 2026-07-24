@@ -18753,7 +18753,7 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     let process_died_chain_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+        args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
     };
     env.register(
         ":wat::kernel::Process/join-result".into(),
@@ -18891,7 +18891,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // chain its panic carried.
     let thread_died_chain_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
+        args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
     };
     env.register(
         ":wat::kernel::Thread/join-result".into(),
@@ -19018,7 +19018,7 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     let proc_io_err_chain_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+        args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
     };
     env.register(
         ":wat::kernel::Process/readln".into(),
@@ -19206,7 +19206,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // (handle (:wat::core::Vector/first chain)))` to recover head.
     let died_chain_ty = || TypeExpr::Parametric {
         head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
+        args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
     };
     let comm_ok_option_t = || TypeExpr::Parametric {
         head: "wat::core::Result".into(),
@@ -19311,56 +19311,30 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::ThreadDiedError/message err) -> :String — arc 105b.
-    // Extracts the carried message from any ThreadDiedError variant;
-    // returns "channel disconnected" for the unit variant. Routes
-    // around the wat-side enum-pattern type-checker gap that arc 103b
-    // surfaced. Wat callers (wat/kernel/sandbox.wat) use this to build
-    // RunResult.failure.message without variant discrimination.
+    // (:wat::kernel::LociDiedError/message err) -> :String — arc 278 the
+    // LociDiedError stone (one loci-agnostic accessor; the dead
+    // Thread/ProcessDiedError/message siblings collapsed here). Extracts
+    // the carried message from any LociDiedError variant; returns a
+    // constant string for the unit variants (Disconnected / Shutdown).
     env.register(
-        ":wat::kernel::ThreadDiedError/message".into(),
+        ":wat::kernel::LociDiedError/message".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
+            params: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
             ret: TypeExpr::Path(":wat::core::String".into()),
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::ThreadDiedError/to-failure err) -> :wat::kernel::Failure
-    // — arc 105c. Always returns a structured Failure, preserving
-    // arc 064's actual/expected/location/frames through run-sandboxed
-    // when the panic carried an AssertionPayload. Plain panics and
-    // non-panic variants get a message-only Failure. wat/kernel/
-    // sandbox.wat's failure-from-thread-died routes through this.
+    // (:wat::kernel::LociDiedError/to-failure err) -> :wat::kernel::Failure
+    // — arc 278. Always returns a structured Failure, preserving arc 064's
+    // actual/expected/location/frames when the death carried an
+    // AssertionPayload. Plain panics / non-panic variants get a
+    // message-only Failure.
     env.register(
-        ":wat::kernel::ThreadDiedError/to-failure".into(),
+        ":wat::kernel::LociDiedError/to-failure".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
-            ret: TypeExpr::Path(":wat::kernel::Failure".into()),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::ProcessDiedError/message err) -> :String — arc 112.
-    // Sibling of ThreadDiedError/message for the Process<I,O> subject.
-    env.register(
-        ":wat::kernel::ProcessDiedError/message".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
-            ret: TypeExpr::Path(":wat::core::String".into()),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::ProcessDiedError/to-failure err) -> :wat::kernel::Failure
-    // — arc 112. Sibling of ThreadDiedError/to-failure. Builds a
-    // structured Failure regardless of variant; preserves arc-064
-    // assertion-payload structure when present.
-    env.register(
-        ":wat::kernel::ProcessDiedError/to-failure".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+            params: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
             ret: TypeExpr::Path(":wat::kernel::Failure".into()),
             rest_param_type: None,
         },
@@ -19394,7 +19368,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::core::Option".into(),
                 args: vec![TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+                    args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
                 }],
             },
             rest_param_type: None,

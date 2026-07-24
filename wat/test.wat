@@ -617,10 +617,10 @@
 ;; — run-thread-driver, a test-layer helper. Placement is deliberate:
 ;; one caller, test-layer scope — :wat::test::* is the right home.
 ;; Internal — not for direct corpus use; called by the macros above.
-(:wat::core::defn :wat::test::failure-from-thread-died [chain <- :wat::core::Vector<wat::kernel::ThreadDiedError>] -> :wat::kernel::Failure
+(:wat::core::defn :wat::test::failure-from-thread-died [chain <- :wat::core::Vector<wat::kernel::LociDiedError>] -> :wat::kernel::Failure
   (:wat::core::match (:wat::core::get chain 0)
        
-      ((:wat::core::Some err) (:wat::kernel::ThreadDiedError/to-failure err))
+      ((:wat::core::Some err) (:wat::kernel::LociDiedError/to-failure err))
       (:wat::core::None
        ;; Empty chain — should not occur; substrate always emits at
        ;; least the immediate-peer death. Defensive default mirrors
@@ -725,8 +725,11 @@
          (:wat::core::struct-new :wat::kernel::RunResult
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) :wat::core::None))
        ((:wat::kernel::RecvOutcome::Lost cause)
+         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult.failure
+         ;; is an Option<Failure>, so convert via `LociDiedError/to-failure` (preserves the
+         ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
          (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some cause)))
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
        (:wat::kernel::RecvOutcome::Closed
          (:wat::core::struct-new :wat::kernel::RunResult
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
@@ -778,8 +781,11 @@
          (:wat::core::struct-new :wat::kernel::RunResult
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) :wat::core::None))
        ((:wat::kernel::RecvOutcome::Lost cause)
+         ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult.failure
+         ;; is an Option<Failure>, so convert via `LociDiedError/to-failure` (preserves the
+         ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
          (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some cause)))
+           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
        (:wat::kernel::RecvOutcome::Closed
          (:wat::core::struct-new :wat::kernel::RunResult
            (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)

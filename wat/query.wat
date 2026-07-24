@@ -414,7 +414,7 @@
                       (~resp-rtl-kw bytes cap))
                     (_ (~resp-fat-kw (:wat::query::Fault :message "sift-rules: journal query-logs failed")))))
                 ((:wat::kernel::RecvOutcome::Lost cause)
-                  (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::Failure/message cause))))
+                  (~resp-fat-kw (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause))))
                 (:wat::kernel::RecvOutcome::Closed
                   (~resp-fat-kw (:wat::query::Fault :message "query.wat: journal peer closed"))))))]))))
 

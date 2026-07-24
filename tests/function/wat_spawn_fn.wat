@@ -13,7 +13,7 @@
                 (:wat::core::match (:wat::kernel::recv' self)
                   ((:wat::kernel::RecvOutcome::Message m) m)
                   ((:wat::kernel::RecvOutcome::Lost cause)
-                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
                     (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
                sum (:wat::core::i64::+ value 1)]
@@ -35,7 +35,7 @@
                 (:wat::core::match (:wat::kernel::recv' peer)
                   ((:wat::kernel::RecvOutcome::Message m) m)
                   ((:wat::kernel::RecvOutcome::Lost cause)
-                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
                     (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
               result))
@@ -53,7 +53,7 @@
                         (:wat::core::match (:wat::kernel::recv' self)
                           ((:wat::kernel::RecvOutcome::Message m) m)
                           ((:wat::kernel::RecvOutcome::Lost cause)
-                            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                            (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                           (:wat::kernel::RecvOutcome::Closed
                             (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
                        doubled (:wat::core::i64::* value 2)]
@@ -70,7 +70,7 @@
                 (:wat::core::match (:wat::kernel::recv' peer)
                   ((:wat::kernel::RecvOutcome::Message m) m)
                   ((:wat::kernel::RecvOutcome::Lost cause)
-                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
                     (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
               result))
@@ -88,7 +88,7 @@
                       (:wat::core::match (:wat::kernel::recv' self)
                         ((:wat::kernel::RecvOutcome::Message v) v)
                         ((:wat::kernel::RecvOutcome::Lost cause)
-                          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                         (:wat::kernel::RecvOutcome::Closed
                           (:wat::kernel::assertion-failed! "recv': self closed unexpectedly" :wat::core::None :wat::core::None)))
                      sum (:wat::core::i64::+ n delta)]
@@ -107,7 +107,7 @@
                 (:wat::core::match (:wat::kernel::recv' peer)
                   ((:wat::kernel::RecvOutcome::Message n) n)
                   ((:wat::kernel::RecvOutcome::Lost cause)
-                    (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                    (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                   (:wat::kernel::RecvOutcome::Closed
                     (:wat::kernel::assertion-failed! "recv': peer closed unexpectedly" :wat::core::None :wat::core::None)))]
               result))

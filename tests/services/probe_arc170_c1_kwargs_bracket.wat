@@ -51,7 +51,7 @@
                     ((:probe::Echo::EchoResponse::Ok reply) reply)
                     ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
                       (:wat::kernel::assertion-failed! "work: unexpected RequestTooLarge"
-                        :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
+                        :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
                 ;; ── serve loop: Work arm invokes via the COMPANION :key val call ──
                 (:wat::core::defn :probe::serve
                   [self <- :wat::kernel::Peer'<wat::core::String,probe::Msg>
@@ -69,7 +69,7 @@
                              _ (:wat::core::match (:wat::kernel::send' self r) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                             (:probe::serve self held)))))
                     ((:wat::kernel::RecvOutcome::Lost cause)
-                      (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                     (:wat::kernel::RecvOutcome::Closed
                       (:wat::kernel::assertion-failed! "recv': self closed — serve loop terminating" :wat::core::None :wat::core::None))))
                 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -85,21 +85,21 @@
                  r1 (:wat::core::match (:wat::kernel::recv' worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
                       ((:wat::kernel::RecvOutcome::Lost cause)
-                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
                         (:wat::kernel::assertion-failed! "recv': worker closed before reply a" :wat::core::None :wat::core::None)))
                  _  (:wat::core::match (:wat::kernel::send' worker (:probe::Msg::Work "b")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r2 (:wat::core::match (:wat::kernel::recv' worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
                       ((:wat::kernel::RecvOutcome::Lost cause)
-                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
                         (:wat::kernel::assertion-failed! "recv': worker closed before reply b" :wat::core::None :wat::core::None)))
                  _  (:wat::core::match (:wat::kernel::send' worker (:probe::Msg::Work "c")) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r3 (:wat::core::match (:wat::kernel::recv' worker)
                       ((:wat::kernel::RecvOutcome::Message m) m)
                       ((:wat::kernel::RecvOutcome::Lost cause)
-                        (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+                        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
                         (:wat::kernel::assertion-failed! "recv': worker closed before reply c" :wat::core::None :wat::core::None)))]
                 (:wat::core::string::concat r1

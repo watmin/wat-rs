@@ -166,7 +166,7 @@
                 ;; response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Span::CloseResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Span::CloseResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "span.wat: journal sink peer closed")))))]

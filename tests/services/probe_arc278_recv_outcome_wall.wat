@@ -63,7 +63,7 @@
     (:wat::core::match (:wat::kernel::recv' c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::Failure/message cause) "BOOM-CRASH-SENTINEL-9173")))
+        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 (:wat::core::defn :probe::client-boomrt-msg [h <- :probe::crash'::Handle] -> :probe::Outcome
@@ -73,7 +73,7 @@
     (:wat::core::match (:wat::kernel::recv' c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::Failure/message cause) "DivisionByZero")))
+        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 ;; ── ADMIN helpers: raw send' the crashing op FIRE-AND-FORGET, then MATCH the Handle lineage peer. ────
@@ -86,7 +86,7 @@
     (:wat::core::match (:wat::kernel::recv' (:probe::crash'::Handle/handle h))
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::Failure/message cause) "BOOM-CRASH-SENTINEL-9173")))
+        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 (:wat::core::defn :probe::admin-boomrt-msg [h <- :probe::crash'::Handle] -> :probe::Outcome
@@ -96,7 +96,7 @@
     (:wat::core::match (:wat::kernel::recv' (:probe::crash'::Handle/handle h))
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::Failure/message cause) "DivisionByZero")))
+        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
 ;; ── the 8 entrypoints: {boom,boomrt} × {thread,process} × {client,admin} ─────────────────────────────

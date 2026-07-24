@@ -129,7 +129,7 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::WriteMetricsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -165,7 +165,7 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::WriteLogsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::WriteLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -209,7 +209,7 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::QueryMetricsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryMetricsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -252,7 +252,7 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 ((:wat::kernel::RecvOutcome::Lost cause)
                   (:wat::telemetry::Journal::QueryLogsResponse::Fatal
-                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                    (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
                 (:wat::kernel::RecvOutcome::Closed
                   (:wat::telemetry::Journal::QueryLogsResponse::Fatal
                     (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed")))))]
@@ -309,7 +309,7 @@
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                        ((:wat::kernel::RecvOutcome::Lost cause)
                          (:wat::telemetry::Journal::SiftLogsResponse::Fatal
-                           (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                           (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::telemetry::Journal::SiftLogsResponse::Fatal
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))
@@ -366,7 +366,7 @@
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                        ((:wat::kernel::RecvOutcome::Lost cause)
                          (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
-                           (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::Failure/message cause)))))
+                           (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause)))))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))

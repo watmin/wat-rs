@@ -21,7 +21,7 @@
      got (:wat::core::match (:wat::kernel::recv' peer)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
     got))
@@ -47,7 +47,7 @@
     ;; ::Lost. Both prove the kill — only a ::Message (the smuggled 7) is the failure.
     (:wat::core::match (:wat::kernel::recv' peer)
       ((:wat::kernel::RecvOutcome::Message _m) "SMUGGLED-VALUE")
-      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::Failure/message cause))
+      ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::LociDiedError/message cause))
       (:wat::kernel::RecvOutcome::Closed "PEER-DIED-CLOSED"))))
 
 ;; compute-default: spawn a plain (thread) peer — user.program defaults to EmptyEnv;
@@ -69,7 +69,7 @@
      got (:wat::core::match (:wat::kernel::recv' peer)
            ((:wat::kernel::RecvOutcome::Message m) m)
            ((:wat::kernel::RecvOutcome::Lost cause)
-             (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None))
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))]
     got))

@@ -4972,17 +4972,13 @@ fn dispatch_keyword_head_value(
         // canonical replacements; the type-checker poisons every call site
         // with a self-describing migration hint. Runtime impls deleted
         // alongside the dispatch — no callers reach this layer post-poison.
-        ":wat::kernel::ThreadDiedError/message" => {
-            eval_thread_died_error_message(args, env, sym, list_span)
+        // Arc 278 the LociDiedError stone — ONE loci-agnostic death report;
+        // the two `Thread/ProcessDiedError/*` accessor families collapse to one.
+        ":wat::kernel::LociDiedError/message" => {
+            eval_died_error_message(args, env, sym, ":wat::kernel::LociDiedError", list_span)
         }
-        ":wat::kernel::ThreadDiedError/to-failure" => {
-            eval_thread_died_error_to_failure(args, env, sym, list_span)
-        }
-        ":wat::kernel::ProcessDiedError/message" => {
-            eval_process_died_error_message(args, env, sym, list_span)
-        }
-        ":wat::kernel::ProcessDiedError/to-failure" => {
-            eval_process_died_error_to_failure(args, env, sym, list_span)
+        ":wat::kernel::LociDiedError/to-failure" => {
+            eval_died_error_to_failure(args, env, sym, ":wat::kernel::LociDiedError", list_span)
         }
         ":wat::kernel::extract-panics" => {
             eval_kernel_extract_panics(args, env, sym, list_span)
@@ -23117,7 +23113,7 @@ fn thread_died_error_panic(
         None => Value::Option(Arc::new(None)),
     };
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ThreadDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Panic".into(),
         fields: vec![Value::String(Arc::new(message)), failure_field],
     }))
@@ -23210,7 +23206,7 @@ fn value_from_frame_info(frame: FrameInfo) -> Value {
 /// enum value (arc 060).
 fn thread_died_error_runtime(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ThreadDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "RuntimeError".into(),
         fields: vec![Value::String(Arc::new(message))],
     }))
@@ -23220,8 +23216,8 @@ fn thread_died_error_runtime(message: String) -> Value {
 /// (unit variant) enum value (arc 060).
 fn thread_died_error_channel_disconnected() -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ThreadDiedError".into(),
-        variant_name: "ChannelDisconnected".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
+        variant_name: "Disconnected".into(),
         fields: vec![],
     }))
 }
@@ -23234,7 +23230,7 @@ fn thread_died_error_channel_disconnected() -> Value {
 #[allow(dead_code)] // Slice B wires this; unreachable in Slice A.
 fn thread_died_error_shutdown() -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ThreadDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Shutdown".into(),
         fields: vec![],
     }))
@@ -23293,7 +23289,7 @@ fn process_died_error_panic(
         None => Value::Option(Arc::new(None)),
     };
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ProcessDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "Panic".into(),
         fields: vec![Value::String(Arc::new(message)), failure_field],
     }))
@@ -23315,7 +23311,7 @@ pub(crate) fn process_died_error_panic_value(
 /// enum value (arc 112).
 fn process_died_error_runtime(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ProcessDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "RuntimeError".into(),
         fields: vec![Value::String(Arc::new(message))],
     }))
@@ -23337,8 +23333,8 @@ pub(crate) fn process_died_error_runtime_value(e: &impl crate::to_edn::WatError)
 /// (unit variant) enum value (arc 112).
 fn process_died_error_channel_disconnected() -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ProcessDiedError".into(),
-        variant_name: "ChannelDisconnected".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
+        variant_name: "Disconnected".into(),
         fields: vec![],
     }))
 }
@@ -23348,7 +23344,7 @@ fn process_died_error_channel_disconnected() -> Value {
 /// `startup_from_forms` / `startup_from_source` returns `Err`.
 fn process_died_error_startup(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ProcessDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "StartupError".into(),
         fields: vec![Value::String(Arc::new(message))],
     }))
@@ -23371,7 +23367,7 @@ pub(crate) fn process_died_error_startup_value(e: &impl crate::to_edn::WatError)
 /// `validate_user_main_signature` returns `Err`.
 fn process_died_error_main_signature(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ProcessDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "MainSignature".into(),
         fields: vec![Value::String(Arc::new(message))],
     }))
@@ -23392,7 +23388,7 @@ pub(crate) fn process_died_error_main_signature_value(e: &impl crate::to_edn::Wa
 /// branches when `:user::main` returns a non-nil value at runtime.
 fn process_died_error_bad_return(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
-        type_path: ":wat::kernel::ProcessDiedError".into(),
+        type_path: ":wat::kernel::LociDiedError".into(),
         variant_name: "BadReturn".into(),
         fields: vec![Value::String(Arc::new(message))],
     }))
@@ -23407,43 +23403,18 @@ pub(crate) fn process_died_error_bad_return_value(e: &impl crate::to_edn::WatErr
     process_died_error_bad_return(crate::to_edn::to_wire_edn(e))
 }
 
-/// `(:wat::kernel::ThreadDiedError/message err) -> :String`.
+/// `(:wat::kernel::LociDiedError/message err) -> :String` — arc 278 the
+/// LociDiedError stone (one loci-agnostic accessor; the two dead
+/// `Thread/ProcessDiedError/message` siblings collapsed here).
 ///
-/// Arc 105b. Extracts the carried String from any
-/// `:wat::kernel::ThreadDiedError` variant; returns the literal
-/// `"channel disconnected"` for the unit variant. Routes around
-/// the wat-side enum-variant pattern-matcher gap that arc 103b
-/// surfaced — wat callers can ask for a generic message without
-/// discriminating variants.
+/// Extracts the carried String from any `:wat::kernel::LociDiedError`
+/// variant; returns a constant string for the unit variants
+/// (`Disconnected` / `Shutdown`). Routes around the wat-side
+/// enum-variant pattern-matcher gap — callers ask for a generic
+/// message without discriminating variants.
 ///
-/// Field 0 is `message` for both `Panic` (which under arc 105c
-/// carries a 2nd `failure` field) and `RuntimeError`.
-/// `ChannelDisconnected` is a unit variant; we synthesize a
-/// constant string.
-pub fn eval_thread_died_error_message(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    eval_died_error_message(args, env, sym, ":wat::kernel::ThreadDiedError", list_span)
-}
-
-/// Arc 112 sibling — `(:wat::kernel::ProcessDiedError/message err)
-/// -> :String`. Same shape as `ThreadDiedError/message`; only the
-/// type_path of the enum value differs.
-pub fn eval_process_died_error_message(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    eval_died_error_message(args, env, sym, ":wat::kernel::ProcessDiedError", list_span)
-}
-
-/// Shared backbone for ThreadDiedError/message and
-/// ProcessDiedError/message — variants are identical; only the
-/// expected type_path differs.
+/// Field 0 is `message` for `Panic` / `RuntimeError` /
+/// `StartupError` / `EntryFormFailure` / `MainSignature` / `BadReturn`.
 fn eval_died_error_message(
     args: &[WatAST],
     env: &Environment,
@@ -23476,8 +23447,8 @@ fn eval_died_error_message(
                         // arc 138: no — matching on Value::Enum fields; no AST element
                     } }.into()),
                 },
-                "ChannelDisconnected" => {
-                    Ok(Value::String(Arc::new("channel disconnected".to_string())))
+                "Disconnected" => {
+                    Ok(Value::String(Arc::new("disconnected".to_string())))
                 }
                 // arc 170 Slice A — process-wide shutdown fired during recv.
                 "Shutdown" => {
@@ -23499,69 +23470,29 @@ fn eval_died_error_message(
     }
 }
 
-/// `(:wat::kernel::ThreadDiedError/to-failure err) -> :wat::kernel::Failure`.
+/// Arc 113 slice 3 / arc 278 the LociDiedError stone —
+/// `(:wat::kernel::extract-panics (lines :wat::core::Vector<String>))
+///   -> :wat::core::Option<:wat::core::Vector<wat::kernel::LociDiedError>>`.
 ///
-/// Arc 105c. Always returns a structured `:wat::kernel::Failure`
-/// regardless of which `ThreadDiedError` variant was passed in.
-/// Preserves arc 064's promise that assert-eq surfaces actual /
-/// expected / location / frames through run-sandboxed:
+/// Walks `lines` from end to start; for each, attempts to parse it as a
+/// single EDN expression via generic `edn::read`; if the result is a
+/// `Vector` whose HEAD element is a `#wat.kernel.LociDiedError/…` tagged
+/// value (the self-describing death chain — arc 278 annihilated the old
+/// `#wat.kernel/ProcessPanics` wrapper tag, so the chain crosses BARE and
+/// the head element's own tag is the marker), bridges the whole vector via
+/// `edn_to_value` (with the frozen TypeEnv so enum tags resolve to the
+/// right Value shapes) and returns it wrapped in `Some`.
 ///
-/// - `Panic` with assertion payload (field 1 = `Some(failure)`):
-///   return that captured Failure as-is.
-/// - `Panic` without assertion payload (field 1 = `None`): build a
-///   message-only Failure from field 0.
-/// - `RuntimeError(message)`: build a message-only Failure.
-/// - `ChannelDisconnected`: build a Failure with the constant
-///   `"channel disconnected"` message.
+/// Symmetry with the thread path: when a spawned peer dies with an
+/// upstream-chain-bearing AssertionPayload, the chain rides through the
+/// panic and the child renders it to stderr as a bare
+/// `Vector<LociDiedError>`; this verb reads it back. Same shape at the
+/// caller; only the wire differs.
 ///
-/// `wat/kernel/sandbox.wat` calls this once in `failure-from-thread-
-/// died` — no per-variant pattern matching needed.
-pub fn eval_thread_died_error_to_failure(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ThreadDiedError", list_span)
-}
-
-/// Arc 112 sibling — `(:wat::kernel::ProcessDiedError/to-failure
-/// err) -> :wat::kernel::Failure`. Same shape as
-/// `ThreadDiedError/to-failure`; only the type_path differs.
-pub fn eval_process_died_error_to_failure(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ProcessDiedError", list_span)
-}
-
-/// Arc 113 slice 3 — `(:wat::kernel::extract-panics
-///   (lines :wat::core::Vector<String>)) -> :wat::core::Option<Vec<wat::kernel::ProcessDiedError>>`.
-///
-/// Walks `lines` from end to start; for each, attempts to parse it
-/// as a single EDN expression; if the result is `Tagged` with
-/// `wat.kernel/Panics`, bridges the body via `edn_to_value` (with the
-/// frozen TypeEnv so struct/enum tags resolve to the right Value
-/// shapes); returns the parsed Vec wrapped in `Some`.
-///
-/// Symmetry with the thread path: when a spawned thread panics
-/// with an upstream-chain-bearing AssertionPayload, slice 2's
-/// `expect_panic` rides the chain through the panic and the
-/// spawn driver's catch_unwind conjes onto the front in
-/// `eval_kernel_join_result`. The result is `Result<R,
-/// Vec<ThreadDiedError>>` with a multi-element chain. Slice 3
-/// makes the same shape reachable across forks: the child
-/// renders the chain to stderr; this verb reads it back. Same
-/// shape at the caller; only the wire differs.
-///
-/// Returns `:wat::core::None` when no marker line is present (the common
-/// case — most exits aren't AssertionPayload panics) or when
-/// every parse attempt fails. Failure paths are silent because
-/// this is enrichment, not contract: drive-sandbox falls back to
-/// the singleton chain from `Process/join-result` when this
-/// returns `:wat::core::None`.
+/// Returns `:wat::core::None` when no chain line is present (the common
+/// case) or when every parse attempt fails. Failure paths are silent
+/// because this is enrichment, not contract: the sandbox driver falls
+/// back to the singleton chain from `Process/join-result`.
 fn eval_kernel_extract_panics(
     args: &[WatAST],
     env: &Environment,
@@ -23587,31 +23518,43 @@ fn eval_kernel_extract_panics(
         }
     };
     let types = sym.types().map(|a| a.as_ref());
-    // Walk from end to start — most recent marker wins. (In
-    // practice the child only writes one; iterating in reverse
-    // also short-circuits as soon as we hit it.)
+    // Walk from end to start — most recent chain wins. (In practice the
+    // child only writes one; iterating in reverse also short-circuits as
+    // soon as we hit it.)
     for line in lines.iter().rev() {
         let line_str = match line {
             Value::String(s) => &**s,
             _ => continue,
         };
         let trimmed = line_str.trim();
-        if !trimmed.starts_with("#wat.kernel/ProcessPanics") {
+        // Cheap prefilter: a death chain renders as `[#wat.kernel.LociDiedError/…`.
+        if !trimmed.starts_with("[#wat.kernel.LociDiedError/") {
             continue;
         }
         let parsed = match wat_edn::parse_owned(trimmed) {
             Ok(v) => v,
             Err(_) => continue,
         };
-        if let wat_edn::OwnedValue::Tagged(tag, body) = parsed {
-            if tag.namespace() == "wat.kernel" && tag.name() == "ProcessPanics" {
-                if let Ok(v) = crate::edn_shim::edn_to_value(&body, types) {
-                    return Ok(Value::Option(Arc::new(Some(v))));
-                }
+        if edn_is_loci_died_chain(&parsed) {
+            if let Ok(v) = crate::edn_shim::edn_to_value(&parsed, types) {
+                return Ok(Value::Option(Arc::new(Some(v))));
             }
         }
     }
     Ok(Value::Option(Arc::new(None)))
+}
+
+/// True when `v` is a bare `Vector<LociDiedError>` death chain — a
+/// `Vector` whose first element is a `#wat.kernel.LociDiedError/…` tagged
+/// value. Arc 278: the chain crosses bare (no `ProcessPanics` wrapper); the
+/// head element's own tag is the self-describing marker.
+fn edn_is_loci_died_chain(v: &wat_edn::OwnedValue) -> bool {
+    if let wat_edn::OwnedValue::Vector(items) = v {
+        if let Some(wat_edn::OwnedValue::Tagged(tag, _)) = items.first() {
+            return tag.namespace() == "wat.kernel.LociDiedError";
+        }
+    }
+    false
 }
 
 /// Shared backbone for ThreadDiedError/to-failure and
@@ -23674,8 +23617,8 @@ fn eval_died_error_to_failure(
                         // arc 138: no — matching on Value::Enum fields; no AST element
                     } }.into()),
                 },
-                "ChannelDisconnected" => {
-                    Ok(message_only_failure("channel disconnected".to_string()))
+                "Disconnected" => {
+                    Ok(message_only_failure("disconnected".to_string()))
                 }
                 // arc 170 Slice A — process-wide shutdown fired during recv.
                 "Shutdown" => {
@@ -23736,25 +23679,69 @@ fn recv_outcome_closed() -> Value {
     }))
 }
 
-/// `RecvOutcome::Lost [cause <- Failure]` — abnormal loss carrying its structured
-/// cause. Built from the crash-channel reason via `message_only_failure` — the SAME
-/// structured carrier `ServiceEvent::Lost` / `Reply::Failed` use (never a flat String).
-fn recv_outcome_lost(reason: String) -> Value {
+/// `RecvOutcome::Lost [cause <- LociDiedError]` — abnormal loss carrying its
+/// loci-agnostic cause (arc 278 the LociDiedError stone; was a flat `Failure`).
+/// The crash-channel `reason` is decoded into the single `LociDiedError` head of
+/// the peer's death (see `loci_died_error_from_reason`).
+fn recv_outcome_lost(reason: String, types: Option<&crate::types::TypeEnv>) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: RECV_OUTCOME_TYPE.into(),
         variant_name: "Lost".into(),
-        fields: vec![message_only_failure(reason)],
+        fields: vec![loci_died_error_from_reason(reason, types)],
+    }))
+}
+
+/// Turn a peer's crash-channel `reason` into the single
+/// `:wat::kernel::LociDiedError` that `RecvOutcome::Lost` carries (arc 278 the
+/// LociDiedError stone).
+///
+/// A process peer emits its death as a self-describing BARE `Vector<LociDiedError>`
+/// EDN line (the annihilated `#wat.kernel/ProcessPanics` wrapper is gone); we parse
+/// it via generic `edn::read` and take the HEAD (the immediate peer death) — the
+/// chain is a container-level Vector, and Lost holds ONE. A single tagged
+/// `#wat.kernel.LociDiedError/…` line is bridged as-is. Any other reason (a
+/// thread-peer plain message, a socket-tier administrative sentinel, a
+/// decode-failure note) is an opaque death message → wrapped as
+/// `LociDiedError::Panic{message: reason, failure: None}`.
+fn loci_died_error_from_reason(reason: String, types: Option<&crate::types::TypeEnv>) -> Value {
+    let trimmed = reason.trim();
+    if let Ok(parsed) = wat_edn::parse_owned(trimmed) {
+        // A bare Vector<LociDiedError> death chain → bridge + take the head.
+        if edn_is_loci_died_chain(&parsed) {
+            if let Ok(Value::Vec(items)) = crate::edn_shim::edn_to_value(&parsed, types) {
+                if let Some(head) = items.first() {
+                    return head.clone();
+                }
+            }
+        }
+        // A single #wat.kernel.LociDiedError/… tagged value → bridge as-is.
+        if let wat_edn::OwnedValue::Tagged(tag, _) = &parsed {
+            if tag.namespace() == "wat.kernel.LociDiedError" {
+                if let Ok(v) = crate::edn_shim::edn_to_value(&parsed, types) {
+                    return v;
+                }
+            }
+        }
+    }
+    // Opaque reason — wrap as a Panic carrying the raw death message.
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::LociDiedError".into(),
+        variant_name: "Panic".into(),
+        fields: vec![
+            Value::String(Arc::new(reason)),
+            Value::Option(Arc::new(None)),
+        ],
     }))
 }
 
 /// Build a `RecvOutcome` from a successfully-decoded peer message. A reserved
 /// protocol-tier `Reply::Failed` (the service could not decode our request) is an
-/// abnormal outcome carrying a real reason — surface it as `Lost(<Failure>)` (a
-/// matchable value the client handles), never a mute `Message` the client's match
-/// would misroute. Every other decoded value is a genuine `Message`.
-fn recv_outcome_from_decoded(v: Value) -> Value {
+/// abnormal outcome carrying a real reason — surface it as `Lost(<LociDiedError>)`
+/// (a matchable value the client handles), never a mute `Message` the client's
+/// match would misroute. Every other decoded value is a genuine `Message`.
+fn recv_outcome_from_decoded(v: Value, types: Option<&crate::types::TypeEnv>) -> Value {
     match reply_failed_reason(&v) {
-        Some(reason) => recv_outcome_lost(reason),
+        Some(reason) => recv_outcome_lost(reason, types),
         None => recv_outcome_message(v),
     }
 }
@@ -26459,7 +26446,7 @@ fn eval_peer_recv_prime(
                                 use crate::kernel::spawn::PeerRecvError;
                                 match e {
                                     PeerRecvError::Crashed(crash_reason) => {
-                                        recv_outcome_lost(crash_reason)
+                                        recv_outcome_lost(crash_reason, sym.types().map(|a| a.as_ref()))
                                     }
                                     PeerRecvError::Disconnected => recv_outcome_closed(),
                                 }
@@ -26509,15 +26496,12 @@ fn eval_peer_recv_prime(
                                     sym.types().map(|a| a.as_ref()),
                                 ) {
                                     Ok(v) => recv_outcome_message(v),
-                                    Err(e) => recv_outcome_lost(format!(
-                                        "recv' EDN decode failed: {}",
-                                        e
-                                    )),
+                                    Err(e) => recv_outcome_lost(format!("recv' EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
                                 },
                                 // The crash reason is the full `#wat.kernel/ProcessPanics [...]`
                                 // envelope text — carried as the Lost cause's Failure/message.
                                 Err(PeerRecvError::Crashed(crash_reason)) => {
-                                    recv_outcome_lost(crash_reason)
+                                    recv_outcome_lost(crash_reason, sym.types().map(|a| a.as_ref()))
                                 }
                                 Err(PeerRecvError::Disconnected) => recv_outcome_closed(),
                             })
@@ -26572,21 +26556,18 @@ fn eval_peer_recv_prime(
                                     &wire,
                                     sym.types().map(|a| a.as_ref()),
                                 ) {
-                                    Ok(v) => recv_outcome_from_decoded(v),
-                                    Err(e) => recv_outcome_lost(format!(
-                                        "recv' EDN decode failed: {}",
-                                        e
-                                    )),
+                                    Ok(v) => recv_outcome_from_decoded(v, sym.types().map(|a| a.as_ref())),
+                                    Err(e) => recv_outcome_lost(format!("recv' EDN decode failed: {}", e), sym.types().map(|a| a.as_ref())),
                                 }),
                                 Err(e) => Ok(match &e {
                                     // A raw wire failure carries its real reason.
                                     crate::comms::RecvError::Failed(reason) => {
-                                        recv_outcome_lost(reason.clone())
+                                        recv_outcome_lost(reason.clone(), sym.types().map(|a| a.as_ref()))
                                     }
                                     // Abnormal far-side crash — the reason-free administrative
                                     // sentinel (owner's crash channel holds the full reason).
                                     crate::comms::RecvError::PeerCrashed => {
-                                        recv_outcome_lost(e.to_string())
+                                        recv_outcome_lost(e.to_string(), sym.types().map(|a| a.as_ref()))
                                     }
                                     // Genuine clean close (Disconnected/Shutdown/FrameTooLarge).
                                     _ => recv_outcome_closed(),
@@ -26595,13 +26576,13 @@ fn eval_peer_recv_prime(
                         }
                         // Thread-tier peer: peer.recv() returns a decoded Value directly.
                         Some(peer) => Ok(match peer.recv() {
-                            Ok(v) => recv_outcome_from_decoded(v),
+                            Ok(v) => recv_outcome_from_decoded(v, sym.types().map(|a| a.as_ref())),
                             Err(e) => match &e {
                                 crate::comms::RecvError::Failed(reason) => {
-                                    recv_outcome_lost(reason.clone())
+                                    recv_outcome_lost(reason.clone(), sym.types().map(|a| a.as_ref()))
                                 }
                                 crate::comms::RecvError::PeerCrashed => {
-                                    recv_outcome_lost(e.to_string())
+                                    recv_outcome_lost(e.to_string(), sym.types().map(|a| a.as_ref()))
                                 }
                                 _ => recv_outcome_closed(),
                             },
