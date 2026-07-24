@@ -666,23 +666,41 @@ pub fn spawn_thread_peer(
                 apply_function(program_fn.clone(), vec![self_peer], &thread_sym, span.clone())
             }));
             // output_tx (inside self_peer via the Peer) is dropped here → output channel EOFs.
+            // Arc 278 no-hidden-failures — the crash channel carries a STRUCTURED
+            // LociDiedError, rendered as the SAME bare `Vector<LociDiedError>` EDN
+            // line the process tier emits (`emit_chain_envelope`). The old path sent
+            // a bare `#wat.kernel/AssertionFailure {…}` envelope String (Panic) or
+            // `re.to_string()` (RuntimeError); neither is recognized by the parent's
+            // `loci_died_error_from_reason` (it keys on `[#wat.kernel.LociDiedError/…`),
+            // so a structured death FLATTENED into the opaque `Panic{failure: None}`
+            // string-wrap — resurrecting exactly the string-wrap arc 278 annihilated,
+            // losing the raised Fault. Now the thread tier is loci-agnostic-equal to
+            // the process tier: the raised Fault rides in `Panic.failure` on BOTH.
+            let crash_types = thread_sym.types();
+            let crash_types = crash_types.as_ref().map(|a| a.as_ref());
             match outcome {
-                // Rust panic — send the ENVELOPE for a structured AssertionPayload (arc
-                // 209 C0b), else the plain message.
+                // Rust panic — a structured AssertionPayload (arc 209 C0b) rides in
+                // Panic.failure as a Failure record; a plain panic has failure: None.
                 Err(payload) => {
                     let (message, assertion) = crate::runtime::extract_panic_payload(payload);
-                    let reason = match assertion {
-                        Some(a) => crate::panic_hook::assertion_failure_envelope(&a),
-                        None => message,
-                    };
+                    let reason = crate::runtime::thread_crash_panic_edn(
+                        message,
+                        assertion,
+                        crash_types,
+                    );
                     let _ = crash_tx.send(reason);
                 }
-                // wat RuntimeError out of the body — a genuine death; carry its reason so
-                // the parent's crash channel surfaces it (parity with the process tier).
-                // apply_function already unwraps EvalSignals (TailCall/try/option), so the
-                // Err here is a bare RuntimeError.
+                // wat RuntimeError out of the body — a genuine death; carry its reason
+                // STRUCTURALLY (to_wire_edn floor, not to_string prose) so the parent's
+                // crash channel bridges it as a LociDiedError::RuntimeError (parity with
+                // the process tier). apply_function already unwraps EvalSignals
+                // (TailCall/try/option), so the Err here is a bare RuntimeError.
                 Ok(Err(re)) => {
-                    let _ = crash_tx.send(re.to_string());
+                    let reason = crate::runtime::thread_crash_runtime_edn(
+                        &re,
+                        crash_types,
+                    );
+                    let _ = crash_tx.send(reason);
                 }
                 // Clean exit — no crash reason to carry.
                 Ok(Ok(_)) => {}

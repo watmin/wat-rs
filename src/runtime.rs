@@ -23412,6 +23412,37 @@ fn single_died_chain(died: Value) -> Value {
     Value::Vec(Arc::new(vec![died]))
 }
 
+/// Arc 278 no-hidden-failures — render a THREAD-peer PANIC death as the SAME
+/// bare `Vector<LociDiedError>` EDN line the process tier emits from
+/// `emit_chain_envelope` (`value_to_edn_with` → `wat_edn::write`), so the
+/// parent's [`loci_died_error_from_reason`] bridges it STRUCTURALLY — the raised
+/// Fault rides in `Panic.failure` — instead of falling to the opaque string-wrap
+/// (which resurrected the arc-278-annihilated string-wrap for a structured
+/// `AssertionPayload`). Thread tier now loci-agnostic-equal to the process tier.
+pub(crate) fn thread_crash_panic_edn(
+    message: String,
+    assertion: Option<crate::assertion::AssertionPayload>,
+    types: Option<&crate::types::TypeEnv>,
+) -> String {
+    let chain = single_died_chain(thread_died_error_panic(message, assertion));
+    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
+    wat_edn::write(&edn)
+}
+
+/// Arc 278 no-hidden-failures — the RuntimeError sibling of
+/// [`thread_crash_panic_edn`]. Mirrors the process tier's
+/// `process_died_error_runtime_value`: the RuntimeError crosses the wire as
+/// structured `to_wire_edn` (its `:message`/`:location`/`:causes` floor), NOT
+/// `re.to_string()` prose, wrapped in the same bare `Vector<LociDiedError>` line.
+pub(crate) fn thread_crash_runtime_edn(
+    re: &RuntimeError,
+    types: Option<&crate::types::TypeEnv>,
+) -> String {
+    let chain = single_died_chain(thread_died_error_runtime(crate::to_edn::to_wire_edn(re)));
+    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
+    wat_edn::write(&edn)
+}
+
 /// Arc 113 slice 2 — conj a fresh DiedError onto the FRONT of an
 /// existing chain (or build a singleton when no upstream exists).
 ///
