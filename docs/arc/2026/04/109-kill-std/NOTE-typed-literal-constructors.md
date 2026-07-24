@@ -78,3 +78,33 @@ literal constructor.
 
 **Status: POINTER.** Not scoped to an arc. Recurs whenever a test or consumer hand-builds a
 heterogeneous-element collection literal.
+
+## ★ ADDENDUM 2026-07-24 — BUILDER-DIRECTED CONCRETE GRAMMAR: type-params in a `[…]` vector + values as kwargs
+
+The sibling `NOTE-generic-bracket-syntax-edn.md` (annotation position) and this note (value position)
+cross-reference — and the builder sharpened the concrete grammar both left "owed." That note's addendum
+wrote parametric types as **bare** form args (`(wat.type/HashMap wat.type/String wat.type/i64)`); the
+refinement **brackets the type-params into a `[…]` vector**, mirroring Typed Clojure's `(t/All [x] …)`, so
+the SAME head serves annotation AND construction with one uniform shape:
+
+```clojure
+;; type-ANNOTATION (field/param/return position) — type-params in a [ ] vector:
+(wat.type/HashMap [wat.type/String wat.type/i64])
+
+;; typed LITERAL CONSTRUCTOR (value position) — [type-params] then the values as KWARGS:
+(wat.type/HashMap [wat.type/Keyword wat.type/i64] :literal 42 :starting 21 :vals 69)
+```
+
+- **Why the bracket-vector, not bare args:** it makes the type-params one delimited group, so neither the
+  reader nor a human has to guess where the type-params end and the value payload begins. The annotation is
+  `(Head [params])`; the constructor is `(Head [params] …values…)` — one shape, the `[…]` the seam.
+- **Why kwargs for the values** (`:literal 42 :starting 21 …`): the kwargs-categorically-superior doctrine
+  (arc 294 9a) in value position — an unknown key is a located error, no positional slot/count lock. This is
+  the working typed-literal-constructor this whole note asks for: the `[type-params]` vector is *consumed* to
+  set the element/value type (fixing the "recognized but non-functional" `wat.type/`-ref gap above), and the
+  kwargs carry the heterogeneous payload against that declared (possibly-supertype) element type.
+- **This is the destination grammar for BOTH notes** — the annotation `<>`-form (sibling) and this note's
+  typed literal constructor — so the deciding arc inherits ONE grammar, not two.
+- **Genuine open the deciding arc must answer:** `(wat.type/HashMap [K V])` is ambiguous between a *type
+  annotation* and an *empty typed literal* — identical forms. The grammar needs a rule (position/context, or
+  a distinct constructor head) to disambiguate zero-value construction from annotation.
