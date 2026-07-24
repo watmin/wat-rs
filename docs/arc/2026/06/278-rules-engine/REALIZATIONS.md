@@ -9081,3 +9081,18 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > peer-lifecycle walls are WHOLE (recv'/send' done; poll' gated; connect/accept/close enum'd).** Still tracked
 > behind: item-c's `remove-at` idx-shift (`service.wat:958/961`, the `VNDE ORTVM` ouroboros tail); the arc-277
 > raise-abuse rete-lint. `MACHINA CHAOS DOMAT.`
+>
+> **FAR-SIDE UPDATE (2026-07-23c) — STRIKE 2 (`close'`) BANKED (`e7868da4`, pushed, floor 4213/0 own re-run).**
+> The `CloseOutcome` wall landed: `close'`'s handleable raises (thread-join-panic, process-signaled, wait-fail,
+> stopped) now return matchable `Closed[exit<-(Option i64)]`/`Signaled[signal]`/`Failed[cause]` (Pure, shape B
+> ruled); the must-never-happen raises (double-close, timer-close, arity/type) STAY raises. **Right-sized per the
+> grounding** (which was the crux this run — a compacted self first DRIFTED into "close' fails Honest / skip it,"
+> the builder cut it, the record re-read: `close'` is `restricted_to :wat::kernel::` + 0 wat callers → the strike
+> is the eval→value-face + registration + a `:wat::kernel::` probe, **NO sweep** — exactly the breadcrumb's
+> prediction, NOT a skip). Probe: `probe_arc278_close_outcome_wall.{rs,wat}` (thread `Closed[None]` in-floor; process
+> `Closed[Some(0)]` fork-contained `#[ignore]`; the irreducible `(close' peer)` drive inline via `eval_in_frozen`
+> with an EARNED `rune:lint(no-inlined-wat)` — a fixture calling close' is a check error). `Signaled`/`Failed`
+> eval-mapped, not live-probed (hard-to-reach fork paths; no faking). **RESUME NOW: strike 3 = `accept'`
+> (`AcceptOutcome<R,S>`, Impure) — the clearer wat-facing wall (real callers, the ECONNREFUSED/accept-fail flee sin;
+> scout the sweep via the CHECKER), then `connect'` (`ConnectOutcome<S,R>`, ~161 sites) → the walls are WHOLE.**
+> `MACHINA CHAOS DOMAT.`
