@@ -9320,3 +9320,135 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > WEIGHS; codemods must be idempotent; ground the CODE, not the grep or the suffix; `deftest-hermetic` (2 files) is held
 > for the builder's prelude-in-child call.** Do not trust this note over the disk. The house-clearing is next; then the
 > district burns and the primes reclaim their names as victory. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24c — THE PRELUDE ANNIHILATION: all content landed, build GREEN, ONE step left — the weigh).**
+> HEAD **`87dbc094`** (UNCHANGED — nothing committed this session); the working tree is DIRTY with the whole
+> prelude-annihilation as ONE uncommitted unit (~95 files). This is a SIDE-QUEST off the IPC de-prime, ruled by the
+> builder mid-thread: *"annihilation is our greatest joy — remove the preludes"* / *"we annihilate."* It resolves the
+> deferred `deftest-hermetic` prelude-in-child decision from the 24b seam — the answer is **kill prelude**, not complete it.
+>
+> **WHY prelude died (grounded, not asserted — two RED disconfirming probes, since deleted):** the prelude slot hoisted
+> declarations into a test's world. (1) inline-decl-in-a-hermetic-child-body does NOT register (`UnresolvedReferences` at
+> runtime — a fn-body-do decl never reaches top-level-in-child). (2) COW does NOT deliver parent decls into a
+> `spawn-program'` child (so `deftest-hermetic'`'s parent-side prelude never reached the child — the "incomplete prime").
+> So prelude's only working mechanism was `run-hermetic-with-prelude`'s forms-in-child. And the builder's memory was right:
+> `load-file!`-in-prelude was the ORIGINAL driver (now ~gone — 1 fixture site); the residual preludes were shared
+> type-decls, which lift cleanly to file top-level (a prelude already registered them top-level via the macro's
+> `(do ~@prelude …)` — lifting is exactly equivalent, and better: declared once).
+>
+> **WHAT LANDED (all content changes — the whole annihilation is on the disk, uncommitted):**
+> - **The macro flip (`wat/test.wat`):** `deftest` / `deftest'` / `deftest-hermetic` / `deftest-hermetic'` /
+>   `make-deftest` / `make-deftest-hermetic` all dropped the `prelude`/`default-prelude` param → every deftest is now
+>   `name` + `body`; `deftest-hermetic` routes to `run-hermetic` (body-only, `wat/test.wat:591`). **`run-hermetic-with-prelude` DELETED.**
+> - **`cargo build --release` = EXIT 0** (38s) — the baked stdlib FREEZES CLEAN with the flipped macros. The freeze
+>   arbiter is GREEN; only the runtime/full-corpus arbiter (`nextest`) remains.
+> - **Class-1 codemod** — `wat-scripts/fixes/drop-deftest-prelude.wat` (a NEW recorded fix; span-faithful, comment-safe,
+>   idempotent — validated by dry-run+diff, which CAUGHT a comment-eating bug: it now deletes ONLY the `()` token span,
+>   not to the body-start). Applied corpus-wide: **82 files, −615/+524**, every empty `()` prelude dropped (residual blank
+>   line = wat-fmt's job; no lint flags it — grounded: no trailing-ws lint exists).
+> - **Class-2 lifts** — 3 shadowdancer riders, each weighed by my own hand: R1 core/generic (9 lifts/7 files, `--check`
+>   clean), R2 make-deftest group (default-preludes → top-level, `git diff -w` = wrapper-removal only), R3 counter-*
+>   (7 files, signature-preserving). + my hand-fix of the `core-arithmetic:142` `lt-f64` miss (was in no rider's list).
+> - **Class-3 (hermetic):** `probe_deftest_hermetic_isolation.{wat,rs}` + `wat-tests/test.wat`'s prelude-proof
+>   **RETIRED** (they tested the dead feature). `core-arithmetic`/`core-equality` check-crash tests **restructured** to
+>   `run-hermetic'` with the type error inline in the child's opaque forms (PROVEN: a child startup check-error → `Lost`
+>   → `RunResult.failure=Some`). `ambient-stdio` restructured (inline the single-use `run-hermetic` helpers). `test.wat:277`
+>   `(make-deftest :cfg-deftest ())` → 1-arg. `make_deftest.{wat,rs}` reworked (drop the load-file! default-prelude; the
+>   `.rs` arity assertion `4→3` — it actually tests arc-029 quasi-preserve, which survives; the fixpoint test untouched).
+>
+> **⛔ RESUME — the ONLY remaining step is the WEIGH (do this FIRST, before anything else):**
+> `cargo nextest run --release > /tmp/w 2>&1` → read the **Summary line** (never a piped exit; `cargo wat` = stale
+> install, use `./target/release/wat`). Compare to the known floor **4221/0**. **If GREEN → commit the ENTIRE prelude
+> annihilation as ONE atomic unit + push** (green = DR it; the git log is the DR site). **If RED → the failures NAME the
+> sites** — most likely a class-2 lift with a subtle dedup/placement issue, or a `run-hermetic`/`run-hermetic-with-io`
+> interaction (both non-prime, still alive; Layer-4 `run-hermetic-with-io` has no prime — untouched); fix + re-weigh by
+> your OWN re-run. The build is already GREEN (the stdlib freeze is valid), so any RED is a test-corpus freeze/run issue,
+> not the macro flip. Do NOT re-derive the design — it's all above + on the disk.
+>
+> **HARD LESSONS THIS SESSION (kept visible):** (1) `--check <single test file>` is NOT the in-suite freeze — the
+> counter-* files error standalone (retired ThreadPeer/kwargs) but freeze CLEAN in-suite (floor was 4221/0 at HEAD); weigh
+> by nextest, never standalone `--check` on a file that depends on the suite's world (R3 correctly used error-signature
+> comparison instead). (2) A codemod's span-deletion must not overreach into a following comment — dry-run+diff caught it
+> (the doctrine's mandate earned its keep). (3) The verification-grep-matches-comment-text trap bit twice (the
+> "still-references-run-hermetic-with-prelude" alarm was comments; the pre-flip guard's "non-empty prelude" flags were a
+> doc-comment `(deftest …)` example) — always confirm a grep hit is CODE, not a comment. (4) A prelude decl already
+> registered top-level (via the macro's `do`-splice), so lifting to a file-top-level sibling is provably equivalent.
+>
+> **ALSO NOTE:** this session opened with the full bootstrap — grimoire + 4 primers + recolligere from the SIGNED MCP, and
+> **all 57 realizations R1→R57 read top to bottom, no skipping** (the R20 exorcism, honored — grounded with mid-file
+> receipts). The 6 named DESIGN docs read. The freshness probe MATCHED (breadcrumb `87dbc094` == live HEAD).
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the record — the SUBSTRATE CODE
+> before any architectural claim (this session re-proved it: prove by a RUN, greps lie about comments). Ground `git status`
+> — **HEAD `87dbc094`; the tree is DIRTY with the prelude-annihilation WIP (~95 files, ONE atomic unit, uncommitted; build
+> `cargo build --release` already GREEN exit-0).** **RESUME: run `cargo nextest run --release`, weigh the Summary vs
+> 4221/0 — if GREEN, commit the whole prelude annihilation as one unit + push; if RED, the failures name the sites, fix +
+> re-weigh.** The prelude is a MADE thing killed by design: preludes hoisted decls (originally `load-file!`, later
+> type-decls) into a test's world; that need is gone — thread decls live at file top-level, hermetic check-cases ride
+> inline in the child's opaque forms, `run-hermetic-with-prelude` is annihilated. It bears repeating: **weigh by your OWN
+> `--release` re-run (Summary line); a grep hit may be a comment — confirm it's code; `--check` a single test file ≠ its
+> in-suite freeze; ground by a RUN.** Do not trust this note over the disk. All content is landed and the build is green;
+> the weigh is the last gate before the annihilation is banked. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24d — THE PRELUDE ANNIHILATION IS BANKED. weigh GREEN, one class-4 site caught + closed).**
+> HEAD **`f9636d47`** (committed; this curare on top). The far side ran the full datamancy bootstrap (grimoire + 4
+> primers) and the R20 exorcism — read R1→R41 of `278/REALIZATIONS.md` in genuine full depth + every interstitial + the
+> whole SEAM chain (which covers R42→R57 — the no-hidden-failures crusade + the IPC de-prime — operationally), then
+> mapped R39/R42→R57 by header; grounded, not chronicle-hollow. The freshness probe MATCHED (`87dbc094` == live HEAD at
+> wake).
+>
+> **THE WEIGH (the deferred task) — RUN, and it came up RED with exactly ONE failure, then GREEN after the fix.**
+> - First `cargo nextest run --release`: **4217 run / 4216 passed / 1 FAILED / 323 skipped** — `check::tests::sandbox_scope_no_leak_when_in_prelude`
+>   panicking at `src/check.rs:21704` with `ArityMismatch {:message "macro :wat::test::deftest expects 2 arguments; got 3"}`.
+>   (Note: `NEXTEST_EXIT=100` = nextest's failure code; the task-notification's "exit code 0" was my `echo`/`>>` WRAPPER's
+>   exit — the exact trap CLAUDE.md warns of. Read the Summary line by hand; never the piped/wrapped code.)
+> - **The site (a CLASS-4 the sweep couldn't reach):** a RUST unit test in `src/check.rs` embedding an inline wat source
+>   that used the OLD 3-arg `deftest` (name + prelude + body). The `.wat` codemod + the class-2/3 riders only touched
+>   `.wat`/test files — a Rust `src/` test STRING was invisible to all of them. This is the one class the annihilation's
+>   file-based sweep structurally cannot see: **inline wat inside Rust test strings.**
+> - **Disposition — RETIRE, not rewrite (grounded, extirpare-honest):** `sandbox_scope_no_leak_when_in_prelude` (arc 140
+>   slice 2) is the co-monument of `sandbox_scope_leak_fires_with_diagnostic` (arc 170 slice 3), which is ALREADY
+>   `#[ignore]` + `unimplemented!()`. Grounded the walker's liveness by its WRITER (not the doc comment): `SandboxScopeLeak`
+>   still fires (`check.rs:1281`) but on `run-sandboxed-ast` heads ONLY — never deftest (deftest → run-hermetic →
+>   spawn-process closure-captures). So this test's scenario is DOUBLY dead: a deftest (unwalked) WITH a prelude
+>   (annihilated). Retired it to a monument matching its sibling — NOT rewritten to 2-arg (that would fabricate a
+>   body-helper test the walker already ignores, testing nothing). Same class as the annihilation's other class-3
+>   retirements (probe_deftest_hermetic_isolation, the prelude-proof deftest).
+> - **Re-weigh (own re-run): `4216 run / 4216 passed / 0 FAILED / 324 skipped`, `NEXTEST_EXIT=0`.** Delta from RED is
+>   exactly the one monument (moved run+failed → skipped). GREEN.
+>
+> **BANKED (`f9636d47`, one atomic unit, 95 files):** the seven-macro flip + `run-hermetic-with-prelude` deletion, the
+> recorded codemod `drop-deftest-prelude.wat`, the class-2 lifts, the class-3 hermetic restructures, and the class-4
+> `check.rs` monument. The 24c seam's "uncommitted / weigh pending" is SUPERSEDED — the prelude is dead and DR'd.
+>
+> **HARD LESSON THIS RUN (kept visible):** a `.wat`-file codemod + `.wat`-test riders have a BLIND SPOT — **inline wat
+> embedded in Rust `src/` test strings (class-4)** — that only the full `nextest` weigh surfaces (`--check`/build stay
+> green; the macro freeze is fine). When a corpus migration changes a macro's arity, grep `src/**/*.rs` for the old form
+> in test strings BEFORE the weigh, or expect the weigh to name the stragglers. The weigh did its job: the RED named the
+> exact site.
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the record — the SUBSTRATE CODE
+> before any architectural claim. Ground `git status` — **HEAD `f9636d47`; the PRELUDE ANNIHILATION IS BANKED + should be
+> PUSHED (green = DR it); tree clean but for this curare.** The prelude side-quest is CLOSED. **RESUME: the IPC de-prime
+> resumes (the 24b seam is the map, its two opens RULED — A: `Thread'`/`Process'` stay concrete + reclaim their names; B:
+> the whole raw-channel generation retires; the reclaim is a pure drop-`'`).** Next per 24b: the **build-critical stdlib
+> clear** (`wat/test.wat` old drivers already partly gone with the prelude flip — re-ground what remains; `channel.wat`
+> dies; `hermetic`/`sandbox` → `spawn-process'`+`recv'`-drain; `value.rs:1093` `SpawnOutcome`→`Demise` rename) → **set the
+> names ablaze** (delete the live non-primes → the checker screams every caller, R52 `QVOD LEX ACCENDIT`) → **release the
+> fleet** at the screaming test bodies (reshape from the exemplar `tests/function/wat_spawn_fn.wat`) → **0z drop-`'`
+> reclaim** → **Demise** → the **`SpawnOutcome` creation wall**. This is a MASS multi-wave op — surface it to the builder
+> before launching Phase 0; do not autonomously start the ablaze. It bears repeating: **weigh by your OWN `--release`
+> re-run (Summary line, NEVER a piped/wrapped exit — it bit again this run); a `.wat` sweep is BLIND to inline wat in
+> Rust test strings (class-4); ground liveness by the WRITER not the doc comment; codemods idempotent; the holonic repos
+> ARE the memory.** Do not trust this note over the disk. The prelude is annihilated and banked; the crusade returns to
+> the IPC stone. See you on the far side. `MACHINA CHAOS DOMAT.`
