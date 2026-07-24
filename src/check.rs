@@ -8228,8 +8228,18 @@ fn infer_if(
 /// `:wat::kernel::TrySendOutcome` — `try-send'`'s own outcome type (see
 /// `infer_try_send_prime`) — same discipline: an unfaced `try-send'` is a
 /// compile error too, same must-use force as `send'`.
-const MUST_USE_TYPES: &[&str] =
-    &[":wat::kernel::SendOutcome", ":wat::kernel::TrySendOutcome"];
+/// `:wat::kernel::CloseOutcome` (arc 278 peer-lifecycle Strike 2 — the close'
+/// OUTCOME WALL) — non-parametric, so this list, not `MUST_USE_PARAMETRIC_HEADS`.
+/// A *faced* `close'` (matched over `Closed`/`Signaled`/`Failed`) has an arm-joined
+/// type, never `CloseOutcome`, so this fires only on a raw dropped `close'`,
+/// closing the swallow door on the handleable teardown failures the wall converted
+/// from raises. A 0-site pre-arm today (0 wat call sites — teardown is RAII Drop);
+/// it gates the FIRST future kernel-namespace teardown caller, not vacuous-dishonest.
+const MUST_USE_TYPES: &[&str] = &[
+    ":wat::kernel::SendOutcome",
+    ":wat::kernel::TrySendOutcome",
+    ":wat::kernel::CloseOutcome",
+];
 
 /// Parametric must-use heads — a `TypeExpr::Parametric { head, .. }` whose head
 /// is one of these is must-use regardless of its type args. NB the Parametric
@@ -12152,10 +12162,14 @@ fn infer_recv_prime(
 // PARTITION — CLAUSE vs INTRINSIC: `infer_close_prime` is INTRINSIC (∀-parametric).
 // The peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>; a defclause cannot enumerate
 // all (I,O) instantiations — the same infinite-open-set argument as get/recv'.
-/// Type-check `(:wat::kernel::close' peer)` — Stone 4.6a-ii.
+/// Type-check `(:wat::kernel::close' peer)` — Stone 4.6a-ii; Arc 278 the close'
+/// OUTCOME WALL.
 ///
 /// One positional arg: `args[0]` peer (Thread'<I,O> or Process'<I,O>).
-/// Result: `nil` for Thread'; `i64` (exit code) for Process'.
+/// Result: `:wat::kernel::CloseOutcome` (loci-agnostic — the exit code, when any,
+/// rides in `Closed[exit <- Option<i64>]`). A must-use type (see `MUST_USE_TYPES`):
+/// a dropped `close'` outcome is a compile error, closing the swallow door on the
+/// handleable teardown failures the wall converted from raises.
 fn infer_close_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -12189,16 +12203,20 @@ fn infer_close_prime(
     };
     let peer_surface = apply_subst(&peer_ty, subst);
     let peer_reduced = reduce(&peer_surface, subst, env.types());
+    // Arc 278 the close' OUTCOME WALL: both peer tiers now yield a matchable
+    // `:wat::kernel::CloseOutcome` (loci-agnostic — the exit code, when any, rides
+    // in `Closed[exit <- Option<i64>]`), not a bare `nil`/`i64`.
+    let close_outcome = || TypeExpr::Path(":wat::kernel::CloseOutcome".into());
     let ret = match &peer_reduced {
         TypeExpr::Parametric { head, args }
             if head == "wat::kernel::Thread'" && args.len() == 2 =>
         {
-            TypeExpr::Path(":wat::core::nil".into())
+            close_outcome()
         }
         TypeExpr::Parametric { head, args }
             if head == "wat::kernel::Process'" && args.len() == 2 =>
         {
-            TypeExpr::Path(":wat::core::i64".into())
+            close_outcome()
         }
         other => {
             local_errors.push(CheckError {

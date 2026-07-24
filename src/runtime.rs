@@ -23838,6 +23838,44 @@ fn try_send_outcome_lost(reason: String) -> Value {
     }))
 }
 
+/// Arc 278 peer-lifecycle Strike 2 — the type path of `close'`'s matchable outcome
+/// enum (`:wat::kernel::CloseOutcome`, registered in `types.rs`). Non-parametric —
+/// the peer is CONSUMED, so no variant holds a live resource (Pure, like SendOutcome).
+const CLOSE_OUTCOME_TYPE: &str = ":wat::kernel::CloseOutcome";
+
+/// `CloseOutcome::Closed [exit <- Option<i64>]` — a clean close. `None` = a thread
+/// peer (no OS exit code — loci-agnostic, R32); `Some(code)` = a process exit status.
+fn close_outcome_closed(exit: Option<i64>) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CLOSE_OUTCOME_TYPE.into(),
+        variant_name: "Closed".into(),
+        fields: vec![Value::Option(Arc::new(exit.map(Value::i64)))],
+    }))
+}
+
+/// `CloseOutcome::Signaled [signal <- i64]` — a process peer TERMINATED by a signal
+/// (was the "killed by signal N" raise). `Signaled` means *terminated by a signal*;
+/// a stopped-not-terminated child is `Failed`, never this (four-Q Honest).
+fn close_outcome_signaled(signal: i64) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CLOSE_OUTCOME_TYPE.into(),
+        variant_name: "Signaled".into(),
+        fields: vec![Value::i64(signal)],
+    }))
+}
+
+/// `CloseOutcome::Failed [cause <- Failure]` — an abnormal close: a thread-join panic,
+/// a process wait failure, or a stopped-not-terminated child during teardown. Built via
+/// `message_only_failure` — the SAME structured carrier `send'`/`recv'` `Lost` use; never
+/// a hand-rolled `struct-new` Failure (R57's Struct-Failure mask, `3c72ef9c`).
+fn close_outcome_failed(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: CLOSE_OUTCOME_TYPE.into(),
+        variant_name: "Failed".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
 /// Err payload returned by the eval-family forms on any failure
@@ -26488,12 +26526,18 @@ fn eval_peer_recv_prime(
     }
 }
 
-/// `(:wat::kernel::close' peer)` — Stone 4.6a-ii.
+/// `(:wat::kernel::close' peer)` — Stone 4.6a-ii; Arc 278 the close' OUTCOME WALL.
 ///
 /// Consumes the peer (takes the Option, leaving None for subsequent calls).
-/// Thread': `peer.close()+join` → nil. Join Err → RuntimeError.
-/// Process': `peer.close()+wait` → i64 exit code. Signaled → RuntimeError.
-/// Second close' / use-after-close → RuntimeError "peer already closed".
+/// Returns a matchable `:wat::kernel::CloseOutcome` for every HANDLEABLE outcome:
+///   Thread' clean join       → `Closed[exit = None]`   (no OS exit code).
+///   Thread' join panic       → `Failed[cause]`.
+///   Process' clean exit      → `Closed[exit = Some(code)]`.
+///   Process' terminated      → `Signaled[signal]`.
+///   Process' wait fail / stop → `Failed[cause]`.
+/// Only the MUST-NEVER-HAPPEN cases stay raises: double-close / use-after-close
+/// ("peer already closed"), close' on a timer peer (arc-292 L3), and arity/type
+/// mismatch (checker-prevented; defensive).
 // Arc 259 S2d — restricted to `:wat::kernel::` callers. Teardown is RAII Drop;
 // a :user:: fn calling close' is a check error. The user never holds the rope.
 #[restricted_to(":wat::kernel::close'", ":wat::kernel::")]
@@ -26538,16 +26582,15 @@ fn eval_peer_close_prime(
             // drain_and_join: drop input Sender FIRST (worker's recv' raises → worker
             // exits), then join. Idempotent via Option::take — the subsequent Drop on
             // `thread` is a no-op (arc 259 S2b drain-before-join invariant).
+            // Arc 278 the close' OUTCOME WALL: a join panic is a HANDLEABLE close
+            // failure → a matchable `CloseOutcome::Failed`, not a raise. A clean join
+            // → `Closed[exit = None]` (a thread has no OS exit code — loci-agnostic, R32).
             if let Some(Err(_)) = thread.drain_and_join() {
-                return Err(EvalBreak::from(RuntimeError {
-                    span: list_span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: "Thread peer join failed (thread panicked)".into(),
-                    },
-                }));
+                return Ok(close_outcome_failed(
+                    "Thread peer join failed (thread panicked)".into(),
+                ));
             }
-            Ok(Value::Unit)
+            Ok(close_outcome_closed(None))
         }
         Value::RustOpaque(inner)
             if inner.type_path == crate::kernel::spawn::PROCESS_PEER_TYPE_PATH =>
@@ -26574,31 +26617,33 @@ fn eval_peer_close_prime(
                 crate::kernel::spawn::ProcessSelectable::Spawned(bundle) => {
                     // Consume the bundle: close channels, then wait for the child.
                     // We need to extract the peer from the bundle first (bundle has _lifeline_w field too).
-                    let exit_status = bundle.peer.wait().map_err(|io_err| {
-                        EvalBreak::from(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: format!("Process peer wait failed: {}", io_err),
-                            },
-                        })
-                    })?;
+                    // Arc 278 the close' OUTCOME WALL: a wait failure is a HANDLEABLE close
+                    // failure → `CloseOutcome::Failed`, not a raise.
+                    let exit_status = match bundle.peer.wait() {
+                        Ok(status) => status,
+                        Err(io_err) => {
+                            return Ok(close_outcome_failed(format!(
+                                "Process peer wait failed: {}",
+                                io_err
+                            )));
+                        }
+                    };
                     match exit_status {
-                        crate::process::ExitStatus::Exited(code) => Ok(Value::i64(code as i64)),
-                        crate::process::ExitStatus::Signaled(sig) => Err(EvalBreak::from(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: format!("Process peer killed by signal {}", sig),
-                            },
-                        })),
-                        crate::process::ExitStatus::Stopped(sig) => Err(EvalBreak::from(RuntimeError {
-                            span: list_span.clone(),
-                            kind: RuntimeErrorKind::MalformedForm {
-                                head: OP.into(),
-                                reason: format!("Process peer stopped by signal {}", sig),
-                            },
-                        })),
+                        // Clean exit → Closed[Some(code)] (a process carries an OS exit code).
+                        crate::process::ExitStatus::Exited(code) => {
+                            Ok(close_outcome_closed(Some(code as i64)))
+                        }
+                        // Terminated by a signal → the matchable Signaled variant.
+                        crate::process::ExitStatus::Signaled(sig) => {
+                            Ok(close_outcome_signaled(sig as i64))
+                        }
+                        // Stopped (SIGSTOP/ptrace) but NOT terminated during teardown is an
+                        // ABNORMAL close, not a kill: `Signaled` means *terminated by a
+                        // signal*, which a stopped-not-reaped child is not (four-Q Honest).
+                        // So it maps to `Failed`, carrying the stop signal in its cause.
+                        crate::process::ExitStatus::Stopped(sig) => Ok(close_outcome_failed(
+                            format!("Process peer stopped by signal {}", sig),
+                        )),
                     }
                 }
                 // arc 292 L3 — timer peers are consumed by select'; close' is not supported.

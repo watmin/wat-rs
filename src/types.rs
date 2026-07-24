@@ -1261,6 +1261,52 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::CloseOutcome — Arc 278 peer-lifecycle Strike 2 (the close'
+    // OUTCOME WALL, BRIEF-close-outcome-wall.md). `close'` (:wat::kernel::-restricted
+    // teardown intrinsic) used to RAISE on its *handleable* failures (thread-join-
+    // panic, process-signaled, process-wait-fail, process-stopped); per the
+    // peer-lifecycle LAW those become a matchable outcome, only the must-never-happen
+    // raises (double-close, close'-on-a-timer, arity/type) stay raises. Shape B (RULED):
+    //   :Closed   [exit <- Option<i64>] — clean close. None = thread (no OS exit code);
+    //                                     Some(code) = process exit status. Loci-agnostic
+    //                                     (R32): the exit rides in an Option, not two variants.
+    //   :Signaled [signal <- i64]       — process TERMINATED by a signal (was the
+    //                                     "killed by signal N" raise). Signaled means
+    //                                     *terminated*, never merely stopped.
+    //   :Failed   [cause <- Failure]    — join-panic / wait-fail / stopped-not-terminated;
+    //                                     the abnormal-close carrier (structured Failure).
+    // PURE — like SendOutcome, unlike RecvOutcome<O>. Non-parametric; the peer is
+    // CONSUMED (close' takes the Option, leaving None), so no value here holds a live
+    // resource. It carries only pure data: an Option<i64>, an i64, and a Nature::Record
+    // Failure — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
+    // Registered as a builtin for the same load-order reason as SendOutcome — close' is a
+    // kernel intrinsic used before any wat defenum would load.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::CloseOutcome".into(),
+        type_params: vec![],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Closed".into(),
+                fields: vec![(
+                    "exit".into(),
+                    TypeExpr::Parametric {
+                        head: "wat::core::Option".into(),
+                        args: vec![TypeExpr::Path(":wat::core::i64".into())],
+                    },
+                )],
+            },
+            EnumVariant::Tagged {
+                name: "Signaled".into(),
+                fields: vec![("signal".into(), TypeExpr::Path(":wat::core::i64".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Failed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — return type of
     // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
     // everything the sandboxed `:user::main` wrote through its stdio
