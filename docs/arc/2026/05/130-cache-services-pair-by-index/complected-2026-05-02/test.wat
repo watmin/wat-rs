@@ -26,7 +26,7 @@
 
 
 (:wat::test::deftest' :wat-lru::test-cache-service-put-then-get-round-trip
-  ()
+  
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast

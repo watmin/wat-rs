@@ -43,9 +43,7 @@
 ;;   User: Reset       → assert Ok 0
 ;;   Admin: Stop       → assert Stopped 0
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-service::thread-N1
-  (;; ─── Admin protocol ──────────────────────────────────────────────────
+;; ─── Admin protocol ──────────────────────────────────────────────────
    ;;
    ;; :counter::AdminReq — privileged operations.
    ;; 3a: only Stop. 3b adds Provision/Deprovision.
@@ -308,8 +306,11 @@
              (:wat::kernel::recv admin-resp-rx)
              "admin-stop: recv peer died")
            "admin-stop: clean disconnect")]
-       (:wat::core::match resp ((:counter::AdminResp::Stopped final) final)))))
+       (:wat::core::match resp ((:counter::AdminResp::Stopped final) final))))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+(:wat::test::deftest' :counter-service::thread-N1
+  
   ;; ─── Test body ─────────────────────────────────────────────────────────
   ;;
   ;; Spawn server with initial state 10.

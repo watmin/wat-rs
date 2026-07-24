@@ -19,7 +19,7 @@
 ;; ─── make + len: empty store has len 0 ──────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-make-empty
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -30,7 +30,7 @@
 ;; ─── capacity returns floor(sqrt(d)) ────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-capacity-at-d-10000
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -49,7 +49,7 @@
 ;; ─── put + len: count increments ────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-put-increments-len
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -63,7 +63,7 @@
 ;; ─── put idempotent on same key ─────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-put-idempotent
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -82,7 +82,7 @@
 ;; is 1.0; coincidence filter accepts; get returns the stored val.
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-non-therm-roundtrip
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -104,7 +104,7 @@
 ;; Self-cosine 1.0; coincidence filter accepts.
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-therm-roundtrip
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -123,7 +123,7 @@
 ;; ─── empty store returns None ───────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-empty-store-returns-none
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -144,7 +144,7 @@
 ;; not just when there's choice ambiguity.
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-filter-always-rejects
-  ()
+  
   (:wat::core::let
     [reject-all
       (:wat::core::fn [_ <- :wat::core::f64] -> :wat::core::bool false)
@@ -168,7 +168,7 @@
 ;; probe returns None.
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-slot-isolation
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -201,7 +201,7 @@
 ;; cross-form cosine).
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-slot-0-discriminates
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -228,7 +228,7 @@
 ;; filter accepts (the therms are close in encoded space).
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-bracket-pair-finds-floor-slot
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -249,7 +249,7 @@
 ;; ─── therm-form constructor: builds canonical Thermometer ───────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-therm-form-builds-canonical
-  ()
+  
   (:wat::core::let
     [built
       (:wat::holon::therm-form 0.0 100.0 70.0)
@@ -260,7 +260,7 @@
 ;; ─── therm-form clamps OOB low ──────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-therm-form-clamps-oob-low
-  ()
+  
   (:wat::core::let
     [built
       (:wat::holon::therm-form 0.0 100.0 -10.0)
@@ -271,7 +271,7 @@
 ;; ─── therm-form clamps OOB high ─────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-therm-form-clamps-oob-high
-  ()
+  
   (:wat::core::let
     [built
       (:wat::holon::therm-form 0.0 100.0 110.0)
@@ -286,7 +286,7 @@
 ;; whose min/max match.
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-therm-form-preserves-domain
-  ()
+  
   (:wat::core::let
     [built
       (:wat::holon::therm-form 200.0 600.0 400.0)
@@ -301,7 +301,7 @@
 ;; passes coincidence. Confirms therm-form + Hologram compose.
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-therm-form-roundtrips-via-hologram
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make
@@ -320,13 +320,13 @@
 ;; ─── presence-floor / coincident-floor accessors stay green ────
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-presence-floor-positive
-  ()
+  
   (:wat::core::let
     [floor (:wat::holon::presence-floor 10000)]
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))
 
 (:wat::test::deftest' :wat-tests::holon::Hologram::test-coincident-floor-positive
-  ()
+  
   (:wat::core::let
     [floor (:wat::holon::coincident-floor 10000)]
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))

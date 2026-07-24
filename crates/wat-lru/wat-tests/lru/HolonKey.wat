@@ -23,7 +23,7 @@
 ;; ─── round-trip ─────────────────────────────────────────────────────
 
 (:wat::test::deftest' :wat-lru::test-local-cache-holon-key-roundtrip
-  ()
+  
   (:wat::core::let
     [cache
       (:wat::lru::LocalCache::new 16)
@@ -43,7 +43,7 @@
 ;; storing under one and querying the other returns :None.
 
 (:wat::test::deftest' :wat-lru::test-local-cache-holon-key-distinguishes
-  ()
+  
   (:wat::core::let
     [cache
       (:wat::lru::LocalCache::new 16)
@@ -66,7 +66,7 @@
 ;; visible under k2. The arc 057 derived Hash gives the right shape.
 
 (:wat::test::deftest' :wat-lru::test-local-cache-holon-key-structural-equal
-  ()
+  
   (:wat::core::let
     [cache
       (:wat::lru::LocalCache::new 16)

@@ -70,7 +70,7 @@
                     :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor :wat::core::None)))]
     (:probe::RunResult :page1 page1 :page2 page2 :page3 page3 :ipage ipage)))
 
-(:wat::test::deftest' :user::sqlite_store_differential ()
+(:wat::test::deftest' :user::sqlite_store_differential 
   (:wat::core::let
     [h            (:wat::query::mem-store/start :locus (:wat::spawn::thread)
                     :record (:wat::query::mem-store::Record (:wat::core::PersistentVector)))

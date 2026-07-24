@@ -38,9 +38,7 @@
 ;; Prelude forms are spliced at top-level under (:wat::core::do ...) at freeze.
 ;; The body runs in a cheap in-process thread via :wat::test::run-thread.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-actor::process-proof
-  (;; ─── Parent-side type declarations ──────────────────────────────────
+;; ─── Parent-side type declarations ──────────────────────────────────
    ;;
    ;; Same enum names as the thread tier. The subprocess independently
    ;; declares the same types. EDN serialization uses the same tag format
@@ -140,8 +138,11 @@
            ((:wat::core::Err _chain)
              (:wat::kernel::assertion-failed! "Process/readln failed: subprocess died" :wat::core::None :wat::core::None))))
        ((:wat::core::Err _chain)
-         (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None)))))
+         (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None))))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+(:wat::test::deftest' :counter-actor::process-proof
+  
   ;; ─── Test body ───────────────────────────────────────────────────────
   ;;
   ;; Spawn the counter server as a subprocess using (:wat::core::forms ...).

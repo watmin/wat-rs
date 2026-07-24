@@ -15,7 +15,7 @@
 
 ;; if — the @arg-fits special form. The @syntax grammar + prose must render.
 (:wat::test::deftest' :wat-tests::reflect::render-doc-of-if
-  ()
+  
   (:wat::core::let
     [rendered (:wat::core::render-doc :wat::core::if)]
     (:wat::core::do
@@ -29,7 +29,7 @@
 
 ;; let — the @syntax-carries / no-@arg special form. The grammar must render.
 (:wat::test::deftest' :wat-tests::reflect::render-doc-of-let
-  ()
+  
   (:wat::core::let
     [rendered (:wat::core::render-doc :wat::core::let)]
     (:wat::core::do

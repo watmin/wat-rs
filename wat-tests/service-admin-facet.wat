@@ -45,7 +45,7 @@
 ;; stop takes the HANDLE (h), not the client peer (c) — owner-only by construction.
 ;; stop defaults to returning the ::Record — extract count via Record/count.
 (:wat::test::deftest' :wat-tests::service::admin-stop-on-thread
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::admin-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::admin-counter::Record :count 0))
@@ -60,7 +60,7 @@
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
 (:wat::test::deftest' :wat-tests::service::admin-stop-on-process
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::admin-counter/start :locus (:wat::spawn::process) :record (:wat-tests::admin-counter::Record :count 0))

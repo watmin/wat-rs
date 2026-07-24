@@ -16,7 +16,7 @@
 ;; ─── 1. empty bundle on oversize n ─────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Ngram::test-ngram-empty-on-oversize
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
      b (:wat::holon::to-holon "b")
@@ -36,7 +36,7 @@
 ;; ─── 2. n-parametricity ────────────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Ngram::test-ngram-n2-vs-n3-differ
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
      b (:wat::holon::to-holon "b")

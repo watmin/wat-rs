@@ -78,9 +78,7 @@
 ;;   - Process/drain-and-join returns Result<nil,Vector<ProcessDiedError>> (Err = chain)
 ;;   - No spaces inside type parameter <> brackets
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-service::process-N3
-  (;; ─── Wire enum (parent → subprocess) ───────────────────────────────────────
+;; ─── Wire enum (parent → subprocess) ───────────────────────────────────────
    ;; Wire::Admin and Wire::User now carry server-id as the first field.
    ;; The subprocess validates this server-id against its own before processing.
    ;; This is LOAD-BEARING at the process tier: shared ProcessPeer means
@@ -748,8 +746,11 @@
          ((:wat::core::Ok _)
            (:wat::kernel::assertion-failed! "crash-test-proc: expected crash, got Ok exit" :wat::core::None :wat::core::None))
          ((:wat::core::Err chain)
-           (:wat::core::Err (:counter::ServiceError::ServerDied chain)))))))
+           (:wat::core::Err (:counter::ServiceError::ServerDied chain))))))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+(:wat::test::deftest' :counter-service::process-N3
+  
   ;; ─── Test body ───────────────────────────────────────────────────────────────
   ;;
   ;; Exercises ALL ops via capability wrappers ONLY.

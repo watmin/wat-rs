@@ -39,31 +39,29 @@
 ;; Prelude forms are spliced at top-level under (:wat::core::do ...) at freeze.
 ;; The body runs in a cheap in-process thread via :wat::test::run-thread.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-actor::thread-proof
-  (;; ─── Type declarations ───────────────────────────────────────────────
-   ;;
-   ;; counter::Request — the actor's input enum. Four variants:
-   ;;   Get       — read-only query; reply is current value
-   ;;   Increment — mutate by adding n; reply is new value
-   ;;   Reset     — mutate to 0; reply is 0
-   ;;   Shutdown  — convention (INTERSTITIAL § control-channels): terminal;
-   ;;               reply is Final carrying the last state; thread exits.
-   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :counter::Request :wat::enum::Pure
-     :Get
-     :Increment [n <- :wat::core::i64]
-     :Reset
-     :Shutdown)
+;; ─── Type declarations ───────────────────────────────────────────────
+;;
+;; counter::Request — the actor's input enum. Four variants:
+;;   Get       — read-only query; reply is current value
+;;   Increment — mutate by adding n; reply is new value
+;;   Reset     — mutate to 0; reply is 0
+;;   Shutdown  — convention (INTERSTITIAL § control-channels): terminal;
+;;               reply is Final carrying the last state; thread exits.
+;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+(:wat::core::defenum :counter::Request :wat::enum::Pure
+  :Get
+  :Increment [n <- :wat::core::i64]
+  :Reset
+  :Shutdown)
 
-   ;; counter::Response — the actor's output enum. Three variants:
-   ;;   Value — reply to Get; carries the current (unchanged) state
-   ;;   Ok    — reply to Increment and Reset; carries the new state
-   ;;   Final — convention: reply to Shutdown; carries the terminal state
-   (:wat::core::defenum :counter::Response :wat::enum::Pure
-     :Value [v <- :wat::core::i64]
-     :Ok    [v <- :wat::core::i64]
-     :Final [v <- :wat::core::i64])
+;; counter::Response — the actor's output enum. Three variants:
+;;   Value — reply to Get; carries the current (unchanged) state
+;;   Ok    — reply to Increment and Reset; carries the new state
+;;   Final — convention: reply to Shutdown; carries the terminal state
+(:wat::core::defenum :counter::Response :wat::enum::Pure
+  :Value [v <- :wat::core::i64]
+  :Ok    [v <- :wat::core::i64]
+  :Final [v <- :wat::core::i64])
 
    ;; ─── Dispatch loop ───────────────────────────────────────────────────
    ;;
@@ -174,8 +172,11 @@
      (:wat::kernel::Thread/println peer! (:counter::Request::Shutdown))
      (:wat::core::match (:wat::kernel::Thread/readln peer!) ((:counter::Response::Value v) v)
        ((:counter::Response::Ok    v) v)
-       ((:counter::Response::Final v) v))))
+       ((:counter::Response::Final v) v)))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+(:wat::test::deftest' :counter-actor::thread-proof
+  
   ;; ─── Test body ───────────────────────────────────────────────────────
   ;;
   ;; Spawn the counter with initial state 10.

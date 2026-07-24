@@ -49,7 +49,7 @@
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::service::counter-on-thread
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::counter/start :locus (:wat::spawn::thread) :record (:wat-tests::counter::Record :count 0))
@@ -69,7 +69,7 @@
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
 (:wat::test::deftest' :wat-tests::service::counter-on-process
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::counter/start :locus (:wat::spawn::process) :record (:wat-tests::counter::Record :count 0))

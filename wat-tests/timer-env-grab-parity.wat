@@ -48,7 +48,7 @@
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 (:wat::test::deftest' :wat-tests::timer::env-grab-on-thread
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::thread) :record (:wat-tests::deadline::Record :count 0))
@@ -64,7 +64,7 @@
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
 (:wat::test::deftest' :wat-tests::timer::env-grab-on-process
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h (:wat-tests::deadline/start :locus (:wat::spawn::process) :record (:wat-tests::deadline::Record :count 0))

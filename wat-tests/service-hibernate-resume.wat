@@ -47,7 +47,7 @@
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; 7 → hibernate (::Record snapshot, service dies) → resume fresh → +3 → stop = 10.
 (:wat::test::deftest' :wat-tests::service::hibernate-resume-on-thread
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::hib-counter::Record :count 0))
@@ -66,7 +66,7 @@
 
 ;; ── process tier — IDENTICAL except the locus token (the Record snapshot crosses as EDN) ──
 (:wat::test::deftest' :wat-tests::service::hibernate-resume-on-process
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::process) :record (:wat-tests::hib-counter::Record :count 0))

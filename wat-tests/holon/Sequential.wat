@@ -9,7 +9,7 @@
 
 
 (:wat::test::deftest' :wat-tests::holon::Sequential::test-self-identity
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
      b (:wat::holon::to-holon "b")
@@ -19,7 +19,7 @@
     (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
 
 (:wat::test::deftest' :wat-tests::holon::Sequential::test-order-sensitivity
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
      b (:wat::holon::to-holon "b")

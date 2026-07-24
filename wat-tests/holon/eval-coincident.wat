@@ -21,7 +21,7 @@
 ;; ─── eval-coincident? — the book's (+ 2 2) ≡ (* 1 4) retort ──────
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-arithmetic-equivalence
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-coincident?
@@ -36,7 +36,7 @@
 ;; ─── Different scalars → not coincident ──────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-different-scalars
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-coincident?
@@ -51,7 +51,7 @@
 ;; ─── Same strings → coincident ───────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-same-strings
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-coincident?
@@ -66,7 +66,7 @@
 ;; ─── Structurally-same holons built via quote ────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-structurally-same-holons
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-coincident?
@@ -83,7 +83,7 @@
 ;; ─── eval-edn-coincident? — inline EDN sources ───────────────────
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-edn-arithmetic-equivalence
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-edn-coincident?
@@ -96,7 +96,7 @@
       true)))
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-edn-different-sources
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-edn-coincident?
@@ -121,7 +121,7 @@
 ;; tests follow the same pattern for a runnable template.
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-digest-arithmetic-equivalence
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-digest-string-coincident?
@@ -138,7 +138,7 @@
       true)))
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-digest-bad-hex-errs
-  ()
+  
   ;; Side A carries a zero-hex digest that doesn't match the source;
   ;; verify fires before parse → Err(EvalError{kind=verification-failed}).
   (:wat::core::let
@@ -171,7 +171,7 @@
 ;;   Stone 237.8b — regenerated after +'2 → + and *'2 → * rename.
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-signed-arithmetic-equivalence
-  ()
+  
   (:wat::core::let
     [r
       (:wat::holon::eval-signed-string-coincident?
@@ -190,7 +190,7 @@
       true)))
 
 (:wat::test::deftest' :wat-tests::holon::eval-coincident::test-signed-wrong-sig-errs
-  ()
+  
   ;; Side A carries src-B's sig against src-A; verify fails →
   ;; Err(EvalError{kind=verification-failed}).
   (:wat::core::let

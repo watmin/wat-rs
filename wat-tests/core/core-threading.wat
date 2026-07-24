@@ -26,7 +26,7 @@
 ;; Asserts: threaded result == hand-written result.
 
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-first-list-step
-  ()
+  
   (:wat::core::let
     [threaded (:wat::core::-> 10 (:wat::core::i64::- 3))
      direct   (:wat::core::i64::- 10 3)]
@@ -40,7 +40,7 @@
 ;; Hand-written: (:wat::core::i64::* (:wat::core::i64::- 10 3) 2) = 14.
 
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-first-two-list-steps
-  ()
+  
   (:wat::core::let
     [threaded (:wat::core::-> 10
                 (:wat::core::i64::- 3)
@@ -55,7 +55,7 @@
 ;; Hand-written equivalent: (:wat::core::i64::- 3 5).
 
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-last-list-step
-  ()
+  
   (:wat::core::let
     [threaded (:wat::core::->> 5 (:wat::core::i64::- 3))
      direct   (:wat::core::i64::- 3 5)]
@@ -69,7 +69,7 @@
 ;; Hand-written: (:wat::core::i64::* 4 (:wat::core::i64::+ 2 1)) = 12.
 
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-last-two-list-steps
-  ()
+  
   (:wat::core::let
     [threaded (:wat::core::->> 1
                 (:wat::core::i64::+ 2)
@@ -85,7 +85,7 @@
 ;; assert 2 ≠ -2 (i.e. results differ).
 
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-first-vs-last-asymmetry
-  ()
+  
   (:wat::core::let
     [tf  (:wat::core::-> 5 (:wat::core::i64::- 3))
      tl  (:wat::core::->> 5 (:wat::core::i64::- 3))]
@@ -97,10 +97,12 @@
 ;; (-> 3 :wat-tests::core::core-threading::inc1)
 ;;   => (:wat-tests::core::core-threading::inc1 3) = 4.
 
+(:wat::core::defn :wat-tests::core::core-threading::inc1
+  [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::+ x 1))
+
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-first-bare-step
-  ((:wat::core::defn :wat-tests::core::core-threading::inc1
-     [x <- :wat::core::i64] -> :wat::core::i64
-     (:wat::core::i64::+ x 1)))
+  
   (:wat::core::let
     [result (:wat::core::-> 3 :wat-tests::core::core-threading::inc1)]
     (:wat::test::assert-eq result 4)))
@@ -111,10 +113,12 @@
 ;; (->> 7 :wat-tests::core::core-threading::double)
 ;;   => (:wat-tests::core::core-threading::double 7) = 14.
 
+(:wat::core::defn :wat-tests::core::core-threading::double
+  [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::* x 2))
+
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-last-bare-step
-  ((:wat::core::defn :wat-tests::core::core-threading::double
-     [x <- :wat::core::i64] -> :wat::core::i64
-     (:wat::core::i64::* x 2)))
+  
   (:wat::core::let
     [result (:wat::core::->> 7 :wat-tests::core::core-threading::double)]
     (:wat::test::assert-eq result 14)))
@@ -132,14 +136,17 @@
 ;; Threading wins here: reads left-to-right data-flow without mental
 ;; bracket-counting.  Both paths must equal 55.
 
+(:wat::core::defn :wat-tests::core::core-threading::square
+  [n <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::* n n))
+
+(:wat::core::defn :wat-tests::core::core-threading::add
+  [a <- :wat::core::i64
+   b <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::+ a b))
+
 (:wat::test::deftest' :wat-tests::core::core-threading::pipeline-sum-of-squares
-  ((:wat::core::defn :wat-tests::core::core-threading::square
-     [n <- :wat::core::i64] -> :wat::core::i64
-     (:wat::core::i64::* n n))
-   (:wat::core::defn :wat-tests::core::core-threading::add
-     [a <- :wat::core::i64
-      b <- :wat::core::i64] -> :wat::core::i64
-     (:wat::core::i64::+ a b)))
+  
   ;; Arc 118.2a — `map` flipped LAZY (returns Stream); `foldl` stays eager/Vector-only, so the
   ;; fold step here becomes `:wat::core::reduce` (same 3-arg shape, Stream-aware) instead —
   ;; `map` stays lazy (consumed exactly once by the fold; no materializer needed).
@@ -165,7 +172,7 @@
 ;; Witnesses the identity law for ->.
 
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-first-zero-steps-identity
-  ()
+  
   (:wat::test::assert-eq (:wat::core::-> 42) 42))
 
 ;; ─── Zero-steps identity: ->> with no steps returns acc unchanged ────────
@@ -174,5 +181,5 @@
 ;; Symmetric identity law for ->>.
 
 (:wat::test::deftest' :wat-tests::core::core-threading::thread-last-zero-steps-identity
-  ()
+  
   (:wat::test::assert-eq (:wat::core::->> 42) 42))

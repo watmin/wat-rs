@@ -75,8 +75,7 @@
 
 (:wat::config::set-redef! true)
 
-(:wat::test::make-deftest :deftest
-  (;; State — the domain accumulator the loop carries between
+   ;; State — the domain accumulator the loop carries between
    ;; iterations. Each handler returns a NEW state (values discipline;
    ;; never mutate in place). Two counter fields here demonstrate the
    ;; pattern; in your service, these are your real domain fields
@@ -396,7 +395,7 @@
                 (:test::svc-assert-state final-state 3 1))
               ((:wat::core::Err _) (:wat::test::assert-eq "driver-died" "")))))
 
-   ))
+(:wat::test::make-deftest :deftest)
 
 
 ;; ─── Per-layer deftests ────────────────────────────────────────────────────

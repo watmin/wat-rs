@@ -25,7 +25,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-tests::std::test::run-thread-ok-path
-  ()
+  
   (:wat::core::let
     [result (:wat::test::run-thread
               (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2)))]
@@ -41,7 +41,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-tests::std::test::run-thread-err-path
-  ()
+  
   (:wat::core::let
     [result (:wat::test::run-thread
               (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2)))]

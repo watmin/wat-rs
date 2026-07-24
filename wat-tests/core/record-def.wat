@@ -41,7 +41,7 @@
 ;; ─── BASE: construct + slash-accessor (x) ───────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::core::record-def::base-construct-x
-  ()
+  
   (:wat::core::let
     [p (:test::rd::Pt :x 3 :y 4)]
     (:wat::test::assert-eq (:test::rd::Pt/x p) 3)))
@@ -49,7 +49,7 @@
 ;; ─── BASE: slash-accessor (y) ────────────────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::core::record-def::base-construct-y
-  ()
+  
   (:wat::core::let
     [p (:test::rd::Pt :x 3 :y 4)]
     (:wat::test::assert-eq (:test::rd::Pt/y p) 4)))
@@ -57,7 +57,7 @@
 ;; ─── Predicate: true on matching class ──────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::core::record-def::predicate-true
-  ()
+  
   (:wat::core::let
     [p (:test::rd::Pt :x 3 :y 4)]
     (:wat::test::assert-eq (:test::rd::is-Pt? p) true)))
@@ -68,7 +68,7 @@
 ;; Validates that predicate discriminates via class_fqdn, not struct shape.
 
 (:wat::test::deftest' :wat-tests::core::record-def::predicate-false-cross-class
-  ()
+  
   (:wat::core::let
     [b (:test::rd::Box :w 99)]
     (:wat::test::assert-eq (:test::rd::is-Pt? b) false)))
@@ -88,7 +88,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-tests::core::record-def::class-guard-panics-got-class
-  ()
+  
   (:wat::core::let
     [r
       (:wat::test::run-thread
@@ -109,7 +109,7 @@
 ;; ─── HOLONIC: construct + slash-accessor ─────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::core::record-def::holonic-construct-accessor
-  ()
+  
   (:wat::core::let
     [h (:test::rd::HPt :x 7 :y 8)]
     (:wat::test::assert-eq (:test::rd::HPt/x h) 7)))
@@ -121,7 +121,7 @@
 ;; If to-holon panics the deftest's outer run-thread surfaces the failure.
 
 (:wat::test::deftest' :wat-tests::core::record-def::holonic-to-holon-ok
-  ()
+  
   ;; to-holon returns HolonAST. Bind the result and assert-coincident
   ;; it is coincident with itself — proves the call succeeded AND that
   ;; the returned HolonAST is a valid point in HD space (self-coincident
@@ -138,7 +138,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-tests::core::record-def::base-to-holon-errors
-  ()
+  
   (:wat::core::let
     [r
       (:wat::test::run-thread
@@ -162,7 +162,7 @@
 ;; If the call passes type-check (holonic <: base) and evaluates, returns true.
 
 (:wat::test::deftest' :wat-tests::core::record-def::liskov-holonic-into-base
-  ()
+  
   (:wat::core::let
     [h (:test::rd::HPt :x 5 :y 6)]
     (:wat::test::assert-eq (:test::rd::accepts-base? h) true)))

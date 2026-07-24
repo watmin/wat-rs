@@ -35,8 +35,6 @@
 
 (:wat::config::set-redef! true)
 
-(:wat::test::make-deftest :deftest-hcs
-  (
    ;; ─── Layer 0 helper — spawn → pop → finish → drop → join ─────────
    ;;
    ;; Narrowest proof: post-arc-130 spawn/shutdown lifecycle works.
@@ -420,7 +418,8 @@
            (:wat::core::do
              (:wat::test::assert-eq "hcs-multi-client-died" "")
              0)))))
-   ))
+
+(:wat::test::make-deftest :deftest-hcs)
 
 ;; ─── Layer 0 — :test::hcs-spawn-and-drop ─────────────────────────────
 ;;

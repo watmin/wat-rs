@@ -24,7 +24,7 @@
 ;; Model: wat-tests/spawn/overcap-flood-no-deadlock.wat + the recv'-wall value
 ;; contract (probe_arc278_recv_over_budget_reason). PRIMED ONLY.
 (:wat::test::deftest' :wat-tests::recv-budget::tiny-budget-rejects-oversized-message
-  ()
+  
   (:wat::core::let
     [child (:wat::kernel::spawn-program' (:wat::spawn::process/max-message-bytes 64)
              (:wat::core::forms

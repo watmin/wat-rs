@@ -84,7 +84,7 @@
 ;; thread tier: worker dials recorder in init, records 5 + 3, recorder Total == 8.
 ;; start threads the LIVE recorder address as the worker's 2nd start arg (the :init operating-input).
 (:wat::test::deftest' :wat-tests::service::telemetry-bridge-on-thread
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [rh (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record :total 0))
@@ -110,7 +110,7 @@
 ;; hibernate -> resume: worker sheds its client + reconnects on resume. resume takes the saved record AND
 ;; the CURRENT recorder address (live topology, re-supplied — the address is never hibernated).
 (:wat::test::deftest' :wat-tests::service::telemetry-bridge-survives-hibernate
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [rh   (:wat-tests::recorder/start :locus (:wat::spawn::thread) :record (:wat-tests::recorder::Record :total 0))

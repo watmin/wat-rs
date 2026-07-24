@@ -11,7 +11,7 @@
 ;; Uniform Pry lens: an intrinsic shows its Rust source (a user form would show its
 ;; wat source via write-forms). The handler fn name is the load-bearing substring.
 (:wat::test::deftest' :wat-tests::reflect::show-source-of-bytes-to-hex
-  ()
+  
   (:wat::test::assert-contains
     (:wat::core::show-source :wat::core::Bytes::to-hex)
     "eval_bytes_to_hex"))
@@ -21,7 +21,7 @@
 ;; "lowercase" proves the PROSE is rendered (not just the name); "Bytes::to-hex"
 ;; proves the name/signature line is rendered.
 (:wat::test::deftest' :wat-tests::reflect::render-doc-of-bytes-to-hex
-  ()
+  
   (:wat::core::let
     [rendered (:wat::core::render-doc :wat::core::Bytes::to-hex)]
     (:wat::core::do
@@ -34,5 +34,5 @@
 
 ;; Spec-complete end-to-end (weigh): the variadic witness counts its args.
 (:wat::test::deftest' :wat-tests::reflect::variadic-witness-counts-args
-  ()
+  
   (:wat::test::assert-eq (:wat::intrinsic::variadic-args-measurement 1 2 3) 3))

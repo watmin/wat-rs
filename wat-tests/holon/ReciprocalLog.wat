@@ -16,7 +16,7 @@
 ;;    reference identically.
 
 
-(:wat::test::make-deftest :deftest ())
+(:wat::test::make-deftest :deftest)
 
 ;; ─── 1. expansion equivalence ──────────────────────────────────
 

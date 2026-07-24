@@ -9,14 +9,14 @@
 ;; ─── filter-coincident gates on coincident floor ──────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Filter::test-filter-coincident-rejects-far
-  ()
+  
   (:wat::core::let
     [f (:wat::holon::filter-coincident)]
     ;; cosine 0.0 means orthogonal — far from coincident.
     (:wat::test::assert-eq (f 0.0) false)))
 
 (:wat::test::deftest' :wat-tests::holon::Filter::test-filter-coincident-accepts-near-one
-  ()
+  
   (:wat::core::let
     [f (:wat::holon::filter-coincident)]
     ;; cosine 0.9999 — very close to 1.0; (1 - cos) = 0.0001;
@@ -27,14 +27,14 @@
 ;; ─── filter-present gates on presence floor ───────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Filter::test-filter-present-rejects-zero
-  ()
+  
   (:wat::core::let
     [f (:wat::holon::filter-present)]
     ;; cosine 0.0 — no signal at all; below the noise floor.
     (:wat::test::assert-eq (f 0.0) false)))
 
 (:wat::test::deftest' :wat-tests::holon::Filter::test-filter-present-accepts-strong
-  ()
+  
   (:wat::core::let
     [f (:wat::holon::filter-present)]
     ;; cosine 0.9 — strong signal; well above presence floor.
@@ -43,13 +43,13 @@
 ;; ─── filter-accept-any always returns true ───────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::Filter::test-filter-accept-any-on-zero
-  ()
+  
   (:wat::core::let
     [f (:wat::holon::filter-accept-any)]
     (:wat::test::assert-eq (f 0.0) true)))
 
 (:wat::test::deftest' :wat-tests::holon::Filter::test-filter-accept-any-on-negative
-  ()
+  
   (:wat::core::let
     [f (:wat::holon::filter-accept-any)]
     ;; even pathological inputs: anti-correlated cosine still passes.
@@ -63,7 +63,7 @@
 ;; filter accepts → Some.
 
 (:wat::test::deftest' :wat-tests::holon::Filter::test-filter-coincident-composes-with-get
-  ()
+  
   (:wat::core::let
     [store
       (:wat::holon::Hologram/make

@@ -23,8 +23,6 @@
 
 (:wat::config::set-redef! true)
 
-(:wat::test::make-deftest :deftest
-  (
    ;; ─── hc-make ─────────────────────────────────────────────────────
    ;; Construct a HologramCache with filter-coincident and the given cap.
    ;; The filter is always filter-coincident for these tests (self-cosine 1.0
@@ -73,7 +71,8 @@
        (:wat::holon::lru::HologramCache/get store k) 
        ((:wat::core::Some _) false)
        (:wat::core::None    true)))
-  ))
+
+(:wat::test::make-deftest :deftest)
 
 ;; ─── per-helper deftests ──────────────────────────────────────────
 

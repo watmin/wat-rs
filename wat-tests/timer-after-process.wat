@@ -18,7 +18,7 @@
 ;; Vector, ServiceEvent, :wat::time::Millisecond) already exists.
 
 (:wat::test::deftest' :wat-tests::timer::after-delivers-its-message-process
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::match
       (:wat::kernel::select'

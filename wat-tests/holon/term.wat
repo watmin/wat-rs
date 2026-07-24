@@ -22,7 +22,7 @@
 ;; decomposition.
 
 (:wat::test::deftest' :wat-tests::holon::term::test-template-collapses-tuning
-  ()
+  
   (:wat::core::let
     [rsi-70
       (:wat::holon::Bind
@@ -45,7 +45,7 @@
 ;; Different cell type; the receptive field is part of the template.
 
 (:wat::test::deftest' :wat-tests::holon::term::test-template-distinguishes-ranges
-  ()
+  
   (:wat::core::let
     [a
       (:wat::holon::Bind
@@ -67,7 +67,7 @@
 ;; Different cell type; the surrounding structure is part of the template.
 
 (:wat::test::deftest' :wat-tests::holon::term::test-template-distinguishes-atoms
-  ()
+  
   (:wat::core::let
     [rsi
       (:wat::holon::Bind
@@ -86,7 +86,7 @@
 ;; ─── Slots: pre-order extraction of Thermometer values ────────────
 
 (:wat::test::deftest' :wat-tests::holon::term::test-slots-pre-order
-  ()
+  
   (:wat::core::let
     [bundled
       (:wat::holon::Bundle
@@ -104,7 +104,7 @@
 ;; ─── Slots and ranges parallel in length ──────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::term::test-slots-ranges-parallel
-  ()
+  
   (:wat::core::let
     [bundled
       (:wat::holon::Bundle
@@ -124,7 +124,7 @@
 ;; ─── Empty slots for forms with no Thermometer leaves ─────────────
 
 (:wat::test::deftest' :wat-tests::holon::term::test-slots-empty-for-thermometer-free
-  ()
+  
   (:wat::core::let
     [form
       (:wat::holon::Bind
@@ -141,7 +141,7 @@
 ;; placeholder, not a tuning point.
 
 (:wat::test::deftest' :wat-tests::holon::term::test-template-has-no-slots
-  ()
+  
   (:wat::core::let
     [form
       (:wat::holon::Bind
@@ -155,7 +155,7 @@
 ;; ─── matches? — same form against itself ─────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::term::test-matches-self
-  ()
+  
   (:wat::core::let
     [form
       (:wat::holon::Bind
@@ -173,7 +173,7 @@
 ;; range) sits well inside that.
 
 (:wat::test::deftest' :wat-tests::holon::term::test-matches-close-slot
-  ()
+  
   (:wat::core::let
     [q
       (:wat::holon::Bind
@@ -190,7 +190,7 @@
 ;; ─── matches? — distant slot exceeds tolerance ───────────────────
 
 (:wat::test::deftest' :wat-tests::holon::term::test-matches-distant-slot
-  ()
+  
   (:wat::core::let
     [q
       (:wat::holon::Bind
@@ -210,7 +210,7 @@
 ;; matches? short-circuits to false without even reaching the slot loop.
 
 (:wat::test::deftest' :wat-tests::holon::term::test-matches-different-template
-  ()
+  
   (:wat::core::let
     [q
       (:wat::holon::Bind
@@ -232,7 +232,7 @@
 ;; Thermometers always match.
 
 (:wat::test::deftest' :wat-tests::holon::term::test-matches-thermometer-free
-  ()
+  
   (:wat::core::let
     [q
       (:wat::holon::Bind

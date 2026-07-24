@@ -24,8 +24,6 @@
 ;; Helpers spliced into each deftest via make-deftest because deftest's
 ;; sandbox does not capture outer-scope defines.
 
-(:wat::test::make-deftest :deftest-lru
-  (
    ;; ─── Layer 0 helper — spawn → pop → finish → drop → join ─────────
    (:wat::core::defn :test::lru-spawn-and-drop
      []
@@ -266,7 +264,8 @@
            (:wat::core::do
              (:wat::test::assert-eq "lru-helper-get-many-keys-died" "")
              0)))))
-   ))
+
+(:wat::test::make-deftest :deftest-lru)
 
 ;; ─── Layer 0 — :test::lru-spawn-and-drop ────────────────────────────
 ;;

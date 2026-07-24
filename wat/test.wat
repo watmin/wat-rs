@@ -301,13 +301,10 @@
 ;;     (:wat::core::defn :my::test::two-plus-two [] -> :wat::test::TestResult
 ;;       (:wat::test::run-thread <body>)))
 (:wat::core::defmacro :wat::test::deftest
-  [name    <- :wat::WatAST
-   prelude <- :wat::WatAST
-   body    <- :wat::WatAST]
+  [name <- :wat::WatAST
+   body <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::do
-     ~@prelude
-     (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body))))
+  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread ~body)))
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
 ;;
@@ -329,21 +326,13 @@
 ;; typealias / defalias) and `extract_closure`'s `split_body_prelude`
 ;; lifts them to the closure prologue before child eval sees them.
 (:wat::core::defmacro :wat::test::deftest-hermetic
-  [name    <- :wat::WatAST
-   prelude <- :wat::WatAST
-   body    <- :wat::WatAST]
+  [name <- :wat::WatAST
+   body <- :wat::WatAST]
   -> :wat::WatAST
-  ;; Arc 170 slice 6 — route through run-hermetic-with-prelude so the
-  ;; prelude declarations land as TOP-LEVEL program forms in the spawned
-  ;; child. Pre-slice-6 the prelude was spliced into the fn body's do-
-  ;; prefix and relied on Gap H + I-A's closure-extraction lift to
-  ;; escape to top-level; the spawn-process pivot retires that workaround
-  ;; — top-level forms ARE the substrate's program shape. Declarations
-  ;; sit at their natural position from the start; no lift required.
-  `(:wat::core::defn ~name [] -> :wat::test::TestResult
-    (:wat::test::run-hermetic-with-prelude
-           ~prelude
-           ~body)))
+  ;; arc 278 — the prelude slot is annihilated. The body runs in a forked child via
+  ;; run-hermetic (spawn-process → OS fork; real thread-safe stdio). A type the child
+  ;; needs is declared inside the child's own forms; this macro ships only the body.
+  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic ~body)))
 
 ;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────
 ;;
@@ -378,15 +367,14 @@
 ;; preserve across the outer pass — they're the inner macro's own
 ;; parameters and fire when the user calls the configured variant.
 (:wat::core::defmacro :wat::test::make-deftest
-  [name           <- :wat::WatAST
-   default-prelude <- :wat::WatAST]
+  [name <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::core::defmacro
      ~name
      [test-name <- :wat::WatAST
       body      <- :wat::WatAST]
      -> :wat::WatAST
-     `(:wat::test::deftest ~test-name ~~default-prelude ~body)))
+     `(:wat::test::deftest ~test-name ~body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
 ;;
@@ -394,15 +382,14 @@
 ;; :wat::test::deftest-hermetic. Use when the configured tests
 ;; spawn driver threads and need subprocess isolation.
 (:wat::core::defmacro :wat::test::make-deftest-hermetic
-  [name           <- :wat::WatAST
-   default-prelude <- :wat::WatAST]
+  [name <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::core::defmacro
      ~name
      [test-name <- :wat::WatAST
       body      <- :wat::WatAST]
      -> :wat::WatAST
-     `(:wat::test::deftest-hermetic ~test-name ~~default-prelude ~body)))
+     `(:wat::test::deftest-hermetic ~test-name ~body)))
 
 ;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
 ;;
@@ -650,15 +637,9 @@
 ;; The driver is shared with run-hermetic — same Process<nil,nil> →
 ;; RunResult flow; the only difference is the spawn-process program
 ;; shape carries a prelude slot.
-(:wat::core::defmacro :wat::test::run-hermetic-with-prelude
-  [prelude <- :wat::WatAST
-   body    <- :wat::WatAST]
-  -> :wat::WatAST
-  `(:wat::test::run-hermetic-driver
-     (:wat::kernel::spawn-process
-       (:wat::core::forms
-         ~@prelude
-         (:wat::core::defn :user::main [] -> :wat::core::nil ~body)))))
+;; (arc 278 — :wat::test::run-hermetic-with-prelude is ANNIHILATED with the prelude feature.
+;; deftest-hermetic now ships only the body via run-hermetic; a child-local type is declared
+;; in the child's own forms. Nothing routes a prelude-in-child anymore.)
 
 ;; ─── Layer 1 — run-thread (cheap-thread default, arc 170 slice 4a-α) ──
 ;;
@@ -818,13 +799,10 @@
            (:wat::core::Some (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion")))))))
 
 (:wat::core::defmacro :wat::test::deftest'
-  [name    <- :wat::WatAST
-   prelude <- :wat::WatAST
-   body    <- :wat::WatAST]
+  [name <- :wat::WatAST
+   body <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::do
-     ~@prelude
-     (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread' ~body))))
+  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-thread' ~body)))
 
 ;; ── run-hermetic' / deftest-hermetic' — the PROCESS-tier pipe-model siblings ──
 ;;
@@ -874,13 +852,10 @@
            (:wat::core::Some (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")))))))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic'
-  [name    <- :wat::WatAST
-   prelude <- :wat::WatAST
-   body    <- :wat::WatAST]
+  [name <- :wat::WatAST
+   body <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::do
-     ~@prelude
-     (:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic' ~body))))
+  `(:wat::core::defn ~name [] -> :wat::test::TestResult (:wat::test::run-hermetic' ~body)))
 
 ;; ─── Layer 2 — run-hermetic-with-io ────────────────────────────────────
 ;;

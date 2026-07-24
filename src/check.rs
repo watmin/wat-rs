@@ -21798,25 +21798,24 @@ mod tests {
     /// the helper IS properly placed in the deftest's prelude. Same
     /// shape as the leak test; helper moved into prelude position; no
     /// SandboxScopeLeak fires.
+    ///
+    /// Arc 170 slice 3 / arc 278 — RETIRED, the co-monument of
+    /// `sandbox_scope_leak_fires_with_diagnostic` (retired above). The
+    /// `validate_sandbox_scope_leak` walker fires on `run-sandboxed-ast`
+    /// heads only and no longer sees deftest expansions (deftest routes
+    /// through run-hermetic → spawn-process, which closure-captures the
+    /// parent scope — helper references are captures, not leaks). This
+    /// test's whole scenario was "helper in the deftest's PRELUDE slot",
+    /// and arc 278 ANNIHILATED the prelude slot (deftest is now
+    /// `name` + `body`), so the 3-arg form the test embedded no longer
+    /// even expands (ArityMismatch: deftest expects 2, got 3). The
+    /// behavior it guarded is doubly-dead — the walker doesn't touch
+    /// deftest, and the prelude position it exercised no longer exists.
+    /// Kept as a monument beside its sibling, no live assertion.
     #[test]
+    #[ignore = "arc 170 slice 3 / arc 278 — co-monument: the sandbox-scope-leak walker no longer fires on deftest, AND arc 278 annihilated the deftest prelude slot this test's scenario depended on; retired with its sibling"]
     fn sandbox_scope_no_leak_when_in_prelude() {
-        let src = r#"
-            (:wat::test::deftest :test::clean
-              ((:wat::core::defn :my::helper [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2)))
-              (:wat::test::assert-eq (:my::helper 21) 42))
-        "#;
-        // No outer-scope :my::helper define exists; the only define
-        // for it lives inside the deftest's prelude. The walker must
-        // NOT fire SandboxScopeLeak.
-        let result = check(src);
-        if let Err(errs) = &result {
-            assert!(
-                !errs.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::SandboxScopeLeak { .. }, .. })),
-                "SandboxScopeLeak misfired; rendered:\n{}", errs
-            );
-        }
-        // (Non-leak errors may still appear from other check rules
-        // here — the test only asserts SandboxScopeLeak doesn't fire.)
+        unimplemented!("arc 170 slice 3 / arc 278 prelude annihilation: the deftest-prelude non-leak scenario no longer exists (walker retired for deftest; prelude slot removed) — kept as a monument, no live assertion");
     }
 
     #[test]

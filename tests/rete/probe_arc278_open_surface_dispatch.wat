@@ -49,7 +49,7 @@
 ;; (a) + (b) — open-surface arg dispatches to the concrete clause matching the
 ;; value's REAL class; both concrete classes reachable through the same
 ;; open-surface-typed call site.
-(:wat::test::deftest' :user::open_surface_dispatch ()
+(:wat::test::deftest' :user::open_surface_dispatch 
   (:wat::core::let
     [sqlite-reason (:probe::as-reason-s (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))
      redis-reason  (:probe::as-reason-r (:probe::RedisReason  :errno 99   :cmd "SET k v"))

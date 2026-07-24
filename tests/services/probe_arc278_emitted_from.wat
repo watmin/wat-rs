@@ -23,7 +23,7 @@
 
 (:wat::core::defrecord :probe::Note [text <- :wat::core::String])
 
-(:wat::test::deftest' :user::emitted-from-round-trips ()
+(:wat::test::deftest' :user::emitted-from-round-trips 
   (:wat::core::let
     [tags   (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      log    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags

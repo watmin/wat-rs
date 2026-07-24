@@ -7,7 +7,7 @@
 ;; ─── 1: Char/of constructor and equality ──────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::char-round-trip::char-of-constructor
-  ()
+  
   (:wat::core::let
     [a (:wat::core::char/of "a")
      b (:wat::core::char/of "a")]
@@ -16,7 +16,7 @@
 ;; ─── 2: `\c` literal equals Char/of ──────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::char-round-trip::char-literal
-  ()
+  
   (:wat::core::let
     [lit \a
      con (:wat::core::char/of "a")]
@@ -25,7 +25,7 @@
 ;; ─── 3: Named char `\newline` ─────────────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::char-round-trip::char-literal-newline
-  ()
+  
   (:wat::core::let
     [nl      \newline
      nl-con  (:wat::core::char/of "\n")]
@@ -34,7 +34,7 @@
 ;; ─── 4: Named char `\space` ───────────────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::char-round-trip::char-literal-space
-  ()
+  
   (:wat::core::let
     [sp     \space
      sp-con (:wat::core::char/of " ")]
@@ -43,7 +43,7 @@
 ;; ─── 5: Different chars are not equal ────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::char-round-trip::char-neq
-  ()
+  
   (:wat::core::let
     [a \a
      b \b

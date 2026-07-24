@@ -9,7 +9,7 @@
 
 
 (:wat::test::deftest' :wat-tests::holon::Subtract::test-self-presence-above-floor
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "alice")
      b (:wat::holon::to-holon "bob")
@@ -17,7 +17,7 @@
     (:wat::test::assert-eq (:wat::holon::presence? a diff) true)))
 
 (:wat::test::deftest' :wat-tests::holon::Subtract::test-unrelated-presence-below-floor
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "alice")
      b (:wat::holon::to-holon "bob")

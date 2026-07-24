@@ -7,7 +7,7 @@
 ;; returns a per-op OUTCOME ENUM (`Store::<Op>Response`, `:Success` first); mem-store' never
 ;; errors, so every response is matched to its `:Success` arm.
 
-(:wat::test::deftest' :user::smem_roundtrip ()
+(:wat::test::deftest' :user::smem_roundtrip 
   (:wat::core::let
     [h          (:wat::query::mem-store/start :locus (:wat::spawn::thread)
                   :record (:wat::query::mem-store::Record :rows (:wat::core::PersistentVector)))

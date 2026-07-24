@@ -24,7 +24,7 @@
 ;; cargo test filtering.
 
 (:wat::test::deftest' :wat-tests::holon::lru::proofs::arc_119::step_A_spawn_shutdown
-  ()
+  
   (:wat::core::let
     ;; Outer holds the driver Thread; inner owns everything else.
     [driver

@@ -9,7 +9,7 @@
 
 
 (:wat::test::deftest' :wat-tests::holon::Trigram::test-window-participant-above-floor
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
      b (:wat::holon::to-holon "b")
@@ -29,7 +29,7 @@
     (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
 
 (:wat::test::deftest' :wat-tests::holon::Trigram::test-outsider-below-floor
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "a")
      b (:wat::holon::to-holon "b")

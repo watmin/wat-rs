@@ -13,7 +13,7 @@
 ;; ─── Self-coincidence: a holon is the same as itself ─────────────
 
 (:wat::test::deftest' :wat-tests::holon::coincident::test-self-coincident
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "rsi")]
     (:wat::test::assert-eq
@@ -23,7 +23,7 @@
 ;; ─── Structural equivalence: same-shape ASTs coincide ────────────
 
 (:wat::test::deftest' :wat-tests::holon::coincident::test-structurally-same
-  ()
+  
   (:wat::core::let
     [a
       (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))
@@ -36,7 +36,7 @@
 ;; ─── Unrelated holons do NOT coincide ────────────────────────────
 
 (:wat::test::deftest' :wat-tests::holon::coincident::test-unrelated-not-coincident
-  ()
+  
   (:wat::core::let
     [a (:wat::holon::to-holon "alice")
      b (:wat::holon::to-holon "charlie")]
@@ -50,7 +50,7 @@
 ;; coincident with the Bundle — the Bundle is a superposition, not
 ;; the atom itself.
 (:wat::test::deftest' :wat-tests::holon::coincident::test-stricter-than-presence
-  ()
+  
   (:wat::core::let
     [bundled
       (:wat::holon::Bundle
@@ -82,7 +82,7 @@
 ;; which is 15 orders of magnitude below noise-floor (~0.156).
 ;; Coincident? has massive headroom for self-equivalence checks.
 (:wat::test::deftest' :wat-tests::holon::coincident::test-self-cosine-within-floor
-  ()
+  
   (:wat::core::let
     [a
       (:wat::holon::Bind (:wat::holon::to-holon "rsi")

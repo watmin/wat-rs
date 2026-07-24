@@ -82,8 +82,8 @@ fn diag_make_deftest_with_prelude_expansion() {
         other => panic!("expected wat::WatAST, got {:?}", other),
     };
 
-    // Expect (:wat::test::deftest :my-test <prelude> <body>). Arc 031
-    // slice 2: no more mode/dims args.
+    // Expect (:wat::test::deftest :my-test <body>). Arc 278: the prelude slot
+    // is annihilated, so the one-step expansion is 3 items (deftest + name + body).
     let items = match &*ast {
         wat::ast::WatAST::List(items, _) => items,
         _ => panic!("expansion should be a list"),
@@ -94,7 +94,7 @@ fn diag_make_deftest_with_prelude_expansion() {
         "expansion should be a deftest call; got {:?}",
         items.first()
     );
-    assert_eq!(items.len(), 4, "expected 4 items (deftest + name + prelude + body)");
+    assert_eq!(items.len(), 3, "expected 3 items (deftest + name + body)");
 }
 
 /// NEGATIVE-SPACE — `:wat::core::macroexpand` fixpoint-iteration cap.

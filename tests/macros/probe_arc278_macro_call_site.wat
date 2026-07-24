@@ -22,7 +22,7 @@
 (:wat::core::defmacro :probe::here-frame [] -> :wat::WatAST
   `~(:wat::kernel::macro-call-site))
 
-(:wat::test::deftest' :user::macro-call-site-captures-invocation-line ()
+(:wat::test::deftest' :user::macro-call-site-captures-invocation-line 
   (:wat::core::let
     [f1  (:probe::here-frame)
      f2  (:probe::here-frame)

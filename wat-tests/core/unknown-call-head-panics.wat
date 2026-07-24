@@ -9,5 +9,5 @@
 ;; the arc 211c audit (2026-05-18) — `should-panic "not a builtin"` below.
 (:wat::test::should-panic "not a builtin")
 (:wat::test::deftest' :wat-tests::core::unknown-call-head-panics
-  ()
+  
   (:wat::test::assert-eq (:totally::made::up::name 42) 42))

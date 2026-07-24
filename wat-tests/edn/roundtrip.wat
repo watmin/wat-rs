@@ -9,18 +9,19 @@
 ;;   - `#ns/Variant [body]` → Enum tagged variant
 ;;   - `#ns/Variant []` → Enum unit variant (arc 278 A.0; `nil` = the unit value only)
 
-(:wat::test::make-deftest :deftest
-  (;; Test enum + struct used across the deftests below.
-   ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
-   (:wat::core::defenum :test::Event :wat::enum::Pure
-     :Buy  [price <- :wat::core::f64
-            qty   <- :wat::core::i64]
-     :Sell [price  <- :wat::core::f64
-            qty    <- :wat::core::i64
-            reason <- :wat::core::String])
-   (:wat::core::defstruct :test::Wrapper<E>
-     [label <- :wat::core::String
-      value <- :E])))
+;; Test enum + struct used across the deftests below.
+;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
+(:wat::core::defenum :test::Event :wat::enum::Pure
+  :Buy  [price <- :wat::core::f64
+         qty   <- :wat::core::i64]
+  :Sell [price  <- :wat::core::f64
+         qty    <- :wat::core::i64
+         reason <- :wat::core::String])
+(:wat::core::defstruct :test::Wrapper<E>
+  [label <- :wat::core::String
+   value <- :E])
+
+(:wat::test::make-deftest :deftest)
 
 
 ;; ─── Primitives ──────────────────────────────────────────────────

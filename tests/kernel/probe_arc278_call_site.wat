@@ -15,7 +15,7 @@
 (:wat::core::defn :probe::here [] -> :wat::kernel::Frame
   (:wat::kernel::call-site))
 
-(:wat::test::deftest' :user::call-site-returns-caller-frame ()
+(:wat::test::deftest' :user::call-site-returns-caller-frame 
   (:wat::core::let
     [frame     (:probe::here)
      file      (:wat::kernel::Frame/file frame)

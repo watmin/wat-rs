@@ -18,7 +18,7 @@
 ;; PRIMED ONLY — the non-prime spawn-process + 4-field Process are doomed.
 
 (:wat::test::deftest' :wat-tests::process::multiline-pprintln-roundtrip
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::let
       [p (:wat::kernel::spawn-program' (:wat::spawn::process)

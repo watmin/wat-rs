@@ -33,9 +33,7 @@
 ;; Prelude forms splice at top-level under (:wat::core::do ...) at freeze.
 ;; The body runs in a cheap in-process thread via :wat::test::run-thread.
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-client::capability-proof
-  (;; ─── Type declarations ───────────────────────────────────────────────
+;; ─── Type declarations ───────────────────────────────────────────────
    ;;
    ;; :counter::Request — the actor's input enum. Four variants:
    ;;   Get       — read-only query; reply is current value
@@ -214,8 +212,11 @@
        (:wat::kernel::Thread/println peer! (:counter::Request::Shutdown))
        (:wat::core::match (:wat::kernel::Thread/readln peer!) ((:counter::Response::Value v) v)
          ((:counter::Response::Ok    v) v)
-         ((:counter::Response::Final v) v)))))
+         ((:counter::Response::Final v) v))))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+(:wat::test::deftest' :counter-client::capability-proof
+  
   ;; ─── Test body ───────────────────────────────────────────────────────
   ;;
   ;; Spawn the counter with initial state 10.

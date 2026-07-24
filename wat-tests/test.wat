@@ -16,19 +16,19 @@
 ;; ─── assert-eq — pass cases ───────────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-i64
-  ()
+  
   (:wat::test::assert-eq 42 42))
 
 (:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-strings
-  ()
+  
   (:wat::test::assert-eq "hello" "hello"))
 
 (:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-bools
-  ()
+  
   (:wat::test::assert-eq true true))
 
 (:wat::test::deftest' :wat-tests::std::test::test-assert-eq-on-vec
-  ()
+  
   (:wat::core::let
     [a (:wat::core::Vector :wat::core::String "x" "y")
      b (:wat::core::Vector :wat::core::String "x" "y")]
@@ -38,7 +38,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-tests::std::test::test-assert-eq-fail-populates-message
-  ()
+  
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
     [r
@@ -56,12 +56,12 @@
 ;; ─── assert-contains — pass + fail ────────────────────────────────────
 
 (:wat::test::deftest' :wat-tests::std::test::test-assert-contains-hit
-  ()
+  
   (:wat::test::assert-contains "the quick brown fox" "quick"))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-tests::std::test::test-assert-contains-fail-populates-actual
-  ()
+  
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
     [r
@@ -88,7 +88,7 @@
 ;; ─── assert-coincident — pass + fail-renders-explanation ─────────────
 
 (:wat::test::deftest' :wat-tests::std::test::test-assert-coincident-pass
-  ()
+  
   (:wat::test::assert-coincident
     (:wat::holon::to-holon "alice")
     (:wat::holon::to-holon "alice")))
@@ -100,7 +100,7 @@
 ;; on the encoder's d at run time).
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-tests::std::test::test-assert-coincident-fail-renders-explanation
-  ()
+  
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (r, fail); bulk is embedded-program AST literal (test fixture, not composition)
   (:wat::core::let
     [r
@@ -133,7 +133,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stdout-is-matches
-  ()
+  
   (:wat::core::let
     [inner
       (:wat::test::run-hermetic
@@ -152,26 +152,11 @@
 ;; — config setters, type declarations, helper defines — preceding the
 ;; entry-point `(:user::main -> :nil)` define).
 ;;
-;; This deftest is the proof-of-capability: a prelude define is declared
-;; at program top-level via the macro, and :user::main's body invokes
-;; it. The child's `startup_from_forms` registers the helper at startup
-;; (top-level position); the body's invocation resolves at runtime.
-;; assert-stdout-is verifies the child's println landed on stdout.
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-tests::std::test::test-run-hermetic-with-prelude-proof
-  ()
-  (:wat::core::let
-    [inner
-      (:wat::test::run-hermetic-with-prelude
-        ;; Prelude — spliced as top-level program forms BEFORE :user::main.
-        ;; A helper define that the body invokes; the helper itself prints
-        ;; the captured string so the test verifies the prelude binding
-        ;; was actually registered + callable in the child.
-        ((:wat::core::defn :prelude::helper [] -> :wat::core::nil (:wat::kernel::println "from-prelude-helper")))
-        ;; Body — :user::main runs this.
-        (:prelude::helper))
-     expected (:wat::core::Vector :wat::core::String "\"from-prelude-helper\"")]
-    (:wat::test::assert-stdout-is inner expected)))
+;; (arc 278 — the prelude-proof deftest is RETIRED with the prelude feature it proved:
+;; `run-hermetic-with-prelude` and the prelude slot are annihilated. Preludes existed to
+;; hoist declarations into a test's world (originally shared vocab via load-file!, later
+;; local type-decls); that need is gone — thread decls live at file top-level, hermetic
+;; check-cases ride inline in the child's opaque forms. Nothing left to prove.)
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
 ;;
@@ -183,7 +168,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-pass
-  ()
+  
   (:wat::core::let
     [inner
       (:wat::test::run-hermetic
@@ -192,7 +177,7 @@
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
-  ()
+  
   ;; Verifies assert-stderr-matches's failure-reporting shape on REAL non-matching stderr.
   ;; Inner produces actual stderr content that doesn't match the pattern; the matcher
   ;; loop runs against that content and fires; the failure carries `expected = "my-pattern"`
@@ -240,7 +225,7 @@
 ;; when the legacy :wat::test::run path was swept to canonical macros.
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-run-string-entry-path
-  ()
+  
   ;; Arc 170 slice 4a-β: this test originally exercised the legacy
   ;; :wat::test::run STRING-parsing path; the inner source carried a
   ;; (:wat::config::set-capacity-mode! :error) form that the legacy
@@ -264,7 +249,7 @@
 ;; when the legacy :wat::test::run-ast path was swept to canonical macros.
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-tests::std::test::test-run-ast-via-program
-  ()
+  
   (:wat::core::let
     [r
       (:wat::test::run-hermetic
@@ -289,7 +274,7 @@
 ;; expands to a deftest call, the deftest expands to the full
 ;; run-sandboxed-ast scaffolding, and the test runs.
 
-(:wat::test::make-deftest :wat-tests::std::test::cfg-deftest ())
+(:wat::test::make-deftest :wat-tests::std::test::cfg-deftest)
 
 (:wat-tests::std::test::cfg-deftest
   :wat-tests::std::test::test-make-deftest-runs
@@ -306,7 +291,7 @@
 ;; macro call produces without evaluating it.
 
 (:wat::test::deftest' :wat-tests::std::test::test-macroexpand-1-non-macro
-  ()
+  
   ;; A plain expression (no macro head) expands to itself. Verify by
   ;; evaluating the expanded AST and checking it produces Ok.
   (:wat::core::match
@@ -318,7 +303,7 @@
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
 
 (:wat::test::deftest' :wat-tests::std::test::test-macroexpand-fixpoint-evaluates
-  ()
+  
   ;; macroexpand returns a :wat::WatAST; hand it to eval-ast!
   ;; to prove the expansion is evaluable.
   (:wat::core::match
@@ -343,7 +328,7 @@
 ;; slice 2 / arc-259 spawn-program' keystone); the AST/forms entry below is the live path.
 ;; The dead run-sandboxed string stdlib function itself rides the later dead-code cleanup.)
 (:wat::test::deftest' :wat-tests::std::test::test-run-ast-direct
-  ()
+  
   ;; rune:complectens(embedded-program) — outer let has 3 bindings (forms, r, fail); the bulk is the program AST built via :wat::test::program
   (:wat::core::let
     [forms (:wat::test::program

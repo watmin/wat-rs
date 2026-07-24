@@ -25,16 +25,18 @@
 ;; callers building on the primitives.
 
 
+;; Helper visible to the test body — bundle-or-fail wraps the
+;; BundleResult match into a single-shot HolonAST producer for
+;; small-arity bundles where capacity is never exceeded.
+(:wat::core::defn :wat-tests::holon::Reject::bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
+  (:wat::core::match
+         (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
+
+         ((:wat::core::Ok h) h)
+         ((:wat::core::Err _) (:wat::holon::leaf 0))))
+
 (:wat::test::deftest' :wat-tests::holon::Reject::test-reject-strips-y-direction
-  ;; Helper visible to the test body — bundle-or-fail wraps the
-  ;; BundleResult match into a single-shot HolonAST producer for
-  ;; small-arity bundles where capacity is never exceeded.
-  ((:wat::core::defn :wat-tests::holon::Reject::bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
-    (:wat::core::match
-           (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
-           
-           ((:wat::core::Ok h) h)
-           ((:wat::core::Err _) (:wat::holon::leaf 0)))))
+  
   (:wat::core::let
     [y (:wat::holon::to-holon "y")
      noise (:wat::holon::to-holon "noise")
@@ -45,13 +47,15 @@
     (:wat::test::assert-eq (:wat::holon::presence? y residual) false)))
 
 
+(:wat::core::defn :wat-tests::holon::Reject::project-bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
+  (:wat::core::match
+         (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
+
+         ((:wat::core::Ok h) h)
+         ((:wat::core::Err _) (:wat::holon::leaf 0))))
+
 (:wat::test::deftest' :wat-tests::holon::Reject::test-project-preserves-y-direction
-  ((:wat::core::defn :wat-tests::holon::Reject::project-bundle-or-fail [a <- :wat::holon::HolonAST b <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
-    (:wat::core::match
-           (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
-           
-           ((:wat::core::Ok h) h)
-           ((:wat::core::Err _) (:wat::holon::leaf 0)))))
+  
   (:wat::core::let
     [y (:wat::holon::to-holon "y")
      noise (:wat::holon::to-holon "noise")

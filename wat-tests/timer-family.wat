@@ -42,7 +42,7 @@
 
 ;; Proof: 3 re-armed `after` naps (1ms → 2ms → 4ms backoff), succeeds on attempt 3.
 (:wat::test::deftest' :wat-tests::timer::family-backoff-rides-after
-  ()
+  
   (:wat::test::assert-eq
     (:test::timer::retry-until 3 0 1)
     3))
@@ -52,7 +52,7 @@
 ;; work-peer; two timers make it deterministic (1ms always beats 20ms). Proves
 ;; select' multiplexes N timers and returns the first-ready's message.
 (:wat::test::deftest' :wat-tests::timer::first-deadline-wins
-  ()
+  
   (:wat::test::assert-eq
     (:wat::core::match
       (:wat::kernel::select'

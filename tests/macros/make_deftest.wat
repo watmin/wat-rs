@@ -8,8 +8,7 @@
 ;; Program 2 (macroexpand_self_recursive_macro_fails_with_macro_expansion_failed):
 ;; Registers :my::ping and :my::pong (mutual recursion); exposes :probe::run-macroexpand.
 
-(:wat::test::make-deftest :my-deftest
-  ((:wat::load-file! "foo.wat")))
+(:wat::test::make-deftest :my-deftest)
 
 (:wat::core::defn :probe::get-expansion [] -> :wat::WatAST
   (:wat::core::macroexpand-1

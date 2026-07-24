@@ -8,7 +8,7 @@
 ;; Plus the i64::MIN / -1 edge: rem/mod = 0 (quot overflows — asserted from
 ;; the .rs side since it's an Err, not an Ok value assert-eq can carry).
 
-(:wat::test::deftest' :user::modrem_sign_table ()
+(:wat::test::deftest' :user::modrem_sign_table 
   (:wat::core::do
     ;; quot — truncate toward zero
     (:wat::test::assert-eq (:wat::core::quot 7 3) 2)

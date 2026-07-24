@@ -63,9 +63,7 @@
 ;;   - recv returns Result<Option<T>,Vector<ThreadDiedError>>  (same chain shape)
 ;;   - Thread/drain-and-join returns Result<nil,Vector<ThreadDiedError>>
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-service::capability-N3
-  (;; ─── Admin protocol ──────────────────────────────────────────────────────
+;; ─── Admin protocol ──────────────────────────────────────────────────────
    ;; Stone 241.9 — migrated from :wat::core::enum to :wat::core::defenum (HARD CUT).
    (:wat::core::defenum :counter::AdminReq :wat::enum::Pure
      :Provision   [initial <- :wat::core::i64]
@@ -753,8 +751,11 @@
              ((:wat::core::Err chain)
                (:wat::core::Err (:counter::ServiceError::PeerDied chain)))))
          ((:wat::core::Err chain)
-           (:wat::core::Err (:counter::ServiceError::PeerDied chain)))))))
+           (:wat::core::Err (:counter::ServiceError::PeerDied chain))))))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+(:wat::test::deftest' :counter-service::capability-N3
+  
   ;; ─── Test body ─────────────────────────────────────────────────────────────
   ;;
   ;; Exercises ALL ops via capability wrappers ONLY.

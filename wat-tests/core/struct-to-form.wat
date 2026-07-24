@@ -10,11 +10,13 @@
 ;; form with embedded `,unquote` sites, and the substrate fills them
 ;; in from the surrounding environment at evaluation time.
 
+(:wat::core::defstruct :my::Pair
+  [a <- :wat::core::i64
+   b <- :wat::core::i64])
+
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest' :wat-rs::std::struct-to-form::test-roundtrip-via-eval
-  ((:wat::core::defstruct :my::Pair
-     [a <- :wat::core::i64
-      b <- :wat::core::i64]))
+  
   (:wat::core::let
     [outcome
       (:wat::test::run-thread
@@ -37,7 +39,7 @@
 
 
 (:wat::test::deftest' :wat-rs::std::struct-to-form::test-quasiquote-splices-runtime-values
-  ()
+  
   (:wat::core::let
     [x 42
      y "hello"

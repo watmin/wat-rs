@@ -48,9 +48,7 @@
 ;; Per-user state is INDEPENDENT — each user's counter is tracked separately
 ;; in their registry entry's state field (design choice 1).
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest' :counter-service::thread-N3
-  (;; ─── Admin protocol ──────────────────────────────────────────────────
+;; ─── Admin protocol ──────────────────────────────────────────────────
    ;;
    ;; AdminReq grows from 3a's (Stop) to add Provision/Deprovision.
    ;; Provision: admin requests new user with given initial state.
@@ -625,8 +623,11 @@
              "user-reset3: recv peer died")
            "user-reset3: clean disconnect")]
        (:wat::core::match resp ((:counter::UserResp::Ok    v) v)
-         ((:counter::UserResp::Value v) v)))))
+         ((:counter::UserResp::Value v) v))))
 
+(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
+(:wat::test::deftest' :counter-service::thread-N3
+  
   ;; ─── Test body ─────────────────────────────────────────────────────────
   ;;
   ;; SERVICE-PROGRAMS lockstep: all Senders (admin-tx, user-tx1/2/3) must
