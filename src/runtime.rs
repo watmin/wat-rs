@@ -8996,7 +8996,8 @@ fn eval_not(
 
 fn eval_and(
     args: &[WatAST],
-    _list_span: &Span,
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
+
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -9020,7 +9021,8 @@ fn eval_and(
 
 fn eval_or(
     args: &[WatAST],
-    _list_span: &Span,
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: non-bool operand errors locate at `arg.span()`, more precise than the coarse list span
+
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -9057,7 +9059,8 @@ fn eval_or(
 /// spelling per slice 1f's vec→Vector playbook completed.
 fn eval_tuple_ctor(
     args: &[WatAST],
-    _list_span: &Span,
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: leaf helper — its MalformedForm raise uses `rust_caller_span!()` (arc 138)
+
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -12111,7 +12114,10 @@ fn walk_match_clause(
 /// Like `quote`, this is a special form — arguments are NOT
 /// evaluated. The type checker returns `:wat::core::Vector<wat::WatAST>`
 /// unconditionally; see `check.rs::infer_list` for the handling.
-fn eval_forms(args: &[WatAST], _list_span: &Span) -> Result<Value, EvalBreak> {
+fn eval_forms(
+    args: &[WatAST],
+    _list_span: &Span, // rune:lint(unused-span) — infallible — no error path (always `Ok`)
+) -> Result<Value, EvalBreak> {
     let items: Vec<Value> = args
         .iter()
         .map(|a| Value::wat__WatAST(Arc::new(a.clone())))

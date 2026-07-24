@@ -37,7 +37,7 @@ pub(crate) fn eval_variadic_args_measurement(
     xs: &[WatAST],
     _env: &Environment,
     _sym: &SymbolTable,
-    _span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (always `Ok(Value::i64(xs.len()))`)
 ) -> Result<Value, EvalBreak> {
     Ok(Value::i64(xs.len() as i64))
 }

@@ -92,7 +92,10 @@ use crate::span::Span;
 // ─── Constructors ────────────────────────────────────────────────────
 
 /// `(:wat::time::now) -> :wat::time::Instant` — current wall-clock time.
-pub(crate) fn eval_time_now(args: &[WatAST], _list_span: &Span) -> Result<Value, RuntimeError> {
+pub(crate) fn eval_time_now(
+    args: &[WatAST],
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: the sole error (arity) locates at the first extra arg's own span (`args[0].span()`)
+) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::time::now";
     if !args.is_empty() {
         return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::ArityMismatch {

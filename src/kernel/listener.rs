@@ -335,7 +335,11 @@ impl CommListener for SocketListener {
         crate::comms::ReactorClass::Fd
     }
 
-    fn accept(&self, _sym: &SymbolTable, _span: &Span) -> Result<Result<Peer, AcceptFail>, EvalBreak> {
+    fn accept(
+        &self,
+        _sym: &SymbolTable,
+        _span: &Span, // rune:lint(unused-span) — located elsewhere: every failure is an `AcceptFail` VALUE returned as `Ok(Err(…))`, located at the caller's match (the accept' OUTCOME WALL); no path raises here
+    ) -> Result<Result<Peer, AcceptFail>, EvalBreak> {
         // Arc 209 C0b.3a-i — poll-driven non-blocking accept.
         // Build a Select with just the listener arm (one fd). Loop:
         //   Listener → non-blocking accept → Ok(stream) → wrap | WouldBlock → re-poll

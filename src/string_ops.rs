@@ -803,7 +803,8 @@ fn is_canonical_uuid_string(s: &str) -> bool {
 /// `:wat::core::Uuid` value — NOT a string. Arc 207 slice 2.
 pub fn eval_uuid_typed_v4(
     args: &[WatAST],
-    _list_span: &Span,
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: the sole error (arity) locates at the first extra arg's own span (`args[0].span()`)
+
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1020,7 +1021,8 @@ pub fn eval_uuid_rfc4122_variant(
 /// Returns the nil UUID (`00000000-0000-0000-0000-000000000000`). Arc 207 slice 2.
 pub fn eval_uuid_typed_nil(
     args: &[WatAST],
-    _list_span: &Span,
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: the sole error (arity) locates at the first extra arg's own span (`args[0].span()`)
+
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1125,7 +1127,8 @@ pub fn eval_char_of(
 /// is variadic rather than fixed-arity.
 pub fn eval_list_of(
     args: &[WatAST],
-    _list_span: &Span,
+    _list_span: &Span, // rune:lint(unused-span) — located elsewhere: no own error path; the only errors are `?`-propagated from the per-element `eval(arg, …)`, each carrying the arg's own span
+
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {

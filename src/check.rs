@@ -8382,7 +8382,8 @@ fn infer_do(
 // consistent across the family.
 fn infer_let(
     args: &[WatAST],
-    _head_span: &Span,
+    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: MalformedForm at the bad node's own span (the outer Vector's / `other.span()`); process-join errors at their threaded join/bind spans
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -12481,7 +12482,8 @@ fn infer_select_prime(
 ///   A = the self-peer's receive type (args[0]: Peer'<_,A>) — the admin channel receive type.
 fn infer_poll_prime(
     args: &[WatAST],
-    _head_span: &Span,
+    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: type errors locate at the offending arg's own span (`args[2].span()`), more precise than the coarse head span
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -14951,7 +14953,8 @@ fn infer_persistentmap_constructor(
 /// An empty ctor produces `PersistentVector<fresh_T>`. Returns `PersistentVector<T>`.
 fn infer_persistentvector_constructor(
     args: &[WatAST],
-    _head_span: &Span,
+    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `arg.span()`, more precise than the coarse head span
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -14993,7 +14996,8 @@ fn infer_persistentvector_constructor(
 /// :wat::type::Infer :wat::type::Infer)` call.
 fn infer_map_literal(
     pairs: &[(WatAST, WatAST)],
-    _span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: key/value type errors locate at `k_node.span()`/`v_node.span()`, more precise than the coarse literal span
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -15042,7 +15046,8 @@ fn infer_map_literal(
 /// An empty set literal `#{}` produces `HashSet<fresh_T>`.
 fn infer_set_literal(
     items: &[WatAST],
-    _span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `item.span()`, more precise than the coarse literal span
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -15117,7 +15122,8 @@ fn infer_tuple_constructor(
 
 fn infer_string_concat(
     args: &[WatAST],
-    _head_span: &Span,
+    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: arg type errors locate at `arg.span()`, more precise than the coarse head span
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -15628,7 +15634,8 @@ fn check_compound_against_expected(
 /// Mirrors `infer_list_constructor` but for the `:wat::core::List` head.
 fn infer_linked_list_constructor(
     args: &[WatAST],
-    _head_span: &Span,
+    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `arg.span()`, more precise than the coarse head span
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,
@@ -15665,7 +15672,8 @@ fn infer_linked_list_constructor(
 
 fn infer_boolean_shortcircuit(
     args: &[WatAST],
-    _head_span: &Span,
+    _head_span: &Span, // rune:lint(unused-span) — located elsewhere: operand type errors locate at `arg.span()`, more precise than the coarse head span
+
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
     fresh: &mut InferCtx,

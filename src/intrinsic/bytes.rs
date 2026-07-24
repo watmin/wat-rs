@@ -46,7 +46,8 @@ pub(crate) fn eval_bytes_to_hex(
     bs: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    _span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the arg type error locates at `bs.span()`; the element-range raise uses `rust_caller_span!()`
+
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes::to-hex";
     let xs = match eval_inner(bs, env, sym)?.value_owned() {
@@ -113,7 +114,8 @@ pub(crate) fn eval_bytes_from_hex(
     s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    _span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the arg type error locates at `arg_span` (`s.span()`); bad hex is a non-error `Ok(None)`
+
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes::from-hex";
     let arg_span = s.span().clone();

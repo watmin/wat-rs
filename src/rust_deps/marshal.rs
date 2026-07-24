@@ -297,7 +297,11 @@ impl ToWat for Value {
 impl FromWat for Value {
     /// This impl is infallible — it accepts any `Value` without error
     /// (the only infallible `FromWat` member).
-    fn from_wat(v: &Value, _op: &'static str, _span: &Span) -> Result<Self, RuntimeError> {
+    fn from_wat(
+        v: &Value,
+        _op: &'static str,
+        _span: &Span, // rune:lint(unused-span) — infallible — no error path (the only infallible `FromWat` member; `Ok(v.clone())`)
+    ) -> Result<Self, RuntimeError> {
         Ok(v.clone())
     }
 }

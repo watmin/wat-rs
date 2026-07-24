@@ -1357,11 +1357,12 @@ pub struct WatTempFile {
 }
 
 impl WatTempFile {
-    pub fn new() -> Result<Self, RuntimeError> {
+    pub fn new(span: &Span) -> Result<Self, RuntimeError> {
         match NamedTempFile::new() {
             Ok(f) => Ok(Self { inner: Some(f) }),
-            // arc 138: no span — OS error from tempfile creation; no WatAST at this call depth
-            Err(e) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+            // The wat call site's span (threaded from `eval_io_temp_file_new`) locates this OS
+            // error at the user's `(:wat::io::TempFile/new)`, not at a coarse `rust_caller_span!()`.
+            Err(e) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempFile/new".into(),
                 reason: format!("create temp file: {e}")
             } }),
@@ -1387,11 +1388,12 @@ pub struct WatTempDir {
 }
 
 impl WatTempDir {
-    pub fn new() -> Result<Self, RuntimeError> {
+    pub fn new(span: &Span) -> Result<Self, RuntimeError> {
         match TempDir::new() {
             Ok(d) => Ok(Self { inner: Some(d) }),
-            // arc 138: no span — OS error from tempdir creation; no WatAST at this call depth
-            Err(e) => Err(RuntimeError { span: crate::rust_caller_span!(), kind: RuntimeErrorKind::MalformedForm {
+            // The wat call site's span (threaded from `eval_io_temp_dir_new`) locates this OS error
+            // at the user's `(:wat::io::TempDir/new)`, not at a coarse `rust_caller_span!()`.
+            Err(e) => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
                 head: ":wat::io::TempDir/new".into(),
                 reason: format!("create temp dir: {e}")
             } }),
@@ -1417,11 +1419,11 @@ impl WatTempDir {
 
 pub fn eval_io_temp_file_new(
     _args: &[WatAST],
-    _list_span: &Span,
+    list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let f = WatTempFile::new()?;
+    let f = WatTempFile::new(list_span)?;
     Ok(crate::rust_deps::make_rust_opaque(
         ":wat::io::TempFile",
         crate::rust_deps::ThreadOwnedCell::new(f),
@@ -1446,11 +1448,11 @@ pub fn eval_io_temp_file_path(
 
 pub fn eval_io_temp_dir_new(
     _args: &[WatAST],
-    _list_span: &Span,
+    list_span: &Span,
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let d = WatTempDir::new()?;
+    let d = WatTempDir::new(list_span)?;
     Ok(crate::rust_deps::make_rust_opaque(
         ":wat::io::TempDir",
         crate::rust_deps::ThreadOwnedCell::new(d),
