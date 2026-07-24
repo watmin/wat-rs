@@ -17,7 +17,12 @@
                    ;; hand the parent the capability — the lock-step handoff (it now has perfect knowledge).
                    _    (:wat::core::match (:wat::kernel::send' self addr) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                    ;; accept the parent's dial on our own listener; round-trip n -> n+100.
-                   c    (:wat::kernel::accept' (:wat::spawn::Bound/listener b))
+                   c    (:wat::core::match (:wat::kernel::accept' (:wat::spawn::Bound/listener b))
+                          ((:wat::kernel::AcceptOutcome::Accepted p) p)
+                          (:wat::kernel::AcceptOutcome::Closed
+                            (:wat::kernel::assertion-failed! "accept': listener closed before the parent dialed" :wat::core::None :wat::core::None))
+                          ((:wat::kernel::AcceptOutcome::Failed cause)
+                            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))
                    n    (:wat::core::match (:wat::kernel::recv' c)
                           ((:wat::kernel::RecvOutcome::Message m) m)
                           ((:wat::kernel::RecvOutcome::Lost cause)

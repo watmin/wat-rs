@@ -8256,8 +8256,15 @@ const MUST_USE_TYPES: &[&str] = &[
 /// `Rejected[cause]`), so the only gap was the swallow-axis: a dropped `poll'`/`select'` event
 /// hid a `Lost`/`Malformed` failure. Gating it closes that door; a *faced* poll' (matched over
 /// the event variants) has an arm-joined type, never `ServiceEvent<…>`.
+///
+/// `:wat::kernel::AcceptOutcome<R,S>` (arc 278 peer-lifecycle Strike 3 — the accept'
+/// OUTCOME WALL) — parametric like RecvOutcome<O> (`Accepted` holds a live `Peer'<R,S>`).
+/// A *faced* `accept'` (matched over `Accepted`/`Closed`/`Failed`) has the Peer' / an
+/// arm-joined type, never `AcceptOutcome<R,S>`, so this fires only on a raw dropped
+/// `accept'`, closing the swallow door on the rendezvous-drop/decode/select/peer_cred
+/// failures the wall converted from raises.
 const MUST_USE_PARAMETRIC_HEADS: &[&str] =
-    &["wat::kernel::RecvOutcome", "wat::spawn::ServiceEvent"];
+    &["wat::kernel::RecvOutcome", "wat::spawn::ServiceEvent", "wat::kernel::AcceptOutcome"];
 
 /// True when `ty` (already `apply_subst`-resolved) names a must-use type —
 /// see `MUST_USE_TYPES` (non-parametric, colon-Path) and
@@ -8281,6 +8288,8 @@ fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty
         ("recv'", "Message/Closed/Lost")
     } else if ty_name.contains("ServiceEvent") {
         ("poll'/select'", "Message/Closed/Lost/Malformed/Rejected")
+    } else if ty_name.contains("AcceptOutcome") {
+        ("accept'", "Accepted/Closed/Failed")
     } else {
         ("send'", "Sent/Closed/Lost")
     };
@@ -11194,7 +11203,7 @@ fn infer_accept_prime(
         } });
         let s = fresh.fresh();
         let r = fresh.fresh();
-        let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] };
+        let ty = TypeExpr::Parametric { head: "wat::kernel::AcceptOutcome".into(), args: vec![r, s] };
         return CheckResult::partial_with(ty, local_errors);
     }
     let listener_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -11202,7 +11211,7 @@ fn infer_accept_prime(
         None => {
             let s = fresh.fresh();
             let r = fresh.fresh();
-            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] };
+            let ty = TypeExpr::Parametric { head: "wat::kernel::AcceptOutcome".into(), args: vec![r, s] };
             return CheckResult::partial_with(ty, local_errors);
         }
     };
@@ -11217,7 +11226,12 @@ fn infer_accept_prime(
             let s_ty = args[0].clone(); // R in Listener'<S,R> → S in Peer'<R,S>
             check_wire_peer_purity_span(&r_ty, head_span, OP, env.types(), &mut local_errors);
             check_wire_peer_purity_span(&s_ty, head_span, OP, env.types(), &mut local_errors);
-            TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r_ty, s_ty] }
+            // Arc 278 the accept' OUTCOME WALL — accept' no longer returns the bare
+            // Peer'<R,S> and raises on rendezvous-drop/decode/select/peer_cred failure; it
+            // returns a matchable `:wat::kernel::AcceptOutcome<R,S>` (::Accepted[Peer'<R,S>]
+            // · ::Closed · ::Failed[Failure]) so a masked accept failure is structurally
+            // unrepresentable. The peer still flows to the consumer via the ::Accepted arm.
+            TypeExpr::Parametric { head: "wat::kernel::AcceptOutcome".into(), args: vec![r_ty, s_ty] }
         }
         other => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -11228,7 +11242,7 @@ fn infer_accept_prime(
             } });
             let s = fresh.fresh();
             let r = fresh.fresh();
-            let ty = TypeExpr::Parametric { head: "wat::kernel::Peer'".into(), args: vec![r, s] };
+            let ty = TypeExpr::Parametric { head: "wat::kernel::AcceptOutcome".into(), args: vec![r, s] };
             return CheckResult::partial_with(ty, local_errors);
         }
     };

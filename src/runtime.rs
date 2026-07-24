@@ -23876,6 +23876,44 @@ fn close_outcome_failed(reason: String) -> Value {
     }))
 }
 
+/// Arc 278 peer-lifecycle Strike 3 — the type path of `accept'`'s matchable outcome
+/// enum (`:wat::kernel::AcceptOutcome<R,S>`, registered in `types.rs`). PARAMETRIC +
+/// Impure, mirroring `RecvOutcome<O>` — `Accepted` holds a live `Peer'`.
+const ACCEPT_OUTCOME_TYPE: &str = ":wat::kernel::AcceptOutcome";
+
+/// `AcceptOutcome::Accepted [peer <- Peer'<R,S>]` — an AUTHORIZED peer connected
+/// (the happy path). `peer_val` is the already-wrapped `PEER_TYPE_PATH` opaque.
+pub(crate) fn accept_outcome_accepted(peer_val: Value) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ACCEPT_OUTCOME_TYPE.into(),
+        variant_name: "Accepted".into(),
+        fields: vec![peer_val],
+    }))
+}
+
+/// `AcceptOutcome::Closed []` — the listener's rendezvous shut down / address dropped
+/// (clean; no peer). The reason-free terminal (was the "address dropped or shutdown" /
+/// "interrupted by shutdown" raise).
+pub(crate) fn accept_outcome_closed() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ACCEPT_OUTCOME_TYPE.into(),
+        variant_name: "Closed".into(),
+        fields: vec![],
+    }))
+}
+
+/// `AcceptOutcome::Failed [cause <- Failure]` — a decode / select / peer_cred / socket-wrap
+/// io error carrying its structured cause. Built via `message_only_failure` — the SAME
+/// structured carrier `send'`/`recv'`/`close'` `Lost`/`Failed` use; never a hand-rolled
+/// `struct-new` Failure (R57's Struct-Failure mask).
+pub(crate) fn accept_outcome_failed(reason: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ACCEPT_OUTCOME_TYPE.into(),
+        variant_name: "Failed".into(),
+        fields: vec![message_only_failure(reason)],
+    }))
+}
+
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
 /// Err payload returned by the eval-family forms on any failure

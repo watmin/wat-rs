@@ -10,7 +10,12 @@
      svc   (:wat::kernel::spawn-program' (:wat::spawn::thread)
               (:wat::core::fn [_admin <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
                 (:wat::core::let
-                  [conn (:wat::kernel::accept' l)
+                  [conn (:wat::core::match (:wat::kernel::accept' l)
+                          ((:wat::kernel::AcceptOutcome::Accepted p) p)
+                          (:wat::kernel::AcceptOutcome::Closed
+                            (:wat::kernel::assertion-failed! "accept': listener closed before a client connected" :wat::core::None :wat::core::None))
+                          ((:wat::kernel::AcceptOutcome::Failed cause)
+                            (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)))
                    n    (:wat::core::match (:wat::kernel::recv' conn)
                           ((:wat::kernel::RecvOutcome::Message m) m)
                           ((:wat::kernel::RecvOutcome::Lost cause)

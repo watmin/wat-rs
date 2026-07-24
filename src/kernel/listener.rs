@@ -38,6 +38,22 @@ use crate::span::Span;
 
 // ─── CommListener trait ───────────────────────────────────────────────────────
 
+/// Arc 278 peer-lifecycle Strike 3 — the accept' OUTCOME WALL. A `CommListener::accept`
+/// distinguishes its *handleable* failures (the ones `accept'` converts to a matchable
+/// `:wat::kernel::AcceptOutcome<R,S>` variant, never a raise) from the must-never-happen
+/// raises (which stay `EvalBreak`). `accept` returns `Result<Result<Peer, AcceptFail>,
+/// EvalBreak>`: the outer `Err` is an uncatchable raise (an in-process substrate bug — a
+/// malformed connect-request, an arity/type mismatch), the inner `Err(AcceptFail)` is a
+/// handleable outcome the eval layer maps to `Closed`/`Failed`.
+pub enum AcceptFail {
+    /// The listener's rendezvous shut down / address dropped (clean; no peer) —
+    /// maps to `AcceptOutcome::Closed[]`.
+    Closed,
+    /// A decode / select / peer_cred / socket-wrap io error carrying its reason —
+    /// maps to `AcceptOutcome::Failed[cause <- Failure]` (via `message_only_failure`).
+    Failed(String),
+}
+
 /// Transport-blind kernel trait: block until a connection arrives and return
 /// the server-side `Peer`.
 ///
@@ -51,7 +67,12 @@ use crate::span::Span;
 /// [[feedback_vended_primitives_never_deadlock]]
 pub trait CommListener: Send + Sync {
     /// Block until a connection arrives; wrap + return the server-side Peer.
-    fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak>;
+    ///
+    /// Arc 278 the accept' OUTCOME WALL: `Ok(Ok(peer))` = an authorized peer;
+    /// `Ok(Err(AcceptFail))` = a handleable failure (→ `Closed`/`Failed`);
+    /// `Err(EvalBreak)` = a must-never-happen raise (a malformed connect-request
+    /// substrate bug — the crossbeam `connect'` built a bad request).
+    fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Result<Peer, AcceptFail>, EvalBreak>;
 
     /// Return a `&dyn Any` reference for downcasting to the concrete impl.
     ///
@@ -91,7 +112,7 @@ impl CommListener for CrossbeamListener {
         crate::comms::ReactorClass::InMemory
     }
 
-    fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak> {
+    fn accept(&self, sym: &SymbolTable, span: &Span) -> Result<Result<Peer, AcceptFail>, EvalBreak> {
         const OP: &str = ":wat::kernel::accept'";
         // Block on the rendezvous until a connect-request arrives.
         let cr_value = match crate::channel::typed_recv(
@@ -100,27 +121,20 @@ impl CommListener for CrossbeamListener {
             span.clone(),
         ) {
             crate::channel::RecvOutcome::Value(v) => v,
+            // Arc 278 the accept' OUTCOME WALL — HANDLEABLE: the rendezvous is gone
+            // (address dropped or shutdown). A clean terminal → AcceptOutcome::Closed,
+            // not a raise the reader unwinds past.
             crate::channel::RecvOutcome::Disconnected
             | crate::channel::RecvOutcome::Shutdown => {
-                return Err(RuntimeError {
-                    span: span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: "accept': rendezvous recv failed — address was dropped or shutdown"
-                            .into(),
-                    },
-                }
-                .into());
+                return Ok(Err(AcceptFail::Closed));
             }
+            // HANDLEABLE: a decode error on the connect-request — a real io failure with
+            // a reason → AcceptOutcome::Failed[cause].
             crate::channel::RecvOutcome::DecodeError(msg) => {
-                return Err(RuntimeError {
-                    span: span.clone(),
-                    kind: RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: format!("accept': rendezvous recv decode error: {}", msg),
-                    },
-                }
-                .into());
+                return Ok(Err(AcceptFail::Failed(format!(
+                    "accept': rendezvous recv decode error: {}",
+                    msg
+                ))));
             }
         };
         // Unpack + wrap the server Peer'<R,S> end on THIS thread.
@@ -238,7 +252,7 @@ impl CommListener for CrossbeamListener {
             }
         };
         // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
-        Ok(Peer::from_thread(resp_tx, req_rx))
+        Ok(Ok(Peer::from_thread(resp_tx, req_rx)))
     }
 }
 
@@ -321,8 +335,7 @@ impl CommListener for SocketListener {
         crate::comms::ReactorClass::Fd
     }
 
-    fn accept(&self, _sym: &SymbolTable, span: &Span) -> Result<Peer, EvalBreak> {
-        const OP: &str = ":wat::kernel::accept'";
+    fn accept(&self, _sym: &SymbolTable, _span: &Span) -> Result<Result<Peer, AcceptFail>, EvalBreak> {
         // Arc 209 C0b.3a-i — poll-driven non-blocking accept.
         // Build a Select with just the listener arm (one fd). Loop:
         //   Listener → non-blocking accept → Ok(stream) → wrap | WouldBlock → re-poll
@@ -335,13 +348,13 @@ impl CommListener for SocketListener {
         let mut sel = crate::comms::process::Select::<Value>::new();
         sel.listener(raw);
         loop {
-            match sel.select().map_err(|e| RuntimeError {
-                span: span.clone(),
-                kind: RuntimeErrorKind::MalformedForm {
-                    head: OP.into(),
-                    reason: format!("accept' select: {}", e),
-                },
-            })? {
+            // Arc 278 the accept' OUTCOME WALL — HANDLEABLE: a `select` io error →
+            // AcceptOutcome::Failed[cause], not a raise the server loop unwinds past.
+            let outcome = match sel.select() {
+                Ok(o) => o,
+                Err(e) => return Ok(Err(AcceptFail::Failed(format!("accept' select: {}", e)))),
+            };
+            match outcome {
                 crate::comms::SelectOutcome::Listener => {
                     match self.listener.accept() {
                         Ok((stream, _)) => {
@@ -355,63 +368,55 @@ impl CommListener for SocketListener {
                             // (the forge path the trusted-wire door's inheritance premise rests on
                             // being closed). Both accept paths now enforce `CommsPolicy`. Read
                             // peer_cred BEFORE `OwnedFd::from(stream)` consumes the stream.
-                            let cred = crate::comms::process::peer_cred(stream.as_raw_fd())
-                                .map_err(|e| RuntimeError {
-                                    span: span.clone(),
-                                    kind: RuntimeErrorKind::MalformedForm {
-                                        head: OP.into(),
-                                        reason: format!(
-                                            "accept' (process tier): peer_cred on accepted socket: {}",
-                                            e
-                                        ),
-                                    },
-                                })?;
+                            // HANDLEABLE: reading the connector's peer-cred failed (io
+                            // error) → AcceptOutcome::Failed[cause].
+                            let cred = match crate::comms::process::peer_cred(stream.as_raw_fd()) {
+                                Ok(c) => c,
+                                Err(e) => {
+                                    return Ok(Err(AcceptFail::Failed(format!(
+                                        "accept' (process tier): peer_cred on accepted socket: {}",
+                                        e
+                                    ))));
+                                }
+                            };
                             if !self.authorizes(&cred) {
                                 drop(stream); // bounce the stranger — close the accepted fd
                                 continue; // re-poll for the next dialer
                             }
                             // Arc 258.5b-ii: reinterpret Sender<Value> as Sender<String>.
+                            // HANDLEABLE: wrapping the accepted stream failed (io error) →
+                            // AcceptOutcome::Failed[cause].
                             let (tx, rx) =
-                                crate::comms::process::sender_receiver_from_fd_with_budget::<Value>(
+                                match crate::comms::process::sender_receiver_from_fd_with_budget::<Value>(
                                     OwnedFd::from(stream),
                                     self.max_frame_bytes,
-                                )
-                                .map_err(|e| RuntimeError {
-                                    span: span.clone(),
-                                    kind: RuntimeErrorKind::MalformedForm {
-                                        head: OP.into(),
-                                        reason: format!("wrap socket stream failed: {}", e),
-                                    },
-                                })?;
-                            return Ok(Peer::from_socket(tx.reinterpret::<String>(), rx));
+                                ) {
+                                    Ok(pair) => pair,
+                                    Err(e) => {
+                                        return Ok(Err(AcceptFail::Failed(format!(
+                                            "wrap socket stream failed: {}",
+                                            e
+                                        ))));
+                                    }
+                                };
+                            return Ok(Ok(Peer::from_socket(tx.reinterpret::<String>(), rx)));
                         }
                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                             continue; // spurious; re-poll
                         }
+                        // HANDLEABLE: a genuine accept() io error → AcceptOutcome::Failed[cause].
                         Err(e) => {
-                            return Err(RuntimeError {
-                                span: span.clone(),
-                                kind: RuntimeErrorKind::MalformedForm {
-                                    head: OP.into(),
-                                    reason: format!(
-                                        "accept on abstract UDS listener failed: {}",
-                                        e
-                                    ),
-                                },
-                            }
-                            .into());
+                            return Ok(Err(AcceptFail::Failed(format!(
+                                "accept on abstract UDS listener failed: {}",
+                                e
+                            ))));
                         }
                     }
                 }
+                // HANDLEABLE: the reactor was shut down mid-accept → AcceptOutcome::Closed
+                // (a clean terminal; no peer), not a raise.
                 crate::comms::SelectOutcome::Shutdown => {
-                    return Err(RuntimeError {
-                        span: span.clone(),
-                        kind: RuntimeErrorKind::MalformedForm {
-                            head: OP.into(),
-                            reason: "accept': interrupted by shutdown".into(),
-                        },
-                    }
-                    .into());
+                    return Ok(Err(AcceptFail::Closed));
                 }
                 crate::comms::SelectOutcome::Recv { .. } => {
                     unreachable!("accept' Select has no receivers")
@@ -473,15 +478,25 @@ impl Listener {
         }
     }
 
-    /// Dispatch accept to the concrete impl; wrap the returned `Peer` as a
-    /// `PEER_TYPE_PATH` opaque `Value` for the eval layer.
+    /// Dispatch accept to the concrete impl and build the matchable
+    /// `:wat::kernel::AcceptOutcome<R,S>` `Value` for the eval layer (Arc 278 the accept'
+    /// OUTCOME WALL). `Ok(peer)` → `Accepted[peer]` (the `Peer` wrapped as a
+    /// `PEER_TYPE_PATH` opaque); `Err(AcceptFail::Closed)` → `Closed[]`;
+    /// `Err(AcceptFail::Failed(reason))` → `Failed[cause <- Failure]` (via
+    /// `message_only_failure`). A must-never-happen raise stays an `EvalBreak` (the `?`).
     pub fn accept_as_value(&self, sym: &SymbolTable, span: &Span) -> Result<Value, EvalBreak> {
-        let peer = self.inner.accept(sym, span)?;
         use crate::kernel::spawn::PEER_TYPE_PATH;
-        Ok(make_rust_opaque(
-            PEER_TYPE_PATH,
-            Arc::new(ThreadOwnedCell::new(Some(peer))),
-        ))
+        match self.inner.accept(sym, span)? {
+            Ok(peer) => {
+                let peer_val = make_rust_opaque(
+                    PEER_TYPE_PATH,
+                    Arc::new(ThreadOwnedCell::new(Some(peer))),
+                );
+                Ok(crate::runtime::accept_outcome_accepted(peer_val))
+            }
+            Err(AcceptFail::Closed) => Ok(crate::runtime::accept_outcome_closed()),
+            Err(AcceptFail::Failed(reason)) => Ok(crate::runtime::accept_outcome_failed(reason)),
+        }
     }
 }
 

@@ -1307,6 +1307,55 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::AcceptOutcome<R,S> — Arc 278 peer-lifecycle Strike 3 (the accept'
+    // OUTCOME WALL, BRIEF-accept-outcome-wall.md). `accept'` used to RETURN a bare
+    // `Peer'<R,S>` and RAISE on its *handleable* failures (rendezvous dropped/shutdown,
+    // decode error, `select` error, `peer_cred` read fail). Per the peer-lifecycle LAW
+    // (2026-07-23) — "we deliver an enum for code to handle exceptions with; raise is
+    // uncatchable on purpose, a thing that must never happen" — those become a matchable
+    // outcome; only the must-never-happen raises (arity, listener-type-mismatch, and the
+    // in-process malformed-connect-request substrate bug) stay raises. Shape (RULED):
+    //   :Accepted [peer <- Peer'<R,S>]  — an AUTHORIZED peer connected (the happy path).
+    //   :Closed   []                    — the listener's rendezvous shut down / address
+    //                                     dropped (clean; no peer). The reason-free terminal.
+    //   :Failed   [cause <- Failure]    — a decode / select / peer_cred / socket-wrap io
+    //                                     error; the structured-cause carrier (never a flat
+    //                                     String — built via `message_only_failure`).
+    // `Rejected` is CUT: the security gate BOUNCES a stranger INTERNALLY (process tier:
+    // drop + re-poll; thread tier: no gate — the crossbeam handle IS the grant), so no
+    // tier returns a security-reject to the caller — a `Rejected` variant would never be
+    // constructed (fails Honest).
+    // Impure + PARAMETRIC, mirroring RecvOutcome<O>: `Accepted` holds a live `Peer'` (a
+    // socket/channel handle), so a Pure marking would lie the moment the peer is a live
+    // resource. R,S carry the peer's wire element types (the parametric precedent).
+    // Registered as a builtin for the same load-order reason as RecvOutcome — accept' is a
+    // kernel verb usable inside the stdlib before any wat defenum would load.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::AcceptOutcome".into(),
+        type_params: vec!["R".into(), "S".into()],
+        purity: Purity::Impure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Accepted".into(),
+                fields: vec![(
+                    "peer".into(),
+                    TypeExpr::Parametric {
+                        head: "wat::kernel::Peer'".into(),
+                        args: vec![
+                            TypeExpr::Path("R".into()),
+                            TypeExpr::Path("S".into()),
+                        ],
+                    },
+                )],
+            },
+            EnumVariant::Unit("Closed".into()),
+            EnumVariant::Tagged {
+                name: "Failed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::kernel::Failure".into()))],
+            },
+        ],
+    }));
+
     // :wat::kernel::RunResult — return type of
     // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
     // everything the sandboxed `:user::main` wrote through its stdio
