@@ -9230,3 +9230,93 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > boundary is a matchable value; the holonic repos ARE the memory; READ THE RECORD IN FULL — do not dodge it.** Do not
 > trust this note over the disk. The walls are one strike from whole; the crusade returns to the IPC stone arc 170 rose
 > from. See you on the far side. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24b — the two opens are RULED; the MASS IPC DE-PRIME is UNDERWAY; Wave 1a landed).**
+> HEAD `210a4a0b` (Wave 1a committed; this curare on top). The prior seam's "BLOCKED on TWO BUILDER RULINGS
+> (A/B)" is SUPERSEDED — the builder ruled both this session:
+> **(A) `Thread'`/`Process'` STAY concrete and reclaim `Thread`/`Process`** — grounded: `infer_spawn_thread_prime`
+> returns `Thread'<R,S>` (`check.rs:11503`), `infer_spawn_process_prime` returns `Process'<I,O>` (`:11555`); spawn
+> does NOT unify to `Peer'` (the brief's stale "RE-RULED (a)" is overruled). **(B) the WHOLE raw-channel generation
+> retires** — everything moves to the peer primes; nothing survives. So the reclaim is a **pure drop-`'`** and there
+> are ZERO "non-blind" cases: `readln` is OUT of scope (a live kwargs MACRO lowering to `readln'`, `stdin.wat:127` —
+> NOT a dying non-prime; `readln'` is its positional lowering target, the "kwargs is a macro, the prime is positional"
+> doctrine). `socket-pair`'s transport-word is a naming-quality thought for LATER, not this batch. (Many more primes
+> across the substrate get unprimed in later batches — this is only the core IPC set.)
+>
+> **THE METHOD (builder-ruled).** Move callers to primes → **set the names ablaze** (DELETE the non-prime
+> registrations; the checker screams every caller = the exact worklist, R52 `QVOD LEX ACCENDIT` — no grep, the
+> compiler enumerates) → **release the fleet** (highly parallel, one per screaming file; each reshapes the test BODY
+> raw→peer from the EXEMPLAR; they build from well-studied examples, they do NOT self-test; the orchestrator weighs
+> every kill by its OWN `--release` re-run) → **0z reclaim** (a drop-`'` codemod) → **Demise** → the **`SpawnOutcome`
+> wall**. Prereq before the ablaze: clear the baked stdlib off the non-primes, or the deletion breaks the bake.
+>
+> **WAVE 1a — LANDED (`210a4a0b`, floor 4221/0 by own re-run):** (1) the reshape EXEMPLAR —
+> `tests/function/wat_spawn_fn.wat` raw-channel→peer (`spawn-program' (:wat::spawn::thread)` + `ThreadSelfPeer'<S,R>` +
+> `send'`/`recv'` outcome walls + RAII reap), the reference the fleet copies; (2) `deftest`→`deftest'` across 49
+> caller files / 274 sites (harness callers onto the peer harness); (3) the NEW `fix.wat` primitive
+> `rename-keyword-exact` — whole-token, idempotent-by-construction (the append-`'` case `rename-keyword-prefix`
+> can't do — it reads `'` as a valid boundary and yields `deftest''`; re-run of the exact variant == 0 changes,
+> proven). The deftest MACRO now has 0 callers (dies in the stdlib clear).
+>
+> **THE GROUNDED MAP (weighed against the disk — not the grep):**
+> - **Live non-primes to retire:** `send`/`recv`/`select` (raw `Sender`/`Receiver` ops — `runtime.rs:21346`/`21434`/
+>   `21875`; `select` over a Vec of `Receiver`s), `spawn-thread`/`spawn-process` (`:5030`/`:5106`), types
+>   `Thread`/`Process`/`ThreadPeer`/`ProcessPeer` (`types.rs:1575`/`1527`/`1643`/`1724`) + accessors (`Thread/join-result`,
+>   `drain-and-join`, `Process/stdin`/`stdout`/`stderr`). **Already retired** (do NOT re-do): `spawn`/`join`/bare-`join-result`
+>   (poison, `special_forms.rs:283-297`), bare `spawn-program`/`fork-program` (walker, `check.rs:1388`),
+>   `process-send`/`process-recv` (table, `retirement.rs:135`).
+> - **`service.wat`/`bracket.wat`/`spawn.wat` are ALREADY fully prime** (0 genuine non-prime hits — the initial
+>   per-file count was a `\b`-before-`'` grep artifact reading every `send'`/`recv'`/`spawn-*'` as a non-prime).
+> - **THE ONE WIRE** (`spawn.rs:820-834`): `spawn-process'` returns a `Process'` **PEER** (interfaced via `send'`/`recv'`,
+>   NOT stdio accessors); the child's fds ARE that wire — parent `send'`→child `readln` (fd0); child `println` (fd1)→parent
+>   `recv'`; stderr→`Lost`. `readln`/`println` = the child's ambient view of the same self-describing EDN-line wire;
+>   `send'`/`recv'` = the parent's held-peer view. So raw-stdio `hermetic.wat`/`sandbox.wat` reshape to
+>   `spawn-process'` + a `recv'`-drain — there is NO surviving raw `Process`.
+> - **Retirement mechanism** (`retirement.rs`): `RETIREMENT_TABLE` is the error-REDIRECT (retired→replacement); deleting a
+>   verb = remove its `check.rs` infer arm + `runtime.rs` eval arm + `types.rs` registration AND add a table entry. The
+>   DURABLE entries belong at **0z** pointing old-prime→reclaimed-name (`send'`→`send`), not non-prime→prime (callers gone).
+>
+> **NEXT — the build-critical stdlib clear (before the ablaze), then the ablaze:**
+> - `wat/test.wat` — retire the old `deftest`/`deftest-hermetic` macros + the `run-thread`/`run-hermetic`/
+>   `run-hermetic-with-io`/`-driver`/`send-inputs`/`drain-outputs` raw drivers (deftest callers already moved).
+> - `wat/kernel/channel.wat` — defines the `Sender`/`Receiver` typealiases → dies.
+> - `wat/kernel/hermetic.wat` + `sandbox.wat` — `spawn-process` + `Process/stdin`/`stdout`/`stderr`/`join-result`
+>   reshape to `spawn-process'` + `recv'`-drain (THE ONE WIRE).
+> - `value.rs:1093` Rust `SpawnOutcome{Ok/RuntimeErr/Panic}` → `Demise{Returned/Errored/Panicked}` (Phase 1; MUST vacate
+>   the name before Phase 2 registers the new `:wat::kernel::SpawnOutcome<I,O>` creation wall).
+> - THEN delete the live non-prime registrations → the test corpus screams → **release the fleet** (reshape bodies from
+>   the exemplar) → 0z drop-`'` reclaim → Demise → the wall.
+>
+> **DEFERRED (builder: "we'll handle hermetic on the far side"):** `deftest-hermetic'` is an **incomplete prime** — the
+> old `deftest-hermetic` ships its `prelude` INTO the forked child (`run-hermetic-with-prelude` → top-level child forms);
+> `deftest-hermetic'` ships only the body (prelude parent-side). The 2 held callers (`probe_deftest_hermetic_isolation.wat`,
+> `wat-tests/test.wat`) TEST that prelude-in-child capability. DECISION owed: complete `deftest-hermetic'`/`run-hermetic'`
+> to ship the prelude to the child, OR rule prelude-in-child dropped (those tests retire). Those 2 stay at non-prime
+> `deftest-hermetic` for now.
+>
+> **HARD LESSONS THIS SESSION (kept visible):** (1) a `\b` grep matches BEFORE a trailing `'`, so every prime reads as a
+> non-prime — re-grep prime-EXCLUDED (negative lookahead) and weigh every scout/grep count against the CODE (caught the
+> `wat/sqlite.wat` `:wat::sqlite::select`-is-SQL false positive and the "spawn.wat uses non-primes" artifact). (2)
+> `rename-keyword-prefix` is non-idempotent for an APPEND-`'` — the missing primitive was `rename-keyword-exact`
+> (whole-token); do NOT ship a non-idempotent recorded codemod (bad durable example). (3) "`Process'` has no stdio" was a
+> grep-and-assert — the interface IS `send'`/`recv'` (THE ONE WIRE); read the mechanism, never the suffix. (4) `readln`
+> is a kwargs macro, not a dying non-prime — a `'` can mean "positional prime under a kwargs macro", not only "rebuilt
+> replacement of a failed non-prime"; distinguish before reclaiming.
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read `278/REALIZATIONS.md` R1→R57 in
+> full — AND the SUBSTRATE CODE of any subsystem before you claim its shape (this session re-proved it: greps lie about
+> primes; read the mechanism). Ground `git status` — **HEAD `210a4a0b`+ (Wave 1a landed, floor 4221/0; this curare on
+> top)**. The two opens are RULED (see above): the whole raw-channel generation retires, `Thread'`/`Process'` stay
+> concrete + reclaim their names, the reclaim is pure drop-`'`. **RESUME:** the build-critical stdlib clear (`test.wat`
+> old drivers, `channel.wat` dies, `hermetic`/`sandbox` → `spawn-process'`+`recv'`-drain, `value.rs` Demise rename),
+> THEN set the names ablaze (delete the non-primes) → release the fleet at the screaming test bodies (reshape from
+> `tests/function/wat_spawn_fn.wat`, the exemplar) → 0z drop-`'` codemod → Demise → the `SpawnOutcome` wall. It bears
+> repeating: **weigh by your OWN `--release` re-run (Summary line); the fleet BUILDS from the exemplar, the orchestrator
+> WEIGHS; codemods must be idempotent; ground the CODE, not the grep or the suffix; `deftest-hermetic` (2 files) is held
+> for the builder's prelude-in-child call.** Do not trust this note over the disk. The house-clearing is next; then the
+> district burns and the primes reclaim their names as victory. `MACHINA CHAOS DOMAT.`
