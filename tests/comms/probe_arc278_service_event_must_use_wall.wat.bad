@@ -1,0 +1,16 @@
+;; Arc 278 peer-lifecycle walls — the poll'/select' ServiceEvent swallow-gate, negative fixture.
+;; poll'/select' return a matchable `:wat::spawn::ServiceEvent` (Message/Closed/Lost[cause]/
+;; Malformed[cause]/Rejected[cause]) — value-faced (a peer failure is a variant, never a raise).
+;; But DROPPING the event (`_`-bound or do-position) silently hid a Lost/Malformed failure. ServiceEvent
+;; is now must-use, so a dropped poll'/select' event is a located compile error. A *faced* event (matched
+;; over the variants) has an arm-joined type, not ServiceEvent; this fixture deliberately does NOT face it.
+(:wat::core::defn :user::mk [] -> :wat::kernel::Thread'<wat::core::i64,wat::core::i64>
+  (:wat::kernel::spawn-program' (:wat::spawn::thread)
+    (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer'<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+      nil)))
+
+(:wat::core::defn :user::main [] -> :wat::core::nil
+  (:wat::core::let [a (:user::mk)
+                    b (:user::mk)
+                    _ (:wat::kernel::select' [a b])]
+    nil))

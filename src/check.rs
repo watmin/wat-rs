@@ -8240,7 +8240,14 @@ const MUST_USE_TYPES: &[&str] =
 /// (the message) or a joined arm type, never `RecvOutcome<O>`, so this fires
 /// ONLY on a raw unfaced/dropped `recv'`, closing the swallow door R55's
 /// harness-fix only patched at one site.
-const MUST_USE_PARAMETRIC_HEADS: &[&str] = &["wat::kernel::RecvOutcome"];
+///
+/// `:wat::spawn::ServiceEvent<…>` (arc 278 peer-lifecycle walls — `poll'`/`select'`) — already
+/// value-faced (a matchable enum carrying `Message`/`Closed`/`Lost[cause]`/`Malformed[cause]`/
+/// `Rejected[cause]`), so the only gap was the swallow-axis: a dropped `poll'`/`select'` event
+/// hid a `Lost`/`Malformed` failure. Gating it closes that door; a *faced* poll' (matched over
+/// the event variants) has an arm-joined type, never `ServiceEvent<…>`.
+const MUST_USE_PARAMETRIC_HEADS: &[&str] =
+    &["wat::kernel::RecvOutcome", "wat::spawn::ServiceEvent"];
 
 /// True when `ty` (already `apply_subst`-resolved) names a must-use type —
 /// see `MUST_USE_TYPES` (non-parametric, colon-Path) and
@@ -8258,16 +8265,19 @@ fn is_must_use_type(ty: &TypeExpr) -> bool {
 /// `:wat::core::do` or `:wat::core::let`). Shared by the `do`-non-last gate
 /// and the `let [_ …]` wildcard gate — arc 278 Phase 3.
 fn push_must_use_error(errors: &mut Vec<CheckError>, span: &Span, form: &str, ty_name: &str) {
-    // Verb-aware remedy: recv' faces Message/Closed/Lost; send'/try-send' face Sent/(WouldBlock/)Closed/Lost.
+    // Verb-aware remedy: recv' faces Message/Closed/Lost; poll'/select' face the ServiceEvent
+    // variants; send'/try-send' face Sent/(WouldBlock/)Closed/Lost.
     let (verb, arms) = if ty_name.contains("RecvOutcome") {
         ("recv'", "Message/Closed/Lost")
+    } else if ty_name.contains("ServiceEvent") {
+        ("poll'/select'", "Message/Closed/Lost/Malformed/Rejected")
     } else {
         ("send'", "Sent/Closed/Lost")
     };
     errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::MalformedForm {
         head: form.into(),
         reason: format!(
-            "unhandled {ty_name} in statement/discard position — a {verb} outcome must be faced (match it: {arms}), not dropped. This is the recv'/send' OUTCOME WALL (Phase 3)."
+            "unhandled {ty_name} in statement/discard position — a {verb} outcome must be faced (match it: {arms}), not dropped. This is the peer-lifecycle OUTCOME WALL (Phase 3)."
         ),
         remedies: vec![],
     } });
