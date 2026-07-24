@@ -885,7 +885,8 @@ fn t17b_run_hermetic_layer1_failing_assertion_surfaces_failure() {
 // i.e. the doubled value genuinely crossed the wire as a recv' Message (NOT
 // stdout-scraped).
 //
-// Fixture: t18_echo_doubled.wat (drain is an inline file-local tail-recursive defn).
+// Fixture: t18_echo_doubled.wat (drain is the shared primed helper
+// `:wat::kernel::recv-all'`, whose canonical call site this is).
 
 #[test]
 fn t18_run_hermetic_with_io_layer2_echo_doubled() {
@@ -922,6 +923,50 @@ fn t18_run_hermetic_with_io_layer2_echo_doubled() {
         ),
         other => panic!("expected i64 output; got {:?}", other),
     }
+}
+
+// ─── T18c. recv-all' HELPER GATE — drains ALL outputs, not just one
+//
+// Arc 278 IPC de-prime. t18 exercises `:wat::kernel::recv-all'` on a single-output
+// peer; this is the helper's own gate on the "ALL": a peer that emits THREE `println`
+// values must be drained into the full collected Vector, in order, before the clean
+// EOF (`RecvOutcome::Closed`) turns into `(Ok outputs)`. The child readln's 7 and
+// println's 7, 14, 21; recv-all' returns `Ok [7 14 21]`.
+//
+// Fixture: t18c_recv_all_multi.wat.
+#[test]
+fn t18c_recv_all_drains_all_outputs() {
+    let world = freeze_ok("tests/program/wat_arc170_program_contracts_t18c_recv_all_multi.wat");
+    let func = world
+        .symbols()
+        .get(":my::test::echo-multi")
+        .expect(":my::test::echo-multi defined");
+    let result = wat::runtime::apply_function(
+        func.clone(),
+        Vec::new(),
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect("spawn-program' + send' + recv-all' drain should succeed");
+
+    // recv-all' returns Ok[outputs]; echo-multi unwraps to the Vector<i64> == [7 14 21].
+    let outputs = match &result {
+        wat::runtime::Value::Vec(v) => v.as_ref(),
+        other => panic!("expected Vec outputs; got {:?}", other),
+    };
+    let got: Vec<i64> = outputs
+        .iter()
+        .map(|v| match v {
+            wat::runtime::Value::i64(n) => *n,
+            other => panic!("expected i64 output; got {:?}", other),
+        })
+        .collect();
+    assert_eq!(
+        got,
+        vec![7, 14, 21],
+        "recv-all' must drain ALL peer outputs in order into Ok[…]; got {:?}",
+        got
+    );
 }
 
 #[test]

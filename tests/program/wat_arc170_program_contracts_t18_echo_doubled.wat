@@ -13,25 +13,12 @@
 ;; `recv'` `RecvOutcome::Message` (proven: tests/kernel/wat_hermetic_round_trip.wat,
 ;; peer_verb_round_trip_process.wat).
 ;;
-;; The recv'-drain is INLINE (a file-local tail-recursive `defn`) — no shared helper
-;; is minted here; whether the drain earns a named primed library helper is a later
-;; wave. The loop matches the recv'-outcome wall exactly:
-;;   Message[v] -> collect + continue   (arc 278 the value, never a swallowed `_`)
-;;   Closed     -> done (return the collected outputs)   (a GENUINE clean EOF)
-;;   Lost[cause]-> surface the LociDiedError (never swallow a peer death)
-
-;; Tail-recursive drain of a process peer's `println` stream into a Vector<i64>.
-;; Reads until the child exits cleanly (peer EOF -> RecvOutcome::Closed).
-(:wat::core::defn :my::test::drain-doubled
-  [p   <- :wat::kernel::Process'<wat::core::i64,wat::core::i64>
-   acc <- :wat::core::Vector<wat::core::i64>]
-  -> :wat::core::Vector<wat::core::i64>
-  (:wat::core::match (:wat::kernel::recv' p)
-    ((:wat::kernel::RecvOutcome::Message v)
-      (:my::test::drain-doubled p (:wat::core::conj acc v)))
-    ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed acc)))
+;; The recv'-drain is the SHARED primed helper `:wat::kernel::recv-all'` (arc 278 IPC
+;; de-prime — this consumer is its canonical call site, minted alongside in wat/spawn.wat).
+;; recv-all' drains the peer honestly and returns a `Result<Vector<O>, LociDiedError>`:
+;;   Ok[outputs] -> the peer closed cleanly (RecvOutcome::Closed); the collected values.
+;;   Err[cause]  -> the peer DIED (RecvOutcome::Lost); the LociDiedError rides in the Err,
+;;                  surfaced here via `assertion-failed!`, NEVER swallowed.
 
 ;; Spawn a process peer whose :user::main readln's an i64 and println's it doubled;
 ;; send' 21 to feed the child's readln; drain the doubled outputs -> [42].
@@ -48,4 +35,7 @@
          (:wat::kernel::SendOutcome::Sent nil)
          (:wat::kernel::SendOutcome::Closed nil)
          ((:wat::kernel::SendOutcome::Lost _c) nil))]
-    (:my::test::drain-doubled p (:wat::core::Vector :wat::core::i64))))
+    (:wat::core::match (:wat::kernel::recv-all' p)
+      ((:wat::core::Ok outputs) outputs)
+      ((:wat::core::Err cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))))

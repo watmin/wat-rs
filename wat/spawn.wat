@@ -437,3 +437,34 @@
               (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "spawn (process): child exited before readiness" :wat::core::None :wat::core::None)))
        addr (:wat::core::apply  lu-addr-kw lu [])]
       (:wat::spawn::Launched :handle svc :address addr))))
+
+;; ── recv-all' — the honest peer-drain (arc 278 IPC de-prime) ─────────────────
+;; Drains ALL output values from a spawned peer, honestly. The primed replacement
+;; for the retired non-prime `:wat::test::run-hermetic-drain-outputs` (which returned
+;; a bare `Vector<O>` and SWALLOWED the peer's death — `((:wat::core::Err _died) acc)`,
+;; the exact swallow this prime fixes). Reads until the peer signals a terminal
+;; RecvOutcome, matching the recv'-outcome wall exactly:
+;;   Message[v]  -> accumulate v, continue.
+;;   Closed      -> a GENUINE clean EOF; return (Ok <collected Vector<O>>).
+;;   Lost[cause] -> the peer DIED; return (Err cause) — the LociDiedError rides in
+;;                  the Err, surfaced, NEVER dropped (that is the whole point).
+;; Composed from `recv'` (wat-first; recv' is native but recv-all' is a wat stdlib
+;; defn). wat has no loop/recur, so the drain is a tail-recursive private helper
+;; (`recv-all-loop'`) that recv-all' seeds with an empty vector. `p` is typed
+;; `Peer'<I,O>`; Thread'/Process' derive Peer' (see the derives above), so a spawned
+;; process/thread peer drains through here unchanged.
+(:wat::core::defn :wat::kernel::recv-all-loop'<I,O>
+  [p   <- :wat::kernel::Peer'<I,O>
+   acc <- :wat::core::Vector<O>]
+  -> :wat::core::Result<wat::core::Vector<O>,wat::kernel::LociDiedError>
+  (:wat::core::match (:wat::kernel::recv' p)
+    ((:wat::kernel::RecvOutcome::Message v)
+      (:wat::kernel::recv-all-loop' p (:wat::core::conj acc v)))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::core::Err cause))
+    (:wat::kernel::RecvOutcome::Closed (:wat::core::Ok acc))))
+
+(:wat::core::defn :wat::kernel::recv-all'<I,O>
+  [p <- :wat::kernel::Peer'<I,O>]
+  -> :wat::core::Result<wat::core::Vector<O>,wat::kernel::LociDiedError>
+  (:wat::kernel::recv-all-loop' p (:wat::core::Vector :O)))
