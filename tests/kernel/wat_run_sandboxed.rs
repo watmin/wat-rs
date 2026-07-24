@@ -1,26 +1,32 @@
-//! End-to-end tests for canonical hermetic body-AST entry — historically
-//! `:wat::kernel::run-sandboxed` (arc 007 slice 2a), now exercised
-//! through `:wat::test::run-hermetic` per arc 170 slice 4c-α-ii.
+//! Hermetic-execution semantics over the PRIMED peer wire (arc 278 IPC
+//! de-prime). Historically these tests drove `:wat::kernel::run-sandboxed`
+//! (arc 007 slice 2a) and then the non-prime `:wat::test::run-hermetic`
+//! (arc 170 slice 4c-α-ii) — a fork + OS-pipe scrape yielding
+//! `:wat::kernel::RunResult { stdout, stderr, failure }`. That capture model
+//! is retired: every case now flips to a direct
+//! `(:wat::kernel::spawn-program' (:wat::spawn::process) (:wat::core::forms …))`
+//! child + `(:wat::kernel::recv' p)`, and asserts on the primed `RecvOutcome`
+//! (Message / Lost[LociDiedError] / Closed) rather than on `RunResult`.
 //!
-//! Every site in this file lands on `:wat::test::run-hermetic`. The body
-//! shape (println/eprintln, set-capacity-mode!, Bundle panics) fires
-//! rules 1+2+3 of FM 7-ter — outer test assertions read stdout/stderr/
-//! failure and the body mutates runtime config + drives stdio — process
-//! boundary + pipe-captured stdio is the only honest container.
+//! The fixture fns (`:my::compute-*`) do the outcome match in wat and return a
+//! plain Rust-assertable value:
+//!   - a String naming/carrying the outcome (`compute-noop` → "closed";
+//!     `compute-single-line` → the decoded message "hello"; the Lost cases →
+//!     the LociDiedError message or a variant tag), or
+//!   - a Vec<String> for the two "partial output then die" cases
+//!     (`compute-stdout-stderr` → [msg1, msg2, panic-message];
+//!     `compute-panic-partial` → [partial-message, panic-message]).
 //!
-//! Scope-enforcement tests (`scoped_file_eval_inside_scope_succeeds` and
-//! `scoped_file_eval_outside_scope_surfaces_as_err`) preserve the
-//! `:wat::core::Some <scope-path>` argument as a literal embedded in the
-//! body's `:wat::eval-file!` call; the canonical macros do not surface a
-//! per-call scope override (the substrate carrier owns the scope through
-//! the ambient loader), so the test now drives the scope check through
-//! the loader configured at startup rather than the legacy substrate
-//! plumbing. Where scope semantics would diverge, the test comment
-//! flags the change.
-//!
-//! Arc 170 slice 1f-ζ: outer main migrated to (:my::compute -> :wat::kernel::RunResult)
-//! + eval_in_frozen. Inner programs use canonical nil main + ambient
-//! :wat::kernel::println / :wat::kernel::eprintln.
+//! SEMANTIC SHIFTS FROM THE RETIRED CAPTURE MODEL (documented per case below):
+//!   * A printed value crosses the wire DECODED — `(println "hello")` is
+//!     Message["hello"] (native String), NOT the EDN text `"\"hello\""` the old
+//!     stdout scrape captured. A terminal `(eprintln v)` rides the crash cause:
+//!     its message is v's EDN (so `(eprintln "oops")` → "\"oops\"").
+//!   * "parse-error": a genuine lexer/parse error is UNREACHABLE over
+//!     spawn-program' :process (forms are already-parsed AST); the body keeps its
+//!     arc-170 raise! semantics → Lost[Panic].
+//!   * "missing-main": a missing `:user::main` maps to Lost[RuntimeError]
+//!     (UserMainMissing), NOT MainSignature.
 
 use wat::freeze::call_beside;
 use wat::runtime::Value;
@@ -29,299 +35,130 @@ fn run_fn(fn_name: &str) -> Value {
     call_beside(file!(), fn_name).expect("compute should run")
 }
 
-/// Unwrap a RunResult struct value into its three fields.
-fn unwrap_run_result(v: Value) -> (Vec<String>, Vec<String>, bool) {
+/// A `:wat::core::String` result.
+fn as_string(v: Value) -> String {
     match v {
-        Value::Aggregate(sv) => {
-            assert_eq!(sv.class, "wat::kernel::RunResult");
-            assert_eq!(sv.fields.len(), 3);
-            let stdout = as_vec_string(&sv.fields[0]);
-            let stderr = as_vec_string(&sv.fields[1]);
-            let failure_is_some = match &sv.fields[2] {
-                Value::Option(opt) => opt.is_some(),
-                other => panic!("expected Option for failure; got {:?}", other),
-            };
-            (stdout, stderr, failure_is_some)
-        }
-        other => panic!("expected Struct; got {:?}", other),
+        Value::String(s) => (*s).clone(),
+        other => panic!("expected String; got {:?}", other),
     }
 }
 
-fn as_vec_string(v: &Value) -> Vec<String> {
+/// A `:wat::core::Vector<wat::core::String>` result.
+fn as_vec_string(v: Value) -> Vec<String> {
     match v {
-        Value::Vec(items) => items
-            .iter()
+        Value::Vec(items) => (*items)
+            .clone()
+            .into_iter()
             .map(|item| match item {
-                Value::String(s) => (**s).clone(),
-                other => panic!("expected String; got {:?}", other),
+                Value::String(s) => (*s).clone(),
+                other => panic!("expected String element; got {:?}", other),
             })
             .collect(),
         other => panic!("expected Vec; got {:?}", other),
     }
 }
 
-// ─── Happy path — no-op main ─────────────────────────────────────────────
+// ─── Happy path — no-op main closes the wire ─────────────────────────────────
 
 #[test]
-fn noop_main_yields_empty_stdout_and_stderr() {
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — `set-capacity-mode!`
-    // is a startup-time setter (parsed by `Config::from_source` at the
-    // OUTER top level, before any define forms), NOT a runtime verb. The
-    // legacy substrate verb baked the inner source through its own
-    // startup, so `set-capacity-mode!` inside the inner source string
-    // was a startup setter for the CHILD's parse. The canonical macro
-    // takes BODY FORMS (no inner startup parse), so the child uses
-    // default capacity-mode. The body is a no-op nil.
-    let (stdout, stderr, failure) = unwrap_run_result(run_fn(":my::compute-noop"));
-    assert!(stdout.is_empty(), "expected empty stdout; got {:?}", stdout);
-    assert!(stderr.is_empty(), "expected empty stderr; got {:?}", stderr);
-    assert!(!failure, "expected failure: None; got Some");
+fn noop_main_closes_the_wire() {
+    // A clean child that prints nothing and returns nil sends no message; the
+    // parent's recv' sees a clean terminal → RecvOutcome::Closed.
+    assert_eq!(as_string(run_fn(":my::compute-noop")), "closed");
 }
 
-// ─── Single stdout write ─────────────────────────────────────────────────
+// ─── Single stdout write — value crosses the wire decoded ────────────────────
 
 #[test]
 fn main_writes_single_line_to_stdout() {
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — `set-capacity-mode!`
-    // is a startup-time setter (not a runtime verb) and cannot appear
-    // inside the macro body. The child uses default capacity-mode.
-    // Body calls println (rule 2); outer reads stdout (rule 1) — hermetic.
-    let (stdout, stderr, failure) = unwrap_run_result(run_fn(":my::compute-single-line"));
-    // :wat::kernel::println EDN-serializes strings with quotes.
-    assert_eq!(stdout, vec!["\"hello\"".to_string()]);
-    assert!(stderr.is_empty());
-    assert!(!failure);
+    // `(println "hello")` → recv' → Message[m]. SEMANTIC SHIFT: the primed wire
+    // decodes the EDN back to the native value, so m is String "hello" (the
+    // retired stdout scrape captured the EDN text `"\"hello\""`).
+    assert_eq!(as_string(run_fn(":my::compute-single-line")), "hello");
 }
 
-// ─── Multi-line + stderr ─────────────────────────────────────────────────
+// ─── Multi-line stdout + terminal stderr ─────────────────────────────────────
 
 #[test]
-fn main_writes_to_both_stdout_and_stderr() {
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT (see sibling tests):
-    // `set-capacity-mode!` is startup-time, cannot live in macro body.
-    // Body writes stdout & stderr (rule 2); outer reads both slots
-    // (rule 1) — hermetic is the only honest container.
-    //
-    // Arc 278 no-hidden-failures — eprintln is now a TERMINATING form. The body
-    // prints "one"/"two" to stdout, then `(eprintln "oops")` writes "oops" to
-    // stderr and CRASHES the child non-zero. So: stdout carries both lines;
-    // stderr's FIRST line is the emitted value (the crash envelope follows);
-    // and failure is Some (the child died). This is the honest shape — a dying
-    // declaration is exactly that.
-    let (stdout, stderr, failure) = unwrap_run_result(run_fn(":my::compute-stdout-stderr"));
-    // :wat::kernel::println EDN-serializes strings with quotes.
-    assert_eq!(stdout, vec!["\"one\"".to_string(), "\"two\"".to_string()]);
-    // The value reached stderr BEFORE the terminal death — it is the first line
-    // (the #wat.kernel/ProcessPanics envelope from the crash follows).
-    assert!(!stderr.is_empty(), "eprintln must emit to stderr before dying");
-    assert_eq!(stderr[0], "\"oops\"".to_string());
-    assert!(failure, "a terminal eprintln must crash the child (failure = Some)");
-}
-
-// ─── Failure capture ─────────────────────────────────────────────────────
-
-fn unwrap_run_result_with_failure(v: Value) -> (Vec<String>, Vec<String>, Option<String>) {
-    match v {
-        Value::Aggregate(sv) => {
-            assert_eq!(sv.class, "wat::kernel::RunResult");
-            assert_eq!(sv.fields.len(), 3);
-            let stdout = as_vec_string(&sv.fields[0]);
-            let stderr = as_vec_string(&sv.fields[1]);
-            let failure_msg = match &sv.fields[2] {
-                Value::Option(opt) => match &**opt {
-                    Some(Value::Aggregate(fs)) => {
-                        assert_eq!(fs.class, "wat::kernel::Failure");
-                        // Arc 278 the string-wrap annihilation — fields[0] is the
-                        // mandatory `error` (:wat::core::Error, canonically a Fault);
-                        // its own fields[0] is the `message` String. (`Failure/message`
-                        // is now a DERIVED accessor reading this nested field.)
-                        match &fs.fields[0] {
-                            Value::Aggregate(err) => match &err.fields[0] {
-                                Value::String(s) => Some((**s).clone()),
-                                _ => panic!("Failure.error.message not a String"),
-                            },
-                            _ => panic!("Failure.error not an aggregate (:wat::core::Error)"),
-                        }
-                    }
-                    Some(other) => panic!("Failure field not Struct: {:?}", other),
-                    None => None,
-                },
-                _ => panic!("failure field not Option"),
-            };
-            (stdout, stderr, failure_msg)
-        }
-        other => panic!("expected Struct; got {:?}", other),
-    }
-}
-
-#[test]
-fn parse_error_in_source_surfaces_as_failure() {
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — the legacy verb
-    // accepted a source STRING (parsed inside the child); the canonical
-    // macro accepts BODY FORMS (parsed at outer Rust level). The "inner
-    // source has lexer error" probe is no longer reachable through the
-    // body-AST entry. Rearchitected to: body triggers a runtime failure
-    // via `raise!` (HolonAST payload — `raise!` requires HolonAST, not
-    // String); outer captures it into Failure. Test purpose generalizes
-    // — "body failure surfaces as Failure with a non-empty message". The
-    // startup-parse-error surface needs separate coverage outside this
-    // slice (legacy verb retains the original capability until #310).
-    let (stdout, _stderr, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-parse-error"));
-    assert!(stdout.is_empty());
-    // Stderr-empty no longer asserted: under canonical hermetic, raise!
-    // routes structured EDN through stderr as part of failure capture.
-    let msg = failure.expect("expected body-runtime failure");
-    assert!(
-        !msg.is_empty(),
-        "expected non-empty failure message; got empty"
-    );
-}
-
-#[test]
-fn missing_user_main_surfaces_as_failure() {
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — the legacy verb
-    // required a `:user::main` definition in the source string and would
-    // fail at startup if omitted. The canonical macro takes BODY FORMS
-    // directly (the body IS the entry); there is no `:user::main`
-    // requirement to violate. Rearchitected to: body raises with a
-    // specific HolonAST sentinel; outer asserts the sentinel string
-    // appears in Failure. The startup-missing-user-main surface needs
-    // separate coverage outside this slice (legacy verb retains the
-    // original capability until #310 retires it).
-    let (_, _, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-missing-main"));
-    let msg = failure.expect("expected raised failure");
-    assert!(
-        msg.contains("needs-main-sentinel"), // rune:lint(loose-assert) — msg embeds machine-specific absolute path from startup_beside/file!()
-        "failure should propagate raise! payload; got {}",
-        msg
-    );
-}
-
-#[test]
-fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
-    // Inner body writes "before panic" to stdout, then raises a panic
-    // via `:wat::kernel::raise!`. Outer caller sees RunResult with
-    // stdout=["\"before panic\""] + Failure with the raise payload in
-    // the message.
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — the legacy test
-    // used `set-capacity-mode! :panic` + capacity-exceeding Bundle to
-    // drive a raw Rust panic. Under the canonical macro the body cannot
-    // set capacity-mode (startup-time setter only) and the child uses
-    // the default `:error` mode, so capacity-exceeded would return
-    // `Err`, not panic. Rearchitected to use `raise!` (HolonAST payload)
-    // — same shape: partial-stdout-before-panic must survive + Failure
-    // carries the payload. The original raw-panic-via-Bundle surface
-    // needs separate coverage outside this slice.
-    let (stdout, _, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-panic-partial"));
-    // Stdout captured BEFORE the raise! should survive.
-    // :wat::kernel::println EDN-serializes "before panic" with quotes.
+fn stdout_messages_arrive_before_terminal_eprintln_crashes_the_child() {
+    // "one"/"two" are received as Messages (unbuffered PipeWriter → they reach
+    // the kernel pipe before the crash), then the terminal `(eprintln "oops")`
+    // crashes the child → Lost[Panic]. The dying value's EDN rides the crash
+    // cause, so the third slot is the panic message "\"oops\"".
+    let got = as_vec_string(run_fn(":my::compute-stdout-stderr"));
     assert_eq!(
-        stdout,
-        vec!["\"before panic\"".to_string()],
-        "partial output before panic should be preserved"
-    );
-    let msg = failure.expect("expected raised failure");
-    assert!(
-        !msg.is_empty() && (msg.contains("boom") || msg.contains("panic")), // rune:lint(loose-assert) — msg embeds machine-specific absolute path from startup_beside/file!()
-        "failure message should mention the raise payload or panic; got {}",
-        msg
+        got,
+        vec![
+            "one".to_string(),
+            "two".to_string(),
+            "\"oops\"".to_string(),
+        ],
+        "expected [Message \"one\", Message \"two\", Lost[Panic] carrying the \
+         terminal eprintln value's EDN]; got {:?}",
+        got
     );
 }
 
-// ─── Scope enforcement (slice 2b) ───────────────────────────────────────
+// ─── Body-raise failure ("parse-error" case) → Lost[Panic] ───────────────────
 
 #[test]
-fn scoped_file_eval_inside_scope_succeeds() {
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — substrate finding:
-    // the canonical `run-hermetic` / `run-thread` macros hardcode
-    // `InMemoryLoader::new()` for the child (per `spawn-program` source).
-    // The parent's loader does NOT propagate. The legacy substrate verb's
-    // `scope :Option<String>` parameter DID drive a `ScopedLoader` in the
-    // child when set — it WAS functional plumbing (correcting the BRIEF's
-    // claim of "never functional"). Migrating mechanically per the
-    // accumulate-tests-rearchitect-not-delete policy: the body retains
-    // the `:wat::eval-file!` call inside a `match` over `Ok / Err`; with
-    // no entry in the child's InMemoryLoader, the read takes the Err arm
-    // and writes "err" to stderr. The test no longer exercises
-    // ScopedLoader CONTAINMENT — it exercises the canonical macro's
-    // ambient-loader behavior. The original in-scope-read-succeeds
-    // surface needs separate coverage (a future follow-up that bypasses
-    // spawn-sandbox or threads a Scoped loader into the child).
-    //
-    // The fixture uses a fixed non-existent path — the path is irrelevant
-    // since the child's InMemoryLoader is always empty under hermetic.
-    let (stdout, stderr, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-inside"));
-    // SEMANTIC SHIFT — under hermetic the child's InMemoryLoader is empty,
-    // so eval-file! takes the Err arm → stderr "err". This used to assert
-    // stdout="ok" under ScopedLoader; the loss is documented above.
-    //
-    // Arc 278 no-hidden-failures — the Err arm's `(eprintln "err")` is now a
-    // TERMINATING dying declaration: it writes "err" to stderr, then crashes
-    // the child. The Ok arm never runs, so stdout is empty. The proof that the
-    // Err arm was taken is: "err" is the first stderr line AND the child died.
-    assert!(!stderr.is_empty(), "Err arm must write to stderr before dying");
+fn body_raise_surfaces_as_lost_panic() {
+    // SEMANTIC NOTE — the legacy NAME is "parse-error", but a genuine lexer/parse
+    // error is unreachable over spawn-program' :process (the entry forms are
+    // already-parsed AST). The body keeps its arc-170 raise! semantics: the child
+    // raises `(Fault/of "inner-failure")` → recv' → Lost[Panic], and Panic.message
+    // carries the raised Fault's human message verbatim (arc 278 string-wrap
+    // annihilation — no EDN re-parse, no embedded path).
+    assert_eq!(as_string(run_fn(":my::compute-parse-error")), "inner-failure");
+}
+
+// ─── Missing :user::main → Lost[RuntimeError] ────────────────────────────────
+
+#[test]
+fn missing_user_main_surfaces_as_lost_runtime_error() {
+    // SEMANTIC NOTE — a MISSING `:user::main` maps to LociDiedError::RuntimeError
+    // (UserMainMissing), NOT MainSignature (which fires only for a PRESENT main
+    // with a bad signature). The fixture returns the variant tag it actually
+    // matched, so a mismatch names the real variant.
+    assert_eq!(as_string(run_fn(":my::compute-missing-main")), "runtime-error");
+}
+
+// ─── Partial output before panic ─────────────────────────────────────────────
+
+#[test]
+fn partial_stdout_arrives_before_panic() {
+    // "before panic" is received as a Message (unbuffered PipeWriter) BEFORE the
+    // `(raise! (Fault/of "boom"))` crashes the child → Lost[Panic]. The second
+    // slot is the raised Fault's human message "boom".
+    let got = as_vec_string(run_fn(":my::compute-panic-partial"));
     assert_eq!(
-        stderr[0],
-        "\"err\"".to_string(),
-        "under hermetic the child has no loader entry; expected the Err arm's \
-         \"err\" as the first stderr line; stdout was {:?}",
-        stdout
+        got,
+        vec!["before panic".to_string(), "boom".to_string()],
+        "expected [Message \"before panic\", Lost[Panic] message \"boom\"]; got {:?}",
+        got
     );
-    assert!(
-        stdout.is_empty(),
-        "the Ok arm must not run (terminal eprintln); stdout was {:?}",
-        stdout
-    );
-    assert!(failure.is_some(), "the terminal eprintln must crash the child");
+}
+
+// ─── Scope enforcement — empty child loader → Err arm → terminal eprintln ─────
+
+#[test]
+fn scoped_file_eval_inside_scope_dies_on_terminal_eprintln() {
+    // Under hermetic the child's InMemoryLoader has no entries, so eval-file!
+    // takes the Err arm and `(eprintln "err")` (a dying declaration) crashes the
+    // child → Lost[Panic]. The Ok arm ("ok") never runs. The panic message is the
+    // eprintln value's EDN "\"err\"".
+    //
+    // SEMANTIC SHIFT — the original test asserted stdout="ok" under a ScopedLoader;
+    // canonical spawn-program' :process hardcodes an empty InMemoryLoader for the
+    // child (src/process/verbs.rs run_forked_child), so the Err arm is taken. The
+    // ScopedLoader CONTAINMENT surface needs separate coverage.
+    assert_eq!(as_string(run_fn(":my::compute-scope-inside")), "\"err\"");
 }
 
 #[test]
-fn scoped_file_eval_outside_scope_surfaces_as_err() {
-    // Arc 170 slice 4c-α-ii: migrated from `:wat::kernel::run-sandboxed`
-    // to `:wat::test::run-hermetic`. SEMANTIC SHIFT — substrate finding
-    // (see sibling test's comment above): canonical macros hardcode
-    // `InMemoryLoader::new()` for the child; the parent's loader does
-    // NOT propagate. With no ScopedLoader in the child, the original
-    // "outside-scope read is BLOCKED by ScopedLoader containment" surface
-    // is no longer reachable. The post-migration body STILL routes
-    // through Err (because the InMemoryLoader has no entry for the path)
-    // and writes "blocked" to stderr — but for a different reason than
-    // the original. The test now exercises canonical-macro Err-arm
-    // routing, not ScopedLoader containment. The original containment
-    // surface needs separate coverage outside this slice.
-    //
-    // The fixture uses a fixed non-existent path — the path is irrelevant
-    // since the child's InMemoryLoader is always empty under hermetic.
-    let (stdout, stderr, failure) = unwrap_run_result_with_failure(run_fn(":my::compute-scope-outside"));
-    // Under hermetic the child's InMemoryLoader has no entry → Err arm
-    // → stderr "blocked". (Same final shape as the original, different
-    // mechanism — documented above.)
-    //
-    // Arc 278 no-hidden-failures — the Err arm's `(eprintln "blocked")` is now a
-    // TERMINATING dying declaration: "blocked" lands on stderr, then the child
-    // crashes. The Ok arm (which would print "leaked") never runs, so stdout is
-    // empty — a STRONGER proof of no-leak than the old targeted-absence check.
-    assert!(!stderr.is_empty(), "Err arm must write to stderr before dying");
-    assert_eq!(
-        stderr[0],
-        "\"blocked\"".to_string(),
-        "out-of-scope read should route to the Err arm (\"blocked\" first on \
-         stderr); stdout was {:?}",
-        stdout
-    );
-    // stdout is empty — the Ok arm ("leaked") never ran (terminal eprintln).
-    assert_eq!(
-        stdout,
-        Vec::<String>::new(),
-        "out-of-scope read must not reach the Ok arm; stdout: {:?}",
-        stdout
-    );
-    assert!(failure.is_some(), "the terminal eprintln must crash the child");
+fn scoped_file_eval_outside_scope_dies_on_terminal_eprintln() {
+    // Same empty-loader Err-arm routing: `(eprintln "blocked")` crashes the child
+    // → Lost[Panic] with message "\"blocked\"". The Ok arm ("leaked") never runs —
+    // a stronger no-leak proof than the old targeted-absence check.
+    assert_eq!(as_string(run_fn(":my::compute-scope-outside")), "\"blocked\"");
 }

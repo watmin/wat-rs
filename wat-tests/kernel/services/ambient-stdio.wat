@@ -8,92 +8,145 @@
 ;; the println call; routing-table manipulation is mechanism.
 ;;
 ;; Slice mission — verify the forked-child orchestrator path (slice 1f-γ)
-;; continues to work after the arc 170 migration. Layers 0-3 use
-;; :wat::test::run-hermetic (Layer 1, byte-stream RunResult); Layer 4 uses
-;; :wat::test::run-hermetic-with-io (Layer 2, typed channel RunResultIO<O>).
-;; Both call :wat::kernel::spawn-process underneath, which forks a child
-;; that boots bootstrap-fn → spawns the trio services → registers thread-0
-;; → runs the user-supplied body. deftest-hermetic (NOT deftest) on every
-;; test — the forked-child path exercises the orchestrator boot + service
-;; spawn + dup-fds + drain machinery.
+;; continues to work after the arc 170 migration. deftest-hermetic (NOT
+;; deftest) on every test — the run-hermetic' fork boots bootstrap-fn →
+;; spawns the trio services → registers thread-0, so the assertion body
+;; runs INSIDE a forked orchestrator child (that boot is what's under test).
 ;;
-;; Arc 278 — the prelude is annihilated. Each test's inner program (formerly
-;; a helper defn spliced via make-deftest-hermetic's prelude) now rides
-;; INLINE in the deftest body; the run-hermetic fork IS the forked-child
-;; path under test, and the assertion sits at the top of the diagnostic
-;; surface so a failure names the layer.
+;; Arc 278 IPC de-prime — the DRIVERS flip onto the PRIMED PEER WIRE. Where
+;; each test used to fork a grandchild and SCRAPE its OS stdout/stderr into a
+;; byte-stream RunResult (Layers 0-3 via :wat::test::run-hermetic) or wrap its
+;; fds as typed channels (Layer 4 via :wat::test::run-hermetic-with-io), it now
+;; spawns the child as a process PEER (`spawn-program' (process)`) and reads its
+;; output over the wire: each child `println v` crosses to the parent as a
+;; `recv'` `RecvOutcome::Message` carrying the DECODED native value v (NOT the
+;; EDN-quoted stdout line the scrape produced — "hello", not "\"hello\""). A
+;; child that DIES (eprintln is terminal) surfaces as `RecvOutcome::Lost[cause]`
+;; / `recv-all'` `Err[cause]`, its LociDiedError NEVER swallowed. The child
+;; bodies (println/eprintln/readln) are unchanged — only the driver flips.
+;;
+;; Arc 278 — the prelude is annihilated. Each test's inner program rides INLINE
+;; in the deftest body; the assertion sits at the top of the diagnostic surface
+;; so a failure names the layer.
 
 ;; ─── Layer 0 — println a String ─────────────────────────────────────────
-;; The forked child writes the EDN encoding of "hello" (the literal chars,
-;; no surrounding quotes) to fd 1, then a newline. RunResult/stdout splits
-;; on \n and drops the trailing empty element; the captured vec is one wide.
+;; The forked child writes "hello" over the peer wire; on the primed wire the
+;; value crosses DECODED (native String "hello", not the scraped EDN line
+;; "\"hello\"" the byte-stream model produced). recv' → Message[m]; m == "hello".
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-string
-  
-  (:wat::test::assert-stdout-is
-    (:wat::test::run-hermetic (:wat::kernel::println "hello"))
-    (:wat::core::Vector :wat::core::String "\"hello\"")))
+
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println "hello"))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message m)
+        (:wat::test::assert-eq m "hello"))
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "println-string: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
 ;; ─── Layer 1 — println an i64 ───────────────────────────────────────────
-;; EDN encoding of the i64 42 is the decimal literal "42" (no quotes) —
-;; value_to_edn_with covers non-string Ts through the same fd pipeline.
+;; Non-string Ts cross the wire through the same peer pipeline — the i64 42
+;; arrives DECODED as the native i64 42 (not the decimal EDN line "42").
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-i64
-  
-  (:wat::test::assert-stdout-is
-    (:wat::test::run-hermetic (:wat::kernel::println 42))
-    (:wat::core::Vector :wat::core::String "42")))
+
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::println 42))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message m)
+        (:wat::test::assert-eq m 42))
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "println-i64: child closed before sending its value" :wat::core::None :wat::core::None)))))
 
 ;; ─── Layer 2 — eprintln a String ────────────────────────────────────────
-;; eprintln routes to fd 2, not fd 1 (no cross-talk). Arc 278: eprintln is a
-;; TERMINATING form — it writes "err" to fd 2, then crashes the child
-;; (the #wat.kernel/ProcessPanics envelope follows "err" on stderr;
-;; RunResult.failure = Some). assert-stderr-matches "err" still holds (it
-;; matches the emitted line regardless of the trailing crash envelope).
+;; eprintln is a TERMINATING form — it emits the value's EDN then CRASHES the
+;; child (src/services/verbs.rs `eprintln_terminate`). Over the peer wire the
+;; crash surfaces as `recv'` Lost[cause]; the emitted value's EDN rides the
+;; crash reason (`LociDiedError/message cause`, proven in
+;; tests/process/probe_arc278_init_crash_reason.wat — the reason carries the
+;; sentinel). This reproduces the old `assert-stderr-matches ... "err"` (a
+;; regex match for the emitted line) off the crash reason instead of OS-stderr
+;; capture, which the wire model drops. A Message (no crash) is the failure —
+;; a terminal eprintln must never let a following form (or a value) through.
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-eprintln-string
-  
-  (:wat::test::assert-stderr-matches
-    (:wat::test::run-hermetic (:wat::kernel::eprintln "err"))
-    "err"))
+
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::kernel::eprintln "err"))))]
+    (:wat::core::match (:wat::kernel::recv' p)
+      ((:wat::kernel::RecvOutcome::Message _m)
+        (:wat::kernel::assertion-failed! "eprintln-string: eprintln is terminal — expected the child to crash before any value, but a value arrived" :wat::core::None :wat::core::None))
+      ((:wat::kernel::RecvOutcome::Lost cause)
+        (:wat::core::if (:wat::core::regex::matches? "err" (:wat::kernel::LociDiedError/message cause))
+          nil
+          (:wat::kernel::assertion-failed! "eprintln-string: crash reason did not carry the emitted value"
+            (:wat::core::Some (:wat::kernel::LociDiedError/message cause))
+            (:wat::core::Some "err"))))
+      (:wat::kernel::RecvOutcome::Closed
+        (:wat::kernel::assertion-failed! "eprintln-string: child closed before crashing" :wat::core::None :wat::core::None)))))
 
 ;; ─── Layer 3 — two println calls, order-preserving ──────────────────────
-;; The trio ack-rx blocks after each Write so lines land in send order —
-;; order preservation across multiple round trips through the same pipeline.
+;; Two round trips through the same peer pipeline land in send order. recv-all'
+;; drains the peer honestly until it closes → Ok[["first" "second"]] (decoded
+;; native Strings), or Err[cause] if the peer died (surfaced, never swallowed).
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-twice
-  
-  (:wat::test::assert-stdout-is
-    (:wat::test::run-hermetic
-      (:wat::core::do
-        (:wat::kernel::println "first")
-        (:wat::kernel::println "second")
-        nil))
-    (:wat::core::Vector :wat::core::String "\"first\"" "\"second\"")))
 
-;; ─── Layer 4 — readln round trip via typed I/O ──────────────────────────
-;; run-hermetic-with-io wraps the child's fd 0/1 as typed channels: the
-;; parent sends a native String "echo me" over Process/stdin (EDN-encoded);
-;; the child's (readln) reads + parses it, (println echoed) writes it back;
-;; the parent's Receiver decodes the EDN line into a native String in
-;; RunResultIO/outputs. Exercises both halves of the trio + the symmetric
-;; typed-channel EDN encode/decode. T18 bounded I/O: one send → one recv →
-;; child exits.
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::do
+               (:wat::kernel::println "first")
+               (:wat::kernel::println "second")
+               nil))))]
+    (:wat::core::match (:wat::kernel::recv-all' p)
+      ((:wat::core::Ok outputs)
+        (:wat::test::assert-eq outputs (:wat::core::Vector :wat::core::String "first" "second")))
+      ((:wat::core::Err cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))))
+
+;; ─── Layer 4 — readln round trip via the bidirectional peer wire ─────────
+;; The parent sends a native String "echo me" INTO the child's readln over the
+;; peer lineage (`send'`); the child's (readln) reads + decodes it, (println
+;; echoed) writes it back; the parent drains the doubled output off the peer
+;; (`recv-all'`) → Ok[["echo me"]]. Exercises both halves of the trio + the
+;; symmetric wire EDN encode/decode. Bounded I/O: one send' → one output →
+;; child exits (Closed → recv-all' returns Ok).
 (:wat::test::time-limit "15000ms")
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-readln-echo
-  
-  (:wat::test::assert-eq
-    (:wat::test::RunResultIO/outputs
-      (:wat::test::run-hermetic-with-io
-        :wat::core::String
-        :wat::core::String
-        (:wat::core::Vector :wat::core::String "echo me")
-        (:wat::core::let
-          [echoed (:wat::kernel::readln )]
-          (:wat::kernel::println echoed))))
-    (:wat::core::Vector :wat::core::String "echo me")))
+
+  (:wat::core::let
+    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
+         (:wat::core::forms
+           (:wat::core::defn :user::main [] -> :wat::core::nil
+             (:wat::core::let
+               [echoed (:wat::kernel::readln )]
+               (:wat::kernel::println echoed)))))
+     _ (:wat::core::match (:wat::kernel::send' p "echo me")
+         (:wat::kernel::SendOutcome::Sent nil)
+         (:wat::kernel::SendOutcome::Closed nil)
+         ((:wat::kernel::SendOutcome::Lost _c) nil))]
+    (:wat::core::match (:wat::kernel::recv-all' p)
+      ((:wat::core::Ok outputs)
+        (:wat::test::assert-eq outputs (:wat::core::Vector :wat::core::String "echo me")))
+      ((:wat::core::Err cause)
+        (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))))

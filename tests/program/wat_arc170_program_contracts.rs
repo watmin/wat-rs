@@ -971,18 +971,21 @@ fn t18c_recv_all_drains_all_outputs() {
 
 #[test]
 fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
-    // Complementary to T18: a failing assertion inside the Layer 2 body.
-    // Arc 170 slice 3 Gap A: macro now takes inner element types (:wat::core::i64).
-    // The child recvs 2 (from inputs), then assert-eq n 3 fails (2 != 3).
-    // The child panics before sending any output, so outputs is empty.
-    // The structured panic chain is emitted to stderr (spawn_process.rs
-    // emit_panics_to_stderr, phase C′). extract-panics rebuilds the chain;
-    // RunResultIO.failure is Some(Failure) with the assert-eq diagnostic.
+    // Complementary to T18 — the FAILURE path of the SAME primed bidirectional wire.
+    // Arc 278 IPC de-prime: this consumer retired off `run-hermetic-with-io` onto the
+    // composed primes (`spawn-program' (process)` + `send'` + `:wat::kernel::recv-all'`).
+    // The child recvs 2 (fed by `send' p 2`), then `assert-eq n 3` fails (2 != 3), so the
+    // child PANICS before its `println` — the peer DIES mid-exchange.
     //
-    // T18b also documents D3 honest delta: when the child panics before
-    // sending, outputs Vec is empty (the send never happened).
-    // Stone C: child fn is [] -> nil; uses readln/println through bootstrap services.
-    // Child reads n=2 via readln, assert-eq n 3 fails (child panics before println).
+    // recv-all' surfaces that death honestly: it returns `(Err cause)` where `cause` is a
+    // `:wat::kernel::LociDiedError`. An assert-eq failure is an AssertionPayload panic, so
+    // `cause` is the `LociDiedError::Panic` variant, whose `failure` field is `Some(Failure)`
+    // carrying the structured assert-eq diagnostic (same shape the arc-278 failure exemplar
+    // proves: tests/comms/probe_arc278_failure_carries_structured_error.wat). The death is
+    // SURFACED in the Err, NEVER swallowed — that is the whole point of recv-all'.
+    //
+    // (The old form drained a `RunResultIO` and inspected its `.failure` slot; the peer's
+    // own Lost cause IS the failure now, read straight off recv-all''s Err.)
     // Fixture: t18b_recv_assert_fail.wat.
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t18b_recv_assert_fail.wat");
     let func = world
@@ -995,33 +998,48 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
         world.symbols(),
         wat::rust_caller_span!(),
     )
-    .expect("run-hermetic-with-io driver should not itself panic");
+    .expect("spawn-program' + send' + recv-all' driver should not itself panic");
 
-    let sv = match &result {
-        wat::runtime::Value::Aggregate(s) if s.nature == wat::Nature::Struct && s.class == "wat::test::RunResultIO" => s,
-        other => panic!("expected RunResultIO Struct; got {:?}", other),
+    // recv-all' returns Result<Vector<i64>, LociDiedError>. The child died mid-exchange,
+    // so this MUST be Err[cause] — no outputs were drained (the child panicked before println).
+    let cause = match &result {
+        wat::runtime::Value::Result(r) => match &**r {
+            Ok(ok) => panic!(
+                "expected Err[LociDiedError] (child died on assert-eq mid-exchange); got Ok({:?})",
+                ok
+            ),
+            Err(cause) => cause,
+        },
+        other => panic!("expected Value::Result from recv-all'; got {:?}", other),
     };
 
-    // field 0 = outputs :Vector<i64> — child panicked before send, so empty.
-    let outputs = match &sv.fields[0] {
-        wat::runtime::Value::Vec(v) => v.as_ref(),
-        other => panic!("expected Vec outputs field; got {:?}", other),
+    // The Err cause is a :wat::kernel::LociDiedError enum. An assert-eq failure panics with
+    // an AssertionPayload, so the peer's death is the Panic variant.
+    let ev = match cause {
+        wat::runtime::Value::Enum(ev) => ev.as_ref(),
+        other => panic!("expected :wat::kernel::LociDiedError enum cause; got {:?}", other),
     };
     assert_eq!(
-        outputs.len(),
-        0,
-        "expected no outputs (child panicked before send); got {} outputs",
-        outputs.len()
+        ev.type_path, ":wat::kernel::LociDiedError",
+        "expected the Err cause to be a LociDiedError; got type_path {}",
+        ev.type_path
+    );
+    assert_eq!(
+        ev.variant_name, "Panic",
+        "child assert-eq failure must surface as LociDiedError::Panic; got variant {}",
+        ev.variant_name
     );
 
-    // field 2 = failure :Option<Failure> — must be Some (child panicked).
-    let failure_field = &sv.fields[2];
-    let failure_val = match failure_field {
+    // Panic.fields = [message :String, failure :Option<Failure>]. An AssertionPayload panic
+    // carries the structured Failure, so failure is Some(Failure).
+    let failure_val = match &ev.fields[1] {
         wat::runtime::Value::Option(opt) => match opt.as_ref() {
             Some(v) => v,
-            None => panic!("expected failing assertion to produce Some(Failure); got None"),
+            None => panic!(
+                "expected LociDiedError::Panic.failure = Some(Failure) (assert-eq carries an AssertionPayload); got None"
+            ),
         },
-        other => panic!("expected Option failure field; got {:?}", other),
+        other => panic!("expected Panic.failure :Option<Failure>; got {:?}", other),
     };
 
     // Failure struct must have the correct type_name.
@@ -1030,10 +1048,10 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
         other => panic!("expected :wat::kernel::Failure struct; got {:?}", other),
     };
 
-    // Failure.message (arc 278 — fields[0] is `error` (Fault); its fields[0] is the
-    // message String) must carry the structured assert-eq diagnostic. Phase C′
-    // emit_panics_to_stderr is active for spawn_process; Layer 2 bodies surface the
-    // full assertion diagnostic (same as Layer 1 post-C′).
+    // Failure.message (arc 278 — fields[0] is `error` (Fault); its fields[0] is the message
+    // String) must carry the structured assert-eq diagnostic, read STRUCTURALLY off the
+    // surfaced Panic — no string re-parse. Phase C′ emit_panics_to_stderr is active for
+    // spawn_process; the child's assertion diagnostic rides the Lost cause intact.
     let message = match &failure_struct.fields[0] {
         wat::runtime::Value::Aggregate(err) => match &err.fields[0] {
             wat::runtime::Value::String(s) => s.to_string(),
@@ -1044,7 +1062,7 @@ fn t18b_run_hermetic_with_io_layer2_failing_assertion_surfaces_failure() {
     assert_eq!(
         message,
         "assert-eq failed",
-        "t17_msg: Failure.message assert-eq diagnostic golden"
+        "t18b_msg: LociDiedError::Panic carries the assert-eq diagnostic golden"
     );
 }
 
