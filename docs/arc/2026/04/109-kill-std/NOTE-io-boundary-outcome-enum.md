@@ -1,4 +1,17 @@
-# NOTE (arc 109 vocabulary) — every IO boundary interfaces via a matchable OUTCOME ENUM; a world-fault failure is a value you face, never a raise
+# NOTE (arc 109 vocabulary) — every FAILING IO boundary interfaces via a matchable OUTCOME ENUM; a world-fault failure is a value you face, never a raise
+
+> **⚠ REFINEMENT PENDING (2026-07-23, builder) — the ENTROPIC third property.** As first written this
+> note said "every IO boundary." That over-reaches. There is a **third purity property** the builder
+> named **entropic** — an op that reads the *environment/entropy source* (measuring **time**; a **UUID
+> from randomness**) is IO-touching but **non-deterministic** (so NOT Pure), **resource-less**, and
+> **cannot world-fault** (the clock always returns a time; the RNG always returns bytes) — a *"pure
+> syscall."* An **entropic** op does **NOT** return an outcome enum (there is no `Failed`/`Closed` to
+> face). So the law is: every **FAILING** IO boundary (holds/reaches a resource that can fail
+> independently — socket, file, peer, process) returns an Outcome enum. The pure / entropic /
+> impure-failing **trichotomy** is under a grounded arc-corpus sweep (is "entropic" novel, or already
+> the `deterministic?` axis from arc-278 Stone 6a?) before formalization; this note is updated with the
+> grounded distinction when that lands. Everywhere below, read "IO boundary" as "**failing** IO
+> boundary"; entropic ops are governed by the (forthcoming) purity-property treatment, not by this wall.
 
 **Filed 2026-07-23 (builder directive, mid arc-278 the peer-lifecycle OUTCOME WALLS).** The
 no-hidden-failures crusade (arc 278, R41→R57) has been converting the peer/comms verbs one by one
