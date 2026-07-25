@@ -87,6 +87,93 @@ fn primed_stdout_write_line_lands_bytes() {
     // r, w drop here (OwnedFd → close).
 }
 
+/// Arc 170 write-batched fragmentation — a >512 KiB payload through the BATCHED `stdio-write-out`
+/// helper (the println verb's write path) SUCCEEDS: it is CHUNKED into ≤budget raw `write`s (never
+/// `RequestTooLarge` — a program's own output is not a self-DoS) and every byte lands VERBATIM on the
+/// pipe, in order, with NO spurious interior newlines and NO corruption. The payload deliberately mixes
+/// `"`, `\`, and `\n` (the chars whose EDN re-escaping inflates the per-op budget measurement) to stress
+/// the escaping-aware chunk sizing, and interior newlines to prove none are added/dropped at chunk seams.
+///
+/// A concurrent reader thread drains the pipe read-end so the service's blocking `write_all` never
+/// wedges on a full pipe buffer (~64 KiB) mid-fragmentation.
+/// A NORMAL small `println`-sized payload through the same batched helper: ONE chunk, lands verbatim
+/// (`<edn>\n`) — identical to the pre-fragmentation single-write path.
+#[test]
+fn primed_stdout_batched_small_is_one_chunk() {
+    let world = startup_beside(file!()).expect("arc 170 fixture freezes");
+    let run = world
+        .symbols()
+        .get(":user::run-stdout-batched")
+        .expect(":user::run-stdout-batched in fixture")
+        .clone();
+    let (r, w) = make_pipe();
+    let payload = "\"hello-fragmentation\"\n"; // what println emits for a String value + newline
+    let ret = apply_function(
+        run,
+        vec![
+            Value::i64(w.as_raw_fd() as i64),
+            Value::String(Arc::new(payload.to_string())),
+        ],
+        world.symbols(),
+        probe_span(),
+    )
+    .expect("small batched write raised");
+    assert!(matches!(ret, Value::Unit), "batched write returns nil; got {ret:?}");
+    let got = read_exact_n(r.as_raw_fd(), payload.len());
+    assert_eq!(got, payload.as_bytes(), "small payload lands verbatim as one chunk");
+    drop(w);
+    drop(r);
+}
+
+#[test]
+fn primed_stdout_batched_over_512kib_lands_all_bytes() {
+    let world = startup_beside(file!()).expect("arc 170 fixture freezes");
+    let run = world
+        .symbols()
+        .get(":user::run-stdout-batched")
+        .expect(":user::run-stdout-batched in fixture")
+        .clone();
+
+    // ~1.2 MiB payload: a 12-byte unit repeated 100_000× → 1_200_000 bytes, ≫ the 512 KiB op budget.
+    // The unit carries a quote, a backslash and a trailing newline (interior newlines to preserve).
+    let unit = "abc\"def\\ghi\n";
+    let payload: String = unit.repeat(100_000);
+    assert!(payload.len() > 512 * 1024, "payload must exceed the 512 KiB budget to force chunking");
+    let expected = payload.clone().into_bytes();
+    let want_len = expected.len();
+
+    let (r, w) = make_pipe();
+
+    // Concurrent drainer: read exactly `want_len` bytes from the read-end while the wat write proceeds.
+    let read_fd = r.as_raw_fd();
+    let reader = std::thread::spawn(move || read_exact_n(read_fd, want_len));
+
+    let ret = apply_function(
+        run,
+        vec![
+            Value::i64(w.as_raw_fd() as i64),
+            Value::String(Arc::new(payload)),
+        ],
+        world.symbols(),
+        probe_span(),
+    )
+    .expect("run-stdout-batched raised (RequestTooLarge / lost / closed)");
+    assert!(matches!(ret, Value::Unit), "batched write returns nil; got {ret:?}");
+
+    let got = reader.join().expect("reader thread panicked");
+    assert_eq!(
+        got.len(),
+        want_len,
+        "all payload bytes must land on the pipe (chunked, none dropped)"
+    );
+    assert!(
+        got == expected,
+        "the fragmented payload must land VERBATIM — exact bytes, no spurious interior newlines, no corruption"
+    );
+    drop(w);
+    drop(r);
+}
+
 #[test]
 fn primed_stdin_read_line_returns_line() {
     let world = startup_beside(file!()).expect("arc 170 fixture freezes");

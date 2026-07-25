@@ -139,7 +139,11 @@ pub fn eval_kernel_println(
     const OP: &str = ":wat::kernel::println";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
-    let line = wat_edn::write(&edn);
+    // Append the line terminator HERE (the service is now a raw byte writer — no implicit newline);
+    // the batched `stdio-write-out` fragments this `<edn>\n` payload into ≤budget raw chunks, so the
+    // bytes on fd1 are identical to the old `writeln(edn)` path (`<edn>\n`) even for oversized output.
+    let mut line = wat_edn::write(&edn);
+    line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
     Ok(Value::Unit)
 }
@@ -155,7 +159,9 @@ pub fn eval_kernel_pprintln(
     const OP: &str = ":wat::kernel::pprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
-    let line = wat_edn::write_pretty(&edn);
+    // Terminator appended here (raw-writer service); batched → identical bytes to old `writeln(pretty)`.
+    let mut line = wat_edn::write_pretty(&edn);
+    line.push('\n');
     write_via_stdout(OP, list_span, sym, line)?;
     Ok(Value::Unit)
 }
@@ -174,11 +180,13 @@ pub fn eval_kernel_eprintln(
     const OP: &str = ":wat::kernel::eprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
-    let line = wat_edn::write(&edn);
-    // The emitted value's EDN is the crash reason carried by the terminal panic.
-    let reason = line.clone();
+    // The emitted value's EDN is the crash reason carried by the terminal panic (no trailing newline —
+    // a reason is a message, not stream bytes). The written PAYLOAD gets the terminator (raw-writer
+    // service); batched → identical bytes to the old `writeln(edn)` path.
+    let reason = wat_edn::write(&edn);
+    let payload = format!("{reason}\n");
     // WRITE via the service (acked) — THEN die (the terminate rides the verb, never the service loop).
-    write_via_stderr(OP, list_span, sym, line)?;
+    write_via_stderr(OP, list_span, sym, payload)?;
     eprintln_terminate(reason)
 }
 
@@ -193,9 +201,9 @@ pub fn eval_kernel_epprintln(
     const OP: &str = ":wat::kernel::epprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
-    let line = wat_edn::write_pretty(&edn);
-    let reason = line.clone();
-    write_via_stderr(OP, list_span, sym, line)?;
+    let reason = wat_edn::write_pretty(&edn);
+    let payload = format!("{reason}\n");
+    write_via_stderr(OP, list_span, sym, payload)?;
     eprintln_terminate(reason)
 }
 

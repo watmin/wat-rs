@@ -17,21 +17,42 @@
           ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
           ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
           ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))
-     r1 (:wat::core::match (:wat::kernel::StdOut'/write-line c (:wat::kernel::StdOut'::WriteLineRequest :line "primed-line-1"))
+     r1 (:wat::core::match (:wat::kernel::StdOut'/write c (:wat::kernel::StdOut'::WriteRequest :bytes "primed-line-1\n"))
           ((:wat::kernel::RecvOutcome::Message resp)
             (:wat::core::match resp
-              ((:wat::kernel::StdOut'::WriteLineResponse::Ok) 1)
-              ((:wat::kernel::StdOut'::WriteLineResponse::RequestTooLarge b cap) 0)))
+              ((:wat::kernel::StdOut'::WriteResponse::Ok) 1)
+              ((:wat::kernel::StdOut'::WriteResponse::RequestTooLarge b cap) 0)))
           ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write-line: peer closed" :wat::core::None :wat::core::None)))
-     r2 (:wat::core::match (:wat::kernel::StdOut'/write-line c (:wat::kernel::StdOut'::WriteLineRequest :line "primed-line-2"))
+          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))
+     r2 (:wat::core::match (:wat::kernel::StdOut'/write c (:wat::kernel::StdOut'::WriteRequest :bytes "primed-line-2\n"))
           ((:wat::kernel::RecvOutcome::Message resp)
             (:wat::core::match resp
-              ((:wat::kernel::StdOut'::WriteLineResponse::Ok) 1)
-              ((:wat::kernel::StdOut'::WriteLineResponse::RequestTooLarge b cap) 0)))
+              ((:wat::kernel::StdOut'::WriteResponse::Ok) 1)
+              ((:wat::kernel::StdOut'::WriteResponse::RequestTooLarge b cap) 0)))
           ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
-          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write-line: peer closed" :wat::core::None :wat::core::None)))]
+          (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))]
     (:wat::core::i64::+ r1 r2)))
+
+;; ── run-stdout-batched: start stdout-svc' on `fd`, connect', then drive the BATCHED helper
+;;    (:wat::kernel::stdio-write-out) with the FULL `payload` — the write-side fragmentation path the
+;;    println verb uses. An oversized payload is CHUNKED into ≤budget raw `write`s (never RequestTooLarge)
+;;    and lands VERBATIM on the pipe (write-string is raw — no added/spurious newlines). Returns nil;
+;;    a RequestTooLarge / lost / closed inside the helper SURFACES (raise). ──────────────────────────
+;; The batched write is done in BINDING position (`_w`) — the service Handle `h` (an earlier binding)
+;; stays alive through it, exactly as run-stdout keeps `h` alive across its two writes. (In production the
+;; freeze bootstrap holds the primes' Handles globally; here the fixture must hold `h` itself, or dropping
+;; it stops the service and the next write sees RecvOutcome::Closed.)
+(:wat::core::defn :user::run-stdout-batched [fd <- :wat::core::i64  payload <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::let
+    [h (:wat::kernel::stdout-svc'/start :locus (:wat::spawn::thread)
+         :record (:wat::kernel::stdout-svc'::Record) :fd fd)
+     c (:wat::core::match (:wat::kernel::connect' (:wat::kernel::stdout-svc'::Handle/addr h))
+         ((:wat::kernel::ConnectOutcome::Connected p) p)
+         ((:wat::kernel::ConnectOutcome::Refused cc)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
+         ((:wat::kernel::ConnectOutcome::Rejected cc) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None))
+         ((:wat::kernel::ConnectOutcome::Failed cc)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cc) :wat::core::None :wat::core::None)))
+     _w (:wat::kernel::stdio-write-out c payload)]
+    nil))
 
 ;; ── run-stdin: start stdin-svc' on `fd`, connect', read ONE line → the line String; EOF → "EOF";
 ;;    RequestTooLarge → "RTL" (all three matchable — the no-hidden-failures EOF upgrade). ──────────

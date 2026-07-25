@@ -24,15 +24,20 @@
 ;; `…/start` companions register via the stdlib-privilege bypass, as query/mem.wat relies on).
 
 ;; ─── StdOut' ──────────────────────────────────────────────────────────────────────────────────
+;; A DUMB, serialized RAW-byte writer: the op writes `bytes` VERBATIM (via IOWriter/write-string — NO
+;; added newline). The newline that framed a line moved OUT of the service and INTO the verb's payload
+;; (the verb appends "\n" before fragmenting — see stdio-write-out). `:max-request-bytes 524288` stays
+;; as the DEFENSIVE FLOOR for a direct >budget caller; the `write-batched` client helper CHUNKS so this
+;; is never tripped by println's own (possibly oversized) output — a program's output isn't a self-DoS.
 (:wat::core::defsurface :wat::kernel::StdOut' :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :wat::kernel::StdOut'::WriteLineRequest [line <- :wat::core::String])
-   (:wat::core::defenum :wat::kernel::StdOut'::WriteLineResponse :wat::enum::Pure
+  [(:wat::core::defrecord :wat::kernel::StdOut'::WriteRequest [bytes <- :wat::core::String])
+   (:wat::core::defenum :wat::kernel::StdOut'::WriteResponse :wat::enum::Pure
      :Ok              []
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(write-line [self <- :wat::kernel::StdOut'  req <- :wat::kernel::StdOut'::WriteLineRequest]
-     -> :wat::kernel::StdOut'::WriteLineResponse :max-request-bytes 524288)])
+  [(write [self <- :wat::kernel::StdOut'  req <- :wat::kernel::StdOut'::WriteRequest]
+     -> :wat::kernel::StdOut'::WriteResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :wat::kernel::stdout-svc'
   :satisfies :wat::kernel::StdOut'
@@ -42,22 +47,22 @@
           -> :wat::kernel::stdout-svc'::State
           (:wat::kernel::stdout-svc'::State :durable record :out (:wat::io::IOWriter/from-fd fd)))
   :impls
-  [(write-line [s req]
-     (:wat::core::let [_bytes (:wat::io::IOWriter/writeln (:wat::kernel::stdout-svc'::State/out s)
-                                (:wat::kernel::StdOut'::WriteLineRequest/line req))]
-       (:wat::service::Outcome::Reply s (:wat::kernel::StdOut'::WriteLineResponse::Ok))))])
+  [(write [s req]
+     (:wat::core::let [_bytes (:wat::io::IOWriter/write-string (:wat::kernel::stdout-svc'::State/out s)
+                                (:wat::kernel::StdOut'::WriteRequest/bytes req))]
+       (:wat::service::Outcome::Reply s (:wat::kernel::StdOut'::WriteResponse::Ok))))])
 
-;; ─── StdErr' (write-serializer — identical to StdOut'; the eprintln TERMINATE stays the verb's own
+;; ─── StdErr' (raw write-serializer — identical to StdOut'; the eprintln TERMINATE stays the verb's own
 ;;     act, never the service loop's — see DESIGN §3) ────────────────────────────────────────────
 (:wat::core::defsurface :wat::kernel::StdErr' :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :wat::kernel::StdErr'::WriteLineRequest [line <- :wat::core::String])
-   (:wat::core::defenum :wat::kernel::StdErr'::WriteLineResponse :wat::enum::Pure
+  [(:wat::core::defrecord :wat::kernel::StdErr'::WriteRequest [bytes <- :wat::core::String])
+   (:wat::core::defenum :wat::kernel::StdErr'::WriteResponse :wat::enum::Pure
      :Ok              []
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])]
   :features
-  [(write-line [self <- :wat::kernel::StdErr'  req <- :wat::kernel::StdErr'::WriteLineRequest]
-     -> :wat::kernel::StdErr'::WriteLineResponse :max-request-bytes 524288)])
+  [(write [self <- :wat::kernel::StdErr'  req <- :wat::kernel::StdErr'::WriteRequest]
+     -> :wat::kernel::StdErr'::WriteResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :wat::kernel::stderr-svc'
   :satisfies :wat::kernel::StdErr'
@@ -67,10 +72,10 @@
           -> :wat::kernel::stderr-svc'::State
           (:wat::kernel::stderr-svc'::State :durable record :out (:wat::io::IOWriter/from-fd fd)))
   :impls
-  [(write-line [s req]
-     (:wat::core::let [_bytes (:wat::io::IOWriter/writeln (:wat::kernel::stderr-svc'::State/out s)
-                                (:wat::kernel::StdErr'::WriteLineRequest/line req))]
-       (:wat::service::Outcome::Reply s (:wat::kernel::StdErr'::WriteLineResponse::Ok))))])
+  [(write [s req]
+     (:wat::core::let [_bytes (:wat::io::IOWriter/write-string (:wat::kernel::stderr-svc'::State/out s)
+                                (:wat::kernel::StdErr'::WriteRequest/bytes req))]
+       (:wat::service::Outcome::Reply s (:wat::kernel::StdErr'::WriteResponse::Ok))))])
 
 ;; ─── StdIn' (EOF-as-matchable-value upgrade: today's EOF panics-kills-the-loop; here it is a
 ;;     matchable `ReadLineResponse::Eof`, no-hidden-failures R55/R57 — DESIGN §7(c)) ─────────────
@@ -157,38 +162,74 @@
     ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
     ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
 
-;; write one already-formatted line via the primed StdOut'/StdErr' peer. ::Ok → nil; ::RequestTooLarge
-;; (framework-minted when a request exceeds :max-request-bytes) → SURFACE; a lost/closed peer → SURFACE
-;; (never silently drop — a stdio write failure is loud, mirroring the old write-failure convention).
-(:wat::core::defn :wat::kernel::stdio-write-out
-  [peer <- :wat::kernel::Peer'<wat::kernel::StdOut'::Op,wat::kernel::StdOut'::Reply>
-   line <- :wat::core::String]
-  -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::StdOut'/write-line peer (:wat::kernel::StdOut'::WriteLineRequest :line line))
-    ((:wat::kernel::RecvOutcome::Message resp)
-      (:wat::core::match resp
-        ((:wat::kernel::StdOut'::WriteLineResponse::Ok) nil)
-        ((:wat::kernel::StdOut'::WriteLineResponse::RequestTooLarge b cap)
-          (:wat::kernel::assertion-failed! "println: stdout write exceeded max-request-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))))
-    ((:wat::kernel::RecvOutcome::Lost _cause)
-      (:wat::kernel::assertion-failed! "println: stdout service peer lost" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "println: stdout service peer closed" :wat::core::None :wat::core::None))))
+;; ─── write-batched fragmentation (arc 170) ────────────────────────────────────────────────────────
+;; A program's own output isn't a self-DoS: an oversized `println` must FIT the op budget by CHUNKING,
+;; not fail with `RequestTooLarge`. `stdio-write-out`/`stdio-write-err` take the FULL payload String
+;; (the verb has already appended the trailing "\n") and emit it as N in-order raw `write`s, each chunk
+;; ≤ the budget — so the defensive `:max-request-bytes` floor is NEVER tripped by this path.
+;;
+;; CHUNK SIZE — grounded, not guessed. The serve-loop's #16.2 budget guard measures
+;; `(string::length (edn::write req))` — i.e. the CHAR count of the EDN-encoded `WriteRequest`, which
+;; RE-ESCAPES the chunk's chars (`"`,`\`,`\n`,`\r`,`\t`,`\b`,`\f` → 2 chars; any other C0/DEL → `\uXXXX`
+;; = 6 chars) plus the record framing (`#…WriteRequest {:bytes "…"}`, ~55 chars). Worst case is 6× per
+;; char, so a chunk of `STDIO-WRITE-CHUNK-CHARS` chars encodes to at most 6·65536 + 55 = 393271 chars —
+;; comfortably under the 524288 budget for ANY payload content. (This is why the chunk is far below the
+;; naive "budget − framing": the check is on the DOUBLE-encoded request, not the raw chunk bytes.)
+;; String/subs + String/length are CHAR-indexed and the budget is CHAR-measured, so chunking by chars is
+;; internally consistent (no split UTF-8 scalar). A single ≤budget println = ONE chunk = identical bytes
+;; to the pre-fragmentation writeln path.
+(:wat::core::def :wat::kernel::STDIO-WRITE-CHUNK-CHARS 65536)
 
-(:wat::core::defn :wat::kernel::stdio-write-err
-  [peer <- :wat::kernel::Peer'<wat::kernel::StdErr'::Op,wat::kernel::StdErr'::Reply>
-   line <- :wat::core::String]
+;; stdio-write-out — emit the full `payload` to the primed StdOut' peer as in-order ≤budget raw `write`s
+;; (tail-recursive over the remaining suffix; empty payload → nil, the terminating base case). Each
+;; chunk's ::Ok → recurse on the rest; ::RequestTooLarge (impossible under this chunking — the defensive
+;; floor) / a lost/closed peer → SURFACE (never silently drop — a stdio write failure is loud).
+(:wat::core::defn :wat::kernel::stdio-write-out
+  [peer    <- :wat::kernel::Peer'<wat::kernel::StdOut'::Op,wat::kernel::StdOut'::Reply>
+   payload <- :wat::core::String]
   -> :wat::core::nil
-  (:wat::core::match (:wat::kernel::StdErr'/write-line peer (:wat::kernel::StdErr'::WriteLineRequest :line line))
-    ((:wat::kernel::RecvOutcome::Message resp)
-      (:wat::core::match resp
-        ((:wat::kernel::StdErr'::WriteLineResponse::Ok) nil)
-        ((:wat::kernel::StdErr'::WriteLineResponse::RequestTooLarge b cap)
-          (:wat::kernel::assertion-failed! "eprintln: stderr write exceeded max-request-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))))
-    ((:wat::kernel::RecvOutcome::Lost _cause)
-      (:wat::kernel::assertion-failed! "eprintln: stderr service peer lost" :wat::core::None :wat::core::None))
-    (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::assertion-failed! "eprintln: stderr service peer closed" :wat::core::None :wat::core::None))))
+  (:wat::core::let [len (:wat::core::string::length payload)]
+    (:wat::core::if (:wat::core::= len 0)
+      nil
+      (:wat::core::let
+        [take  (:wat::core::if (:wat::core::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
+         chunk (:wat::core::string::subs payload 0 take)
+         rest  (:wat::core::string::subs payload take len)
+         _ack  (:wat::core::match (:wat::kernel::StdOut'/write peer (:wat::kernel::StdOut'::WriteRequest :bytes chunk))
+                 ((:wat::kernel::RecvOutcome::Message resp)
+                   (:wat::core::match resp
+                     ((:wat::kernel::StdOut'::WriteResponse::Ok) nil)
+                     ((:wat::kernel::StdOut'::WriteResponse::RequestTooLarge b cap)
+                       (:wat::kernel::assertion-failed! "println: stdout write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)" :wat::core::None :wat::core::None))))
+                 ((:wat::kernel::RecvOutcome::Lost cause)
+                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                 (:wat::kernel::RecvOutcome::Closed
+                   (:wat::kernel::assertion-failed! "println: stdout service peer closed" :wat::core::None :wat::core::None)))]
+        (:wat::kernel::stdio-write-out peer rest)))))
+
+;; stdio-write-err — the StdErr' twin of stdio-write-out (same chunking; fd 2).
+(:wat::core::defn :wat::kernel::stdio-write-err
+  [peer    <- :wat::kernel::Peer'<wat::kernel::StdErr'::Op,wat::kernel::StdErr'::Reply>
+   payload <- :wat::core::String]
+  -> :wat::core::nil
+  (:wat::core::let [len (:wat::core::string::length payload)]
+    (:wat::core::if (:wat::core::= len 0)
+      nil
+      (:wat::core::let
+        [take  (:wat::core::if (:wat::core::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
+         chunk (:wat::core::string::subs payload 0 take)
+         rest  (:wat::core::string::subs payload take len)
+         _ack  (:wat::core::match (:wat::kernel::StdErr'/write peer (:wat::kernel::StdErr'::WriteRequest :bytes chunk))
+                 ((:wat::kernel::RecvOutcome::Message resp)
+                   (:wat::core::match resp
+                     ((:wat::kernel::StdErr'::WriteResponse::Ok) nil)
+                     ((:wat::kernel::StdErr'::WriteResponse::RequestTooLarge b cap)
+                       (:wat::kernel::assertion-failed! "eprintln: stderr write exceeded max-request-bytes (RequestTooLarge) — a write-batched chunk overran the budget (should be impossible)" :wat::core::None :wat::core::None))))
+                 ((:wat::kernel::RecvOutcome::Lost cause)
+                   (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+                 (:wat::kernel::RecvOutcome::Closed
+                   (:wat::kernel::assertion-failed! "eprintln: stderr service peer closed" :wat::core::None :wat::core::None)))]
+        (:wat::kernel::stdio-write-err peer rest)))))
 
 ;; read one line via the primed StdIn' peer, returning the RAW line String (Rust decodes it via the
 ;; self-describing EDN wire, exactly as the old readln' did). ::Line → the line; ::Eof → reproduce the
@@ -207,8 +248,8 @@
           (:wat::kernel::assertion-failed! "readln: EOF on stdin — client (parent process or pipe writer) disconnected" :wat::core::None :wat::core::None))
         ((:wat::kernel::StdIn'::ReadLineResponse::RequestTooLarge b cap2)
           (:wat::kernel::assertion-failed! "readln: stdin read exceeded max-buffer-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))))
-    ((:wat::kernel::RecvOutcome::Lost _cause)
-      (:wat::kernel::assertion-failed! "readln: stdin service peer lost" :wat::core::None :wat::core::None))
+    ((:wat::kernel::RecvOutcome::Lost cause)
+      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "readln: stdin service peer closed" :wat::core::None :wat::core::None))))
 
