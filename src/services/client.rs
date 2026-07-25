@@ -181,6 +181,39 @@ impl std::fmt::Debug for RuntimeServices {
     }
 }
 
+/// Arc 170 stdio-as-defservice (PHASE 1) — holds the three PRIMED stdio defservices' client-dial
+/// `Address'` values, stashed on the SymbolTable via `sym.primed_stdio()` (mirrors `RuntimeServices`
+/// / `sym.runtime_services()`). The freeze bootstrap starts `:wat::kernel::{stdin,stdout,stderr}-svc'`
+/// on the real fds (0/1/2), holds each returned `Handle` (keeping the admin lineage peer alive, hence
+/// the service alive), and extracts each Handle's `addr` field here.
+///
+/// COEXISTS with `RuntimeServices` — Phase 1 does NOT flip the five caller verbs; nothing reads this
+/// carrier yet. Strike 2 (flip the verbs) will have each thread `connect'` its own client `Peer'` to
+/// these addresses (replacing the `Register`/`*_reply_rx` registry).
+///
+/// The three fields are the wat `Address'<Op,Reply>` VALUES (portable, thread-shareable — thread tier
+/// is shared memory). Held as opaque `Value`s (no per-op typing at this layer); the flipped verbs
+/// `connect'` them and drive the typed surface ops.
+#[derive(Clone)]
+pub struct PrimedStdio {
+    /// `Address'<StdIn'::Op, StdIn'::Reply>` — dial to reach the primed stdin read service.
+    pub stdin_addr: crate::runtime::Value,
+    /// `Address'<StdOut'::Op, StdOut'::Reply>` — dial to reach the primed stdout write service.
+    pub stdout_addr: crate::runtime::Value,
+    /// `Address'<StdErr'::Op, StdErr'::Reply>` — dial to reach the primed stderr write service.
+    pub stderr_addr: crate::runtime::Value,
+}
+
+impl std::fmt::Debug for PrimedStdio {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrimedStdio")
+            .field("stdin_addr", &"<Address'> (arc 170 primed stdin-svc'; via sym.primed_stdio())")
+            .field("stdout_addr", &"<Address'> (arc 170 primed stdout-svc'; via sym.primed_stdio())")
+            .field("stderr_addr", &"<Address'> (arc 170 primed stderr-svc'; via sym.primed_stdio())")
+            .finish()
+    }
+}
+
 /// Monotonic thread-id allocator. Starts at `1`; 0 is never allocated
 /// (the counter starts at 1); no current consumer reads 0 as a sentinel.
 /// Each `invoke_user_main` is process-scoped; the counter survives across

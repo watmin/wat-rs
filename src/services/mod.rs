@@ -88,7 +88,7 @@ pub mod verbs;
 pub use peer::{ServiceMsg, ServicePeer, spawn_service_peer, ServiceReplySender, ServiceInputSender};
 pub use client::{
     ThreadId, ThreadIO, install_thread_io, uninstall_thread_io,
-    next_thread_id, RuntimeServices,
+    next_thread_id, RuntimeServices, PrimedStdio,
     register_thread_with_services, deregister_thread_from_services,
     AmbientStdio, install_ambient_stdio, take_ambient_stdio,
     WriteAckRx, ReadReplyRx,

@@ -314,6 +314,18 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/io.wat",
         source: include_str!("../wat/io.wat"),
     },
+    // Arc 170 stdio-as-defservice (PHASE 1) — the three primed stdio defservices
+    // (:wat::kernel::{stdout,stderr,stdin}-svc' + their StdOut'/StdErr'/StdIn' surfaces).
+    // COEXISTS with the hand-rolled path (the old Std*Service/handle fns above + spawn_service_peer
+    // + the five eval_kernel_* verbs). Loads AFTER wat/service.wat (defservice) and wat/io.wat (the
+    // from-fd raw-fd constructors' neighbourhood). The fd rides `:init` as a PURE i64 and the impure
+    // IOWriter/IOReader is born inside init via IOWriter/from-fd (dup-then-own) — never an init
+    // param (the Pure-`Admin` containment wall, arc 293.W). Freeze-bootstrapped on the real fds by
+    // src/freeze.rs; nothing flipped in Phase 1.
+    WatSource {
+        path: "wat/kernel/services/stdio-primes.wat",
+        source: include_str!("../wat/kernel/services/stdio-primes.wat"),
+    },
     // Arc 278 stone 1a — :wat::rete:: — the rete engine data model.
     // Pure data records (Token/Element/Activation, Rule, AlphaNode/RootJoinNode/
     // HashJoinNode/ProductionNode/QueryNode), the Node defenum sum, the Session

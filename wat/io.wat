@@ -8,6 +8,15 @@
 ;;   write-file        — one-shot: hand over path + content, we do everything, no handle surfaced.
 ;;   with-open-file    — managed scope: we hand you the writer, you use it, we close it (RAII on error).
 ;;   IOWriter/open-file + close — explicit: you own the handle and the close (already live, Rust).
+;;
+;; Arc 170 stdio-as-defservice — the raw-fd constructors (Rust builtins, kernel-restricted):
+;;   (:wat::io::IOWriter/from-fd fd) -> :wat::io::IOWriter   ;; #[restricted_to :wat::kernel::]
+;;   (:wat::io::IOReader/from-fd fd) -> :wat::io::IOReader   ;; #[restricted_to :wat::kernel::]
+;; DUP-then-own: each dup(2)s the caller's fd and owns ONLY the dup (Drop closes the dup, never the
+;; real fd 0/1/2). Privileged (forging a handle from a raw fd is a capability) — only kernel-internal
+;; wat may call them, e.g. the primed stdio defservices' generated `::init` in
+;; wat/kernel/services/stdio-primes.wat. The fd is a pure i64 that rides `Admin::Init` clean; the
+;; impure handle is BORN inside init, never passed as an init param (arc 293.W Pure-Admin wall).
 
 ;; read-file — Ruby's File.read. Opens a file at `path`, reads the whole content to a
 ;; String (byte-faithful UTF-8 decode), and the reader's Arc drops at scope end so RAII

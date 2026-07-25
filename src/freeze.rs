@@ -127,6 +127,19 @@ pub struct ProcessRuntime {
     /// Arc 214 Stone 8.1b — JoinHandle for the universe-resident stderr
     /// write service peer loop. Joined in Drop step 7.
     stderr_service_join: Option<std::thread::JoinHandle<()>>,
+    /// Arc 170 stdio-as-defservice (PHASE 1) — the three PRIMED stdio defservices' `Handle` values
+    /// (`:wat::kernel::{stdin,stdout,stderr}-svc'`), each carrying its admin lineage `Peer'`. Held
+    /// here for the process lifetime so the services stay alive (dropping a Handle's admin peer
+    /// signals `:Shutdown`). They drop with this struct's field teardown (after the Drop body), which
+    /// signals the three idle serve loops to exit. COEXISTS with the hand-rolled path above; Phase 1
+    /// flips no verb, so these primes only bootstrap + stay held for Strike 2. Order: stdin, stdout,
+    /// stderr.
+    ///
+    /// Held-for-lifetime (RAII): the value IS the liveness; no field is read in Phase 1. Strike 2
+    /// reads the paired addresses via `sym.primed_stdio()`, not this Vec. `allow(dead_code)` marks
+    /// the intentional hold.
+    #[allow(dead_code)]
+    primed_stdio_handles: Vec<Value>,
 }
 
 impl ProcessRuntime {
@@ -330,6 +343,74 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         crate::services::register_thread_with_services(main_thread_id, &services, &crate::rust_caller_span!())?;
     crate::services::install_thread_io(main_io);
 
+    // Step 5 (arc 170 stdio-as-defservice, PHASE 1) — start the three PRIMED stdio defservices on the
+    // real fds (0/1/2), COEXISTING with the hand-rolled path (steps 2–4). Driven through the kernel
+    // helper `:wat::kernel::start-primed-stdio` (wat/kernel/services/stdio-primes.wat), a plain 3-arg
+    // defn whose body calls the three `<svc>/start` kwargs macros — those expand at NORMAL freeze time
+    // (inside the defn body), sidestepping the kwargs-defn-via-`eval_in_frozen` macro-eval gap (that
+    // path mis-resolves the companion's `$impl` keyword to a live fn). The helper returns a 3-tuple of
+    // Handles. The fds are PURE i64 literals (they ride `Admin::Init` clean); each impure
+    // IOWriter/IOReader is born INSIDE the service's kernel `::init` via `IOWriter/from-fd`
+    // (dup-then-own — the service owns a dup, never the real fd 0/1/2).
+    //
+    // Applied against `frozen.symbols()` (NOT `sym_with_services`) so the spawned service threads see
+    // no `runtime_services` carrier and skip old-path stdio registration (the lazy-registration
+    // pattern; symbol_table.rs). Nothing is flipped: the five caller verbs still route to the old
+    // path; these primes just bootstrap and are held alive (`primed_stdio_handles`) for Strike 2.
+    let start_helper = pre_sym
+        .get(":wat::kernel::start-primed-stdio")
+        .ok_or_else(|| RuntimeError {
+            span: crate::rust_caller_span!(),
+            kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::start-primed-stdio".into()),
+        })?
+        .clone();
+    let handles_tuple = apply_function(
+        start_helper,
+        vec![Value::i64(0), Value::i64(1), Value::i64(2)],
+        pre_sym,
+        crate::rust_caller_span!(),
+    )?;
+    let (stdin_handle, stdout_handle, stderr_handle) = match &handles_tuple {
+        Value::Tuple(v) if v.len() == 3 => (v[0].clone(), v[1].clone(), v[2].clone()),
+        other => {
+            return Err(RuntimeError {
+                span: crate::rust_caller_span!(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: "arc 170 start-primed-stdio".into(),
+                    reason: format!(
+                        "expected a 3-tuple of stdio Handles; got {:?}",
+                        crate::runtime::ValueSnapshot::of(other)
+                    ),
+                },
+            });
+        }
+    };
+
+    // Extract each Handle's `addr` field (record field order: [handle <- Peer', addr <- Address'],
+    // wat/service.wat) → the client-dial Address' the Strike-2 verbs will `connect'`. Stash the three
+    // on a `PrimedStdio` carrier set on the SymbolTable (mirrors `RuntimeServices`).
+    let addr_of = |h: &Value, which: &str| -> Result<Value, RuntimeError> {
+        match h {
+            Value::Aggregate(a) if a.fields.len() >= 2 => Ok(a.fields[1].clone()),
+            other => Err(RuntimeError {
+                span: crate::rust_caller_span!(),
+                kind: RuntimeErrorKind::MalformedForm {
+                    head: format!("arc 170 primed {which} Handle"),
+                    reason: format!(
+                        "expected a ≥2-field Handle aggregate (handle, addr); got {:?}",
+                        crate::runtime::ValueSnapshot::of(other)
+                    ),
+                },
+            }),
+        }
+    };
+    let primed = Arc::new(crate::services::PrimedStdio {
+        stdin_addr: addr_of(&stdin_handle, "stdin")?,
+        stdout_addr: addr_of(&stdout_handle, "stdout")?,
+        stderr_addr: addr_of(&stderr_handle, "stderr")?,
+    });
+    sym_with_services.set_primed_stdio(primed);
+
     Ok(ProcessRuntime {
         sym_with_services,
         services: Some(services),
@@ -337,6 +418,8 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         stdin_service_join: Some(stdin_peer.thread),
         stdout_service_join: Some(stdout_peer.thread),
         stderr_service_join: Some(stderr_peer.thread),
+        // stdin, stdout, stderr — held alive for the process lifetime (Strike 2 reaches them).
+        primed_stdio_handles: vec![stdin_handle, stdout_handle, stderr_handle],
     })
 }
 

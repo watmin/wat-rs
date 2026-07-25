@@ -116,6 +116,32 @@ gap.**
 ## 7. Resolved unknowns (2026-07-24 — investigation + orchestrator weigh)
 
 - **(a) Concurrent N-client dial — PROVEN** (§6). 15/15 green, 6 the orchestrator's own re-run.
+- **⚠ (b-CORRECTION, 2026-07-24 — the impure-init-arg assumption was FALSE; STOP hit + pivoted).** §2's
+  original assumption "a defservice `:init` can take an impure `IOWriter`/`IOReader` arg (thread tier =
+  shared memory)" is **WRONG**. The defservice macro generates the service's `Admin` enum as
+  unconditionally `:wat::enum::Pure` (`service.wat:681-687`) and ships the `:init` params inside
+  `Admin::Init` (must be wire-portable for the process-tier fork). `validate_aggregate_containment`
+  (`check.rs:14234-14252`) statically rejects an impure field in a `Pure` enum, **tier-blind** — so NO
+  defservice `:init` param may be an impure resource. **The pivot (builder-ruled): birth the fd INSIDE
+  `:init` from a PURE SEED** — the fd *number* (a pure `i64`) rides `Admin::Init` fine, and a new whitelisted
+  primitive materializes the handle inside the init body:
+  - **`:wat::io::IOWriter/from-fd [fd <- :i64] -> :wat::io::IOWriter`** + **`IOReader/from-fd`** — both
+    `#[restricted_to(":wat::kernel::")]` (building a raw-fd handle is privileged; only kernel-internal wat
+    calls them). Each **`dup(fd)` first and owns the dup** (io.rs:451: `from_raw_fd` owns → Drop closes;
+    dup keeps the service's handle independent so dropping it never closes the process's real 0/1/2). Thin
+    wrapper over the existing `PipeWriter::from_owned_fd(OwnedFd::from_raw_fd(…))` pattern (io.rs:1314,
+    process/verbs.rs:311-315).
+  - Each stdio defservice `:init [record <- Record  fd <- :i64]` → body
+    `(State :durable record :out (:wat::io::IOWriter/from-fd fd))`. `Admin::Init` carries only pure
+    (Record + i64) → containment passes.
+  - The **thread-local `AmbientStdio` caveat dissolves**: an fd *number* is process-global, so `from-fd(n)`
+    on the spawned service thread hits the same fd as the bootstrap thread — no thread-local dependency.
+  - **Deferred to the flip (Phase 3), flagged:** test stdout-capture installs a *redirected* `AmbientStdio`;
+    `from-fd(raw 1)` bypasses it. Phase 1 coexists (verbs unflipped, tests use the old path) so it's moot;
+    at the flip, freeze must seed the primes with the *ambient's* fd number (`as_raw_fd` of the redirected
+    handle), not raw 1. (mirrors sift's connect'-inside-`:init`: the resource is born inside init from a
+    portable seed — here the seed is the fd number instead of an `Address'`.)
+
 - **(b) Freeze-time integration = (b3): a NEW BRIDGE, but every primitive already exists.** `<svc>/start`
   is a **kwargs-defn** (`[& [locus <- :wat::spawn::Locus ~@init-param]]`, `service.wat:1588`) → not
   directly `apply_function`-able from Rust, so start it as a FORM via the existing **`eval_in_frozen`**

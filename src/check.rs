@@ -16375,6 +16375,17 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 170 stdio-as-defservice — construct an IOReader from a raw fd (dup-then-own).
+    // Restricted to :wat::kernel:: callers (see #[restricted_to] in src/io.rs).
+    env.register(
+        ":wat::io::IOReader/from-fd".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: ioreader_ty(),
+            rest_param_type: None,
+        },
+    );
     env.register(
         ":wat::io::IOReader/from-string".to_string(),
         TypeScheme {
@@ -16454,6 +16465,17 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
+            ret: iowriter_ty(),
+            rest_param_type: None,
+        },
+    );
+    // Arc 170 stdio-as-defservice — construct an IOWriter from a raw fd (dup-then-own).
+    // Restricted to :wat::kernel:: callers (see #[restricted_to] in src/io.rs).
+    env.register(
+        ":wat::io::IOWriter/from-fd".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
             ret: iowriter_ty(),
             rest_param_type: None,
         },

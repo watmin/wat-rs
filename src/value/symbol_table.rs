@@ -134,6 +134,13 @@ pub struct SymbolTable {
     /// `encoding_ctx`, `source_loader`, `macro_registry`. Memory
     /// `feedback_capability_carrier.md`.
     pub runtime_services: Option<Arc<RuntimeServices>>,
+    /// Arc 170 stdio-as-defservice (PHASE 1) — the three PRIMED stdio defservices' client-dial
+    /// `Address'` values. Set once per `invoke_user_main` by the freeze bootstrap after starting
+    /// `:wat::kernel::{stdin,stdout,stderr}-svc'` on the real fds; propagates to spawned threads via
+    /// `Clone`. COEXISTS with `runtime_services` (the hand-rolled path) — Phase 1 flips no verb, so
+    /// nothing reads this yet; Strike 2 (verb flip) has each thread `connect'` these addresses.
+    /// `None` when no orchestrator is active (bare test worlds, service-thread bootstrap).
+    pub primed_stdio: Option<Arc<crate::services::PrimedStdio>>,
     /// Stone 241.6 — binding-level metadata attached via the optional
     /// `{...}` metadata-map clause on `def` / `defn`. Maps binding name
     /// (full FQDN keyword string, e.g. `:my::ns::my-fn`) to the inner
@@ -233,6 +240,20 @@ impl SymbolTable {
         &self,
     ) -> Option<&Arc<RuntimeServices>> {
         self.runtime_services.as_ref()
+    }
+
+    /// Attach the primed-stdio carrier (arc 170 stdio-as-defservice, PHASE 1). Called once per
+    /// `invoke_user_main` by the freeze bootstrap after starting the three primed stdio defservices.
+    /// Mirrors [`SymbolTable::set_runtime_services`].
+    pub fn set_primed_stdio(&mut self, primed: Arc<crate::services::PrimedStdio>) {
+        self.primed_stdio = Some(primed);
+    }
+
+    /// Borrow the primed-stdio carrier, if one is attached (arc 170 PHASE 1). The Strike-2 flipped
+    /// verbs will call this to reach each stream's client-dial `Address'`. Mirrors
+    /// [`SymbolTable::runtime_services`].
+    pub fn primed_stdio(&self) -> Option<&Arc<crate::services::PrimedStdio>> {
+        self.primed_stdio.as_ref()
     }
 
     /// Attach the macro registry. Called once at freeze time by

@@ -31,6 +31,7 @@ use crate::value::TrackedValue;
 use crate::rust_deps::ThreadOwnedCell;
 use crate::span::Span;
 use std::sync::Arc;
+use wat_macros::restricted_to;
 
 // ─── Traits ──────────────────────────────────────────────────────────────
 
@@ -1068,6 +1069,93 @@ pub fn eval_ioreader_open_file(
         .unwrap_or_else(|e| panic!(":wat::io::IOReader/open-file {path:?}: {e}"));
     let fd: OwnedFd = file.into();
     let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(fd));
+    Ok(Value::io__IOReader(reader))
+}
+
+/// `(:wat::io::IOWriter/from-fd fd)` → `:wat::io::IOWriter`. Arc 170 stdio-as-defservice.
+///
+/// **DUP-then-own (load-bearing).** `dup(2)` the caller's raw fd first, then wrap the DUP in an
+/// `OwnedFd`-backed [`PipeWriter`]. The returned writer owns ONLY the dup: its `Drop` closes the
+/// dup, NEVER the process's original fd (so a primed StdOut'/StdErr' service holding the writer in
+/// `:ephemeral` can shut down without closing the real fd 1/2). Mirror of `eval_kernel_pipe`'s
+/// `from_owned_fd` ownership (io.rs) and `process/verbs.rs`'s stdio-fd wrapping.
+///
+/// **Restricted to `:wat::kernel::` callers** — forging an `IOWriter` from an arbitrary raw fd is a
+/// capability; only kernel-internal wat (the primed stdio defservices' generated `::init`) may call
+/// it. The fd itself is a pure `i64` (it rides `Admin::Init` clean); the impure handle is BORN here,
+/// inside the kernel init body — never passed as an init param (which would trip the Pure-`Admin`
+/// containment wall, arc 293.W).
+#[restricted_to(":wat::io::IOWriter/from-fd", ":wat::kernel::")]
+pub fn eval_iowriter_from_fd(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    let op = ":wat::io::IOWriter/from-fd";
+    arity(op, args, 1, list_span)?;
+    let fd = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
+        Value::i64(n) => n,
+        other => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::core::i64",
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+            } });
+        }
+    };
+    // dup(2): the service owns a PRIVATE copy of the fd; dropping the writer closes the dup only,
+    // never the caller's real fd 0/1/2.
+    let dup_fd = unsafe { libc::dup(fd as libc::c_int) };
+    if dup_fd < 0 {
+        let e = std::io::Error::last_os_error();
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: op.into(),
+            reason: format!("dup(2) on fd {fd} failed: {e}"),
+        } });
+    }
+    // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
+    let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(owned));
+    Ok(Value::io__IOWriter(writer))
+}
+
+/// `(:wat::io::IOReader/from-fd fd)` → `:wat::io::IOReader`. Arc 170 stdio-as-defservice. The read
+/// mirror of [`eval_iowriter_from_fd`]: `dup(2)`-then-own, wrap the DUP in an `OwnedFd`-backed
+/// [`PipeReader`]. Dropping the reader closes the dup only, never the process's real fd 0.
+/// Restricted to `:wat::kernel::` callers (the primed StdIn' defservice's generated `::init`).
+#[restricted_to(":wat::io::IOReader/from-fd", ":wat::kernel::")]
+pub fn eval_ioreader_from_fd(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    use std::os::fd::{FromRawFd, OwnedFd};
+    let op = ":wat::io::IOReader/from-fd";
+    arity(op, args, 1, list_span)?;
+    let fd = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
+        Value::i64(n) => n,
+        other => {
+            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: ":wat::core::i64",
+                got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
+            } });
+        }
+    };
+    let dup_fd = unsafe { libc::dup(fd as libc::c_int) };
+    if dup_fd < 0 {
+        let e = std::io::Error::last_os_error();
+        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
+            head: op.into(),
+            reason: format!("dup(2) on fd {fd} failed: {e}"),
+        } });
+    }
+    // SAFETY: dup(2) returned a fresh, owned fd; OwnedFd takes ownership and Drop calls close(2).
+    let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(owned));
     Ok(Value::io__IOReader(reader))
 }
 
