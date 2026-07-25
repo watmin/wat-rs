@@ -9695,3 +9695,33 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > forms, flagged not deleted):** `:wat::kernel::run-sandboxed-hermetic-ast` (only caller was the deleted `run-hermetic-ast`)
 > and `:wat::test::failure-from-thread-died` (only caller was the deleted `run-thread-driver`) — plus their stale prose. Fold
 > into a purgare pass (or 2d, if `RunResult`'s fate touches them). `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24j — the `run-hermetic`/`run-thread` slice is DONE bar reclamation; NEXT = annihilate the
+> `run-sandboxed` FAMILY, the arc-170 culmination).** HEAD **`591949d5`** (pushed). Since 24i: **2d** reshaped
+> `:wat::kernel::RunResult` → `{failure}` only (stdout/stderr DROPPED completely; dead `assert-stdout-is`/`assert-stderr-matches`
+> deleted; `drive-sandbox` still DRAINS pipes internally but no longer STORES them — `173bf193`); **purgare** deleted the one
+> truly-dead form `:wat::test::failure-from-thread-died` + 52 lines of orphaned 2c prose (`591949d5`). All green 4218/0 (own
+> re-runs). **CORRECTION to the 24i purgare-debt list:** `run-sandboxed-hermetic-ast` is NOT dead — `src/check.rs` registers it
+> (1210/1293/2614) + calls it in inline-wat test strings (22279/22506); the 2c "unused" flag only checked `.wat`. It is LIVE
+> and KEPT — but it is a prime ANNIHILATION target (see below).
+>
+> **RESUME: annihilate the `run-sandboxed` FAMILY** (the builder: *"this is what 170 started … grinding for this for over 2
+> months"*). This is the arc-170 (program-entry-points) culmination — killing the OLD manual sandbox-a-program model. The
+> family (all built on the NON-PRIME `spawn-process`/`spawn-program` + manual pipe-drain + stderr-scrape):
+> - `:wat::kernel::run-sandboxed` (source-string) · `run-sandboxed-ast` · `run-sandboxed-hermetic-ast` (`wat/kernel/sandbox.wat`,
+>   `hermetic.wat`) · `:wat::kernel::drive-sandbox` (the manual stdin-write + stdout/stderr-drain) · `startup-failure-result`.
+> - `:wat::kernel::extract-panics` (`runtime.rs:4987`, `eval_kernel_extract_panics`) — a STDERR-SCRAPE that parses the panic
+>   chain out of stderr TEXT. The exact string-scrape anti-pattern; the primed wire's `recv'` → `Lost[LociDiedError]` delivers
+>   the structured death directly, so this dies too.
+> - the non-prime `spawn-process`/`spawn-program` beneath them (if they have no other callers after the family dies).
+> THE PRIMED REPLACEMENT (nothing lacking): `spawn-program' (:wat::spawn::process) (forms …)` + `send'` (stdin) + `recv'`
+> (→ `RecvOutcome`; `Lost[LociDiedError]` = the structured failure — no drain, no extract-panics). CALLERS to migrate:
+> `src/check.rs` (inline-wat unit tests — the class-4 case: grep `src/**/*.rs` for the family, not just `.wat`) + `wat/test.wat`
+> + whatever the study-the-lair grounds. STUDY THE LAIR FIRST (whole tree incl. `src/`); a hollow grep is a false green
+> (24h's lesson); scope it correctly before the fleet.
+>
+> **STILL OWED (deferred, not dropped):** the `run-{thread,hermetic}` RECLAMATION (0z drop-`'`: `run-thread'`→`run-thread`,
+> `run-hermetic'`→`run-hermetic`) — the builder reprioritized the run-sandboxed annihilation ahead of it; do the reclamation
+> after. Also the mandatory-full-enum-matching checker rule (arc-109 NOTE). `MACHINA CHAOS DOMAT.`
