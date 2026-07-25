@@ -1,5 +1,21 @@
 # DESIGN — `:wat::kernel::Peer'` as a matchable ENUM (the parent-handle unification)
 
+> ## ⛔ SUPERSEDED / DROPPED (2026-07-24m) — DO NOT BUILD THIS.
+> The `Peer'` container-enum (a matchable sum over `Thread'`/`Process'`/wire-kinds) was **dropped**,
+> grounded, in `REALIZATIONS.md` FAR-SIDE UPDATE **24m**. Four-questions = **4 NOs**: a per-transport
+> matchable enum forces callers to `match` on transport — the exact **"if process / if remote" redesign
+> the `109/NOTE-io-boundary-outcome-enum.md` forbids** (*"a transport is a networked file handle …
+> transport-general, a swap not a redesign"*) and that `170/TIERS.md` contradicts (*"uniform interface
+> across tiers … one protocol; four transports"*). The unification it reached for **already exists**:
+> `Thread'`/`Process'` `derive Peer'` (spawn.wat:222-223); `send'`/`recv'` are transport-blind via
+> `project_peer_io`'s 4-head set (check.rs:11619); the runtime dispatches per-kind internally. The
+> `spawn-process` de-prime is an **observation-model swap** (raw-fd `Process` struct → peer + outcome
+> walls: `recv'`→`Lost[LociDiedError]` + `Demise`), NOT a type unification. The only genuinely
+> kind-specific need is a narrow **local `Process'/pid` accessor** for the pdeathsig/lifeline seal tests.
+> **Everything below is retained only as the dead-end record (the reasoning that led here); the live plan
+> is 24m.** — kept per `IGNEM OLEO NON AQVA` (do not hide the record; correct forward).
+
+
 > **Status: DRAWN (2026-07-24), builder-directed.** *"should we have a wat.kernel/Peer who contains
 > Thread and Process… the caller of spawn-program' gets back a kernel peer' who is then matched in an
 > enum to run a func for that kind of peer… draw the peer' enum stone."* The `spawn-process` de-prime
