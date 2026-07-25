@@ -79,19 +79,17 @@
 //! of this file) — one ward for the finished home, covering stdout + stderr +
 //! stdin together. A touch to any resident re-opens the watch (re-cast on touch).
 
-pub mod peer;
 pub mod client;
 pub mod verbs;
 
 // Flat pub-use re-exports so every existing public name is reachable at
 // crate::services::X (callers never need to know which sub-module holds what).
-pub use peer::{ServiceMsg, ServicePeer, spawn_service_peer, ServiceReplySender, ServiceInputSender};
+// Arc 170 Phase 3 — the hand-rolled `peer` module (spawn_service_peer / ServiceMsg / ReplyRegistry)
+// is DELETED; the stdio path is the primed defservices + per-thread cached client peers.
 pub use client::{
-    ThreadId, ThreadIO, install_thread_io, uninstall_thread_io,
-    next_thread_id, RuntimeServices, PrimedStdio,
-    register_thread_with_services, deregister_thread_from_services,
+    ThreadIO, install_thread_io, uninstall_thread_io,
+    new_thread_io, PrimedStdio,
     AmbientStdio, install_ambient_stdio, take_ambient_stdio,
-    WriteAckRx, ReadReplyRx,
     // Arc 259 — The Forced Hand: ambient program environment.
     EnvGuard, install_program_env, current_program_env,
     // Arc 209 C0b.3a-0 — process child self-peer (owner-link).
@@ -99,6 +97,5 @@ pub use client::{
 };
 pub use verbs::{eval_kernel_println, eval_kernel_pprintln, eval_kernel_eprintln, eval_kernel_epprintln, eval_kernel_readln_prime};
 
-// Arc 170 Strike 3 — `with_thread_io` (the old *_reply_rx accessor) is no longer used now the five
-// verbs route through the primed defservices (cached_stdio_peer). Kept in client.rs (COEXIST — old
-// path bootstrapped-but-idle; Phase 3 removes it) with an allow(dead_code); the re-export is dropped.
+// Arc 170 Phase 3 — the old `with_thread_io` (`*_reply_rx` accessor) is DELETED with the hand-rolled
+// path; the flipped verbs reach their cached client peers via `cached_stdio_peer` (client.rs).

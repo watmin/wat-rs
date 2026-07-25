@@ -22180,47 +22180,27 @@ fn eval_kernel_spawn_thread(
         crate::channel::receiver_from_comms(in_rx),
         crate::channel::sender_from_comms(out_tx),
     ];
-    // Arc 170 slice 1f-γ — register the new thread with the three
-    // stdio services so the body's `(:wat::kernel::println ...)` /
-    // `(eprintln ...)` / `(readln)` calls have a populated ThreadIO.
+    // Arc 170 stdio-as-defservice — give the spawned thread a fresh (empty) ThreadIO so the body's
+    // `(:wat::kernel::println ...)` / `(eprintln ...)` / `(readln)` calls can `connect'` + cache a
+    // client peer to the primed stdio services on first use.
     //
-    // Lazy-registration pattern: when the carrier is None (service-
-    // template's own internal spawn-thread call during service
-    // bootstrap, OR a pre-orchestrator init path) the registration
-    // step is skipped. Service threads never call the three substrate
-    // primitives — their ThreadIO stays None and the
-    // `ServiceNotRunning` error path is unreachable in practice.
-    //
-    // Registration is performed in the PARENT thread so any Add-send
-    // failure (service shut down between carrier-set and spawn-thread)
-    // surfaces synchronously to the parent rather than being lost
-    // inside the spawned thread's closure. The resulting ThreadIO is
-    // moved into the closure for installation in the new thread's
-    // thread-local cell on entry.
-    let registration: Option<(crate::services::ThreadId, crate::services::ThreadIO)> =
-        match sym.runtime_services() {
-            Some(services) => {
-                let tid = crate::services::next_thread_id();
-                let io = crate::services::register_thread_with_services(tid, services, list_span)?;
-                Some((tid, io))
-            }
-            None => None,
+    // Lazy pattern: the carrier signal is `sym.primed_stdio()`. When it is None (a service-template's
+    // own internal spawn-thread call during service bootstrap, OR a pre-orchestrator init path) the
+    // ThreadIO install is skipped — those threads never call the stdio verbs, so their ThreadIO stays
+    // absent and the `ServiceNotRunning` path is unreachable in practice. The ThreadIO is built here
+    // and moved into the closure for installation on the new thread's entry.
+    let registration: Option<crate::services::ThreadIO> =
+        if sym.primed_stdio().is_some() {
+            Some(crate::services::new_thread_io())
+        } else {
+            None
         };
-    // The carrier needed for the epilogue's deregister step is the
-    // SAME Arc the parent reads — captured by value here so the
-    // closure owns its own ref. Cheap (Arc clone).
-    let registration_services: Option<Arc<crate::services::RuntimeServices>> =
-        sym.runtime_services().cloned();
     std::thread::Builder::new()
         .name(format!("wat-thread::{}", thread_fn_name))
         .spawn(move || {
-            // BRIEF Q3 — install ThreadIO + register epilogue BEFORE
-            // running the body. The epilogue runs after the body
-            // returns or panics (inside the catch_unwind boundary the
-            // body uses).
-            let registration_thread_id =
-                registration.as_ref().map(|(tid, _)| *tid);
-            if let Some((_, io)) = registration {
+            // Install ThreadIO BEFORE running the body; the epilogue (uninstall) runs after the body
+            // returns or panics (inside the catch_unwind boundary the body uses).
+            if let Some(io) = registration {
                 crate::services::install_thread_io(io);
             }
             // Mirror eval_kernel_spawn's catch_unwind: panics in the
@@ -22238,18 +22218,8 @@ fn eval_kernel_spawn_thread(
                     SpawnOutcome::Panic { message, assertion }
                 }
             };
-            // Epilogue: send Remove on the three ControlTxs (silent-
-            // fail if services already down), uninstall this thread's
-            // ThreadIO. ThreadIO drop closes its Rust-side Senders,
-            // collapsing each bridge thread's `rust_rx`; bridge exits
-            // → wat-side data_tx drops → service routing-table entry
-            // becomes invalid and the service prunes on its next
-            // select wake-up.
-            if let (Some(tid), Some(services)) =
-                (registration_thread_id, registration_services.as_ref())
-            {
-                crate::services::deregister_thread_from_services(tid, services);
-            }
+            // Epilogue: uninstall this thread's ThreadIO — its cached primed-stdio client peers drop,
+            // disconnecting from the services.
             let _ = crate::services::uninstall_thread_io();
             let _ = outcome_tx.send(outcome);
         })

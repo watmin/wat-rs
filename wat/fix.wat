@@ -656,7 +656,10 @@
                                       (:wat::core::let [prev (:wat::core::string::subs name (:wat::core::- i 1) i)]
                                         (:wat::core::if (:wat::core::= prev "<") true
                                           (:wat::core::if (:wat::core::= prev ",") true
-                                            (:wat::core::= prev " "))))))]
+                                            (:wat::core::if (:wat::core::= prev " ") true
+                                              ;; "(" — the tuple-type opener `:(A,B,C)`; its FIRST element is a
+                                              ;; boundary-valid embedded name, like "<" for a parametric arg.
+                                              (:wat::core::= prev "(")))))))]
           (:wat::core::if left-ok
             ;; check right-valid: at-end or not an ident char
             (:wat::core::if (:wat::core::= end name-len)

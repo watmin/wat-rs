@@ -1091,7 +1091,7 @@ pub fn eval_ioreader_open_file(
 ///
 /// **DUP-then-own (load-bearing).** `dup(2)` the caller's raw fd first, then wrap the DUP in an
 /// `OwnedFd`-backed [`PipeWriter`]. The returned writer owns ONLY the dup: its `Drop` closes the
-/// dup, NEVER the process's original fd (so a primed StdOut'/StdErr' service holding the writer in
+/// dup, NEVER the process's original fd (so a primed StdOut/StdErr service holding the writer in
 /// `:ephemeral` can shut down without closing the real fd 1/2). Mirror of `eval_kernel_pipe`'s
 /// `from_owned_fd` ownership (io.rs) and `process/verbs.rs`'s stdio-fd wrapping.
 ///
@@ -1139,7 +1139,7 @@ pub fn eval_iowriter_from_fd(
 /// `(:wat::io::IOReader/from-fd fd)` → `:wat::io::IOReader`. Arc 170 stdio-as-defservice. The read
 /// mirror of [`eval_iowriter_from_fd`]: `dup(2)`-then-own, wrap the DUP in an `OwnedFd`-backed
 /// [`PipeReader`]. Dropping the reader closes the dup only, never the process's real fd 0.
-/// Restricted to `:wat::kernel::` callers (the primed StdIn' defservice's generated `::init`).
+/// Restricted to `:wat::kernel::` callers (the primed StdIn defservice's generated `::init`).
 #[restricted_to(":wat::io::IOReader/from-fd", ":wat::kernel::")]
 pub fn eval_ioreader_from_fd(
     args: &[WatAST],

@@ -164,27 +164,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/channel.wat",
         source: include_str!("../wat/kernel/channel.wat"),
     },
-    // Arc 214 Stone 8.2 — `:wat::kernel::services::StdInService::*`
-    // (the universe-resident shape: Req/Rep records + ONE pure handle fn;
-    // the Rust loop lives in src/services/; loaded after channel.wat
-    // which provides IOReader typealiases).
+    // Arc 170 Phase 3 — stdin.wat is now just the `readln` macro + `MAX-READLN-BYTES` cap. The
+    // hand-rolled StdInService (Req/Rep + handle fn) is DELETED; stdin is the primed
+    // `:wat::kernel::stdin-svc` defservice (wat/kernel/services/stdio-primes.wat). The old
+    // `wat/kernel/services/{stdout,stderr}.wat` (pure dead handle fns) are DELETED — their streams are
+    // the primed `stdout-svc`/`stderr-svc` defservices too.
     WatSource {
         path: "wat/kernel/services/stdin.wat",
         source: include_str!("../wat/kernel/services/stdin.wat"),
-    },
-    // Arc 214 Stone 8.1 — `:wat::kernel::services::StdOutService::*`
-    // (the universe-resident shape: Req/Rep records + ONE pure handle fn;
-    // the Rust loop lives in src/services/).
-    WatSource {
-        path: "wat/kernel/services/stdout.wat",
-        source: include_str!("../wat/kernel/services/stdout.wat"),
-    },
-    // Arc 214 Stone 8.1b — `:wat::kernel::services::StdErrService::*`.
-    // (the universe-resident shape: Req/Rep records + ONE pure handle fn;
-    // the Rust loop lives in src/services/, mirroring stdout).
-    WatSource {
-        path: "wat/kernel/services/stderr.wat",
-        source: include_str!("../wat/kernel/services/stderr.wat"),
     },
     // Arc 170 CULMINATION (arc 278 IPC de-prime) — wat/kernel/hermetic.wat
     // and wat/kernel/sandbox.wat ANNIHILATED. They defined the manual
@@ -315,7 +302,7 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/io.wat"),
     },
     // Arc 170 stdio-as-defservice (PHASE 1) — the three primed stdio defservices
-    // (:wat::kernel::{stdout,stderr,stdin}-svc' + their StdOut'/StdErr'/StdIn' surfaces).
+    // (:wat::kernel::{stdout,stderr,stdin}-svc + their StdOut/StdErr/StdIn surfaces).
     // COEXISTS with the hand-rolled path (the old Std*Service/handle fns above + spawn_service_peer
     // + the five eval_kernel_* verbs). Loads AFTER wat/service.wat (defservice) and wat/io.wat (the
     // from-fd raw-fd constructors' neighbourhood). The fd rides `:init` as a PURE i64 and the impure

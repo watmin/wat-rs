@@ -79,11 +79,13 @@ fn probe_bootstrap_callable_services_threadio() {
     let runtime = wat::bootstrap_wat_vm_process(BootstrapArgs { frozen: &world })
         .expect("bootstrap_wat_vm_process should succeed");
 
-    // Verify: symbols() carries runtime_services (Some).
-    let has_services = runtime.symbols().runtime_services().is_some();
+    // Verify: symbols() carries the primed-stdio carrier (Some). Arc 170 Phase 3 — the hand-rolled
+    // `runtime_services` carrier is DELETED; bootstrap now starts the primed stdio defservices and
+    // stashes their addresses in `primed_stdio`.
+    let has_services = runtime.symbols().primed_stdio().is_some();
     assert!(
         has_services,
-        "ProcessRuntime::symbols() should carry runtime_services (Some); got None"
+        "ProcessRuntime::symbols() should carry primed_stdio (Some); got None"
     );
 
     // Verify: ThreadIO is installed — uninstall returns Some.

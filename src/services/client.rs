@@ -19,90 +19,31 @@
 //! REALIZATIONS pass 15 + pass 16 for the locked architecture.
 
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
-use crate::services::{ServiceMsg, peer::ServiceInputSender};
-
-/// Monotonic thread identifier. Mirrors the wat-side
-/// `:wat::kernel::ThreadId` typealias-to-i64 settled in pass 18.
-/// Allocated by `next_thread_id`; the spawn orchestrator assigns one per thread.
-pub type ThreadId = i64;
-
-/// Receiver of write-acks from a write-service peer (stdout/stderr).
-pub type WriteAckRx = crate::comms::thread::Receiver<Result<(), String>>;
-/// Receiver of read-replies from the stdin peer (the line, or the error).
-pub type ReadReplyRx = crate::comms::thread::Receiver<Result<String, String>>;
-
-/// Per-thread channel handles used by `:wat::kernel::println` /
-/// `eprintln` / `readln`. Populated by the spawn orchestrator via
-/// `register_thread_with_services`; tests populate via `install_thread_io`.
+/// Per-thread CACHED client `Peer'` handles to each primed stdio defservice
+/// (`:wat::kernel::{stdout,stderr,stdin}-svc`), used by `:wat::kernel::println` /
+/// `pprintln` / `eprintln` / `epprintln` / `readln`. Built empty by
+/// [`new_thread_io`] (the main-thread bootstrap + each spawned thread); tests
+/// populate via [`install_thread_io`].
 ///
-/// All channel ends are owned (not Arc'd) — the thread that
-/// owns the ThreadIO IS the thread that uses these channels.
+/// The flipped verbs (`src/services/verbs.rs`) `connect'` a client `Peer'` ONCE
+/// per thread (lazily, on first stdio call) via the wat `stdio-connect-*`
+/// helpers, cache it here, then reuse it for every subsequent op. Each field
+/// holds the dialed `Peer'` `Value`; its Drop (at thread exit / ThreadIO
+/// uninstall) disconnects the client. `RefCell` gives interior mutability under
+/// the immutable `&ThreadIO` borrow `cached_stdio_peer` takes.
 ///
-/// Arc 214 Stone 8.1: ThreadIO does NOT hold a Sender<ServiceMsg<...>> for
-/// the stdout/stderr services. Their input_tx is accessed via
-/// sym.runtime_services().*_ctrl so the service peers' lifetimes are tied
-/// solely to Arc<RuntimeServices> — enabling clean ProcessRuntime::drop
-/// ordering.
-///
-/// Arc 214 Stone 8.2: ThreadIO no longer holds the old stdin_tx / old
-/// stdin_reply_rx. The stdin half now mirrors the write pair exactly:
-/// `stdin_reply_rx` is a `comms::thread::Receiver<Result<String, String>>`
-/// that receives the line (Ok) or error (Err) from the StdInService peer.
+/// Arc 170 Phase 3 — the hand-rolled path (the old `*_reply_rx` Register/Deregister
+/// registry over `spawn_service_peer`) is DELETED; these cached primed peers are all
+/// that remains.
 pub struct ThreadIO {
-    // ── stdout (Arc 214 Stone 8.1 — universe-resident write peer) ──────────
-    //
-    // NOTE: ThreadIO does NOT hold the service input_tx. The Req send goes
-    // via sym.runtime_services().stdout_ctrl in eval_kernel_println. This
-    // keeps the service peer's lifetime tied to RuntimeServices (RS-only),
-    // not to every ThreadIO clone — so ProcessRuntime::drop can join the
-    // peer after dropping RS without deadlocking on a ThreadIO-held sender.
-    //
-    /// Block here for the StdOutService's ack of "line emitted" routed
-    /// back from the peer's reply registry. Populated by Register at
-    /// thread registration; each println send+recv is the mini-TCP ack.
-    pub stdout_reply_rx: WriteAckRx,
-    // ── stderr (Arc 214 Stone 8.1b — universe-resident write peer) ─────────
-    //
-    // Mirrors the stdout side exactly. The Req send goes via
-    // sym.runtime_services().stderr_ctrl in eval_kernel_eprintln.
-    //
-    /// Block here for the StdErrService's ack of "line emitted" routed
-    /// back from the peer's reply registry. Populated by Register at
-    /// thread registration; each eprintln send+recv is the mini-TCP ack.
-    pub stderr_reply_rx: WriteAckRx,
-    /// This thread's monotonic id — embedded in every Req so the service
-    /// peers can route the Rep ack back to this thread's reply channels.
-    /// Shared across stdout, stderr, and stdin services (one id per thread).
-    pub thread_id: ThreadId,
-    // ── stdin (Arc 214 Stone 8.2 — universe-resident read peer) ────────────
-    //
-    // Mirrors the write pair: the Req send goes via
-    // sym.runtime_services().stdin_ctrl in eval_kernel_readln_prime.
-    //
-    /// Block here for the StdInService's reply of "here is the line" routed
-    /// back from the peer's reply registry. Populated by Register at
-    /// thread registration; each readln send+recv is the mini-TCP round trip.
-    /// Ok(line) = a line was read; Err(msg) = handle error (write-side failure);
-    /// Recv Err = the loop disconnected (EOF cascade via assertion-failed!).
-    pub stdin_reply_rx: ReadReplyRx,
-
-    // ── Arc 170 Strike 3 (the verb flip) — per-thread CACHED client Peer' to each PRIMED stdio
-    //    defservice. The flipped verbs (src/services/verbs.rs) `connect'` ONCE per thread (lazily, on
-    //    first println/eprintln/readln) via the wat `stdio-connect-*` helpers, then reuse the cached
-    //    Peer' for every subsequent op — the same mini-round-trip the old *_reply_rx above served,
-    //    now over the primed defservice wire. Each field holds the dialed `Peer'` Value; its Drop (at
-    //    thread exit / ThreadIO uninstall) disconnects the client. `RefCell` gives interior
-    //    mutability under the immutable `&ThreadIO` that `with_thread_io` hands out. COEXIST: the
-    //    `*_reply_rx` fields above stay (idle now — verbs no longer read them); Phase 3 removes them.
-    /// Cached client Peer'<StdOut'::Op,StdOut'::Reply> for `println`/`pprintln`.
-    pub stdout_peer: std::cell::RefCell<Option<crate::runtime::Value>>,
-    /// Cached client Peer'<StdErr'::Op,StdErr'::Reply> for `eprintln`/`epprintln`.
-    pub stderr_peer: std::cell::RefCell<Option<crate::runtime::Value>>,
-    /// Cached client Peer'<StdIn'::Op,StdIn'::Reply> for `readln`.
-    pub stdin_peer: std::cell::RefCell<Option<crate::runtime::Value>>,
+    /// Cached client Peer'<StdOut::Op,StdOut::Reply> for `println`/`pprintln`.
+    pub stdout_peer: RefCell<Option<crate::runtime::Value>>,
+    /// Cached client Peer'<StdErr::Op,StdErr::Reply> for `eprintln`/`epprintln`.
+    pub stderr_peer: RefCell<Option<crate::runtime::Value>>,
+    /// Cached client Peer'<StdIn::Op,StdIn::Reply> for `readln`.
+    pub stdin_peer: RefCell<Option<crate::runtime::Value>>,
 }
 
 // rune:perspicere(intentional-structure) — RefCell<Option<T>> is the
@@ -139,24 +80,6 @@ pub fn uninstall_thread_io() -> Option<ThreadIO> {
     THREAD_IO.with(|cell| cell.borrow_mut().take())
 }
 
-/// Internal accessor for the OLD *_reply_rx path. Borrows the ThreadIO for the duration of `f` and
-/// surfaces a clean `ServiceNotRunning` diagnostic when the cell is empty.
-///
-/// Arc 170 Strike 3 — no longer called (the five verbs route through the primed defservices via
-/// `cached_stdio_peer`). Retained COEXIST (old path bootstrapped-but-idle); Phase 3 removes it.
-#[allow(dead_code)]
-pub(crate) fn with_thread_io<F, T>(op: &'static str, span: &crate::span::Span, f: F) -> Result<T, crate::runtime::RuntimeError>
-where
-    F: FnOnce(&ThreadIO) -> Result<T, crate::runtime::RuntimeError>,
-{
-    use crate::runtime::{RuntimeError, RuntimeErrorKind};
-    THREAD_IO.with(|cell| match &*cell.borrow() {
-        Some(io) => f(io),
-        None => Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::ServiceNotRunning {
-            op: op.into()
-        } }),
-    })
-}
 
 /// Arc 170 Strike 3 (the verb flip) — get this thread's CACHED client `Peer'` to a primed stdio
 /// service, `connect'`ing once (lazily) via the wat `connect_helper` and caching it in the ThreadIO
@@ -199,189 +122,45 @@ pub(crate) fn cached_stdio_peer(
     Ok(peer)
 }
 
-/// Holds the three universe-resident service peer input channels; accessed via
-/// `sym.runtime_services()` rather than ThreadIO so the peers' lifetimes tie
-/// to `Arc<RuntimeServices>`, not to every per-thread cell.
-///
-/// Arc 214 Stone 5.1 — ControlTx senders are comms::thread::Sender<Value>
-/// (cascade-aware, depth-1) instead of bare crossbeam Senders.
-/// Arc 214 Stone 8.1 — stdout_ctrl is now a Sender<ServiceMsg<()>> (the
-/// universe-resident write peer's input channel) instead of a wat ControlTx.
-/// Arc 214 Stone 8.1b — stderr_ctrl follows: now a Sender<ServiceMsg<()>>
-/// for the universe-resident stderr write peer.
-/// Arc 214 Stone 8.2 — stdin_ctrl follows: now a Sender<ServiceMsg<String>>
-/// for the universe-resident stdin read peer.
-#[derive(Clone)]
-pub struct RuntimeServices {
-    /// Arc 214 Stone 8.2 — the universe-resident StdInService read peer's
-    /// input channel. Register/Deregister/Req flow through it.
-    /// NOT cloned into ThreadIO — eval_kernel_readln_prime accesses this via
-    /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stdin_ctrl: ServiceInputSender<String>,
-    /// Arc 214 Stone 8.1 — the universe-resident StdOutService write peer's
-    /// input channel. Register/Deregister/Req flow through it.
-    /// NOT cloned into ThreadIO — eval_kernel_println accesses this via
-    /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stdout_ctrl: ServiceInputSender<()>,
-    /// Arc 214 Stone 8.1b — the universe-resident StdErrService write peer's
-    /// input channel. Register/Deregister/Req flow through it.
-    /// NOT cloned into ThreadIO — eval_kernel_eprintln accesses this via
-    /// sym.runtime_services() so the peer's lifetime is tied solely to RS.
-    pub stderr_ctrl: ServiceInputSender<()>,
-}
-
-impl std::fmt::Debug for RuntimeServices {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RuntimeServices")
-            .field("stdin_ctrl", &"<Sender<ServiceMsg<String>>> (Stone 8.2 peer; accessed via sym.runtime_services())")
-            .field("stdout_ctrl", &"<Sender<ServiceMsg<()>>> (Stone 8.1 peer; accessed via sym.runtime_services())")
-            .field("stderr_ctrl", &"<Sender<ServiceMsg<()>>> (Stone 8.1b peer; accessed via sym.runtime_services())")
-            .finish()
-    }
-}
-
-/// Arc 170 stdio-as-defservice (PHASE 1) — holds the three PRIMED stdio defservices' client-dial
-/// `Address'` values, stashed on the SymbolTable via `sym.primed_stdio()` (mirrors `RuntimeServices`
-/// / `sym.runtime_services()`). The freeze bootstrap starts `:wat::kernel::{stdin,stdout,stderr}-svc'`
-/// on the real fds (0/1/2), holds each returned `Handle` (keeping the admin lineage peer alive, hence
-/// the service alive), and extracts each Handle's `addr` field here.
-///
-/// COEXISTS with `RuntimeServices` — Phase 1 does NOT flip the five caller verbs; nothing reads this
-/// carrier yet. Strike 2 (flip the verbs) will have each thread `connect'` its own client `Peer'` to
-/// these addresses (replacing the `Register`/`*_reply_rx` registry).
+/// Arc 170 stdio-as-defservice — holds the three PRIMED stdio defservices' client-dial `Address'`
+/// values, stashed on the SymbolTable via `sym.primed_stdio()`. The freeze bootstrap starts
+/// `:wat::kernel::{stdin,stdout,stderr}-svc` on the real fds (0/1/2), holds each returned `Handle`
+/// (keeping the admin lineage peer alive, hence the service alive), and extracts each Handle's `addr`
+/// field here. The flipped verbs `connect'` these addresses (once per thread, cached in ThreadIO) and
+/// drive the typed surface ops.
 ///
 /// The three fields are the wat `Address'<Op,Reply>` VALUES (portable, thread-shareable — thread tier
-/// is shared memory). Held as opaque `Value`s (no per-op typing at this layer); the flipped verbs
-/// `connect'` them and drive the typed surface ops.
+/// is shared memory). Held as opaque `Value`s (no per-op typing at this layer).
 #[derive(Clone)]
 pub struct PrimedStdio {
-    /// `Address'<StdIn'::Op, StdIn'::Reply>` — dial to reach the primed stdin read service.
+    /// `Address'<StdIn::Op, StdIn::Reply>` — dial to reach the primed stdin read service.
     pub stdin_addr: crate::runtime::Value,
-    /// `Address'<StdOut'::Op, StdOut'::Reply>` — dial to reach the primed stdout write service.
+    /// `Address'<StdOut::Op, StdOut::Reply>` — dial to reach the primed stdout write service.
     pub stdout_addr: crate::runtime::Value,
-    /// `Address'<StdErr'::Op, StdErr'::Reply>` — dial to reach the primed stderr write service.
+    /// `Address'<StdErr::Op, StdErr::Reply>` — dial to reach the primed stderr write service.
     pub stderr_addr: crate::runtime::Value,
 }
 
 impl std::fmt::Debug for PrimedStdio {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PrimedStdio")
-            .field("stdin_addr", &"<Address'> (arc 170 primed stdin-svc'; via sym.primed_stdio())")
-            .field("stdout_addr", &"<Address'> (arc 170 primed stdout-svc'; via sym.primed_stdio())")
-            .field("stderr_addr", &"<Address'> (arc 170 primed stderr-svc'; via sym.primed_stdio())")
+            .field("stdin_addr", &"<Address'> (arc 170 primed stdin-svc; via sym.primed_stdio())")
+            .field("stdout_addr", &"<Address'> (arc 170 primed stdout-svc; via sym.primed_stdio())")
+            .field("stderr_addr", &"<Address'> (arc 170 primed stderr-svc; via sym.primed_stdio())")
             .finish()
     }
 }
 
-/// Monotonic thread-id allocator. Starts at `1`; 0 is never allocated
-/// (the counter starts at 1); no current consumer reads 0 as a sentinel.
-/// Each `invoke_user_main` is process-scoped; the counter survives across
-/// invocations, which is fine — ids only need to be unique within a single
-/// orchestrator's routing tables, and the wat-side services are torn down
-/// between invocations.
-// rune:sequi(performance-counter) — uniqueness-only id allocator; no domain
-// state crosses threads through the counter (the allocated tid travels
-// VISIBLY in Register/Req messages); threading an AtomicI64 through every
-// spawn-site signature trades real legibility for monadic purity. Documented
-// bound: ZERO-MUTEX.md § honest caveats (hot atomic counters).
-static NEXT_THREAD_ID: AtomicI64 = AtomicI64::new(1);
-
-/// Allocate a fresh monotonic [`ThreadId`]. Atomic, lock-free.
-pub fn next_thread_id() -> ThreadId {
-    // Relaxed: uniqueness-only; no happens-before ordering required.
-    NEXT_THREAD_ID.fetch_add(1, Ordering::Relaxed)
-}
-
-/// Allocate per-thread service channels; register with all three
-/// universe-resident service peers (stdin, stdout, stderr); return the
-/// populated [`ThreadIO`].
-///
-/// Arc 214 Stone 8.2 — stdin now mirrors the write pair: send
-/// Register(tid, reply_tx) on the stdin peer's input channel; the peer
-/// inserts the reply_tx into its HashMap keyed by tid. No bridge thread,
-/// no wat-side channels.
-///
-/// On send failure (service shut down) returns
-/// [`RuntimeError::ChannelDisconnected`]. Caller is responsible for
-/// `install_thread_io` after this returns successfully.
-pub fn register_thread_with_services(
-    thread_id: ThreadId,
-    services: &RuntimeServices,
-    caller_span: &crate::span::Span,
-) -> Result<ThreadIO, crate::runtime::RuntimeError> {
-    use crate::runtime::{RuntimeError, RuntimeErrorKind};
-    const OP_ADD: &str = "register_thread_with_services";
-
-    // ─── stdin (Arc 214 Stone 8.2 — universe-resident read peer) ──────
-    //
-    // Mirrors the write pair: allocate a per-thread reply pair,
-    // send Register(tid, reply_tx) on the stdin peer's input channel.
-    let (stdin_reply_tx, stdin_reply_rx): (_, ReadReplyRx) = crate::comms::thread::pair();
-    services
-        .stdin_ctrl
-        .send(ServiceMsg::Register(thread_id, stdin_reply_tx))
-        .map_err(|_| RuntimeError { span: caller_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
-            op: OP_ADD.into()
-        } })?;
-
-    // ─── stdout (Arc 214 Stone 8.1 — universe-resident write peer) ────
-    //
-    // No bridge thread, no wat-side channels. ThreadIO holds a per-thread
-    // reply Receiver<Result<(),String>> for the ack back from the service's
-    // reply registry.
-    //
-    // Registration: send Register(tid, reply_tx) on the service input so
-    // the peer loop inserts the reply_tx into its HashMap keyed by tid.
-    let (stdout_reply_tx, stdout_reply_rx): (_, WriteAckRx) = crate::comms::thread::pair();
-    services
-        .stdout_ctrl
-        .send(ServiceMsg::Register(thread_id, stdout_reply_tx))
-        .map_err(|_| RuntimeError { span: caller_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
-            op: OP_ADD.into()
-        } })?;
-
-    // ─── stderr (Arc 214 Stone 8.1b — universe-resident write peer) ───
-    //
-    // Mirrors the stdout side exactly. No bridge thread.
-    let (stderr_reply_tx, stderr_reply_rx): (_, WriteAckRx) = crate::comms::thread::pair();
-    services
-        .stderr_ctrl
-        .send(ServiceMsg::Register(thread_id, stderr_reply_tx))
-        .map_err(|_| RuntimeError { span: caller_span.clone(), kind: RuntimeErrorKind::ChannelDisconnected {
-            op: OP_ADD.into()
-        } })?;
-
-    Ok(ThreadIO {
-        // NOTE: the service input_tx senders are NOT stored in ThreadIO
-        // (Arc 214 Stone 8.1/8.1b/8.2 fix). The Req sends go via
-        // sym.runtime_services().{stdin,stdout,stderr}_ctrl in
-        // eval_kernel_{readln,println,eprintln} so the service peers'
-        // lifetimes are tied solely to Arc<RuntimeServices>, not to every
-        // ThreadIO.
-        stdout_reply_rx,
-        stderr_reply_rx,
-        thread_id,
-        stdin_reply_rx,
-        // Arc 170 Strike 3 — cached primed-stdio client peers, connect'd lazily on first use.
-        stdout_peer: std::cell::RefCell::new(None),
-        stderr_peer: std::cell::RefCell::new(None),
-        stdin_peer: std::cell::RefCell::new(None),
-    })
-}
-
-/// Send Deregister messages to the universe-resident stdin, stdout, and
-/// stderr peers for this thread_id.
-/// Silent-fail on each send (services may be shutting down via scope-drop;
-/// a failed send is "the service is already gone," the cleanup state we want).
-pub fn deregister_thread_from_services(thread_id: ThreadId, services: &RuntimeServices) {
-    // Arc 214 Stone 8.2 — stdin uses Deregister on the Rust-internal enum (mirrors write pair).
-    let _ = services.stdin_ctrl.send(ServiceMsg::Deregister(thread_id));
-
-    // Arc 214 Stone 8.1 — stdout uses Deregister on the Rust-internal enum.
-    let _ = services.stdout_ctrl.send(ServiceMsg::Deregister(thread_id));
-
-    // Arc 214 Stone 8.1b — stderr mirrors stdout.
-    let _ = services.stderr_ctrl.send(ServiceMsg::Deregister(thread_id));
+/// Build a fresh, EMPTY [`ThreadIO`] for a thread that will use the primed stdio services (the
+/// main-thread bootstrap and each spawned thread). The three cached client `Peer'` slots start `None`;
+/// the flipped verbs `connect'` + cache them lazily on first stdio call. Arc 170 Phase 3 — replaces the
+/// old `register_thread_with_services` (which sent `Register` to the now-deleted hand-rolled path).
+pub fn new_thread_io() -> ThreadIO {
+    ThreadIO {
+        stdout_peer: RefCell::new(None),
+        stderr_peer: RefCell::new(None),
+        stdin_peer: RefCell::new(None),
+    }
 }
 
 // ─── Slice 1f-γ — ambient stdio handles (orchestrator-facing) ──────────

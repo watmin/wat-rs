@@ -9,7 +9,6 @@ use crate::load::SourceLoader;
 use crate::macros::MacroRegistry;
 use crate::value::{EnumValue, Value};
 use crate::sigma::SigmaFn;
-use crate::services::RuntimeServices;
 use crate::types::TypeEnv;
 use crate::value::{EncodingCtx, Function};
 
@@ -121,25 +120,15 @@ pub struct SymbolTable {
     /// read by no eval path.
     // rune:purgare(future-fixture) — eval-time def-redef scaffolding: config-parsed into this field but no eval path reads it (the read-side gate is unbuilt); write-only by present construction.
     pub eval_redef_allowed: bool,
-    /// Arc 170 slice 1f-γ — runtime services carrier. When set, the
-    /// `:wat::kernel::spawn-thread` arm registers each spawned thread
-    /// with the three stdio services (StdIn / StdOut / StdErr) so the
-    /// thread's `(:wat::kernel::println ...)` / `(eprintln ...)` /
-    /// `(readln)` calls have a populated [`crate::services::ThreadIO`].
-    /// `None` when no orchestrator is active (test harnesses + the
-    /// service threads themselves bootstrap before the carrier is set,
-    /// so their internal spawn-thread calls see `None` and skip
-    /// registration — the lazy-registration pattern). Carrier choice B
-    /// per BRIEF § honest-delta — capability-carrier pattern next to
-    /// `encoding_ctx`, `source_loader`, `macro_registry`. Memory
-    /// `feedback_capability_carrier.md`.
-    pub runtime_services: Option<Arc<RuntimeServices>>,
-    /// Arc 170 stdio-as-defservice (PHASE 1) — the three PRIMED stdio defservices' client-dial
-    /// `Address'` values. Set once per `invoke_user_main` by the freeze bootstrap after starting
-    /// `:wat::kernel::{stdin,stdout,stderr}-svc'` on the real fds; propagates to spawned threads via
-    /// `Clone`. COEXISTS with `runtime_services` (the hand-rolled path) — Phase 1 flips no verb, so
-    /// nothing reads this yet; Strike 2 (verb flip) has each thread `connect'` these addresses.
-    /// `None` when no orchestrator is active (bare test worlds, service-thread bootstrap).
+    /// Arc 170 stdio-as-defservice — the three PRIMED stdio defservices' client-dial `Address'` values.
+    /// Set once per `invoke_user_main` by the freeze bootstrap after starting
+    /// `:wat::kernel::{stdin,stdout,stderr}-svc` on the real fds; propagates to spawned threads via
+    /// `Clone`. When set, the `:wat::kernel::spawn-thread` arm gives each spawned thread a fresh
+    /// [`crate::services::ThreadIO`] so its `(println ...)` / `(eprintln ...)` / `(readln)` calls can
+    /// `connect'` + cache a client peer. `None` when no orchestrator is active (bare test worlds; the
+    /// service threads themselves bootstrap before it is set, so their spawn-thread calls skip ThreadIO
+    /// — the lazy pattern). Capability-carrier pattern next to `encoding_ctx` / `source_loader` /
+    /// `macro_registry` (memory `feedback_capability_carrier.md`).
     pub primed_stdio: Option<Arc<crate::services::PrimedStdio>>,
     /// Stone 241.6 — binding-level metadata attached via the optional
     /// `{...}` metadata-map clause on `def` / `defn`. Maps binding name
@@ -218,40 +207,17 @@ impl SymbolTable {
         self.source_loader.as_ref()
     }
 
-    /// Attach the runtime-services carrier. Called once per
-    /// `invoke_user_main` invocation by the orchestrator (after
-    /// spawning the three stdio services). The carrier propagates to
-    /// spawned threads through SymbolTable's `Clone`; child threads'
-    /// `eval_kernel_spawn_thread` sites read it to decide whether to
-    /// register the new thread with the services. Arc 170 slice 1f-γ.
-    pub fn set_runtime_services(
-        &mut self,
-        services: Arc<RuntimeServices>,
-    ) {
-        self.runtime_services = Some(services);
-    }
-
-    /// Borrow the runtime-services carrier, if one is attached. The
-    /// spawn-thread arm calls this to decide whether to allocate a
-    /// new ThreadId + register with the services or skip (service-
-    /// thread bootstrap path, pre-orchestrator init, etc.). Arc 170
-    /// slice 1f-γ.
-    pub fn runtime_services(
-        &self,
-    ) -> Option<&Arc<RuntimeServices>> {
-        self.runtime_services.as_ref()
-    }
-
-    /// Attach the primed-stdio carrier (arc 170 stdio-as-defservice, PHASE 1). Called once per
+    /// Attach the primed-stdio carrier (arc 170 stdio-as-defservice). Called once per
     /// `invoke_user_main` by the freeze bootstrap after starting the three primed stdio defservices.
-    /// Mirrors [`SymbolTable::set_runtime_services`].
+    /// Propagates to spawned threads through SymbolTable's `Clone`; the spawn-thread arm reads it to
+    /// decide whether to give the new thread a ThreadIO.
     pub fn set_primed_stdio(&mut self, primed: Arc<crate::services::PrimedStdio>) {
         self.primed_stdio = Some(primed);
     }
 
-    /// Borrow the primed-stdio carrier, if one is attached (arc 170 PHASE 1). The Strike-2 flipped
-    /// verbs will call this to reach each stream's client-dial `Address'`. Mirrors
-    /// [`SymbolTable::runtime_services`].
+    /// Borrow the primed-stdio carrier, if one is attached (arc 170). The flipped stdio verbs call this
+    /// to reach each stream's client-dial `Address'`; the spawn-thread arm uses its presence as the
+    /// "stdio is running → give the thread a ThreadIO" signal.
     pub fn primed_stdio(&self) -> Option<&Arc<crate::services::PrimedStdio>> {
         self.primed_stdio.as_ref()
     }

@@ -9,7 +9,7 @@
 ;;
 ;; Flood strategy (arc 170 Strike 3): the child builds a 1 MiB string (2^20 = 1,048,576 bytes of
 ;; 'x') via double-string and RAW-writes it to fd 1 via `:wat::kernel::write-fd-raw` — NOT `println`.
-;; After the verb flip, `println` is bounded by StdOut''s `:max-request-bytes` op budget, so a
+;; After the verb flip, `println` is bounded by StdOut's `:max-request-bytes` op budget, so a
 ;; conforming peer's oversized println now fails with RequestTooLarge BEFORE it can flood the wire
 ;; (correct — bounded stdio). This probe needs a NON-CONFORMING peer, so it emits raw un-terminated
 ;; bytes straight to fd 1 (the peer wire): 1,048,576 bytes with no frame terminator, well above the

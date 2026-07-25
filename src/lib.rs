@@ -102,9 +102,7 @@ pub mod string_ops;
 pub mod test_runner;
 pub use services::{
     install_thread_io, uninstall_thread_io,
-    ThreadId, ThreadIO,
-    ServiceMsg, ServicePeer, spawn_service_peer,
-    RuntimeServices,
+    ThreadIO,
 };
 pub mod channel;
 pub mod time;

@@ -5,17 +5,17 @@
 //!
 //! ## Arc 170 Strike 3 — the verb flip (PURE IMPL-SWAP)
 //!
-//! These five verbs now route to the PRIMED stdio defservices (`:wat::kernel::{stdout,stderr,stdin}-svc'`,
+//! These five verbs now route to the PRIMED stdio defservices (`:wat::kernel::{stdout,stderr,stdin}-svc`,
 //! built in `wat/kernel/services/stdio-primes.wat`) instead of the hand-rolled `spawn_service_peer`
 //! path. Their CONTRACTS are byte-identical — only who they call changed:
 //!   - Each verb reaches its stream's `Address'` via `sym.primed_stdio()` (the `PrimedStdio` carrier
 //!     the freeze bootstrap seeded), `connect'`s a per-thread client `Peer'` ONCE (cached in ThreadIO
 //!     via `cached_stdio_peer`), then drives the op through a thin kernel wat helper
 //!     (`stdio-write-out`/`stdio-write-err`/`stdio-read`) that does the send'/recv'/typed-match.
-//!   - `println`/`pprintln` → write-line via `StdOut'`, return `nil`; RequestTooLarge/lost/closed SURFACE.
-//!   - `eprintln`/`epprintln` → write-line via `StdErr'`, then TERMINATE (the death split — the write
+//!   - `println`/`pprintln` → write-line via `StdOut`, return `nil`; RequestTooLarge/lost/closed SURFACE.
+//!   - `eprintln`/`epprintln` → write-line via `StdErr`, then TERMINATE (the death split — the write
 //!     is the service's act, the terminate is the verb's own, exactly as before).
-//!   - `readln'` → read-line via `StdIn'`; the raw line is decoded through the self-describing EDN wire
+//!   - `readln'` → read-line via `StdIn`; the raw line is decoded through the self-describing EDN wire
 //!     here (unchanged); EOF reproduces the old terminal behaviour (the helper raises); the matchable
 //!     `ReadLineResponse::Eof` variant is BANKED, not exposed to the 72 callers.
 //!
@@ -67,7 +67,7 @@ fn eprintln_terminate(reason: String) -> ! {
 
 // ─── Arc 170 Strike 3 — primed-stdio routing helpers ─────────────────────────────────────────────
 
-/// Route a formatted line to the primed `StdOut'` service: fetch the stdout `Address'` from
+/// Route a formatted line to the primed `StdOut` service: fetch the stdout `Address'` from
 /// `sym.primed_stdio()`, get/connect this thread's cached client `Peer'`, then apply the wat
 /// `stdio-write-out` helper (which surfaces RequestTooLarge / lost / closed as a raise). The line is
 /// emitted + acked on success.
@@ -86,7 +86,7 @@ fn write_via_stdout(op: &'static str, span: &Span, sym: &SymbolTable, line: Stri
     Ok(())
 }
 
-/// Route a formatted line to the primed `StdErr'` service (mirror of [`write_via_stdout`], fd 2).
+/// Route a formatted line to the primed `StdErr` service (mirror of [`write_via_stdout`], fd 2).
 fn write_via_stderr(op: &'static str, span: &Span, sym: &SymbolTable, line: String) -> Result<(), RuntimeError> {
     let primed = sym.primed_stdio().ok_or_else(|| RuntimeError {
         span: span.clone(),
@@ -102,7 +102,7 @@ fn write_via_stderr(op: &'static str, span: &Span, sym: &SymbolTable, line: Stri
     Ok(())
 }
 
-/// Read one raw line via the primed `StdIn'` service (the caller decodes it). EOF / RequestTooLarge /
+/// Read one raw line via the primed `StdIn` service (the caller decodes it). EOF / RequestTooLarge /
 /// lost / closed surface as a raise from the wat `stdio-read` helper (EOF reproduces the old terminal
 /// behaviour). Returns the newline-trimmed line String.
 fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) -> Result<String, RuntimeError> {
@@ -127,7 +127,7 @@ fn read_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable, cap: i64) ->
 }
 
 /// `(:wat::kernel::println v)` → `:wat::core::nil`. Serialize `v` to compact EDN and write-line it via
-/// the primed `StdOut'` service. Arc 170 Strike 3 — routes through the primed defservice (was: the
+/// the primed `StdOut` service. Arc 170 Strike 3 — routes through the primed defservice (was: the
 /// `sym.runtime_services().stdout_ctrl` Req path). Contract unchanged: emits + acks, returns `nil`; a
 /// write failure (RequestTooLarge / lost / closed) SURFACES (never silently drops).
 pub fn eval_kernel_println(
@@ -149,7 +149,7 @@ pub fn eval_kernel_println(
 }
 
 /// `(:wat::kernel::pprintln v)` → `:wat::core::nil`. Pretty (multi-line indented) EDN twin of
-/// `println` — Clojure's `pprint` lineage. Same primed `StdOut'` path, `∀T. T -> :wat::core::nil`.
+/// `println` — Clojure's `pprint` lineage. Same primed `StdOut` path, `∀T. T -> :wat::core::nil`.
 pub fn eval_kernel_pprintln(
     args: &[WatAST],
     list_span: &Span,
@@ -167,7 +167,7 @@ pub fn eval_kernel_pprintln(
 }
 
 /// `(:wat::kernel::eprintln v)` → `:wat::core::nil` (type), a **terminating** form at runtime.
-/// Serialize `v` to compact EDN, write-line it via the primed `StdErr'` service, then **TERMINATE
+/// Serialize `v` to compact EDN, write-line it via the primed `StdErr` service, then **TERMINATE
 /// non-zero** via `eprintln_terminate` (the death split — the write is the service's act, the
 /// terminate the verb's own; arc 278 no-hidden-failures). NEVER returns `Value::Unit` on success.
 /// Arc 170 Strike 3 — routes through the primed defservice (was: `stderr_ctrl` Req path).
@@ -191,7 +191,7 @@ pub fn eval_kernel_eprintln(
 }
 
 /// `(:wat::kernel::epprintln v)` → the pretty **terminating** twin of `eprintln`. Pretty EDN → primed
-/// `StdErr'` write-line → TERMINATE. Same death split, `write_pretty` instead of `write`.
+/// `StdErr` write-line → TERMINATE. Same death split, `write_pretty` instead of `write`.
 pub fn eval_kernel_epprintln(
     args: &[WatAST],
     list_span: &Span,
@@ -212,7 +212,7 @@ pub fn eval_kernel_epprintln(
 /// The kernel-restricted positional prime that the `readln` defmacro expands to. Arc 255 escape-hatch:
 /// the cap is ALWAYS explicit (no Rust default — the `readln` macro injects `MAX-READLN-BYTES`).
 ///
-/// Arc 170 Strike 3 — reads via the primed `StdIn'` service (was: the `stdin_ctrl` Req path). The raw
+/// Arc 170 Strike 3 — reads via the primed `StdIn` service (was: the `stdin_ctrl` Req path). The raw
 /// line is decoded through the SELF-DESCRIBING EDN wire here (unchanged contract — readln returns the
 /// parsed Value, not a String). EOF reproduces the old terminal behaviour (the `stdio-read` helper
 /// raises on `ReadLineResponse::Eof`); the matchable `Eof` variant is BANKED, not exposed to callers.
@@ -265,7 +265,7 @@ pub fn eval_kernel_readln_prime(
         }
     };
 
-    // Read one line via the primed StdIn' service, then decode via the SELF-DESCRIBING wire — no
+    // Read one line via the primed StdIn service, then decode via the SELF-DESCRIBING wire — no
     // target type; the EDN's own tags/notation reconstruct the exact Value (int→i64, float→f64),
     // exactly as recv'/select' decode a peer message (unchanged from the old readln' contract).
     let line = read_via_stdin(OP, list_span, sym, cap)?;

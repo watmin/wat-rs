@@ -1,14 +1,14 @@
 //! Arc 170 stdio-as-defservice — PHASE 1, the P1 UNIT PROOF.
 //!
 //! The three stdio streams are reborn as `defservice`s (the PRIMES,
-//! `:wat::kernel::{stdout,stderr,stdin}-svc'`), coexisting with the hand-rolled path. This probe
-//! proves the primed StdOut'/StdIn' services round-trip over a CONTROLLED fd (a pipe pair built here
+//! `:wat::kernel::{stdout,stderr,stdin}-svc`), coexisting with the hand-rolled path. This probe
+//! proves the primed StdOut/StdIn services round-trip over a CONTROLLED fd (a pipe pair built here
 //! in Rust), driven ENTIRELY through the generated client face — the same face any caller uses:
 //!
-//!   - `primed_stdout_write_line_lands_bytes` — start `stdout-svc'` on a pipe write-fd, `connect'`,
+//!   - `primed_stdout_write_line_lands_bytes` — start `stdout-svc` on a pipe write-fd, `connect'`,
 //!     `write-line` two lines; the exact bytes land on the pipe read-end (the fd was born inside the
 //!     service's kernel `::init` via `IOWriter/from-fd`, dup-then-own).
-//!   - `primed_stdin_read_line_returns_line` — feed one line into a pipe, start `stdin-svc'` on the
+//!   - `primed_stdin_read_line_returns_line` — feed one line into a pipe, start `stdin-svc` on the
 //!     read-fd, `read-line` → `ReadLineResponse::Line "…"`.
 //!   - `primed_stdin_eof_is_matchable` — close the write-end (no writers → EOF), `read-line` →
 //!     `ReadLineResponse::Eof` (the no-hidden-failures upgrade: EOF is a MATCHABLE value, not a panic
@@ -82,7 +82,7 @@ fn primed_stdout_write_line_lands_bytes() {
     let got = read_exact_n(r.as_raw_fd(), expected.len());
     assert_eq!(
         got, expected,
-        "primed StdOut' write-line bytes must land on the pipe read-end (from-fd dup wrote through)"
+        "primed StdOut write-line bytes must land on the pipe read-end (from-fd dup wrote through)"
     );
     // r, w drop here (OwnedFd → close).
 }
@@ -199,7 +199,7 @@ fn primed_stdin_read_line_returns_line() {
         Value::String(s) => assert_eq!(
             s.as_str(),
             "stdin-line-1",
-            "primed StdIn' read-line must return the fed line (newline-trimmed)"
+            "primed StdIn read-line must return the fed line (newline-trimmed)"
         ),
         other => panic!("expected ReadLineResponse::Line \"stdin-line-1\"; got {other:?}"),
     }
@@ -232,7 +232,7 @@ fn primed_stdin_eof_is_matchable() {
         Value::String(s) => assert_eq!(
             s.as_str(),
             "EOF",
-            "primed StdIn' EOF must surface as the matchable ReadLineResponse::Eof value"
+            "primed StdIn EOF must surface as the matchable ReadLineResponse::Eof value"
         ),
         other => panic!("expected ReadLineResponse::Eof (\"EOF\"); got {other:?}"),
     }
