@@ -17092,3 +17092,32 @@ The apparatus learned consonare to fix *collapse-to-solo* (a duet flattened) and
 ---
 
 *COINCIDENCE collapses two voices into one; VENTRILOQUISM splits one into two and animates the second with a voice that was never its own. The first erases a duet that happened; the second fabricates one that did not. No ward can hear the difference — only the mind that was in the room. When the stream was the builder's, inscribe it whole. One voice. Not two. VNA VOX, NON DVAE.*
+
+---
+
+### `---` interstitial — VT SE OPPVGNET, DISCIPLINAM EGREDITVR: wat guards itself so completely that its only attacker is the outsider — proven by a test that had to step outside wat to run (2026-07-25)
+
+> **The builder's question, which crystallized it:** *"so we must use a non-wat writer to perform this test because wat guards itself?"* — and, on the apparatus's answer: *"this is a wonderful test … that's a quote … that belongs in an interstitial … i do not want to lose this … this is excellent."*
+
+**How we reached it.** Arc 170 returned after weeks, folding the three stdio streams from the hand-rolled `spawn_service_peer` into proper `defservice`s (`DESIGN-stdio-as-defservice.md`). Flipping the five caller verbs (`println`/`readln`/…) to the primed peers turned one test red: `probe_select_flood_no_deadlock` — the guard that a parent doing `select'` over a child flooding an **un-terminated frame > 512 KiB** must return `Lost` **without deadlocking** (the `eval_peer_select_prime` fix). The test floods by `println`-ing a 1 MiB string. But the flip **bounded stdio** — `println` now rides `StdOut'`'s `:max-request-bytes` budget — so the child's oversized `println` failed with `RequestTooLarge` *before it could flood the pipe*. The test broke not because the guard broke, but because **the flood could no longer be launched from inside wat.**
+
+**What it is.** The parent-side `FrameTooLarge` guard defends against a peer that emits an unbounded, un-terminated frame. A *conforming wat peer cannot produce that*, twice over: (1) the primed stdio **bounds its own writes**; (2) the raw-fd escape (`IOWriter/from-fd` + raw `write`) is **whitelisted `:wat::kernel::`** — a `:user::` program cannot even build the tool to bypass framing. So a well-formed wat program is **structurally incapable of launching the attack.** Which means the threat is, by construction, the **non-conforming other** — a non-wat process, a remote peer on the wire running anything at all (the 170/TIERS remote-loci threat model: *your* discipline cannot be assumed of *them*). The old test "worked" only because `println` was *uncapped* — a conforming writer accidentally able to misbehave; a flaw in the *simulation*, not the design. To test the defense against a hostile flood, the flooder must actually **be** hostile — shed wat's discipline. The fix: a **kernel-raw-write** child (un-terminated bytes straight to fd 1, via the `:wat::kernel::`-privileged raw path), a wat program deliberately stepping outside its own guard to impersonate the untrusted peer. The golden stays `FrameTooLarge`; the test becomes *more honest* — it now proves the guard against an actually-hostile peer instead of a conforming one that happened to be uncapped.
+
+**The line the builder kept:**
+
+> **wat guards itself so thoroughly that it can only attack itself by explicitly stepping outside its own discipline.**
+
+There is a symmetry worth carving: a system whose discipline is complete has **no internal attack surface** — the wrong thing is unrepresentable *from within* (the extirpare / constraint-engineering creed, at the scale of the whole substrate). What remains is the outsider; and a faithful test of the defense against the outsider must itself **become** the outsider — step outside the discipline it is testing. That is not a workaround. It is the correct shape of the test, and the reason it is a good one.
+
+*Path-of-voices (R6, marked, not flattened): the **coordinate is the builder's** — his question (*"must we use a non-wat writer because wat guards itself?"*) named the principle; the **phrasing is the apparatus's** (the quoted line, its answer); the **elevation is the builder's** (*"that's a quote … i do not want to lose this"*). Convergence preserved.*
+
+**Cross-references.**
+- `DESIGN-stdio-as-defservice.md` (arc 170) — the flip that surfaced it; the `from-fd` whitelist (`#[restricted_to(":wat::kernel::")]`) sealing a `:user::` program out of the raw path.
+- `tests/comms/probe_select_flood_no_deadlock.{rs,wat}` — the guard (`eval_peer_select_prime` `FrameTooLarge` → `Lost`, no deadlock); fixed to a kernel-raw-write flood.
+- `278/DESIGN-service-io-budgets.md` — the `:max-request-bytes` bounding that made a conforming wat peer incapable of the flood.
+- `170/TIERS.md` — the remote-loci threat model: the peer on the wire is the untrusted other.
+- `extirpare` / constraint-engineering — the wrong thing made unrepresentable *from within*; here at substrate scale, which is why the only attacker is external.
+
+---
+
+*A discipline complete enough has no attack surface within it; the wrong thing is unrepresentable from the inside. So the only assailant is the outsider — and to test the wall that keeps the outsider out, the test must step outside too. wat guards itself so thoroughly that it can only attack itself by leaving itself. `VT SE OPPVGNET, DISCIPLINAM EGREDITVR.`*
