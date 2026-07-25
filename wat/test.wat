@@ -15,10 +15,10 @@
 ;; Declared invariants, each enforced by a living gate:
 ;; (1) the test-kind 6-spell muster passes at HEAD (green-gate runs the
 ;;     corpus on every check 3/3);
-;; (2) every public sandbox-entry verb (:wat::test::run / run-ast) has at
-;;     least one live corpus witness — gated by the corpus run;
-;;     run-in-scope is the named honest fixture-demo gap (245 INSCRIPTION
-;;     bound), distinct from a phantom witness;
+;; (2) [arc 170 CULMINATION — the :wat::test::run / run-in-scope / run-ast
+;;     sandbox-entry wrappers over the annihilated :wat::kernel::run-sandboxed
+;;     family are DELETED; inner programs spawn directly on the primed peer
+;;     wire (spawn-program' + recv'), so this witness invariant is retired];
 ;; (3) the 15 retired-form bombs inside the arc-170-ignored proof files are
 ;;     DEFUSED — no value-position :wat::core::nil or :wat::core::struct-restricted
 ;;     survives anywhere in the corpus (contained un-ignore verification on
@@ -31,26 +31,14 @@
 ;;
 ;; :wat::test::* — the wat-native test harness (arc 007 slice 3).
 ;;
-;; Pure wat over three primitives:
-;; - :wat::kernel::run-sandboxed        (arc 007 slice 2b)
-;; - :wat::kernel::run-sandboxed-hermetic (arc 007 slice 2c)
-;; - :wat::kernel::assertion-failed!    (this slice)
+;; Pure wat. An assertion that fails raises internally; the enclosing
+;; run (a deftest thread via run-thread', or a spawned peer via
+;; spawn-program' + recv') surfaces the failure as a RunResult / a
+;; recv' Lost carrying the LociDiedError. Arc 170 CULMINATION: the old
+;; :wat::kernel::run-sandboxed family (manual spawn + pipe-drain +
+;; stderr-scrape) is annihilated; the primed peer wire subsumes it.
 ;; Plus the string/regex basics from :wat::core::string::* and
 ;; :wat::core::regex::*.
-;;
-;; Usage shape:
-;;
-;;   (:wat::core::defn :user::main [] -> :wat::core::nil
-;;     (:wat::core::let
-;;       [r (:wat::test::run "(:wat::core::defn :user::main [] -> :wat::core::nil ...)"
-;;                           (:wat::core::Vector :wat::core::String))]
-;;       ;; inspect (:wat::kernel::RunResult/failure r) — the sole field
-;;       (:wat::test::assert-true (:wat::core::none? (:wat::kernel::RunResult/failure r)))))
-;;
-;; An assertion that fails panics internally; the outer run-sandboxed
-;; catches the panic and surfaces the failure in its own RunResult.
-;; Nested testing: a test file runs sandboxed to TEST a sandboxed
-;; program.
 
 ;; ─── :wat::test::TestResult — alias of kernel::RunResult ─────────────
 ;;
@@ -180,41 +168,22 @@
 ;; The helpers (and their `any-line-matches` fold) are deleted; there is
 ;; no stdout/stderr to assert over.
 
-;; ─── run / run-in-scope ───────────────────────────────────────────────
+;; ─── :wat::test::program — AST-entry form capture ────────────────────
 ;;
-;; Thin ergonomic wrappers over :wat::kernel::run-sandboxed. `run` is
-;; the common case — no filesystem access at all (InMemoryLoader).
-;; `run-in-scope` sets up ScopedLoader when the test uses load! with
-;; fixture files.
-(:wat::core::defn :wat::test::run [src <- :wat::core::String stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed src stdin :wat::core::None))
-
-(:wat::core::defn :wat::test::run-in-scope [src <- :wat::core::String stdin <- :wat::core::Vector<wat::core::String> scope <- :wat::core::String] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed src stdin (:wat::core::Some scope)))
-
-;; ─── run-ast + program — AST-entry test sandbox ──────────────────────
-;;
-;; The string-entry path (:wat::test::run above) is what fuzzers /
-;; programs-built-at-runtime use. For hand-written tests, the AST-
-;; entry path is the honest move — no escape hell, no nested quoting,
-;; the inner program reads as s-expressions.
-;;
-;; Usage:
-;;
-;;   (:wat::test::run-ast
-;;     (:wat::test::program
-;;       (:wat::core::defn :user::main [] -> :wat::core::nil <body>))
-;;     (:wat::core::Vector :wat::core::String))
-;;
-;; `:wat::test::program` expands to `:wat::core::forms` — the
-;; variadic-quote substrate. Each top-level form captured as
-;; `:wat::WatAST`; the result is `:wat::core::Vector<wat::WatAST>` ready to hand
-;; to `:wat::kernel::run-sandboxed-ast`.
+;; Arc 170 CULMINATION (arc 278 IPC de-prime): the `:wat::test::run` /
+;; `run-in-scope` / `run-ast` wrappers over the annihilated
+;; `:wat::kernel::run-sandboxed` family are DELETED. Hand-written tests
+;; that need to run an inner program spawn it directly on the primed
+;; peer wire — `(:wat::kernel::spawn-program' (:wat::spawn::process) <fn>)`
+;; + `recv'`. `:wat::test::program` survives as the ergonomic
+;; forms-capture helper: it expands to `:wat::core::forms` (the
+;; variadic-quote substrate), capturing each top-level form as
+;; `:wat::WatAST` into a `:wat::core::Vector<wat::WatAST>`.
 
 (:wat::core::defmacro :wat::test::program
   [& forms <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
   `(:wat::core::forms ~@forms))
-
-(:wat::core::defn :wat::test::run-ast [forms <- :wat::core::Vector<wat::WatAST> stdin <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::RunResult (:wat::kernel::run-sandboxed-ast forms stdin :wat::core::None))
 
 ;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031; arc 170 slice 3 phase E V5; arc 170 slice 4a-γ-flip) ───
 ;;

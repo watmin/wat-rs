@@ -186,23 +186,12 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/kernel/services/stderr.wat",
         source: include_str!("../wat/kernel/services/stderr.wat"),
     },
-    // Arc 170 slice 1f-δ — restore :wat::kernel::run-sandboxed-hermetic-ast
-    // as wat-side wrapper around spawn-process (closes § Row K from
-    // slice 1f-β-i V2 SCORE). Also defines drain-lines-acc,
-    // drain-lines, and failure-from-process-died helpers.
-    WatSource {
-        path: "wat/kernel/hermetic.wat",
-        source: include_str!("../wat/kernel/hermetic.wat"),
-    },
-    // Arc 170 slice 1f-δ′ — restore :wat::kernel::run-sandboxed-ast as
-    // wat-side wrapper around spawn-process (closes the largest
-    // baseline failure category; sibling of slice 1f-δ's hermetic
-    // restore). Loaded AFTER hermetic.wat so drain-lines /
-    // failure-from-process-died helpers are already registered.
-    WatSource {
-        path: "wat/kernel/sandbox.wat",
-        source: include_str!("../wat/kernel/sandbox.wat"),
-    },
+    // Arc 170 CULMINATION (arc 278 IPC de-prime) — wat/kernel/hermetic.wat
+    // and wat/kernel/sandbox.wat ANNIHILATED. They defined the manual
+    // sandbox-a-program family (run-sandboxed / run-sandboxed-ast /
+    // run-sandboxed-hermetic-ast + drive-sandbox + drain-lines helpers),
+    // fully subsumed by the primed peer wire (spawn-program' + send' +
+    // recv' + LociDiedError). Their loader entries are removed with the files.
     // Arc 170 slice 1e — `:wat::kernel::ExitCode` retired (REALIZATIONS
     // pass 10 — `:wat::core::nil` IS the success exit code; `:user::main`
     // returns nil; substrate maps to libc::exit(0); panic-cascade maps

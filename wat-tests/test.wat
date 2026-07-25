@@ -374,29 +374,12 @@
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
 
-;; ─── Substrate primitives — public-but-previously-unexercised (circumspicere F5) ───
+;; ─── Substrate primitives — public sandbox-entry verbs ANNIHILATED ───
 ;;
-;; wat/test.wat exposes three public sandbox-entry verbs the macros expand to:
-;; :wat::test::run / run-in-scope / run-ast. The README documents them as
-;; "reach for them when you need to drive the sandbox by hand." Before #181
-;; the corpus had ZERO live callers — the corpus-as-teacher doctrine
-;; demands every public verb has at least one live demo. One witness per
-;; verb, asserting on the returned RunResult (no failure = clean run).
-
-;; (test-run-string-entry-direct deleted 2026-06-25 — :wat::test::run drives the
-;; dead source-string sandbox entry (run-sandboxed → spawn-program, annihilated arc-170
-;; slice 2 / arc-259 spawn-program' keystone); the AST/forms entry below is the live path.
-;; The dead run-sandboxed string stdlib function itself rides the later dead-code cleanup.)
-(:wat::test::deftest :wat-tests::std::test::test-run-ast-direct
-  
-  ;; rune:complectens(embedded-program) — outer let has 3 bindings (forms, r, fail); the bulk is the program AST built via :wat::test::program
-  (:wat::core::let
-    [forms (:wat::test::program
-             (:wat::core::defn :user::main [] -> :wat::core::nil nil))
-     r (:wat::test::run-ast forms (:wat::core::Vector :wat::core::String))
-     fail (:wat::kernel::RunResult/failure r)]
-    (:wat::core::match fail  
-      (:wat::core::None (:wat::test::assert-eq true true))
-      ((:wat::core::Some f) (:wat::kernel::assertion-failed!
-                              (:wat::kernel::Failure/message f)
-                              :wat::core::None :wat::core::None)))))
+;; Arc 170 CULMINATION (arc 278 IPC de-prime): the :wat::test::run /
+;; run-in-scope / run-ast wrappers over the :wat::kernel::run-sandboxed
+;; family were the manual "drive the sandbox by hand" surface. That
+;; family is annihilated (subsumed by spawn-program' + recv'), so the
+;; test-run-ast-direct witness demoing run-ast is deleted with it — its
+;; "run a forms-program + check outcome" coverage is fully carried by
+;; the primed-peer tests (tests/kernel/wat_run_sandboxed*.wat et al.).

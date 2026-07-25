@@ -1204,11 +1204,13 @@ fn validate_sandbox_scope_leak(
         Some(WatAST::Keyword(k, _)) => k.as_str(),
         _ => return,
     };
+    // Arc 170 CULMINATION — the run-sandboxed family is annihilated; the
+    // surviving forms-block-taking heads are the retired-but-diagnosed
+    // fork-program-ast / spawn-program-ast (still boundary-guarded so their
+    // retirement error does not cascade inner-program leak diagnostics).
     let is_sandbox_call = matches!(
         head_str,
-        ":wat::kernel::run-sandboxed-ast"
-            | ":wat::kernel::run-sandboxed-hermetic-ast"
-            | ":wat::kernel::fork-program-ast"
+        ":wat::kernel::fork-program-ast"
             | ":wat::kernel::spawn-program-ast"
     );
     if !is_sandbox_call || items.len() < 2 {
@@ -1289,9 +1291,7 @@ fn check_calls_for_sandbox_leak(
             // recursion handles those.
             let is_nested_sandbox = matches!(
                 head_str,
-                ":wat::kernel::run-sandboxed-ast"
-                    | ":wat::kernel::run-sandboxed-hermetic-ast"
-                    | ":wat::kernel::fork-program-ast"
+                ":wat::kernel::fork-program-ast"
                     | ":wat::kernel::spawn-program-ast"
             );
             if is_nested_sandbox {
@@ -2610,9 +2610,7 @@ fn walk_for_pair_deadlock(
         // inception.
         if matches!(
             head,
-            ":wat::kernel::run-sandboxed-ast"
-                | ":wat::kernel::run-sandboxed-hermetic-ast"
-                | ":wat::kernel::fork-program-ast"
+            ":wat::kernel::fork-program-ast"
                 | ":wat::kernel::spawn-program-ast"
         ) {
             for child in items.iter().skip(2) {
@@ -19371,41 +19369,15 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::extract-panics (lines :wat::core::Vector<String>))
-    //   -> :wat::core::Option<Vec<wat::kernel::ProcessDiedError>>
-    //
-    // Arc 113 slice 3 — process side of the cascade. Stderr is the
-    // diagnostic side channel; the child writes a tagged EDN line
-    // `#wat.kernel/Panics [...]` on AssertionPayload panic. This verb
-    // walks the captured stderr-lines from end to start, locates
-    // the marker, parses the body via the type registry, returns
-    // the chain. The wat-side `drive-sandbox` prefers the parsed
-    // chain when present; otherwise falls back to the singleton
-    // shape from `Process/join-result`.
-    //
-    // Symmetry note: threads pass DiedError values directly through
-    // crossbeam (zero-copy); processes pass them as EDN over kernel
-    // pipes. The CHAIN SHAPE at the caller surface is identical —
-    // `Result<R, Vec<*DiedError>>`. Only the transport differs;
-    // `extract-panics` is the EDN side of the same coin.
-    env.register(
-        ":wat::kernel::extract-panics".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::Vector".into(),
-                args: vec![TypeExpr::Path(":wat::core::String".into())],
-            }],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Option".into(),
-                args: vec![TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
-                }],
-            },
-            rest_param_type: None,
-        },
-    );
+    // Arc 170 CULMINATION (arc 278 IPC de-prime) — the wat verb
+    // `:wat::kernel::extract-panics` (stderr-EDN chain recovery for the
+    // manual sandbox drivers) is ANNIHILATED with the run-sandboxed family.
+    // The primed peer wire delivers the LociDiedError chain directly via
+    // recv' Lost; no stderr-scrape reader is needed. Its signature
+    // registration and runtime eval site are removed. (The unrelated
+    // internal Rust helper `extract_panics` in runtime.rs, used by
+    // `:wat::core::result::expect` to carry chains through panics, is a
+    // different function and stays.)
     // HandlePool — claim-or-panic discipline.
     //   new    : ∀T. :String -> :wat::core::Vector<T> -> :HandlePool<T>
     //   pop    : ∀T. :HandlePool<T> -> :T
@@ -22268,15 +22240,18 @@ mod tests {
     }
 
     /// Arc 128 — the SAME scope-deadlock anti-pattern, when nested
-    /// inside the forms-block of a `run-sandboxed-hermetic-ast` call,
-    /// MUST NOT fire `ScopeDeadlock` at outer freeze. The inner program
-    /// has its own freeze cycle at runtime; outer walker stops at the
-    /// sandbox boundary.
+    /// inside the forms-block of a sandbox-boundary call, MUST NOT fire
+    /// `ScopeDeadlock` at outer freeze. The inner program has its own
+    /// freeze cycle at runtime; outer walker stops at the sandbox
+    /// boundary (the inner forms are quoted data, never outer-inferred).
+    /// Arc 170 CULMINATION: the run-sandboxed family was annihilated;
+    /// this test now uses `spawn-program-ast` (a surviving retired-but-
+    /// diagnosed forms-block head that remains boundary-guarded).
     #[test]
     fn arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms() {
         let src = r#"
             (:wat::core::defn :my::deftest-style [] -> :wat::kernel::RunResult
-              (:wat::kernel::run-sandboxed-hermetic-ast
+              (:wat::kernel::spawn-program-ast
                               (:wat::core::forms
                                 (:wat::core::define
                                   (:user::main
@@ -22493,17 +22468,19 @@ mod tests {
     }
 
     /// Arc 126 RELAND — the channel-pair-deadlock anti-pattern, when
-    /// nested inside the forms-block of a `run-sandboxed-hermetic-ast`
-    /// call, MUST NOT fire `ChannelPairDeadlock` at outer freeze. The
-    /// inner program has its own freeze cycle at runtime; outer walker
-    /// stops at the sandbox boundary. Mirrors arc 128's
-    /// `arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms` test
-    /// for the new arc-126 check.
+    /// nested inside the forms-block of a sandbox-boundary call, MUST
+    /// NOT fire `ChannelPairDeadlock` at outer freeze. The inner program
+    /// has its own freeze cycle at runtime; outer walker stops at the
+    /// sandbox boundary (`walk_for_pair_deadlock` skips arg 0). Mirrors
+    /// arc 128's `arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms`.
+    /// Arc 170 CULMINATION: the run-sandboxed family was annihilated;
+    /// this test now uses `spawn-program-ast` (a surviving retired-but-
+    /// diagnosed forms-block head still in the boundary-guard match).
     #[test]
     fn channel_pair_deadlock_skipped_in_sandboxed_forms() {
         let src = r#"
             (:wat::core::defn :my::deftest-style [] -> :wat::kernel::RunResult
-              (:wat::kernel::run-sandboxed-hermetic-ast
+              (:wat::kernel::spawn-program-ast
                               (:wat::core::forms
                                 (:wat::core::define
                                   (:my::helper-verb

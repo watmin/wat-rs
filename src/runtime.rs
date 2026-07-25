@@ -4992,9 +4992,10 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::LociDiedError/to-failure" => {
             eval_died_error_to_failure(args, env, sym, ":wat::kernel::LociDiedError", list_span)
         }
-        ":wat::kernel::extract-panics" => {
-            eval_kernel_extract_panics(args, env, sym, list_span)
-        }
+        // Arc 170 CULMINATION (arc 278 IPC de-prime) — `:wat::kernel::extract-panics`
+        // ANNIHILATED with the run-sandboxed family (its only callers were the
+        // deleted manual sandbox drivers; the primed peer wire delivers the
+        // LociDiedError chain directly via recv' Lost, no stderr-scrape needed).
         ":wat::kernel::Process/join-result" => {
             eval_kernel_process_join_result(args, env, sym, list_span)
         }
@@ -23666,79 +23667,13 @@ fn eval_died_error_message(
     }
 }
 
-/// Arc 113 slice 3 / arc 278 the LociDiedError stone —
-/// `(:wat::kernel::extract-panics (lines :wat::core::Vector<String>))
-///   -> :wat::core::Option<:wat::core::Vector<wat::kernel::LociDiedError>>`.
-///
-/// Walks `lines` from end to start; for each, attempts to parse it as a
-/// single EDN expression via generic `edn::read`; if the result is a
-/// `Vector` whose HEAD element is a `#wat.kernel.LociDiedError/…` tagged
-/// value (the self-describing death chain — arc 278 annihilated the old
-/// `#wat.kernel/ProcessPanics` wrapper tag, so the chain crosses BARE and
-/// the head element's own tag is the marker), bridges the whole vector via
-/// `edn_to_value` (with the frozen TypeEnv so enum tags resolve to the
-/// right Value shapes) and returns it wrapped in `Some`.
-///
-/// Symmetry with the thread path: when a spawned peer dies with an
-/// upstream-chain-bearing AssertionPayload, the chain rides through the
-/// panic and the child renders it to stderr as a bare
-/// `Vector<LociDiedError>`; this verb reads it back. Same shape at the
-/// caller; only the wire differs.
-///
-/// Returns `:wat::core::None` when no chain line is present (the common
-/// case) or when every parse attempt fails. Failure paths are silent
-/// because this is enrichment, not contract: the sandbox driver falls
-/// back to the singleton chain from `Process/join-result`.
-fn eval_kernel_extract_panics(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::extract-panics";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let lines = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::Vec(items) => items,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<String>",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    let types = sym.types().map(|a| a.as_ref());
-    // Walk from end to start — most recent chain wins. (In practice the
-    // child only writes one; iterating in reverse also short-circuits as
-    // soon as we hit it.)
-    for line in lines.iter().rev() {
-        let line_str = match line {
-            Value::String(s) => &**s,
-            _ => continue,
-        };
-        let trimmed = line_str.trim();
-        // Cheap prefilter: a death chain renders as `[#wat.kernel.LociDiedError/…`.
-        if !trimmed.starts_with("[#wat.kernel.LociDiedError/") {
-            continue;
-        }
-        let parsed = match wat_edn::parse_owned(trimmed) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        if edn_is_loci_died_chain(&parsed) {
-            if let Ok(v) = crate::edn_shim::edn_to_value(&parsed, types) {
-                return Ok(Value::Option(Arc::new(Some(v))));
-            }
-        }
-    }
-    Ok(Value::Option(Arc::new(None)))
-}
+// Arc 170 CULMINATION (arc 278 IPC de-prime) — `eval_kernel_extract_panics`
+// (the wat verb `:wat::kernel::extract-panics`) ANNIHILATED with the
+// run-sandboxed family. It walked a manual sandbox driver's captured
+// stderr lines to recover the LociDiedError chain; the primed peer wire
+// delivers that chain directly via recv' Lost, so the stderr-scrape
+// reader is dead. The `edn_is_loci_died_chain` helper below survives
+// (still used by the recv' Lost EDN decoder).
 
 /// True when `v` is a bare `Vector<LociDiedError>` death chain — a
 /// `Vector` whose first element is a `#wat.kernel.LociDiedError/…` tagged
