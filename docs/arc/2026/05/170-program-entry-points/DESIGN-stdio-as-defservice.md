@@ -1,5 +1,13 @@
 # DESIGN — stdio as `defservice` (arc 170)
 
+> **✅ STATUS: COMPLETE (2026-07-25) — all four moves landed, stdio CLOSED.** Phase 1 (`6d2fa8c9`,
+> 3 primed defservices) → flip the 5 verbs (`e38db291`) → write-batched fragment + `readln` cause
+> (`a66066ed`) → Phase 3 (`eae45001`, hand-rolled path annihilated −541 + `'` names reclaimed). Floor
+> **4162/0**. The 3 streams are `defservice`s (fd in `:ephemeral`, born inside `:init` from a pure
+> fd-number seed via whitelisted `from-fd`); the bespoke `spawn_service_peer` machinery is gone.
+> Realizations: `VT SE OPPVGNET DISCIPLINAM EGREDITVR` + `EX CINERIBVS SVRGIMVS` (170 realizations).
+> This detour's purpose — **unblock telemetry proper** — is achieved. Retained as the record of how.
+
 > **Builder ruling (2026-07-24):** *"services are the holders of protected resources — std{in,out,err}
 > are protected resources."* → the three stdio streams become **defservices**, not the bespoke
 > hand-rolled service peer. *"the only things that matter from callers are `(readln)` / `(println d)` /
