@@ -16,8 +16,9 @@
 //!    1b's prologue).
 //! 7. spawn-process with impure Sender capture fires
 //!    `ImpureCapture` (arc 293.W.2d rename of NonPortableCapture).
-//! 8. `(:wat::kernel::fork-program ...)` callsite — walker fires.
-//! 9. `(:wat::kernel::spawn-program ...)` callsite — walker fires.
+//! 8/9. (retired) `*-program{,-ast}` callsite retirement nags —
+//!    ANNIHILATED (arc 170 CULMINATION); the verbs had zero live callers
+//!    and no runtime eval, so the check-time nag + its tests are gone.
 //! 10. `(:wat::kernel::spawn-thread fn)` — UNCHANGED behavior;
 //!     positive control verifying no regression.
 //! 11. 3-arg `:user::main` — walker fires with the
@@ -488,78 +489,6 @@ fn t7_spawn_process_non_portable_capture_fires_diagnostic() {
             let _ = format!("{}", freeze_err);
         }
     }
-}
-
-// ─── T8. fork-program callsite — walker fires ─────────────────────────
-
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
-#[test]
-fn t8_fork_program_callsite_fires_walker() {
-    let err = freeze_err("tests/program/wat_arc170_program_contracts_t8_fork_program.wat");
-    assert_eq!(
-        err,
-        r#"check:
-1 type-check error(s):
-  - tests/program/wat_arc170_program_contracts_t8_fork_program.wat:5:6: `:wat::kernel::fork-program` is retired (arc 170 slice 2); canonical replacement is `:wat::kernel::spawn-process` (fn-input surface). The fn IS the program — substrate handles closure extraction + fork internally; user passes a fn directly that satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. Migrate:
-  (:wat::kernel::fork-program src scope)         → (:wat::kernel::spawn-process worker-fn)
-  (:wat::kernel::fork-program-ast forms) → (:wat::kernel::spawn-process worker-fn)
-where `worker-fn` reads from `rx`, writes to `tx`. See `docs/arc/2026/05/170-program-entry-points/DESIGN.md` § "The API — `spawn-* fn`".
-"#,
-        "t8_fork: BareLegacyForkProgram diagnostic golden"
-    );
-}
-
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
-#[test]
-fn t8b_fork_program_ast_callsite_fires_walker() {
-    let err = freeze_err("tests/program/wat_arc170_program_contracts_t8b_fork_program_ast.wat");
-    assert_eq!(
-        err,
-        r#"check:
-1 type-check error(s):
-  - tests/program/wat_arc170_program_contracts_t8b_fork_program_ast.wat:5:6: `:wat::kernel::fork-program-ast` is retired (arc 170 slice 2); canonical replacement is `:wat::kernel::spawn-process` (fn-input surface). The fn IS the program — substrate handles closure extraction + fork internally; user passes a fn directly that satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. Migrate:
-  (:wat::kernel::fork-program-ast src scope)         → (:wat::kernel::spawn-process worker-fn)
-  (:wat::kernel::fork-program-ast forms) → (:wat::kernel::spawn-process worker-fn)
-where `worker-fn` reads from `rx`, writes to `tx`. See `docs/arc/2026/05/170-program-entry-points/DESIGN.md` § "The API — `spawn-* fn`".
-"#,
-        "t8b_fork: BareLegacyForkProgram diagnostic golden"
-    );
-}
-
-// ─── T9. spawn-program callsite — walker fires ───────────────────────
-
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
-#[test]
-fn t9_spawn_program_callsite_fires_walker() {
-    let err = freeze_err("tests/program/wat_arc170_program_contracts_t9_spawn_program.wat");
-    assert_eq!(
-        err,
-        r#"check:
-1 type-check error(s):
-  - tests/program/wat_arc170_program_contracts_t9_spawn_program.wat:5:6: `:wat::kernel::spawn-program` is retired (arc 170 slice 2); canonical taxonomy is two-mode (spawn-thread for parent's world; spawn-process for forked OS process). Migrate:
-  (:wat::kernel::spawn-program src scope) — for fork semantics → (:wat::kernel::spawn-process worker-fn)
-  (:wat::kernel::spawn-program src scope) — for parent-world (services pattern) → (:wat::kernel::spawn-thread worker-fn)
-where `worker-fn` satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. The in-thread fresh-world `spawn-program` family retired entirely per arc 170 DESIGN Q1 — closures over let-scope make spawn-thread the honest in-thread surface; OS-process isolation gets spawn-process.
-"#,
-        "t9_spawn: BareLegacySpawnProgram diagnostic golden"
-    );
-}
-
-#[ignore = "296-recapture-pending: golden asserts pre-stone-B rust-debug face; unlock: 296 recapture (.edn data-equality flip)"]
-#[test]
-fn t9b_spawn_program_ast_callsite_fires_walker() {
-    let err = freeze_err("tests/program/wat_arc170_program_contracts_t9b_spawn_program_ast.wat");
-    assert_eq!(
-        err,
-        r#"check:
-1 type-check error(s):
-  - tests/program/wat_arc170_program_contracts_t9b_spawn_program_ast.wat:5:6: `:wat::kernel::spawn-program-ast` is retired (arc 170 slice 2); canonical taxonomy is two-mode (spawn-thread for parent's world; spawn-process for forked OS process). Migrate:
-  (:wat::kernel::spawn-program-ast src scope) — for fork semantics → (:wat::kernel::spawn-process worker-fn)
-  (:wat::kernel::spawn-program-ast src scope) — for parent-world (services pattern) → (:wat::kernel::spawn-thread worker-fn)
-where `worker-fn` satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. The in-thread fresh-world `spawn-program` family retired entirely per arc 170 DESIGN Q1 — closures over let-scope make spawn-thread the honest in-thread surface; OS-process isolation gets spawn-process.
-"#,
-        "t9b_spawn: BareLegacySpawnProgram diagnostic golden"
-    );
 }
 
 // ─── T10. spawn-thread(fn) — UNCHANGED behavior ──────────────────────

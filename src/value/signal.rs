@@ -273,11 +273,12 @@ pub enum RuntimeErrorKind {
     /// capture; move it into the prelude."* Both spans land so users
     /// click the call site AND the outer-scope define.
     ///
-    /// Sibling rule to `CheckError::SandboxScopeLeak`: arc 140
-    /// slice 2 catches the static case at outer freeze; this slice 1
-    /// variant is the runtime backstop for dynamic / `eval-ast!` /
-    /// otherwise check-walker-bypassing call paths. Same DESIGN.md
-    /// covers both.
+    /// The runtime backstop for scope leaks on dynamic / `eval-ast!` /
+    /// otherwise check-walker-bypassing call paths. (The arc-140 static
+    /// check-time twin `CheckError::SandboxScopeLeak` was annihilated with
+    /// the arc-170 `*-program-ast` retirement — it fired only on those
+    /// now-deleted forms-block heads. This runtime variant is a distinct,
+    /// live feature over the `outer_symbols` sub-program mechanism.)
     ///
     /// Multi-span: outer `span` = `call_span` (most-actionable).
     /// Secondary: `outer_define_span` (the outer-scope define).

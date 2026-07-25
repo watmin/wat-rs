@@ -195,18 +195,6 @@ pub enum CheckErrorKind {
     BareLegacyLruCacheServicePath { old: String, new: String },
     /// Arc 109 slice K.kernel-channel — legacy `:wat::kernel::Queue*` names.
     BareLegacyKernelQueuePath { old: String, new: String },
-    /// Arc 140 — sandbox scope leak.
-    /// Outer span = the offending invocation inside the sandbox (most-actionable).
-    /// Secondary: `outer_define_span` = source location of the outer-scope define.
-    ///
-    /// D1: primary span was `:call-span`; normalized to `:span`.
-    SandboxScopeLeak {
-        offending_name: String,
-        /// Source location of the outer-scope define. May be `crate::rust_caller_span!()`.
-        /// Key `:outer-define-span` matches the snake→kebab default (explicit for clarity).
-        #[to_edn(key = "outer-define-span")]
-        outer_define_span: Span,
-    },
     /// Arc 157 — `:wat::core::def` redef forbidden.
     /// Outer span = the new (colliding) binding site (most-actionable).
     /// Secondary: `original_def_span` = source location of the prior binding.
@@ -239,27 +227,6 @@ pub enum CheckErrorKind {
         rationale = "arc 170 slice 1e (REALIZATIONS pass 7 + pass 10): argv ambient via (:wat::runtime::argv); stdio via three substrate services (slice 1f); nil IS the success exit code"
     ))]
     BareLegacyMainSignature,
-    /// Arc 170 slice 2 — legacy `:wat::kernel::fork-program{,_ast}`.
-    ///
-    /// D1: primary span was `:location`; normalized to `:span`.
-    /// `verb` field emitted as `:retired`; `:canonical` is a synthetic literal.
-    #[to_edn(literal(canonical = ":wat::kernel::spawn-process"))]
-    BareLegacyForkProgram {
-        #[to_edn(key = "retired")]
-        verb: String,
-    },
-    /// Arc 170 slice 2 — legacy `:wat::kernel::spawn-program{,_ast}`.
-    ///
-    /// D1: primary span was `:location`; normalized to `:span`.
-    /// `verb` field emitted as `:retired`; two `:canonical-*` synthetic literals.
-    #[to_edn(literal(
-        canonical_fork_semantics = ":wat::kernel::spawn-process",
-        canonical_thread_semantics = ":wat::kernel::spawn-thread"
-    ))]
-    BareLegacySpawnProgram {
-        #[to_edn(key = "retired")]
-        verb: String,
-    },
     /// Arc 109 § kill-std — retired `:wat::console::*` namespace.
     ///
     /// D1: primary span was `:location`; normalized to `:span`.
@@ -619,15 +586,6 @@ impl CheckErrorKind {
                     new, old, new
                 )
             }
-            CheckErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => {
-                // Arc 298.2: span is always real; always emit the location.
-                let define_loc = format!("{}", outer_define_span);
-                write!(
-                    f,
-                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. The sandbox isolation is intentional — see wat/test.wat's deftest macro.",
-                    prefix, offending_name, define_loc, offending_name
-                )
-            }
             CheckErrorKind::DefRedefForbidden { name, original_def_span } => {
                 // Arc 298.2: span is always real; always emit the location.
                 let prior_loc = format!("{}", original_def_span);
@@ -650,16 +608,6 @@ impl CheckErrorKind {
                 f,
                 "{}`:user::main` declared with a non-canonical signature is retired (arc 170 slice 1e — REALIZATIONS pass 7 + pass 10); canonical shape is `[] -> :wat::core::nil`. The four-arg shape (stdin/stdout/stderr/argv) retired: argv moves to the ambient `(:wat::runtime::argv)`; stdio access moves to the three substrate services (`:wat::kernel::StdInService` / `StdOutService` / `StdErrService` per slice 1f). `nil` IS the success exit code — clean nil-return maps to libc::exit(0); panic-cascade maps to libc::exit(N) via the StdErrService epilogue. User code never participates in exit-code arithmetic. Migrate the define to:\n  (:wat::core::defn :user::main [] -> :wat::core::nil \n    <body that does work and returns :wat::core::nil>)\nor with `defn`:\n  (:wat::core::defn :user::main [] -> :wat::core::nil\n    <body>)",
                 prefix
-            ),
-            CheckErrorKind::BareLegacyForkProgram { verb } => write!(
-                f,
-                "{}`{}` is retired (arc 170 slice 2); canonical replacement is `:wat::kernel::spawn-process` (fn-input surface). The fn IS the program — substrate handles closure extraction + fork internally; user passes a fn directly that satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. Migrate:\n  ({} src scope)         → (:wat::kernel::spawn-process worker-fn)\n  (:wat::kernel::fork-program-ast forms) → (:wat::kernel::spawn-process worker-fn)\nwhere `worker-fn` reads from `rx`, writes to `tx`. See `docs/arc/2026/05/170-program-entry-points/DESIGN.md` § \"The API — `spawn-* fn`\".",
-                prefix, verb, verb
-            ),
-            CheckErrorKind::BareLegacySpawnProgram { verb } => write!(
-                f,
-                "{}`{}` is retired (arc 170 slice 2); canonical taxonomy is two-mode (spawn-thread for parent's world; spawn-process for forked OS process). Migrate:\n  ({} src scope) — for fork semantics → (:wat::kernel::spawn-process worker-fn)\n  ({} src scope) — for parent-world (services pattern) → (:wat::kernel::spawn-thread worker-fn)\nwhere `worker-fn` satisfies `[rx <- :wat::kernel::Receiver<I> tx <- :wat::kernel::Sender<O>] -> :wat::core::nil`. The in-thread fresh-world `spawn-program` family retired entirely per arc 170 DESIGN Q1 — closures over let-scope make spawn-thread the honest in-thread surface; OS-process isolation gets spawn-process.",
-                prefix, verb, verb, verb
             ),
             CheckErrorKind::BareLegacyConsolePath { path } => {
                 write!(f, "{}`:wat::console::*`", prefix)?;

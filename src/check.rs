@@ -658,8 +658,6 @@ pub fn check_program(
     // a misplaced send/recv reports as the structural problem it is).
     // Arc 126 — validate_channel_pair_deadlock: refuse call sites passing
     // BOTH halves of one make-channel pair.
-    // Arc 140 — validate_sandbox_scope_leak: sandbox-primitive call sites
-    // must not reference names from the outer SymbolTable.
     // Arc 109 slice 1c — validate_bare_legacy_primitives: bare primitive
     // type tokens (`:i64`, `:f64`, `:bool`, `:String`, `:u8`) rejected.
     // Arc 109 slice 9d — walk_for_legacy_stream: legacy `:wat::std::stream::*`
@@ -681,7 +679,6 @@ pub fn check_program(
         if let FunctionBody::Wat(body) = &func.body {
             validate_comm_positions(body, CommCtx::Forbidden, &mut errors);
             validate_channel_pair_deadlock(body, types, &mut errors);
-            validate_sandbox_scope_leak(body, sym, &mut errors);
             validate_bare_legacy_primitives(body, &mut errors);
             walk_for_legacy_stream(body, &mut errors);
             walk_for_legacy_lru_cache_service(body, &mut errors);
@@ -703,7 +700,6 @@ pub fn check_program(
         }
         validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
         validate_channel_pair_deadlock(form, types, &mut errors);
-        validate_sandbox_scope_leak(form, sym, &mut errors);
         validate_bare_legacy_primitives(form, &mut errors);
         walk_for_legacy_stream(form, &mut errors);
         walk_for_legacy_lru_cache_service(form, &mut errors);
@@ -1156,160 +1152,6 @@ fn collect_consumed_names_in_let(
     consumed
 }
 
-// ─── Arc 140 — sandbox-scope leak prevention ──────────────────────────
-//
-// Deftest bodies (and any other `(:wat::kernel::run-sandboxed-ast ...)`
-// callers) run in a sub-program whose scope contains ONLY the
-// forms-block argument (prelude + auto-generated `:user::main`) plus
-// stdlib. Outer-file user defines are NOT captured — sandbox isolation
-// is intentional (per `wat/test.wat`'s deftest macro and
-// `wat/kernel/sandbox.wat`'s `run-sandboxed-ast` shape).
-//
-// The failure mode that has burned the project repeatedly: user puts a
-// helper at the top level of a test file, references it from a deftest
-// body. Outer freeze type-checks the body with the outer scope visible;
-// it passes silently. Sub-program freeze runs with the restricted
-// scope; resolve / runtime fires `unknown function: :foo` — generic,
-// no scoping explanation.
-//
-// Arc 140 catches this at outer freeze. For each sandbox-primitive
-// call site, build the inner-scope name set (defines in the forms-
-// block). Walk inner-form bodies. For each call head that's NOT
-// reserved-prefix AND NOT in the inner scope BUT IS in the outer
-// `SymbolTable` — fire `CheckError::SandboxScopeLeak` with both spans
-// (the offending invocation + the outer-scope define).
-fn validate_sandbox_scope_leak(
-    node: &WatAST,
-    sym: &SymbolTable,
-    errors: &mut Vec<CheckError>,
-) {
-    // Arc 212 — generic recursion via children() covers List, Vector, Map,
-    // and Set uniformly. Recurse first into all children — handles
-    // nested sandbox calls (e.g., a top-level form holding a deftest
-    // holding another sandbox primitive). children() returns &[] for leaf
-    // nodes (no-op).
-    for child in node.children().iter() {
-        validate_sandbox_scope_leak(child, sym, errors);
-    }
-
-    // Walker-specific List-head logic: sandbox-primitive detection and
-    // inner-scope leak analysis apply only to List forms.
-    let items = match node {
-        WatAST::List(items, _) => items,
-        _ => return,
-    };
-
-    // Check if THIS node is a sandbox-primitive call.
-    let head_str = match items.first() {
-        Some(WatAST::Keyword(k, _)) => k.as_str(),
-        _ => return,
-    };
-    // Arc 170 CULMINATION — the run-sandboxed family is annihilated; the
-    // surviving forms-block-taking heads are the retired-but-diagnosed
-    // fork-program-ast / spawn-program-ast (still boundary-guarded so their
-    // retirement error does not cascade inner-program leak diagnostics).
-    let is_sandbox_call = matches!(
-        head_str,
-        ":wat::kernel::fork-program-ast"
-            | ":wat::kernel::spawn-program-ast"
-    );
-    if !is_sandbox_call || items.len() < 2 {
-        return;
-    }
-
-    // arg[0] should be a `(:wat::core::forms <inner-form>...)` block.
-    let WatAST::List(forms_items, _) = &items[1] else { return; };
-    let forms_head_ok = matches!(
-        forms_items.first(),
-        Some(WatAST::Keyword(k, _)) if k == ":wat::core::forms"
-    );
-    if !forms_head_ok {
-        return;
-    }
-    let inner_forms = &forms_items[1..];
-
-    // Stone 241.16 — the `:wat::core::define` inner-form scan branch DELETED.
-    // This branch pre-collected define-form names from the sandbox's inner forms
-    // to whitelist them during sandbox-leak checks. Since `:wat::core::define` is
-    // HARD CUT (Stone 241.11 startup check; Stone 241.16 total), define forms never
-    // appear in inner_forms at check time — the branch is permanently unreachable.
-    // inner_names is empty (no define forms survive to check time).
-    let inner_names: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-    // Walk each inner form, checking call heads.
-    for form in inner_forms {
-        check_calls_for_sandbox_leak(form, &inner_names, sym, errors);
-    }
-}
-
-/// Recursive companion to `validate_sandbox_scope_leak`. Walks an
-/// inner-form AST looking for call-position keyword heads that
-/// satisfy:
-///
-/// - NOT a reserved-prefix path (`:wat::*` / `:rust::*`)
-/// - NOT in the inner-scope name set (passed-in by the caller)
-/// - IS registered in the outer `SymbolTable`
-///
-/// When all three hold, fire `CheckError::SandboxScopeLeak`. Stops
-/// descending into nested sandbox primitives — those have their own
-/// inner-scope analyzed by the outer caller's recursion in
-/// `validate_sandbox_scope_leak`.
-fn check_calls_for_sandbox_leak(
-    node: &WatAST,
-    inner_names: &std::collections::HashSet<String>,
-    sym: &SymbolTable,
-    errors: &mut Vec<CheckError>,
-) {
-    // Walker-specific List-head logic: call-head leak detection and
-    // sandbox-boundary guard apply only to List forms with a Keyword head.
-    if let WatAST::List(items, _) = node {
-        if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-            let head_str = head.as_str();
-            // Strip `<T,...>` for lookup (the symbol table key is the
-            // canonical name without type-parameter annotation; arc 139
-            // territory).
-            let canonical = match head_str.find('<') {
-                Some(i) => &head_str[..i],
-                None => head_str,
-            };
-            let reserved = canonical.starts_with(":wat::") || canonical.starts_with(":rust::");
-            if !reserved && !inner_names.contains(canonical) {
-                if let Some(outer_func) = sym.get(canonical) {
-                    // Stone 255.1a — Native builtins carry no span; use crate::rust_caller_span!().
-                    let outer_define_span = match &outer_func.body {
-                        FunctionBody::Wat(ast) => ast.span().clone(),
-                        FunctionBody::Native => crate::rust_caller_span!(),
-                    };
-                    errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::SandboxScopeLeak {
-                        offending_name: head_str.to_string(),
-                        outer_define_span,
-                    } });
-                }
-            }
-
-            // Stop at nested sandbox boundaries — the outer caller's
-            // recursion handles those.
-            let is_nested_sandbox = matches!(
-                head_str,
-                ":wat::kernel::fork-program-ast"
-                    | ":wat::kernel::spawn-program-ast"
-            );
-            if is_nested_sandbox {
-                return;
-            }
-        }
-    }
-
-    // Arc 212 — generic recursion via children() covers List, Vector, Map,
-    // and Set uniformly. Sandbox-leak detection fires on call-head
-    // positions (always List); the generic recursion ensures nested scope
-    // inside bracketed forms (let-binding vectors, fn-param vectors) is
-    // still traversed.
-    for child in node.children().iter() {
-        check_calls_for_sandbox_leak(child, inner_names, sym, errors);
-    }
-}
-
 // ─── Arc 117 — scope-deadlock prevention ──────────────────────────────
 //
 // At every `:wat::kernel::spawn-thread` call whose body fn
@@ -1360,19 +1202,16 @@ pub fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckErro
     walk_for_bare_primitives(node, errors);
 }
 
-/// Arc 170 — substrate-as-teacher walker for the spawn-verb
-/// consolidation + `:user::main` contract changes.
+/// Arc 170 — substrate-as-teacher walker for the `:user::main`
+/// contract changes.
 ///
-/// Three classes:
+/// One class remains (the `*-program{,-ast}` spawn-verb retirement nags
+/// were annihilated once their sweep windows closed — zero live callers):
 ///   - `BareLegacyMainSignature` — `:user::main` define declared
 ///     with any non-canonical shape. Arc 170 slice 1e (REALIZATIONS
 ///     pass 7 + pass 10) makes the canonical shape `[] -> :wat::core::nil`.
 ///     Walker fires on every define whose params are non-empty OR
 ///     whose return-type keyword is not `:wat::core::nil`.
-///   - `BareLegacyForkProgram` — call to `:wat::kernel::fork-program`
-///     or `:wat::kernel::fork-program-ast`.
-///   - `BareLegacySpawnProgram` — call to `:wat::kernel::spawn-program`
-///     or `:wat::kernel::spawn-program-ast`.
 ///
 /// Pattern 3 (`docs/SUBSTRATE-AS-TEACHER.md`) — dedicated CheckError
 /// variants per migration class; Display IS the brief; sweep
@@ -1391,19 +1230,6 @@ pub fn validate_arc170_legacy_callsites(node: &WatAST, errors: &mut Vec<CheckErr
 
 fn walk_for_arc170_legacy(node: &WatAST, errors: &mut Vec<CheckError>) {
     match node {
-        WatAST::Keyword(s, span) => {
-            if s == ":wat::kernel::fork-program" || s == ":wat::kernel::fork-program-ast" {
-                errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacyForkProgram {
-                    verb: s.clone(),
-                } });
-                return;
-            }
-            if s == ":wat::kernel::spawn-program" || s == ":wat::kernel::spawn-program-ast" {
-                errors.push(CheckError { span: span.clone(), kind: CheckErrorKind::BareLegacySpawnProgram {
-                    verb: s.clone(),
-                } });
-            }
-        }
         WatAST::List(items, _) => {
             // Detect `:user::main` define forms with the legacy
             // 3-arg signature. The define shape is:
@@ -2598,24 +2424,20 @@ fn walk_for_pair_deadlock(
             }
         };
 
-        // Arc 128 — sandbox-boundary guard. The first argument to a
-        // sandbox-program primitive is a `(:wat::core::forms ...)` block
-        // representing an INNER program; the inner program has its own
-        // freeze cycle when the primitive fires at runtime. Outer freeze
-        // must not redundantly walk the inner forms — doing so conflates
-        // outer/inner scope and emits errors that belong to the inner
-        // program. Skip arg 0 (the forms block); recurse into trailing
-        // args (type-list, config arg). Mirrors the guard in
-        // `walk_for_deadlock` so arc 126 inherits the boundary from
-        // inception.
-        if matches!(
-            head,
-            ":wat::kernel::fork-program-ast"
-                | ":wat::kernel::spawn-program-ast"
-        ) {
-            for child in items.iter().skip(2) {
-                walk_for_pair_deadlock(child, types, binding_scope, errors);
-            }
+        // Arc 128 / arc 170 CULMINATION — quoted-forms boundary. A
+        // `(:wat::core::forms ...)` block is UNEVALUATED AST data: an
+        // inner program (e.g. the child forms handed to `spawn-program'`)
+        // that gets its OWN freeze cycle when it is spawned/reified. Its
+        // contents are never live scope here, so the pair-deadlock walker
+        // must not descend into them — doing so conflates outer/inner
+        // scope and emits errors that belong to the inner program. This
+        // is the verb-agnostic form of the old `*-program-ast` head guard
+        // (those retired verbs took the forms block as a DIRECT arg; the
+        // live spawn path binds it as a value), and it exactly mirrors the
+        // type-inference boundary — `:wat::core::forms` captures every
+        // positional as `:wat::WatAST` and the checker "does not recurse
+        // into any of them" (see `infer`'s `:wat::core::forms` arm).
+        if head == ":wat::core::forms" {
             return;
         }
 
@@ -21746,55 +21568,6 @@ mod tests {
         );
     }
 
-    /// Arc 140 slice 2 — sandbox-scope leak fires when a deftest body
-    /// invokes a name registered at the OUTER test-file scope but NOT
-    /// in the deftest's prelude. The diagnostic carries two spans —
-    /// the offending invocation AND the outer-scope define — so users
-    /// navigate to both sites without grepping. Substrate-as-teacher
-    /// pattern; the failure is the user's nudge.
-    ///
-    /// Arc 170 slice 3 — RETIRED. Deftest now expands to
-    /// `(:wat::test::run-thread' body)` (arc 278 IPC de-prime); the
-    /// harness routes through `(:wat::kernel::spawn-program' ...)` +
-    /// `recv'`. The spawned child self-peer captures the parent's
-    /// symbol table, so outer-scope helper references are now valid
-    /// CAPTURES, not leaks — `:my::helper` is pulled into the spawned
-    /// peer automatically. The `validate_sandbox_scope_leak`
-    /// walker (which fires on `run-sandboxed-ast` heads only) no
-    /// longer sees deftest expansions; the diagnostic the test
-    /// asserts is no longer emitted because the failure mode the test
-    /// described doesn't exist under the new substrate. Slice 4
-    /// retires the walker body entirely with the legacy verb arms.
-    #[test]
-    #[ignore = "arc 170 slice 3 — sandbox-scope-leak walker no longer fires on deftest (the spawned peer captures outer-scope helpers); test retired with the walker in slice 4"]
-    fn sandbox_scope_leak_fires_with_diagnostic() {
-        unimplemented!("arc 170 slice 3: sandbox-scope-leak walker RETIRED (slice 4) — behavior no longer exists; test kept as a monument, no live assertion");
-    }
-
-    /// Arc 140 slice 2 — confirm the leak rule does NOT misfire when
-    /// the helper IS properly placed in the deftest's prelude. Same
-    /// shape as the leak test; helper moved into prelude position; no
-    /// SandboxScopeLeak fires.
-    ///
-    /// Arc 170 slice 3 / arc 278 — RETIRED, the co-monument of
-    /// `sandbox_scope_leak_fires_with_diagnostic` (retired above). The
-    /// `validate_sandbox_scope_leak` walker fires on `run-sandboxed-ast`
-    /// heads only and no longer sees deftest expansions (deftest routes
-    /// through run-hermetic → spawn-process, which closure-captures the
-    /// parent scope — helper references are captures, not leaks). This
-    /// test's whole scenario was "helper in the deftest's PRELUDE slot",
-    /// and arc 278 ANNIHILATED the prelude slot (deftest is now
-    /// `name` + `body`), so the 3-arg form the test embedded no longer
-    /// even expands (ArityMismatch: deftest expects 2, got 3). The
-    /// behavior it guarded is doubly-dead — the walker doesn't touch
-    /// deftest, and the prelude position it exercised no longer exists.
-    /// Kept as a monument beside its sibling, no live assertion.
-    #[test]
-    #[ignore = "arc 170 slice 3 / arc 278 — co-monument: the sandbox-scope-leak walker no longer fires on deftest, AND arc 278 annihilated the deftest prelude slot this test's scenario depended on; retired with its sibling"]
-    fn sandbox_scope_no_leak_when_in_prelude() {
-        unimplemented!("arc 170 slice 3 / arc 278 prelude annihilation: the deftest-prelude non-leak scenario no longer exists (walker retired for deftest; prelude slot removed) — kept as a monument, no live assertion");
-    }
-
     #[test]
     fn bool_to_add_rejected() {
         let err = check("(:wat::core::i64::+ true 3)").unwrap_err();
@@ -22240,18 +22013,20 @@ mod tests {
     }
 
     /// Arc 128 — the SAME scope-deadlock anti-pattern, when nested
-    /// inside the forms-block of a sandbox-boundary call, MUST NOT fire
-    /// `ScopeDeadlock` at outer freeze. The inner program has its own
-    /// freeze cycle at runtime; outer walker stops at the sandbox
-    /// boundary (the inner forms are quoted data, never outer-inferred).
-    /// Arc 170 CULMINATION: the run-sandboxed family was annihilated;
-    /// this test now uses `spawn-program-ast` (a surviving retired-but-
-    /// diagnosed forms-block head that remains boundary-guarded).
+    /// inside a `(:wat::core::forms ...)` quote, MUST NOT fire
+    /// `ScopeDeadlock` at outer freeze. The quoted forms are an inner
+    /// program with its own freeze cycle at runtime; the outer walker
+    /// stops at the forms boundary (the inner forms are quoted data,
+    /// never outer-inferred).
+    /// Arc 170 CULMINATION: the `*-program-ast` retirement verbs were
+    /// annihilated; the boundary is now the `(:wat::core::forms ...)`
+    /// quote itself (verb-agnostic) — this test wraps the anti-pattern in
+    /// a bare forms quote (the live spawn path binds such a quote as a
+    /// value; the boundary triggers wherever the quote appears).
     #[test]
     fn arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms() {
         let src = r#"
-            (:wat::core::defn :my::deftest-style [] -> :wat::kernel::RunResult
-              (:wat::kernel::spawn-program-ast
+            (:wat::core::defn :my::inner-program [] -> :wat::core::Vector<wat::WatAST>
                               (:wat::core::forms
                                 (:wat::core::define
                                   (:user::main
@@ -22277,9 +22052,7 @@ mod tests {
                                       (:wat::kernel::Thread/join-result thr)
                                       -> :wat::core::nil
                                       ((:wat::core::Ok _) ())
-                                      ((:wat::core::Err _) ())))))
-                              (:wat::core::Vector :wat::core::String)
-                              :wat::core::None))
+                                      ((:wat::core::Err _) ()))))))
         "#;
         let result = check(src);
         // The outer freeze must NOT see the inner anti-pattern.
@@ -22468,19 +22241,19 @@ mod tests {
     }
 
     /// Arc 126 RELAND — the channel-pair-deadlock anti-pattern, when
-    /// nested inside the forms-block of a sandbox-boundary call, MUST
-    /// NOT fire `ChannelPairDeadlock` at outer freeze. The inner program
-    /// has its own freeze cycle at runtime; outer walker stops at the
-    /// sandbox boundary (`walk_for_pair_deadlock` skips arg 0). Mirrors
-    /// arc 128's `arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms`.
-    /// Arc 170 CULMINATION: the run-sandboxed family was annihilated;
-    /// this test now uses `spawn-program-ast` (a surviving retired-but-
-    /// diagnosed forms-block head still in the boundary-guard match).
+    /// nested inside a `(:wat::core::forms ...)` quote, MUST NOT fire
+    /// `ChannelPairDeadlock` at outer freeze. The quoted forms are an
+    /// inner program with its own freeze cycle at runtime; the outer
+    /// walker stops at the forms boundary. Mirrors arc 128's
+    /// `arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms`.
+    /// Arc 170 CULMINATION: the `*-program-ast` retirement verbs were
+    /// annihilated; the boundary is now the `(:wat::core::forms ...)`
+    /// quote itself (verb-agnostic), so this test wraps the anti-pattern
+    /// in a bare forms quote.
     #[test]
     fn channel_pair_deadlock_skipped_in_sandboxed_forms() {
         let src = r#"
-            (:wat::core::defn :my::deftest-style [] -> :wat::kernel::RunResult
-              (:wat::kernel::spawn-program-ast
+            (:wat::core::defn :my::inner-program [] -> :wat::core::Vector<wat::WatAST>
                               (:wat::core::forms
                                 (:wat::core::define
                                   (:my::helper-verb
@@ -22501,9 +22274,7 @@ mod tests {
                                       (:wat::core::first pair))
                                      (rx
                                       (:wat::core::second pair)))
-                                    (:my::helper-verb tx rx))))
-                              (:wat::core::Vector :wat::core::String)
-                              :wat::core::None))
+                                    (:my::helper-verb tx rx)))))
         "#;
         let result = check(src);
         // The outer freeze must NOT see the inner anti-pattern.
