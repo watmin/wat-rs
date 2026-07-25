@@ -243,62 +243,12 @@
              (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true (:wat::core::regex::matches? "code [0-9]+" msg))))
 
-(:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
-(:wat::test::deftest-hermetic :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
-  
-  ;; Verifies assert-stderr-matches's failure-reporting shape on REAL non-matching stderr.
-  ;; Inner produces actual stderr content that doesn't match the pattern; the matcher
-  ;; loop runs against that content and fires; the failure carries `expected = "my-pattern"`
-  ;; and `actual = (Vec ... captured stderr lines ...)`.
-  ;;
-  ;; Architectural change (arc 170 slice 4a-γ-decorate): inner spawn was previously
-  ;; :wat::test::run-thread with empty body — the test passed via empty-input edge case
-  ;; without exercising the pattern-matching machinery. The rearchitecture uses
-  ;; :wat::test::run-hermetic with a non-matching stderr line so the matcher loop
-  ;; actually runs.
-  ;; arc 278 IPC de-prime: BOTH run-hermetic calls → primed peer wire. The OUTER child
-  ;; must reconstruct the assert-stderr-matches input: the INNER eprintln child DIES
-  ;; (terminal eprintln) → recv' Lost[Panic] whose message carries the emitted line's EDN.
-  ;; The outer captures that line into a stderr Vec, rebuilds a RunResult, and runs
-  ;; assert-stderr-matches against REAL non-matching content (the rearchitecture intent) —
-  ;; it fails with expected="my-pattern", crashing the OUTER child. The outer recv' →
-  ;; Lost[Panic]; LociDiedError/to-failure rebuilds the Option<Failure> whose `expected`
-  ;; slot carries the pattern, so the downstream match on `fail` is unchanged.
-  (:wat::core::let
-    [p (:wat::kernel::spawn-program' (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::core::let
-               [ip (:wat::kernel::spawn-program' (:wat::spawn::process)
-                     (:wat::core::forms
-                       (:wat::core::defn :user::main [] -> :wat::core::nil
-                         (:wat::kernel::eprintln "different content"))))
-                stderr-line (:wat::core::match (:wat::kernel::recv' ip)
-                              ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
-                              ((:wat::kernel::RecvOutcome::Lost cause)
-                                (:wat::core::match cause
-                                  ((:wat::kernel::LociDiedError::Panic message _failure) message)
-                                  (_ "LOST-NON-PANIC")))
-                              (:wat::kernel::RecvOutcome::Closed "UNEXPECTED-CLOSED"))
-                silent (:wat::core::struct-new :wat::kernel::RunResult
-                         (:wat::core::Vector :wat::core::String)
-                         (:wat::core::Vector :wat::core::String stderr-line)
-                         :wat::core::None)]
-               (:wat::test::assert-stderr-matches silent "my-pattern")))))
-     fail (:wat::core::match (:wat::kernel::recv' p)
-            ((:wat::kernel::RecvOutcome::Message _m) :wat::core::None)
-            ((:wat::kernel::RecvOutcome::Lost cause) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause)))
-            (:wat::kernel::RecvOutcome::Closed :wat::core::None))]
-    (:wat::core::match fail
-      ((:wat::core::Some f)
-        (:wat::core::let
-          [expected (:wat::kernel::Failure/expected f)]
-          (:wat::core::match expected
-            ((:wat::core::Some e) (:wat::test::assert-eq e "my-pattern"))
-            (:wat::core::None (:wat::kernel::assertion-failed!
-                     "expected slot empty" :wat::core::None :wat::core::None)))))
-      (:wat::core::None (:wat::kernel::assertion-failed!
-               "expected Failure, got :None" :wat::core::None :wat::core::None)))))
+;; :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
+;; DELETED (arc 278 wave 2d) — it existed solely to verify
+;; :wat::test::assert-stderr-matches's failure-reporting shape (rebuilding a
+;; RunResult with a stderr Vec, then asserting the pattern lands in the
+;; Failure `expected` slot). assert-stderr-matches is gone with the
+;; stdout/stderr capture fields; there is no stderr to match. Concern retired.
 
 ;; ─── hermetic-capture pattern (arc-170-ignored; original intent retired) ──
 ;;

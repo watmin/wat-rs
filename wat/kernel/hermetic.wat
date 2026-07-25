@@ -87,8 +87,6 @@
        ;; Scope-forwarding through fork is a separate slice when a
        ;; caller demands. Today: :Some returns Failure.
        (:wat::core::struct-new :wat::kernel::RunResult
-         (:wat::core::Vector :wat::core::String)
-         (:wat::core::Vector :wat::core::String)
          (:wat::core::Some (:wat::kernel::message-only-failure "scope not yet supported in hermetic mode (:None only for now)"))))
       (:wat::core::None
        (:wat::core::let
@@ -119,7 +117,10 @@
               stdout-lines  (:wat::kernel::drain-lines stdout-r)
               stderr-lines  (:wat::kernel::drain-lines stderr-r)]
              (:wat::core::Tuple stdout-lines stderr-lines))
-          stdout-lines  (:wat::core::first drain-pair)
+          ;; Arc 278 wave 2d — stdout is still DRAINED inside the inner let
+          ;; (deadlock-avoidance: the child must not block on a full pipe),
+          ;; but no longer bound out or stored: RunResult holds only failure.
+          ;; stderr-lines stays — extract-panics recovers the panic chain from it.
           stderr-lines  (:wat::core::second drain-pair)
           ;; Inner scope has exited; Receivers dropped; child can exit.
           joined-result
@@ -154,6 +155,4 @@
                              (:wat::core::string::join "\n" stderr-lines))
                            :wat::core::None :wat::core::None)))))))]
          (:wat::core::struct-new :wat::kernel::RunResult
-           stdout-lines
-           stderr-lines
            failure)))))

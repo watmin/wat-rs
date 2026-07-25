@@ -74,9 +74,10 @@ fn deftest_hermetic_prime_failing_raises_with_message() {
         "tests/kernel/probe_arc259_deftest_hermetic_prime_failing.wat",
         ":user::failing",
     );
-    // RunResult field order (wat/test.wat): [stdout-lines, stderr-lines, failure <- Option<Failure>].
+    // RunResult field order (wat/test.wat): arc 278 wave 2d dropped stdout/stderr —
+    // [failure <- Option<Failure>] is the sole field (index 0).
     let failure = match &result {
-        Value::Aggregate(sv) if sv.class == "wat::kernel::RunResult" => match &sv.fields[2] {
+        Value::Aggregate(sv) if sv.class == "wat::kernel::RunResult" => match &sv.fields[0] {
             Value::Option(opt) => (**opt).clone(),
             other => panic!("RunResult.failure is not an Option; got {other:?}"),
         },

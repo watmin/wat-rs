@@ -43,7 +43,9 @@ fn run_fn(fn_name: &str) -> Value {
 /// carrying the crash reason otherwise. `RunResult.stdout`/`stderr` are always
 /// empty over the wire and are not inspected.
 ///
-/// RunResult field order (wat/test.wat): `[stdout, stderr, failure <- Option<Failure>]`.
+/// RunResult field order (wat/test.wat): arc 278 wave 2d dropped the
+/// `stdout`/`stderr` capture fields — `[failure <- Option<Failure>]` is the
+/// sole field (index 0).
 /// A `:wat::kernel::Failure` record's field[0] is its `message` String
 /// (src/runtime.rs — Failure ctor: message, location, frames, actual, expected).
 fn run_result_failure_message(v: Value) -> Option<String> {
@@ -52,8 +54,8 @@ fn run_result_failure_message(v: Value) -> Option<String> {
         other => panic!("expected RunResult struct; got {:?}", other),
     };
     assert_eq!(sv.class, "wat::kernel::RunResult");
-    assert_eq!(sv.fields.len(), 3);
-    let opt = match &sv.fields[2] {
+    assert_eq!(sv.fields.len(), 1);
+    let opt = match &sv.fields[0] {
         Value::Option(opt) => (**opt).clone(),
         other => panic!("expected Option for RunResult.failure; got {:?}", other),
     };

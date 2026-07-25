@@ -652,7 +652,9 @@ fn failure_to_edn(v: &Value) -> Option<wat_edn::OwnedValue> {
             ));
         }
     };
-    let failure_field = sv.fields.get(2)?;
+    // Arc 278 wave 2d — RunResult holds only `failure`, so it is field 0
+    // (was index 2 when stdout/stderr preceded it).
+    let failure_field = sv.fields.get(0)?;
     let failure_opt = match failure_field {
         Value::Option(opt) => opt,
         _ => {
@@ -1067,8 +1069,6 @@ mod arc116_diagnostic_tests {
             None => Value::Option(Arc::new(None)),
         };
         Value::Aggregate(Arc::new(AggregateValue::struct_("wat::kernel::RunResult".into(), vec![
-            Value::Vec(Arc::new(Vec::new())), // stdout
-            Value::Vec(Arc::new(Vec::new())), // stderr
             failure_field,
         ])))
     }

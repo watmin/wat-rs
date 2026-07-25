@@ -1448,28 +1448,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::kernel::RunResult — return type of
-    // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
-    // everything the sandboxed `:user::main` wrote through its stdio
-    // channels, line by line. `failure` is `:None` on success; slice 2b
-    // populates it with a `Failure` when `catch_unwind` catches.
+    // `:wat::kernel::run-sandboxed`. Arc 278 wave 2d: the `stdout` and
+    // `stderr` capture fields are DROPPED — the peer wire delivers a
+    // child's output via `recv'`, so the byte-pipe capture buffers were
+    // dead weight. `failure` is the sole field: `:None` on success;
+    // `Some(Failure)` when the sandboxed run died.
     env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Struct,
         name: ":wat::kernel::RunResult".into(),
         type_params: vec![],
         fields: vec![
-            (
-                "stdout".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
-            (
-                "stderr".into(),
-                TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
-                    args: vec![TypeExpr::Path(":wat::core::String".into())],
-                },
-            ),
             (
                 "failure".into(),
                 TypeExpr::Parametric {

@@ -44,8 +44,8 @@
 ;;     (:wat::core::let
 ;;       [r (:wat::test::run "(:wat::core::defn :user::main [] -> :wat::core::nil ...)"
 ;;                           (:wat::core::Vector :wat::core::String))]
-;;       (:wat::test::assert-stdout-is r
-;;         (:wat::core::conj (:wat::core::Vector :wat::core::String) "expected-line"))))
+;;       ;; inspect (:wat::kernel::RunResult/failure r) — the sole field
+;;       (:wat::test::assert-true (:wat::core::none? (:wat::kernel::RunResult/failure r)))))
 ;;
 ;; An assertion that fails panics internally; the outer run-sandboxed
 ;; catches the panic and surfaces the failure in its own RunResult.
@@ -172,44 +172,13 @@
       (:wat::core::i64::to-string
         (:wat::holon::CoincidentExplanation/min-sigma-to-pass expl))))
 
-;; ─── assert-stdout-is ─────────────────────────────────────────────────
+;; ─── assert-stdout-is / assert-stderr-matches — RETIRED (arc 278 wave 2d) ──
 ;;
-;; Compare a RunResult's stdout to an expected wat::core::Vector<String>. Equality via
-;; :wat::core::=, which is defined over T — for wat::core::Vector<String> it compares
-;; elementwise. Joins both sides with "\n" into the Failure payload so
-;; the user sees the diff in a RunResult.
-(:wat::core::defn :wat::test::assert-stdout-is [result <- :wat::kernel::RunResult expected <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
-  (:wat::core::let
-      [actual (:wat::kernel::RunResult/stdout result)]
-      (:wat::core::if (:wat::core::= actual expected) 
-        nil
-        (:wat::kernel::assertion-failed!
-          "assert-stdout-is failed"
-          (:wat::core::Some (:wat::core::string::join "\n" actual))
-          (:wat::core::Some (:wat::core::string::join "\n" expected))))))
-
-;; ─── assert-stderr-matches ────────────────────────────────────────────
-;;
-;; Regex match (unanchored) against each line of a RunResult's stderr.
-;; Any line matching passes. Uses foldl over wat::core::Vector<String> to OR the
-;; matches — a straightforward "any" without a new primitive.
-;; Internal — not for direct corpus use; called by the macros above.
-(:wat::core::defn :wat::test::any-line-matches [pattern <- :wat::core::String lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
-  (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::bool line <- :wat::core::String] -> :wat::core::bool
-        (:wat::core::or acc (:wat::core::regex::matches? pattern line)))
-      false
-      lines))
-
-(:wat::core::defn :wat::test::assert-stderr-matches [result <- :wat::kernel::RunResult pattern <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::let
-      [stderr-lines (:wat::kernel::RunResult/stderr result)]
-      (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) 
-        nil
-        (:wat::kernel::assertion-failed!
-          "assert-stderr-matches failed — no stderr line matched pattern"
-          (:wat::core::Some (:wat::core::string::join "\n" stderr-lines))
-          (:wat::core::Some pattern)))))
+;; These read the DROPPED :wat::kernel::RunResult/stdout and /stderr
+;; capture fields. The capture model is gone — the peer wire delivers a
+;; child's output via `recv'`, and RunResult now carries only `failure`.
+;; The helpers (and their `any-line-matches` fold) are deleted; there is
+;; no stdout/stderr to assert over.
 
 ;; ─── run / run-in-scope ───────────────────────────────────────────────
 ;;
@@ -444,17 +413,14 @@
                 ((:wat::kernel::SendOutcome::Lost _c) nil)))))]
      (:wat::core::match (:wat::kernel::recv' p)
        ((:wat::kernel::RecvOutcome::Message _m)
-         (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) :wat::core::None))
+         (:wat::core::struct-new :wat::kernel::RunResult :wat::core::None))
        ((:wat::kernel::RecvOutcome::Lost cause)
          ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult.failure
          ;; is an Option<Failure>, so convert via `LociDiedError/to-failure` (preserves the
          ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
-         (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
+         (:wat::core::struct-new :wat::kernel::RunResult (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
        (:wat::kernel::RecvOutcome::Closed
          (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
            (:wat::core::Some (:wat::kernel::message-only-failure "run-thread': test child closed before signaling completion")))))))
 
 (:wat::core::defmacro :wat::test::deftest
@@ -500,17 +466,14 @@
               (:wat::core::do ~body (:wat::kernel::println 0)))))]
      (:wat::core::match (:wat::kernel::recv' p)
        ((:wat::kernel::RecvOutcome::Message _m)
-         (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) :wat::core::None))
+         (:wat::core::struct-new :wat::kernel::RunResult :wat::core::None))
        ((:wat::kernel::RecvOutcome::Lost cause)
          ;; arc 278 the LociDiedError stone — the Lost cause is a LociDiedError; RunResult.failure
          ;; is an Option<Failure>, so convert via `LociDiedError/to-failure` (preserves the
          ;; structured actual/expected/location/frames when the death carried an AssertionPayload).
-         (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String) (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
+         (:wat::core::struct-new :wat::kernel::RunResult (:wat::core::Some (:wat::kernel::LociDiedError/to-failure cause))))
        (:wat::kernel::RecvOutcome::Closed
          (:wat::core::struct-new :wat::kernel::RunResult
-           (:wat::core::Vector :wat::core::String) (:wat::core::Vector :wat::core::String)
            (:wat::core::Some (:wat::kernel::message-only-failure "run-hermetic': test child closed before signaling completion")))))))
 
 (:wat::core::defmacro :wat::test::deftest-hermetic
