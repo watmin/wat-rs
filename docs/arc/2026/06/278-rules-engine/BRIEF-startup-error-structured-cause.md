@@ -1,5 +1,34 @@
 # BRIEF — annihilate the string-wrapped creation-time error carrier (EDN all the way down)
 
+> ## ⛔ SUPERSEDED (2026-07-25) — EXECUTED, and its central PREMISE was FALSIFIED. Do not brief from this.
+>
+> **The work landed** (stone-1 rider, floor weighed `4163/4163` by the orchestrator's own `--release`): the `_ =>`
+> String fallback in `emit_startup_error_structured_exit` is collapsed, `LociDiedError::StartupError`'s carrier is
+> retyped `String` → `:wat::core::Error`, `message` is a derived accessor, and the acceptance gate
+> (`cache_probe_startup_error_is_navigable_edn_not_string`) proves the cache-probe error decodes as a navigable
+> typed tree — zero escaped-EDN-in-a-String.
+>
+> **§ The mask, bullet 3 (lines ~18-21) is WRONG** — *"This String typing is the coupling that forces the parent-side
+> `edn_to_value` decode to expect a String — retyping it structured is what unblocks the whole thing."* The rider
+> STOP'd on it and DISPROVED it: `reconstruct_enum_tagged` decodes variant fields **generically**, so the field's
+> declared type was never the blocker. The REAL blockers were (a) STRICT `edn_to_value` hitting `UnknownTag` because
+> **the Rust error types have no registered wat type**, and (b) **`:wat::core::Span` had no decode schema at all**
+> (its `wat-reader` derive is write-only `ToEdn`) — so *no* error's `:location` could ever STRICT-decode. Kept visible,
+> not deleted: this brief was written before the home arc was read, and the orchestrator asserted the coupling instead
+> of grounding it. The rider's STOP is what corrected it.
+>
+> **The home arc is 296, not 278.** This is arc **296 stone D** (`docs/arc/2026/06/296-diagnostics-fully-edn/`
+> `DESIGN-296-stone-D.md`) — D3 ("light them ablaze": error-chain fields `String` → nested round-trippable value) and
+> its closing condition (a death envelope returns as nested EDN, zero strings-that-are-EDN). Read stone D +
+> `DESIGN-296-derive.md` before continuing the campaign; brief from THOSE.
+>
+> **The one contested residue:** RuntimeError's 25/32 variants are registered by a HAND table
+> (`register_runtime_error_variants`, `src/types.rs`) because `#[derive(Edn)]`'s `rust_type_to_wat_path`
+> (`crates/wat-to-edn-derive/src/lib.rs:179-196`) maps only 6 scalars and hard-rejects every generic — a real,
+> designed **STOP-2**. The hand table re-declares field structure `signal.rs`'s `#[to_edn]` attributes already
+> declare (equality written twice → drift), which is the exact rot 296's `AUDIT-prose-in-errors.md` names as the root
+> disease. **The derive enhancement is its own stone, owed BEFORE the remaining 9 enums.**
+
 > Builder-ruled 2026-07-25: *"annihilate this — we are meant to be edn all the way down — masking it in a string
 > is unacceptable."* The no-hidden-failures LAW (R41/R55/R57) reaching the **creation/startup** error path — the
 > last place a structured error is `edn::write`'d into a `String` and hidden. Mirror the R57 destruction-side move

@@ -1008,9 +1008,16 @@ fn register_builtin_types(env: &mut TypeEnv) {
             // paths. extract-panics / the recv' Lost decoder use the TypeEnv to
             // reconstruct these from EDN on round-trip; they must be registered
             // here so edn_to_value can find them.
+            // Arc 278 "errors first-class EDN" (stone 1) — `StartupError`'s cause is
+            // the structured `:wat::core::Error` floor record (`error_edn()`), NOT a
+            // `to_wire_edn` String (the double-encoded mask this stone kills). The
+            // child emits `#wat.kernel.LociDiedError/StartupError [#wat.runtime/<V> {…}]`
+            // (see `verbs.rs::startup_error_chain_edn`); the owner STRICT-decodes the
+            // cause to a typed record. `LociDiedError/message` is a DERIVED accessor
+            // reading `error.message` (see `eval_died_error_message`).
             EnumVariant::Tagged {
                 name: "StartupError".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":wat::core::String".into()))],
+                fields: vec![("error".into(), TypeExpr::Path(":wat::core::Error".into()))],
             },
             EnumVariant::Tagged {
                 name: "EntryFormFailure".into(),
@@ -1058,6 +1065,34 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ("file".into(), TypeExpr::Path(":wat::core::String".into())),
             ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
             ("symbol".into(), TypeExpr::Path(":wat::core::String".into())),
+        ],
+        restrictions: None,
+    }));
+
+    // :wat::core::Span — the leaf source location an error's `:location` floor
+    // key carries (arc 278 "errors first-class EDN"). `Span` write-side is the
+    // `#[derive(ToEdn)]` in `wat-reader` (`#wat.core/Span {:file :line :col :end}`)
+    // but that derive is WRITE-ONLY (no `EdnSchema` submit) — so `edn_to_value`
+    // STRICT could not reconstruct a `:location` back to a typed record; it hit
+    // `UnknownTag`. Hand-register the decode schema here (the `:wat::kernel::Location`
+    // exemplar above), so a `:wat::core::Error` floor record round-trips fully:
+    // `:message` (String), `:location` (this Span), `:causes` (Vector<Error>).
+    // `:end` is `Option<:wat::core::Pos>` (Pos is registered via the EdnSchema
+    // drain below); `None` for the `rust_caller_span!()` point-spans.
+    env.register_builtin(TypeDef::Aggregate(AggregateDef { nature: Nature::Record,
+        name: ":wat::core::Span".into(),
+        type_params: vec![],
+        fields: vec![
+            ("file".into(), TypeExpr::Path(":wat::core::String".into())),
+            ("line".into(), TypeExpr::Path(":wat::core::i64".into())),
+            ("col".into(), TypeExpr::Path(":wat::core::i64".into())),
+            (
+                "end".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Option".into(),
+                    args: vec![TypeExpr::Path(":wat::core::Pos".into())],
+                },
+            ),
         ],
         restrictions: None,
     }));
@@ -1841,6 +1876,13 @@ fn register_builtin_types(env: &mut TypeEnv) {
     env.register_subtype(":wat::holon::Record", ":wat::core::Record", crate::rust_caller_span!())
         .expect("built-in typesub root cannot cycle");
 
+    // Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
+    // enum's variants as `:wat::core::Error`-satisfying decode records so a
+    // startup / peer death carrying a `#wat.runtime/<Variant> {…}` cause
+    // STRICT-decodes back to a TYPED record (not a string-wrapped blob, not an
+    // `UnknownTag`). See `register_runtime_error_variants`.
+    register_runtime_error_variants(env);
+
     // Arc 296 stone D — drain `inventory::iter::<::wat_edn::EdnSchema>()`.
     //
     // Any Rust type annotated with `#[derive(Edn)]` emits an
@@ -1872,6 +1914,144 @@ fn register_builtin_types(env: &mut TypeEnv) {
         env.register_builtin(TypeDef::Aggregate(AggregateDef {
             nature: Nature::Record,
             name,
+            type_params: vec![],
+            fields,
+            restrictions: None,
+        }));
+    }
+}
+
+/// Arc 278 "errors first-class EDN" (stone 1) — register the `RuntimeError`
+/// enum's variants as `:wat::core::Error`-satisfying decode RECORDS.
+///
+/// Each `RuntimeError` emits `#wat.runtime/<Variant> {…}` via `#[derive(ToEdn)]`
+/// (`RuntimeErrorKind`, `signal.rs`) composed with the `WatError::error_edn()`
+/// floor (`:message` / `:location` / `:causes` + the variant's own coordinate
+/// fields). That derive is WRITE-ONLY (no `EdnSchema` submit) — so STRICT
+/// `edn_to_value` hit `UnknownTag` and the cause was string-wrapped. Here we
+/// hand-register the DECODE schema for each variant so a startup / peer death
+/// cause round-trips to a typed record (`reconstruct_record`, `edn_shim.rs`).
+///
+/// **Why a hand table and not the `#[derive(Edn)]` flip (the STOP):** flipping
+/// `RuntimeErrorKind` `ToEdn → Edn` runs the schema generator over ALL 32
+/// variants, which hits the `derive`'s STOP-2 scalar-only wall on the hairy
+/// field types (`Box<ValueSnapshot>` / `&'static str` / `Span` / `Vec<_>` /
+/// `Option<_>` / nested `HashError` / `MacroError`) AND would require the derive
+/// to compose the floor keys — a substrate change bigger than this stone. Per
+/// DESIGN-errors-first-class-edn.md's STOP clause, the derive-enhancement is
+/// split into its own stone; this bounded loop registers RuntimeError for the
+/// proof, WITHOUT a lossy uniform `[message location causes]` shortcut (each
+/// variant keeps its coordinate fields).
+///
+/// **Scope:** the 25 variants whose coordinate fields are fully
+/// scalar-decodable (String / i64 / Option<String> / Vector<String> / Span) are
+/// registered here. The 7 variants that carry a nested value-snapshot / typed
+/// sub-error (`NotCallable`, `TypeMismatch`, `BadCondition`,
+/// `EvalVerificationFailed`, `MacroExpansionFailed`, `NoMatchingClause`,
+/// `PostconditionFailed`) are DEFERRED to the stone that registers their nested
+/// sub-value types (`ValueSnapshot` / `HashError` / `MacroError` /
+/// `ClauseAttempt`); their outer record cannot fully decode until then.
+///
+/// Every `RuntimeError`'s `:location` is a real `Span` (`error_edn()` splices
+/// `self.span`; never nil) — so no nil-location B-leaf fix is owed here.
+fn register_runtime_error_variants(env: &mut TypeEnv) {
+    // The `:wat::core::Error` floor keys, prepended to every variant record.
+    // `:message` String, `:location` Span (registered above), `:causes`
+    // Vector<Error>. A variant whose own field is literally named `message`
+    // (`AssertionFailed`, `MacroAbort`) has it stripped by `error_edn()`'s
+    // floor-dedup, so it is NOT re-declared as a coordinate field.
+    let s = |p: &str| TypeExpr::Path(p.to_string());
+    let string = || s(":wat::core::String");
+    let i64t = || s(":wat::core::i64");
+    let span = || s(":wat::core::Span");
+    let opt_string = || TypeExpr::Parametric {
+        head: "wat::core::Option".into(),
+        args: vec![TypeExpr::Path(":wat::core::String".into())],
+    };
+    let vec_string = || TypeExpr::Parametric {
+        head: "wat::core::Vector".into(),
+        args: vec![TypeExpr::Path(":wat::core::String".into())],
+    };
+    let floor = || -> Vec<(String, TypeExpr)> {
+        vec![
+            ("message".into(), TypeExpr::Path(":wat::core::String".into())),
+            ("location".into(), TypeExpr::Path(":wat::core::Span".into())),
+            (
+                "causes".into(),
+                TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::core::Error".into())],
+                },
+            ),
+        ]
+    };
+
+    // (variant tag name, coordinate fields) — EDN keys are the kebab-cased
+    // field idents / `#[to_edn(key = …)]` overrides from `signal.rs`.
+    let variants: Vec<(&str, Vec<(String, TypeExpr)>)> = vec![
+        ("UnboundSymbol", vec![("name".into(), string())]),
+        ("UnknownFunction", vec![("path".into(), string())]), // ← the cache-probe gate
+        (
+            "ArityMismatch",
+            vec![("op".into(), string()), ("expected".into(), i64t()), ("got".into(), i64t())],
+        ),
+        ("MalformedForm", vec![("head".into(), string()), ("reason".into(), string())]),
+        ("ParamShadowsBuiltin", vec![("name".into(), string())]),
+        ("DivisionByZero", vec![]),
+        (
+            "IntegerOverflow",
+            vec![("op".into(), string()), ("a".into(), i64t()), ("b".into(), i64t())],
+        ),
+        ("DuplicateDefine", vec![("name".into(), string())]),
+        ("ReservedPrefix", vec![("prefix".into(), string())]),
+        ("DeclarationInExpressionPosition", vec![("head".into(), string())]),
+        ("EvalForbidsMutationForm", vec![("head".into(), string())]),
+        ("UserMainMissing", vec![]),
+        ("ChannelDisconnected", vec![("op".into(), string())]),
+        ("NoEncodingCtx", vec![("op".into(), string())]),
+        ("NoSourceLoader", vec![("op".into(), string())]),
+        ("NoMacroRegistry", vec![("op".into(), string())]),
+        ("PatternMatchFailed", vec![("value-type".into(), string())]),
+        ("EffectfulInStep", vec![("op".into(), string())]),
+        ("NoStepRule", vec![("op".into(), string())]),
+        // `message` collides with the floor → floor-only + these two.
+        (
+            "AssertionFailed",
+            vec![("actual".into(), opt_string()), ("expected".into(), opt_string())],
+        ),
+        (
+            "SandboxScopeLeak",
+            vec![("offending-name".into(), string()), ("outer-define-span".into(), span())],
+        ),
+        ("ServiceNotRunning", vec![("op".into(), string())]),
+        (
+            "EdnCoerceMismatch",
+            vec![
+                ("op".into(), string()),
+                ("expected".into(), string()),
+                ("got".into(), string()),
+                // `edn_path_segments` writes `:path` as Vector<String> segments.
+                ("path".into(), vec_string()),
+            ],
+        ),
+        (
+            "UnknownField",
+            vec![
+                ("record-class".into(), string()),
+                ("field".into(), string()),
+                ("available".into(), vec_string()),
+            ],
+        ),
+        // `message` collides with the floor → floor-only (no extra coordinate).
+        ("MacroAbort", vec![]),
+    ];
+
+    for (variant, coords) in variants {
+        let mut fields = floor();
+        fields.extend(coords);
+        env.register_builtin(TypeDef::Aggregate(AggregateDef {
+            nature: Nature::Record,
+            name: format!(":wat::runtime::{}", variant),
             type_params: vec![],
             fields,
             restrictions: None,

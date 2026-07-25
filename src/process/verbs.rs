@@ -60,41 +60,34 @@ pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 /// `types.rs` declares `ProcessDiedError::StartupError` field as `String`,
 /// and `edn_to_value` would fail on a tagged payload for those variants.
 fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError) {
-    match e {
-        crate::freeze::StartupError::Macro(_) => {
-            // Arc 296: structured EDN cause chain for Macro failures.
-            // Route through the ToEdn trait — ONE canonical path.
-            let cause_edn = {
-                use crate::to_edn::ToEdn;
-                e.to_edn()
-            };
+    let line = format!("{}\n", wat_edn::write(&startup_error_chain_edn(e)));
+    crate::process::stdio::emit_panic_envelope(&line);
+}
 
-            // Arc 278 the LociDiedError stone — build
-            // #wat.kernel.LociDiedError/StartupError [<cause>] (was ProcessDiedError).
-            let startup_err_edn = wat_edn::OwnedValue::Tagged(
-                wat_edn::Tag::ns("wat.kernel.LociDiedError", "StartupError"),
-                Box::new(wat_edn::OwnedValue::Vector(vec![cause_edn])),
-            );
+/// Build the `[#wat.kernel.LociDiedError/StartupError [<cause>]]` chain a
+/// dying child writes on fd 2 when startup fails — a bare, self-describing
+/// `Vector<LociDiedError>` (the `#wat.kernel/ProcessPanics` wrapper is gone).
+///
+/// Arc 278 "errors first-class EDN" — the cause is the error's `error_edn()`
+/// floor record (`:message`/`:location`/`:causes` + variant coordinate fields),
+/// a fully-structured, navigable tagged record, NOT a `to_wire_edn` String
+/// (the double-encoded mask this stone kills). The owner's `recv'` Lost decoder
+/// (`loci_died_error_from_reason`) STRICT-decodes it back to a typed record.
+///
+/// Factored out of [`emit_startup_error_structured_exit`] so the acceptance
+/// gate can capture the emitted chain without a real fork.
+pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_edn::OwnedValue {
+    use crate::to_edn::WatError;
+    let cause_edn = e.error_edn();
 
-            // The chain vec: [#wat.kernel.LociDiedError/StartupError [...]] — a bare,
-            // self-describing Vector<LociDiedError> (the ProcessPanics wrapper is gone).
-            let chain_vec = wat_edn::OwnedValue::Vector(vec![startup_err_edn]);
+    // Arc 278 the LociDiedError stone — #wat.kernel.LociDiedError/StartupError [<cause>].
+    let startup_err_edn = wat_edn::OwnedValue::Tagged(
+        wat_edn::Tag::ns("wat.kernel.LociDiedError", "StartupError"),
+        Box::new(wat_edn::OwnedValue::Vector(vec![cause_edn])),
+    );
 
-            let line = format!("{}\n", wat_edn::write(&chain_vec));
-            crate::process::stdio::emit_panic_envelope(&line);
-        }
-        _ => {
-            // Arc 296 — the StartupError is passed BY VALUE through the
-            // ToEdn-generic boundary; the builder serializes it via
-            // `to_wire_edn`. The String field stays :wat::core::String so
-            // extract-panics can still reconstruct the variant on the parent
-            // side; its CONTENT is structured EDN, not prose Display text.
-            emit_structured_exit(
-                None,
-                crate::runtime::process_died_error_startup_value(e),
-            );
-        }
-    }
+    // A bare, self-describing Vector<LociDiedError>.
+    wat_edn::OwnedValue::Vector(vec![startup_err_edn])
 }
 
 // ─── emit_structured_exit (single copy — all fork/spawn paths share this) ───

@@ -23043,6 +23043,29 @@ pub(crate) fn process_died_error_bad_return_value(e: &impl crate::to_edn::WatErr
     process_died_error_bad_return(crate::to_edn::to_wire_edn(e))
 }
 
+/// Derive the human message from a `LociDiedError` variant's carried payload.
+///
+/// Arc 278 "errors first-class EDN" (stone 1) — `StartupError`'s payload is now
+/// the structured `:wat::core::Error` record (a `Value::Aggregate` whose FIRST
+/// field is the `:message` String, by the floor order `message`/`location`/
+/// `causes`). Every OTHER carrying variant (`Panic` / `RuntimeError` /
+/// `EntryFormFailure` / `MainSignature` / `BadReturn`) still carries a bare
+/// `Value::String`. This accessor accepts BOTH: a structured Error record →
+/// its `:message`; a bare String → itself. (A legacy String-wrapped
+/// `StartupError` payload — e.g. the setpgid OS-level `FlatMessage` path — also
+/// lands on the String arm.)
+fn died_error_payload_message(v: &Value) -> Option<Arc<String>> {
+    match v {
+        Value::String(s) => Some(s.clone()),
+        // Structured `:wat::core::Error` record: `:message` is field 0.
+        Value::Aggregate(a) => match a.fields.first() {
+            Some(Value::String(s)) => Some(s.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 /// `(:wat::kernel::LociDiedError/message err) -> :String` — arc 278 the
 /// LociDiedError stone (one loci-agnostic accessor; the two dead
 /// `Thread/ProcessDiedError/message` siblings collapsed here).
@@ -23075,15 +23098,17 @@ fn eval_died_error_message(
     match val {
         Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
-                // Arc 170 slice 1i — StartupError / EntryFormFailure / MainSignature /
-                // BadReturn all carry a String at field 0, same as RuntimeError.
+                // Arc 170 slice 1i — EntryFormFailure / MainSignature / BadReturn /
+                // RuntimeError / Panic carry a String at field 0. Arc 278 stone 1 —
+                // StartupError carries a structured `:wat::core::Error` record; the
+                // message is DERIVED from its `:message` (see `died_error_payload_message`).
                 "Panic" | "RuntimeError" | "StartupError" | "EntryFormFailure"
-                | "MainSignature" | "BadReturn" => match ev.fields.first() {
-                    Some(Value::String(s)) => Ok(Value::String(s.clone())),
-                    _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                | "MainSignature" | "BadReturn" => match ev.fields.first().and_then(died_error_payload_message) {
+                    Some(s) => Ok(Value::String(s)),
+                    None => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
-                        expected: "String inside *DiedError variant",
-                        got: Box::new(ValueSnapshot::unavailable("non-String payload")),
+                        expected: "String or :wat::core::Error inside *DiedError variant",
+                        got: Box::new(ValueSnapshot::unavailable("non-message payload")),
                         // arc 138: no — matching on Value::Enum fields; no AST element
                     } }.into()),
                 },
@@ -23179,15 +23204,17 @@ fn eval_died_error_to_failure(
                     }
                     Ok(message_only_failure(msg))
                 }
-                // Arc 170 slice 1i — StartupError / EntryFormFailure / MainSignature /
-                // BadReturn all carry one String field; map to message-only Failure.
+                // Arc 170 slice 1i — EntryFormFailure / MainSignature / BadReturn /
+                // RuntimeError carry one String field. Arc 278 stone 1 — StartupError
+                // carries a structured `:wat::core::Error`; `died_error_payload_message`
+                // derives its `:message`. Both map to a message-only Failure.
                 "RuntimeError" | "StartupError" | "EntryFormFailure"
-                | "MainSignature" | "BadReturn" => match ev.fields.first() {
-                    Some(Value::String(s)) => Ok(message_only_failure((**s).clone())),
-                    _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
+                | "MainSignature" | "BadReturn" => match ev.fields.first().and_then(died_error_payload_message) {
+                    Some(s) => Ok(message_only_failure((*s).clone())),
+                    None => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
-                        expected: "String at *DiedError.message",
-                        got: Box::new(ValueSnapshot::unavailable("non-String at field 0")),
+                        expected: "String or :wat::core::Error at *DiedError payload",
+                        got: Box::new(ValueSnapshot::unavailable("non-message payload at field 0")),
                         // arc 138: no — matching on Value::Enum fields; no AST element
                     } }.into()),
                 },
@@ -28158,6 +28185,94 @@ mod tests {
         .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
         eval_inner(&ast, &Environment::new(), &sym).map(|tv| tv.value_owned())
+    }
+
+    // ─── Arc 278 "errors first-class EDN" (stone 1) — the acceptance gate ──
+    //
+    // The cache-probe RED gate: a process-tier startup failure reproducing the
+    // cache probe (a startup-time unknown-function call → `RuntimeError::
+    // UnknownFunction` wrapped in `StartupError`). The emitted
+    // `LociDiedError/StartupError` chain MUST be a fully-structured, navigable
+    // EDN tree — the cause a real `#wat.runtime/UnknownFunction` RECORD (typed,
+    // STRICT-decoded) with its own `:message` headline, a real `:location`, its
+    // `:path` coordinate, and `:causes` — ZERO escaped-EDN-inside-a-String.
+    //
+    // RED before the fix: `startup_error_chain_edn` string-wrapped the cause via
+    // `to_wire_edn`, so the chain rendered
+    // `[#wat.kernel.LociDiedError/StartupError ["#wat.runtime/UnknownFunction {…}"]]`
+    // and the cause STRICT-decoded to a `Value::String` (the mask). GREEN after:
+    // the cause is emitted as the `error_edn()` record and decodes to a typed
+    // `Value::Aggregate`.
+    #[test]
+    fn cache_probe_startup_error_is_navigable_edn_not_string() {
+        use crate::freeze::StartupError;
+
+        // The cache-probe failure: a startup-time unknown-function call.
+        let re = RuntimeError {
+            span: crate::rust_caller_span!(),
+            kind: RuntimeErrorKind::UnknownFunction(":wat::kernel::typo".into()),
+        };
+        let e = StartupError::Runtime(Box::new(re));
+
+        // What the dying process child writes on fd 2 (captured without a fork).
+        let chain_edn = crate::process::verbs::startup_error_chain_edn(&e);
+        let line = wat_edn::write(&chain_edn);
+
+        // The owner's recv' Lost decoder STRICT-decodes the chain.
+        let types = crate::types::TypeEnv::with_builtins();
+        let parsed = wat_edn::parse_owned(&line).expect("emitted chain must parse");
+        let decoded = crate::edn_shim::edn_to_value(&parsed, Some(&types)).unwrap_or_else(|err| {
+            panic!("the emitted StartupError chain must STRICT-decode to typed records; got {err:?}\n  line: {line}")
+        });
+
+        // chain = Vector<LociDiedError>; head = StartupError.
+        let chain = match &decoded {
+            Value::Vec(items) => items,
+            other => panic!("chain must be a Vector<LociDiedError>; got {other:?}"),
+        };
+        assert_eq!(chain.len(), 1, "one death in the chain; line: {line}");
+        let ev = match &chain[0] {
+            Value::Enum(ev) => ev,
+            other => panic!("chain head must be a LociDiedError enum; got {other:?}"),
+        };
+        assert_eq!(ev.type_path, ":wat::kernel::LociDiedError", "head is a LociDiedError");
+        assert_eq!(ev.variant_name, "StartupError");
+
+        // THE GATE: the cause is a fully-structured, navigable
+        // #wat.runtime/UnknownFunction RECORD — NOT an escaped-EDN String.
+        let cause = &ev.fields[0];
+        let agg = match cause {
+            Value::Aggregate(a) => a,
+            Value::String(s) => panic!(
+                "MASK: StartupError cause is a string-wrapped blob, not a typed record: {s:?}"
+            ),
+            other => panic!("StartupError cause must be a typed record; got {other:?}"),
+        };
+        assert_eq!(agg.class, "wat::runtime::UnknownFunction", "cause is the typed RuntimeError record");
+
+        // Floor + coordinate fields, in declaration order [message, location, causes, path].
+        let field = |i: usize| agg.fields.get(i).unwrap_or_else(|| panic!("cause missing field {i}"));
+        // :message — a one-line headline (no file:line prefix, no embedded newline).
+        match field(0) {
+            Value::String(s) => assert_eq!(&**s, "unknown function: :wat::kernel::typo"),
+            other => panic!(":message must be a String headline; got {other:?}"),
+        }
+        // :location — a REAL located #wat.core/Span record, never nil.
+        match field(1) {
+            Value::Aggregate(loc) => assert_eq!(loc.class, "wat::core::Span", ":location is a typed Span"),
+            other => panic!(":location must be a typed Span record (never nil); got {other:?}"),
+        }
+        // :causes — an empty Vector (this is a leaf error).
+        match field(2) {
+            Value::Vec(c) => assert!(c.is_empty(), ":causes is empty for a leaf error"),
+            other => panic!(":causes must be a Vector; got {other:?}"),
+        }
+        // :path — the unknown-function coordinate, PRESERVED (not dropped by a
+        // floor-only shortcut).
+        match field(3) {
+            Value::String(s) => assert_eq!(&**s, ":wat::kernel::typo", ":path carries the unknown name"),
+            other => panic!(":path must be a String; got {other:?}"),
+        }
     }
 
     // ─── Literals ───────────────────────────────────────────────────────
