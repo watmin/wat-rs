@@ -131,11 +131,6 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // Arc 109 slice 1i — bare `Err` retired (callable heads must be FQDN keywords).
     RetirementEntry { retired: "Err", replacement: ":wat::core::Err",
         note: Some("rename `(Err e)` → `(:wat::core::Err e)` at constructor sites; rename `((Err _e) ...)` → `((:wat::core::Err _e) ...)` at match-pattern sites (arc 109 slice 1i)") },
-    // Arc 170 Stone C — Process typed-channel API retired; real stdio is canonical at OS boundary.
-    RetirementEntry { retired: ":wat::kernel::process-send", replacement: ":wat::kernel::Process/stdin",
-        note: Some("arc 170 Stone C: write inputs via `(:wat::kernel::Process/stdin proc)` → IOWriter; for typed semantics wrap with `(:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))`; child-side use `(:wat::kernel::println v)` to write outputs") },
-    RetirementEntry { retired: ":wat::kernel::process-recv", replacement: ":wat::kernel::Process/stdout",
-        note: Some("arc 170 Stone C: read outputs via `(:wat::kernel::Process/stdout proc)` → IOReader; for typed semantics wrap with `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))`; child-side use `(:wat::kernel::readln -> :T)` to read inputs") },
 ];
 
 /// Look up `needle` in the retirement table.

@@ -117,10 +117,11 @@ pub enum CheckErrorKind {
     /// - value-position of `:wat::core::Option/expect` (`OptionExpectValue`)
     /// - right-hand side of a `:wat::core::let` binding (`LetBindingRhs`)
     ///
-    /// Applies to the full comm-call set:
-    /// `:wat::kernel::send` / `:wat::kernel::recv` /
-    /// `:wat::kernel::process-send` / `:wat::kernel::process-recv` /
-    /// `:wat::kernel::Process/readln` / `:wat::kernel::Process/println`.
+    /// Applies to the thread-tier comm-call set:
+    /// `:wat::kernel::send` / `:wat::kernel::recv`.
+    /// (Arc 278 IPC de-prime: the process-tier comm verbs were annihilated;
+    /// process IPC now flows through the `spawn-program' (process)` peer model
+    /// via `send'`/`recv'`/`recv-all'`.)
     CommCallOutOfPosition { callee: String },
     /// Arc 117 — scope-deadlock: a Thread/Process binding joined while
     /// a sibling Sender-bearing binding is still alive.

@@ -1522,10 +1522,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // The substrate populates both views: byte-pipe view (legacy
     // Stone C — Process is 4 fields: real OS stdio pipes + join handle.
     // The slice-1c typed-channel tx/rx fields are REMOVED. Real stdio
-    // is canonical at the OS boundary. Users wanting typed semantics
-    // wrap Process/stdin / Process/stdout with
-    // (:wat::kernel::Sender/from-pipe writer) /
-    // (:wat::kernel::Receiver/from-pipe reader).
+    // is canonical at the OS boundary. Arc 278 IPC de-prime: typed
+    // process IPC now flows through the `spawn-program' (process)` peer
+    // model (`send'`/`recv'`/`recv-all'`), superseding the Stone-C
+    // wat-level pipe-wrapping accessors.
     //
     // Type params I/O are KEPT for TIERS.md uniformity and backwards
     // compatibility with Program<I,O> alias (Program<I,O> = Process<I,O>).
@@ -1689,24 +1689,17 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Fields, in declaration order:
     //   rx — Receiver<I> the parent pulls server output from. The
-    //        underlying transport is the PipeFd-backed Receiver inner
-    //        from `:wat::kernel::Receiver/from-pipe` over the
-    //        Process/stdout reader.
+    //        underlying transport is a PipeFd-backed Receiver inner
+    //        over the Process stdout reader.
     //   tx — Sender<O>   the parent pushes inbound messages to. The
-    //        underlying transport is the PipeFd-backed Sender inner
-    //        from `:wat::kernel::Sender/from-pipe` over the
-    //        Process/stdin writer.
+    //        underlying transport is a PipeFd-backed Sender inner
+    //        over the Process stdin writer.
     //
-    // Stone D's `run-processes` bracket macro is the user-facing
-    // constructor (wires `spawn-process` → `Process/stdin` +
-    // `Process/stdout` → typed channels → ProcessPeer). Stone C2 itself
-    // only mints the type and the two peer-relative verbs
-    // (`Process/readln`, `Process/println`); the substrate-composition
-    // proof in `tests/wat_process_peer_ipc_round_trip.rs` exercises the
-    // peer via the auto-generated `:wat::kernel::ProcessPeer/new`
-    // constructor composing `Sender/from-pipe` + `Receiver/from-pipe`
-    // over `Process/stdin` + `Process/stdout` — the same composition
-    // Stone D's bracket macro will encapsulate for everyday use.
+    // Arc 278 IPC de-prime: the Stone-C peer-relative process verbs
+    // (`Process/readln` / `Process/println`) and the wat-level
+    // pipe-wrapping accessors were annihilated; typed process IPC now
+    // flows through the `spawn-program' (process)` peer model
+    // (`send'`/`recv'`/`recv-all'`).
     //
     // Stone C3 — field-type honesty fix (arc 170). Previously, the
     // Receiver<I> / Sender<O> field types were deliberately named after

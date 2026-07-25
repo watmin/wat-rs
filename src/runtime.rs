@@ -255,7 +255,7 @@ pub static SHUTDOWN_WAKE_WRITE_FD: std::sync::atomic::AtomicI32 =
 
 /// Arc 170 Phase 2 — substrate-owned shutdown broadcast read-fd.
 /// Worker holds the write-end; drops it after trigger_shutdown.
-/// All `Receiver/from-pipe` recvs poll this fd; POLLHUP → Shutdown.
+/// All PipeFd-backed Receiver recvs poll this fd; POLLHUP → Shutdown.
 /// Value -1 until init_shutdown_signal_with_inputs runs; valid fd
 /// after. RE-SET in fork children (init_shutdown_signal_with_inputs
 /// rebuilds the fd for each child's private shutdown worker — the
@@ -368,7 +368,7 @@ pub fn init_shutdown_signal_with_inputs(extra_input_fds: &[i32]) {
 
     // Phase 2 — broadcast pipe for tier-2 PipeFd recvs.
     // Worker holds the write-end; drops it after trigger_shutdown().
-    // All Receiver/from-pipe recvs poll the read-end; POLLHUP → Shutdown.
+    // All PipeFd-backed Receiver recvs poll the read-end; POLLHUP → Shutdown.
     let mut broadcast_fds = [0_i32; 2];
     // pipe2(O_CLOEXEC): atomic CLOEXEC — belt for any future exec path.
     let broadcast_result = unsafe { libc::pipe2(broadcast_fds.as_mut_ptr(), libc::O_CLOEXEC) };
@@ -4960,11 +4960,6 @@ fn dispatch_keyword_head_value(
         // annotation intact; the prime carries an optional leading cap (i64).
         ":wat::kernel::readln'" => crate::services::eval_kernel_readln_prime(args, list_span, env, sym).map_err(Into::into),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
-        // Arc 170 slice 3 Gap B — explicit EOF on send side without
-        // dropping the Sender Value. Idempotent. Returns nil.
-        ":wat::kernel::Sender/close" => {
-            eval_kernel_sender_close(args, env, sym, list_span)
-        }
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym, list_span),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
@@ -4999,42 +4994,12 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::Process/join-result" => {
             eval_kernel_process_join_result(args, env, sym, list_span)
         }
-        // Arc 170 Stone A — drain stdout + stderr to EOF, then join.
-        // User-callable wrapper that encapsulates the drain-before-join
-        // discipline; arc 117/133's `process-join-before-output-drain`
-        // walker rule is the wat-side equivalent. Stone B hides
-        // `Process/join-result` from user namespace; this helper becomes
-        // the canonical wait verb.
-        ":wat::kernel::Process/drain-and-join" => {
-            eval_kernel_process_drain_and_join(args, env, sym, list_span)
-        }
-        // Arc 170 Stone C — Process IO accessors. Field order in the
+        // Arc 170 Stone C — Process IO accessor. Field order in the
         // Process struct (per src/spawn_process.rs; 4-field shape):
         //   0 → stdin  (IOWriter)  — parent writes → child fd 0
-        //   1 → stdout (IOReader)  — child fd 1 → parent reads
-        //   2 → stderr (IOReader)  — child fd 2 → parent reads
         //   3 → ProgramHandle (join field)
-        // NO tx/rx fields — slice-1c typed-channel fields retired by Stone C.
         ":wat::kernel::Process/stdin" => {
             eval_kernel_process_stdin(args, env, sym, list_span)
-        }
-        ":wat::kernel::Process/stdout" => {
-            eval_kernel_process_stdout(args, env, sym, list_span)
-        }
-        ":wat::kernel::Process/stderr" => {
-            eval_kernel_process_stderr(args, env, sym, list_span)
-        }
-        // Arc 170 Stone C — Sender/from-pipe + Receiver/from-pipe.
-        // Wrap an IOWriter / IOReader as a PipeFd-backed Sender<T> /
-        // Receiver<T>. The existing (:wat::kernel::send) /
-        // (:wat::kernel::recv) dispatch already handles PipeFd transport
-        // (arc 170 slice 1c's channel::SenderInner::PipeFd);
-        // these constructors are the wat-level bridge to that path.
-        ":wat::kernel::Sender/from-pipe" => {
-            eval_kernel_sender_from_pipe(args, env, sym, list_span)
-        }
-        ":wat::kernel::Receiver/from-pipe" => {
-            eval_kernel_receiver_from_pipe(args, env, sym, list_span)
         }
         ":wat::kernel::spawn-thread" => {
             eval_kernel_spawn_thread(args, env, sym, list_span)
@@ -5043,9 +5008,8 @@ fn dispatch_keyword_head_value(
             eval_kernel_thread_join_result(args, env, sym, list_span)
         }
         // Arc 170 Stone A — drain output channel to Disconnected, then
-        // join. Mirrors `Process/drain-and-join` for the in-thread
-        // satisfier. Stone B hides `Thread/join-result` from user
-        // namespace; this helper becomes the canonical wait verb.
+        // join. The in-thread satisfier's canonical wait verb; Stone B
+        // hides `Thread/join-result` from user namespace.
         ":wat::kernel::Thread/drain-and-join" => {
             eval_kernel_thread_drain_and_join(args, env, sym, list_span)
         }
@@ -5057,39 +5021,6 @@ fn dispatch_keyword_head_value(
         }
         ":wat::kernel::Thread/println" => {
             eval_kernel_thread_println(args, env, sym, list_span)
-        }
-        // Arc 170 Stone C2 — peer-relative read/write verbs on
-        // `:wat::kernel::ProcessPeer<I, O>`. Asymmetric mirror of Stone
-        // C1: CLIENT-side only (server uses ambient stdio). Same
-        // dispatch shape as Thread/readln + Thread/println; the verb
-        // names are namespaced under `Process/` because the wat user's
-        // mental model is "read a line from the process".
-        ":wat::kernel::Process/readln" => {
-            eval_kernel_process_readln(args, env, sym, list_span)
-        }
-        ":wat::kernel::Process/println" => {
-            eval_kernel_process_println(args, env, sym, list_span)
-        }
-        // Arc 170 Stone C — Pattern 2 verb retirement.
-        // process-send / process-recv are RETIRED. Real stdio is canonical
-        // at the OS boundary. Use Process/stdin (IOWriter) + Process/stdout
-        // (IOReader) directly, or wrap with Sender/from-pipe /
-        // Receiver/from-pipe for typed semantics.
-        // Infer-time: these callees are in RETIREMENT_TABLE (arc 296); TypeMismatch
-        // errors surface structured :remedies via type_error_remedies.
-        ":wat::kernel::process-send" => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::kernel::process-send".into(),
-                expected: "Process/stdin (IOWriter) + Sender/from-pipe for typed sends",
-                got: Box::new(ValueSnapshot::unavailable("retired verb — arc 170 Stone C"))
-            } }.into())
-        }
-        ":wat::kernel::process-recv" => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: ":wat::kernel::process-recv".into(),
-                expected: "Process/stdout (IOReader) + Receiver/from-pipe for typed recvs",
-                got: Box::new(ValueSnapshot::unavailable("retired verb — arc 170 Stone C"))
-            } }.into())
         }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym, list_span),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym, list_span),
@@ -21417,42 +21348,6 @@ fn eval_kernel_send(
     }
 }
 
-/// `(:wat::kernel::Sender/close sender)` → `:()` (nil). Idempotent.
-///
-/// Arc 170 slice 3 Gap B — signals EOF on the send side without
-/// dropping the Sender Value. Flips the `closed` flag on the
-/// `SenderInner` so subsequent `(:wat::kernel::send s v)` calls
-/// return `Result.Err(ChannelDisconnected)`. For PipeFd transports
-/// also calls `PipeWriter::close` which releases the write-end fd
-/// so the peer reader sees EOF. Calling this twice is a no-op.
-fn eval_kernel_sender_close(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let op = ":wat::kernel::Sender/close";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: op.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let sender = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::wat__kernel__Sender(s) => s,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected: "wat::kernel::Sender<T>",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    crate::channel::sender_close(sender.as_ref(), list_span.clone())?;
-    Ok(Value::Unit)
-}
-
 /// `(:wat::kernel::recv receiver)` — blocks until the receiver
 /// produces a value or its sender is dropped. Typed
 /// `∀T. Receiver<T> -> Option<T>` per FOUNDATION: `(:wat::core::Some v)` on a
@@ -22162,132 +22057,6 @@ fn eval_kernel_process_join_result(
     Ok(value)
 }
 
-/// `(:wat::kernel::Process/drain-and-join proc) ->
-/// :wat::core::Result<:wat::core::nil, :wat::core::Vector<wat::kernel::ProcessDiedError>>`
-/// — arc 170 Stone A. User-callable wrapper that drains the Process's
-/// stdout + stderr pipes to EOF, then joins.
-///
-/// The drain step embodies in substrate the discipline arc 117/133's
-/// `process-join-before-output-drain` walker rule used to enforce
-/// structurally: inner scope drains the OS-pipe Readers to EOF before
-/// outer scope blocks on join. Encapsulating both steps in one
-/// primitive means users never have to stage the lockstep by hand;
-/// the recovery-doc § 13 IPC triangle (stdout / stderr / exit-code) is
-/// honored end-to-end.
-///
-/// Stone B will hide `Process/join-result` from user namespace; this
-/// helper becomes the canonical wait verb for `Process<I, O>`.
-fn eval_kernel_process_drain_and_join(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Process/drain-and-join";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
-    let proc_struct = match proc_value {
-        Value::Aggregate(a) if a.class == "wat::kernel::Process" => a,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    // Process struct field order: stdin, stdout, stderr, join.
-    // Drain stdout + stderr (fields 1 and 2) before joining (field 3).
-    drain_process_reader_field(&proc_struct, 1, &args[0], OP)?;
-    drain_process_reader_field(&proc_struct, 2, &args[0], OP)?;
-    let handle = match proc_struct.fields.get(3) {
-        Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "Process.join (ProgramHandle)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-            } }.into());
-        }
-    };
-    let value = match handle.as_ref() {
-        ProgramHandleInner::InThread(rx) => match rx.recv() {
-            Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
-            Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
-                // Arc 296 S2: route through the structured builder (to_wire_edn),
-                // not the prose-collapsing e.to_string() bypass.
-                process_died_error_runtime_value(&e),
-            )))),
-            Ok(SpawnOutcome::Panic { message, assertion }) => {
-                let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());
-                let fresh = process_died_error_panic(message, assertion.clone());
-                Value::Result(Arc::new(Err(conj_died_chain(fresh, upstream))))
-            }
-            Err(_) => Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_channel_disconnected(),
-            )))),
-        },
-        ProgramHandleInner::Forked(child) => {
-            let code = child.wait_or_cached_exit();
-            if code == 0 {
-                Value::Result(Arc::new(Ok(Value::Unit)))
-            } else {
-                Value::Result(Arc::new(Err(single_died_chain(process_died_error_panic(
-                    format!("forked program exited {}", code),
-                    None,
-                )))))
-            }
-        }
-    };
-    Ok(value)
-}
-
-/// Arc 170 Stone A internal — drain a `Process<I, O>`'s OS-pipe reader
-/// at `field_index` (1 = stdout, 2 = stderr) by calling `read_line` in
-/// a loop until EOF (None). Drained lines are discarded — drain-and-join
-/// returns only the join Result; line capture is the user's concern via
-/// the wat-side `:wat::kernel::drain-lines` helper.
-///
-/// Surfaces a `TypeMismatch` if the field isn't an IOReader. A
-/// kernel-level read error is treated as EOF for drain purposes; the
-/// join-result downstream surfaces the real exit code.
-fn drain_process_reader_field(
-    proc_struct: &Arc<AggregateValue>,
-    field_index: usize,
-    subject_ast: &WatAST,
-    op: &str,
-) -> Result<(), EvalBreak> {
-    let reader = match proc_struct.fields.get(field_index) {
-        Some(Value::io__IOReader(r)) => r.clone(),
-        _ => {
-            let expected = match field_index {
-                1 => "Process.stdout (IOReader)",
-                2 => "Process.stderr (IOReader)",
-                _ => "Process.<reader-field> (IOReader)",
-            };
-            return Err(RuntimeError { span: subject_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: op.into(),
-                expected,
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-            } }.into());
-        }
-    };
-    loop {
-        match reader.read_line(subject_ast.span().clone()) {
-            Ok(Some(_)) => continue,
-            Ok(None) => break,
-            Err(_) => break,
-        }
-    }
-    Ok(())
-}
-
 /// `(:wat::kernel::Process/stdin proc) -> :wat::io::IOWriter` —
 /// arc 170 slice 1f-δ. Extracts the stdin writer from a
 /// Process<I,O> struct. Field 0 per src/spawn_process.rs:221.
@@ -22323,86 +22092,6 @@ fn eval_kernel_process_stdin(
         _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Process.stdin (IOWriter)",
-            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-        } }.into()),
-    }
-}
-
-/// `(:wat::kernel::Process/stdout proc) -> :wat::io::IOReader` —
-/// arc 170 slice 1f-δ. Extracts the stdout reader from a
-/// Process<I,O> struct. Field 1 per src/spawn_process.rs:222.
-/// Mirrors the Process/join-result shape (arc 112).
-fn eval_kernel_process_stdout(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Process/stdout";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
-    let proc_struct = match proc_value {
-        Value::Aggregate(a) if a.class == "wat::kernel::Process" => a,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    // Field 1: stdout IOReader.
-    match proc_struct.fields.get(1) {
-        Some(Value::io__IOReader(r)) => Ok(Value::io__IOReader(r.clone())),
-        _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "Process.stdout (IOReader)",
-            got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-        } }.into()),
-    }
-}
-
-/// `(:wat::kernel::Process/stderr proc) -> :wat::io::IOReader` —
-/// arc 170 slice 1f-δ. Extracts the stderr reader from a
-/// Process<I,O> struct. Field 2 per src/spawn_process.rs:223.
-/// Mirrors the Process/join-result shape (arc 112).
-fn eval_kernel_process_stderr(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Process/stderr";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let proc_value = eval_inner(&args[0], env, sym)?.value_owned();
-    let proc_struct = match proc_value {
-        Value::Aggregate(a) if a.class == "wat::kernel::Process" => a,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::kernel::Process",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    // Field 2: stderr IOReader.
-    match proc_struct.fields.get(2) {
-        Some(Value::io__IOReader(r)) => Ok(Value::io__IOReader(r.clone())),
-        _ => Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: OP.into(),
-            expected: "Process.stderr (IOReader)",
             got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
         } }.into()),
     }
@@ -22903,224 +22592,6 @@ fn eval_thread_peer_struct(
         } }.into()),
     }
 }
-
-/// `(:wat::kernel::Process/readln peer) -> :I` — arc 170 Stone C2.
-///
-/// Peer-relative blocking read on a `:wat::kernel::ProcessPeer<I, O>`.
-/// CLIENT-side only — the parent pulls from the `rx` field (a
-/// PipeFd-backed Receiver<I> wrapping the spawned process's stdout)
-/// and blocks via `typed_recv` until a value arrives. The value is
-/// surfaced UNWRAPPED to the caller — this verb returns `:I`, not
-/// `:Option<I>` or `:Result<...>`.
-///
-/// Asymmetric mirror of `Thread/readln` — same eval shape modulo the
-/// expected struct tag. Same disconnect / decode semantics: pipe close
-/// (or shutdown) → `RuntimeError::ChannelDisconnected`; EDN decode
-/// failure on the line → `RuntimeError::MalformedForm`. Server side
-/// uses ambient `(:wat::kernel::readln)` over real stdio — no peer
-/// struct on the server.
-/// `(:wat::kernel::Process/readln peer) -> :Result<:I, :Vector<ProcessDiedError>>` —
-/// arc 208 slice 1.
-///
-/// Flipped from panic-on-disconnect to Result-returning, mirroring arc
-/// 110/111's thread-tier discipline at the process tier. Returns
-/// `Ok(v)` when a value is received, `Err(chain)` when the subprocess
-/// pipe is disconnected or the process-wide shutdown fires. No
-/// `Ok(:None)` wrapper: clean EOF on the PipeFd transport IS
-/// subprocess death at the process tier (see DESIGN § "Note on
-/// Process/readln's return type").
-///
-/// EDN decode errors still surface as `RuntimeError::MalformedForm` —
-/// these are substrate-level parse failures (bad wire format) rather
-/// than transport failures; there's no useful recovery path for the
-/// caller.
-fn eval_kernel_process_readln(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Process/readln";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let peer_struct = eval_process_peer_struct(OP, &args[0], env, sym)?;
-    let receiver_inner = match peer_struct.fields.first() {
-        Some(Value::wat__kernel__Receiver(inner)) => inner.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "ProcessPeer.rx (Receiver)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-            } }.into());
-        }
-    };
-    match crate::channel::typed_recv(
-        receiver_inner.as_ref(),
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    ) {
-        crate::channel::RecvOutcome::Value(v) => {
-            Ok(Value::Result(Arc::new(Ok(v))))
-        }
-        crate::channel::RecvOutcome::Disconnected
-        | crate::channel::RecvOutcome::Shutdown => {
-            Ok(Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_channel_disconnected(),
-            )))))
-        }
-        crate::channel::RecvOutcome::DecodeError(msg) => {
-            Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: format!("EDN decode on ProcessPeer.rx: {}", msg)
-            } }.into())
-        }
-    }
-}
-
-/// `(:wat::kernel::Process/println peer data:O) -> :Result<:nil, :Vector<ProcessDiedError>>` —
-/// arc 208 slice 1.
-///
-/// Flipped from panic-on-disconnect to Result-returning, mirroring arc
-/// 110/111's thread-tier discipline at the process tier. Returns
-/// `Ok(nil)` on a landed write, `Err(chain)` when the subprocess pipe
-/// is disconnected (subprocess closed its stdin or exited).
-fn eval_kernel_process_println(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Process/println";
-    if args.len() != 2 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len()
-        } }.into());
-    }
-    let peer_struct = eval_process_peer_struct(OP, &args[0], env, sym)?;
-    let sender_inner = match peer_struct.fields.get(1) {
-        Some(Value::wat__kernel__Sender(inner)) => inner.clone(),
-        _ => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "ProcessPeer.tx (Sender)",
-                got: Box::new(ValueSnapshot::unavailable("missing or wrong-type field"))
-            } }.into());
-        }
-    };
-    let payload = eval_inner(&args[1], env, sym)?.value_owned();
-    match crate::channel::typed_send(
-        sender_inner.as_ref(),
-        payload,
-        sym.types().map(|a| a.as_ref()),
-        list_span.clone(),
-    ) {
-        crate::channel::SendOutcome::Ok => {
-            Ok(Value::Result(Arc::new(Ok(Value::Unit))))
-        }
-        crate::channel::SendOutcome::Disconnected => {
-            Ok(Value::Result(Arc::new(Err(single_died_chain(
-                process_died_error_channel_disconnected(),
-            )))))
-        }
-    }
-}
-
-/// Shared peer-struct unwrap for both Process/readln and Process/println.
-/// Mirror of `eval_thread_peer_struct` with the ProcessPeer tag.
-fn eval_process_peer_struct(
-    op: &str,
-    subject_ast: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Arc<AggregateValue>, EvalBreak> {
-    let peer_value = eval_inner(subject_ast, env, sym)?.value_owned();
-    match peer_value {
-        Value::Aggregate(a) if a.class == "wat::kernel::ProcessPeer" => Ok(a),
-        other => Err(RuntimeError { span: subject_ast.span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-            op: op.into(),
-            expected: "wat::kernel::ProcessPeer",
-            got: Box::new(ValueSnapshot::of(&other))
-        } }.into()),
-    }
-}
-
-/// `(:wat::kernel::Sender/from-pipe writer) -> :wat::kernel::Sender<T>` —
-/// Arc 170 Stone C. Wraps an `IOWriter` as a PipeFd-backed `Sender<T>`.
-/// Sending a value EDN-encodes it and writes the line to the writer;
-/// recipients decode via a matching `Receiver/from-pipe`.
-///
-/// The returned Sender is the same `Value::wat__kernel__Sender` variant
-/// as crossbeam-backed Senders; `(:wat::kernel::send s v)` and
-/// `(:wat::kernel::Sender/close s)` work identically on both.
-fn eval_kernel_sender_from_pipe(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Sender/from-pipe";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let writer = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::io__IOWriter(w) => w,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::io::IOWriter",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    Ok(crate::channel::sender_from_pipe(writer))
-}
-
-/// `(:wat::kernel::Receiver/from-pipe reader) -> :wat::kernel::Receiver<T>` —
-/// Arc 170 Stone C. Wraps an `IOReader` as a PipeFd-backed `Receiver<T>`.
-/// Each recv reads one line from the reader and EDN-decodes it to a typed Value.
-///
-/// The returned Receiver is the same `Value::wat__kernel__Receiver` variant
-/// as crossbeam-backed Receivers; `(:wat::kernel::recv r)` works identically
-/// on both (PipeFd dispatch in `channel::typed_recv`).
-fn eval_kernel_receiver_from_pipe(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::kernel::Receiver/from-pipe";
-    if args.len() != 1 {
-        return Err(RuntimeError { span: list_span.clone(), kind: RuntimeErrorKind::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len()
-        } }.into());
-    }
-    let reader = match eval_inner(&args[0], env, sym)?.value_owned() {
-        Value::io__IOReader(r) => r,
-        other => {
-            return Err(RuntimeError { span: args[0].span().clone(), kind: RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::io::IOReader",
-                got: Box::new(ValueSnapshot::of(&other))
-            } }.into());
-        }
-    };
-    Ok(crate::channel::receiver_from_pipe(reader))
-}
-
-
 
 /// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
 /// (arc 060 + arc 105c). Variant carries two fields:

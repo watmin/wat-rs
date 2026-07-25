@@ -835,9 +835,9 @@ pub fn eval_kernel_spawn_process(
     //   stderr field = IOReader over stderr_r (child fd 2 → parent reads)
     //   join field   = ProgramHandle (wait for child exit)
     // NO tx/rx typed-channel fields — those were the slice-1c wrong turn.
-    // Use (:wat::kernel::Sender/from-pipe stdin-writer) /
-    //     (:wat::kernel::Receiver/from-pipe stdout-reader)
-    // at the wat level for typed semantics over these pipes.
+    // Arc 278 IPC de-prime: the wat-level pipe-wrapping accessors were
+    // annihilated; typed process IPC now flows through the
+    // `spawn-program' (process)` peer model (`send'`/`recv'`/`recv-all'`).
     let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(stdin_w));
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
     let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stderr_r));

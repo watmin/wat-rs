@@ -52,8 +52,8 @@
 //! [`wat_edn::write`] to bytes, then appends `'\n'`. The decoder
 //! reads via [`crate::io::WatReader::read_line`] (which strips
 //! trailing `\n`/`\r`) and parses with [`crate::edn_shim::read_edn`].
-//! Same convention `:wat::kernel::process-send` / `process-recv`
-//! already use over the legacy byte-pipe path.
+//! This is the same line-delimited EDN convention the process-tier
+//! peer wire (`spawn-program' (process)` + `send'`/`recv'`) uses.
 //!
 //! ## Error semantics (tier 2)
 //!
@@ -66,8 +66,7 @@
 //! - Receiver side: pipe EOF (writer end closed) maps to wat-
 //!   level `Ok(:None)` — clean shutdown. EDN parse failure on a
 //!   non-empty line maps to a `RuntimeError` raised via the
-//!   primitive, matching `:wat::kernel::process-recv`'s
-//!   pre-existing behaviour for malformed input.
+//!   primitive.
 
 pub mod inner;
 pub mod transfer;

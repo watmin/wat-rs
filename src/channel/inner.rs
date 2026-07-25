@@ -14,7 +14,7 @@ use std::sync::Arc;
 /// `PipeFd` wraps a writer fd with EDN encoding on send.
 ///
 /// Arc 170 slice 3 Gap B / Arc 214 Stone 5.1 — each tier-1 variant
-/// carries a `closed` flag (`AtomicBool`) so `:wat::kernel::Sender/close`
+/// carries a `closed` flag (`AtomicBool`) so `crate::channel::sender_close`
 /// can signal EOF on the send side without dropping the Sender Value.
 /// Interior mutability via `AtomicBool` is permitted under zero-Mutex
 /// doctrine (ZERO-MUTEX.md § "Honest caveats"). The `Arc<SenderInner>`
@@ -30,8 +30,8 @@ pub enum SenderInner {
     /// Replaces the retired `Crossbeam` variant (Arc 214 Stone 5.1).
     Comms {
         sender: crate::comms::thread::Sender<crate::runtime::Value>,
-        /// Arc 170 slice 3 Gap B — set by `Sender/close`; checked
-        /// by `typed_send` before each send attempt.
+        /// Arc 170 slice 3 Gap B — set by `crate::channel::sender_close`;
+        /// checked by `typed_send` before each send attempt.
         closed: AtomicBool,
     },
     /// Tier 2 — linux-fd pipe with EDN encoding on send. The
@@ -39,9 +39,9 @@ pub enum SenderInner {
     /// has carried since arc 103 (PipeWriter from an OwnedFd).
     PipeFd {
         writer: Arc<dyn WatWriter>,
-        /// Arc 170 slice 3 Gap B — set by `Sender/close`; checked
-        /// by `typed_send` before each send attempt. For PipeFd,
-        /// `Sender/close` also calls `writer.close()` which releases
+        /// Arc 170 slice 3 Gap B — set by `crate::channel::sender_close`;
+        /// checked by `typed_send` before each send attempt. For PipeFd,
+        /// `sender_close` also calls `writer.close()` which releases
         /// the underlying fd so the peer reader sees EOF.
         closed: AtomicBool,
     },

@@ -408,29 +408,6 @@ pub(crate) fn shape_remedies(callee: &str, expected: &str, got: &str) -> Vec<cra
         });
     }
 
-    // Arc 170 Stone C — got-based path: fires when the `got` type expression carries
-    // the "retired verb" marker (e.g. a RuntimeError snapshot) for a callee that is NOT
-    // process-send / process-recv (those are in RETIREMENT_TABLE; this arm handles the
-    // shape-based path where the retired type appears as a `got` type expression).
-    if got.contains("retired verb — arc 170 Stone C") {
-        rs.push(Remedy {
-            form: ":wat::kernel::Process/stdout".into(),
-            kind: RemedyKind::Retirement,
-            note: Some(
-                "arc 170 Stone C: `:wat::kernel::Process` typed-channel API retired. \
-                 PARENT-SIDE: read outputs via `(:wat::kernel::Process/stdout proc)` → IOReader; \
-                 write inputs via `(:wat::kernel::Process/stdin proc)` → IOWriter. \
-                 For typed semantics wrap with \
-                 `(:wat::kernel::Sender/from-pipe (:wat::kernel::Process/stdin proc))` \
-                 or `(:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))`. \
-                 CHILD-SIDE: `:user::process` contract is `[] -> :wat::core::nil`; \
-                 use `(:wat::kernel::println v)` to write outputs and \
-                 `(:wat::kernel::readln)` to read inputs."
-                    .into(),
-            ),
-        });
-    }
-
     rs
 }
 
@@ -941,21 +918,15 @@ fn validate_comm_positions(
             }
         };
 
-        // (1) THIS node is a kernel-comm call.
-        // Arc 208 slice 1 — Process/readln + Process/println added here
-        // after their signatures flipped to Result-returning. Pre-flip they
-        // panicked on disconnect (loud); post-flip they return Result (quiet
-        // on Err if not matched). Walker now enforces match-or-expect at
-        // every Process/readln + Process/println call site, same discipline
-        // as arc 110 enforces for thread-tier send/recv.
+        // (1) THIS node is a kernel-comm call. Arc 110 enforces
+        // match-or-expect at every thread-tier send/recv call site (the
+        // Result arms must be handled). Arc 278 IPC de-prime: the process
+        // tier's Stone-C comm verbs were annihilated in favour of the
+        // `spawn-program' (process)` peer model, so only send/recv remain.
         if matches!(
             head_str,
             ":wat::kernel::send"
                 | ":wat::kernel::recv"
-                | ":wat::kernel::process-send"
-                | ":wat::kernel::process-recv"
-                | ":wat::kernel::Process/readln"
-                | ":wat::kernel::Process/println"
         ) {
             let permitted = matches!(
                 ctx,
@@ -2135,18 +2106,12 @@ fn sender_kind_in_type(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static str> {
 ///
 /// Walks `node` (and its children, recursively) collecting every call site
 /// of `:wat::kernel::Process/join-result <p>` and every call site of a
-/// Process output-channel accessor on the same `<p>`:
-///   - `:wat::kernel::Process/stdout`
-///   - `:wat::kernel::Process/stderr`
-///   - `:wat::kernel::Process/output`
-///
-/// If both are found in the same syntactic scope and reference the same
-/// process identifier, this is the illegal statement orientation that
-/// produces the documented deadlock — substrate drain threads consume
-/// the child's OS pipes, push into wat-level Receivers; if those
-/// Receivers are bounded and the parent has not yet drained them,
-/// substrate threads block on send; the child blocks on stdout write;
-/// `Process/join-result` blocks forever.
+/// Process output-channel accessor on the same `<p>`. Arc 278 IPC de-prime:
+/// the process output-channel accessors (`Process/stdout` / `Process/stderr`)
+/// were annihilated with the Stone-C typed-channel API — the peer model
+/// (`spawn-program' (process)` + `recv'`/`recv-all'`) supersedes them — so
+/// no accessors are collected any more and this drain-before-join check is
+/// now vacuous; the join-result collection is retained for the kept verb.
 ///
 /// Returns `(process_identifier, output_accessor, join_span, output_span)`
 /// for the first conflict found. None if no conflict.
@@ -2197,13 +2162,6 @@ fn collect_process_calls(
                 ":wat::kernel::Process/join-result" => {
                     if let Some(WatAST::Symbol(id, _)) = items.get(1) {
                         joins.push((id.as_str().to_owned(), span.clone()));
-                    }
-                }
-                acc @ (":wat::kernel::Process/stdout"
-                | ":wat::kernel::Process/stderr"
-                | ":wat::kernel::Process/output") => {
-                    if let Some(WatAST::Symbol(id, _)) = items.get(1) {
-                        accessors.push((id.as_str().to_owned(), acc.to_string(), span.clone()));
                     }
                 }
                 // Scope boundaries — stop descent. fn/lambda existed
@@ -2528,16 +2486,11 @@ fn walk_for_pair_deadlock(
         // Skip kernel comm primitives — those are governed by arc 117 /
         // arc 110, not arc 126. Their argument-shape is well-formed by
         // construction (one Sender or one Receiver per call).
-        // Arc 170 slice 3 Gap B — Sender/close is structurally a
-        // single-Sender call; exclude from pair-deadlock check.
         if matches!(
             head,
             ":wat::kernel::send"
-                | ":wat::kernel::Sender/close"
                 | ":wat::kernel::recv"
                 | ":wat::kernel::select"
-                | ":wat::kernel::process-send"
-                | ":wat::kernel::process-recv"
         ) {
             for child in &items[1..] {
                 walk_for_pair_deadlock(child, types, binding_scope, errors);
@@ -18590,61 +18543,17 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // (:wat::kernel::Process/drain-and-join proc) →
-    //   :Result<:wat::core::nil, :wat::kernel::ProcessDiedError-chain>.
-    // Arc 170 Stone A — drain stdout + stderr to EOF before joining.
-    // Same return shape as `Process/join-result` (the drain step
-    // doesn't change the wait outcome — it just guarantees the child
-    // isn't blocked on a full OS pipe). The drain-and-join helper is
-    // the canonical user surface; Stone B hides `Process/join-result`
-    // from user namespace.
-    env.register(
-        ":wat::kernel::Process/drain-and-join".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![process_ty()],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Result".into(),
-                args: vec![
-                    TypeExpr::Tuple(vec![]),
-                    process_died_chain_ty(),
-                ],
-            },
-            rest_param_type: None,
-        },
-    );
-    // Arc 170 slice 1f-δ — Process IO accessors.
+    // Arc 170 slice 1f-δ — Process IO accessor.
     // (:wat::kernel::Process/stdin  proc) → :wat::io::IOWriter
-    // (:wat::kernel::Process/stdout proc) → :wat::io::IOReader
-    // (:wat::kernel::Process/stderr proc) → :wat::io::IOReader
     //
     // Mirrors the Process/join-result shape (arc 112). Field order
-    // per src/spawn_process.rs:221-223: 0=stdin, 1=stdout, 2=stderr.
-    // These are called by the restored wat/kernel/hermetic.wat wrapper.
+    // per src/spawn_process.rs:221: 0=stdin.
     env.register(
         ":wat::kernel::Process/stdin".into(),
         TypeScheme {
             type_params: vec!["I".into(), "O".into()],
             params: vec![process_ty()],
             ret: TypeExpr::Path(":wat::io::IOWriter".into()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::kernel::Process/stdout".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![process_ty()],
-            ret: TypeExpr::Path(":wat::io::IOReader".into()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::kernel::Process/stderr".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![process_ty()],
-            ret: TypeExpr::Path(":wat::io::IOReader".into()),
             rest_param_type: None,
         },
     );
@@ -18798,73 +18707,6 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // (:wat::kernel::Process/readln peer) → :Result<:I, :Vector<ProcessDiedError>>
-    // (:wat::kernel::Process/println peer data:O) → :Result<:nil, :Vector<ProcessDiedError>>
-    //
-    // Arc 170 Stone C2. Peer-relative read / write on a
-    // `:wat::kernel::ProcessPeer<I, O>` — the CLIENT-side wrapper
-    // around the parent's view of a spawned process's stdin + stdout.
-    // The asymmetric mirror of Thread/readln + Thread/println from
-    // Stone C1: the verbs read/write through the appropriate field of
-    // the peer struct (`peer.rx` for readln, `peer.tx` for println),
-    // backed by the same transport-polymorphic `typed_recv` /
-    // `typed_send` machinery (PipeFd tier-2 for processes vs Crossbeam
-    // tier-1 for threads — same eval shape modulo struct tag).
-    //
-    // Server side stays AMBIENT — no `ProcessPeer/Server` verbs. The
-    // child uses bare `:wat::kernel::readln` + `:wat::kernel::println`
-    // over its real OS stdio (per INTERSTITIAL-REALIZATIONS § 2026-05-16
-    // Stone C revision). The asymmetry is honest: OS process has
-    // exactly one stdin / stdout, so there's nothing for a server peer
-    // to wrap.
-    //
-    // Arc 208 slice 1 — flip from panic-on-disconnect to
-    // Result-returning. Mirrors arc 110/111's thread-tier discipline at
-    // the process tier. Process/readln returns Result<:I, ...> (no
-    // Option wrapper): at the process tier, clean stdin EOF IS
-    // subprocess death — the subprocess cannot read after exit, and the
-    // lifeline-pipe + drain mechanism detects death deterministically
-    // via FD EOF (arc 170 FD-multiplex phases 1A-1E). There is no
-    // distinguishable "clean close while subprocess lives" state that
-    // would make Ok(:None) load-bearing here. Err arm carries a
-    // Vector<ProcessDiedError> chain matching arc 113's pattern (used
-    // by Process/join-result and Process/drain-and-join already).
-    let process_peer_ty = || TypeExpr::Parametric {
-        head: "wat::kernel::ProcessPeer".into(),
-        args: vec![
-            TypeExpr::Path(":I".into()),
-            TypeExpr::Path(":O".into()),
-        ],
-    };
-    let proc_io_err_chain_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
-    };
-    env.register(
-        ":wat::kernel::Process/readln".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![process_peer_ty()],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Result".into(),
-                args: vec![TypeExpr::Path(":I".into()), proc_io_err_chain_ty()],
-            },
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::kernel::Process/println".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![process_peer_ty(), TypeExpr::Path(":O".into())],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Result".into(),
-                args: vec![TypeExpr::Tuple(vec![]), proc_io_err_chain_ty()],
-            },
-            rest_param_type: None,
-        },
-    );
-
     // (:wat::kernel::spawn-process program) → :wat::kernel::Process<I,O>.
     //
     // Arc 170 Slice 6 pivot. The `program` arg is a sequence of top-level
@@ -18879,9 +18721,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // `(:wat::kernel::readln)` and `(:wat::kernel::println v)`
     // through ambient stdio (fd 0/1/2 wired by `bootstrap_wat_vm_process`,
     // called from within `invoke_user_main`). Real OS stdio is canonical
-    // at the process boundary; users wrap with
-    // `:wat::kernel::Sender/from-pipe` / `:wat::kernel::Receiver/from-pipe`
-    // at the parent side for typed semantics over the OS pipes.
+    // at the process boundary; arc 278 IPC de-prime — typed process IPC
+    // now flows through the `spawn-program' (process)` peer model
+    // (`send'`/`recv'`/`recv-all'`) rather than wat-level pipe wrapping.
     //
     // The type params I and O are preserved so `Process<I,O>` unifies with
     // caller-side annotations (e.g. `-> :wat::kernel::Process<i64,i64>`).
@@ -18897,75 +18739,6 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
             }],
             ret: process_ty(),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::process-send proc :I) →
-    //   :Result<:(), :wat::kernel::ProcessDiedError>
-    // Arc 112 slice 2b — typed value send to a Process's stdin.
-    // Renders the value via :wat::edn::write (arc 092 EDN v4),
-    // appends a newline, writes to proc.stdin via
-    // IOWriter/write-string. Returns Ok(()) on landed write;
-    // Err(ProcessDiedError::ChannelDisconnected) when the pipe is
-    // closed (peer Process exited or panicked before reading).
-    //
-    // Pre-§J spelling. Post-arc-109 § J slice 10f this verb
-    // becomes :wat::kernel::Process/send under the typed-method
-    // naming convention; same shape, just renamed.
-    env.register(
-        ":wat::kernel::process-send".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![process_ty(), TypeExpr::Path(":I".into())],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Result".into(),
-                args: vec![
-                    TypeExpr::Tuple(vec![]),
-                    process_died_chain_ty(),
-                ],
-            },
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::process-recv proc) →
-    //   :Result<:Option<:O>, :wat::kernel::ProcessDiedError>
-    // Arc 112 slice 2b — typed value recv from a Process's stdout.
-    // Reads one line from stdout via IOReader/read-line, parses
-    // via :wat::edn::read (arc 092). Three-state shape mirrors
-    // arc 111's intra-process recv:
-    //
-    //   Ok(Some v)  — child wrote one EDN-framed O; parsed; here.
-    //   Ok(:None)   — child stdout EOF + clean exit (no stderr,
-    //                 exit code 0).
-    //   Err(died)   — child stdout EOF + non-zero exit OR stderr
-    //                 lines populated. died.message carries the
-    //                 stderr contents joined; arc 113 widens this
-    //                 to a Vec<ProgramDiedError> chain.
-    //
-    // Slice-2b limitation (matches arc 105c hermetic.wat's pattern):
-    // reads stdout primarily; stderr drained only on stdout EOF.
-    // Children that write to stderr WHILE stdout is being read
-    // surface stderr only after stdout EOFs. Multiplex-during-stream
-    // is follow-up substrate work when a caller needs it.
-    //
-    // Pre-§J spelling. Post-arc-109 § J slice 10f this verb
-    // becomes :wat::kernel::Process/recv under the typed-method
-    // naming convention; same shape, just renamed.
-    env.register(
-        ":wat::kernel::process-recv".into(),
-        TypeScheme {
-            type_params: vec!["I".into(), "O".into()],
-            params: vec![process_ty()],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Result".into(),
-                args: vec![
-                    TypeExpr::Parametric {
-                        head: "wat::core::Option".into(),
-                        args: vec![TypeExpr::Path(":O".into())],
-                    },
-                    process_died_chain_ty(),
-                ],
-            },
             rest_param_type: None,
         },
     );
@@ -19059,23 +18832,6 @@ fn register_builtins(env: &mut CheckEnv) {
                 t_var(),
             ],
             ret: comm_send_ret(),
-            rest_param_type: None,
-        },
-    );
-    // Arc 170 slice 3 Gap B — explicit EOF on send side.
-    // (:wat::kernel::Sender/close sender) — ∀T. Sender<T> -> :().
-    // Idempotent. After close, (:wat::kernel::send s v) returns
-    // Result.Err(ChannelDisconnected). No new Result wrapper —
-    // close itself always succeeds (nil return).
-    env.register(
-        ":wat::kernel::Sender/close".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "rust::crossbeam_channel::Sender".into(),
-                args: vec![t_var()],
-            }],
-            ret: TypeExpr::Tuple(vec![]),
             rest_param_type: None,
         },
     );
