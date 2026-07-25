@@ -4,6 +4,26 @@
 > Thread and Process… the caller of spawn-program' gets back a kernel peer' who is then matched in an
 > enum to run a func for that kind of peer… draw the peer' enum stone."* The `spawn-process` de-prime
 > surfaced the need; this stone is the foundation the de-prime should be done AGAINST.
+>
+> **⚠ NAMING UNSETTLED — the enum name is NOT `Peer'` and NOT `Child'`; RE-CAST intueri on the far side
+> with the client/server + remote-generalization constraint.** The four-questions shape (below) is
+> RATIFIED (matchable enum, opaque Impure per-variant payloads, common ops transport-blind, kind-specifics
+> matched, `LociDiedError` pattern). Only the NAMES are open, and here is the trail:
+> - intueri (cast 2026-07-24) returned **`:wat::kernel::Child'`** (variants `Thread`/`Process`; accessors
+>   `child-pid'`/`child-wait'`; `Peer'` left as the self-peer) — reasoning: the parent handle is *custodial*
+>   (pid/pdeathsig/lifeline/reap), not a symmetric peer, matching `std::process::Child`.
+> - **The builder CORRECTED it: `Child'` fails the REMOTE case.** Over a wire (uds / localhost tcp / remote
+>   mTLS) there is **no parent/child** — you don't fork a remote host, you *connect* to it; nothing to reap.
+>   The substrate prefers **client/server** vocabulary. So the custodial ops (pid/wait/kill) are
+>   **LOCAL-FORK-variant-specific** (`Thread`/`Process` carry them; a `Remote` variant never does — exactly
+>   what per-variant kind-specifics capture), and the enum's NAME must tell the truth across ALL transports
+>   (the local end's handle to a spawned-or-connected **server**), not the local-fork truth `Child'` names.
+> - **Far-side re-cast:** intueri on the enum name + variant names + accessor verbs under: *client/server
+>   vocabulary; the handle generalizes thread→process→uds→tcp→mtls→remote; custodial verbs live only on the
+>   local-fork variants.* Candidates to weigh (not decided): the enum as a `Server'`/`Connection'`/`Client'`-
+>   family noun; variants `Thread`/`Process`/`Uds`/`Tcp`/`Remote`. FQDN = zero collision risk (the builder's
+>   point) — so pick the truest names freely. NOTE: replace the `Peer'`/`Child'` working names in the
+>   user-forms below with the re-cast result before building.
 
 ## Why (how the de-prime surfaced it)
 

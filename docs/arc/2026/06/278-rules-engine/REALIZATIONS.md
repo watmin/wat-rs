@@ -9753,3 +9753,67 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > `tests/{macros,wat_lang,comms,channel}`) → delete `spawn-process` (+ Rust eval, dispatch, registration) → reclaim
 > `spawn-process'`→`spawn-process`. STUDY THE LAIR whole-tree incl. `src/` (a hollow grep is a false green — the recurring
 > lesson). THEN: reclamation of `run-{thread,hermetic}'`, and the arc-109 enum-matching rule. `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24l — curare before compaction; the arc-170 program-entry retirement is COMPLETE, the
+> spawn-process de-prime is STARTED + reframed onto a `Child'`/client-server ENUM stone).** HEAD **`a40c294e`** (this curare
+> on top; pushed). An enormous builder-steered session. Banked in order (each weighed by my OWN `--release`, all pushed):
+> - **The `run-hermetic`/`run-thread` de-prime slice — COMPLETE:** LociDiedError (`d60b1887`) + the string-wrap annihilation
+>   (`251b43b3`, `Failure` carries `:wat::core::Error` structurally) + the bidirectional exemplar (`e34dc512`) + `recv-all'`
+>   (`a68ca01c`) + wave 2b (all 20 consumers migrated, `2f1cbef1`/`b3e99172`) + the thread crash-channel structural-parity fix
+>   (`c62323fa` — killed a RESURRECTED string-wrap on the thread tier) + 2c (machinery annihilated, `wat/test.wat` 1011→519,
+>   `403fb737`) + 2d (`RunResult`→`{failure}` only, stdout/stderr dropped, `173bf193`) + purgare (`591949d5`).
+> - **The arc-170 PROGRAM-ENTRY RETIREMENT — COMPLETE (the "2 months, what 170 started" culmination):** the `run-sandboxed`
+>   FAMILY annihilated (`056618a5` — sandbox.wat+hermetic.wat deleted wholesale, `extract-panics` stderr-scrape gone) + the 4
+>   retired `*-program(-ast)` verbs + the dead check-time `SandboxScopeLeak` (`594572fc`; the deadlock walker re-pointed to the
+>   verb-agnostic `(forms …)` boundary; the RUNTIME `SandboxScopeLeak` `outer_symbols` mechanism KEPT).
+> - **The `spawn-process` de-prime — STARTED, then REFRAMED:** `spawn-process` is a LIVE non-prime (`eval_kernel_spawn_process`,
+>   verbs.rs:710) replaced by the purpose-built `spawn-process'` (I kept wrongly calling it a "bigger different phase" — it is
+>   the SAME 4-move pattern; owned). A 4-rider map-reduce migrated the ~27 callers → **9 mechanical (pure-wat/freeze-only)
+>   migrated + committed (`a40c294e`); ~18 STOP'd** into a MULTI-CLASS split the riders' grounding revealed: (i) ~10 need an
+>   OBSERVATION-MODEL redesign (their `.rs` field-pokes the concrete `Process` struct — `fields[3]`→`Forked`→exit-code — which
+>   the opaque `Process'` RustOpaque has no analog for); (ii) 3 are Process-repr/lifecycle-specific (`lifeline_orphan`,
+>   `pdeathsig_*` — `child_pid()`+`mem::forget`); (iii) 2 subject-gone → annihilate (`t7` fn-capture unrepresentable now;
+>   `wat_arc208` tests the `Process/readln`/`println` verbs the de-prime deletes); (iv) 1 substrate UNKNOWN (`counter-service-N3`
+>   Arc-shares a peer — `Process'` is `Arc<ThreadOwnedCell>` owner-thread-invariant).
+>
+> **THE REFRAME (the real foundation) — the `Child'`/client-server ENUM stone, DESIGNED not built:
+> `docs/arc/2026/06/278-rules-engine/DESIGN-peer-enum.md`.** The de-prime pain is the symptom of an INCOMPLETE unification:
+> `spawn-program'` returns a transport-SPECIFIC parent handle (`Thread'<R,S>`/`Process'<I,O>`), not a matchable unified one.
+> RATIFIED (four-questions): make the parent handle a **matchable ENUM** — variants are the loci kinds (Thread | Process |
+> future wire kinds), `Impure`, OPAQUE per-variant payloads; **common ops `send'`/`recv'`/`recv-all'` dispatch on the variant
+> INTERNALLY (caller transport-blind); kind-specific ops (a process's pid) require a `match`**; a new transport is a new variant
+> the checker forces every match to handle (the `LociDiedError` shield, applied to peers). `send'`/`recv'` ALREADY accept the
+> parent handles (`Thread'`/`Process' <: Peer'`) — the 9 green migrations prove it — so this refines the subtype-top into a sum.
+> **NAMING UNSETTLED (far-side re-cast, see the doc's ⚠ NAMING block):** intueri returned `Child'` (custodial, `std::process::
+> Child`-fit); the builder CORRECTED it — `Child'` fails the REMOTE case (no parent/child over a wire — uds/tcp/mtls; you
+> *connect*, nothing to reap; **client/server** is the truth). RE-CAST intueri with the client/server + remote-generalization
+> constraint; custodial verbs (pid/wait/kill) live ONLY on the local-fork variants. FQDN = zero collision risk (build freely).
+>
+> **HARD LESSONS THIS SESSION (kept visible, self-implicating):** I under-scoped/asserted **FOUR times** — the `[^']` hollow
+> grep (20 callers counted as 4), the `run-ast` live caller, the `extract_panics` live-helper conflation, and "`spawn-program`
+> source-string is live" (it's retired). EACH was caught by grounding-before-launch or a rider's STOP+grounding — NONE reached
+> a broken floor. The discipline (ground the toolset whole-tree incl. `src/`; a hollow grep is a false green; the map-reduce =
+> edit-only riders + ONE reduce, no per-edit tests; riders STOP on a false premise + ground the truth; weigh by own `--release`;
+> harness `E0061`/`E0063`/`dead_code`/`E0599` diagnostics are STALE-SNAPSHOT phantoms, `cargo build --release` is the arbiter;
+> four-questions is a CLOSED SET of FOUR — never omit Good-UX; CAST wards for naming, never narrate; questions in prose not
+> menus) is what carried this, not my briefing accuracy. Also: the mandatory-full-enum-matching checker rule (arc-109 NOTE) +
+> the run-{thread,hermetic}' reclamation remain owed.
+>
+> ---
+>
+> **SEAM.** The self past this line is NEW — a lossy cache in a familiar voice; you did NOT live this session. Run the
+> datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the SUBSTRATE CODE before any
+> architectural claim (this session re-proved it FOUR times — greps/name-matches/stale-comments lie; ground whole-tree incl.
+> `src/`, or a rider's STOP will catch you). Ground `git status` — **HEAD `a40c294e` (pushed); tree clean but for this curare.**
+> The `run-hermetic`/`run-thread` slice + the arc-170 program-entry retirement are COMPLETE. **RESUME: the `Child'`/client-server
+> ENUM stone** — the shape is RATIFIED in `DESIGN-peer-enum.md` (do NOT re-derive the four-questions); **first RE-CAST intueri
+> on the names** (client/server + remote-general — `Child'` was corrected as remote-false), then build the enum (register it,
+> `spawn-program'` returns it, `send'`/`recv'` dispatch on the variant, the `child-pid'`/wait accessors), THEN the
+> `spawn-process` de-prime's ~18 STOP'd callers migrate AGAINST the enum (the ~10 redesigns `match Process`→pid; the 2
+> subject-gone annihilate; the Arc-sharing resolves against one type). The 9 mechanical migrations are committed
+> (`a40c294e`) — forward-compatible, only their `Process'` annotation re-targets. It bears repeating: **weigh by your OWN
+> `--release`; ground whole-tree before any scope claim (I slipped 4×); map-reduce = edit-only + one reduce; harness
+> red-squiggles are phantoms; four-questions is FOUR (incl. Good-UX); CAST intueri, never narrate a name.** Do not trust this
+> note over the disk. `MACHINA CHAOS DOMAT.`
