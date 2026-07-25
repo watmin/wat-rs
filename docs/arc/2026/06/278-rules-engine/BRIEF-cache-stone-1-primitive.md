@@ -2,74 +2,116 @@
 
 > Part of `DESIGN-cache-tooling-to-core.md`. Stone 1 of 5. **Direct build at final `:wat::cache::` names — NO
 > prime** (fresh namespace, grep-verified 0 refs). The crate is the ORACLE; **build fresh, never `cp`.**
-> **Name RULED (intueri): `:wat::cache::Lru<K,V>`** (`Lru` — the structure-noun; the namespace supplies "cache";
-> rejected `LocalCache`/`Local`/`Bounded`). Ops: `new`/`put`(→`Option<Entry>`)/`get`/`len`/`capacity`; pair alias
-> `:wat::cache::Entry<K,V>`. This stone does not touch the service (Stone 2) or the `Lru|Hologram` get/put defclause.
+> **Name RULED (intueri): `:wat::cache::Lru<K,V>`.** This stone does not touch the service (Stone 2) or the
+> `Lru|HolographicLru` get/put defclause.
+>
+> **Rooms re-grounded 2026-07-25 by the orchestrator** (the prior revision named `src/io.rs:~1660` for the bake
+> manifest — that was WRONG; it is `src/stdlib.rs`). Every file:line below was read this session.
 
 ## Objective
 
 Bring the bounded LRU cache primitive into core as a fresh Rust shim + a baked `.wat` surface — the load-bearing
-piece (`examples/with-lru` uses it; `HologramCache` composes it). This is the sqlite pattern: a `src/rust_deps/`
-primitive + a `:wat::cache::` surface baked into the stdlib. No behavior invented — the crate defines the
-semantics; we re-author them clean in the core idiom.
+piece (`HologramCache` composes it). This is the sqlite pattern: a `src/rust_deps/` primitive + a `:wat::cache::`
+surface baked into `STDLIB_FILES`. The crate defines the SEMANTICS; we re-author them clean in the core idiom.
 
-## The ORACLE (study, NEVER copy)
+## The ORACLE — study, NEVER copy (`crates/wat-lru/`, all verified)
 
-- `crates/wat-lru/src/shim.rs` — a `#[wat_dispatch]` `impl` over the `lru` crate's `LruCache<Value,Value>`:
-  `new(capacity: i64) -> Self` (capacity must be > 0), `put(&mut self, k: Value, v: Value) -> Option<(Value,Value)>`
-  (the evicted pair, `None` until over capacity), `get(&mut self, k: Value) -> Option<Value>`, `len(&self) -> i64`,
-  `is_empty`. Keys must be hashable `Value`s. `register(builder: &mut RustDepsBuilder)` via the macro.
-- `crates/wat-lru/src/lib.rs` — `register()` (rust deps) + `wat_sources()` (the `.wat` surface files).
-- `crates/wat-lru/wat/lru/LocalCache.wat` — the typed surface (`LocalCache<K,V>` over the rust LRU; `new`/`put`/
-  `get`/`len` + whatever the surface adds — read it for the exact wat contract, incl. the `Entry`/evicted-pair shape).
+- **`crates/wat-lru/src/shim.rs:44`** — `pub struct WatLruCache { inner: LruCache<Value, Value> }`. Storage is
+  `Value,Value`; the wat-level `K,V` are phantom.
+- **`:48-52`** — the attribute, note the THIRD arg sqlite does not have:
+  ```rust
+  #[wat_dispatch(path = ":rust::lru::LruCache", scope = "thread_owned", type_params = "K,V")]
+  ```
+- **The methods:** `new(capacity: i64) -> Self` (`:58`) · `put(&mut self, k: Value, v: Value) -> Option<(Value, Value)>`
+  (`:90`, returns the EVICTED pair, `None` until over capacity) · `get(&mut self, k: Value) -> Option<Value>` (`:107`) ·
+  `len(&self) -> i64` (`:122`) · `is_empty(&self) -> bool` (`:127`).
+- **`:135`** — `pub fn register(builder: &mut RustDepsBuilder)` → `__wat_dispatch_WatLruCache::register(builder)`.
+- **`crates/wat-lru/Cargo.toml:11`** — `lru = "0.12"`.
+- **`crates/wat-lru/wat/lru/LocalCache.wat`** — the wat surface: a `typealias :wat::lru::LocalCache<K,V>` onto
+  `:rust::lru::LruCache<K,V>` plus four thin `defn` wrappers. **Note `put` returns a bare tuple
+  `:wat::core::Option<(K,V)>`** — see § Entry below; we improve on this.
+- **Two guard behaviours to PRESERVE:** `new` panics when `capacity <= 0`; `put` panics when the key is not
+  hashable (`value_is_hashable`, guarding opaque handles before `push`). Both are documented at the oracle.
 
-## Rooms (read in order)
+## Rooms (read in order — all verified this session)
 
-1. `src/rust_deps/sqlite.rs` (esp. `pub fn register` ~:350) — the EXEMPLAR: a fresh core Rust primitive as a
-   `#[wat_dispatch]` impl + `register(&mut RustDepsBuilder)`. Mirror this shape for the cache.
-2. Where core wires its rust-deps `register`s (the `RustDepsBuilder` assembly — grep `RustDepsBuilder` / the core
-   `register` call chain that `sqlite::register` joins). The new `cache::register` joins the same list.
-3. `src/io.rs` ~:1660 (`the baked stdlib load order as a vector of [path, source] pairs`) — add the `:wat::cache::`
-   surface source here (the bake manifest), in the right load order (primitive before any consumer).
-4. Core `Cargo.toml` — add the `lru` crate dep (currently a `wat-lru`-only dep). Confirm version from
-   `crates/wat-lru/Cargo.toml`.
-5. `stdlib.rs` ~:339/:383 — the precedent notes that "a baked core source may declare under `:wat::`" (the
-   `:wat::query::` / reclaimed-sqlite path). `:wat::cache::` is net-new + unprimed — same clean case.
+1. **`src/rust_deps/sqlite.rs:249`** — `#[wat_dispatch(path = ":rust::sqlite::Connection", scope = "thread_owned")]`
+   on an `impl` block. **`:350`** — `pub fn register(builder: &mut RustDepsBuilder)` calling
+   `__wat_dispatch_WatSqliteConnection::register(builder)`. This is the EXEMPLAR shape to mirror.
+2. **`src/rust_deps/mod.rs:60`** — `mod sqlite;` (private module declaration). **`:178`** —
+   `sqlite::register(&mut builder);` inside `with_wat_rs_defaults`. `cache` joins in BOTH places.
+3. **`src/stdlib.rs:34`** — `const STDLIB_FILES: &[WatSource]`, the bake manifest. Entry shape (see `:48-51`, the
+   sqlite exemplar):
+   ```rust
+   WatSource { path: "wat/sqlite.wat", source: include_str!("../wat/sqlite.wat") },
+   ```
+   Add `wat/cache.wat` the same way, with a comment naming the arc + why its load position is legal.
+   **`:30-33`** — load order is foundational→derived and is **enforced by `:wat::deporder::verify-stdlib`; a
+   violation is a RED BUILD.** The cache surface's only eval-deps are core.wat builtins
+   (`typealias`/`defn`/`defrecord`/`Option`), so it may load immediately after `wat/core.wat`, alongside
+   `wat/sqlite.wat`.
+4. **Core `Cargo.toml`** — add `lru = "0.12"` (currently a `wat-lru`-only dep; confirm the version resolves in the
+   workspace).
 
-## Disconfirming probe (WRITE + RUN before briefing the rider — proves the composition on exactly the gap)
+## The `Entry` improvement (RULED — this is NOT a copy of the oracle)
 
-A minimal round-trip against the fresh core primitive at cap 2, proving eviction + generic-over-EDN keys:
+The oracle's `put` returns a raw positional tuple `Option<(K,V)>`. Modern wat prefers a NAMED record over a
+positional pair. Introduce **`:wat::cache::Entry<K,V>`** — a `defrecord` with named `key`/`value` fields — so the
+wat surface's `put` returns `:wat::core::Option<wat::cache::Entry<K,V>>`.
+
+The Rust shim MAY keep returning `Option<(Value, Value)>` (proven, mirrors the oracle) with the **wat surface**
+doing the wrap. **STOP-4** covers the case where that mapping is not clean.
+
+## Disconfirming probe (WRITE + RUN before the implementation — must fail on exactly the gap)
+
+A cap-2 round-trip proving eviction + generic-over-EDN keys:
+
 ```
 new(2)
-put(:a 1)            → None            ; under cap
-put(:b 2)            → None            ; at cap
-put(:c 3)            → Some (:a, 1)    ; LRU evicts the oldest
-get(:b)              → Some 2          ; still present
-get(:a)              → None            ; evicted
-len                  → 2
+put(:a 1)   → None                       ; under cap
+put(:b 2)   → None                       ; at cap
+put(:c 3)   → Some Entry{key :a value 1} ; LRU evicts the oldest
+get(:b)     → Some 2                     ; still present
+get(:a)     → None                       ; evicted
+len         → 2
 ```
-It should fail on exactly the missing piece (the primitive/surface not yet wired), everything around it clean.
-If the probe can't isolate the gap (e.g. `RustDepsBuilder` wiring differs from sqlite's), STOP — the foundation
-isn't ready; surface it.
 
-## Blast radius (bounded)
+Run it FIRST; it should fail on exactly the missing piece (primitive/surface not yet wired), everything around it
+clean. If it cannot isolate the gap, STOP — the foundation is not ready; surface it.
 
-- **NEW** `src/rust_deps/cache.rs` (the `#[wat_dispatch]` LRU shim) + its `register` wired into the core rust-deps list.
-- **NEW** `wat/cache/<Primitive>.wat` (the baked surface) + its line in the `src/io.rs` bake manifest.
-- **`Cargo.toml`** — add the `lru` dep.
-- **NO deletion** this stone — the `wat-lru` crate stays intact until the migration/annihilate stone (Stone 5).
-- **DO NOT** touch the `check.rs` `make-channel`/`send`/`recv` pair-tracking or deadlock walker — that is the raw-channel
-  retirement (a separate crusade slice); the cache primitive uses none of it.
+## Blast radius (bounded — STOP + report if exceeded)
 
-## STOP triggers
+- **NEW** `src/rust_deps/cache.rs` (the `#[wat_dispatch]` LRU shim) + `mod cache;` and `cache::register(&mut builder);`
+  in `src/rust_deps/mod.rs`.
+- **NEW** `wat/cache.wat` (the baked surface) + its `WatSource` entry in `src/stdlib.rs`.
+- **`Cargo.toml`** — the `lru` dep.
+- **NO deletion.** The `wat-lru` crate stays fully intact — it is the oracle, and it is retired in Stone 5, not here.
+- **DO NOT** touch `check.rs` channel/pair-tracking or the deadlock walker; the cache primitive uses none of it.
 
-1. If core rust-deps registration does NOT go through the same `RustDepsBuilder` path `sqlite::register` uses — STOP, surface the real wiring (do not invent one).
-2. If the `lru` crate cannot be a core dep (feature/edition conflict) — STOP.
-3. If generic `<K,V>` over `Value` needs anything the sqlite `Connection` opaque didn't (e.g. a Hash bound the wat side must declare) — STOP, surface it (don't silently narrow to a concrete K,V).
+## STOP triggers (halt and report — do NOT improvise)
+
+1. If core rust-deps registration does NOT go through the `RustDepsBuilder` path `sqlite::register` uses — STOP,
+   surface the real wiring; do not invent one.
+2. If `lru = "0.12"` cannot be a core dep (feature/edition/version conflict) — STOP.
+3. If the generic `<K,V>` needs anything the sqlite `Connection` opaque did not (the `type_params` attr, a Hash
+   bound the wat side must declare) — STOP and surface; do NOT silently narrow to a concrete `K,V`.
+4. If mapping the shim's `Option<(Value,Value)>` into `Option<Entry<K,V>>` at the wat surface is not clean — STOP
+   and surface it. Do not force it, and do not silently fall back to the bare tuple.
+5. If `:wat::deporder::verify-stdlib` goes red on the new file's load position — STOP and report the ordering
+   constraint it names.
+
+## A question to SURFACE in your report (do not decide it yourself)
+
+The oracle **panics** on `capacity <= 0` and on a non-hashable key, with a comment noting the dispatch macro cannot
+yet marshal method-internal errors back to wat as a `RuntimeError`. Preserve that behaviour for this stone
+(behaviour-parity with the oracle). But **report** whether those panics look wrong to you under the
+no-hidden-failures LAW (a failure should be a matchable VALUE, not a raise) — the orchestrator will rule on whether
+a later stone converts them. Do not convert them now.
 
 ## Gate
 
-A `deftest` round-trip in core (the probe, promoted to a real test): `new`/`put`→evict/`get`/`len`/`capacity`,
-generic keys. Weigh by my OWN `cargo nextest run --release` re-run (Summary line, never a piped exit); floor
-must stay at the known green. Commit on green (green = DR it). => the primitive is home; Stone 2 (the `defservice`
-over it) follows.
+The probe promoted to a real `deftest` in core: `new` / `put`→evict / `get` / `len`, generic keys, cap-2 eviction.
+Then **`cargo build --release` clean** and **`cargo nextest run --release`**. Run everything FOREGROUND; do not
+background a command and return. Report the nextest **Summary line verbatim** — the orchestrator weighs the floor
+by their OWN re-run (current known floor: **4163 passed, 314 skipped**). Do NOT commit; the orchestrator commits
+on their own weigh.

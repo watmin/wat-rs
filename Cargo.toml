@@ -102,6 +102,12 @@ ctor = "1"
 # `:wat::query` is backed by memory OR sqlite, both first-class core.
 # `bundled` vendors sqlite itself — no system libsqlite3 dependency.
 rusqlite = { version = "0.31", features = ["bundled"] }
+# Arc 278 Cache Stone 1 — `:rust::cache::Lru` (src/rust_deps/cache.rs), the SECOND
+# core default `:rust::` shim. A bounded cache is table-stakes substrate, so the
+# `lru` crate joins rusqlite as a hard core dep: `wat/cache.wat` is baked into
+# STDLIB_FILES and must resolve in every freeze. Same version the study oracle
+# (crates/wat-lru) pins, so the workspace resolves ONE `lru`.
+lru = "0.12"
 
 [dev-dependencies]
 

@@ -55,6 +55,7 @@ use crate::ast::WatAST;
 use crate::runtime::{Environment, RuntimeError, SymbolTable, Value};
 use crate::span::Span;
 
+mod cache;
 pub mod custodia;
 pub mod marshal;
 mod sqlite;
@@ -173,9 +174,19 @@ impl RustDepsBuilder {
     /// `cargo wat`, and the whole test suite must all resolve it without a
     /// consumer crate registering anything extra. `compose_and_run` and
     /// `Harness` call this before layering their own dep registrars on top.
+    ///
+    /// Arc 278 Cache Stone 1 — `:rust::cache::Lru` (`cache.rs`, a fresh
+    /// thread-owned bounded LRU) joins as the SECOND core default shim, for the
+    /// same reason: `wat/cache.wat` is BAKED into `STDLIB_FILES`, so every
+    /// freeze — `cargo wat`, the test harness, a sandbox child — must resolve
+    /// `:rust::cache::Lru` without a consumer crate registering anything. (The
+    /// sibling `wat-lru` crate's `:rust::lru::LruCache` remains a separately
+    /// registered, non-default shim; it is the study oracle and is retired in
+    /// Stone 5.)
     pub fn with_wat_rs_defaults() -> Self {
         let mut builder = Self::new();
         sqlite::register(&mut builder);
+        cache::register(&mut builder);
         builder
     }
 

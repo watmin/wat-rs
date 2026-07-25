@@ -49,6 +49,20 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/sqlite.wat",
         source: include_str!("../wat/sqlite.wat"),
     },
+    // Arc 278 Cache Stone 1 — :wat::cache:: — the bounded LRU primitive over the fresh
+    // `:rust::cache::Lru` shim (src/rust_deps/cache.rs, core's SECOND default :rust:: shim).
+    // A cache is table-stakes substrate, so the cache tooling comes home to core (the
+    // wat-lru crate is the study ORACLE, retired in Stone 5). Later stones add the
+    // `lru-svc` defservice + the HolographicLru composite ON TOP of this file.
+    // Load position: its only eval-deps are wat/core.wat builtins (typealias/defn/Option/i64)
+    // plus `:wat::core::defrecord`, which is a DEFMACRO — registered in the order-free
+    // pre-expansion pass, so wat/Record.wat's later position is not a dependency
+    // (`:wat::deporder::verify-stdlib` classifies defmacro refs as order-free). Hence it may
+    // load immediately after wat/core.wat, beside the other :rust::-shim surface.
+    WatSource {
+        path: "wat/cache.wat",
+        source: include_str!("../wat/cache.wat"),
+    },
     // Arc 118.2a — the clojure-named lazy/eager HOF surface (map/filter/take/drop are Rust
     // intrinsics, unconditionally available; this file adds `filter` [wat-defined], `mapv`/
     // `filterv`/`into`/`doall`/`dorun`/`reduce`/`count`). Moved here (immediately after
