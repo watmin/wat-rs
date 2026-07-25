@@ -9725,3 +9725,31 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > **STILL OWED (deferred, not dropped):** the `run-{thread,hermetic}` RECLAMATION (0z drop-`'`: `run-thread'`→`run-thread`,
 > `run-hermetic'`→`run-hermetic`) — the builder reprioritized the run-sandboxed annihilation ahead of it; do the reclamation
 > after. Also the mandatory-full-enum-matching checker rule (arc-109 NOTE). `MACHINA CHAOS DOMAT.`
+
+---
+
+> **FAR-SIDE UPDATE (2026-07-24k — the arc-170 PROGRAM-ENTRY RETIREMENT is FULLY CLEANED; RESUME = the `spawn-process`
+> de-prime).** HEAD **`594572fc`** (pushed). The culmination the builder named — *"what 170 started, 2 months of grinding"* —
+> is landed across two commits:
+> - **`056618a5`** — the `run-sandboxed` FAMILY annihilated (the manual sandbox-a-program model): `sandbox.wat`+`hermetic.wat`
+>   deleted wholesale (9 defns), stdlib wrappers (`:wat::test::run`/`run-in-scope`/`run-ast`) + witness gone, `extract-panics`
+>   (the family stderr-scrape wat verb) retired. Net −457.
+> - **`594572fc`** — the 4 retired `*-program(-ast)` verbs (`fork-program`/`-ast`, `spawn-program`/`-ast` — ALL nag-only, no
+>   eval) + their `BareLegacy*` diagnostics + retirement tests gone; the dead CHECK-TIME `SandboxScopeLeak` deleted (its only
+>   heads were those retired verbs); the deadlock walker re-pointed to the verb-agnostic `(:wat::core::forms …)` boundary.
+>   Net +50/−425. The RUNTIME `SandboxScopeLeak` (`outer_symbols` mechanism, runtime.rs:5640) is LIVE — KEPT.
+> All green 4217/0 (own re-runs). **CORRECTION (my 4th scope-slip this session, owned):** `spawn-program` (source-string) is
+> RETIRED (nag-only, no eval) — I'd wrongly called it "a live non-prime." It died in `594572fc`. It is NOT part of the
+> spawn-process de-prime.
+>
+> **RESUME: the `spawn-process` DE-PRIME** (the live non-prime — HAS `eval_kernel_spawn_process`, verbs.rs:710). `spawn-process'`
+> exists precisely to replace it (I kept wrongly calling this a "bigger different phase" — it is the SAME 4-move pattern). It's a
+> genuine MIGRATION, not a rename: (a) the user-facing target is **`spawn-program' (:wat::spawn::process)`** (the wave-2b
+> exemplars call it from test code — GROUND it's unrestricted; `spawn-process'`/`spawn-thread'` themselves are `restricted_to
+> :wat::kernel::` internal primitives that `spawn-program'` dispatches to); (b) the child model CHANGES — non-prime
+> `spawn-process` child is `fn [rx <- Receiver<I> tx <- Sender<O>] -> nil` (old arity) / a `(forms …)` block; the primed child is
+> `fn [self <- Peer'<S,R>] -> nil` (self-peer) or `(forms …)`; (c) return changes `Process<I,O>` → `Peer'<I,O>`. Migrate the ~27
+> callers (`tests/process/*`, `tests/function/probe_closure_body_prelude_lift_t1-t5`, `tests/program/t5-t7`, `wat-tests/counter-*`,
+> `tests/{macros,wat_lang,comms,channel}`) → delete `spawn-process` (+ Rust eval, dispatch, registration) → reclaim
+> `spawn-process'`→`spawn-process`. STUDY THE LAIR whole-tree incl. `src/` (a hollow grep is a false green — the recurring
+> lesson). THEN: reclamation of `run-{thread,hermetic}'`, and the arc-109 enum-matching rule. `MACHINA CHAOS DOMAT.`
