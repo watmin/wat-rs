@@ -7,23 +7,28 @@
 ;; is the wat program under test: it spawns the flooding child and drives select' over it,
 ;; exactly as the (deleted) dynamically-built Rust AST used to.
 ;;
-;; Flood strategy: the child builds a 1 MiB string (2^20 = 1,048,576 bytes of 'x') via
-;; double-string and prints it. The println wire format is a quoted EDN string
-;; ("xxxx...xxx"\n) — total frame ~1,048,578 bytes, well above the 512 KiB cap. The child
-;; stays alive (blocked in the kernel's write(2), pipe buffer full) while the parent
-;; accumulates bytes past the cap.
+;; Flood strategy (arc 170 Strike 3): the child builds a 1 MiB string (2^20 = 1,048,576 bytes of
+;; 'x') via double-string and RAW-writes it to fd 1 via `:wat::kernel::write-fd-raw` — NOT `println`.
+;; After the verb flip, `println` is bounded by StdOut''s `:max-request-bytes` op budget, so a
+;; conforming peer's oversized println now fails with RequestTooLarge BEFORE it can flood the wire
+;; (correct — bounded stdio). This probe needs a NON-CONFORMING peer, so it emits raw un-terminated
+;; bytes straight to fd 1 (the peer wire): 1,048,576 bytes with no frame terminator, well above the
+;; 512 KiB cap. The child stays alive (blocked in the kernel's write(2), pipe buffer full) while the
+;; parent's frame reader accumulates past the cap → FrameTooLarge → Lost.
 
 (:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::nil,wat::core::nil,wat::core::nil>
   (:wat::core::let
     [child (:wat::kernel::spawn-program' (:wat::spawn::process)
              (:wat::core::forms
-               (:wat::core::defn :user::double-string
-                   [s <- :wat::core::String n <- :wat::core::i64]
-                   -> :wat::core::String
-                 (:wat::core::if (:wat::core::= n 0) 
-                   s
-                   (:user::double-string (:wat::core::String/concat s s) (:wat::core::- n 1))))
                (:wat::core::defn :user::main [] -> :wat::core::nil
-                 (:wat::kernel::println
-                   (:user::double-string "x" 20)))))]
+                 ;; Simulate a NON-CONFORMING peer that floods fd 1 (the peer wire) with un-terminated
+                 ;; bytes. The `:user::` child controls NOTHING: every raw-write primitive is
+                 ;; kernel/test-gated (users cannot flood ad-hoc), and the ONLY user-reachable flood is
+                 ;; the ZERO-ARG, hardcoded `:wat::test::flood-own-stdout` (fixed ~1 MiB to its OWN
+                 ;; stdout) — in the child's closure (stdlib loads in every child). It blocks in
+                 ;; write(2) once the pipe fills (parent stops draining at FrameTooLarge), keeping the
+                 ;; child alive.
+                 (:wat::core::let
+                   [_n (:wat::test::flood-own-stdout)]
+                   nil))))]
     (:wat::kernel::select' (:wat::core::Vector :wat::kernel::Process'<wat::core::nil,wat::core::nil> child))))

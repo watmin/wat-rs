@@ -26,6 +26,7 @@
 //! threads, so every populated row calls `uninstall_thread_io` on
 //! exit to keep the cell clean between tests.
 
+use std::os::fd::AsRawFd;
 use std::sync::Arc;
 
 use wat::freeze::startup_beside;
@@ -70,6 +71,9 @@ struct MiniUniverse {
     stderr_thread: std::thread::JoinHandle<()>,
     stderr_reader: PipeReader,
     tid: i64,
+    /// Arc 170 Strike 3 — the three PRIMED stdio defservice Handles (started on the same pipe fds).
+    /// The flipped verbs route here; held to keep the primed services alive for the test's duration.
+    _primed_handles: Vec<Value>,
 }
 
 impl MiniUniverse {
@@ -77,6 +81,9 @@ impl MiniUniverse {
         // ── stdin pipe + peer ──────────────────────────────────────────
         let (stdin_pipe_r, stdin_pipe_w) =
             wat::process::make_pipe(":test::stdin-universe").expect("pipe for the stdin reader");
+        // Arc 170 Strike 3 — capture the raw fd BEFORE the OwnedFd moves into the reader; the primed
+        // StdIn' service is started on this same fd (dup) so the flipped readln reads the test's feed.
+        let stdin_r_fd = stdin_pipe_r.as_raw_fd() as i64;
         let stdin_reader = Value::io__IOReader(Arc::new(PipeReader::from_owned_fd(stdin_pipe_r)));
         let stdin_feed = PipeWriter::from_owned_fd(stdin_pipe_w);
 
@@ -103,6 +110,7 @@ impl MiniUniverse {
         // ── stdout pipe + peer ──────────────────────────────────────────
         let (stdout_pipe_r, stdout_pipe_w) =
             wat::process::make_pipe(":test::stdout-universe").expect("pipe for the stdout writer");
+        let stdout_w_fd = stdout_pipe_w.as_raw_fd() as i64;
         let stdout_writer = Value::io__IOWriter(Arc::new(PipeWriter::from_owned_fd(stdout_pipe_w)));
         let stdout_reader = PipeReader::from_owned_fd(stdout_pipe_r);
 
@@ -123,6 +131,7 @@ impl MiniUniverse {
         // ── stderr pipe + peer ──────────────────────────────────────────
         let (stderr_pipe_r, stderr_pipe_w) =
             wat::process::make_pipe(":test::stderr-universe").expect("pipe for the stderr writer");
+        let stderr_w_fd = stderr_pipe_w.as_raw_fd() as i64;
         let stderr_writer = Value::io__IOWriter(Arc::new(PipeWriter::from_owned_fd(stderr_pipe_w)));
         let stderr_reader = PipeReader::from_owned_fd(stderr_pipe_r);
 
@@ -140,12 +149,45 @@ impl MiniUniverse {
         );
         let wat::services::ServicePeer { input_tx: stderr_input_tx, thread: stderr_thread } = stderr_peer;
 
-        // ── RS-carrying sym — all three primitives reach peers via runtime_services(). ──
+        // ── RS-carrying sym — the OLD path (bootstrapped-but-idle after the Strike 3 verb flip). ──
         let mut sym = world.symbols().clone();
         sym.set_runtime_services(Arc::new(RuntimeServices {
             stdin_ctrl: stdin_input_tx.clone(),
             stdout_ctrl: stdout_input_tx.clone(),
             stderr_ctrl: stderr_input_tx.clone(),
+        }));
+
+        // ── Arc 170 Strike 3 — the PRIMED path (what the flipped verbs actually use). Start the three
+        //    primed stdio defservices on the SAME pipe fds (so writes land on stdout_reader/stderr_reader
+        //    and readln reads the stdin feed), and set the primed_stdio carrier. The old services above
+        //    stay wired but idle — the verbs no longer send them Reqs. ──────────────────────────────
+        let start_helper = world
+            .symbols()
+            .get(":wat::kernel::start-primed-stdio")
+            .expect(":wat::kernel::start-primed-stdio in the baked stdlib")
+            .clone();
+        let primed_span = wat::span::Span::new(Arc::new("mini-universe".to_string()), 1, 1);
+        let handles_tuple = apply_function(
+            start_helper,
+            vec![Value::i64(stdin_r_fd), Value::i64(stdout_w_fd), Value::i64(stderr_w_fd)],
+            &sym,
+            primed_span,
+        )
+        .expect("primed stdio services start");
+        let primed_handles: Vec<Value> = match handles_tuple {
+            Value::Tuple(v) if v.len() == 3 => vec![v[0].clone(), v[1].clone(), v[2].clone()],
+            other => panic!("start-primed-stdio must return a 3-tuple of Handles; got {other:?}"),
+        };
+        let addr_of = |h: &Value| -> Value {
+            match h {
+                Value::Aggregate(a) if a.fields.len() >= 2 => a.fields[1].clone(),
+                other => panic!("primed Handle must be a ≥2-field aggregate; got {other:?}"),
+            }
+        };
+        sym.set_primed_stdio(Arc::new(wat::services::PrimedStdio {
+            stdin_addr: addr_of(&primed_handles[0]),
+            stdout_addr: addr_of(&primed_handles[1]),
+            stderr_addr: addr_of(&primed_handles[2]),
         }));
 
         // ── Register this thread with all three peers. ───────────────────
@@ -172,6 +214,10 @@ impl MiniUniverse {
             stderr_reply_rx,
             thread_id: tid,
             stdin_reply_rx,
+            // Arc 170 Strike 3 — primed-stdio client peer cache (unused by this old-path test).
+            stdout_peer: std::cell::RefCell::new(None),
+            stderr_peer: std::cell::RefCell::new(None),
+            stdin_peer: std::cell::RefCell::new(None),
         });
 
         MiniUniverse {
@@ -186,6 +232,7 @@ impl MiniUniverse {
             stderr_thread,
             stderr_reader,
             tid,
+            _primed_handles: primed_handles,
         }
     }
 
@@ -283,7 +330,11 @@ impl MiniUniverse {
             stderr_thread,
             stderr_reader,
             tid,
+            // Arc 170 Strike 3 — drop the primed Handles here → the primed services shut down (the
+            // flipped verbs' peers disconnect); teardown proceeds to the old-path deregister below.
+            _primed_handles,
         } = self;
+        drop(_primed_handles);
         stdin_input_tx
             .send(ServiceMsg::Deregister(tid))
             .expect("deregister stdin");

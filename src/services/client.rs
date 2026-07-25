@@ -88,6 +88,21 @@ pub struct ThreadIO {
     /// Ok(line) = a line was read; Err(msg) = handle error (write-side failure);
     /// Recv Err = the loop disconnected (EOF cascade via assertion-failed!).
     pub stdin_reply_rx: ReadReplyRx,
+
+    // ── Arc 170 Strike 3 (the verb flip) — per-thread CACHED client Peer' to each PRIMED stdio
+    //    defservice. The flipped verbs (src/services/verbs.rs) `connect'` ONCE per thread (lazily, on
+    //    first println/eprintln/readln) via the wat `stdio-connect-*` helpers, then reuse the cached
+    //    Peer' for every subsequent op — the same mini-round-trip the old *_reply_rx above served,
+    //    now over the primed defservice wire. Each field holds the dialed `Peer'` Value; its Drop (at
+    //    thread exit / ThreadIO uninstall) disconnects the client. `RefCell` gives interior
+    //    mutability under the immutable `&ThreadIO` that `with_thread_io` hands out. COEXIST: the
+    //    `*_reply_rx` fields above stay (idle now — verbs no longer read them); Phase 3 removes them.
+    /// Cached client Peer'<StdOut'::Op,StdOut'::Reply> for `println`/`pprintln`.
+    pub stdout_peer: std::cell::RefCell<Option<crate::runtime::Value>>,
+    /// Cached client Peer'<StdErr'::Op,StdErr'::Reply> for `eprintln`/`epprintln`.
+    pub stderr_peer: std::cell::RefCell<Option<crate::runtime::Value>>,
+    /// Cached client Peer'<StdIn'::Op,StdIn'::Reply> for `readln`.
+    pub stdin_peer: std::cell::RefCell<Option<crate::runtime::Value>>,
 }
 
 // rune:perspicere(intentional-structure) — RefCell<Option<T>> is the
@@ -124,9 +139,12 @@ pub fn uninstall_thread_io() -> Option<ThreadIO> {
     THREAD_IO.with(|cell| cell.borrow_mut().take())
 }
 
-/// Internal accessor used by the three eval arms. Borrows the
-/// ThreadIO for the duration of `f` and surfaces a clean
-/// `ServiceNotRunning` diagnostic when the cell is empty.
+/// Internal accessor for the OLD *_reply_rx path. Borrows the ThreadIO for the duration of `f` and
+/// surfaces a clean `ServiceNotRunning` diagnostic when the cell is empty.
+///
+/// Arc 170 Strike 3 — no longer called (the five verbs route through the primed defservices via
+/// `cached_stdio_peer`). Retained COEXIST (old path bootstrapped-but-idle); Phase 3 removes it.
+#[allow(dead_code)]
 pub(crate) fn with_thread_io<F, T>(op: &'static str, span: &crate::span::Span, f: F) -> Result<T, crate::runtime::RuntimeError>
 where
     F: FnOnce(&ThreadIO) -> Result<T, crate::runtime::RuntimeError>,
@@ -138,6 +156,47 @@ where
             op: op.into()
         } }),
     })
+}
+
+/// Arc 170 Strike 3 (the verb flip) — get this thread's CACHED client `Peer'` to a primed stdio
+/// service, `connect'`ing once (lazily) via the wat `connect_helper` and caching it in the ThreadIO
+/// cell chosen by `select`. Subsequent calls on the same thread reuse the cached peer.
+///
+/// The RefCell borrow is NEVER held across the `apply_function` connect (which must not re-enter the
+/// cache): fast-path read + clone, release, connect, then borrow_mut to store. Surfaces
+/// `ServiceNotRunning` if no ThreadIO is installed on this thread (mirrors the old-path guard).
+pub(crate) fn cached_stdio_peer(
+    op: &'static str,
+    span: &crate::span::Span,
+    sym: &crate::runtime::SymbolTable,
+    addr: crate::runtime::Value,
+    connect_helper: &'static str,
+    select: fn(&ThreadIO) -> &RefCell<Option<crate::runtime::Value>>,
+) -> Result<crate::runtime::Value, crate::runtime::RuntimeError> {
+    use crate::runtime::{RuntimeError, RuntimeErrorKind};
+    // 1. Fast path — return the cached peer if present (borrow released before return).
+    let cached = THREAD_IO.with(|cell| cell.borrow().as_ref().and_then(|io| select(io).borrow().clone()));
+    if let Some(p) = cached {
+        return Ok(p);
+    }
+    // 2. No ThreadIO installed → the stdio services are not running on this thread.
+    let installed = THREAD_IO.with(|cell| cell.borrow().is_some());
+    if !installed {
+        return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::ServiceNotRunning { op: op.into() } });
+    }
+    // 3. connect' via the wat helper — NO ThreadIO borrow held across apply_function.
+    let connect_fn = sym.get(connect_helper).ok_or_else(|| RuntimeError {
+        span: span.clone(),
+        kind: RuntimeErrorKind::UnknownFunction(connect_helper.into()),
+    })?.clone();
+    let peer = crate::runtime::apply_function(connect_fn, vec![addr], sym, span.clone())?;
+    // 4. Cache it (borrow_mut released immediately).
+    THREAD_IO.with(|cell| {
+        if let Some(io) = cell.borrow().as_ref() {
+            *select(io).borrow_mut() = Some(peer.clone());
+        }
+    });
+    Ok(peer)
 }
 
 /// Holds the three universe-resident service peer input channels; accessed via
@@ -303,6 +362,10 @@ pub fn register_thread_with_services(
         stderr_reply_rx,
         thread_id,
         stdin_reply_rx,
+        // Arc 170 Strike 3 — cached primed-stdio client peers, connect'd lazily on first use.
+        stdout_peer: std::cell::RefCell::new(None),
+        stderr_peer: std::cell::RefCell::new(None),
+        stdin_peer: std::cell::RefCell::new(None),
     })
 }
 

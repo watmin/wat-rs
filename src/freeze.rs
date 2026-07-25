@@ -260,6 +260,16 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         None => crate::process::lend_ambient(),
     };
 
+    // Arc 170 Strike 3 — read each ambient handle's raw fd NUMBER *now*, BEFORE handing the handles to
+    // the old path (step 2). The primed stdio defservices (step 5) are seeded with THESE fds — so a
+    // test's redirected `AmbientStdio` (a pipe-backed handle) flows through the PRIMED path too, giving
+    // the flipped verbs their capture. `as_raw_fd_for_poll()` is `Some(fd)` for an fd-backed handle
+    // (pipe / real stdio), `None` for a non-fd stand-in (StringIo) → fall back to raw 0/1/2 (production
+    // leaves the ambient unset → `lend_ambient` already wraps real fds, which report Some anyway).
+    let stdin_fd = stdio.stdin.as_raw_fd_for_poll().map(|fd| fd as i64).unwrap_or(0);
+    let stdout_fd = stdio.stdout.as_raw_fd_for_poll().map(|fd| fd as i64).unwrap_or(1);
+    let stderr_fd = stdio.stderr.as_raw_fd_for_poll().map(|fd| fd as i64).unwrap_or(2);
+
     // Step 2 — Spawn the three services.
     //
     // stdin: Arc 214 Stone 8.2 — universe-resident read peer (same shape as write pair).
@@ -366,7 +376,10 @@ pub fn bootstrap_wat_vm_process(args: BootstrapArgs<'_>) -> Result<ProcessRuntim
         .clone();
     let handles_tuple = apply_function(
         start_helper,
-        vec![Value::i64(0), Value::i64(1), Value::i64(2)],
+        // Ambient-aware (Strike 3): the primed services dup the SAME fds the old path uses, so the
+        // flipped verbs' writes land where a test's redirected AmbientStdio points (capture flows
+        // through the primed path). Production (ambient unset) → real fd 0/1/2.
+        vec![Value::i64(stdin_fd), Value::i64(stdout_fd), Value::i64(stderr_fd)],
         pre_sym,
         crate::rust_caller_span!(),
     )?;

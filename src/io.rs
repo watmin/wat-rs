@@ -98,6 +98,14 @@ pub trait WatWriter: Send + Sync + std::fmt::Debug {
     fn close(&self, _span: Span) -> Result<(), RuntimeError> {
         Ok(())
     }
+
+    /// The raw fd this writer backs, if any — for the arc 170 stdio-as-defservice bootstrap, which
+    /// seeds the primed services with fd NUMBERS. `None` for non-FD-backed writers (RealStdout,
+    /// StringIoWriter); overridden in PipeWriter to return `Some(self.fd)`. Mirrors the WatReader
+    /// method of the same name (io.rs:62) — symmetry the writer trait was missing.
+    fn as_raw_fd_for_poll(&self) -> Option<i32> {
+        None
+    }
 }
 
 // ─── Real stdio wrappers ─────────────────────────────────────────────────
@@ -669,6 +677,13 @@ impl WatWriter for PipeWriter {
             }
         }
         Ok(())
+    }
+
+    /// The raw fd this writer backs (arc 170 stdio-as-defservice bootstrap seeds the primed services
+    /// with fd numbers). `-1` (closed) reports `None`. Mirrors the PipeReader override (io.rs).
+    fn as_raw_fd_for_poll(&self) -> Option<i32> {
+        let raw = self.fd.load(Ordering::SeqCst);
+        if raw >= 0 { Some(raw) } else { None }
     }
 }
 

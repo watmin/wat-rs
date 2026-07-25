@@ -202,6 +202,10 @@ fn h2_guard_arm_non_struct_req_loop_survives() {
             let (_, rx) = wat::comms::thread::pair::<Result<String, String>>();
             rx
         },
+        // Arc 170 Strike 3 — primed-stdio client peer cache (unused by this old-path test).
+        stdout_peer: std::cell::RefCell::new(None),
+        stderr_peer: std::cell::RefCell::new(None),
+        stdin_peer: std::cell::RefCell::new(None),
     });
 
     // ── Malformed Req #1: not a Struct — the loop should log + continue ──
@@ -276,6 +280,10 @@ fn h2_guard_arm_wrong_field0_type_loop_survives() {
             let (_, rx) = wat::comms::thread::pair::<Result<String, String>>();
             rx
         },
+        // Arc 170 Strike 3 — primed-stdio client peer cache (unused by this old-path test).
+        stdout_peer: std::cell::RefCell::new(None),
+        stderr_peer: std::cell::RefCell::new(None),
+        stdin_peer: std::cell::RefCell::new(None),
     });
 
     // ── Malformed Req #2: Struct but field[0] is String, not i64 ────────

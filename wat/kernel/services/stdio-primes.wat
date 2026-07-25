@@ -119,3 +119,158 @@
     (:wat::kernel::stdin-svc'/start  :locus (:wat::spawn::thread) :record (:wat::kernel::stdin-svc'::Record)  :fd stdin-fd)
     (:wat::kernel::stdout-svc'/start :locus (:wat::spawn::thread) :record (:wat::kernel::stdout-svc'::Record) :fd stdout-fd)
     (:wat::kernel::stderr-svc'/start :locus (:wat::spawn::thread) :record (:wat::kernel::stderr-svc'::Record) :fd stderr-fd)))
+
+;; ─── Strike 3 client-side helpers (arc 170 PHASE 2 — the verb flip) ──────────────────────────────
+;; The five caller verbs (eval_kernel_{println,pprintln,eprintln,epprintln,readln}, src/services/verbs.rs)
+;; now route THROUGH the primed defservices. Rust caches a per-thread client Peer' (connect' once), then
+;; drives these thin helpers via apply_function. The connect'/send'/recv' + typed-response match live
+;; in wat (kernel-namespaced — the from-fd restriction et al. stay satisfied); Rust keeps only the EDN
+;; formatting, the cache, the readln decode, and the eprintln terminate. Contracts are preserved exactly
+;; (see the verb docs). COEXIST: the old spawn_service_peer path stays bootstrapped-but-idle.
+
+;; connect' the shared Address' → this thread's OWN client Peer' (raise on any failure arm — a stdio
+;; service that cannot be dialed is fatal, mirroring the old path's ChannelDisconnected).
+(:wat::core::defn :wat::kernel::stdio-connect-out
+  [addr <- :wat::kernel::Address'<wat::kernel::StdOut'::Op,wat::kernel::StdOut'::Reply>]
+  -> :wat::kernel::Peer'<wat::kernel::StdOut'::Op,wat::kernel::StdOut'::Reply>
+  (:wat::core::match (:wat::kernel::connect' addr)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :wat::kernel::stdio-connect-err
+  [addr <- :wat::kernel::Address'<wat::kernel::StdErr'::Op,wat::kernel::StdErr'::Reply>]
+  -> :wat::kernel::Peer'<wat::kernel::StdErr'::Op,wat::kernel::StdErr'::Reply>
+  (:wat::core::match (:wat::kernel::connect' addr)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :wat::kernel::stdio-connect-in
+  [addr <- :wat::kernel::Address'<wat::kernel::StdIn'::Op,wat::kernel::StdIn'::Reply>]
+  -> :wat::kernel::Peer'<wat::kernel::StdIn'::Op,wat::kernel::StdIn'::Reply>
+  (:wat::core::match (:wat::kernel::connect' addr)
+    ((:wat::kernel::ConnectOutcome::Connected p) p)
+    ((:wat::kernel::ConnectOutcome::Refused c)  (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))
+    ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
+
+;; write one already-formatted line via the primed StdOut'/StdErr' peer. ::Ok → nil; ::RequestTooLarge
+;; (framework-minted when a request exceeds :max-request-bytes) → SURFACE; a lost/closed peer → SURFACE
+;; (never silently drop — a stdio write failure is loud, mirroring the old write-failure convention).
+(:wat::core::defn :wat::kernel::stdio-write-out
+  [peer <- :wat::kernel::Peer'<wat::kernel::StdOut'::Op,wat::kernel::StdOut'::Reply>
+   line <- :wat::core::String]
+  -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::StdOut'/write-line peer (:wat::kernel::StdOut'::WriteLineRequest :line line))
+    ((:wat::kernel::RecvOutcome::Message resp)
+      (:wat::core::match resp
+        ((:wat::kernel::StdOut'::WriteLineResponse::Ok) nil)
+        ((:wat::kernel::StdOut'::WriteLineResponse::RequestTooLarge b cap)
+          (:wat::kernel::assertion-failed! "println: stdout write exceeded max-request-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost _cause)
+      (:wat::kernel::assertion-failed! "println: stdout service peer lost" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::kernel::assertion-failed! "println: stdout service peer closed" :wat::core::None :wat::core::None))))
+
+(:wat::core::defn :wat::kernel::stdio-write-err
+  [peer <- :wat::kernel::Peer'<wat::kernel::StdErr'::Op,wat::kernel::StdErr'::Reply>
+   line <- :wat::core::String]
+  -> :wat::core::nil
+  (:wat::core::match (:wat::kernel::StdErr'/write-line peer (:wat::kernel::StdErr'::WriteLineRequest :line line))
+    ((:wat::kernel::RecvOutcome::Message resp)
+      (:wat::core::match resp
+        ((:wat::kernel::StdErr'::WriteLineResponse::Ok) nil)
+        ((:wat::kernel::StdErr'::WriteLineResponse::RequestTooLarge b cap)
+          (:wat::kernel::assertion-failed! "eprintln: stderr write exceeded max-request-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost _cause)
+      (:wat::kernel::assertion-failed! "eprintln: stderr service peer lost" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::kernel::assertion-failed! "eprintln: stderr service peer closed" :wat::core::None :wat::core::None))))
+
+;; read one line via the primed StdIn' peer, returning the RAW line String (Rust decodes it via the
+;; self-describing EDN wire, exactly as the old readln' did). ::Line → the line; ::Eof → reproduce the
+;; old EOF-on-fd0 behavior EXACTLY: a terminal raise (the old StdInService/handle assertion-failed!'d on
+;; EOF → the caller saw ChannelDisconnected; the matchable ::Eof variant is BANKED, not yet exposed to
+;; the 72 readln callers). ::RequestTooLarge → SURFACE.
+(:wat::core::defn :wat::kernel::stdio-read
+  [peer <- :wat::kernel::Peer'<wat::kernel::StdIn'::Op,wat::kernel::StdIn'::Reply>
+   cap  <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::match (:wat::kernel::StdIn'/read-line peer (:wat::kernel::StdIn'::ReadLineRequest :max-buffer-bytes cap))
+    ((:wat::kernel::RecvOutcome::Message resp)
+      (:wat::core::match resp
+        ((:wat::kernel::StdIn'::ReadLineResponse::Line line) line)
+        ((:wat::kernel::StdIn'::ReadLineResponse::Eof)
+          (:wat::kernel::assertion-failed! "readln: EOF on stdin — client (parent process or pipe writer) disconnected" :wat::core::None :wat::core::None))
+        ((:wat::kernel::StdIn'::ReadLineResponse::RequestTooLarge b cap2)
+          (:wat::kernel::assertion-failed! "readln: stdin read exceeded max-buffer-bytes (RequestTooLarge)" :wat::core::None :wat::core::None))))
+    ((:wat::kernel::RecvOutcome::Lost _cause)
+      (:wat::kernel::assertion-failed! "readln: stdin service peer lost" :wat::core::None :wat::core::None))
+    (:wat::kernel::RecvOutcome::Closed
+      (:wat::kernel::assertion-failed! "readln: stdin service peer closed" :wat::core::None :wat::core::None))))
+
+;; ─── write-fd-raw (arc 170) — the RAW, un-terminated write-side sibling of `from-fd`: emit `payload`
+;;     verbatim to a whitelisted fd (no framing, no newline, no op budget), returning the byte count. ─
+;;
+;; The one and only caller today is the `select'`-flood deadlock probe
+;; (tests/comms/probe_select_flood_no_deadlock): after the Strike-3 verb flip, `println` is BOUNDED by
+;; StdOut''s `:max-request-bytes` op budget, so a conforming peer can no longer flood the wire past the
+;; frame cap (correct — that is the whole point). The parent-side guard (`select'` FrameTooLarge → Lost,
+;; no deadlock) must still be exercised, which needs a NON-CONFORMING peer.
+;;
+;; GATED (arbitrary-fd danger sealed): `{:restricted-to [:wat::kernel:: :wat::test::]}` — an arbitrary-fd
+;; raw write is privileged (it reopens an UNBOUNDED write to whatever fd the caller names, bypassing the
+;; framing/budget discipline the flip established), so only a `:wat::kernel::`/`:wat::test::` ENCLOSING FN
+;; may call it. The gate is SAFE: the reserved-prefix gate forbids `:user::` code from authoring a
+;; `:wat::` caller, so no user program can construct a passing call site. A `:user::` flood child reaches
+;; the raw write only through the NARROW fixed-fd `flood-stdout-raw` below.
+(:wat::core::defn :wat::kernel::write-fd-raw
+  {:restricted-to [:wat::kernel:: :wat::test::]}
+  [fd <- :wat::core::i64  payload <- :wat::core::String]
+  -> :wat::core::i64
+  (:wat::io::IOWriter/write-string (:wat::io::IOWriter/from-fd fd) payload))
+
+;; flood-stdout-raw — the NARROW flood entry: fd is HARDCODED to 1 (the caller's OWN stdout / peer
+;; wire), so it can never be abused for arbitrary-fd writes (that danger stays sealed in the gated
+;; `write-fd-raw`). ALSO gated `[:wat::kernel:: :wat::test::]` (builder ruling: users cannot flood —
+;; the tooling forbids it structurally; there is NO user-callable raw-write escape hatch). Its own
+;; enclosing fn is `:wat::kernel::`, so its call to the gated write-fd-raw passes. Reached only from
+;; kernel/test code; the select'-flood probe's child reaches it through a `:wat::test::` flood body.
+;; (Lives in stdio-primes.wat — not wat/test.wat, which loads BEFORE this file — so the defn→defn
+;; eval-dep on write-fd-raw stays intra-file / correctly ordered.)
+(:wat::core::defn :wat::kernel::flood-stdout-raw
+  {:restricted-to [:wat::kernel:: :wat::test::]}
+  [payload <- :wat::core::String]
+  -> :wat::core::i64
+  (:wat::kernel::write-fd-raw 1 payload))
+
+;; str-double — internal (kernel/test-gated) pure helper: `2^n` copies of `s` via repeated concat.
+;; Gated so it is NOT a user-callable knob; it exists only to build flood-own-stdout's fixed payload.
+(:wat::core::defn :wat::kernel::str-double
+  {:restricted-to [:wat::kernel:: :wat::test::]}
+  [s <- :wat::core::String  n <- :wat::core::i64]
+  -> :wat::core::String
+  (:wat::core::if (:wat::core::= n 0)
+    s
+    (:wat::kernel::str-double (:wat::core::String/concat s s) (:wat::core::- n 1))))
+
+;; flood-own-stdout — the TEST-namespaced entry, the ONLY flood path a `:user::` program can reach.
+;; CHOKED DOWN so it cannot be exploited: ZERO ARGS, no knobs, fully HARDCODED behavior — flood the
+;; caller's OWN stdout with a FIXED ~1 MiB (2^20 bytes of 'x') un-terminated payload. The user controls
+;; NOTHING: not the fd (own stdout), not the size, not the content — only whether to trigger the single
+;; fixed flood. Every controllable primitive it composes — `str-double` (size), `flood-stdout-raw`
+;; (payload), `write-fd-raw` (fd) — is kernel/test-gated, so a `:user::` form can reach NONE of them
+;; directly; this zero-arg fixed action is the entire user-reachable surface. The composition passes
+;; the gates because this fn's enclosing scope is `:wat::test::` (matches every helper's whitelist).
+;; The select'-flood deadlock probe's `:user::` child calls `(:wat::test::flood-own-stdout)` to
+;; simulate a non-conforming peer.
+;;
+;; (Lives in stdio-primes.wat, not wat/test.wat: test.wat loads earlier, so a defn there would
+;; eval-depend on the later kernel helpers — a deporder violation. Namespace ≠ file; a baked stdlib
+;; source may define `:wat::test::` here under stdlib privilege.)
+(:wat::core::defn :wat::test::flood-own-stdout
+  [] -> :wat::core::i64
+  (:wat::kernel::flood-stdout-raw (:wat::kernel::str-double "x" 20)))

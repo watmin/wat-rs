@@ -99,5 +99,6 @@ pub use client::{
 };
 pub use verbs::{eval_kernel_println, eval_kernel_pprintln, eval_kernel_eprintln, eval_kernel_epprintln, eval_kernel_readln_prime};
 
-// with_thread_io is pub(crate) in client — verbs.rs imports it from here.
-pub(crate) use client::with_thread_io;
+// Arc 170 Strike 3 — `with_thread_io` (the old *_reply_rx accessor) is no longer used now the five
+// verbs route through the primed defservices (cached_stdio_peer). Kept in client.rs (COEXIST — old
+// path bootstrapped-but-idle; Phase 3 removes it) with an allow(dead_code); the re-export is dropped.
