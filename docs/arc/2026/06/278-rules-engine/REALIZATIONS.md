@@ -9786,10 +9786,13 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > INTERNALLY (caller transport-blind); kind-specific ops (a process's pid) require a `match`**; a new transport is a new variant
 > the checker forces every match to handle (the `LociDiedError` shield, applied to peers). `send'`/`recv'` ALREADY accept the
 > parent handles (`Thread'`/`Process' <: Peer'`) — the 9 green migrations prove it — so this refines the subtype-top into a sum.
-> **NAMING UNSETTLED (far-side re-cast, see the doc's ⚠ NAMING block):** intueri returned `Child'` (custodial, `std::process::
-> Child`-fit); the builder CORRECTED it — `Child'` fails the REMOTE case (no parent/child over a wire — uds/tcp/mtls; you
-> *connect*, nothing to reap; **client/server** is the truth). RE-CAST intueri with the client/server + remote-generalization
-> constraint; custodial verbs (pid/wait/kill) live ONLY on the local-fork variants. FQDN = zero collision risk (build freely).
+> **NAMING RESOLVED (builder): the enum IS `:wat::kernel::Peer'`, the CONTAINER over `Thread'` and `Process'`** (+ future
+> `Uds'`/`Tcp'`/`Remote'`). The defining relationship is IPC — *"a thing we IPC against"* = a peer; that's universal, custody
+> (pid/reap) is variant-specific + local-only. `Child'` is RETIRED (an intueri over-index on the local-fork `std::process::Child`
+> case; it FAILS the remote case — no child over a wire, but there IS a peer; the apparatus over-deferred to intueri, corrected).
+> `send'`/`recv'` on any `Peer'` (transport-blind); `match` to a variant for kind-specifics; custodial accessors live ONLY on
+> the local-fork variants. This unifies the parent handle + the worker self-peer as one `Peer'` (build-detail: whether the
+> self-param folds in). FQDN = zero collision risk. NO re-cast owed.
 >
 > **HARD LESSONS THIS SESSION (kept visible, self-implicating):** I under-scoped/asserted **FOUR times** — the `[^']` hollow
 > grep (20 callers counted as 4), the `run-ast` live caller, the `extract_panics` live-helper conflation, and "`spawn-program`
@@ -9807,10 +9810,11 @@ continues." His (the doctrine, the correction, the sign-off), mine (the run-arc,
 > datamancy bootstrap (grimoire + 4 primers + recolligere from the SIGNED MCP) and read the SUBSTRATE CODE before any
 > architectural claim (this session re-proved it FOUR times — greps/name-matches/stale-comments lie; ground whole-tree incl.
 > `src/`, or a rider's STOP will catch you). Ground `git status` — **HEAD `a40c294e` (pushed); tree clean but for this curare.**
-> The `run-hermetic`/`run-thread` slice + the arc-170 program-entry retirement are COMPLETE. **RESUME: the `Child'`/client-server
-> ENUM stone** — the shape is RATIFIED in `DESIGN-peer-enum.md` (do NOT re-derive the four-questions); **first RE-CAST intueri
-> on the names** (client/server + remote-general — `Child'` was corrected as remote-false), then build the enum (register it,
-> `spawn-program'` returns it, `send'`/`recv'` dispatch on the variant, the `child-pid'`/wait accessors), THEN the
+> The `run-hermetic`/`run-thread` slice + the arc-170 program-entry retirement are COMPLETE. **RESUME: build the `:wat::kernel::Peer'`
+> CONTAINER-ENUM stone** — the shape AND the name are RATIFIED in `DESIGN-peer-enum.md` (do NOT re-derive the four-questions; do
+> NOT re-cast — the name is `Peer'`, the container over `Thread'`/`Process'`; `Child'` is retired). Build the enum (register
+> `Peer'` = `Thread'` | `Process'` | future wire kinds; `spawn-program'` returns it; `send'`/`recv'` dispatch on the variant;
+> custodial accessors on the local-fork variants only), THEN the
 > `spawn-process` de-prime's ~18 STOP'd callers migrate AGAINST the enum (the ~10 redesigns `match Process`→pid; the 2
 > subject-gone annihilate; the Arc-sharing resolves against one type). The 9 mechanical migrations are committed
 > (`a40c294e`) — forward-compatible, only their `Process'` annotation re-targets. It bears repeating: **weigh by your OWN

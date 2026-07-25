@@ -5,25 +5,23 @@
 > enum to run a func for that kind of peer… draw the peer' enum stone."* The `spawn-process` de-prime
 > surfaced the need; this stone is the foundation the de-prime should be done AGAINST.
 >
-> **⚠ NAMING UNSETTLED — the enum name is NOT `Peer'` and NOT `Child'`; RE-CAST intueri on the far side
-> with the client/server + remote-generalization constraint.** The four-questions shape (below) is
-> RATIFIED (matchable enum, opaque Impure per-variant payloads, common ops transport-blind, kind-specifics
-> matched, `LociDiedError` pattern). Only the NAMES are open, and here is the trail:
-> - intueri (cast 2026-07-24) returned **`:wat::kernel::Child'`** (variants `Thread`/`Process`; accessors
->   `child-pid'`/`child-wait'`; `Peer'` left as the self-peer) — reasoning: the parent handle is *custodial*
->   (pid/pdeathsig/lifeline/reap), not a symmetric peer, matching `std::process::Child`.
-> - **The builder CORRECTED it: `Child'` fails the REMOTE case.** Over a wire (uds / localhost tcp / remote
->   mTLS) there is **no parent/child** — you don't fork a remote host, you *connect* to it; nothing to reap.
->   The substrate prefers **client/server** vocabulary. So the custodial ops (pid/wait/kill) are
->   **LOCAL-FORK-variant-specific** (`Thread`/`Process` carry them; a `Remote` variant never does — exactly
->   what per-variant kind-specifics capture), and the enum's NAME must tell the truth across ALL transports
->   (the local end's handle to a spawned-or-connected **server**), not the local-fork truth `Child'` names.
-> - **Far-side re-cast:** intueri on the enum name + variant names + accessor verbs under: *client/server
->   vocabulary; the handle generalizes thread→process→uds→tcp→mtls→remote; custodial verbs live only on the
->   local-fork variants.* Candidates to weigh (not decided): the enum as a `Server'`/`Connection'`/`Client'`-
->   family noun; variants `Thread`/`Process`/`Uds`/`Tcp`/`Remote`. FQDN = zero collision risk (the builder's
->   point) — so pick the truest names freely. NOTE: replace the `Peer'`/`Child'` working names in the
->   user-forms below with the re-cast result before building.
+> **✅ NAMING RESOLVED (2026-07-24, builder) — the enum IS `:wat::kernel::Peer'`, the CONTAINER over
+> `Thread'` and `Process'`.** *"why is the name for what spawn returns isn't a peer... its a thing we IPC
+> against?... we need a container for Thread' and Process' and Peer' is the thing."* The four-questions shape
+> (below) is RATIFIED and the name is now settled:
+> - **The defining relationship is IPC** — you `send'`/`recv'` against the thing → it IS a **peer**. That is
+>   universal across every transport. Custody (pid/reap) is variant-specific and LOCAL-only.
+> - **`Child'` is RETIRED** (an intueri over-index): it fit the local-fork `std::process::Child` case but
+>   FAILS the remote case the builder named — over a wire (uds/tcp/mtls) there is no child to reap, yet there
+>   IS a peer. The apparatus over-deferred to intueri here; corrected.
+> - **`:wat::kernel::Peer'<I,O>` is the container ENUM whose variants ARE `Thread'` / `Process'`** (+ future
+>   `Uds'` / `Tcp'` / `Remote'`). `send'`/`recv'`/`recv-all'` work on any `Peer'` (transport-blind); `match`
+>   to a variant for kind-specifics. The custodial accessors (`child-pid'`/wait, or better-named at build)
+>   live ONLY on the local-fork variants (`Thread'`/`Process'`) — a `Remote'` variant carries none, which the
+>   per-variant enum captures exactly. This unifies the parent handle AND the worker self-peer as one `Peer'`
+>   concept (build-time detail: whether the self-param folds in or stays a distinct opaque).
+> - **In the user-forms below, read `Child'` → `Peer'` and `Peer'::Thread`/`Peer'::Process` → the `Thread'`/
+>   `Process'` variants.** FQDN = zero collision risk, so `Peer'` being the container is unambiguous.
 
 ## Why (how the de-prime surfaced it)
 
