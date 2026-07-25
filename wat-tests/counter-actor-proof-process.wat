@@ -10,26 +10,25 @@
 ;;   - Server-side dispatch uses ambient readln/println (no peer struct; no typed
 ;;     channel params) — the process boundary IS the isolation
 ;;   - Server's :user::main calls :counter/dispatch initial (direct entry; no spawn)
-;;   - ProcessPeer/new constructed from Receiver/from-pipe(Process/stdout) +
-;;     Sender/from-pipe(Process/stdin) — verbose-is-honest composition
-;;   - Client wrappers use Process/println peer! (request) + Process/readln peer!
+;;   - spawn-program' (process) returns the process peer directly (arc 278 IPC
+;;     de-prime) — no Receiver/from-pipe + Sender/from-pipe + ProcessPeer/new dance
+;;   - Client wrappers use send' peer! (request) + recv' peer! (response) over the
+;;     peer wire; SendOutcome / RecvOutcome are matched; a Lost cause is a
+;;     LociDiedError surfaced (never swallowed)
 ;;   - Same body shape as thread tier (same operations, same assertions)
 ;;   - State recovery via Final variant — captured from Shutdown response
-;;   - Process exits cleanly via Process/drain-and-join
+;;   - Process exits cleanly; recv-all' drains the peer to a clean Closed
 ;;
 ;; Honest deltas from inscribed pattern (BRIEF § Honest deltas):
 ;;   1. Enum unit variants use `(VariantName)` with parens per substrate.
 ;;   2. Enum payload variant uses named field: `(Increment (n :wat::core::i64))`.
 ;;   3. Enum variant constructors use `::` separator, not `/`.
-;;   4. ProcessPeer/new takes (rx, tx) where rx = Receiver/from-pipe(stdout),
-;;      tx = Sender/from-pipe(stdin). The inscribed BRIEF shows argument order
-;;      (Process/stdout proc, Process/stdin proc) — actual construction must
-;;      wrap these in Receiver/from-pipe + Sender/from-pipe first, then pass
-;;      to ProcessPeer/new. No constructor verb is minted (verbose-is-honest).
-;;   5. spawn-process does not allow capturing parent types; the subprocess
+;;   4. spawn-program' (process) hands back a Peer'<counter::Request,counter::Response>
+;;      directly — no rx/tx pipe wrapping, no ProcessPeer/new (arc 278 IPC de-prime).
+;;   5. spawn-program' does not allow capturing parent types; the subprocess
 ;;      declares its own independent copy of the counter enum types.
-;;   6. Client wrappers take ProcessPeer<counter::Response, counter::Request>
-;;      (reads responses from process stdout; sends requests to process stdin).
+;;   6. Client wrappers take Peer'<counter::Request, counter::Response>
+;;      (recv' responses from the peer; send' requests to the peer).
 ;;   7. readln at the server side uses `(:wat::kernel::readln -> :counter::Request)`
 ;;      for typed deserialization from EDN. The ambient println encodes to EDN.
 ;;
@@ -57,88 +56,95 @@
      :Ok    [v <- :wat::core::i64]
      :Final [v <- :wat::core::i64])
 
-   ;; ─── Client-side wrappers (ProcessPeer tier) ─────────────────────────
+   ;; ─── Client-side wrappers (Peer' tier) ───────────────────────────────
    ;;
-   ;; Parallel to the thread-tier wrappers but using Process/println and
-   ;; Process/readln. The ProcessPeer type is:
-   ;;   ProcessPeer<counter::Response, counter::Request>
-   ;; where:
-   ;;   peer.rx = Receiver (reads counter::Response from process stdout)
-   ;;   peer.tx = Sender   (writes counter::Request to process stdin)
+   ;; Parallel to the thread-tier wrappers but over the process peer wire using
+   ;; send' + recv'. The peer type is:
+   ;;   Peer'<counter::Request, counter::Response>
+   ;; where the parent recv's counter::Response from the peer and send's
+   ;; counter::Request to it (arc 278 IPC de-prime).
    ;;
-   ;; Arc 208 slice 2 conversion: Result/expect replaced with honest match-on-Err.
-   ;; These wrappers return bare i64 (no ServiceError type in this proof-of-concept);
-   ;; Err arms use assertion-failed! (structurally honest; same panic semantics).
-   ;; Walker accepts Process/println + Process/readln in match-value position.
+   ;; Arc 278 outcome walls: send' returns a SendOutcome (Sent/Closed/Lost),
+   ;; recv' a RecvOutcome (Message/Lost/Closed) — both matched. These wrappers
+   ;; return bare i64 (no ServiceError type in this proof-of-concept); terminal
+   ;; arms use assertion-failed! (a Lost cause is a LociDiedError, surfaced).
 
    (:wat::core::defn :counter-proc/get
-     [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
+     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Get))
-        
-       ((:wat::core::Ok _)
-         (:wat::core::match (:wat::kernel::Process/readln peer!)
-            
-           ((:wat::core::Ok resp)
+     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Get))
+       (:wat::kernel::SendOutcome::Sent
+         (:wat::core::match (:wat::kernel::recv' peer!)
+           ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
-           ((:wat::core::Err _chain)
-             (:wat::kernel::assertion-failed! "Process/readln failed: subprocess died" :wat::core::None :wat::core::None))))
-       ((:wat::core::Err _chain)
-         (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None))))
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+       (:wat::kernel::SendOutcome::Closed
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
+       ((:wat::kernel::SendOutcome::Lost cause)
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/increment
-     [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>
+     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>
       n     <- :wat::core::i64]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Increment n))
-        
-       ((:wat::core::Ok _)
-         (:wat::core::match (:wat::kernel::Process/readln peer!)
-            
-           ((:wat::core::Ok resp)
+     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Increment n))
+       (:wat::kernel::SendOutcome::Sent
+         (:wat::core::match (:wat::kernel::recv' peer!)
+           ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
-           ((:wat::core::Err _chain)
-             (:wat::kernel::assertion-failed! "Process/readln failed: subprocess died" :wat::core::None :wat::core::None))))
-       ((:wat::core::Err _chain)
-         (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None))))
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+       (:wat::kernel::SendOutcome::Closed
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
+       ((:wat::kernel::SendOutcome::Lost cause)
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/reset
-     [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
+     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Reset))
-        
-       ((:wat::core::Ok _)
-         (:wat::core::match (:wat::kernel::Process/readln peer!)
-            
-           ((:wat::core::Ok resp)
+     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Reset))
+       (:wat::kernel::SendOutcome::Sent
+         (:wat::core::match (:wat::kernel::recv' peer!)
+           ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
-           ((:wat::core::Err _chain)
-             (:wat::kernel::assertion-failed! "Process/readln failed: subprocess died" :wat::core::None :wat::core::None))))
-       ((:wat::core::Err _chain)
-         (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None))))
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+       (:wat::kernel::SendOutcome::Closed
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
+       ((:wat::kernel::SendOutcome::Lost cause)
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc/shutdown
-     [peer! <- :wat::kernel::ProcessPeer<counter::Response,counter::Request>]
+     [peer! <- :wat::kernel::Peer'<counter::Request,counter::Response>]
      -> :wat::core::i64
-     (:wat::core::match (:wat::kernel::Process/println peer! (:counter::Request::Shutdown))
-        
-       ((:wat::core::Ok _)
-         (:wat::core::match (:wat::kernel::Process/readln peer!)
-            
-           ((:wat::core::Ok resp)
+     (:wat::core::match (:wat::kernel::send' peer! (:counter::Request::Shutdown))
+       (:wat::kernel::SendOutcome::Sent
+         (:wat::core::match (:wat::kernel::recv' peer!)
+           ((:wat::kernel::RecvOutcome::Message resp)
              (:wat::core::match resp ((:counter::Response::Value v) v)
                ((:counter::Response::Ok    v) v)
                ((:counter::Response::Final v) v)))
-           ((:wat::core::Err _chain)
-             (:wat::kernel::assertion-failed! "Process/readln failed: subprocess died" :wat::core::None :wat::core::None))))
-       ((:wat::core::Err _chain)
-         (:wat::kernel::assertion-failed! "Process/println failed: subprocess died" :wat::core::None :wat::core::None))))
+           ((:wat::kernel::RecvOutcome::Lost cause)
+             (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
+           (:wat::kernel::RecvOutcome::Closed
+             (:wat::kernel::assertion-failed! "recv': subprocess closed before replying" :wat::core::None :wat::core::None))))
+       (:wat::kernel::SendOutcome::Closed
+         (:wat::kernel::assertion-failed! "send': subprocess closed" :wat::core::None :wat::core::None))
+       ((:wat::kernel::SendOutcome::Lost cause)
+         (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
 (:wat::test::ignore "arc-170 concurrency layer (subprocess spawn / thread-on-channel) — leaks/hangs; remove before arc 170 closes")
 (:wat::test::deftest :counter-actor::process-proof
@@ -150,18 +156,13 @@
   ;; independently, defines the dispatch fn using ambient readln/println, and
   ;; exposes :user::main as the process entry point calling dispatch with 10.
   ;;
-  ;; ProcessPeer construction per Stone C2 substrate-composition proof:
-  ;;   rx = Receiver/from-pipe(Process/stdout proc)   ← reads process stdout
-  ;;   tx = Sender/from-pipe(Process/stdin proc)      ← writes process stdin
-  ;;   peer = ProcessPeer/new(rx, tx)
-  ;;
-  ;; This is the verbose-is-honest form (per feedback_verbose_is_honest):
-  ;; the three-step construction reveals the ProcessPeer/new construction
-  ;; that run-processes abstracts — the canonical verbose form. No constructor
-  ;; verb is minted — Stone D's run-processes is the user-facing surface.
+  ;; Arc 278 IPC de-prime: spawn-program' (process) returns the process peer
+  ;; directly — no Receiver/from-pipe + Sender/from-pipe + ProcessPeer/new
+  ;; construction. The peer is a Peer'<counter::Request,counter::Response>;
+  ;; the wrappers send' requests and recv' responses over it.
   (:wat::core::let
-    [proc
-       (:wat::kernel::spawn-process
+    [peer!
+       (:wat::kernel::spawn-program' (:wat::spawn::process)
          (:wat::core::forms
            ;; Subprocess type declarations — independent from parent's types.
            ;; Same names → same EDN tags → interoperable across process boundary.
@@ -206,12 +207,8 @@
            ;; starts. Per user 2026-05-16: "processes must always define
            ;; :user::main ... there is no :user::main-process".
            (:wat::core::defn :user::main [] -> :wat::core::nil (:counter/dispatch 10))))
-     ;; Build ProcessPeer — verbose-is-honest composition.
-     ;; Receiver/from-pipe reads what the subprocess prints to stdout.
-     ;; Sender/from-pipe writes to the subprocess's stdin (what it reads).
-     rx        (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
-     tx        (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
-     peer!     (:wat::kernel::ProcessPeer rx tx)
+     ;; spawn-program' (process) returns the peer directly (arc 278 IPC de-prime) —
+     ;; no Receiver/from-pipe + Sender/from-pipe + ProcessPeer/new construction needed.
      ;; Same operations + assertions as thread tier (BRIEF § "same body shape").
      after-inc-5  (:counter-proc/increment peer! 5)
      _            (:wat::test::assert-eq after-inc-5 15)
@@ -225,5 +222,10 @@
      _            (:wat::test::assert-eq after-inc-3 3)
      final-state  (:counter-proc/shutdown peer!)
      _            (:wat::test::assert-eq final-state 3)
-     _drained     (:wat::kernel::Process/drain-and-join proc)]
+     ;; Drain the peer to a clean close (arc 278 IPC de-prime: recv-all' replaces
+     ;; Process/drain-and-join). The peer's death rides in the Err — surfaced, never swallowed.
+     _drained     (:wat::core::match (:wat::kernel::recv-all' peer!)
+                    ((:wat::core::Ok _) nil)
+                    ((:wat::core::Err cause)
+                      (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None)))]
     nil))

@@ -308,126 +308,66 @@ fn t4_spawn_process_keyword_fn_round_trips_typed_value() {
 
 #[test]
 fn t5_spawn_process_inline_lambda_round_trips() {
-    // Arc 170 slice 6 — spawn-process accepts a wat PROGRAM
-    // (`Vec<WatAST>`); the launcher constructs the program via
-    // (:wat::core::forms (:wat::core::defn ...)). The inline-lambda
-    // entry_form path of slice 1b retires under the new substrate; the
-    // analogous shape is now an inline program. Child is self-contained.
-    // Stone 241.12 — migrated from :wat::core::define to :wat::core::defn.
+    // Arc 278 IPC de-prime — migrated off the non-prime `:wat::kernel::spawn-process`
+    // onto the composed primes (`spawn-program' (process)` + `send'` + `recv'`). The
+    // launcher constructs the child via an inline (:wat::core::forms (:wat::core::defn ...))
+    // program, spawns it as a process peer, feeds its `readln` with `send' 21`, and returns
+    // the doubled value that crossed back off the peer as a recv' RecvOutcome::Message.
+    // The launcher now returns the recv'd i64 directly (== 42), so this test measures the
+    // value that genuinely crossed the wire (NOT stdout-scraped). Mirrors t17's apply-and-
+    // assert-i64 shape (SAME .rs file family). Fixture: t5_launch_lambda.wat.
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t5_launch_lambda.wat");
-    // Invoke the launcher to get the Process Value.
     let launcher = world.symbols().get(":my::launch").expect("launch defined");
-    let process = wat::runtime::apply_function(
+    let result = wat::runtime::apply_function(
         launcher.clone(),
         Vec::new(),
         world.symbols(),
         wat::rust_caller_span!(),
     )
-    .expect(":my::launch runs");
-    let types = world.symbols().types().map(|a| a.as_ref());
-    // Parent sends 21 via Sender/from-pipe wrapping Process/stdin.
-    let stdin_writer = process_stdin_field(&process);
-    let sender_val = wat::channel::sender_from_pipe(stdin_writer);
-    let sender_inner = unwrap_sender_inner(&sender_val);
-    let outcome = wat::channel::typed_send(
-        sender_inner,
-        Value::i64(21),
-        types,
-        wat::rust_caller_span!(),
-    );
-    assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
-    drop(sender_val);
-    // Parent recvs 42 via Receiver/from-pipe wrapping Process/stdout.
-    let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
-    let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let response = drive_typed_recv(receiver_inner, types);
-    match response {
-        Value::i64(n) => assert_eq!(n, 42, "expected 42; got {}", n),
+    .expect(":my::launch runs (spawn-program' + send' + recv')");
+    match &result {
+        Value::i64(n) => assert_eq!(
+            *n, 42,
+            "expected 21*2=42 received as a recv' Message; got {}",
+            n
+        ),
         other => panic!("expected i64; got {:?}", other),
     }
-    wait_child_exit_ok(process_handle_field(&process));
 }
 
 // ─── T6. spawn-process(factory-fn) — single-level capture ──────────────
 
 #[test]
 fn t6_spawn_process_factory_with_capture_round_trips() {
-    // Arc 170 slice 6 — closure-capture-across-fork is retired under the
-    // new substrate (programs are static at the substrate boundary).
-    // The substrate-equivalent capability is runtime AST construction:
-    // a launcher splices the runtime value INTO a program AST via
-    // `:wat::core::quasiquote` + `:wat::core::unquote` before handing
-    // the AST to spawn-process. This probe attempts that migration but
-    // the runtime quasiquote evaluator does not currently substitute
-    // unquoted symbols inside a `(:wat::core::Vector :wat::WatAST ...)`
-    // constructor — the child sees the literal `(:wat::core::unquote
-    // offset)` form, which it then evaluates as an unknown function.
-    //
-    // Surfaced as substrate-discovery: T6 needs either (a) runtime
-    // quasiquote eval to honor unquote inside Vector contexts, or
-    // (b) a dedicated runtime AST-template primitive, or (c) Rust-side
-    // launcher construction. Sticking with the quasiquote shape so the
-    // test surfaces the gap honestly until a downstream slice
-    // addresses it.
-    // Note: tested via a let-bound quasiquote form first (the
-    // struct-to-form pattern at wat-tests/core/struct-to-form.wat:39
-    // uses this shape and works). T6 may surface a substrate
-    // interaction between runtime quasiquote and the Vector<WatAST>
-    // constructor; the let-form isolates the quasiquote.
+    // Arc 278 IPC de-prime — migrated off the non-prime `:wat::kernel::spawn-process`
+    // onto the composed primes (`spawn-program' (process)` + `send'` + `recv'`). The
+    // substrate-equivalent of closure-capture-across-fork is runtime AST construction:
+    // the launcher splices the runtime `offset` value INTO the child program AST via
+    // `:wat::core::quasiquote` + `:wat::core::unquote`, builds the
+    // `(:wat::core::Vector :wat::WatAST main-form)` forms VALUE, and hands it to
+    // `spawn-program' (process)` — the process clause accepts a forms value the same way
+    // spawn-process did, so the quasiquote-factory shape is unchanged; only the DRIVER
+    // flipped to the peer wire. The launcher feeds the child's `readln` with `send' 7`
+    // and returns the `(n + offset)` value that crossed back as a recv' RecvOutcome::Message.
+    // With offset=100 the recv'd i64 is 107 — the value that genuinely crossed the wire.
+    // Fixture: t6_launch_factory.wat.
     let world = freeze_ok("tests/program/wat_arc170_program_contracts_t6_launch_factory.wat");
     let launcher = world.symbols().get(":my::launch").expect("launch defined");
-    let process = wat::runtime::apply_function(
+    let result = wat::runtime::apply_function(
         launcher.clone(),
         vec![Value::i64(100)],
         world.symbols(),
         wat::rust_caller_span!(),
     )
-    .expect(":my::launch runs");
-    let types = world.symbols().types().map(|a| a.as_ref());
-    // Parent sends 7 via Sender/from-pipe wrapping Process/stdin.
-    let stdin_writer = process_stdin_field(&process);
-    let sender_val = wat::channel::sender_from_pipe(stdin_writer);
-    let sender_inner = unwrap_sender_inner(&sender_val);
-    let outcome = wat::channel::typed_send(
-        sender_inner,
-        Value::i64(7),
-        types,
-        wat::rust_caller_span!(),
-    );
-    assert!(matches!(outcome, wat::channel::SendOutcome::Ok));
-    drop(sender_val);
-    // Parent recvs 107 (100+7) via Receiver/from-pipe wrapping Process/stdout.
-    let stdout_reader = process_stdout_field(&process);
-    let receiver_val = wat::channel::receiver_from_pipe(stdout_reader);
-    let receiver_inner = unwrap_receiver_inner(&receiver_val);
-    let recv_outcome =
-        wat::channel::typed_recv(receiver_inner, types, wat::rust_caller_span!());
-    let response = match recv_outcome {
-        wat::channel::RecvOutcome::Value(v) => v,
-        other => {
-            // Drain child stderr for diagnostic.
-            let stderr_text = match &process {
-                Value::Aggregate(s) => match &s.fields[2] {
-                    Value::io__IOReader(rdr) => {
-                        let mut all = String::new();
-                        while let Ok(Some(line)) = rdr.read_line(wat::rust_caller_span!()) {
-                            all.push_str(&line);
-                        }
-                        all
-                    }
-                    _ => "<not IOReader>".to_string(),
-                },
-                _ => "<not Struct>".to_string(),
-            };
-            panic!("t6 recv failed ({:?}); child stderr:\n{}", other, stderr_text);
-        }
-    };
-    match response {
-        Value::i64(n) => assert_eq!(n, 107, "expected 100+7=107; got {}", n),
+    .expect(":my::launch runs (spawn-program' + send' + recv')");
+    match &result {
+        Value::i64(n) => assert_eq!(
+            *n, 107,
+            "expected 100+7=107 received as a recv' Message; got {}",
+            n
+        ),
         other => panic!("expected i64; got {:?}", other),
     }
-    wait_child_exit_ok(process_handle_field(&process));
 }
 
 // ─── T7. spawn-process with non-portable Sender capture ────────────────

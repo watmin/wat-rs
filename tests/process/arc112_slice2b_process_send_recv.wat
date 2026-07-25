@@ -10,21 +10,24 @@
      _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
     nil))
 
-;; Parent: spawn-process + wrap pipes + send/recv via Stone C wrappers.
+;; Parent: spawn a process peer via spawn-program' (process), feed the child's
+;; readln with send', drain its println output with recv' — the primed peer wire
+;; (arc 278 IPC de-prime). What Stone C did through Sender/from-pipe + send +
+;; Receiver/from-pipe + recv over a 4-field Process, the composed primes do
+;; directly on the Process' peer. This probe verifies the primed comms scheme
+;; wires through the type-checker at the process boundary (freeze-only).
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [proc (:wat::kernel::spawn-process
+    [peer (:wat::kernel::spawn-program' (:wat::spawn::process)
             (:wat::core::forms
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:my::echo-worker))))
-     tx   (:wat::kernel::Sender/from-pipe   (:wat::kernel::Process/stdin  proc))
-     rx   (:wat::kernel::Receiver/from-pipe (:wat::kernel::Process/stdout proc))
-     _sent (:wat::core::Result/expect
-             (:wat::kernel::send tx 41)
-             "send failed")
-     recv-result (:wat::kernel::recv rx)
-     _val (:wat::core::match recv-result 
-            ((:wat::core::Ok (:wat::core::Some v)) v)
-            ((:wat::core::Ok :wat::core::None)    0)
-            ((:wat::core::Err _)                  0))]
+     _sent (:wat::core::match (:wat::kernel::send' peer 41)
+             (:wat::kernel::SendOutcome::Sent nil)
+             (:wat::kernel::SendOutcome::Closed nil)
+             ((:wat::kernel::SendOutcome::Lost _c) nil))
+     _val (:wat::core::match (:wat::kernel::recv' peer)
+            ((:wat::kernel::RecvOutcome::Message _m) nil)
+            ((:wat::kernel::RecvOutcome::Lost _cause) nil)
+            (:wat::kernel::RecvOutcome::Closed nil))]
     nil))

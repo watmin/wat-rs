@@ -32,12 +32,15 @@
     [thr (:wat::kernel::spawn-thread :my::panic-thread)]
     (:wat::kernel::Thread/drain-and-join thr)))
 
-;; T2/T4 — Process/drain-and-join over an already-spawned child Process. The spawn itself
-;; happens Rust-side (`build_spawn_process_call` builds the AST directly from `WatAST` nodes,
-;; not a parsed Rust string, so it carries no inline-wat driver); this fn is just the join
-;; call, taking the spawned Process as an argument — shared by both the clean-exit (T2) and
-;; panicking (T4) child fixtures.
+;; T2/T4 — recv-all' drain over an already-spawned process peer (arc 278 IPC de-prime:
+;; the drain-then-join maps to the honest peer-drain recv-all'). The spawn itself happens
+;; Rust-side (`build_spawn_program_process_call` builds the `spawn-program' (process)` AST
+;; directly from `WatAST` nodes, not a parsed Rust string, so it carries no inline-wat
+;; driver); this fn is just the drain call, taking the spawned Process' peer as an argument —
+;; shared by both the clean-exit (T2, prints Strings then Closes) and panicking (T4, dies →
+;; Lost) child fixtures. recv-all' returns Ok(collected outputs) on a clean Closed, or
+;; Err(cause) when the peer DIED — the LociDiedError rides in the Err, surfaced, never swallowed.
 (:wat::core::defn :my::test::drain-process
-  [proc <- :wat::kernel::Process<wat::core::nil,wat::core::nil>]
-  -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::LociDiedError>>
-  (:wat::kernel::Process/drain-and-join proc))
+  [p <- :wat::kernel::Peer'<wat::core::nil,wat::core::String>]
+  -> :wat::core::Result<wat::core::Vector<wat::core::String>,wat::kernel::LociDiedError>
+  (:wat::kernel::recv-all' p))
