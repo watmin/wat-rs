@@ -1,2 +1,4 @@
-;; Fixture: unprimed two-param generic head — must lex + check (live shape).
-(:wat::core::defn :user::take [m <- :wat::kernel::Thread<wat::core::nil,wat::core::nil>] -> :wat::core::nil nil)
+;; Fixture: UNPRIMED two-param generic head — must lex + check. The control for the
+;; primed twin: identical shape, the apostrophe the ONLY variable. Uses a LIVE
+;; two-param generic; the subject is the LEXER, which never consults the registry.
+(:wat::core::defn :user::take [m <- :wat::core::HashMap<wat::core::String,wat::core::String>] -> :wat::core::nil nil)

@@ -65,7 +65,7 @@ pub enum CheckErrorKind {
     /// `:remedies` is computed at serialization time via `type_error_remedies`
     /// (retirement-table + shape-specific candidates). Always emitted, even when
     /// the list is empty (matches the golden `check_error_to_edn` always-push behavior).
-    #[to_edn(via(key = "remedies", fn = crate::check::type_error_remedies_via, args(callee, expected, got)))]
+    #[to_edn(via(key = "remedies", fn = crate::check::type_error_remedies_via, args(callee)))]
     TypeMismatch {
         callee: String,
         param: String,
@@ -76,13 +76,13 @@ pub enum CheckErrorKind {
     ///
     /// `remedies` stores the typo-based candidates from `variant_typo_remedies`
     /// at construction time. The golden `check_error_to_edn` merged these with
-    /// `type_error_remedies(function, expected, got)` at serialization time
+    /// `type_error_remedies(function)` at serialization time
     /// (DESIGN-296-remediation-collapse line 32). The derive preserves that
     /// merge via a variant-level `via`: `return_type_remedies_via` folds the
     /// stored field into the computed retirement/shape candidates (dedup by
     /// `.form`). The `remedies` field is `#[to_edn(skip)]` so it does NOT also
     /// serialize plainly — the `via` OWNS the `:remedies` key (no duplicate).
-    #[to_edn(via(key = "remedies", fn = crate::check::return_type_remedies_via, args(remedies, function, expected, got)))]
+    #[to_edn(via(key = "remedies", fn = crate::check::return_type_remedies_via, args(remedies, function)))]
     ReturnTypeMismatch {
         function: String,
         expected: String,
@@ -92,7 +92,7 @@ pub enum CheckErrorKind {
         /// `Vec<Remedy>` not `Option<Vec<Remedy>>`.
         ///
         /// Skipped from plain serialization: the variant-level `via` above
-        /// merges this stored field with `type_error_remedies(...)` and emits
+        /// merges this stored field with `type_error_remedies(callee)` and emits
         /// the union under `:remedies`. Emitting it plainly too would produce a
         /// duplicate, wrong `:remedies` key.
         #[to_edn(skip)]
@@ -361,7 +361,7 @@ impl CheckErrorKind {
                 )?;
                 // Arc 296 remediation collapse: render structured remedies instead of prose hint.
                 let section = crate::remedy::render_remedies(
-                    &super::type_error_remedies(callee, expected, got),
+                    &super::type_error_remedies(callee),
                 );
                 if !section.is_empty() {
                     write!(f, "\n{}", section)?;
@@ -377,7 +377,7 @@ impl CheckErrorKind {
                 // Arc 296 remediation collapse: merge stored remedies with computed type_error_remedies,
                 // dedup by form, render once — no prose hint section.
                 let mut merged: Vec<crate::remedy::Remedy> = remedies.clone();
-                merged.extend(super::type_error_remedies(function, expected, got));
+                merged.extend(super::type_error_remedies(function));
                 let mut seen = std::collections::HashSet::new();
                 merged.retain(|r| seen.insert(r.form.clone()));
                 let section = crate::remedy::render_remedies(&merged);

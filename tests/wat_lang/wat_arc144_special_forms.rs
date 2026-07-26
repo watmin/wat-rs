@@ -200,17 +200,6 @@ fn lookup_form_struct_returns_special_form() {
     );
 }
 
-#[test]
-fn lookup_form_kernel_spawn_returns_special_form() {
-    assert_special_form("spawn", ":wat::kernel::spawn", ":wat.kernel/spawn");
-    let sig = sig_str("spawn");
-    wat::assert_edn_eq!(
-        sig,
-        include_str!("wat_arc144_special_forms__spawn.edn"),
-        "spawn signature must carry :wat::kernel::spawn head"
-    );
-}
-
 // ─── Bonus: unknown special-form name returns None ──────────────────────────
 
 #[test]

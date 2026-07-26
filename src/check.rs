@@ -90,8 +90,9 @@ pub struct TypeScheme {
 // Re-exported above: `pub use error::{CheckError, CheckErrorKind, CheckErrors, EnsureFnInvalidReason};`
 
 // Arc 111 / 112 / 113 / 109 / 114 / 170 migration-hint helpers absorbed into
-// RETIREMENT_TABLE (arc 109 / arc 170 callee-based) and shape_remedies (arc 114;
-// arc 170 got-based) via arc 296 remediation collapse. Prose `:hint` annihilated.
+// RETIREMENT_TABLE (arc 109 / arc 170 callee-based) via arc 296 remediation
+// collapse. Prose `:hint` annihilated. (arc 114's shape_remedies died with the
+// spawn/join/join-result tombstones.)
 
 // CheckErrors — Pattern A (Stone 243.6a) — lives in src/check/error.rs.
 
@@ -366,62 +367,15 @@ impl<T> CheckResult<T> {
 /// Arc 114 (bare-spawn callees + ProgramHandle↔Thread shape pair) and the arc 170
 /// `got`-based path are expressed here as structured `Remedy` values.
 /// Name-only callee matches (arc 109, arc 170 callee path) live in `RETIREMENT_TABLE`.
-pub(crate) fn shape_remedies(callee: &str, expected: &str, got: &str) -> Vec<crate::remedy::Remedy> {
-    use crate::remedy::{Remedy, RemedyKind};
-    let mut rs = Vec::new();
-
-    // Arc 114 — bare-spawn callees and the ProgramHandle↔Thread annotation shape pair.
-    let bare_spawn_callee = matches!(
-        callee,
-        ":wat::kernel::spawn" | ":wat::kernel::join" | ":wat::kernel::join-result"
-    );
-    let proghandle = "wat::kernel::ProgramHandle<";
-    let thread = "wat::kernel::Thread<";
-    let shape_pair_mismatch = (expected.contains(proghandle) && got.contains(thread))
-        || (got.contains(proghandle) && expected.contains(thread));
-    if bare_spawn_callee || shape_pair_mismatch {
-        rs.push(Remedy {
-            form: ":wat::kernel::spawn-thread".into(),
-            kind: RemedyKind::Retirement,
-            note: Some(
-                "arc 114 — :wat::kernel::spawn / :wat::kernel::join / \
-                 :wat::kernel::join-result retire. Programs deliver values only \
-                 via their output channel; R-via-join is gone. \
-                 Migrate: (:wat::kernel::spawn :worker args...) → \
-                 (:wat::kernel::spawn-thread (:wat::core::fn \
-                 ((_in :rust::crossbeam_channel::Receiver<()>) \
-                 (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) \
-                 returning :wat::kernel::Thread<(),()>. \
-                 Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) \
-                 with (:wat::kernel::Thread/join-result thr) returning \
-                 :wat::core::Result<:(),:wat::core::Vector<wat::kernel::ThreadDiedError>>; match arms \
-                 ((Ok _) ...) ((Err chain) ...). \
-                 Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held \
-                 channels; substrate-allocated `_in` / `_out` stay unused. \
-                 Workers not fitting :Fn(:Receiver<I>, :Sender<O>) -> :() — \
-                 non-channel sig, non-unit return, R-via-join ferrying — get a \
-                 `;; ARC 114 MANUAL — needs type-design review` comment and skip; \
-                 judgment calls don't auto-sweep."
-                    .into(),
-            ),
-        });
-    }
-
-    rs
-}
-
 /// ONE canonical remediation path for `TypeMismatch` / `ReturnTypeMismatch` errors.
 ///
-/// Merges retirement-table lookup (via `remedies_for`) with shape-triggered
-/// remediation (via `shape_remedies`), deduplicated by `form` (first occurrence wins;
-/// retirement-table hits lead). BOTH the serializer and the Display call this fn —
-/// one path, no replicate.
+/// Retirement-table lookup (via `remedies_for`), deduplicated by `form`.
+/// BOTH the serializer and the Display call this fn — one path, no replicate.
 ///
 /// Arc 296 remediation collapse: eliminates the prose `:hint` mechanism in favour
 /// of the structured `Remedy` path.
-pub(crate) fn type_error_remedies(callee: &str, expected: &str, got: &str) -> Vec<crate::remedy::Remedy> {
+pub(crate) fn type_error_remedies(callee: &str) -> Vec<crate::remedy::Remedy> {
     let mut rs = crate::remedy::remedies_for(callee, std::iter::empty());
-    rs.extend(shape_remedies(callee, expected, got));
     // Dedup by `form`; first occurrence (retirement-table hits, if any) wins.
     let mut seen = std::collections::HashSet::new();
     rs.retain(|r| seen.insert(r.form.clone()));
@@ -442,10 +396,8 @@ pub(crate) fn type_error_remedies(callee: &str, expected: &str, got: &str) -> Ve
 /// `args(callee, expected, got)`.
 pub(crate) fn type_error_remedies_via(
     callee: &String,
-    expected: &String,
-    got: &String,
 ) -> Option<wat_edn::OwnedValue> {
-    Some(crate::remedy::remedies_to_edn(&type_error_remedies(callee, expected, got)))
+    Some(crate::remedy::remedies_to_edn(&type_error_remedies(callee)))
 }
 
 /// Variant-level `via` helper for `ReturnTypeMismatch :remedies`.
@@ -453,7 +405,7 @@ pub(crate) fn type_error_remedies_via(
 /// Restores the golden `check_error_to_edn` semantics (per DESIGN-296-remediation-collapse
 /// line 32): the wire `:remedies` is the MERGE of the STORED `remedies` field (typo-based
 /// candidates from `variant_typo_remedies` at construction time) with the serialize-time
-/// `type_error_remedies(function, expected, got)` (retirement-table + shape candidates).
+/// `type_error_remedies(function)` (retirement-table candidates).
 /// Deduped by `.form`, first occurrence wins (stored typo candidates lead; retirement
 /// entries fold in). A `ReturnTypeMismatch` on a retired `function` with empty stored
 /// remedies therefore STILL surfaces its retirement suggestion — the behavior the
@@ -463,17 +415,15 @@ pub(crate) fn type_error_remedies_via(
 /// plainly — this via OWNS the `:remedies` key (no duplicate-key emission).
 ///
 /// Always `Some` (matches the golden always-emit `:remedies` behavior). Arguments are
-/// the `ReturnTypeMismatch` field idents in `args(remedies, function, expected, got)`
+/// the `ReturnTypeMismatch` field idents in `args(remedies, function)`
 /// order; the derive passes `&Vec<Remedy>` / `&String`, which deref-coerce to the
 /// `&[Remedy]` / `&str` params below.
 pub(crate) fn return_type_remedies_via(
     remedies: &[crate::remedy::Remedy],
     function: &str,
-    expected: &str,
-    got: &str,
 ) -> Option<wat_edn::OwnedValue> {
     let mut merged: Vec<crate::remedy::Remedy> = remedies.to_vec();
-    merged.extend(type_error_remedies(function, expected, got));
+    merged.extend(type_error_remedies(function));
     // Dedup by `form`; first occurrence (stored candidates, then retirement) wins.
     let mut seen = std::collections::HashSet::new();
     merged.retain(|r| seen.insert(r.form.clone()));
@@ -3975,46 +3925,6 @@ fn infer_list(
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
                     None => CheckResult::errs(local_errors),
                 };
-            }
-            ":wat::kernel::spawn" => {
-                let (val, mut errs) = infer_spawn(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
-            // Arc 114 — `:wat::kernel::join` and `:wat::kernel::join-result`
-            // retire alongside `:wat::kernel::spawn`. Push synthetic
-            // TypeMismatches at every call site so the arc 114 migration
-            // hint fires; continue inferring the args (so additional
-            // mismatches still surface) but the call itself is now an
-            // error regardless of arg shapes.
-            ":wat::kernel::join" => {
-                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::kernel::join".into(),
-                    param: "(retired verb)".into(),
-                    expected: ":wat::kernel::Thread/join-result".into(),
-                    got: ":wat::kernel::join".into()
-                } });
-                for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                }
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::errs(local_errors);
-            }
-            ":wat::kernel::join-result" => {
-                local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::kernel::join-result".into(),
-                    param: "(retired verb)".into(),
-                    expected: ":wat::kernel::Thread/join-result".into(),
-                    got: ":wat::kernel::join-result".into()
-                } });
-                for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                }
-                // HARVEST (236.2): existing diagnostic; straight conversion.
-                return CheckResult::errs(local_errors);
             }
             ":wat::core::first" => {
                 let (val, mut errs) = infer_positional_accessor(args, head_span, env, locals, fresh, subst, ":wat::core::first", 0).into_parts();
@@ -8728,137 +8638,6 @@ fn infer_apply(
 // migration window; `validate_legacy_let_star` (Pattern 3 walker)
 // emits `BareLegacyLetStar` per offending site for sweep 1b.
 
-/// Type-check `(:wat::kernel::spawn <fn> arg1 arg2 ...)`.
-/// Variadic in the args (one per function parameter) — rank-1 HM
-/// can't express variadic schemes, so spawn is special-cased.
-///
-/// The first argument may be either of two shapes, mirroring the
-/// runtime dispatch (see `eval_kernel_spawn`):
-///
-/// - A keyword-path literal → the function's declared scheme is
-///   looked up in `CheckEnv` and instantiated.
-/// - Any expression whose inferred type is `:fn(T1,T2,...)->R` → the
-///   parameter types and return type come from the inferred Fn type
-///   directly.
-///
-/// Either way, the remaining args are unified against the parameter
-/// types, and the spawn's return is `:ProgramHandle<R>`.
-fn infer_spawn(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    // Arc 114 — `:wat::kernel::spawn` retired. Emit a synthetic
-    // TypeMismatch so the arc 114 migration hint fires at every call
-    // site. Continue type-checking the args (so additional unrelated
-    // mismatches still surface) but the spawn-call itself is now an
-    // error regardless of its arity / arg shapes.
-    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
-        callee: ":wat::kernel::spawn".into(),
-        param: "(retired verb)".into(),
-        expected: ":wat::kernel::spawn-thread".into(),
-        got: ":wat::kernel::spawn".into()
-    } });
-    if args.is_empty() {
-        let ty = TypeExpr::Parametric {
-            head: "wat::kernel::ProgramHandle".into(),
-            args: vec![fresh.fresh()],
-        };
-        // HARVEST (236.2): existing diagnostic (retired verb); return partial with unit handle.
-        return CheckResult::partial_with(ty, local_errors);
-    }
-    // Resolve the first arg's signature — keyword path path or
-    // infer-and-extract-Fn path.
-    let (param_types, ret_type, callee_label) = match &args[0] {
-        WatAST::Keyword(fn_path, _) => match env.get(fn_path) {
-            Some(scheme) => {
-                let (ps, r) = instantiate(&scheme.clone(), fresh);
-                (ps, r, format!(":wat::kernel::spawn {}", fn_path))
-            }
-            None => {
-                // Function not registered — may be a primitive / future
-                // slice / driver. Produce a ProgramHandle<?> so the call
-                // site keeps checking.
-                for arg in &args[1..] {
-                    let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                }
-                let ty = TypeExpr::Parametric {
-                    head: "wat::kernel::ProgramHandle".into(),
-                    args: vec![fresh.fresh()],
-                };
-                // HARVEST (236.2): existing diagnostic; partial — unknown function path.
-                return CheckResult::partial_with(ty, local_errors);
-            }
-        },
-        _ => {
-            // Non-keyword: infer as a value, expect `:fn(...)->R`. Use
-            // reduce so a typealias over an fn type still matches.
-            let inferred = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-            let surface_ty = match inferred {
-                Some(t) => apply_subst(&t, subst),
-                None => {
-                    let ty = TypeExpr::Parametric {
-                        head: "wat::kernel::ProgramHandle".into(),
-                        args: vec![fresh.fresh()],
-                    };
-                    // HARVEST (236.2): existing diagnostic; partial — head inference failed.
-                    return CheckResult::partial_with(ty, local_errors);
-                }
-            };
-            let fn_ty = reduce(&surface_ty, subst, env.types());
-            match fn_ty {
-                TypeExpr::Fn { args: ps, ret } => (ps, *ret, ":wat::kernel::spawn <fn>".to_string()),
-                _ => {
-                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                        callee: ":wat::kernel::spawn".into(),
-                        param: "#1".into(),
-                        expected: "function keyword path or fn(...) value".into(),
-                        got: format_type(&surface_ty)
-                    } });
-                    for arg in &args[1..] {
-                        let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-                    }
-                    let ty = TypeExpr::Parametric {
-                        head: "wat::kernel::ProgramHandle".into(),
-                        args: vec![fresh.fresh()],
-                    };
-                    // HARVEST (236.2): existing diagnostic; partial — non-fn head.
-                    return CheckResult::partial_with(ty, local_errors);
-                }
-            }
-        }
-    };
-    let spawn_args = &args[1..];
-    if spawn_args.len() != param_types.len() {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: callee_label.clone(),
-            expected: param_types.len(),
-            got: spawn_args.len()
-        } });
-    }
-    for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
-        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
-            if !assignable(&arg_ty, expected, subst, env) {
-                local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: callee_label.clone(),
-                    param: format!("#{}", i + 1),
-                    expected: format_type(&apply_subst(expected, subst)),
-                    got: format_type(&apply_subst(&arg_ty, subst))
-                } });
-            }
-        }
-    }
-    let ty = TypeExpr::Parametric {
-        head: "wat::kernel::ProgramHandle".into(),
-        args: vec![apply_subst(&ret_type, subst)],
-    };
-    // HARVEST (236.2): existing diagnostic (retired verb); partial — all errors surface.
-    CheckResult::partial_with(ty, local_errors)
-}
 
 /// Type-check `(:wat::core::first xs)` / `second` / `third`.
 /// Polymorphic over Vec<T> and tuple — both are index-addressed.
@@ -17008,48 +16787,6 @@ fn register_builtins(env: &mut CheckEnv) {
     // `((Err died) ...)` against a single ThreadDiedError now match
     // against a Vec<ThreadDiedError>; common shape `((Err chain)
     // (handle (:wat::core::Vector/first chain)))` to recover head.
-    let died_chain_ty = || TypeExpr::Parametric {
-        head: "wat::core::Vector".into(),
-        args: vec![TypeExpr::Path(":wat::kernel::LociDiedError".into())],
-    };
-    // (:wat::kernel::join handle) — ∀R. ProgramHandle<R> -> R.
-    let r_var = || TypeExpr::Path(":R".into());
-    env.register(
-        ":wat::kernel::join".into(),
-        TypeScheme {
-            type_params: vec!["R".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::kernel::ProgramHandle".into(),
-                args: vec![r_var()],
-            }],
-            ret: r_var(),
-            rest_param_type: None,
-        },
-    );
-    // (:wat::kernel::join-result handle) — arc 060 + arc 113.
-    //   ∀R. ProgramHandle<R> -> Result<R, Vec<wat::kernel::ThreadDiedError>>
-    // Sibling to join: same blocking recv on the spawn channel; differs
-    // in failure handling (data-as-Result instead of panic-the-caller).
-    // Arc 113 widened the Err arm to a Vec — head = the spawned thread's
-    // death; tail = whatever killed it transitively.
-    env.register(
-        ":wat::kernel::join-result".into(),
-        TypeScheme {
-            type_params: vec!["R".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::kernel::ProgramHandle".into(),
-                args: vec![r_var()],
-            }],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Result".into(),
-                args: vec![
-                    r_var(),
-                    died_chain_ty(),
-                ],
-            },
-            rest_param_type: None,
-        },
-    );
     // (:wat::kernel::LociDiedError/message err) -> :String — arc 278 the
     // LociDiedError stone (one loci-agnostic accessor; the dead
     // Thread/ProcessDiedError/message siblings collapsed here). Extracts

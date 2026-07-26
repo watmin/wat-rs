@@ -273,29 +273,6 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
         &["<path>", "<signature>", "<key>"],
     );
 
-    // ─── Spawn family — RETIRED (arc 114 Pattern 2 poison) ─────────────
-    // Dispatch sites: `src/check.rs:3334, 3343, 3356` (each pushes a
-    // synthetic TypeMismatch redirecting to the canonical
-    // `:wat::kernel::spawn-thread` + `:wat::kernel::Thread/join-result`
-    // shape per arc 114). No runtime arms — fully retired. Registered
-    // here so `(help :wat::kernel::spawn)` /just works/ and surfaces
-    // the migration redirect cleanly.
-    insert(
-        &mut m,
-        ":wat::kernel::spawn",
-        &["<retired-use-spawn-thread>"],
-    );
-    insert(
-        &mut m,
-        ":wat::kernel::join",
-        &["<retired-use-Thread/join-result>"],
-    );
-    insert(
-        &mut m,
-        ":wat::kernel::join-result",
-        &["<retired-use-Thread/join-result>"],
-    );
-
     m
 }
 
@@ -358,7 +335,6 @@ mod tests {
             ":wat::form::matches?",
             ":wat::core::use!",
             ":wat::load-file!",
-            ":wat::kernel::spawn",
         ] {
             assert!(
                 lookup_special_form(name).is_some(),

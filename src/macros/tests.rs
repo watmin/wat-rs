@@ -1197,7 +1197,7 @@ fn impure_computed_unquote_refused_with_refused_in_macro() {
     // unquote_argument routes through macro_eval for any list with a Keyword head.
     let impure_form = WatAST::List(
         vec![
-            WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
+            WatAST::Keyword(":wat::kernel::send'".into(), span.clone()),
             WatAST::IntLit(1, span.clone()),
         ],
         span.clone(),
@@ -1404,7 +1404,7 @@ fn impure_fn_body_passed_to_hof_refused_with_refused_in_macro() {
             WatAST::Keyword(":wat::core::fn".into(), span.clone()),
             WatAST::List(
                 vec![
-                    WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
+                    WatAST::Keyword(":wat::kernel::send'".into(), span.clone()),
                     WatAST::IntLit(1, span.clone()),
                 ],
                 span.clone(),
@@ -1495,7 +1495,7 @@ fn signature_of_fn_impure_body_is_inert() {
             WatAST::Keyword(":wat::core::fn".into(), span.clone()),
             WatAST::List(
                 vec![
-                    WatAST::Keyword(":wat::kernel::send".into(), span.clone()),
+                    WatAST::Keyword(":wat::kernel::send'".into(), span.clone()),
                     WatAST::IntLit(1, span.clone()),
                 ],
                 span.clone(),

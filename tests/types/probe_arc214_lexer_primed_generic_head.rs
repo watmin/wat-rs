@@ -26,11 +26,12 @@ use wat::freeze::startup_from_file;
 /// Control: unprimed two-param generic lexes today (the live test.wat shape).
 #[test]
 fn control_unprimed_two_param_lexes() {
-    // NOTE: uses the EXISTING :wat::kernel::Thread type (live in wat/test.wat).
+    // The name is neutral by design — the subject is the LEXER, which never consults
+    // the type registry. Borrowing a live (or dead) kernel type here proves nothing.
     startup_from_file(
         "tests/types/probe_arc214_lexer_primed_generic_head_control.wat",
     )
-    .expect("unprimed Thread<nil,nil> must lex + check (live shape, test.wat:707)");
+    .expect("unprimed two-param generic head must lex + check");
 }
 
 /// LOAD-BEARING: a PRIMED head with two params must LEX. The check may still
