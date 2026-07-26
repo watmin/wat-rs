@@ -54,6 +54,38 @@ the same anti-pattern this arc keeps killing, one layer down from
 That second data point is the load-bearing one: this is not a `Failure`-specific quirk, and it is not that the
 names are unavailable in principle.
 
+## The SECOND face of the same disease — `:actual` / `:expected` are rendered STRINGS, not values
+
+Builder, reading the same output: *"actual and expect are quoted… not literals… is that expected? if we have
+a string it'll be double quoted?"* **Yes — confirmed by running it.**
+
+```clojure
+(:wat::core::show 1)        ; => "1"
+(:wat::core::show "1")      ; => "\"1\""      ← a genuine String IS double-quoted
+(:wat::core::show "hello")  ; => "\"hello\""
+```
+
+**Grounded root:** `:wat::kernel::Failure`'s `actual` and `expected` are declared
+`Option<:wat::core::String>` (`src/types.rs`, the `Failure` registration), and `assert-eq<T>` populates them
+with `(:wat::core::show actual)` (`wat/test.wat:62-68`). **The generic `T` is erased to a rendered string at
+the assertion site.**
+
+So in the wall's own output, `:actual "1" :expected "4242"` are the *integers* 1 and 4242 — `n` is an `i64`
+row count. A String `"1"` would have appeared as `:actual "\"1\""`. The two ARE technically distinguishable,
+but only by an **escaped-quote convention the consumer must parse back out** — precisely the double-encode
+this arc exists to kill (`#…/StartupError ["#wat.runtime/… {…}"]`), recurring at the assertion payload's
+LEAVES instead of at the error carrier.
+
+EDN already expresses the distinction natively and losslessly: `:actual 1` versus `:actual "1"`. The
+`show`-into-a-String step throws away a type the wire can carry perfectly well, then re-encodes it as text.
+
+**Fix (deferred, and bigger than the positional one):** `actual`/`expected` should carry the **value**, not a
+rendering of it. Note the blast radius before drawing — `Failure` is a registered wat type that crosses the
+wire, so retyping its fields is a breaking change to a registered type (the same class 296's typed-causes
+design deferred as S3/S4), and `assert-eq<T>`'s `T` must survive to the payload rather than being `show`n
+away. Weigh whether the field becomes `Option<:wat::core::Value>` (the universal top, arc-278 R7) or the
+assertion carries a typed pair.
+
 ## What was NOT investigated (deliberately — the builder deferred the chase)
 
 **Why the `_ =>` fallback fires for these values.** Whether the struct-kind genuinely carries no resolvable
