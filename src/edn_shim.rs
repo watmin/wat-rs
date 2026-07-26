@@ -1867,6 +1867,32 @@ fn edn_to_typed_value_inner(
                 };
                 Ok(Value::holon__HolonAST(ast))
             }
+            // ── Arc 278 the PARAMETRIC PROTOCOL — a type VARIABLE position is OPAQUE ──
+            // `:K` / `:V` / `:T` is a declaration's lexically-scoped binder, not a registered
+            // type, and it never resolves in the registry. Reached here it used to be an
+            // instant `expected=:K got=String` — which is how the request-sanitization wall
+            // refused every WELL-FORMED parametric request (`probes <- Vector<K>`), and how a
+            // generated child-main's decode target `:S::Op<K,V>` refused every frame.
+            //
+            // wat ERASES type params at runtime. A server inside `serve<K,V>` does not know
+            // what `K` was instantiated to and therefore has no basis on which to reject any
+            // value in a `K`-typed position — so this arm accepts the value at its natural
+            // shape (exactly `:wat::core::Value`) rather than pretending to a check it cannot
+            // make. Every CONCRETE field around it is still walked and enforced to the leaf;
+            // `K` itself is pinned STATICALLY, at the client's call site, where it is known.
+            // (When a caller CAN name the instantiation — `(:wat::edn::validate v
+            // :S::Req<wat::core::String>)` — `substitute_type_params` puts the real argument
+            // here first and this arm is never reached.)
+            //
+            // The var test is the substrate's own (`runtime::is_type_var_path`): bare, no
+            // `::`, first alphabetic char uppercase — so no FQDN type can land here.
+            _ if crate::runtime::is_type_var_path(p) => {
+                edn_to_value(edn, types).map_err(|e| EdnCoerceError {
+                    expected: crate::check::format_type(target),
+                    got: e.to_string(),
+                    path: String::new(),
+                })
+            }
             // User-declared name (struct / enum) — look up in the registry.
             _ => {
                 let env = types.ok_or_else(|| EdnCoerceError {
@@ -1894,10 +1920,10 @@ fn edn_to_typed_value_inner(
                             crate::types::Nature::Struct | crate::types::Nature::Record
                         ) =>
                     {
-                        coerce_struct_path(p, a, edn, types)
+                        coerce_struct_path(p, a, edn, types, &[])
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
-                        coerce_enum_path(p, def, edn, types)
+                        coerce_enum_path(p, def, edn, types, &[])
                     }
                     _ => Err(mismatch(target, edn)),
                 }
@@ -2054,11 +2080,22 @@ fn edn_to_typed_value_inner(
                 let env = types.ok_or_else(|| mismatch(target, edn))?;
                 match env.get(&path) {
                     // Arc 293.2b — struct aggregates (kind==Struct) replace TypeDef::Struct.
-                    Some(crate::types::TypeDef::Aggregate(a)) if a.nature == crate::types::Nature::Struct => {
-                        coerce_struct_path(&path, a, edn, types)
+                    // Arc 278 the parametric protocol — RECORD-nature aggregates join Struct
+                    // here, exactly as they did on the `Path` arm above (Stone 1). The 293.2b
+                    // Struct/Record collapse left this half narrowed: a `defrecord :S::Req<K>`
+                    // named AT its instantiation (`:S::Req<wat::core::String>`) was an instant
+                    // mismatch, while the same record named bare walked fine. Records are what
+                    // service requests ARE, so the two spellings of one type must agree.
+                    Some(crate::types::TypeDef::Aggregate(a))
+                        if matches!(
+                            a.nature,
+                            crate::types::Nature::Struct | crate::types::Nature::Record
+                        ) =>
+                    {
+                        coerce_struct_path(&path, a, edn, types, args)
                     }
                     Some(crate::types::TypeDef::Enum(def)) => {
-                        coerce_enum_path(&path, def, edn, types)
+                        coerce_enum_path(&path, def, edn, types, args)
                     }
                     _ => Err(mismatch(target, edn)),
                 }
@@ -2114,11 +2151,76 @@ fn edn_to_typed_value_inner(
 }
 
 // Arc 293.2b — AggregateDef with kind==Struct replaces StructDef.
+/// Arc 278 the PARAMETRIC PROTOCOL — substitute a generic declaration's own type PARAMS out of
+/// a field / variant-field `TypeExpr` before the EDN walk descends into it.
+///
+/// The walk resolves every `TypeExpr::Path` against the type registry. A declaration's type
+/// PARAMETER (`:K` inside `defrecord :S::GetRequest<K,V> [probes <- Vector<K>]`) is not a
+/// registered type and never will be, so without this it resolved to nothing and the walk
+/// reported `expected=:K got=String` — rejecting a WELL-FORMED request. That is how a parametric
+/// message met the request-sanitization wall (`:wat::edn::validate`): every one of them refused.
+///
+/// Two cases, both honest:
+///
+/// * **Args known** (`args` non-empty — the caller named the instantiation, e.g.
+///   `(:wat::edn::validate v :S::GetRequest<wat::core::String,wat::core::i64>)`): each param is
+///   replaced by its actual argument and the walk enforces it EXACTLY, to the leaf.
+///
+/// * **Args unknown** (`args` empty — the caller named the bare generic): each param becomes
+///   `:wat::core::Value`, which accepts any EDN shape. This is not a weakening, it is the
+///   truth: the one production caller is the generated serve-loop guard inside `serve<K,V>`,
+///   where `K` is a BINDER, not a type — wat erases type params at runtime, so the server
+///   cannot know what `K` was instantiated to and has no basis to reject any value in a
+///   `K`-typed position. Every CONCRETE field of the message is still enforced exactly; what a
+///   generic service can check at its boundary is checked, and what it cannot is not pretended.
+///   The static discipline pins `K` at the client's call site instead.
+fn substitute_type_params(
+    ty: &crate::types::TypeExpr,
+    params: &[String],
+    args: &[crate::types::TypeExpr],
+) -> crate::types::TypeExpr {
+    use crate::types::TypeExpr;
+    match ty {
+        TypeExpr::Path(p) => {
+            let bare = p.trim_start_matches(':');
+            match params.iter().position(|param| param == bare) {
+                Some(i) => args
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| TypeExpr::Path(":wat::core::Value".into())),
+                None => ty.clone(),
+            }
+        }
+        TypeExpr::Parametric { head, args: inner } => TypeExpr::Parametric {
+            head: head.clone(),
+            args: inner
+                .iter()
+                .map(|a| substitute_type_params(a, params, args))
+                .collect(),
+        },
+        TypeExpr::Tuple(elems) => TypeExpr::Tuple(
+            elems
+                .iter()
+                .map(|e| substitute_type_params(e, params, args))
+                .collect(),
+        ),
+        TypeExpr::Fn { args: fargs, ret } => TypeExpr::Fn {
+            args: fargs
+                .iter()
+                .map(|a| substitute_type_params(a, params, args))
+                .collect(),
+            ret: Box::new(substitute_type_params(ret, params, args)),
+        },
+        other => other.clone(),
+    }
+}
+
 fn coerce_struct_path(
     type_path: &str,
     def: &crate::types::AggregateDef,
     edn: &wat_edn::OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    type_args: &[crate::types::TypeExpr],
 ) -> Result<Value, EdnCoerceError> {
     use wat_edn::Value as Edn;
     // Tagged struct form — `#ns/Name {map}` matches the writer
@@ -2171,7 +2273,10 @@ fn coerce_struct_path(
             got: format!("missing field :{}", fname),
             path: String::new(),
         })?;
-        let v = edn_to_typed_value_inner(fty, fv, types)
+        // Arc 278 the parametric protocol — a generic declaration's params are not registry
+        // types; substitute them out first (no params ⇒ the identity, allocation aside).
+        let fty = substitute_type_params(fty, &def.type_params, type_args);
+        let v = edn_to_typed_value_inner(&fty, fv, types)
             .map_err(|e| e.at(&format!(".{}", fname)))?;
         fields.push(v);
     }
@@ -2191,6 +2296,7 @@ fn coerce_enum_path(
     def: &crate::types::EnumDef,
     edn: &wat_edn::OwnedValue,
     types: Option<&crate::types::TypeEnv>,
+    type_args: &[crate::types::TypeExpr],
 ) -> Result<Value, EdnCoerceError> {
     use wat_edn::Value as Edn;
     // User-enum tag is `<ns>/<Variant>` where `<ns>` derives from the
@@ -2274,7 +2380,9 @@ fn coerce_enum_path(
             }
             let mut walked = Vec::with_capacity(items.len());
             for (i, ((fname, fty), item)) in fields.iter().zip(items.iter()).enumerate() {
-                let v = edn_to_typed_value_inner(fty, item, types)
+                // Arc 278 the parametric protocol — see `substitute_type_params`.
+                let fty = substitute_type_params(fty, &def.type_params, type_args);
+                let v = edn_to_typed_value_inner(&fty, item, types)
                     .map_err(|e| e.at(&format!(".{}", fname)))?;
                 let _ = i; // path uses field name, index reserved for future
                 walked.push(v);

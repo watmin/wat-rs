@@ -22,37 +22,31 @@
 ;; type params has no `<` on either side → the normalization is the IDENTITY for it (verified:
 ;; the whole `.wat` corpus `--check --check-output edn` is byte-identical across the change).
 ;;
-;; ── RED (NOT in this file): the WIRE wall, one layer out ─────────────────────────────────────
-;; Adding a `(:wat::service::defservice :probe::pcache-svc<K,V> :satisfies :probe::PCache<K,V> …)`
-;; to this file does NOT check. The declaration is fine; the SERVICE machinery cannot name a
-;; parametric message. Read from `(:wat::core::macroexpand '(defservice …))`, not inferred:
+;; ── The WIRE wall, one layer out — CLOSED (arc 278, the parametric protocol) ────────────────
+;; When this probe was written, adding a `defservice :probe::pcache-svc<K,V> :satisfies
+;; :probe::PCache<K,V>` did NOT check: `synthesize_surface_protocol` minted `<S>::Op`/`<S>::Reply`
+;; with `type_params: vec![]` while copying the surface member's TypeExpr verbatim (so `K` was
+;; UNBOUND in the enum), and `wat/service.wat` derived every message type NAME by concatenating
+;; the surface base with the op's pascal name — a convention with no channel for the message's own
+;; type arguments. Read off `(:wat::core::macroexpand '(defservice …))`, the emitted superset was
+;; `(defenum :…::pcache-svc::Op :wat::enum::Pure :Get [req <- :…::PCache::GetRequest])` — the `<K>`
+;; gone, and the enum itself non-parametric while `Record<K,V>` `State<K,V>` `Admin<K,V>`
+;; `Status<K,V>` `serve<K,V>` all carried the params.
 ;;
-;;   (defenum :…::cx-svc::Op :wat::enum::Pure :Get [req <- :…::Cx::GetRequest])   ← `<K>` GONE,
-;;       and `cx-svc::Op` is itself non-parametric while its siblings `Record<K>`, `State<K>`,
-;;       `Admin<K>`, `Status<K>`, `serve<K>` all carry `<K>`.
-;;   (defn :…::cx-svc/get [c <- :wat::kernel::Peer'<…::Cx::Op,…::Cx::Reply>
-;;                         req <- :…::Cx::GetRequest]
-;;     -> :wat::kernel::RecvOutcome<…::Cx::GetResponse> …)                        ← bare on both.
+;; Both halves shipped. `Op`/`Reply` inherit `surface.type_params`; the macro splits the surface's
+;; `:satisfies :S<K,V>` into base + type-ARGS and re-attaches the args at every TYPE position
+;; (`proto-tp` / `proto-op-ty-str`, wat/service.wat). The channel for a message's type arguments
+;; is the SURFACE's own params, checker-locked: a parametric serviceable surface's `:messages` must
+;; declare exactly those params, in order — which is why `GetRequest` below carries `<K,V>` and not
+;; the `<K>` it was first written with, even though no field of it names V.
 ;;
-;; The cause is that `wat/service.wat` derives every message type NAME by string concatenation
-;; from the surface base + the op's pascal name — `req-ty` at :852 (handler impl) and :1247,
-;; `resp-ty-str` at :1250 (client fn) — a convention that has no channel for the message's own
-;; type arguments. On the Rust side, `synthesize_surface_protocol` (src/types.rs:2393-2402)
-;; mints `<S>::Op` / `<S>::Reply` with `type_params: vec![]` while copying the surface member's
-;; TypeExpr verbatim, so `Cx::Op`'s `Get` variant field is `GetRequest<K>` with **K unbound in
-;; the enum**. The two Op enums then meet at a `(:wat::core::derive :…::Cx::Op :…::cx-svc::Op)`.
-;;
-;; This reproduces with a MONOMORPHIC service and a message referenced at a CONCRETE
-;; instantiation (`req <- :…::GetRequest<wat::core::String>`), so it is not about the service's
-;; genericity — it is the name derivation itself. Making the wire carry a parametric payload is
-;; therefore a design extension across `synthesize_surface_protocol` + the whole `wat/service.wat`
-;; generation pipeline (Op/Reply, client fn, serve-loop arms, the `Peer'<Op,Reply>` wire types),
-;; plus the open question of whether the EDN decode ENFORCES `K` at the boundary. That is a
-;; builder ruling, not a rider's — so this file stops at the declaration wall, honestly.
+;; The WIRE gate — a `<K,V>` service stood up on the thread locus, K=String / V=i64, real typed
+;; payloads asserted in both directions — is `wat-tests/service-parametric-messages.wat`. This file
+;; stays as the DECLARATION-wall pin it always was.
 
 (:wat::core::defsurface :probe::PCache<K,V> :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :probe::PCache::GetRequest<K>
+  [(:wat::core::defrecord :probe::PCache::GetRequest<K,V>
      [probes <- :wat::core::Vector<K>])
    (:wat::core::defenum :probe::PCache::GetResponse<K,V> :wat::enum::Pure
      ;; `echo` carries the K-typed probes back so a WIRE gate — once the layer above is ruled —
@@ -64,5 +58,5 @@
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(get [self <- :probe::PCache<K,V>  req <- :probe::PCache::GetRequest<K>]
+  [(get [self <- :probe::PCache<K,V>  req <- :probe::PCache::GetRequest<K,V>]
      -> :probe::PCache::GetResponse<K,V> :max-request-bytes 1024)])

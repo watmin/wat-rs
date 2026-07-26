@@ -242,16 +242,39 @@
                         "defservice: :satisfies needs a surface")
                       fqdn)
      proto-str      (:wat::core::keyword/to-string surface-node)
-     ;; The surface's SYNTHESIZED protocol is NON-parametric: `parse_declared_name` peels a
-     ;; surface's type params into `SurfaceDef.type_params` before `synthesize_surface_protocol`
-     ;; mints `<S>::Op` / `<S>::Reply` from `surface.name` (the BARE name), and its `:messages`
-     ;; records are concrete by ruling. So every protocol-namespaced name derives from the
-     ;; surface's BASE — identity for a monomorphic surface (`proto-base` IS `proto-str`).
-     ;; `surface-kw` likewise: the acronym registry is keyed on the surface's bare name.
+     ;; ── Arc 278 THE PARAMETRIC PROTOCOL: the surface's base / type-ARG split ────────────
+     ;; `:satisfies :S<K,V>` is the CHANNEL. The suffix is written at the satisfies site in the
+     ;; SERVICE's own binders, so re-attaching it to a protocol-namespaced name yields exactly
+     ;; the instantiation this service wears (`:S::Op<K,V>`, `:S::GetRequest<K,V>`). Same split
+     ;; helper as `fqdn-base`/`fqdn-tp` above — one spelling, two sides.
+     ;;
+     ;; `proto-base` (params STRIPPED) is the identity a NAME keys on: the acronym registry, the
+     ;; runtime `retag-op'` discriminator, every ctor/accessor/variant keyword, and `derive`
+     ;; (subtype edges are registered between BASE names).
+     ;; `proto-tp` (the `<…>` suffix, "" when monomorphic) re-attaches in TYPE positions only.
+     ;;
+     ;; THE IDENTITY PROPERTY: a monomorphic surface has `proto-tp` = "" and `proto-base` IS
+     ;; `proto-str`, so every derived string is byte-identical to the pre-split concatenation.
+     ;;
+     ;; THE MESSAGE CONVENTION (checker-locked in `synthesize_surface_protocol`, src/types.rs):
+     ;; a parametric surface's `:messages` are parametric in ALL of the surface's params, in
+     ;; order — `PCache<K,V>` ⇒ `PCache::GetRequest<K,V>`, `PCache::GetResponse<K,V>`, even when
+     ;; a given message uses only some (or none) of them. This is the SAME convention the
+     ;; generated companions already ride: `::Status<K,V>` names neither K nor V in any variant.
+     ;; It is what gives the derivation below a representation for a message's type arguments —
+     ;; the surface's own params — where before there was none, and it is what keeps the
+     ;; surface's `<S>::Op` and this service's `<fqdn>::Op` superset field-for-field identical
+     ;; (the `derive` edge and `retag-op'` both require that).
      proto-base     (:wat::core::if (:wat::core::string::ends-with? proto-str ">")
 
                       (:wat::core::first (:wat::core::string::split proto-str "<"))
                       proto-str)
+     proto-tp       (:wat::core::if (:wat::core::string::ends-with? proto-str ">")
+
+                      (:wat::core::string::subs proto-str
+                        (:wat::core::string::length proto-base)
+                        (:wat::core::string::length proto-str))
+                      "")
      surface-kw     (:wat::core::keyword/from-string proto-base)
 
      ;; :durable [fields] — optional, default empty vector node []
@@ -578,10 +601,22 @@
 
      ;; Arc 293 S2 — Op/Reply live under the PROTOCOL namespace (proto-str): the surface's
      ;; when :satisfies, else this service's own fqdn (identical to pre-S2 for the :ops path).
+     ;;
+     ;; Arc 278 the parametric protocol — enum-name / reply-name stay at the BASE. They are the
+     ;; NAME-identity spellings, not type positions: `derive` registers a subtype edge between
+     ;; base names, `retag-op'` compares them against a runtime value's `type_path` (which is the
+     ;; base), and the child-main `listener'` re-resolves them in a freshly-started child. The
+     ;; TYPE-position spellings are `proto-op-ty-str` / `proto-reply-ty-str` below.
      enum-name     (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{proto-base}::Op" :proto-base proto-base))
      reply-name    (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{proto-base}::Reply" :proto-base proto-base))
+     ;; The TYPE-position protocol spellings — base + the surface's type ARGS re-attached.
+     ;; Monomorphic surface ⇒ proto-tp is "" ⇒ these ARE `{proto-base}::Op` / `::Reply`.
+     proto-op-ty-str    (:wat::core::string::interpolate "{b}::Op{p}" :b proto-base :p proto-tp)
+     proto-reply-ty-str (:wat::core::string::interpolate "{b}::Reply{p}" :b proto-base :p proto-tp)
+     proto-op-ty-kw     (:wat::core::keyword/from-string proto-op-ty-str)
+     proto-reply-ty-kw  (:wat::core::keyword/from-string proto-reply-ty-str)
      ;; Arc 278 no-hidden-failures — the reserved PROTOCOL-TIER failure variant. Synthesized
      ;; onto every `<S>::Reply` by `synthesize_surface_protocol` (src/types.rs). The serve loop
      ;; replies `(Reply::Failed cause)` to a client whose message could not be decoded, and the
@@ -608,36 +643,26 @@
      ;; surface's uniform Address'<S::Op,S::Reply>. (proto-str = fqdn-str for the :ops path.)
      ;; Peer'<proto::Reply,proto::Op>
      peer-ty       (:wat::core::keyword/from-string
-                     (:wat::core::string::concat "wat::kernel::Peer'<"
-                       (:wat::core::string::concat proto-base
-                         (:wat::core::string::concat "::Reply,"
-                           (:wat::core::string::concat proto-base "::Op>")))))
+                     (:wat::core::string::interpolate "wat::kernel::Peer'<{r},{o}>"
+                       :r proto-reply-ty-str :o proto-op-ty-str))
      ;; Listener'<proto::Op,proto::Reply>
      listener-ty   (:wat::core::keyword/from-string
-                     (:wat::core::string::concat "wat::kernel::Listener'<"
-                       (:wat::core::string::concat proto-base
-                         (:wat::core::string::concat "::Op,"
-                           (:wat::core::string::concat proto-base "::Reply>")))))
+                     (:wat::core::string::interpolate "wat::kernel::Listener'<{o},{r}>"
+                       :o proto-op-ty-str :r proto-reply-ty-str))
      ;; Vector<Peer'<proto::Reply,proto::Op>>
      vector-ty     (:wat::core::keyword/from-string
-                     (:wat::core::string::concat "wat::core::Vector<wat::kernel::Peer'<"
-                       (:wat::core::string::concat proto-base
-                         (:wat::core::string::concat "::Reply,"
-                           (:wat::core::string::concat proto-base "::Op>>")))))
+                     (:wat::core::string::interpolate "wat::core::Vector<wat::kernel::Peer'<{r},{o}>>"
+                       :r proto-reply-ty-str :o proto-op-ty-str))
      ;; Address'<proto::Op,proto::Reply>
      addr-ty       (:wat::core::keyword/from-string
-                     (:wat::core::string::concat "wat::kernel::Address'<"
-                       (:wat::core::string::concat proto-base
-                         (:wat::core::string::concat "::Op,"
-                           (:wat::core::string::concat proto-base "::Reply>")))))
+                     (:wat::core::string::interpolate "wat::kernel::Address'<{o},{r}>"
+                       :o proto-op-ty-str :r proto-reply-ty-str))
      ;; Client Peer'<proto::Op,proto::Reply> — connect'(Address'<Op,Reply>) → Peer'<Op,Reply>.
      ;; This is the client-side peer (sends Op, receives Reply); distinct from
      ;; peer-ty (Peer'<Reply,Op>) which is the server-side peer (accepts via listener').
      client-peer-ty (:wat::core::keyword/from-string
-                      (:wat::core::string::concat "wat::kernel::Peer'<"
-                        (:wat::core::string::concat proto-base
-                          (:wat::core::string::concat "::Op,"
-                            (:wat::core::string::concat proto-base "::Reply>")))))
+                      (:wat::core::string::interpolate "wat::kernel::Peer'<{o},{r}>"
+                        :o proto-op-ty-str :r proto-reply-ty-str))
 
      ;; ── arc 291 3a-ii-α: lineage protocol types ──────────────────────────────
      ;; Admin enum:     :<fqdn>::Admin  — what the owner sends DOWN the lineage peer.
@@ -818,22 +843,24 @@
      ;; (the poll' set) is typed with the superset O; the O flows into `Outcome<S,R,O>`/`Alarm<O>`.
      service-op-str  (:wat::core::string::interpolate "{b}::Op" :b fqdn-base)
      service-op-kw   (:wat::core::keyword/from-string service-op-str)
+     ;; Arc 278 the parametric protocol — the SUPERSET enum's DECLARED name carries the service's
+     ;; own params (its variant fields name the surface's parametric messages, so the binders must
+     ;; be in scope), and every TYPE-position reference below instantiates it at those params.
+     ;; `service-op-str` stays BASE: it is the ctor/variant namespace, the `retag-op'` runtime
+     ;; target, and the `derive` edge's child. Monomorphic ⇒ fqdn-tp is "" ⇒ the two coincide.
+     service-op-ty-str (:wat::core::string::interpolate "{b}::Op{p}" :b fqdn-base :p fqdn-tp)
+     service-op-decl-kw (:wat::core::keyword/from-string service-op-ty-str)
      ;; selectable-peer-ty: Peer'<proto::Reply, service::Op> (the poll' element — superset O).
      selectable-peer-ty (:wat::core::keyword/from-string
-                          (:wat::core::string::concat "wat::kernel::Peer'<"
-                            (:wat::core::string::concat proto-base
-                              (:wat::core::string::concat "::Reply,"
-                                (:wat::core::string::concat service-op-str ">")))))
+                          (:wat::core::string::interpolate "wat::kernel::Peer'<{r},{o}>"
+                            :r proto-reply-ty-str :o service-op-ty-str))
      ;; selectable-vec-ty: Vector<Peer'<proto::Reply, service::Op>> (serve's `selectables` param).
      selectable-vec-ty (:wat::core::keyword/from-string
-                         (:wat::core::string::concat "wat::core::Vector<wat::kernel::Peer'<"
-                           (:wat::core::string::concat proto-base
-                             (:wat::core::string::concat "::Reply,"
-                               (:wat::core::string::concat service-op-str ">>")))))
+                         (:wat::core::string::interpolate "wat::core::Vector<wat::kernel::Peer'<{r},{o}>>"
+                           :r proto-reply-ty-str :o service-op-ty-str))
      ;; alarm-o-ty: Alarm<service::Op> — the arm-foldl binder type.
      alarm-o-ty      (:wat::core::keyword/from-string
-                       (:wat::core::string::concat "wat::service::Alarm<"
-                         (:wat::core::string::concat service-op-str ">")))
+                       (:wat::core::string::interpolate "wat::service::Alarm<{o}>" :o service-op-ty-str))
      ;; The superset variant items: a flat [variant-kw field-vec …] Vector<WatAST> spliced into
      ;; the defenum. A surface op → `:Pascal [req <- :<proto>::<Pascal>Request]` (mirrors the
      ;; surface Op variant's field, so `retag-op'` embeds field-for-field); an internal `-op` →
@@ -858,14 +885,19 @@
                             
                             empty-vec
                             (:wat::core::let
+                              ;; Arc 278 the parametric protocol — the message's type ARGS
+                              ;; re-attach (`::GetRequest<K,V>`), mirroring the surface Op
+                              ;; variant's field EXACTLY (the `derive` edge + `retag-op'` both
+                              ;; require field-for-field identity). Monomorphic ⇒ proto-tp is
+                              ;; "" ⇒ byte-identical to the bare concatenation.
                               [req-ty (:wat::core::keyword/from-string
-                                        (:wat::core::string::concat proto-base
-                                          (:wat::core::string::interpolate "::{variant-pascal}Request" :variant-pascal variant-pascal)))]
+                                        (:wat::core::string::interpolate "{b}::{v}Request{p}"
+                                          :b proto-base :v variant-pascal :p proto-tp))]
                               `[req <- ~req-ty]))]
              (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
          (:wat::core::Vector :wat::WatAST)
          impl-clauses)
-     service-op-def `(:wat::core::defenum ~service-op-kw :wat::enum::Pure ~@service-op-variant-items)
+     service-op-def `(:wat::core::defenum ~service-op-decl-kw :wat::enum::Pure ~@service-op-variant-items)
      ;; ── Arc 278 reconciliation (b): surface-Op <: service-Op subtype edge ──────────────
      ;; The serve loop's `selectables` param is typed with the SUPERSET `<service>::Op`
      ;; (`selectable-peer-ty` above), but CLIENT peers speak the SURFACE `<proto>::Op` — a
@@ -1108,6 +1140,18 @@
                               ;; The WHITELIST: the op's declared request record (the S1 convention
                               ;; `<proto>::<Op>Request`, the same one `op-methods` builds its client
                               ;; method's `req` param from — one convention, two consumers).
+                              ;;
+                              ;; Arc 278 the parametric protocol — this one stays at the BASE, and
+                              ;; deliberately. It is a RUNTIME argument (`:wat::edn::validate` reads
+                              ;; it, evaluates the registry lookup, and walks the DECLARED field
+                              ;; types), not a type position the checker reads; and inside a generic
+                              ;; `serve<K,V>` the params are erased, so re-attaching `<K,V>` would
+                              ;; hand the walker the letters `K` and `V` — no more information than
+                              ;; the bare name already carries. Either spelling reaches the same
+                              ;; place: `edn_to_typed_value` treats a type-VARIABLE position as
+                              ;; opaque and enforces every concrete field around it exactly. The
+                              ;; measured boundary is pinned in wat-tests/service-parametric-
+                              ;; messages.wat, probes (2) and (3).
                               req-ty-kw     (:wat::core::keyword/from-string
                                               (:wat::core::string::concat proto-base
                                                 (:wat::core::string::interpolate "::{variant-pascal}Request" :variant-pascal variant-pascal)))
@@ -1242,7 +1286,12 @@
                      ;; before; this arm's own Reply/Stop behavior (the match body) is untouched.
                      ((:wat::spawn::ServiceEvent::Message idx op)
                        (:wat::kernel::serve-dispatch-op' selectables
-                         (:wat::core::match (:wat::kernel::retag-op' op ~enum-name ~service-op-kw) 
+                         ;; Arc 278 the parametric protocol — TYPE-position spellings on both
+                         ;; sides: `infer_retag_op` reads arg[2] as this form's RESULT TYPE, and
+                         ;; the arms below dispatch over the instantiated `<service>::Op<K,V>`.
+                         ;; `eval_retag_op` canonicalizes both to their base names (params are
+                         ;; erased in a runtime `type_path`). Monomorphic ⇒ unchanged.
+                         (:wat::core::match (:wat::kernel::retag-op' op ~proto-op-ty-kw ~service-op-decl-kw)
                            ~@serve-op-arms)))
                      ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::std::list::remove-at selectables idx) state))
@@ -1314,14 +1363,19 @@
                           ;; surface: NO client method (a client can only call surface ops).
                           is-internal     (:wat::core::string::starts-with? op-str "-")
                           op-pascal       (:wat::core::string::kebab->pascal-in surface-kw op-str)
+                          ;; Arc 278 the parametric protocol — the client fn's SIGNATURE names the
+                          ;; surface's parametric messages, so the DECLARATION carries the service's
+                          ;; own binders (`{b}/{op}{p}`), exactly as `/start`, `/stop`, `/grant` do.
+                          ;; A concrete service satisfying a surface at concrete args has fqdn-tp ""
+                          ;; and a fully concrete signature — no binders to declare, nothing changes.
                           method-name     (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat fqdn-base
-                                              (:wat::core::string::interpolate "/{op-str}" :op-str op-str)))
+                                            (:wat::core::string::interpolate "{b}/{op-str}{p}"
+                                              :b fqdn-base :op-str op-str :p fqdn-tp))
                           req-ty          (:wat::core::keyword/from-string
-                                            (:wat::core::string::concat proto-base
-                                              (:wat::core::string::interpolate "::{op-pascal}Request" :op-pascal op-pascal)))
-                          resp-ty-str     (:wat::core::string::concat proto-base
-                                              (:wat::core::string::interpolate "::{op-pascal}Response" :op-pascal op-pascal))
+                                            (:wat::core::string::interpolate "{b}::{op-pascal}Request{p}"
+                                              :b proto-base :op-pascal op-pascal :p proto-tp))
+                          resp-ty-str     (:wat::core::string::interpolate "{b}::{op-pascal}Response{p}"
+                                            :b proto-base :op-pascal op-pascal :p proto-tp)
                           resp-ty         (:wat::core::keyword/from-string resp-ty-str)
                           ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
                           ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise). Built as
@@ -1581,10 +1635,10 @@
      ;; Arc 293 S2 — Op/Reply are the protocol's (proto-str); State/Admin/Status stay per-service.
      launch-head-kw (:wat::core::keyword/from-string
                       (:wat::core::string::concat "wat::spawn::Locus/launch<"
-                        (:wat::core::string::concat proto-base
-                          (:wat::core::string::concat "::Op,"
-                            (:wat::core::string::concat proto-base
-                              (:wat::core::string::concat "::Reply,"
+                        (:wat::core::string::concat proto-op-ty-str
+                          (:wat::core::string::concat ","
+                            (:wat::core::string::concat proto-reply-ty-str
+                              (:wat::core::string::concat ","
                                 (:wat::core::string::concat state-ty-str
                                   (:wat::core::string::concat ","
                                     (:wat::core::string::concat admin-ty-str
@@ -1630,8 +1684,18 @@
                           ;; crash-aware `recv' svc` (spawn.wat ProcessOpts, reordered to send-ship-
                           ;; then-recv-Started) RAISES the child's reason instead of /start
                           ;; succeeding and the owner's later connect' getting a bare ECONNREFUSED.
+                          ;; Arc 278 the parametric protocol — the TYPE-position spellings.
+                          ;; `listener'` types the `Bound`, whose `Address'` flows into
+                          ;; `Status::Started` — a `Status<K,V>` variant, so its addr slot is
+                          ;; `Address'<Op<K,V>,Reply<K,V>>` and a BARE `Address'<Op,Reply>` does
+                          ;; not unify with it. In this generated child `:user::main` the params
+                          ;; are FREE type vars (exactly as they already are in the sibling
+                          ;; `(self-peer ~status-ty ~admin-ty)` below), which is what the child
+                          ;; instance is: one erased instantiation. At RUNTIME the decode target
+                          ;; a type var names is opaque (`edn_to_typed_value`'s var arm) — the
+                          ;; concrete fields around it are still decoded and enforced exactly.
                           [~cm-b-sym    (:wat::kernel::listener' :wat::spawn::service-locus
-                                            ~enum-name ~reply-name ~max-frame-bytes-node)
+                                            ~proto-op-ty-kw ~proto-reply-ty-kw ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty ~admin-ty)
                            ~cm-ship-sym (:wat::core::match (:wat::kernel::recv' ~cm-self-sym) 
                                             ((:wat::kernel::RecvOutcome::Message ~cm-shipmsg-sym) ~cm-shipmsg-sym)
@@ -1797,10 +1861,8 @@
      ;; the hand-proven extend-type in scratchpad/probe-c2-typed-coordinate.wat. proto-str
      ;; (not fqdn-str) matches addr-ty's own Op/Reply namespace (arc 293 S2, line ~472).
      dialable-ty (:wat::core::keyword/from-string
-                   (:wat::core::string::concat "wat::capability::Dialable<"
-                     (:wat::core::string::concat proto-base
-                       (:wat::core::string::concat "::Op,"
-                         (:wat::core::string::concat proto-base "::Reply>")))))
+                   (:wat::core::string::interpolate "wat::capability::Dialable<{o},{r}>"
+                     :o proto-op-ty-str :r proto-reply-ty-str))
      dialable-extend `(:wat::core::extend-type ~handle-name ~dialable-ty
                          (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
 
@@ -1813,10 +1875,8 @@
      ;; wiring exactly (proto-str namespace, not fqdn-str — same reasoning as line ~1192).
      ;; Shape proven scratchpad/probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat.
      typedcap-ty (:wat::core::keyword/from-string
-                   (:wat::core::string::concat "wat::capability::TypedCapability<"
-                     (:wat::core::string::concat proto-base
-                       (:wat::core::string::concat "::Op,"
-                         (:wat::core::string::concat proto-base "::Reply>")))))
+                   (:wat::core::string::interpolate "wat::capability::TypedCapability<{o},{r}>"
+                     :o proto-op-ty-str :r proto-reply-ty-str))
      typedcap-extend `(:wat::core::extend-type ~handle-name ~typedcap-ty)]
 
     ;; Assemble the final `do`:

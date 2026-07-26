@@ -2332,6 +2332,74 @@ fn synthesize_surface_protocol(
             return Ok(vec![]);
         }
 
+        // ── Arc 278 THE PARAMETRIC PROTOCOL — the MESSAGE-PARAMS lock ─────────────────────
+        //
+        // In a parametric serviceable surface, every message (request AND response) must be
+        // declared parametric in EXACTLY the surface's own type params, in order — even where a
+        // given message uses none of them.
+        //
+        // WHY IT IS A RULE AND NOT A CONVENTION-BY-HOPE: `wat/service.wat` derives message type
+        // NAMES by concatenation (surface base + op pascal + `Request`/`Response`) and it is a
+        // MACRO — freeze runs `expand_all` before `register_types`, so at the moment it builds
+        // those names the type registry holds nothing at all, not even the surface three forms
+        // up in the same file. It therefore cannot ask a message how many params it has; it can
+        // only apply a UNIFORM rule, and the only uniform rule with a channel for a message's
+        // type arguments is "the surface's own params, re-attached". This lock is the other half
+        // of that: it makes the macro's assumption a declared, checker-forced contract.
+        //
+        // WHY IT IS ANNOUNCED HERE and not left to the downstream mismatch: without it, a
+        // message declared with the wrong params fails as a fan of `TypeMismatch`es located
+        // inside `wat/service.wat` and `wat/Record.wat` — generated code the author never wrote
+        // — naming neither the surface, nor the op, nor the fix. An opaque assertion mislabels
+        // the root. This one names all three, at the declaration site.
+        //
+        // A MONOMORPHIC surface has no params, so this loop body never runs for it — the nine
+        // concrete defservices cannot see this rule at all.
+        if enforce_rtl_lock && !surface.type_params.is_empty() {
+            let want: Vec<TypeExpr> = surface
+                .type_params
+                .iter()
+                .map(|p| TypeExpr::Path(format!(":{}", p)))
+                .collect();
+            let wanted_suffix = format!("<{}>", surface.type_params.join(","));
+            for (role, ty) in [("request", &request_ty), ("response", ret)] {
+                let conforms = match ty {
+                    TypeExpr::Parametric { args, .. } => *args == want,
+                    _ => false,
+                };
+                if !conforms {
+                    return Err(TypeError {
+                        span: decl_span.clone(),
+                        kind: TypeErrorKind::MalformedDecl {
+                            head: ":wat::core::defsurface".to_string(),
+                            reason: format!(
+                                "op `{}` in surface {}: its {} type `{}` must be declared \
+                                 parametric in EXACTLY this surface's type params, in order — \
+                                 `{}{}` (arc 278, the parametric protocol). A parametric \
+                                 surface's messages carry the surface's params even when a \
+                                 given message names none of them, exactly as the generated \
+                                 `::Status{}` does: the `defservice` macro derives every \
+                                 message type NAME by concatenation, at expand time, when the \
+                                 type registry is still empty — so it can only re-attach the \
+                                 surface's own params, and a message that carries a different \
+                                 set has no spelling the wire can name.",
+                                name,
+                                surface.name,
+                                role,
+                                crate::check::format_type(ty),
+                                crate::check::format_type(ty)
+                                    .split('<')
+                                    .next()
+                                    .unwrap_or_default(),
+                                wanted_suffix,
+                                wanted_suffix,
+                            ),
+                        },
+                    });
+                }
+            }
+        }
+
         // Arc 278 #16 Stone 16.1c — LOCK ruling A. Every serviceable op-Response must be an
         // outcome ENUM carrying a well-shaped `RequestTooLarge [bytes <- i64  cap <- i64]`
         // variant: any wire op can face a request that overruns its `:max-request-bytes`
@@ -2507,16 +2575,28 @@ fn synthesize_surface_protocol(
         return Ok(vec![]);
     }
 
+    // Arc 278 — the PARAMETRIC PROTOCOL. `Op`/`Reply` inherit the surface's own type params.
+    //
+    // The variant fields are the surface members' request/response `TypeExpr`s VERBATIM, so a
+    // parametric surface's messages (`GetRequest<K,V>`) put `K`/`V` in those field positions. Born
+    // with `type_params: vec![]`, `K` was UNBOUND in the enum — the surface declared a parametric
+    // protocol and the wire silently stripped it. The params bind here, at the one place that knows
+    // both the surface's binders and the fields that reference them.
+    //
+    // THE IDENTITY PROPERTY (the whole floor rides on it): a surface with no type params has
+    // `surface.type_params == []`, so this clone is byte-for-byte the old `vec![]` — every one of the
+    // nine concrete defservices is untouched. (Verified: `--check --check-output edn` over the whole
+    // `.wat` corpus is byte-identical across this change.)
     Ok(vec![
         TypeDef::Enum(EnumDef {
             name: op_name,
-            type_params: vec![],
+            type_params: surface.type_params.clone(),
             purity: Purity::Pure,
             variants: op_variants,
         }),
         TypeDef::Enum(EnumDef {
             name: reply_name,
-            type_params: vec![],
+            type_params: surface.type_params.clone(),
             purity: Purity::Pure,
             variants: reply_variants,
         }),

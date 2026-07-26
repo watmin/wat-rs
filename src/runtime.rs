@@ -3227,6 +3227,20 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBre
     Ok((head, params))
 }
 
+/// Stone 251.7 — THE VAR TEST, extracted so every consumer asks it the same way.
+///
+/// A `TypeExpr::Path` names a lexically-scoped type VARIABLE (`:T`, `:K`, `:V`) iff, after
+/// stripping the leading `:`, it is bare (contains neither `"::"` nor `'.'`) and its first
+/// alphabetic character is uppercase. This excludes the lowercase legacy bare primitives
+/// (`:i64`, `:bool`) and every FQDN type (`:wat::core::i64`, `:user::Foo`).
+pub(crate) fn is_type_var_path(p: &str) -> bool {
+    let s = p.strip_prefix(':').unwrap_or(p);
+    if s.contains("::") || s.contains('.') {
+        return false;
+    }
+    s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase())
+}
+
 /// Stone 251.7 — collect free type-variable names from a function signature.
 ///
 /// Walks each `TypeExpr` in `param_types` and `ret_type`, returning in
@@ -3246,19 +3260,11 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBre
 /// `Fn.ret`, `Tuple` elements.  `Var(_)` is synthetic (never parsed) —
 /// ignored.  `Path` with no match also ignored.
 pub(crate) fn collect_free_type_vars(param_types: &[crate::types::TypeExpr], ret_type: &crate::types::TypeExpr) -> Vec<String> {
-    fn is_type_var(p: &str) -> bool {
-        let s = p.strip_prefix(':').unwrap_or(p);
-        if s.contains("::") || s.contains('.') {
-            return false;
-        }
-        s.chars().find(|c| c.is_alphabetic()).map_or(false, |c| c.is_uppercase())
-    }
-
     fn walk(ty: &crate::types::TypeExpr, seen: &mut Vec<String>) {
         use crate::types::TypeExpr;
         match ty {
             TypeExpr::Path(p) => {
-                if is_type_var(p) {
+                if is_type_var_path(p) {
                     let name = p.strip_prefix(':').unwrap_or(p).to_string();
                     if !seen.contains(&name) {
                         seen.push(name);
@@ -12959,6 +12965,15 @@ fn eval_retag_op(
             } }.into());
         }
     };
+    // Arc 278 the parametric protocol — both path literals may arrive TURBOFISHED
+    // (`:S::Op<K,V>` / `:svc::Op<K,V>`): the `defservice` macro spells them at TYPE
+    // positions because `infer_retag_op` reads arg[2] as this form's result TYPE, and a
+    // parametric protocol's Op must be instantiated there. A runtime `EnumValue.type_path`
+    // is always the BASE name (type params are erased), and `try_match_pattern` composes
+    // `type_path::variant`, so both the discriminator and the re-tag target are the base.
+    // Monomorphic protocol ⇒ no suffix ⇒ this is the identity.
+    let surface_path = canonical_callable_name(&surface_path).to_string();
+    let service_path = canonical_callable_name(&service_path).to_string();
     let op_val = eval_inner(&args[0], env, sym)?.value_owned();
     match op_val {
         // Surface-tagged client op → embed into the service superset counterpart.

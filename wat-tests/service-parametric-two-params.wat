@@ -22,15 +22,20 @@
 ;; from a shifted one. The handler READS BOTH durable fields (presence, not payload — a K- or
 ;; V-typed value is opaque inside a generic body), so both params reach the state and back.
 ;;
-;; SCOPE: as in `service-parametric.wat`, the surface's `:messages` stay CONCRETE — the
-;; synthesized `Pair::Op` / `Pair::Reply` protocol is non-parametric by construction, so the
-;; WIRE is monomorphic and untouched. Generic message records remain a separate ruling.
+;; SCOPE (arc 278, the parametric protocol): the synthesized `Pair::Op<K,V>` / `Pair::Reply<K,V>`
+;; now carry the surface's params, and a parametric surface's `:messages` are declared parametric
+;; in EXACTLY those params — `PutRequest<K,V>` / `PutResponse<K,V>` here, whose FIELDS name
+;; neither K nor V. See `service-parametric.wat`'s header for why that vacuous `<K,V>` is the rule
+;; (the derivation is a macro; at expand time the registry is empty, so it can only re-attach the
+;; surface's own params) and `service-parametric-messages.wat` for the gate where the params are
+;; genuinely load-bearing ON THE WIRE. What THIS file pins is unchanged: the depth-aware type-arg
+;; split, with K and V load-bearing in the STATE.
 
-;; ── the surface: TWO type params, messages concrete ─────────────────────────────────────────
+;; ── the surface: TWO type params ────────────────────────────────────────────────────────────
 (:wat::core::defsurface :wat-tests::Pair<K,V> :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :wat-tests::Pair::PutRequest [item <- :wat::core::i64])
-   (:wat::core::defenum :wat-tests::Pair::PutResponse :wat::enum::Pure
+  [(:wat::core::defrecord :wat-tests::Pair::PutRequest<K,V> [item <- :wat::core::i64])
+   (:wat::core::defenum :wat-tests::Pair::PutResponse<K,V> :wat::enum::Pure
      ;; `echo` carries a value the assertion reads APART: item, plus a distinct weight per
      ;; durable field, so a state that lost K (or V) yields a DIFFERENT number, not a crash.
      :Ok              [echo <- :wat::core::i64]
@@ -39,8 +44,8 @@
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(put [self <- :wat-tests::Pair<K,V>  req <- :wat-tests::Pair::PutRequest]
-     -> :wat-tests::Pair::PutResponse :max-request-bytes 1024)])
+  [(put [self <- :wat-tests::Pair<K,V>  req <- :wat-tests::Pair::PutRequest<K,V>]
+     -> :wat-tests::Pair::PutResponse<K,V> :max-request-bytes 1024)])
 
 ;; ── the two-parameter service ───────────────────────────────────────────────────────────────
 ;; `k <- Option<K>` and `v <- Option<V>` are the whole point: ::Record, ::State, ::Admin,
