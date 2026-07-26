@@ -253,3 +253,81 @@
   [store <- :wat::cache::HolographicLru]
   -> :wat::core::i64
   (:wat::holon::Hologram/len (:wat::cache::HolographicLru/hologram store)))
+
+;; ═══ Stone 4 — :wat::cache::hologram-svc, the SIMILARITY cache as a SERVICE ═══════════════════
+;;
+;; The last cache-campaign build. `HolographicLru` behind the SAME `Cache<K,V>` surface Stone 2's
+;; `lru-svc<K,V>` wears — but `HolographicLru` is CONCRETE over `HolonAST` (the Hologram store is
+;; HolonAST-keyed, not generic; header above), so `hologram-svc` itself carries NO `<K,V>` — it
+;; pins BOTH of `Cache<K,V>`'s params to `:wat::holon::HolonAST` at the `:satisfies` site. A
+;; concrete, non-parametric service satisfying a parametric surface at FIXED type arguments had
+;; no precedent in this corpus before this stone (the only prior `:satisfies` with type args is
+;; Stone 2's `lru-svc<K,V> :satisfies Cache<K,V>` — parametric satisfying parametric, service
+;; binders flowing straight through). Grounded first as a throwaway probe
+;; (`wat-scripts/scratch-pad/probe-arc278-concrete-satisfies-parametric.wat`): a concrete service
+;; satisfying `Cache<K,V>` at fixed FQDN type args `--check`s clean, and a deliberately-sabotaged
+;; variant (swapped K/V) correctly produces type errors naming the exact derived
+;; `Cache::Reply<wat::core::String,wat::core::i64>` instantiation — proof the macro's
+;; `proto-base`/`proto-tp` split (wat/service.wat:268-276) handles a concrete FQDN type-arg list
+;; correctly, not just bare binders.
+;;
+;; ─── the filter problem — a live closure cannot be a durable field ───────────────────────────
+;; `HolographicLru::new` (above) takes a `filter <- Fn(f64)->bool` — and every factory that
+;; produces one (`filter-coincident` / `filter-present` / `filter-accept-any`, wat/holon.wat:65-93)
+;; is a CLOSURE that captures ambient state (`:wat::config::dim-count`) at call time. `Admin::Init`
+;; is unconditionally Pure (293.W), so an impure `Fn`-typed argument cannot reach `:init` from
+;; `:durable` — the same wall Stone 2's header already states for the `Lru` handle itself, one
+;; level up: an impure surface-typed value may live only in `:ephemeral`.
+;;
+;; The shape that works, precedented by the stdio-as-defservice stones (an fd *number* seed → a
+;; live handle born inside `:init` via the whitelisted `from-fd`): `:durable` holds a PURE SEED
+;; naming WHICH floor, and `:init` maps the seed to the live filter closure before calling
+;; `HolographicLru::new`. The three filters are a CLOSED set — a `:wat::enum::Pure` nullary-variant
+;; enum is the honest shape for "one of exactly these three," not a bare keyword (untyped, no
+;; exhaustiveness at the `:init` match) or a `String` (same weakness, plus a runtime-only failure
+;; mode on a typo). Four questions: Obvious — a reader sees the three names, matching
+;; wat/holon.wat's own three factories one-for-one. Simple — one flat enum, no nesting. Honest — it
+;; cannot represent a fourth, non-existent filter; a keyword or String could silently carry
+;; garbage past construction into `:init`'s match (where it would need a catch-all "else" arm that
+;; a bare-keyword-or-String encoding is honest about only by hoping nobody typos). Good UX — the
+;; caller writes `:filter (:wat::cache::HologramFilterKind::Coincident)` and the compiler rejects
+;; anything else; a `:wat::cache::hologram-svc::Record` literal is self-describing at the call site.
+(:wat::core::defenum :wat::cache::HologramFilterKind :wat::enum::Pure
+  :Coincident []
+  :Present    []
+  :AcceptAny  [])
+
+(:wat::service::defservice :wat::cache::hologram-svc
+  :satisfies :wat::cache::Cache<wat::holon::HolonAST,wat::holon::HolonAST>
+  :durable   [capacity <- :wat::core::i64
+              filter   <- :wat::cache::HologramFilterKind]
+  :ephemeral [cache <- :wat::cache::HolographicLru]
+  :init (:wat::core::fn [record <- :wat::cache::hologram-svc::Record]
+          -> :wat::cache::hologram-svc::State
+          (:wat::cache::hologram-svc::State
+            :durable record
+            :cache (:wat::cache::HolographicLru::new
+                     (:wat::core::match (:wat::cache::hologram-svc::Record/filter record)
+                       ((:wat::cache::HologramFilterKind::Coincident) (:wat::holon::filter-coincident))
+                       ((:wat::cache::HologramFilterKind::Present)    (:wat::holon::filter-present))
+                       ((:wat::cache::HologramFilterKind::AcceptAny)  (:wat::holon::filter-accept-any)))
+                     (:wat::cache::hologram-svc::Record/capacity record))))
+  :impls
+  [(get [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s)
+                             (:wat::cache::Cache::GetRequest/key req))
+         ((:wat::core::Some v) (:wat::cache::Cache::GetResponse::Hit v))
+         (:wat::core::None (:wat::cache::Cache::GetResponse::Miss)))))
+   ;; `HolographicLru::put` returns `nil` (header above), unlike `Lru::put` — the dual-eviction
+   ;; chain removes the displaced key internally but does not hand it back. So `displaced` is
+   ;; always `None` here: an honest reflection of what `HolographicLru::put` actually exposes, not
+   ;; a lie dressed up to mirror `lru-svc`'s `Some(Entry)` shape. Eviction is still OBSERVABLE
+   ;; through the service — just via a later `get` miss, not via this response.
+   (put [s req]
+     (:wat::service::Outcome::Reply s
+       (:wat::core::let
+         [_ (:wat::cache::HolographicLru::put (:wat::cache::hologram-svc::State/cache s)
+              (:wat::cache::Cache::PutRequest/key req)
+              (:wat::cache::Cache::PutRequest/value req))]
+         (:wat::cache::Cache::PutResponse::Ok :wat::core::None))))])

@@ -49,20 +49,6 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/sqlite.wat",
         source: include_str!("../wat/sqlite.wat"),
     },
-    // Arc 278 Cache Stone 1 — :wat::cache:: — the bounded LRU primitive over the fresh
-    // `:rust::cache::Lru` shim (src/rust_deps/cache.rs, core's SECOND default :rust:: shim).
-    // A cache is table-stakes substrate, so the cache tooling comes home to core (the
-    // wat-lru crate is the study ORACLE, retired in Stone 5). Later stones add the
-    // `lru-svc` defservice + the HolographicLru composite ON TOP of this file.
-    // Load position: its only eval-deps are wat/core.wat builtins (typealias/defn/Option/i64)
-    // plus `:wat::core::defrecord`, which is a DEFMACRO — registered in the order-free
-    // pre-expansion pass, so wat/Record.wat's later position is not a dependency
-    // (`:wat::deporder::verify-stdlib` classifies defmacro refs as order-free). Hence it may
-    // load immediately after wat/core.wat, beside the other :rust::-shim surface.
-    WatSource {
-        path: "wat/cache.wat",
-        source: include_str!("../wat/cache.wat"),
-    },
     // Arc 118.2a — the clojure-named lazy/eager HOF surface (map/filter/take/drop are Rust
     // intrinsics, unconditionally available; this file adds `filter` [wat-defined], `mapv`/
     // `filterv`/`into`/`doall`/`dorun`/`reduce`/`count`). Moved here (immediately after
@@ -169,6 +155,27 @@ const STDLIB_FILES: &[WatSource] = &[
     WatSource {
         path: "wat/holon.wat",
         source: include_str!("../wat/holon.wat"),
+    },
+    // Arc 278 Cache Stone 1/3/4 — :wat::cache:: — the bounded LRU primitive (over the fresh
+    // `:rust::cache::Lru` shim, src/rust_deps/cache.rs, core's SECOND default :rust:: shim), the
+    // HolographicLru similarity composite, and (Stone 4) the `hologram-svc` service. A cache is
+    // table-stakes substrate, so the cache tooling comes home to core (the wat-lru /
+    // wat-holon-lru crates are the study ORACLEs, retired in Stone 5).
+    // Load position: RELOCATED here (was immediately after wat/core.wat — see git history) once
+    // Stone 4's `hologram-svc::init` started calling `:wat::holon::filter-coincident` /
+    // `filter-present` / `filter-accept-any` (wat/holon.wat, defined just above) to turn its pure
+    // `HologramFilterKind` seed into the live `Fn(f64)->bool` `HolographicLru::new` needs. Those
+    // are wat `defn`s, not builtins and not defmacros — an eval-time dependency that IS
+    // order-sensitive, unlike `:wat::core::defrecord` (a defmacro, order-free via the pre-pass;
+    // Stones 1-3 had no eval-dep beyond that). `:wat::deporder::verify-stdlib` caught the
+    // violation (referencer wat/cache.wat, definer wat/holon.wat, symbols the three filter
+    // factories) when cache.wat still sat at position 2, long before holon.wat's factories
+    // existed. Sitting immediately after wat/holon.wat fixes it by construction: nothing earlier
+    // in the stdlib references `:wat::cache::` at all (verified across every prior file), so this
+    // is the earliest legal position, not merely a legal one.
+    WatSource {
+        path: "wat/cache.wat",
+        source: include_str!("../wat/cache.wat"),
     },
     // Arc 076: wat/holon/Hologram.wat removed. Hologram/get / put /
     // make / len / capacity are all substrate primitives now; the
