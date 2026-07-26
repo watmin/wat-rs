@@ -169,7 +169,7 @@ impl Hologram {
                     Value::bool(b) => b,
                     other => {
                         return Err(RuntimeError { span: span.clone(), kind: RuntimeErrorKind::MalformedForm {
-                            head: ":wat::holon::Hologram/find".into(),
+                            head: ":wat::holon::Hologram/find'".into(),
                             reason: format!(
                                 "filter returned non-bool: {}",
                                 other.type_name()

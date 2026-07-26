@@ -52,15 +52,6 @@
 (:wat::core::defn :t::def-defstruct [] -> :wat::core::String
   (:wat::edn::write (:wat::runtime::lookup-define :wat::core::defstruct)))
 
-;; ─── :wat::kernel::spawn ────────────────────────────────────────────────────
-(:wat::core::defn :t::def-spawn [] -> :wat::core::String
-  (:wat::edn::write (:wat::runtime::lookup-define :wat::kernel::spawn)))
-(:wat::core::defn :t::sig-spawn [] -> :wat::core::String
-  (:wat::edn::write (:wat::runtime::signature-of-defn :wat::kernel::spawn)))
-(:wat::core::defn :t::body-spawn [] -> :wat::core::bool
-  (:wat::core::match (:wat::runtime::body-of :wat::kernel::spawn) 
-    ((:wat::core::Some _) false) (:wat::core::None true)))
-
 ;; ─── Unknown: :wat::core::not-a-special-form — all three return None ─────────
 (:wat::core::defn :t::all-none-not-a-sf [] -> :wat::core::bool
   (:wat::core::let

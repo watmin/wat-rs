@@ -11344,8 +11344,8 @@ fn infer_aggregate_new_check(
     // Extract specific type from args[0]: expected to be a direct keyword literal.
     //
     // For the macro-expanded case, the keyword may include a type-params suffix
-    // (e.g. `:wat::kernel::Thread<I,O>`) because ~fqdn in the macro template is
-    // the raw source keyword. TypeEnv stores keys WITHOUT the suffix (":wat::kernel::Thread"),
+    // (e.g. `:wat::core::HashMap<K,V>`) because ~fqdn in the macro template is
+    // the raw source keyword. TypeEnv stores keys WITHOUT the suffix (":wat::core::HashMap"),
     // so strip `<…>` before lookup.
     //
     // We look up the CTOR SCHEME from env rather than reconstructing the type from
@@ -15975,31 +15975,11 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    env.register(
-        ":wat::holon::Hologram/find".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![hologram_ty(), holon_ty()],
-            ret: TypeExpr::Parametric {
-                head: "wat::core::Option".into(),
-                args: vec![TypeExpr::Tuple(vec![holon_ty(), holon_ty()])],
-            },
-            rest_param_type: None,
-        },
-    );
-    // Arc 278 — prime variant. `Hologram/find` (non-prime, above) is the
-    // RETIRING form: its only remaining caller is the dying oracle crate
-    // `crates/wat-holon-lru` (a workspace member + `wat-cli` battery, so its
-    // wat source is type-checked alongside EVERY `wat --check` invocation —
-    // NOT off the build path, despite the original brief's assumption). Its
-    // tuple return stays exactly as it always was so that oracle keeps
-    // compiling and `--check` stays healthy tree-wide. `find'` is the ONLY
-    // live/growing form — same params, `:wat::holon::Match` instead of the
-    // positional tuple. This is the substrate's own `send'`/`recv'`/`deftest'`
-    // pattern: build under the primed name, let the non-prime die with its
-    // last caller, then reclaim the plain `find` name once
-    // `crates/wat-holon-lru` is annihilated (the 0z drop-`'` move). Two verbs
-    // here is NOT a design — it is a retirement in progress.
+    // Arc 278 — the ONLY find. Returns `:wat::holon::Match {key value}` (the
+    // matched key AND the val) so `HolographicLru::get` can bump the matched
+    // key's LRU recency. The non-prime `Hologram/find` — a positional-tuple
+    // return kept alive solely for the oracle crate `crates/wat-holon-lru` —
+    // was annihilated with that crate.
     env.register(
         ":wat::holon::Hologram/find'".into(),
         TypeScheme {
