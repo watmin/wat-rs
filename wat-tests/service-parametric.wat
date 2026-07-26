@@ -17,22 +17,21 @@
 ;; Status/Handle family is real machinery, not just well-formed names. The handler READS the
 ;; T-typed durable field (`held <- Option<T>`) generically, so `T` is load-bearing in the state.
 ;;
-;; SCOPE (v2 — arc 278, the parametric protocol): the WIRE now carries the surface's params.
-;; `Box::Op<T>` / `Box::Reply<T>` are synthesized parametric (`synthesize_surface_protocol` hands
-;; them `surface.type_params`), and a parametric surface's `:messages` are declared parametric in
-;; EXACTLY the surface's params — here `PutRequest<T>` / `PutResponse<T>`, whose FIELDS name no T
-;; at all. That vacuous-looking `<T>` is the rule, not an accident: `wat/service.wat` derives every
-;; message type name by concatenation at EXPAND time, when the type registry is empty, so it can
-;; only re-attach the surface's own params — and the generated `::Status<T>` has ridden exactly
-;; that convention since arc 291 without naming T either. A message that carries a different param
-;; set is a located `MalformedDecl` at this declaration (the message-params lock, src/types.rs).
-;; What this file pins is unchanged: T is load-bearing in the STATE, not on the wire.
+;; SCOPE (v3 — arc 278, the surface-minted op alias stone): the surface's `:messages` are BARE
+;; again — `PutRequest` / `PutResponse` name no `T` at all, honestly. Rust mints one alias per op
+;; at the surface's REGISTRATION site (well after `expand_all`, when `:features` is actually
+;; held), named `<Surface>::<op>/Request` / `/Response`, targeting each message EXACTLY as
+;; `:features` declares it; `wat/service.wat` names that alias instead of guessing a message's
+;; arity by concatenation. The prior `v2` forced every message to spell the surface's params even
+;; vacuously (`PutRequest<T>`) because the macro could not do better — that forcing lock is
+;; retired; spell what you use. What this file pins is unchanged: T is load-bearing in the STATE,
+;; not on the wire.
 
-;; ── the surface: parametric (arc 170 C2 — a shipped capability) ─────────────────────────────
+;; ── the surface: parametric (arc 170 C2 — a shipped capability), messages bare ──────────────
 (:wat::core::defsurface :wat-tests::Box<T> :nature :wat::kernel::Peer'
   :messages
-  [(:wat::core::defrecord :wat-tests::Box::PutRequest<T> [item <- :wat::core::i64])
-   (:wat::core::defenum :wat-tests::Box::PutResponse<T> :wat::enum::Pure
+  [(:wat::core::defrecord :wat-tests::Box::PutRequest [item <- :wat::core::i64])
+   (:wat::core::defenum :wat-tests::Box::PutResponse :wat::enum::Pure
      ;; `echo` carries the handler's answer back so the round-trip asserts a VALUE, not just
      ;; "no crash": item + 1 when the generic durable holds something, item + 0 when empty.
      :Ok              [echo <- :wat::core::i64]
@@ -41,8 +40,8 @@
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(put [self <- :wat-tests::Box<T>  req <- :wat-tests::Box::PutRequest<T>]
-     -> :wat-tests::Box::PutResponse<T> :max-request-bytes 1024)])
+  [(put [self <- :wat-tests::Box<T>  req <- :wat-tests::Box::PutRequest]
+     -> :wat-tests::Box::PutResponse :max-request-bytes 1024)])
 
 ;; ── the parametric service ──────────────────────────────────────────────────────────────────
 ;; `held <- Option<T>` is the whole point: the durable record — and therefore ::State, ::Admin,

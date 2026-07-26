@@ -885,14 +885,16 @@
                             
                             empty-vec
                             (:wat::core::let
-                              ;; Arc 278 the parametric protocol — the message's type ARGS
-                              ;; re-attach (`::GetRequest<K,V>`), mirroring the surface Op
-                              ;; variant's field EXACTLY (the `derive` edge + `retag-op'` both
-                              ;; require field-for-field identity). Monomorphic ⇒ proto-tp is
-                              ;; "" ⇒ byte-identical to the bare concatenation.
+                              ;; Arc 278 the surface-minted op alias — NAME the alias Rust mints
+                              ;; at the surface's registration site (`<Surface>::<op>/Request`,
+                              ;; src/types.rs) instead of guessing the message's type name by
+                              ;; concatenation. The alias's type ARGS re-attach (`p`), mirroring
+                              ;; the surface Op variant's field EXACTLY (the `derive` edge +
+                              ;; `retag-op'` both require field-for-field identity). Monomorphic
+                              ;; ⇒ proto-tp is "" ⇒ byte-identical to the bare alias name.
                               [req-ty (:wat::core::keyword/from-string
-                                        (:wat::core::string::interpolate "{b}::{v}Request{p}"
-                                          :b proto-base :v variant-pascal :p proto-tp))]
+                                        (:wat::core::string::interpolate "{b}::{op}/Request{p}"
+                                          :b proto-base :op op-str :p proto-tp))]
                               `[req <- ~req-ty]))]
              (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
          (:wat::core::Vector :wat::WatAST)
@@ -1141,20 +1143,23 @@
                               ;; `<proto>::<Op>Request`, the same one `op-methods` builds its client
                               ;; method's `req` param from — one convention, two consumers).
                               ;;
-                              ;; Arc 278 the parametric protocol — this one stays at the BASE, and
-                              ;; deliberately. It is a RUNTIME argument (`:wat::edn::validate` reads
-                              ;; it, evaluates the registry lookup, and walks the DECLARED field
-                              ;; types), not a type position the checker reads; and inside a generic
-                              ;; `serve<K,V>` the params are erased, so re-attaching `<K,V>` would
-                              ;; hand the walker the letters `K` and `V` — no more information than
-                              ;; the bare name already carries. Either spelling reaches the same
-                              ;; place: `edn_to_typed_value` treats a type-VARIABLE position as
-                              ;; opaque and enforces every concrete field around it exactly. The
-                              ;; measured boundary is pinned in wat-tests/service-parametric-
-                              ;; messages.wat, probes (2) and (3).
+                              ;; Arc 278 the surface-minted op alias — NAME the alias Rust mints
+                              ;; (`<Surface>::<op>/Request`) instead of guessing the message's
+                              ;; name by concatenation. Stays BARE (no `<p>` suffix), and
+                              ;; deliberately: it is a RUNTIME argument (`:wat::edn::validate`
+                              ;; reads it, evaluates the registry lookup, and walks the DECLARED
+                              ;; field types), not a type position the checker reads; and inside a
+                              ;; generic `serve<K,V>` the params are erased, so re-attaching
+                              ;; `<K,V>` would hand the walker the letters `K` and `V` — no more
+                              ;; information than the bare alias name already carries.
+                              ;; `edn_to_typed_value` follows a `TypeDef::Alias` unconditionally
+                              ;; (src/edn_shim.rs) and treats a type-VARIABLE position as opaque,
+                              ;; enforcing every concrete field around it exactly. The measured
+                              ;; boundary is pinned in wat-tests/service-parametric-messages.wat,
+                              ;; probes (2) and (3).
                               req-ty-kw     (:wat::core::keyword/from-string
                                               (:wat::core::string::concat proto-base
-                                                (:wat::core::string::interpolate "::{variant-pascal}Request" :variant-pascal variant-pascal)))
+                                                (:wat::core::string::interpolate "::{op-str}/Request" :op-str op-str)))
                               rm-ctor-kw    (:wat::core::keyword/from-string
                                               (:wat::core::string::concat proto-base
                                                 (:wat::core::string::interpolate "::{variant-pascal}Response::RequestMalformed" :variant-pascal variant-pascal)))
@@ -1371,11 +1376,15 @@
                           method-name     (:wat::core::keyword/from-string
                                             (:wat::core::string::interpolate "{b}/{op-str}{p}"
                                               :b fqdn-base :op-str op-str :p fqdn-tp))
+                          ;; Arc 278 the surface-minted op alias — NAME the alias Rust mints
+                          ;; (`<Surface>::<op>/Request` / `/Response`) instead of guessing the
+                          ;; message's name by concatenation; `{p}` re-attaches the alias's own
+                          ;; type args, exactly as `method-name` above re-attaches `fqdn-tp`.
                           req-ty          (:wat::core::keyword/from-string
-                                            (:wat::core::string::interpolate "{b}::{op-pascal}Request{p}"
-                                              :b proto-base :op-pascal op-pascal :p proto-tp))
-                          resp-ty-str     (:wat::core::string::interpolate "{b}::{op-pascal}Response{p}"
-                                            :b proto-base :op-pascal op-pascal :p proto-tp)
+                                            (:wat::core::string::interpolate "{b}::{op-str}/Request{p}"
+                                              :b proto-base :op-str op-str :p proto-tp))
+                          resp-ty-str     (:wat::core::string::interpolate "{b}::{op-str}/Response{p}"
+                                            :b proto-base :op-str op-str :p proto-tp)
                           resp-ty         (:wat::core::keyword/from-string resp-ty-str)
                           ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
                           ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise). Built as
