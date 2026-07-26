@@ -10,12 +10,12 @@
 ;; `put` must mutate durable state visible to a LATER, SEPARATE `scan` call on the same store —
 ;; genuine interior mutability behind a `:wat::core::Struct`. wat has no generic mutable-cell
 ;; primitive (no `Cell`/`atom`/`swap!`); the tempting workaround — a `defstruct` holding BOTH ends
-;; of one `make-channel` pair as a single-place "MVar" — is EXPLICITLY REJECTED by the compiler's
-;; `ChannelPairDeadlock` static check (src/check.rs:2774-2837): any call site holding a `Sender<T>`
-;; and a `Receiver<T>` that trace to the same `make-channel` anchor is a hard type error ("Holding
-;; both ends of one channel in one role deadlocks any recv"). Confirmed empirically — the same
-;; shape rejected at `probe::query::MemStore` construction in a throwaway probe, span pointing at
-;; the offending constructor call.
+;; of one `make-channel` pair as a single-place "MVar" — deadlocks: a role holding both a
+;; `Sender<T>` and its paired `Receiver<T>` keeps the channel alive against its own `recv`, so the
+;; recv never wakes. A `ChannelPairDeadlock` static check once rejected this shape at compile time;
+;; that walker was RETIRED once locus became reachable only through `defservice` and brackets —
+;; the workaround is no longer detected because it is no longer constructible. The deadlock is
+;; still real; the shape simply has no way into the substrate any more.
 ;;
 ;; The sanctioned answer is `:wat::service::defservice` (wat/service.wat, arc 209/291): a spawned
 ;; actor holds durable state in its own tail-recursive `serve` loop parameter (rete's own

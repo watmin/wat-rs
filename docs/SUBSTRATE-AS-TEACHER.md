@@ -260,9 +260,11 @@ fn validate_bare_legacy_primitives(program: &Program, errors: &mut Vec<CheckErro
 ```
 
 Same recipe as arcs 110 (`CommCallOutOfPosition`), 115
-(`InnerColonInCompoundArg`), 117 (`ScopeDeadlock`). Each variant
-names its own rule. The diagnostic kind tells the truth about
-what was violated — no synthesis.
+(`InnerColonInCompoundArg`), 117 (`ScopeDeadlock` — since
+retired; the walker it named was retired along with the mistake
+it caught, which is now structurally unrepresentable). Each
+variant names its own rule. The diagnostic kind tells the truth
+about what was violated — no synthesis.
 
 **Tone for arc 109's remaining slices.** Every symbol-migration
 slice (1c, 1d, 9d, 9e, 9f-9i) gets its own dedicated variant.
@@ -302,7 +304,9 @@ and the variant name self-documents at the call site.
   parse-to-TypeExpr time.
 - `arc/2026/04/117-scope-deadlock-prevention/INSCRIPTION.md` —
   pattern 3: `ScopeDeadlock` variant + `validate_scope_deadlock`
-  walker. Closest precedent for arc 109's symbol-migration class.
+  walker (since retired — the mistake it caught is now
+  structurally unrepresentable). Was the closest precedent for
+  arc 109's symbol-migration class.
 - `src/check.rs::collect_hints` — the wiring point for Pattern 1
   / Pattern 2 hints. Pattern 3 doesn't use it — variants display
   themselves.

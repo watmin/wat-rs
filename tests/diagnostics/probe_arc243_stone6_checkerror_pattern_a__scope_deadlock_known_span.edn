@@ -1,6 +1,0 @@
-#wat.check/ScopeDeadlock {
-  :thread-binding "t"
-  :offending-binding "tx"
-  :offending-kind "Sender"
-  :span {:file "src/baz.wat" :line 7 :col 4}
-}

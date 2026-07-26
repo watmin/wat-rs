@@ -123,16 +123,6 @@ pub enum CheckErrorKind {
     /// process IPC now flows through the `spawn-program' (process)` peer model
     /// via `send'`/`recv'`/`recv-all'`.)
     CommCallOutOfPosition { callee: String },
-    /// Arc 117 — scope-deadlock: a Thread/Process binding joined while
-    /// a sibling Sender-bearing binding is still alive.
-    ///
-    /// D1: primary span was `:location` in the golden spec; normalized to `:span`
-    /// by the outer `splice_span` wrapper.
-    ScopeDeadlock {
-        thread_binding: String,
-        offending_binding: String,
-        offending_kind: &'static str,
-    },
     /// Arc 170 — Process-output-channel join-before-drain rule.
     /// Outer span = join-result call site (most-actionable).
     /// Secondary: `output_accessor_span` = conflicting output accessor call.
@@ -155,15 +145,6 @@ pub enum CheckErrorKind {
         /// Source location where `<process_identifier>` was bound.
         #[to_edn(key = "bind-location")]
         stdin_sender_span: Span,
-    },
-    /// Arc 126 — channel-pair deadlock at a function call site.
-    ///
-    /// D1: primary span was `:location`; normalized to `:span`.
-    ChannelPairDeadlock {
-        callee: String,
-        sender_arg: String,
-        receiver_arg: String,
-        pair_anchor: String,
     },
     /// Arc 109 slice 1c — bare primitive type in user code.
     ///
@@ -421,20 +402,6 @@ impl CheckErrorKind {
                 "{}{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::Result/expect`, or the value-position of `:wat::core::Option/expect`; silent disconnect must be handled at every comm call",
                 prefix, callee
             ),
-            CheckErrorKind::ScopeDeadlock {
-                thread_binding,
-                offending_binding,
-                offending_kind,
-            } => {
-                if let Some(s) = shown {
-                    write!(f, "scope-deadlock at {s}: ")?;
-                }
-                write!(
-                    f,
-                    "Thread/join-result on '{}' would block. Sibling binding '{}' (a {}) holds a Sender clone that outlives the worker; the worker's recv never sees EOF. Fix: nest the {} binding (and any other Sender clones) in an inner let whose body returns '{}' — outer scope holds only the Thread. SERVICE-PROGRAMS.md § \"The lockstep\".",
-                    thread_binding, offending_binding, offending_kind, offending_kind, thread_binding
-                )
-            }
             CheckErrorKind::ProcessJoinBeforeOutputDrain {
                 process_identifier,
                 output_accessor,
@@ -465,21 +432,6 @@ impl CheckErrorKind {
                     f,
                     "`:wat::kernel::Process/join-result {p}` blocks until the forked child exits, but `:wat::kernel::Process/stdin {p}` was never extracted from the Process handle anywhere in this `let` scope. The substrate's child has a structural StdInService (arc 170 slice 1f) blocked on `read(fd 0)` waiting for EOF. The parent holds the write-end of the child's stdin pipe via {bind_clause}. Without EOF on that pipe, the child cannot exit; parent's join blocks forever — a true deadlock. ILLEGAL STATEMENT ORIENTATION. Fix per SERVICE-PROGRAMS.md § \"The lockstep\" applied at the Process boundary: extract `:wat::kernel::Process/stdin {p}` in an INNER `let` (nested inside an outer binding before the join binding) so the Sender drops at inner-let exit before the outer join runs. The inner let should also contain the output Receivers and drain them before returning. DO NOT add a wall-clock timeout to mask this — restructure the let.",
                     p = process_identifier,
-                )
-            }
-            CheckErrorKind::ChannelPairDeadlock {
-                callee,
-                sender_arg,
-                receiver_arg,
-                pair_anchor,
-            } => {
-                if let Some(s) = shown {
-                    write!(f, "channel-pair-deadlock at {s}: ")?;
-                }
-                write!(
-                    f,
-                    "function call '{}' receives two halves of the same channel pair. Argument '{}' is a Sender<T> and argument '{}' is a Receiver<T>; both trace back to the make-channel allocation at '{}' (let binding above). Holding both ends of one channel in one role deadlocks any recv — the caller's writer keeps the channel alive even when the receiving thread dies. Fix options (per ZERO-MUTEX.md § \"Routing acks\"): 1. Pair-by-index via HandlePool — each producer pops one Handle holding ONE end of EACH of two distinct channels. 2. Embedded reply-tx in payload — caller does not bind the reply-tx; project the Sender directly into the Request.",
-                    callee, sender_arg, receiver_arg, pair_anchor
                 )
             }
             CheckErrorKind::BareLegacyPrimitive { primitive, fqdn } => {

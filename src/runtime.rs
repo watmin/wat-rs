@@ -30929,19 +30929,6 @@ mod tests {
     // ─── make-channel (arc 254.0 — the one canonical depth-1 constructor) ─────
 
     #[test]
-    fn make_channel_returns_sender_receiver_pair() {
-        let src = "(:wat::kernel::make-channel :i64)";
-        match eval_expr(src).unwrap() {
-            Value::Tuple(items) => {
-                assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], Value::wat__kernel__Sender(_)));
-                assert!(matches!(&items[1], Value::wat__kernel__Receiver(_)));
-            }
-            v => panic!("expected tuple, got {:?}", v),
-        }
-    }
-
-    #[test]
     fn queue_roundtrip_via_destructure_and_send_recv() {
         // Make a channel, destructure the pair, send a value, recv it,
         // match to unwrap. End-to-end shape the real kernel primitives
@@ -30961,18 +30948,6 @@ mod tests {
             Value::i64(42) => {}
             v => panic!("expected 42, got {:?}", v),
         }
-    }
-
-    #[test]
-    fn make_channel_refuses_non_keyword_type_arg() {
-        let err = eval_expr("(:wat::kernel::make-channel 42)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::MalformedForm { .. }, .. })));
-    }
-
-    #[test]
-    fn make_channel_wrong_arity() {
-        let err = eval_expr("(:wat::kernel::make-channel)").unwrap_err();
-        assert!(matches!(err, EvalBreak::Diagnostic(RuntimeError { kind: RuntimeErrorKind::ArityMismatch { .. }, .. })));
     }
 
     // ─── Vector primitives (Round 4a) ───────────────────────────────

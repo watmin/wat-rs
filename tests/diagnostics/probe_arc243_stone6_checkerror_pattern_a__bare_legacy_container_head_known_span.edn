@@ -1,0 +1,1 @@
+#wat.check/BareLegacyContainerHead {:head "HashMap" :fqdn "wat::core::HashMap" :span #wat.core/Span {:file "src/baz.wat" :line 7 :col 4 :end #wat.core.Option/None []}}

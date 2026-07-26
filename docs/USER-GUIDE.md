@@ -1920,10 +1920,13 @@ shutdown happens at scope-end.
 
 **Anti-pattern (deadlocks)** — `pair` is bound in the same `let` whose
 body calls `Thread/join-result`; the join blocks before `pair` falls out
-of scope, so the worker's `recv` never returns `:None`. **Arc 117 makes
-this a compile error**: the substrate detects a Sender-bearing sibling
-to a Thread at the same scope and refuses with a self-describing
-canonical-fix block.
+of scope, so the worker's `recv` never returns `:None`. **Arc 117 made
+this a compile error** (the substrate detected a Sender-bearing sibling
+to a Thread at the same scope and refused with a self-describing
+canonical-fix block) — that walker has since been retired; the mistake
+it caught is now structurally unrepresentable, so the shape below no
+longer fires the check. The nested-`let` pattern remains the correct
+shape regardless.
 
 ```scheme
 (:wat::core::let
@@ -1933,7 +1936,7 @@ canonical-fix block.
    ((thr :wat::kernel::Thread<(),i64>)
     (:wat::kernel::spawn-thread ...))
    ...)
-  (:wat::kernel::Thread/join-result thr))   ;; ← arc 117: ScopeDeadlock
+  (:wat::kernel::Thread/join-result thr))   ;; ← arc 117: ScopeDeadlock (check retired; shape still a real deadlock)
 ```
 
 **Canonical pattern (nested `let`)** — outer scope holds the
